@@ -9,6 +9,7 @@ import commands
 import ErrorCode
 import PandaSiteIDs
 from taskbuffer import ProcessGroups
+from taskbuffer.Utils import select_scope
 from dataservice import DataServiceUtils
 from dataservice.DDM import rucioAPI
 from config import panda_config
@@ -73,18 +74,18 @@ def _checkRelease(jobRels,siteRels):
 
 
 # get list of files which already exist at the site
-def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,tmpLog=None,
+def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,prodsourcelabel,tmpLog=None,
                 scopeList=None,allScopeList=None):
-    # DQ2 URL
-    dq2URL = v_ce.dq2url
-    dq2IDs = v_ce.setokens_input.values()
+
+    scope_association = select_scope(v_ce, prodsourcelabel)
+    dq2IDs = v_ce.setokens_input[scope_association].values()
     try:
         dq2IDs.remove('')
     except:
         pass
     dq2IDs.sort()
     if dq2IDs == []:
-        dq2ID = v_ce.ddm_input
+        dq2ID = v_ce.ddm_input[scope_association]
     else:
         dq2ID = ''
         for tmpID in dq2IDs:
@@ -92,7 +93,7 @@ def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,tmpLog=None,
         dq2ID = dq2ID[:-1]    
     # set LFC and SE name 
     dq2URL = 'rucio://atlas-rucio.cern.ch:/grid/atlas'
-    tmpSE = v_ce.ddm_endpoints_input.getAllEndPoints()
+    tmpSE = v_ce.ddm_endpoints_input[scope_association].getAllEndPoints()
     if tmpLog != None:
         tmpLog.debug('getOkFiles for %s with dq2ID:%s,LFC:%s,SE:%s' % (v_ce.sitename,dq2ID,dq2URL,str(tmpSE)))
     anyID = 'any'
@@ -139,9 +140,12 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog):
     allOK = True
     tmpSiteSpec = siteMapper.getSite(tmpJob.computingSite)
     tmpSrcSpec  = siteMapper.getSite(siteMapper.getCloud(tmpJob.getCloud())['source'])
-    tmpTapeEndPoints = tmpSiteSpec.ddm_endpoints_input.getTapeEndPoints()
+    scope_association_site = select_scope(tmpSiteSpec, tmpJob.prodSourceLabel)
+    scope_association_src = select_scope(tmpSrcSpec, tmpJob.prodSourceLabel)
+    tmpTapeEndPoints = tmpSiteSpec.ddm_endpoints_input[scope_association_site].getTapeEndPoints()
     # direct usage of remote SE
-    if tmpSiteSpec.ddm_input != tmpSrcSpec.ddm_input and tmpSrcSpec.ddm_input in tmpSiteSpec.setokens_input.values(): # TODO: check with Tadashi
+    if tmpSiteSpec.ddm_input[scope_association_site] != tmpSrcSpec.ddm_input[scope_association_site] \
+            and tmpSrcSpec.ddm_input[scope_association_src] in tmpSiteSpec.setokens_input[scope_association_site].values():
         tmpSiteSpec = tmpSrcSpec
         tmpLog.debug('%s uses remote SiteSpec of %s for %s' % (tmpJob.PandaID,tmpSrcSpec.sitename,tmpJob.computingSite))
     for tmpFile in tmpJob.Files:
@@ -153,7 +157,7 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog):
                 tmpFile.status = 'cached'
                 tmpFile.dispatchDBlock = 'NULL'
             elif tmpJob.computingSite == siteMapper.getCloud(tmpJob.getCloud())['source'] or \
-                    tmpSiteSpec.ddm_input == tmpSrcSpec.ddm_input:
+                    tmpSiteSpec.ddm_input[scope_association_site] == tmpSrcSpec.ddm_input[scope_association_src]:
                 # use DDM prestage only for on-tape files
                 if len(tmpTapeEndPoints) > 0 and tmpFile.lfn in okFiles:
                     tapeOnly = True
@@ -317,7 +321,7 @@ def getT2CandList(tmpJob,siteMapper,t2FilesMap):
 
 
 # get hospital queues
-def getHospitalQueues(siteMapper):
+def getHospitalQueues(siteMapper, forAnalysis):
     retMap = {}
     # hospital words
     goodWordList = ['CORE$','VL$','MEM$','MP\d+$','LONG$','_HIMEM','_\d+$']
@@ -348,8 +352,15 @@ def getHospitalQueues(siteMapper):
             if not siteMapper.checkSite(tmpSiteName):
                 continue
             tmpSiteSpec = siteMapper.getSite(tmpSiteName)
+            # the prodSourcelabel is needed to know the def-vs-anal scope of the PQ-RSE association
+            if forAnalysis:
+                prodSourceLabel = 'user'
+            else:
+                prodSourceLabel = 'managed'
+            scope_association_site = select_scope(tmpSiteSpec, prodSourceLabel)
+            scope_association_t1 = select_scope(tmpT1Spec, prodSourceLabel)
             # check DDM
-            if tmpT1Spec.ddm_input == tmpSiteSpec.ddm_input: # TODO: check with Tadashi
+            if tmpT1Spec.ddm_input[scope_association_t1] == tmpSiteSpec.ddm_input[scope_association_site]:
                 # append
                 if not retMap.has_key(tmpCloudName):
                     retMap[tmpCloudName] = []
@@ -576,7 +587,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 else:
                     jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage(minPriority=minPriority)                    
                 nRunningMap   = taskBuffer.getnRunningInSiteData()
-            hospitalQueueMap = getHospitalQueues(siteMapper)
+            hospitalQueueMap = getHospitalQueues(siteMapper, forAnalysis)
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs.sort(_compFunc)
         # brokerage for analysis 

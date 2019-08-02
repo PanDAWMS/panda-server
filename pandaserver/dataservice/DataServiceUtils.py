@@ -1,7 +1,7 @@
 import re
 import sys
 from OpenSSL import crypto
-
+from taskbuffer.Utils import select_scope
 
 # get prefix for DQ2
 def getDQ2Prefix(dq2SiteID):
@@ -308,15 +308,18 @@ def checkCertificate(certName):
 
 
 # get sites which share DDM endpoint
-def getSitesShareDDM(siteMapper,siteName):
+def getSitesShareDDM(siteMapper, siteName, prodSourceLabel):
+
     # nonexistent site
     if not siteMapper.checkSite(siteName):
         return []
     # get siteSpec
     siteSpec = siteMapper.getSite(siteName)
+    scope_site = select_scope(siteSpec, prodSourceLabel)
     # loop over all sites
     retSites = []
     for tmpSiteName,tmpSiteSpec in siteMapper.siteSpecList.iteritems():
+        scope_tmpSite = select_scope(tmpSiteSpec, prodSourceLabel)
         # only same type
         if siteSpec.type != tmpSiteSpec.type:
             continue
@@ -325,7 +328,8 @@ def getSitesShareDDM(siteMapper,siteName):
             continue
         # same endpoint
         try:
-            if siteSpec.ddm_input != tmpSiteSpec.ddm_input and siteSpec.ddm_output not in tmpSiteSpec.ddm_endpoints_input.all.keys():
+            if siteSpec.ddm_input[scope_site] != tmpSiteSpec.ddm_input[scope_tmpSite] \
+                    and siteSpec.ddm_output[scope_site] not in tmpSiteSpec.ddm_endpoints_input[scope_tmpSite].all.keys():
                 continue
         except:
             continue

@@ -10023,8 +10023,8 @@ class DBProxy:
                             ret.ddm_endpoints_output[scope] = pandaEndpointMap[siteid][scope]['output']
                     else:
                         # empty
-                        ret.ddm_endpoints_input["default"] = DdmSpec()
-                        ret.ddm_endpoints_output["default"] = DdmSpec()
+                        ret.ddm_endpoints_input['default'] = DdmSpec()
+                        ret.ddm_endpoints_output['default'] = DdmSpec()
 
                     ret.setokens_input = {}
                     ret.setokens_output = {}
@@ -10034,8 +10034,8 @@ class DBProxy:
                         ret.setokens_output[scope] = ret.ddm_endpoints_output[scope].getTokenMap('output')
                     
                         # set DDM to the default endpoint
-                        ret.ddm_input = ret.ddm_endpoints_input.getDefaultRead()
-                        ret.ddm_output = ret.ddm_endpoints_output.getDefaultWrite()
+                        ret.ddm_input = ret.ddm_endpoints_input[scope].getDefaultRead()
+                        ret.ddm_output = ret.ddm_endpoints_output[scope].getDefaultWrite()
                     
                     # object stores
                     try:

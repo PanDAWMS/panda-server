@@ -2,29 +2,20 @@ import os
 import re
 import sys
 import time
-import fcntl
-import types
-import shelve
-import random
 import datetime
 import commands
 import traceback
 import threading
-import userinterface.Client as Client
+import taskbuffer.ErrorCode
 from dataservice.DDM import rucioAPI
-from taskbuffer.OraDBProxy import DBProxy
 from taskbuffer.TaskBuffer import taskBuffer
 from taskbuffer import EventServiceUtils
+from taskbuffer.Utils import select_scope
 from pandalogger.PandaLogger import PandaLogger
-from jobdispatcher.Watcher import Watcher
 from brokerage.SiteMapper import SiteMapper
 from dataservice.Finisher import Finisher
-from dataservice.MailUtils import MailUtils
 from dataservice import DataServiceUtils
 from dataservice.Closer import Closer
-from taskbuffer import ProcessGroups
-import taskbuffer.ErrorCode
-import dataservice.DDM
 
 # password
 from config import panda_config
@@ -571,142 +562,6 @@ while True:
     if len(res) < maxRows:
         break
 
-
-# thread to delete dataset replica from T2
-class T2Cleaner (threading.Thread):
-    def __init__(self,lock,proxyLock,datasets,pool):
-        threading.Thread.__init__(self)
-        self.datasets   = datasets
-        self.lock       = lock
-        self.proxyLock  = proxyLock
-        self.pool       = pool
-        self.pool.add(self)
-                                        
-    def run(self):
-        self.lock.acquire()
-        try:
-            for vuid,name,modDate in self.datasets:
-                _logger.debug("cleanT2 %s" % name)
-                # get list of replicas
-                status,out = rucioAPI.listDatasetReplicas(name)
-                if status != 0:
-                    _logger.error(out)
-                    continue
-                else:
-                    if True:
-                        tmpRepSites = out
-                        # check if there is active subscription
-                        _logger.debug('listSubscriptions %s' % name)
-                        subStat,subOut = rucioAPI.listSubscriptions(name)
-                        if not subStat:
-                            _logger.error("cannot get subscriptions for %s" % name) 
-                            _logger.error(subOut)
-                        _logger.debug('subscriptions for %s = %s' % (name,subOut))
-                        # active subscriotions
-                        if len(subOut) > 0:
-                            _logger.debug("wait %s due to active subscription" % name)
-                            continue
-                        # check cloud
-                        self.proxyLock.acquire()
-                        proxyS = taskBuffer.proxyPool.getProxy()
-                        destSE,destDBlockToken = proxyS.getDestSEwithDestDBlock(name)
-                        taskBuffer.proxyPool.putProxy(proxyS)
-                        self.proxyLock.release()
-                        cloudName = None
-                        if siteMapper.checkSite(destSE):
-                            cloudName = siteMapper.getSite(destSE).cloud
-                        # cloud is not found
-                        if cloudName == None:        
-                            _logger.error("cannot find cloud for %s : %s" % (name,str(tmpRepSites)))
-                        else:
-                            _logger.debug('cloud=%s for %s' % (cloudName,name))
-                            t1SiteDDMs  = siteMapper.getSite(destSE).setokens_output.values() # TODO: check with Tadashi
-                            specifiedDest = DataServiceUtils.getDestinationSE(destDBlockToken)
-                            if specifiedDest != None:
-                                t1SiteDDMs.append(specifiedDest)
-                            # look for T2 IDs
-                            t2DDMs = []
-                            for tmpDDM in tmpRepSites.keys():
-                                if not tmpDDM in t1SiteDDMs:
-                                    # check home cloud
-                                    notDeleteFlag = False
-                                    for tmpT2siteID,tmpT2siteSpec in siteMapper.siteSpecList.iteritems():
-                                        if tmpT2siteSpec.ddm == tmpDDM:
-                                            # not delete if src and dest are in US. OSG is regarded as US due to tier1
-                                            if tmpT2siteSpec.cloud in ['US'] and cloudName in ['US','OSG']:
-                                                notDeleteFlag = True
-                                    if not notDeleteFlag:            
-                                        t2DDMs.append(tmpDDM)
-                            # delete replica for sub
-                            if re.search('_sub\d+$',name) != None and t2DDMs != []:
-                                setMetaFlag = True
-                                _logger.debug(('deleteDatasetReplicas',name,t2DDMs))
-                                status,out = rucioAPI.deleteDatasetReplicas(name,t2DDMs)
-                                if not status:
-                                    _logger.error(out)
-                                    continue
-                            else:
-                                _logger.debug('no delete for %s due to empty target in %s' % (name,listOut))
-                    # update        
-                    self.proxyLock.acquire()
-                    varMap = {}
-                    varMap[':vuid'] = vuid
-                    varMap[':status'] = 'completed' 
-                    taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:status,modificationdate=CURRENT_DATE WHERE vuid=:vuid",
-                                         varMap)
-                    self.proxyLock.release()                            
-                _logger.debug("end %s " % name)
-        except:
-            pass
-        self.pool.remove(self)
-        self.lock.release()
-
-"""                            
-# delete dataset replica from T2
-_logger.debug("==== delete datasets from T2 ====")
-timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
-timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=3)
-t2cleanLock = threading.Semaphore(5)
-t2cleanProxyLock = threading.Lock()
-t2cleanThreadPool = ThreadPool()
-maxRows = 100000
-while True:
-    # lock
-    t2cleanLock.acquire()
-    # get datasets
-    varMap = {}
-    varMap[':modificationdateU'] = timeLimitU
-    varMap[':modificationdateL'] = timeLimitL    
-    varMap[':type']   = 'output'
-    varMap[':status'] = 'cleanup'
-    sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= %s" % maxRows   
-    t2cleanProxyLock.acquire()
-    proxyS = taskBuffer.proxyPool.getProxy()
-    res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
-    taskBuffer.proxyPool.putProxy(proxyS)
-    if res == None:
-        _logger.debug("# of datasets to be deleted from T2: %s" % res)
-    else:
-        _logger.debug("# of datasets to be deleted from T2: %s" % len(res))
-    if res==None or len(res)==0:
-        t2cleanProxyLock.release()
-        t2cleanLock.release()
-        break
-    t2cleanProxyLock.release()            
-    # release
-    t2cleanLock.release()
-    # run t2cleanr
-    iRows = 0
-    nRows = 500
-    while iRows < len(res):
-        t2cleanr = T2Cleaner(t2cleanLock,t2cleanProxyLock,res[iRows:iRows+nRows],t2cleanThreadPool)
-        t2cleanr.start()
-        iRows += nRows
-    t2cleanThreadPool.join()
-    if len(res) < maxRows:
-        break
-"""
-
 # delete dis datasets
 class EraserThr (threading.Thread):
     def __init__(self,lock,proxyLock,datasets,pool,operationType):
@@ -839,7 +694,8 @@ class FinisherThr (threading.Thread):
                     else:
                         tmpDstID = job.destinationSE
                     tmpDstSite = siteMapper.getSite(tmpDstID)
-                    seList = tmpDstSite.ddm_endpoints_output.getLocalEndPoints()
+                    scope = select_scope(tmpDstSite, job.prodSourceLabel)
+                    seList = tmpDstSite.ddm_endpoints_output[scope].getLocalEndPoints()
                 # get LFN list
                 lfns   = []
                 guids  = []
@@ -985,7 +841,7 @@ class ActivatorThr (threading.Thread):
         self.proxyLock  = proxyLock
         self.pool       = pool
         self.pool.add(self)
-                                        
+
     def run(self):
         self.lock.acquire()
         try:
@@ -1008,13 +864,14 @@ class ActivatorThr (threading.Thread):
                         lfns.append(tmpFile.lfn)
                         scopes.append(tmpFile.scope)
                 # get file replicas
-                _logger.debug("%s check input files at %s" % (tmpJob.PandaID,tmpJob.computingSite))
+                _logger.debug("%s check input files at %s" % (tmpJob.PandaID, tmpJob.computingSite))
                 tmpStat,okFiles = rucioAPI.listFileReplicas(scopes,lfns)
                 if not tmpStat:
                     pass
                 else:
                     # check if locally available
                     siteSpec = siteMapper.getSite(tmpJob.computingSite)
+                    scope = select_scope(siteSpec, tmpJob.prodSourceLabel)
                     allOK = True
                     for tmpFile in tmpJob.Files:
                         # only input
@@ -1022,8 +879,8 @@ class ActivatorThr (threading.Thread):
                             # check RSEs
                             if tmpFile.lfn in okFiles:
                                 for rse in okFiles[tmpFile.lfn]:
-                                    if siteSpec.ddm_endpoints_input.isAssociated(rse) and \
-                                            siteSpec.ddm_endpoints_input.getEndPoint(rse)['is_tape'] == 'N':
+                                    if siteSpec.ddm_endpoints_input[scope].isAssociated(rse) and \
+                                            siteSpec.ddm_endpoints_input[scope].getEndPoint(rse)['is_tape'] == 'N':
                                         tmpFile.status = 'ready'
                                         break
                             # missing
@@ -1104,6 +961,7 @@ class ActivatorWithRuleThr (threading.Thread):
                     continue
                 # check if locally available
                 siteSpec = siteMapper.getSite(tmpJob.computingSite)
+                scope = select_scope(siteSpec, tmpJob.prodSourceLabel)
                 allOK = True
                 for tmpFile in tmpJob.Files:
                     # only input files are checked
@@ -1116,8 +974,8 @@ class ActivatorWithRuleThr (threading.Thread):
                             replicaMap[tmpFile.dispatchDBlock] = repMap
                         # check RSEs
                         for rse, repInfo in replicaMap[tmpFile.dispatchDBlock].iteritems():
-                            if siteSpec.ddm_endpoints_input.isAssociated(rse) and \
-                                    siteSpec.ddm_endpoints_input.getEndPoint(rse)['is_tape'] == 'N' and \
+                            if siteSpec.ddm_endpoints_input[scope].isAssociated(rse) and \
+                                    siteSpec.ddm_endpoints_input[scope].getEndPoint(rse)['is_tape'] == 'N' and \
                                     repInfo[0]['total'] == repInfo[0]['found'] and repInfo[0]['total'] is not None:
                                 tmpFile.status = 'ready'
                                 break
