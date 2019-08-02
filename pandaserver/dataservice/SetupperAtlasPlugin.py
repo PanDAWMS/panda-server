@@ -13,12 +13,12 @@ import traceback
 import ErrorCode
 from DDM import rucioAPI
 from taskbuffer.DatasetSpec import DatasetSpec
-from taskbuffer.Utils import select_scope
 from taskbuffer import EventServiceUtils
 from taskbuffer import JobUtils
 from brokerage.SiteMapper import SiteMapper
 import brokerage.broker
 import DataServiceUtils
+from dataservice.DataServiceUtils import select_scope
 from rucio.common.exception import FileAlreadyExists, DataIdentifierAlreadyExists, Duplicate, DataIdentifierNotFound
 
 from SetupperPluginBase import SetupperPluginBase

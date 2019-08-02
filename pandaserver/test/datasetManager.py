@@ -10,11 +10,11 @@ import taskbuffer.ErrorCode
 from dataservice.DDM import rucioAPI
 from taskbuffer.TaskBuffer import taskBuffer
 from taskbuffer import EventServiceUtils
-from taskbuffer.Utils import select_scope
 from pandalogger.PandaLogger import PandaLogger
 from brokerage.SiteMapper import SiteMapper
 from dataservice.Finisher import Finisher
 from dataservice import DataServiceUtils
+from dataservice.DataServiceUtils import select_scope
 from dataservice.Closer import Closer
 
 # password

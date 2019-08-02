@@ -42,7 +42,6 @@ from Utils import create_shards
 from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
 from config import panda_config
-from brokerage.PandaSiteIDs import PandaSiteIDs
 from SupErrors import SupErrors
 from __builtin__ import True
 

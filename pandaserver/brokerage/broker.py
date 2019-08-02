@@ -9,7 +9,7 @@ import commands
 import ErrorCode
 import PandaSiteIDs
 from taskbuffer import ProcessGroups
-from taskbuffer.Utils import select_scope
+from dataservice.DataServiceUtils import select_scope
 from dataservice import DataServiceUtils
 from dataservice.DDM import rucioAPI
 from config import panda_config

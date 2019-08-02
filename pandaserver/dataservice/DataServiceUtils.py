@@ -1,7 +1,6 @@
 import re
 import sys
 from OpenSSL import crypto
-from taskbuffer.Utils import select_scope
 
 # get prefix for DQ2
 def getDQ2Prefix(dq2SiteID):
@@ -434,3 +433,15 @@ def cleanupDN(realDN):
     tmpRealDN = re.sub('/CN=limited proxy','',realDN)
     tmpRealDN = re.sub('/CN=proxy','',tmpRealDN)
     return tmpRealDN
+
+
+def select_scope(site_spec, prodsourcelabel):
+    """
+    Select the scope of the activity. The scope was introduced for prod-analy queues where you might want
+    to associate different RSEs depending on production or analysis.
+    """
+    scopes = site_spec.ddm_endpoints_input.keys()
+    if prodsourcelabel == 'user' and 'analysis' in scopes:
+        return 'analysis'
+    else:
+        return 'default'

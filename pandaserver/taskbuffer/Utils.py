@@ -596,15 +596,3 @@ def create_shards(input_list, size):
 
     if i > 0:
         yield shard
-
-
-def select_scope(site_spec, prodsourcelabel):
-    """
-    Select the scope of the activity. The scope was introduced for prod-analy queues where you might want
-    to associate different RSEs depending on production or analysis.
-    """
-    scopes = site_spec.ddm_endpoints_input.keys()
-    if prodsourcelabel == 'user' and 'analysis' in scopes:
-        return 'analysis'
-    else:
-        return 'default'
