@@ -757,7 +757,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 srcDQ2ID = scope_srcSite.ddm_output[scope_srcSite]
                 # destination
                 tmpDstID = job.computingSite
-                tmpSiteSpec self.siteMapper.getSite(job.computingSite)
+                tmpSiteSpec = self.siteMapper.getSite(job.computingSite)
                 scope_tmpSite = select_scope(tmpSiteSpec, job.prodSourceLabel)
                 if srcDQ2ID != tmpSiteSpec.ddm_input[scope_tmpSite] and \
                        srcDQ2ID in tmpSiteSpec.setokens_input[scope_tmpSite].values():
