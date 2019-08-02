@@ -17,13 +17,14 @@ class NucleusSpec(object):
 
 
     # add 
-    def add(self,siteName,ddmSpec):
+    def add(self,siteName,ddmSpecDict):
         if not siteName in self.allPandaSites:
             self.allPandaSites.append(siteName)
             # add local endpoints
-            for localEndPoint in ddmSpec.getLocalEndPoints():
-                if not localEndPoint in self.allDdmEndPoints:
-                    self.allDdmEndPoints[localEndPoint] = ddmSpec.getEndPoint(localEndPoint)
+            for scope, ddmSpec in ddmSpecDict.iteritems():
+                for localEndPoint in ddmSpec.getLocalEndPoints():
+                    if not localEndPoint in self.allDdmEndPoints:
+                        self.allDdmEndPoints[localEndPoint] = ddmSpec.getEndPoint(localEndPoint)
 
 
 
