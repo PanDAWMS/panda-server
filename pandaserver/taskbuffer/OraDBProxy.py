@@ -15027,7 +15027,7 @@ class DBProxy:
                 # sql to lock the file
                 sqlLIF = "SELECT status FROM {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
                 sqlLIF += 'WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID '
-                sqlLIF += 'FOR UPDATE '
+                sqlLIF += 'FOR UPDATE NOWAIT '
                 varMap = dict()
                 varMap[':jediTaskID'] = lockFileSpec.jediTaskID
                 varMap[':datasetID'] = lockFileSpec.datasetID
