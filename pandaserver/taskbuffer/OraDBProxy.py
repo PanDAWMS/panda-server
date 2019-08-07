@@ -1641,7 +1641,20 @@ class DBProxy:
                     varMap[':PandaID'] = job.PandaID
                     self.cur.execute(sql0+comment, varMap)
                     res0 = self.cur.fetchone()
-
+                # check input status for ES merge
+                if useJEDI and EventServiceUtils.isEventServiceMerge(job) and job.jobStatus == 'finished':
+                    retInputStat = self.checkInputFileStatusInJEDI(job, useCommit=False, withLock=True)
+                    _logger.debug("archiveJob : {0} checkInput for ES merge -> {1}".format(job.PandaID, retInputStat))
+                    if retInputStat is None:
+                        raise RuntimeError, "archiveJob : {0} failed to check input".format(job.PandaID)
+                    if retInputStat is False:
+                        _logger.debug("archiveJob : {0} set jobStatus=failed due to inconsisten input".format(job.PandaID))
+                        job.jobStatus = 'failed'
+                        job.taskBufferErrorCode = ErrorCode.EC_EventServiceInconsistentIn
+                        job.taskBufferErrorDiag = "inconsistent file status between Panda and JEDI"
+                        for fileSpec in job.Files:
+                            if fileSpec.type in ['output','log']:
+                                fileSpec.status = 'failed'
                 # actions for jobs without tasks
                 if not useJEDI:
                     # update HS06sec for non-JEDI jobs (e.g. HC)
@@ -17264,7 +17277,7 @@ class DBProxy:
 
 
     # check input file status 
-    def checkInputFileStatusInJEDI(self,jobSpec):
+    def checkInputFileStatusInJEDI(self, jobSpec, useCommit=True, withLock=False):
         comment = ' /* DBProxy.checkInputFileStatusInJEDI */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PandaID={0}>".format(jobSpec.PandaID)
@@ -17277,8 +17290,11 @@ class DBProxy:
             # sql to check file status
             sqlFileStat  = "SELECT status,attemptNr,keepTrack,is_waiting FROM ATLAS_PANDA.JEDI_Dataset_Contents "
             sqlFileStat += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+            if withLock:
+                sqlFileStat += "FOR UPDATE NOWAIT "
             # begin transaction
-            self.conn.begin()
+            if useCommit:
+                self.conn.begin()
             # get dataset
             sqlPD = "SELECT datasetID FROM ATLAS_PANDA.JEDI_Datasets "
             sqlPD += "WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) AND masterID IS NULL "
@@ -17339,13 +17355,15 @@ class DBProxy:
                         allOK = False
                         break
             # commit
-            if not self._commit():
-                raise RuntimeError, 'Commit error'
+            if useCommit:
+                if not self._commit():
+                    raise RuntimeError, 'Commit error'
             tmpLog.debug("done with {0}".format(allOK))
             return allOK
         except:
-            # roll back
-            self._rollback()
+            if useCommit:
+                # roll back
+                self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
             return None
