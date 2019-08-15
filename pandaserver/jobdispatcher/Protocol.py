@@ -1,5 +1,4 @@
 import re
-import sys
 import json
 import urllib
 from taskbuffer import EventServiceUtils
@@ -109,7 +108,7 @@ class Response:
         if siteMapperCache != None:
             siteMapper = siteMapperCache.getObj()
             siteSpec = siteMapper.getSite(job.computingSite)
-            # resove destSE
+            # resolve destSE
             try:
                 job.destinationSE = siteMapper.resolveNucleus(job.destinationSE)
                 for tmpFile in job.Files:
@@ -147,7 +146,8 @@ class Response:
                     else:
                         strCheckSum += '%s,' % file.md5sum
                     strScopeIn += '%s,' % file.scope
-                    ddmEndPointIn.append(self.getDdmEndpoint(siteSpec,file.dispatchDBlockToken, 'input'))
+                    ddmEndPointIn.append(self.getDdmEndpoint(siteSpec,file.dispatchDBlockToken, 'input',
+                                                             job.prodSourceLabel))
                     if not file.dataset in inDsLfnMap:
                         inDsLfnMap[file.dataset] = []
                     inDsLfnMap[file.dataset].append(file.lfn)
@@ -173,7 +173,8 @@ class Response:
                 strDestToken += re.sub('^ddd:','dst:',file.destinationDBlockToken.split(',')[0])
                 strDisTokenForOutput += '%s,' % file.dispatchDBlockToken
                 strProdTokenForOutput += '%s,' % file.prodDBlockToken
-                ddmEndPointOut.append(self.getDdmEndpoint(siteSpec,file.destinationDBlockToken.split(',')[0], 'output'))
+                ddmEndPointOut.append(self.getDdmEndpoint(siteSpec,file.destinationDBlockToken.split(',')[0], 'output',
+                                                          job.prodSourceLabel))
                 if file.isAllowedNoOutput():
                     noOutput.append(file.lfn)
         # inFiles
@@ -353,7 +354,8 @@ class Response:
 
 
     # get ddm endpoint
-    def getDdmEndpoint(self,siteSpec,spaceToken, mode):
+    def getDdmEndpoint(self,siteSpec,spaceToken, mode, prodSourceLabel):
+        scope = DataServiceUtils.select_scope(siteSpec, prodSourceLabel)
         if siteSpec == None or mode not in ['input', 'output']:
             return ''
         endPoint = DataServiceUtils.getDestinationSE(spaceToken)
@@ -363,11 +365,11 @@ class Response:
         if endPoint != None:
             return endPoint
         if mode == 'input':
-            setokens = siteSpec.setokens_input
-            ddm = siteSpec.ddm_input
+            setokens = siteSpec.setokens_input[scope]
+            ddm = siteSpec.ddm_input[scope]
         elif mode == 'output':
-            setokens = siteSpec.setokens_output
-            ddm = siteSpec.ddm_output
+            setokens = siteSpec.setokens_output[scope]
+            ddm = siteSpec.ddm_output[scope]
         if spaceToken in setokens:
             return setokens[spaceToken]
 

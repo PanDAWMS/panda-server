@@ -11,7 +11,6 @@ import datetime
 import cPickle as pickle
 import stomp
 
-from dq2.common import log as logging
 from config import panda_config
 from brokerage.SiteMapper import SiteMapper
 from dataservice.Finisher import Finisher
@@ -109,12 +108,13 @@ class FileCallbackListener(stomp.ConnectionListener):
                 if not dsToken in ['',None] and ',' in dsToken:
                     _logger.debug('%s ignore ds=%s token=%s' % (lfn,dsName,dsToken))
                     continue
+
                 # check site
                 tmpSiteSpec = self.siteMapper.getSite(pandaSite)
-                if re.search('_dis\d+$',dsName) != None:
+                if re.search('_dis\d+$',dsName) is not None:
                     setokens = tmpSiteSpec.setokens_input
                     ddm = tmpSiteSpec.ddm_input
-                elif re.search('_sub\d+$',dsName) != None:
+                elif re.search('_sub\d+$',dsName) is not None:
                     setokens = tmpSiteSpec.setokens_output
                     ddm = tmpSiteSpec.ddm_output
                 if dsToken in setokens:

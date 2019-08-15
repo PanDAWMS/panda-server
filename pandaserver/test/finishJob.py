@@ -1,13 +1,14 @@
 import os
 import re
 import sys
-import urllib2,urllib
+import urllib
 from dq2.info import TiersOfATLAS
 
 import userinterface.Client as Client
 from userinterface.Client import baseURLSSL
 
 from taskbuffer.TaskBuffer import taskBuffer
+from dataservice.DataServiceUtils import select_scope
 from brokerage.SiteMapper import SiteMapper
 from config import panda_config
 
@@ -48,15 +49,16 @@ if job.computingSite in ['',None,'NULL']:
     sys.exit(0)
 
 siteSpec = siteMapper.getSite(job.computingSite)
+scope = select_scope(siteSpec, job.prodSourceLabel)
 
 for file in job.Files:
     if file.type in ['output','log']:
         file.GUID = commands.getoutput('uuidgen')
         if job.computingSite == file.destinationSE and \
-                siteSpec.setokens_output.has_key(file.destinationDBlockToken):
-            tmpSrcDDM = siteSpec.setokens_output[file.destinationDBlockToken]
+                siteSpec.setokens_output[scope].has_key(file.destinationDBlockToken):
+            tmpSrcDDM = siteSpec.setokens_output[scope][file.destinationDBlockToken]
         else:
-            tmpSrcDDM = siteMapper.getSite(job.computingSite).ddm_output
+            tmpSrcDDM = siteSpec.ddm_output[scope]
         srm = TiersOfATLAS.getSiteProperty(tmpSrcDDM,'srm')
         srm = re.sub('^token:[^:]+:','',srm)
         xml += """

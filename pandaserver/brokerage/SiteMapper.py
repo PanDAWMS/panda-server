@@ -3,6 +3,7 @@ import sys
 import copy
 import traceback
 from config import panda_config
+from dataservice.DataServiceUtils import select_scope
 
 # logger
 from pandalogger.PandaLogger import PandaLogger
@@ -19,8 +20,8 @@ defSite = SiteSpec()
 defSite.sitename   = panda_config.def_sitename
 defSite.nickname   = panda_config.def_nickname
 defSite.dq2url     = panda_config.def_dq2url
-defSite.ddm_input  = panda_config.def_ddm
-defSite.ddm_output = panda_config.def_ddm
+defSite.ddm_input  = {'default': panda_config.def_ddm}
+defSite.ddm_output = {'default': panda_config.def_ddm}
 defSite.type       = panda_config.def_type
 defSite.gatekeeper = panda_config.def_gatekeeper
 defSite.status     = panda_config.def_status
@@ -332,13 +333,14 @@ class SiteMapper:
 
 
     # get ddm point
-    def getDdmEndpoint(self,siteID,storageToken):
+    def getDdmEndpoint(self, siteID, storageToken, prodSourceLabel):
         if not self.checkSite(siteID):
             return None
         siteSpec =  self.getSite(siteID)
-        if storageToken in siteSpec.setokens_output:
-            return siteSpec.setokens_output[storageToken]
-        return siteSpec.ddm_output # TODO: confirm with Tadashi
+        scope = select_scope(siteSpec, prodSourceLabel)
+        if storageToken in siteSpec.setokens_output[scope]:
+            return siteSpec.setokens_output[scope][storageToken]
+        return siteSpec.ddm_output[scope]
 
 
 

@@ -332,8 +332,9 @@ def getHospitalQueues(siteMapper, forAnalysis):
         # get T1
         tmpT1Name = tmpCloudSpec['source']
         tmpT1Spec = siteMapper.getSite(tmpT1Name)
+        scope_association_t1 = select_scope(tmpT1Spec, prodSourceLabel)
         # skip if DDM is undefined
-        if tmpT1Spec.ddm_input == []:
+        if not tmpT1Spec.ddm_input[scope_association_t1]:
             continue
         # loop over all sites
         for tmpSiteName in tmpCloudSpec['sites']:
@@ -358,7 +359,6 @@ def getHospitalQueues(siteMapper, forAnalysis):
             else:
                 prodSourceLabel = 'managed'
             scope_association_site = select_scope(tmpSiteSpec, prodSourceLabel)
-            scope_association_t1 = select_scope(tmpT1Spec, prodSourceLabel)
             # check DDM
             if tmpT1Spec.ddm_input[scope_association_t1] == tmpSiteSpec.ddm_input[scope_association_site]:
                 # append
@@ -372,15 +372,21 @@ def getHospitalQueues(siteMapper, forAnalysis):
 
 
 # get prestage sites
-def getPrestageSites(siteMapper):
+def getPrestageSites(siteMapper, forAnalysis):
     # disable PandaMover
     return []
+
+    prodsourcelabel = 'managed'
+    if forAnalysis:
+        prodsourcelabel = 'user'
+
     retList = []
     # get cloud
     tmpCloudSpec = siteMapper.getCloud('US')
     # get T1
     tmpT1Name = tmpCloudSpec['source']
     tmpT1Spec = siteMapper.getSite(tmpT1Name)
+    scope_T1 = select_scope(tmpT1Spec, prodsourcelabel)
     # loop over all sites
     for tmpSiteName in tmpCloudSpec['sites']:
         # check site
@@ -388,8 +394,9 @@ def getPrestageSites(siteMapper):
             continue
         # get spec
         tmpSiteSpec = siteMapper.getSite(tmpSiteName)
+        scope_tmpSite = select_scope(tmpSiteSpec, prodsourcelabel)
         # add if DDM is the same as T1
-        if tmpT1Spec.ddm_input == tmpSiteSpec.ddm_input and not tmpSiteName in retList:
+        if tmpT1Spec.ddm_input[scope_T1] == tmpSiteSpec.ddm_input[scope_tmpSite] and not tmpSiteName in retList:
             retList.append(tmpSiteName)
     _log.debug('US prestage sites : %s' % str(retList))            
     # return
@@ -552,7 +559,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         manyInputsThr     = 20
         weightUsedByBrokerage = {}
 
-        prestageSites = getPrestageSites(siteMapper)
+        prestageSites = getPrestageSites(siteMapper, forAnalysis)
 
         # check if only JEDI
         onlyJEDI = True

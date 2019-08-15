@@ -6,22 +6,20 @@ add data to dataset
 import os
 import re
 import sys
-import time
-import copy
 import fcntl
 import datetime
-import commands
 import traceback
+
 import brokerage.broker
 from dataservice import DynDataDistributer
 from dataservice.MailUtils import MailUtils
 from dataservice.Notifier import Notifier
+from dataservice.DDM import rucioAPI
+from dataservice.DataServiceUtils import select_scope
+
 from taskbuffer.JobSpec import JobSpec
 from userinterface import Client
 
-from dataservice.DDM import rucioAPI
-
-from config import panda_config
 from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
 
@@ -276,7 +274,9 @@ class EventPicker:
                         if not tmpStatus:
                             raise RuntimeError,'user info not found for {0} with {1}'.format(tmpDN,userInfo)
                         tmpDN = userInfo['nickname']
-                        tmpDQ2ID = self.siteMapper.getSite(tmpJob.computingSite).ddm_input
+                        tmpSiteSpec = self.siteMapper.getSite(tmpJob.computingSite)
+                        scope = select_scope(tmpSiteSpec, 'user')
+                        tmpDQ2ID = tmpSiteSpec.ddm_input[scope]
                         tmpMsg = "%s ds=%s site=%s id=%s" % ('registerDatasetLocation for DaTRI ',
                                                              tmpUserDatasetName,
                                                              tmpDQ2ID,

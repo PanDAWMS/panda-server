@@ -29,8 +29,8 @@ def isCachedFile(datasetName,siteSpec):
 
 
 # get the list of sites where dataset is available
-def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=False,getDQ2ID=False,
-                        useOnlineSite=False,includeT1=False):
+def getSitesWithDataset(tmpDsName, siteMapper, replicaMap, cloudKey, prodSourceLabel, useHomeCloud=False, getDQ2ID=False,
+                        useOnlineSite=False, includeT1=False):
     retList = []
     retDQ2Map = {}
     # no replica map
@@ -45,13 +45,17 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
         return retList
     # check sites in the cloud
     for tmpSiteName in siteMapper.getCloud(cloudKey)['sites']:
+        tmpSiteSpec = siteMapper.getSite(tmpSiteName)
+        scopeSiteSpec = select_scope(tmpSiteSpec, prodSourceLabel)
         # skip T1
         if not includeT1:
             # T1
             if tmpSiteName == siteMapper.getCloud(cloudKey)['source']:
                 continue
             # hospital queue
-            if siteMapper.getSite(tmpSiteName).ddm_input == siteMapper.getSite(siteMapper.getCloud(cloudKey)['source']).ddm_input:
+            tmpSrcSpec = siteMapper.getSite(siteMapper.getCloud(cloudKey)['source'])
+            scopeSrcSpec = select_scope(tmpSrcSpec, prodSourceLabel)
+            if tmpSiteSpec.ddm_input[scopeSiteSpec] == siteMapper.getSite(siteMapper.getCloud(cloudKey)['source']).ddm_input[scopeSrcSpec]:
                 continue
         # use home cloud
         if useHomeCloud:
@@ -62,13 +66,12 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
             continue
         # check all associated DQ2 IDs
         tmpFoundFlag = False
-        tmpSiteSpec = siteMapper.getSite(tmpSiteName)
 
         # skip misconfigured sites
-        if not tmpSiteSpec.ddm_input and not tmpSiteSpec.setokens_input.values():
+        if not tmpSiteSpec.ddm_inputp[scopeSiteSpec] and not tmpSiteSpec.setokens_input[scopeSiteSpec].values():
             continue
 
-        for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input]+tmpSiteSpec.setokens_input.values():
+        for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input[scopeSiteSpec]]+tmpSiteSpec.setokens_input[scopeSiteSpec].values():
             # prefix of DQ2 ID
             tmpDQ2IDPrefix = getDQ2Prefix(tmpSiteDQ2ID)
             # ignore empty
@@ -105,104 +108,6 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
         return retDQ2Map
     # retrun
     return retList
-
-
-# get the number of files available at the site
-def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap,additionalSEs=[],
-                             noCheck=[],fileCounts=None):
-    try:
-        # get DQ2 endpoints 
-        tmpSiteSpec = siteMapper.getSite(siteName)
-        prefixList = []
-        for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input]+tmpSiteSpec.setokens_input.values():
-            # prefix of DQ2 ID
-            tmpDQ2IDPrefix = getDQ2Prefix(tmpSiteDQ2ID)
-            # ignore empty
-            if tmpDQ2IDPrefix != '':
-                prefixList.append(tmpDQ2IDPrefix)
-        # loop over datasets
-        totalNum = 0
-        for tmpDsName,tmpSitesData in replicaMap.iteritems():
-            # cached files
-            if isCachedFile(tmpDsName,tmpSiteSpec) and fileCounts != None and \
-               fileCounts.has_key(tmpDsName):
-                # add with no check
-                totalNum += fileCounts[tmpDsName]
-                continue
-            # dataset type
-            datasetType = getDatasetType(tmpDsName)
-            # use total num to effectively skip file availability check
-            if datasetType in noCheck:
-                columnName = 'total'
-            else:
-                columnName = 'found'
-            # get num of files
-            maxNumFile = 0
-            # for T1 or T2
-            if additionalSEs != []:
-                # check T1 endpoints
-                for tmpSePat in additionalSEs:
-                    # ignore empty
-                    if tmpSePat == '':
-                        continue
-                    # make regexp pattern
-                    if '*' in tmpSePat:
-                        tmpSePat = tmpSePat.replace('*','.*')
-                    tmpSePat = '^' + tmpSePat +'$'
-                    # loop over all sites
-                    for tmpSE in tmpSitesData.keys():
-                        # skip bad metadata
-                        if badMetaMap.has_key(tmpDsName) and tmpSE in badMetaMap[tmpDsName]:
-                            continue
-                        # check match
-                        if re.search(tmpSePat,tmpSE) == None:
-                            continue
-                        # get max num of files
-                        tmpN = tmpSitesData[tmpSE][0][columnName]                            
-                        if tmpN != None and tmpN > maxNumFile:
-                            maxNumFile = tmpN
-            else:
-                # check explicit endpoint name
-                for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input]+tmpSiteSpec.setokens_input.values():
-                    # skip bad metadata
-                    if badMetaMap.has_key(tmpDsName) and tmpSiteDQ2ID in badMetaMap[tmpDsName]:
-                        continue
-                    # ignore empty
-                    if tmpSiteDQ2ID == '':
-                        continue
-                    # get max num of files
-                    if tmpSitesData.has_key(tmpSiteDQ2ID):
-                        tmpN = tmpSitesData[tmpSiteDQ2ID][0][columnName]
-                        if tmpN != None and tmpN > maxNumFile:
-                            maxNumFile = tmpN
-                # check prefix
-                for tmpDQ2IDPrefix in prefixList:
-                    for tmpDQ2ID,tmpStat in tmpSitesData.iteritems():
-                        # skip bad metadata
-                        if badMetaMap.has_key(tmpDsName) and tmpDQ2ID in badMetaMap[tmpDsName]:
-                            continue
-                        # ignore NG
-                        if     '_SCRATCHDISK'    in tmpDQ2ID or \
-                               '_USERDISK'       in tmpDQ2ID or \
-                               '_PRODDISK'       in tmpDQ2ID or \
-                               '_LOCALGROUPDISK' in tmpDQ2ID or \
-                               '_LOCALGROUPTAPE' in tmpDQ2ID or \
-                               '_DAQ'            in tmpDQ2ID or \
-                               '_TMPDISK'        in tmpDQ2ID or \
-                               '_TZERO'          in tmpDQ2ID:
-                            continue
-                        # check prefix
-                        if tmpDQ2ID.startswith(tmpDQ2IDPrefix):
-                            tmpN = tmpSitesData[tmpDQ2ID][0][columnName]
-                            if tmpN != None and tmpN > maxNumFile:
-                                maxNumFile = tmpN
-            # sum
-            totalNum += maxNumFile
-        # return
-        return True,totalNum
-    except:
-        errtype,errvalue = sys.exc_info()[:2]
-        return False,'%s:%s' % (errtype,errvalue) 
 
 
 # get the list of sites where dataset is available
@@ -254,33 +159,6 @@ def checkInvalidCharacters(datasetName):
     if re.match("^[A-Za-z0-9][A-Za-z0-9\.\-\_/]{1,255}$",datasetName) != None:
         return True
     return False
-
-
-# get the list of sites in a cloud which cache a dataset
-def getSitesWithCacheDS(cloudKey,excludedSites,siteMapper,datasetName):
-    retList = []
-    # check sites in the cloud
-    for tmpSiteName in siteMapper.getCloud(cloudKey)['sites']:
-        # excluded
-        if tmpSiteName in excludedSites:
-            continue
-        # skip T1
-        if tmpSiteName == siteMapper.getCloud(cloudKey)['source']:
-            continue
-        # hospital queue
-        if siteMapper.getSite(tmpSiteName).ddm_input == siteMapper.getSite(siteMapper.getCloud(cloudKey)['source']).ddm_input:
-            continue
-        # not home cloud
-        if siteMapper.getSite(tmpSiteName).cloud != cloudKey:
-            continue
-        # online
-        if siteMapper.getSite(tmpSiteName).status != 'online':
-            continue
-        # check CVMFS
-        if isCachedFile(datasetName,siteMapper.getSite(tmpSiteName)):
-            retList.append(tmpSiteName)
-    # return
-    return retList
 
 
 # get dataset type

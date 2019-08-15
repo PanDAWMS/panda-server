@@ -10,6 +10,7 @@ import threading
 from config import panda_config
 
 from brokerage.SiteMapper import SiteMapper
+from dataservice.DataServiceUtils import select_scope
 
 from pandalogger.PandaLogger import PandaLogger
 
@@ -32,7 +33,7 @@ class Finisher (threading.Thread):
         # start
         try:
             byCallback = False
-            if self.job == None:
+            if self.job is None:
                 byCallback = True
                 _logger.debug("start: %s" % self.dataset.name)
                 _logger.debug("callback from %s" % self.site)
@@ -46,7 +47,7 @@ class Finisher (threading.Thread):
                 if destinationSE == None:
                     # try to get computingSite/destinationSE from ARCH to delete sub
                     # even if no active jobs left 
-                    computingSite,destinationSE = self.taskBuffer.getDestSE(self.dataset.name,True)
+                    computingSite, destinationSE = self.taskBuffer.getDestSE(self.dataset.name,True)
                     if destinationSE == None:
                         _logger.error("cannot get source/destination for %s" % self.dataset.name)
                         _logger.debug("end: %s" % self.dataset.name)                
@@ -58,10 +59,11 @@ class Finisher (threading.Thread):
                 tmpDstSiteSpec = siteMapper.getSite(destinationSE)
                 _logger.debug(tmpDstSiteSpec.setokens_output)
                 destToken = None
-                for tmpToken,tmpDdmId in tmpDstSiteSpec.setokens_output.iteritems():
-                    if self.site == tmpDdmId:
-                        destToken = tmpToken
-                        break
+                for scope, setokens in tmpDstSiteSpec.setokens_output.iteritems():
+                    for tmpToken, tmpDdmId in setokens.iteritems():
+                        if self.site == tmpDdmId:
+                            destToken = tmpToken
+                            break
                 _logger.debug("use Token=%s" % destToken)
                 # get required tokens
                 reqTokens = self.taskBuffer.getDestTokens(self.dataset.name)
@@ -81,6 +83,7 @@ class Finisher (threading.Thread):
                 # completed bitmap
                 compBitMap = (1 << len(reqTokens.split(',')))-1
                 # ignore the lowest bit for T1, file on DISK is already there
+                # TODO: #prodanaly use the scope, but don't know job information
                 if tmpSrcSiteSpec.ddm_output == tmpDstSiteSpec.ddm_output:
                     compBitMap = compBitMap & 0xFFFE
                 # update bitmap in DB
@@ -193,4 +196,3 @@ class Finisher (threading.Thread):
         except:
             type, value, traceBack = sys.exc_info()
             _logger.error("run() : %s %s" % (type,value))
-            

@@ -73,6 +73,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                                                       self.jobs[0].taskID,
                                                                       self.jobs[0].processingType)
                 self.logger.debug(bunchTag)
+            self.prodSourceLabel = self.jobs[0].prodSourceLabel
             # instantiate site mapper
             self.siteMapper = SiteMapper(self.taskBuffer)
             # correctLFN
@@ -463,7 +464,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             # ignore failed jobs
             if job.jobStatus in ['failed','cancelled'] or job.isCancelled():
                 continue
-            zipFileMap = job.getZipFileMap()
             for file in job.Files:
                 # ignore input files
                 if file.type in ['input','pseudo_input']:
@@ -528,7 +528,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 # destination is specified
                                 tmpDstDDM = DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
                             else:
-                                tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm_output
+                                tmpDstSite = self.siteMapper.getSite(file.destinationSE)
+                                scopeDstSite = select_scope(tmpDstSite, job.prodSourceLabel)
+                                tmpDstDDM = tmpDstSite.ddm_output[scopeDstSite]
                             # skip registration for _sub when src=dest
                             if ((tmpSrcDDM == tmpDstDDM and not EventServiceUtils.isMergeAtOS(job.specialHandling)) \
                                     or DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) != None) \
@@ -1238,7 +1240,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             # use cloud's source
             tmpSrcID   = self.siteMapper.getCloud(cloudKey)['source']
             srcSiteSpec = self.siteMapper.getSite(tmpSrcID)
-            # TODO: #prodanaly scope selection needs to be implemented, but no prodSourceLabel info available
+            scope = select_scope(srcSiteSpec, self.prodSourceLabel)
             allSEs = srcSiteSpec.ddm_endpoints_input['default'].getAllEndPoints()
             tapeSEs = srcSiteSpec.ddm_endpoints_input['default'].getTapeEndPoints()
             # get availabe files
@@ -1289,7 +1291,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 tmpDsName = lfnDsMap[tmpCheckLFN]
                 if not self.availableLFNsInT2[cloudKey].has_key(tmpDsName):
                     # collect sites
-                    tmpSiteNameDQ2Map = DataServiceUtils.getSitesWithDataset(tmpDsName,self.siteMapper,replicaMap,cloudKey,getDQ2ID=True)
+                    tmpSiteNameDQ2Map = DataServiceUtils.getSitesWithDataset(tmpDsName, self.siteMapper, replicaMap, cloudKey, self.prodSourceLabel, getDQ2ID=True)
                     if tmpSiteNameDQ2Map == {}:
                         continue
                     self.availableLFNsInT2[cloudKey][tmpDsName] = {'allfiles':[],'allguids':[],'allscopes':[],'sites':{}}
@@ -1315,9 +1317,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     # add site
                     if not checkLfcSeMap[catURL].has_key(tmpSiteName):
                         checkLfcSeMap[catURL][tmpSiteName] = []
-                    # add SE
-                        # TODO: #prodanaly scope selection needs to be implemented, but no prodSourceLabel info available
-                        checkLfcSeMap[catURL][tmpSiteName] += tmpSiteSpec.ddm_endpoints_input['default'].getTapeEndPoints()
+                        # add SE
+                        scope = select_scope(tmpSiteSpec, self.prodSourceLabel)
+                        checkLfcSeMap[catURL][tmpSiteName] += tmpSiteSpec.ddm_endpoints_input[scope].getTapeEndPoints()
                 # LFC lookup
                 for tmpCatURL in checkLfcSeMap.keys():  
                     # get SEs
@@ -2060,8 +2062,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         for tmpCloud,missDsNameList in missingList.iteritems():
             # get distination
             tmpDstID = self.siteMapper.getCloud(tmpCloud)['source']
-            # TODO: #prodanaly scope selection needs to be implemented, but no prodSourceLabel info available
-            dstDQ2ID = self.siteMapper.getSite(tmpDstID).ddm_input['default']
+            tmpDstSpec = self.siteMapper.getSite(tmpDstID)
+            scope = select_scope(tmpDstSpec, self.prodSourceLabel)
+            dstDQ2ID = tmpDstSpec.ddm_input[scope]
             # register subscription
             for missDsName in missDsNameList:
                 self.logger.debug('make subscription at %s for missing %s' % (dstDQ2ID,missDsName))
