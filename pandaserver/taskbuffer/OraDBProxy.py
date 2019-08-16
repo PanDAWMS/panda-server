@@ -10025,8 +10025,11 @@ class DBProxy:
                         ret.ddm_endpoints_input['default'] = DdmSpec()
                         ret.ddm_endpoints_output['default'] = DdmSpec()
 
+                    # initialize dictionary fields
                     ret.setokens_input = {}
                     ret.setokens_output = {}
+                    ret.ddm_input = {}
+                    ret.ddm_output = {}                    
                     for scope in ret.ddm_endpoints_input:
                         # mapping between token and endpoints
                         ret.setokens_input[scope] = ret.ddm_endpoints_input[scope].getTokenMap('input')
