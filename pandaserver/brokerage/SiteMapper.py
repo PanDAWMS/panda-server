@@ -3,7 +3,6 @@ import sys
 import copy
 import traceback
 from config import panda_config
-from dataservice.DataServiceUtils import select_scope
 
 # logger
 from pandalogger.PandaLogger import PandaLogger
@@ -15,6 +14,8 @@ from PandaSiteIDs import PandaSiteIDs
 # default site
 from taskbuffer.SiteSpec import SiteSpec
 from taskbuffer.NucleusSpec import NucleusSpec
+
+from dataservice.DataServiceUtils import select_scope
 
 defSite = SiteSpec()
 defSite.sitename   = panda_config.def_sitename

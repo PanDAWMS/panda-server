@@ -1299,8 +1299,8 @@ class DynDataDistributer:
     
                 
     # make T1 subscription
-    def makeT1Subscription(self,allCloudCandidates,tmpDS,dsSize,prodsourcelabel
-                           nUsed=None,nWaitingJobs=None,nWaitingJobsets=None):
+    def makeT1Subscription(self, allCloudCandidates, tmpDS, dsSize, prodsourcelabel,
+                           nUsed=None, nWaitingJobs=None, nWaitingJobsets=None):
         useSmallT1 = None
         # no candidate
         if allCloudCandidates == []:
