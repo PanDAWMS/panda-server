@@ -1363,7 +1363,7 @@ class DynDataDistributer:
 
 
     # make T2 subscription with MoU share
-    def makeT2SubscriptionMoU(self, allCandidates, tmpDS, dsSize, pd2pType, prodsourcelabel
+    def makeT2SubscriptionMoU(self, allCandidates, tmpDS, dsSize, pd2pType, prodsourcelabel,
                               nUsed=None, nWaitingJobs=None, nWaitingJobsets=None):
         # no candidate
         if allCandidates == []:
