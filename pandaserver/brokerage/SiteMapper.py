@@ -28,6 +28,8 @@ defSite.gatekeeper = panda_config.def_gatekeeper
 defSite.status     = panda_config.def_status
 defSite.setokens_input   = {}
 defSite.setokens_output   = {}
+defSite.ddm_endpoints_input = {}
+defSite.ddm_endpoints_output = {}
 
 worldCloudName = 'WORLD'
 nucleusTag = 'nucleus:'
