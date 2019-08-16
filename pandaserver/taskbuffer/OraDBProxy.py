@@ -10033,8 +10033,8 @@ class DBProxy:
                         ret.setokens_output[scope] = ret.ddm_endpoints_output[scope].getTokenMap('output')
                     
                         # set DDM to the default endpoint
-                        ret.ddm_input = ret.ddm_endpoints_input[scope].getDefaultRead()
-                        ret.ddm_output = ret.ddm_endpoints_output[scope].getDefaultWrite()
+                        ret.ddm_input[scope] = ret.ddm_endpoints_input[scope].getDefaultRead()
+                        ret.ddm_output[scope] = ret.ddm_endpoints_output[scope].getDefaultWrite()
                     
                     # object stores
                     try:
