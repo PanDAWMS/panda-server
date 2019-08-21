@@ -16,7 +16,6 @@ import os
 import pwd
 import grp
 import re
-import socket
 import commands
 from distutils.core import setup
 from distutils.command.install import install as install_org
