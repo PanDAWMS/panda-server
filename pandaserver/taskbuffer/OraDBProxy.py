@@ -11,7 +11,6 @@ import math
 import copy
 import glob
 import uuid
-import types
 import random
 import urllib
 import socket
