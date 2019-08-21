@@ -259,11 +259,10 @@ def _getPFNFromLFC(lfns,dq2url,guids,storageName,scopeList=[],tmpLog=None):
             strStorage = strStorage[:-1]
             com = 'cd %s > /dev/null 2>&1; export HOME=%s; ' % (panda_config.home_dir_cwd,panda_config.home_dir_cwd)            
             com+= 'unset LD_LIBRARY_PATH; unset PYTHONPATH; export PATH=/usr/local/bin:/bin:/usr/bin; '
-            com+= 'source %s; %s/python -Wignore %s/LFCclient.py -f %s -l %s -s %s' % \
-                  (panda_config.glite_source,panda_config.native_python32,panda_config.lfcClient_dir,
-                   inFileName,dq2url,strStorage)
+            com+= '%s/python -Wignore %s/LFCclient.py -f %s -l %s -s %s' % \
+                  (panda_config.native_python32, panda_config.lfcClient_dir, inFileName, dq2url, strStorage)
             tmpLog.debug(com)
-            # exeute
+            # execute
             status,output = commands.getstatusoutput(com)
             tmpLog.debug(status)
             if status == 0:
