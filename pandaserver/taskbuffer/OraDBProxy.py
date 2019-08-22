@@ -6862,7 +6862,7 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            # release file lock
+            sn %= 100000
             _logger.debug("getSerialNumber : %s %s" % (sn,freshFlag))
             return (sn,freshFlag)
         except:
@@ -10108,7 +10108,8 @@ class DBProxy:
         # get relationship between panda sites and ddm endpoints
         sql_panda_ddm = """
                SELECT pdr.panda_site_name, pdr.ddm_endpoint_name, pdr.is_local, de.ddm_spacetoken_name, 
-                      de.is_tape, pdr.default_read, pdr.default_write, pdr.roles, pdr.order_read, pdr.order_write 
+                      de.is_tape, pdr.default_read, pdr.default_write, pdr.roles, pdr.order_read, pdr.order_write,
+                      de.blacklisted 
                FROM ATLAS_PANDA.panda_ddm_relation pdr, ATLAS_PANDA.ddm_endpoint de
                WHERE pdr.ddm_endpoint_name = de.ddm_endpoint_name
                """
@@ -10130,7 +10131,7 @@ class DBProxy:
             panda_site_name = tmp_relation['panda_site_name']
             if panda_site_name not in panda_endpoint_map:
                 panda_endpoint_map[panda_site_name] = {'input': DdmSpec(), 'output': DdmSpec()}
-            if 'read_lan' in tmp_relation['roles']:
+            if 'read_lan' in tmp_relation['roles'] and tmp_relation['blacklisted'] != 'Y':
                 panda_endpoint_map[panda_site_name]['input'].add(tmp_relation, endpoint_dict)
             if 'write_lan' in tmp_relation['roles']:
                 panda_endpoint_map[panda_site_name]['output'].add(tmp_relation, endpoint_dict)
