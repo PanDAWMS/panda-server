@@ -22754,3 +22754,39 @@ class DBProxy:
                                          'running': self.__hs_distribution[share.name]['executing'],
                                          'target': self.__hs_distribution[share.name]['pledged']})
         return sorted_shares_export
+
+
+
+    # get output datasets
+    def getOutputDatasetsJEDI(self, panda_id):
+        comment = ' /* DBProxy.getOutputDatasetsJEDI */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " < PandaID={0} >".format(panda_id)
+        tmpLog = LogWrapper(_logger,methodName)
+        tmpLog.debug("start")
+        try:
+            # sql to get workers
+            sqlC  = "SELECT d.datasetID,d.datasetName FROM ATLAS_PANDA.filesTable4 f,ATLAS_PANDA.JEDI_Datasets d "
+            sqlC += "WHERE f.PandaID=:PandaID AND f.type IN (:type1,:type2) AND d.jediTaskID=f.jediTaskID AND d.datasetID=f.datasetID "
+            varMap = {}
+            varMap[':PandaID'] = panda_id
+            varMap[':type1'] = 'output'
+            varMap[':type2'] = 'log'
+            # start transaction
+            self.conn.begin()
+            self.cur.execute(sqlC+comment, varMap)
+            retMap = dict()
+            resCs = self.cur.fetchall()
+            for datasetID, datasetName in resCs:
+                retMap[datasetID] = datasetName
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("got {0}".format(len(retMap)))
+            return retMap
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return {}

@@ -3825,6 +3825,18 @@ class TaskBuffer:
         return ret
 
 
+    # get output datasets
+    def getOutputDatasetsJEDI(self, panda_id):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getOutputDatasetsJEDI(panda_id)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
 # Singleton
 taskBuffer = TaskBuffer()
 

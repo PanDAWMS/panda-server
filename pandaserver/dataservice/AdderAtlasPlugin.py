@@ -192,10 +192,15 @@ class AdderAtlasPlugin (AdderPluginBase):
         zipFiles = {}
         contZipMap = {}
         subToDsMap = {}
+        dsIdToDsMap = self.taskBuffer.getOutputDatasetsJEDI(self.job.PandaID)
+        self.logger.debug('dsInJEDI=%s' % str(dsIdToDsMap))
         for file in self.job.Files:
             if file.type == 'output' or file.type == 'log':
                 # added to map
-                subToDsMap[file.destinationDBlock] = file.dataset
+                if file.datasetID in dsIdToDsMap:
+                    subToDsMap[file.destinationDBlock] = dsIdToDsMap[file.datasetID]
+                else:
+                    subToDsMap[file.destinationDBlock] = file.dataset
                 # append to fileList
                 fileList.append(file.lfn)
                 # add only log file for failed jobs
