@@ -503,7 +503,8 @@ class AdderAtlasPlugin (AdderPluginBase):
         # add data to original dataset
         for destinationDBlock in idMap.keys():
             origDBlock = None
-            if destinationDBlock in subToDsMap:
+            match = re.search('^(.+)_sub\d+$',destinationDBlock)
+            if match != None:
                 # add files to top-level datasets
                 origDBlock = subToDsMap[destinationDBlock]
                 if (not self.goToTransferring) or (not self.addToTopOnly and destinationDBlock in distDSs):
@@ -524,7 +525,8 @@ class AdderAtlasPlugin (AdderPluginBase):
         # check consistency of destinationDBlock
         hasSub = False
         for destinationDBlock in idMap.keys():
-            if destinationDBlock in subToDsMap:
+            match = re.search('^(.+)_sub\d+$',destinationDBlock)
+            if match != None:
                 hasSub = True
                 break
         if idMap != {} and self.goToTransferring and not hasSub:
