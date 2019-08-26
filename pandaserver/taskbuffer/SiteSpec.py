@@ -38,23 +38,8 @@ class SiteSpec(object):
 
     # check if direct IO
     def isDirectIO(self):
-        try:
-            params = self.copysetup.split('^')
-            # long format
-            if len(params) >= 5: 
-                # directIn
-                directIn = params[4]
-                if directIn == 'True':
-                    return True
-            # TURL PFC creation
-            if len(params) == 3:
-                directIn = params[2]
-                if directIn == 'True':
-                    return True
-            if self.direct_access_lan:
-                return True
-        except:
-            pass
+        if self.direct_access_lan is True:
+            return True
         return False
 
 
