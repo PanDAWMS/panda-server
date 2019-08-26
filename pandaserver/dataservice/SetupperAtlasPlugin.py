@@ -2243,7 +2243,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
     def makeSubDatasetName(self, original_name, sn, task_id):
         try:
             task_id = long(task_id)
-            part_name = '.'.join(original_name.split('.')[:3])
+            part_name = '.'.join(original_name.split('.')[:5])
             return "{0}.{1}_sub{2}".format(part_name, task_id, sn)
         except Exception:
             return "{0}_sub{1}".format(original_name, sn)
