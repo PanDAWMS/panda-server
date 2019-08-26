@@ -1,5 +1,9 @@
 Release Notes
 
+* 8/26/2019
+  * changed sub dataset names
+  * changed heartbeat timeout to be configurable
+
 * 8/22/2019
   * removed zero padding in _sub
   * using only 5 digits in SUBCOUNTER_SUBID_SEQ

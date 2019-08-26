@@ -502,7 +502,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         if not file.destinationDBlock in snGottenDS:
                             snGottenDS.append(file.destinationDBlock)
                         # new dataset name
-                        newnameList[dest] = "%s_sub%s" % (file.destinationDBlock,sn)
+                        newnameList[dest] = self.makeSubDatasetName(file.destinationDBlock, sn, job.jediTaskID)
                         if freshFlag or self.resetLocation:
                             # register original dataset and new dataset
                             nameList = [file.destinationDBlock,newnameList[dest]]
@@ -2237,3 +2237,13 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         self.jumboJobs = okJobs
         self.logger.debug('done for jumbo jobs')
         return
+
+
+    # make sub dataset name
+    def makeSubDatasetName(self, original_name, sn, task_id):
+        try:
+            task_id = long(task_id)
+            part_name = '.'.join(original_name.split('.')[:3])
+            return "{0}.{1}_sub{2}".format(part_name, task_id, sn)
+        except Exception:
+            return "{0}_sub{1}".format(original_name, sn)

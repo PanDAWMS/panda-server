@@ -6862,7 +6862,6 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            sn %= 100000
             _logger.debug("getSerialNumber : %s %s" % (sn,freshFlag))
             return (sn,freshFlag)
         except:

@@ -377,6 +377,18 @@ _logger.debug("PQs to skip timeout : {0}".format(','.join(sitesToSkipTO)))
 _memoryCheck("watcher")
 
 _logger.debug("Watcher session")
+
+# get the list of workflows
+sql = "SELECT DISTINCT workflow FROM ATLAS_PANDAMETA.schedconfig WHERE status='online' "
+status, res = taskBuffer.querySQLS(sql, {})
+workflow_timeout_map = {}
+for workflow, in res:
+    timeout = taskBuffer.getConfigValue('watcher', 'HEARTBEAT_TIMEOUT_{0}'.format(workflow), 'pandaserver', 'atlas')
+    if timeout is not None:
+        workflow_timeout_map[workflow] = timeout
+workflows = workflow_timeout_map.keys()
+workflows.append(None)
+
 # check heartbeat for analysis jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
 varMap = {}
@@ -510,68 +522,84 @@ else:
         thr.start()
         thr.join()
 
-# check heartbeat for ddm jobs
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
-varMap = {}
-varMap[':modificationTime'] = timeLimit
-varMap[':jobStatus1'] = 'running'
-varMap[':jobStatus2'] = 'starting'
-varMap[':jobStatus3'] = 'stagein'
-varMap[':jobStatus4'] = 'stageout'
-varMap[':prodSourceLabel'] = 'ddm'
-status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE (jobStatus=:jobStatus1 OR jobStatus=:jobStatus2 OR jobStatus=:jobStatus3 OR jobStatus=:jobStatus4) AND modificationTime<:modificationTime AND prodSourceLabel=:prodSourceLabel",
-                              varMap)
-if res == None:
-    _logger.debug("# of DDM Watcher : %s" % res)
-else:
-    _logger.debug("# of DDM Watcher : %s" % len(res))    
-    for (id,) in res:
-        _logger.debug("DDM Watcher %s" % id)
-        thr = Watcher(taskBuffer,id,single=True,sleepTime=120,sitemapper=siteMapper)
-        thr.start()
-        thr.join()
-
 # check heartbeat for production jobs with internal stage-out
-timeOutVal = 4
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeOutVal)
-varMap = {}
-varMap[':modificationTime'] = timeLimit
-varMap[':jobStatus1'] = 'transferring'
-status,res = taskBuffer.querySQLS("SELECT PandaID,jobStatus,jobSubStatus FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus1 AND jobSubStatus IS NOT NULL AND modificationTime<:modificationTime",
-                              varMap)
-if res == None:
-    _logger.debug("# of Internal Staging Watcher : %s" % res)
-else:
-    _logger.debug("# of Internal Staging Watcher : %s" % len(res))    
-    for pandaID, jobStatus, jobSubStatus in res:
-        _logger.debug("Internal Staging  Watcher %s %s:%s" % (pandaID, jobStatus, jobSubStatus))
-        thr = Watcher(taskBuffer,pandaID,single=True,sleepTime=60*timeOutVal,sitemapper=siteMapper)
-        thr.start()
-        thr.join()
+default_timeOutVal = 4
+sql = "SELECT PandaID,jobStatus,jobSubStatus FROM ATLAS_PANDA.jobsActive4 j,ATLAS_PANDAMETA.schedconfig s "
+sql += "WHERE j.computingSite=s.computingSite AND jobStatus=:jobStatus1 AND jobSubStatus IS NOT NULL AND modificationTime<:modificationTime "
+for workflow in workflows:
+    varMap = {}
+    varMap[':modificationTime'] = timeLimit
+    varMap[':jobStatus1'] = 'transferring'
+    sqlX = sql
+    if workflow is None:
+        timeOutVal = default_timeOutVal
+        if len(workflows) > 1:
+            sqlX += "AND (s.workflow IS NULL OR s.workflow NOT IN ("
+            for ng_workflow in workflows[:-1]:
+                tmp_key = ':w_{0}'.format(ng_workflow)
+                varMap[tmp_key] = ng_workflow
+                sqlX += '{0},'.format(tmp_key)
+            sqlX = sqlX[:-1]
+            sqlX += ") "
+    else:
+        timeOutVal = workflow_timeout_map[workflow]
+        tmp_key = ':w_{0}'.format(workflow)
+        sqlX += "AND s.workflow={0} ".format(tmp_key)
+        varMap[tmp_key] = workflow
+    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeOutVal)
+    varMap[':modificationTime'] = timeLimit
+    status,res = taskBuffer.querySQLS(sqlX, varMap)
+    if res == None:
+        _logger.debug("# of Internal Staging Watcher with workflow={0}: {1}".format(workflow, res))
+    else:
+        _logger.debug("# of Internal Staging Watcher with workflow={0}: {1}".format(workflow, len(res)))
+        for pandaID, jobStatus, jobSubStatus in res:
+            _logger.debug("Internal Staging  Watcher %s %s:%s" % (pandaID, jobStatus, jobSubStatus))
+            thr = Watcher(taskBuffer,pandaID,single=True,sleepTime=60*timeOutVal,sitemapper=siteMapper)
+            thr.start()
+            thr.join()
 
 # check heartbeat for production jobs
-timeOutVal = 2
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeOutVal)
-varMap = {}
-varMap[':modificationTime'] = timeLimit
-varMap[':jobStatus1'] = 'running'
-varMap[':jobStatus2'] = 'starting'
-varMap[':jobStatus3'] = 'stagein'
-varMap[':jobStatus4'] = 'stageout'
-status,res = taskBuffer.querySQLS("SELECT PandaID,jobStatus,computingSite FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4) AND modificationTime<:modificationTime",
-                              varMap)
-if res == None:
-    _logger.debug("# of General Watcher : %s" % res)
-else:
-    _logger.debug("# of General Watcher : %s" % len(res))    
-    for pandaID,jobStatus,computingSite in res:
-        if computingSite in sitesToSkipTO:
-            _logger.debug("skip General Watcher for PandaID={0} at {1} since timeout is disabled for {2}".format(pandaID,computingSite,jobStatus))
-            continue
-        _logger.debug("General Watcher %s" % pandaID)
-        thr = Watcher(taskBuffer,pandaID,single=True,sleepTime=60*timeOutVal,sitemapper=siteMapper)
-        thr.start()
-        thr.join()
+default_timeOutVal = 2
+sql = "SELECT PandaID,jobStatus,j.computingSite FROM ATLAS_PANDA.jobsActive4 j, ATLAS_PANDAMETA.schedconfig s "
+sql += "WHERE j.computingSite=s.computingSite AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4) AND modificationTime<:modificationTime "
+for workflow in workflows:
+    varMap = {}
+    varMap[':jobStatus1'] = 'running'
+    varMap[':jobStatus2'] = 'starting'
+    varMap[':jobStatus3'] = 'stagein'
+    varMap[':jobStatus4'] = 'stageout'
+    sqlX = sql
+    if workflow is None:
+        timeOutVal = default_timeOutVal
+        if len(workflows) > 1:
+            sqlX += "AND (s.workflow IS NULL OR s.workflow NOT IN ("
+            for ng_workflow in workflows[:-1]:
+                tmp_key = ':w_{0}'.format(ng_workflow)
+                varMap[tmp_key] = ng_workflow
+                sqlX += '{0},'.format(tmp_key)
+            sqlX = sqlX[:-1]
+            sqlX += ") "
+    else:
+        timeOutVal = workflow_timeout_map[workflow]
+        tmp_key = ':w_{0}'.format(workflow)
+        sqlX += "AND s.workflow={0} ".format(tmp_key)
+        varMap[tmp_key] = workflow
+    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeOutVal)
+    varMap[':modificationTime'] = timeLimit
+    status,res = taskBuffer.querySQLS(sqlX, varMap)
+    if res == None:
+        _logger.debug("# of General Watcher with workflow={0}: {1}".format(workflow, res))
+    else:
+        _logger.debug("# of General Watcher with workflow={0}: {1}".format(workflow, len(res)))
+        for pandaID,jobStatus,computingSite in res:
+            if computingSite in sitesToSkipTO:
+                _logger.debug("skip General Watcher for PandaID={0} at {1} since timeout is disabled for {2}".format(pandaID,computingSite,jobStatus))
+                continue
+            _logger.debug("General Watcher %s" % pandaID)
+            thr = Watcher(taskBuffer,pandaID,single=True,sleepTime=60*timeOutVal,sitemapper=siteMapper)
+            thr.start()
+            thr.join()
 
 _memoryCheck("reassign")
 

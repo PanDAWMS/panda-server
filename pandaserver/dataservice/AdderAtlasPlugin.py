@@ -191,8 +191,11 @@ class AdderAtlasPlugin (AdderPluginBase):
         osDsFileMap = {}
         zipFiles = {}
         contZipMap = {}
+        subToDsMap = {}
         for file in self.job.Files:
             if file.type == 'output' or file.type == 'log':
+                # added to map
+                subToDsMap[file.destinationDBlock] = file.dataset
                 # append to fileList
                 fileList.append(file.lfn)
                 # add only log file for failed jobs
@@ -259,7 +262,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                     if not file.lfn in self.job.altStgOutFileList():
                         fileDestinationDBlock = file.destinationDBlock
                     else:
-                        fileDestinationDBlock = re.sub('_sub\d+$','',file.destinationDBlock)
+                        fileDestinationDBlock = file.dataset
                     # append to map
                     if not idMap.has_key(fileDestinationDBlock):
                         idMap[fileDestinationDBlock] = []
@@ -344,7 +347,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                                 # uploaded to S3
                                 if not pilotEndPoint in osDsFileMap:
                                     osDsFileMap[pilotEndPoint] = {}
-                                osFileDestinationDBlock = re.sub('_sub\d+$','',fileDestinationDBlock)
+                                osFileDestinationDBlock = file.dataset
                                 if not osFileDestinationDBlock in osDsFileMap[pilotEndPoint]:
                                     osDsFileMap[pilotEndPoint][osFileDestinationDBlock] = []
                                 copiedFileAttrs = copy.copy(fileAttrs)
@@ -495,10 +498,9 @@ class AdderAtlasPlugin (AdderPluginBase):
         # add data to original dataset
         for destinationDBlock in idMap.keys():
             origDBlock = None
-            match = re.search('^(.+)_sub\d+$',destinationDBlock)
-            if match != None:
+            if destinationDBlock in subToDsMap:
                 # add files to top-level datasets
-                origDBlock = match.group(1)
+                origDBlock = subToDsMap[destinationDBlock]
                 if (not self.goToTransferring) or (not self.addToTopOnly and destinationDBlock in distDSs):
                     idMap[origDBlock] = idMap[destinationDBlock]
             # add files to top-level datasets only 
@@ -517,8 +519,7 @@ class AdderAtlasPlugin (AdderPluginBase):
         # check consistency of destinationDBlock
         hasSub = False
         for destinationDBlock in idMap.keys():
-            match = re.search('^(.+)_sub\d+$',destinationDBlock)
-            if match != None:
+            if destinationDBlock in subToDsMap:
                 hasSub = True
                 break
         if idMap != {} and self.goToTransferring and not hasSub:
@@ -541,7 +542,7 @@ class AdderAtlasPlugin (AdderPluginBase):
         if not self.useCentralLFC():
             destIdMap = {None:idMap}
         else:
-            destIdMap = self.decomposeIdMap(idMap,dsDestMap,osDsFileMap)
+            destIdMap = self.decomposeIdMap(idMap, dsDestMap, osDsFileMap, subToDsMap)
         # add files
         nTry = 3
         for iTry in range(nTry):
@@ -665,7 +666,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                         self.logger.debug('%s' % str(out))
                     else:
                         # register location
-                        tmpDsNameLoc = re.sub('_sub\d+$','',tmpName)
+                        tmpDsNameLoc = subToDsMap[tmpName]
                         repLifeTime = 14
                         for tmpLocName in optSource.keys():
                             self.logger.debug("%s %s %s %s" % ('registerDatasetLocation',tmpDsNameLoc,tmpLocName,
@@ -729,7 +730,7 @@ class AdderAtlasPlugin (AdderPluginBase):
             # collect top-level datasets
             for tmpName,tmpVal in subMap.iteritems():
                 for dq2ID,optSub,optSource in tmpVal:
-                    tmpTopName = re.sub('_sub\d+','',tmpName)
+                    tmpTopName = subToDsMap[tmpName]
                     # append
                     if not tmpTopDatasets.has_key(tmpTopName):
                         tmpTopDatasets[tmpTopName] = []
@@ -823,10 +824,10 @@ class AdderAtlasPlugin (AdderPluginBase):
 
 
     # decompose idMap
-    def decomposeIdMap(self,idMap,dsDestMap,osDsFileMap):
+    def decomposeIdMap(self, idMap, dsDestMap, osDsFileMap, subToDsMap):
         # add item for top datasets
         for tmpDS in dsDestMap.keys():
-            tmpTopDS = re.sub('_sub\d+$','',tmpDS)
+            tmpTopDS = subToDsMap[tmpDS]
             if tmpTopDS != tmpDS:
                 dsDestMap[tmpTopDS] = dsDestMap[tmpDS]
         destIdMap = {}
