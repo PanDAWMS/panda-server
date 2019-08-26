@@ -525,7 +525,7 @@ else:
 # check heartbeat for production jobs with internal stage-out
 default_timeOutVal = 4
 sql = "SELECT PandaID,jobStatus,jobSubStatus FROM ATLAS_PANDA.jobsActive4 j,ATLAS_PANDAMETA.schedconfig s "
-sql += "WHERE j.computingSite=s.computingSite AND jobStatus=:jobStatus1 AND jobSubStatus IS NOT NULL AND modificationTime<:modificationTime "
+sql += "WHERE j.computingSite=s.siteid AND jobStatus=:jobStatus1 AND jobSubStatus IS NOT NULL AND modificationTime<:modificationTime "
 for workflow in workflows:
     varMap = {}
     varMap[':modificationTime'] = timeLimit
@@ -562,7 +562,7 @@ for workflow in workflows:
 # check heartbeat for production jobs
 default_timeOutVal = 2
 sql = "SELECT PandaID,jobStatus,j.computingSite FROM ATLAS_PANDA.jobsActive4 j, ATLAS_PANDAMETA.schedconfig s "
-sql += "WHERE j.computingSite=s.computingSite AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4) AND modificationTime<:modificationTime "
+sql += "WHERE j.computingSite=s.siteid AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4) AND modificationTime<:modificationTime "
 for workflow in workflows:
     varMap = {}
     varMap[':jobStatus1'] = 'running'
