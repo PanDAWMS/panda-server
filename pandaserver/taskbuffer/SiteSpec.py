@@ -136,6 +136,9 @@ class SiteSpec(object):
         return self.hasValueInCatchall('gpu')
         
 
+    def is_grandly_unified(self):
+        return self.hasValueInCatchall('grandly_unified')
+
 
     # get unified name
     def get_unified_name(self):
