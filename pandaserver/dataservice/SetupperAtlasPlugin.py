@@ -757,10 +757,12 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 srcSite = self.siteMapper.getSite(tmpSrcID)
                 scope_srcSite = select_scope(srcSite, job.prodSourceLabel)
                 srcDQ2ID = srcSite.ddm_output[scope_srcSite]
+                self.logger.debug('0 scope_srcSite={0} srcDQ2ID={1}'.format(scope_srcSite, srcDQ2ID))
                 # destination
                 tmpDstID = job.computingSite
                 tmpSiteSpec = self.siteMapper.getSite(job.computingSite)
                 scope_tmpSite = select_scope(tmpSiteSpec, job.prodSourceLabel)
+                self.logger.debug('1 scope_tmpSite={0}'.format(scope_tmpSite))
                 if srcDQ2ID != tmpSiteSpec.ddm_input[scope_tmpSite] and \
                        srcDQ2ID in tmpSiteSpec.setokens_input[scope_tmpSite].values():
                     # direct usage of remote SE. Mainly for prestaging
@@ -769,10 +771,13 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 # use srcDQ2ID as dstDQ2ID when it is associated to dest
                 dstSiteSpec = self.siteMapper.getSite(tmpDstID)
                 scope_dst = select_scope(dstSiteSpec, job.prodSourceLabel)
+                self.logger.debug('2 scope_dst={0}'.format(scope_dst))
                 if dstSiteSpec.ddm_endpoints_input[scope_dst].isAssociated(srcDQ2ID):
                     dstDQ2ID = srcDQ2ID
+                    self.logger.debug('3 dstDQ2ID={0}'.format(dstDQ2ID))
                 else:
                     dstDQ2ID = dstSiteSpec.ddm_input[scope_dst]
+                    self.logger.debug('4 dstDQ2ID={0}'.format(dstDQ2ID))
                 # check if missing at T1
                 missingAtT1 = False
                 if job.prodSourceLabel in ['managed','test']:
@@ -788,6 +793,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 if (not self.pandaDDM) and job.prodSourceLabel != 'ddm':
                     # look for replica
                     dq2ID = srcDQ2ID
+                    self.logger.debug('5 dq2ID={0}'.format(dq2ID))
                     dq2IDList = []
                     # register replica
                     isOK = False
@@ -872,6 +878,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         optSource = {}
                         optSrcPolicy = 001000 | 010000
                         dq2ID = dstDQ2ID
+                        self.logger.debug('6 dq2ID={0}'.format(dq2ID))
                         # prestaging
                         if srcDQ2ID == dstDQ2ID and not missingAtT1:
                             # prestage to associated endpoints 
@@ -905,6 +912,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 # use T1_PRODDISK
                                 if seTokens.has_key('ATLASPRODDISK'):
                                     dq2ID = seTokens['ATLASPRODDISK']
+                                    self.logger.debug('7 dq2ID={0}'.format(dq2ID))
                             elif job.prodSourceLabel in ['user','panda']:
                                 # use DATADISK
                                 tmpSiteSpec = self.siteMapper.getSite(job.computingSite)
@@ -914,6 +922,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     if tmpDq2ID in tmpSiteSpec.ddm_endpoints_input[scope_tmpSite].getLocalEndPoints():
                                         self.logger.debug('use {0} instead of {1} for analysis input staging'.format(tmpDq2ID, dq2ID))
                                         dq2ID = tmpDq2ID
+                                        self.logger.debug('8 dq2ID={0}'.format(dq2ID))
                         # set share and activity
                         if job.prodSourceLabel in ['user','panda']:
                             optShare = "production"
