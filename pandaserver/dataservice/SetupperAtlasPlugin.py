@@ -756,7 +756,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     tmpSrcID = self.siteMapper.getCloud(job.getCloud())['source']
                 srcSite = self.siteMapper.getSite(tmpSrcID)
                 scope_srcSite = select_scope(srcSite, job.prodSourceLabel)
-                srcDQ2ID = scope_srcSite.ddm_output[scope_srcSite]
+                srcDQ2ID = srcSite.ddm_output[scope_srcSite]
                 # destination
                 tmpDstID = job.computingSite
                 tmpSiteSpec = self.siteMapper.getSite(job.computingSite)
@@ -1241,8 +1241,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             tmpSrcID   = self.siteMapper.getCloud(cloudKey)['source']
             srcSiteSpec = self.siteMapper.getSite(tmpSrcID)
             scope = select_scope(srcSiteSpec, self.prodSourceLabel)
-            allSEs = srcSiteSpec.ddm_endpoints_input['default'].getAllEndPoints()
-            tapeSEs = srcSiteSpec.ddm_endpoints_input['default'].getTapeEndPoints()
+            allSEs = srcSiteSpec.ddm_endpoints_input[scope].getAllEndPoints()
+            tapeSEs = srcSiteSpec.ddm_endpoints_input[scope].getTapeEndPoints()
             # get availabe files
             tmpStat,tmpAvaFiles = rucioAPI.listFileReplicas(allScopes[cloudKey],
                                                             allLFNs[cloudKey],
