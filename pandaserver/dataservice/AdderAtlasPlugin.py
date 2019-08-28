@@ -294,7 +294,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                                         tmpDestList = [dstSESiteSpec.ddm_output[scopeDstSESiteSpec]]
                             elif file.destinationDBlockToken in ['',None,'NULL']:
                                 # use default endpoint
-                                tmpDestList = [scopeSrcSiteSpec.ddm_output[scopeSrcSiteSpec]]
+                                tmpDestList = [srcSiteSpec.ddm_output[scopeSrcSiteSpec]]
                             elif DataServiceUtils.getDestinationSE(file.destinationDBlockToken) != None and \
                                     srcSiteSpec.ddm_output[scopeSrcSiteSpec] == dstSESiteSpec.ddm_output[scopeDstSESiteSpec]:
                                 tmpDestList = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
