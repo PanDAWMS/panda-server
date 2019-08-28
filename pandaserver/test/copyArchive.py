@@ -540,7 +540,7 @@ for workflow in workflows:
                 varMap[tmp_key] = ng_workflow
                 sqlX += '{0},'.format(tmp_key)
             sqlX = sqlX[:-1]
-            sqlX += ") "
+            sqlX += ")) "
     else:
         timeOutVal = workflow_timeout_map[workflow]
         tmp_key = ':w_{0}'.format(workflow)
@@ -579,7 +579,7 @@ for workflow in workflows:
                 varMap[tmp_key] = ng_workflow
                 sqlX += '{0},'.format(tmp_key)
             sqlX = sqlX[:-1]
-            sqlX += ") "
+            sqlX += ")) "
     else:
         timeOutVal = workflow_timeout_map[workflow]
         tmp_key = ':w_{0}'.format(workflow)
