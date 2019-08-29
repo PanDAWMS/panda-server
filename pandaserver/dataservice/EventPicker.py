@@ -275,8 +275,8 @@ class EventPicker:
                             raise RuntimeError,'user info not found for {0} with {1}'.format(tmpDN,userInfo)
                         tmpDN = userInfo['nickname']
                         tmpSiteSpec = self.siteMapper.getSite(tmpJob.computingSite)
-                        scope = select_scope(tmpSiteSpec, 'user')
-                        tmpDQ2ID = tmpSiteSpec.ddm_input[scope]
+                        scope_input, scope_output = select_scope(tmpSiteSpec, 'user')
+                        tmpDQ2ID = tmpSiteSpec.ddm_input[scope_input]
                         tmpMsg = "%s ds=%s site=%s id=%s" % ('registerDatasetLocation for DaTRI ',
                                                              tmpUserDatasetName,
                                                              tmpDQ2ID,

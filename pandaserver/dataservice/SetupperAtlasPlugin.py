@@ -256,15 +256,15 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     tmpSrcID = self.siteMapper.getCloud(job.getCloud())['source']
 
                 srcSiteSpec = self.siteMapper.getSite(tmpSrcID)
-                scope_src = select_scope(srcSiteSpec, job.prodSourceLabel)
-                srcDQ2ID = srcSiteSpec.ddm_output[scope_src]
+                scope_src_input, scope_src_output = select_scope(srcSiteSpec, job.prodSourceLabel)
+                srcDQ2ID = srcSiteSpec.ddm_output[scope_src_output]
                 # use srcDQ2ID as dstDQ2ID when it is associated to dest
                 dstSiteSpec = self.siteMapper.getSite(job.computingSite)
-                scope_dst = select_scope(dstSiteSpec, job.prodSourceLabel)
-                if dstSiteSpec.ddm_endpoints_input[scope_dst].isAssociated(srcDQ2ID):
+                scope_dst_input, scope_dst_output = select_scope(dstSiteSpec, job.prodSourceLabel)
+                if dstSiteSpec.ddm_endpoints_input[scope_dst_input].isAssociated(srcDQ2ID):
                     dstDQ2ID = srcDQ2ID
                 else:
-                    dstDQ2ID = dstSiteSpec.ddm_input[scope_dst]
+                    dstDQ2ID = dstSiteSpec.ddm_input[scope_dst_input]
                 dispSiteMap[job.dispatchDBlock] = {'src':srcDQ2ID,'dst':dstDQ2ID,'site':job.computingSite}
                 # filelist
                 if not fileList.has_key(job.dispatchDBlock):
@@ -509,7 +509,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     for name in nameList:
                         computingSite = job.computingSite
                         tmpSite = self.siteMapper.getSite(computingSite)
-                        scope = select_scope(tmpSite, job.prodSourceLabel)
+                        scope_input, scope_output = select_scope(tmpSite, job.prodSourceLabel)
                         if name == originalName and not name.startswith('panda.um.'):
                             # for original dataset
                             computingSite = file.destinationSE
@@ -518,9 +518,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             # get src and dest DDM conversion is needed for unknown sites
                             if job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(computingSite):
                                 # DQ2 ID was set by using --destSE for analysis job to transfer output
-                                tmpSrcDDM = tmpSite.ddm_output[scope]
+                                tmpSrcDDM = tmpSite.ddm_output[scope_output]
                             else:                            
-                                tmpSrcDDM = tmpSite.ddm_output[scope]
+                                tmpSrcDDM = tmpSite.ddm_output[scope_output]
                             if job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(file.destinationSE):
                                 # DQ2 ID was set by using --destSE for analysis job to transfer output 
                                 tmpDstDDM = tmpSrcDDM
@@ -529,8 +529,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 tmpDstDDM = DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
                             else:
                                 tmpDstSite = self.siteMapper.getSite(file.destinationSE)
-                                scopeDstSite = select_scope(tmpDstSite, job.prodSourceLabel)
-                                tmpDstDDM = tmpDstSite.ddm_output[scopeDstSite]
+                                scopeDstSite_input, scopeDstSite_output = select_scope(tmpDstSite, job.prodSourceLabel)
+                                tmpDstDDM = tmpDstSite.ddm_output[scopeDstSite_output]
                             # skip registration for _sub when src=dest
                             if ((tmpSrcDDM == tmpDstDDM and not EventServiceUtils.isMergeAtOS(job.specialHandling)) \
                                     or DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) != None) \
@@ -544,19 +544,19 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 # get locations
                                 usingT1asT2 = False
                                 if job.prodSourceLabel == 'user' and not self.siteMapper.siteSpecList.has_key(computingSite):
-                                    dq2IDList = [tmpSite.ddm_output[scope]]
+                                    dq2IDList = [tmpSite.ddm_output[scope_output]]
                                 else:
                                     if tmpSite.cloud != job.getCloud() and \
                                             re.search('_sub\d+$',name) != None and \
                                             (not job.prodSourceLabel in ['user','panda']) and \
-                                            (not tmpSite.ddm_output[scope].endswith('PRODDISK')):
+                                            (not tmpSite.ddm_output[scope_output].endswith('PRODDISK')):
                                         # T1 used as T2. Use both DATADISK and PRODDISK as locations while T1 PRODDISK is phasing out
-                                        dq2IDList = [tmpSite.ddm_output[scope]]
-                                        if tmpSite.setokens_output[scope].has_key('ATLASPRODDISK'):
-                                            dq2IDList += [tmpSite.setokens_output[scope]['ATLASPRODDISK']]
+                                        dq2IDList = [tmpSite.ddm_output[scope_output]]
+                                        if tmpSite.setokens_output[scope_output].has_key('ATLASPRODDISK'):
+                                            dq2IDList += [tmpSite.setokens_output[scope_output]['ATLASPRODDISK']]
                                         usingT1asT2 = True
                                     else:
-                                        dq2IDList = [tmpSite.ddm_output[scope]]
+                                        dq2IDList = [tmpSite.ddm_output[scope_output]]
                                 # use another location when token is set
                                 if re.search('_sub\d+$',name) == None and DataServiceUtils.getDestinationSE(file.destinationDBlockToken) != None:
                                     # destination is specified
@@ -565,10 +565,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     dq2IDList = []
                                     for tmpToken in tmpTokenList:
                                         # set default
-                                        dq2ID = tmpSite.ddm_output[scope]
+                                        dq2ID = tmpSite.ddm_output[scope_output]
                                         # convert token to DQ2ID
-                                        if tmpSite.setokens_output[scope].has_key(tmpToken):
-                                            dq2ID = tmpSite.setokens_output[scope][tmpToken]
+                                        if tmpSite.setokens_output[scope_output].has_key(tmpToken):
+                                            dq2ID = tmpSite.setokens_output[scope_output][tmpToken]
                                         # replace or append    
                                         if len(tmpTokenList) <= 1 or name != originalName:
                                             # use location consistent with token
@@ -755,29 +755,24 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     # use cloud's source
                     tmpSrcID = self.siteMapper.getCloud(job.getCloud())['source']
                 srcSite = self.siteMapper.getSite(tmpSrcID)
-                scope_srcSite = select_scope(srcSite, job.prodSourceLabel)
-                srcDQ2ID = srcSite.ddm_output[scope_srcSite]
-                self.logger.debug('0 scope_srcSite={0} srcDQ2ID={1}'.format(scope_srcSite, srcDQ2ID))
+                scope_srcSite_input, scope_srcSite_output = select_scope(srcSite, job.prodSourceLabel)
+                srcDQ2ID = srcSite.ddm_output[scope_srcSite_output]
                 # destination
                 tmpDstID = job.computingSite
                 tmpSiteSpec = self.siteMapper.getSite(job.computingSite)
-                scope_tmpSite = select_scope(tmpSiteSpec, job.prodSourceLabel)
-                self.logger.debug('1 scope_tmpSite={0}'.format(scope_tmpSite))
-                if srcDQ2ID != tmpSiteSpec.ddm_input[scope_tmpSite] and \
-                       srcDQ2ID in tmpSiteSpec.setokens_input[scope_tmpSite].values():
+                scope_tmpSite_input, scope_tmpSite_output = select_scope(tmpSiteSpec, job.prodSourceLabel)
+                if srcDQ2ID != tmpSiteSpec.ddm_input[scope_tmpSite_input] and \
+                       srcDQ2ID in tmpSiteSpec.setokens_input[scope_tmpSite_input].values():
                     # direct usage of remote SE. Mainly for prestaging
                     tmpDstID = tmpSrcID
                     self.logger.debug('use remote SiteSpec of %s for %s' % (tmpDstID,job.computingSite))
                 # use srcDQ2ID as dstDQ2ID when it is associated to dest
                 dstSiteSpec = self.siteMapper.getSite(tmpDstID)
-                scope_dst = select_scope(dstSiteSpec, job.prodSourceLabel)
-                self.logger.debug('2 scope_dst={0}'.format(scope_dst))
-                if dstSiteSpec.ddm_endpoints_input[scope_dst].isAssociated(srcDQ2ID):
+                scope_dst_input, scope_dst_output = select_scope(dstSiteSpec, job.prodSourceLabel)
+                if dstSiteSpec.ddm_endpoints_input[scope_dst_input].isAssociated(srcDQ2ID):
                     dstDQ2ID = srcDQ2ID
-                    self.logger.debug('3 dstDQ2ID={0}'.format(dstDQ2ID))
                 else:
-                    dstDQ2ID = dstSiteSpec.ddm_input[scope_dst]
-                    self.logger.debug('4 dstDQ2ID={0}'.format(dstDQ2ID))
+                    dstDQ2ID = dstSiteSpec.ddm_input[scope_dst_input]
                 # check if missing at T1
                 missingAtT1 = False
                 if job.prodSourceLabel in ['managed','test']:
@@ -793,7 +788,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 if (not self.pandaDDM) and job.prodSourceLabel != 'ddm':
                     # look for replica
                     dq2ID = srcDQ2ID
-                    self.logger.debug('5 dq2ID={0}'.format(dq2ID))
                     dq2IDList = []
                     # register replica
                     isOK = False
@@ -814,13 +808,13 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             # DQ2 ID is mixed with TAIWAN-LCG2 and TW-FTT     
                             if job.getCloud() in ['TW',]:
                                 tmpSiteSpec = self.siteMapper.getSite(tmpSrcID)
-                                scope = select_scope(tmpSiteSpec, job.prodSourceLabel)
-                                if tmpSiteSpec.setokens_input[scope].has_key('ATLASDATADISK'):
-                                    diskID = tmpSiteSpec.setokens_input[scope]['ATLASDATADISK']
-                                if tmpSiteSpec.setokens_input[scope].has_key('ATLASDATATAPE'):
-                                    tapeID = tmpSiteSpec.setokens_input[scope]['ATLASDATATAPE']
-                                if tmpSiteSpec.setokens_input[scope].has_key('ATLASMCTAPE'):
-                                    mctapeID = tmpSiteSpec.setokens_input[scope]['ATLASMCTAPE']
+                                scope_input, scope_output = select_scope(tmpSiteSpec, job.prodSourceLabel)
+                                if tmpSiteSpec.setokens_input[scope_input].has_key('ATLASDATADISK'):
+                                    diskID = tmpSiteSpec.setokens_input[scope_input]['ATLASDATADISK']
+                                if tmpSiteSpec.setokens_input[scope_input].has_key('ATLASDATATAPE'):
+                                    tapeID = tmpSiteSpec.setokens_input[scope_input]['ATLASDATATAPE']
+                                if tmpSiteSpec.setokens_input[scope_input].has_key('ATLASMCTAPE'):
+                                    mctapeID = tmpSiteSpec.setokens_input[scope_input]['ATLASMCTAPE']
                                 hotID  = 'TAIWAN-LCG2_HOTDISK'
                             for tmpDataset,tmpRepMap in self.replicaMap[job.dispatchDBlock].iteritems():
                                 if tmpRepMap.has_key(hotID):
@@ -878,17 +872,16 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         optSource = {}
                         optSrcPolicy = 001000 | 010000
                         dq2ID = dstDQ2ID
-                        self.logger.debug('6 dq2ID={0}'.format(dq2ID))
                         # prestaging
                         if srcDQ2ID == dstDQ2ID and not missingAtT1:
                             # prestage to associated endpoints 
                             if job.prodSourceLabel in ['user','panda']:
                                 # use DATADISK
                                 tmpSiteSpec = self.siteMapper.getSite(job.computingSite)
-                                scope_tmpSite = select_scope(tmpSiteSpec, job.prodSourceLabel)
-                                if 'ATLASDATADISK' in tmpSiteSpec.setokens_input[scope_tmpSite]:
-                                    tmpDq2ID = tmpSiteSpec.setokens_input[scope_tmpSite]['ATLASDATADISK']
-                                    if tmpDq2ID in tmpSiteSpec.ddm_endpoints_input[scope_tmpSite].getLocalEndPoints():
+                                scope_tmpSite_input, scope_tmpSite_output = select_scope(tmpSiteSpec, job.prodSourceLabel)
+                                if 'ATLASDATADISK' in tmpSiteSpec.setokens_input[scope_tmpSite_input]:
+                                    tmpDq2ID = tmpSiteSpec.setokens_input[scope_tmpSite_input]['ATLASDATADISK']
+                                    if tmpDq2ID in tmpSiteSpec.ddm_endpoints_input[scope_tmpSite_input].getLocalEndPoints():
                                         self.logger.debug('use {0} instead of {1} for tape prestaging'.format(tmpDq2ID, dq2ID))
                                         dq2ID = tmpDq2ID
                             self.logger.debug('use {0} for tape prestaging'.format(dq2ID))
@@ -907,22 +900,20 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                    (not job.prodSourceLabel in ['user','panda']) and \
                                    self.siteMapper.getSite(tmpDstID).cloud in ['US']:
                                 tmpDstSiteSpec = self.siteMapper.getSite(tmpDstID)
-                                scope = select_scope(tmpDstSiteSpec, job.prodSourceLabel)
-                                seTokens = tmpDstSiteSpec.setokens_input[scope]
+                                scope_input, scope_output = select_scope(tmpDstSiteSpec, job.prodSourceLabel)
+                                seTokens = tmpDstSiteSpec.setokens_input[scope_input]
                                 # use T1_PRODDISK
                                 if seTokens.has_key('ATLASPRODDISK'):
                                     dq2ID = seTokens['ATLASPRODDISK']
-                                    self.logger.debug('7 dq2ID={0}'.format(dq2ID))
                             elif job.prodSourceLabel in ['user','panda']:
                                 # use DATADISK
                                 tmpSiteSpec = self.siteMapper.getSite(job.computingSite)
-                                scope_tmpSite = select_scope(tmpSiteSpec, job.prodSourceLabel)
-                                if 'ATLASDATADISK' in tmpSiteSpec.setokens_input[scope_tmpSite]:
-                                    tmpDq2ID = tmpSiteSpec.setokens_input[scope_tmpSite]['ATLASDATADISK']
-                                    if tmpDq2ID in tmpSiteSpec.ddm_endpoints_input[scope_tmpSite].getLocalEndPoints():
+                                scope_tmpSite_input, scope_tmpSite_output = select_scope(tmpSiteSpec, job.prodSourceLabel)
+                                if 'ATLASDATADISK' in tmpSiteSpec.setokens_input[scope_tmpSite_input]:
+                                    tmpDq2ID = tmpSiteSpec.setokens_input[scope_tmpSite_input]['ATLASDATADISK']
+                                    if tmpDq2ID in tmpSiteSpec.ddm_endpoints_input[scope_tmpSite_input].getLocalEndPoints():
                                         self.logger.debug('use {0} instead of {1} for analysis input staging'.format(tmpDq2ID, dq2ID))
                                         dq2ID = tmpDq2ID
-                                        self.logger.debug('8 dq2ID={0}'.format(dq2ID))
                         # set share and activity
                         if job.prodSourceLabel in ['user','panda']:
                             optShare = "production"
@@ -1054,12 +1045,12 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             # check if T1
             tmpSrcID = self.siteMapper.getCloud(job.getCloud())['source']
             srcSiteSpec = self.siteMapper.getSite(tmpSrcID)
-            src_scope = select_scope(srcSiteSpec, job.prodSourceLabel)
-            srcDQ2ID = srcSiteSpec.ddm_output[src_scope]
+            src_scope_input, src_scope_output = select_scope(srcSiteSpec, job.prodSourceLabel)
+            srcDQ2ID = srcSiteSpec.ddm_output[src_scope_output]
 
             dstSiteSpec = self.siteMapper.getSite(job.computingSite)
-            dst_scope = select_scope(dstSiteSpec, job.prodSourceLabel)
-            dstDQ2ID = dstSiteSpec.ddm_input[dst_scope]
+            dst_scope_input, dst_scope_output = select_scope(dstSiteSpec, job.prodSourceLabel)
+            dstDQ2ID = dstSiteSpec.ddm_input[dst_scope_input]
             # collect datasets
             datasets = []
             for file in job.Files:
@@ -1249,9 +1240,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             # use cloud's source
             tmpSrcID   = self.siteMapper.getCloud(cloudKey)['source']
             srcSiteSpec = self.siteMapper.getSite(tmpSrcID)
-            scope = select_scope(srcSiteSpec, self.prodSourceLabel)
-            allSEs = srcSiteSpec.ddm_endpoints_input[scope].getAllEndPoints()
-            tapeSEs = srcSiteSpec.ddm_endpoints_input[scope].getTapeEndPoints()
+            scope_input, scope_output = select_scope(srcSiteSpec, self.prodSourceLabel)
+            allSEs = srcSiteSpec.ddm_endpoints_input[scope_input].getAllEndPoints()
+            tapeSEs = srcSiteSpec.ddm_endpoints_input[scope_input].getTapeEndPoints()
             # get availabe files
             tmpStat,tmpAvaFiles = rucioAPI.listFileReplicas(allScopes[cloudKey],
                                                             allLFNs[cloudKey],
@@ -1327,8 +1318,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     if not checkLfcSeMap[catURL].has_key(tmpSiteName):
                         checkLfcSeMap[catURL][tmpSiteName] = []
                         # add SE
-                        scope = select_scope(tmpSiteSpec, self.prodSourceLabel)
-                        checkLfcSeMap[catURL][tmpSiteName] += tmpSiteSpec.ddm_endpoints_input[scope].getTapeEndPoints()
+                        scope_input, scope_output = select_scope(tmpSiteSpec, self.prodSourceLabel)
+                        checkLfcSeMap[catURL][tmpSiteName] += tmpSiteSpec.ddm_endpoints_input[scope_input].getTapeEndPoints()
                 # LFC lookup
                 for tmpCatURL in checkLfcSeMap.keys():  
                     # get SEs
@@ -1735,15 +1726,15 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     break
             # append site
             destSite = self.siteMapper.getSite(tmpJob.computingSite)
-            scope_dest = select_scope(destSite, tmpJob.prodSourceLabel)
-            destDQ2ID = destSite.ddm_input[scope_dest]
+            scope_dest_input, scope_dest_output = select_scope(destSite, tmpJob.prodSourceLabel)
+            destDQ2ID = destSite.ddm_input[scope_dest_input]
             # T1 used as T2
             if tmpJob.getCloud() != self.siteMapper.getSite(tmpJob.computingSite).cloud and \
                not destDQ2ID.endswith('PRODDISK') and \
                self.siteMapper.getSite(tmpJob.computingSite).cloud in ['US']:
                 tmpSiteSpec = self.siteMapper.getSite(tmpJob.computingSite)
-                scope_tmpSite = select_scope(tmpSiteSpec, tmpJob.prodSourceLabel)
-                tmpSeTokens = tmpSiteSpec.setokens_input[scope_tmpSite]
+                scope_tmpSite_input, scope_tmpSite_output = select_scope(tmpSiteSpec, tmpJob.prodSourceLabel)
+                tmpSeTokens = tmpSiteSpec.setokens_input[scope_tmpSite_input]
                 if tmpSeTokens.has_key('ATLASPRODDISK'):
                     destDQ2ID = tmpSeTokens['ATLASPRODDISK']
             # backend
@@ -1966,12 +1957,12 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             # get source
             if tmpJob.prodSourceLabel in ['managed','test']:
                 tmpSrcID = self.siteMapper.getCloud(tmpJob.getCloud())['source']
-                scope = select_scope(tmpSrcID, tmpJob.prodSourceLabel)
-                srcDQ2ID = self.siteMapper.getSite(tmpSrcID).ddm_input[scope]
+                scope_input, scope_output = select_scope(tmpSrcID, tmpJob.prodSourceLabel)
+                srcDQ2ID = self.siteMapper.getSite(tmpSrcID).ddm_input[scope_input]
             else:
                 tmpSrcID = self.siteMapper.getSite(tmpJob.computingSite)
-                scope = select_scope(tmpSrcID, tmpJob.prodSourceLabel)
-                srcDQ2ID = tmpSrcID.ddm_input[scope]
+                scope_input, scope_output = select_scope(tmpSrcID, tmpJob.prodSourceLabel)
+                srcDQ2ID = tmpSrcID.ddm_input[scope_input]
             # prefix of DQ2 ID
             srcDQ2IDprefix = re.sub('_[A-Z,0-9]+DISK$','',srcDQ2ID)
             # loop over all files
@@ -2072,8 +2063,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             # get distination
             tmpDstID = self.siteMapper.getCloud(tmpCloud)['source']
             tmpDstSpec = self.siteMapper.getSite(tmpDstID)
-            scope = select_scope(tmpDstSpec, self.prodSourceLabel)
-            dstDQ2ID = tmpDstSpec.ddm_input[scope]
+            scope_input, scope_output = select_scope(tmpDstSpec, self.prodSourceLabel)
+            dstDQ2ID = tmpDstSpec.ddm_input[scope_input]
             # register subscription
             for missDsName in missDsNameList:
                 self.logger.debug('make subscription at %s for missing %s' % (dstDQ2ID,missDsName))
@@ -2238,8 +2229,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 # subscribe dis dataset
                 try:
                     tmpSiteSpec = self.siteMapper.getSite(jumboJobSpec.computingSite)
-                    scope = select_scope(tmpSiteSpec, jumboJobSpec.prodSourceLabel)
-                    endPoint = tmpSiteSpec.ddm_input[scope]
+                    scope_input, scope_output = select_scope(tmpSiteSpec, jumboJobSpec.prodSourceLabel)
+                    endPoint = tmpSiteSpec.ddm_input[scope_input]
                     self.logger.debug('subscribing jumbo dis dataset {0} to {1}'.format(dispatchDBlock,endPoint))
                     rucioAPI.registerDatasetSubscription(dispatchDBlock,[endPoint],lifetime=14,activity='Production Input')
                 except:

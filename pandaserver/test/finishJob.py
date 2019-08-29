@@ -49,16 +49,16 @@ if job.computingSite in ['',None,'NULL']:
     sys.exit(0)
 
 siteSpec = siteMapper.getSite(job.computingSite)
-scope = select_scope(siteSpec, job.prodSourceLabel)
+scope_input, scope_output = select_scope(siteSpec, job.prodSourceLabel)
 
 for file in job.Files:
     if file.type in ['output','log']:
         file.GUID = commands.getoutput('uuidgen')
         if job.computingSite == file.destinationSE and \
-                siteSpec.setokens_output[scope].has_key(file.destinationDBlockToken):
-            tmpSrcDDM = siteSpec.setokens_output[scope][file.destinationDBlockToken]
+                siteSpec.setokens_output[scope_output].has_key(file.destinationDBlockToken):
+            tmpSrcDDM = siteSpec.setokens_output[scope_output][file.destinationDBlockToken]
         else:
-            tmpSrcDDM = siteSpec.ddm_output[scope]
+            tmpSrcDDM = siteSpec.ddm_output[scope_output]
         srm = TiersOfATLAS.getSiteProperty(tmpSrcDDM,'srm')
         srm = re.sub('^token:[^:]+:','',srm)
         xml += """

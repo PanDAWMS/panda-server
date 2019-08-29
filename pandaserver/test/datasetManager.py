@@ -694,8 +694,8 @@ class FinisherThr (threading.Thread):
                     else:
                         tmpDstID = job.destinationSE
                     tmpDstSite = siteMapper.getSite(tmpDstID)
-                    scope = select_scope(tmpDstSite, job.prodSourceLabel)
-                    seList = tmpDstSite.ddm_endpoints_output[scope].getLocalEndPoints()
+                    scope_input, scope_output = select_scope(tmpDstSite, job.prodSourceLabel)
+                    seList = tmpDstSite.ddm_endpoints_output[scope_output].getLocalEndPoints()
                 # get LFN list
                 lfns   = []
                 guids  = []
@@ -871,7 +871,7 @@ class ActivatorThr (threading.Thread):
                 else:
                     # check if locally available
                     siteSpec = siteMapper.getSite(tmpJob.computingSite)
-                    scope = select_scope(siteSpec, tmpJob.prodSourceLabel)
+                    scope_input, scope_output = select_scope(siteSpec, tmpJob.prodSourceLabel)
                     allOK = True
                     for tmpFile in tmpJob.Files:
                         # only input
@@ -879,8 +879,8 @@ class ActivatorThr (threading.Thread):
                             # check RSEs
                             if tmpFile.lfn in okFiles:
                                 for rse in okFiles[tmpFile.lfn]:
-                                    if siteSpec.ddm_endpoints_input[scope].isAssociated(rse) and \
-                                            siteSpec.ddm_endpoints_input[scope].getEndPoint(rse)['is_tape'] == 'N':
+                                    if siteSpec.ddm_endpoints_input[scope_input].isAssociated(rse) and \
+                                            siteSpec.ddm_endpoints_input[scope_input].getEndPoint(rse)['is_tape'] == 'N':
                                         tmpFile.status = 'ready'
                                         break
                             # missing
@@ -961,7 +961,7 @@ class ActivatorWithRuleThr (threading.Thread):
                     continue
                 # check if locally available
                 siteSpec = siteMapper.getSite(tmpJob.computingSite)
-                scope = select_scope(siteSpec, tmpJob.prodSourceLabel)
+                scope_input, scope_output = select_scope(siteSpec, tmpJob.prodSourceLabel)
                 allOK = True
                 for tmpFile in tmpJob.Files:
                     # only input files are checked
@@ -974,8 +974,8 @@ class ActivatorWithRuleThr (threading.Thread):
                             replicaMap[tmpFile.dispatchDBlock] = repMap
                         # check RSEs
                         for rse, repInfo in replicaMap[tmpFile.dispatchDBlock].iteritems():
-                            if siteSpec.ddm_endpoints_input[scope].isAssociated(rse) and \
-                                    siteSpec.ddm_endpoints_input[scope].getEndPoint(rse)['is_tape'] == 'N' and \
+                            if siteSpec.ddm_endpoints_input[scope_input].isAssociated(rse) and \
+                                    siteSpec.ddm_endpoints_input[scope_input].getEndPoint(rse)['is_tape'] == 'N' and \
                                     repInfo[0]['total'] == repInfo[0]['found'] and repInfo[0]['total'] is not None:
                                 tmpFile.status = 'ready'
                                 break

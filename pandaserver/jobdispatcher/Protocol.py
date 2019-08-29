@@ -355,7 +355,7 @@ class Response:
 
     # get ddm endpoint
     def getDdmEndpoint(self,siteSpec,spaceToken, mode, prodSourceLabel):
-        scope = DataServiceUtils.select_scope(siteSpec, prodSourceLabel)
+        scope_input, scope_output = DataServiceUtils.select_scope(siteSpec, prodSourceLabel)
         if siteSpec == None or mode not in ['input', 'output']:
             return ''
         endPoint = DataServiceUtils.getDestinationSE(spaceToken)
@@ -365,11 +365,11 @@ class Response:
         if endPoint != None:
             return endPoint
         if mode == 'input':
-            setokens = siteSpec.setokens_input[scope]
-            ddm = siteSpec.ddm_input[scope]
+            setokens = siteSpec.setokens_input[scope_input]
+            ddm = siteSpec.ddm_input[scope_input]
         elif mode == 'output':
-            setokens = siteSpec.setokens_output[scope]
-            ddm = siteSpec.ddm_output[scope]
+            setokens = siteSpec.setokens_output[scope_output]
+            ddm = siteSpec.ddm_output[scope_output]
         if spaceToken in setokens:
             return setokens[spaceToken]
 

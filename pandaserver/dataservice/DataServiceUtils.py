@@ -46,7 +46,7 @@ def getSitesWithDataset(tmpDsName, siteMapper, replicaMap, cloudKey, prodSourceL
     # check sites in the cloud
     for tmpSiteName in siteMapper.getCloud(cloudKey)['sites']:
         tmpSiteSpec = siteMapper.getSite(tmpSiteName)
-        scopeSiteSpec = select_scope(tmpSiteSpec, prodSourceLabel)
+        scopeSiteSpec_input, scopeSiteSpec_output = select_scope(tmpSiteSpec, prodSourceLabel)
         # skip T1
         if not includeT1:
             # T1
@@ -54,8 +54,8 @@ def getSitesWithDataset(tmpDsName, siteMapper, replicaMap, cloudKey, prodSourceL
                 continue
             # hospital queue
             tmpSrcSpec = siteMapper.getSite(siteMapper.getCloud(cloudKey)['source'])
-            scopeSrcSpec = select_scope(tmpSrcSpec, prodSourceLabel)
-            if tmpSiteSpec.ddm_input[scopeSiteSpec] == siteMapper.getSite(siteMapper.getCloud(cloudKey)['source']).ddm_input[scopeSrcSpec]:
+            scopeSrcSpec_input, scopeSrcSpec_output = select_scope(tmpSrcSpec, prodSourceLabel)
+            if tmpSiteSpec.ddm_input[scopeSiteSpec_input] == tmpSrcSpec.ddm_input[scopeSrcSpec_input]:
                 continue
         # use home cloud
         if useHomeCloud:
@@ -68,10 +68,10 @@ def getSitesWithDataset(tmpDsName, siteMapper, replicaMap, cloudKey, prodSourceL
         tmpFoundFlag = False
 
         # skip misconfigured sites
-        if not tmpSiteSpec.ddm_input[scopeSiteSpec] and not tmpSiteSpec.setokens_input[scopeSiteSpec].values():
+        if not tmpSiteSpec.ddm_input[scopeSiteSpec_input] and not tmpSiteSpec.setokens_input[scopeSiteSpec_input].values():
             continue
 
-        for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input[scopeSiteSpec]]+tmpSiteSpec.setokens_input[scopeSiteSpec].values():
+        for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input[scopeSiteSpec_input]]+tmpSiteSpec.setokens_input[scopeSiteSpec_input].values():
             # prefix of DQ2 ID
             tmpDQ2IDPrefix = getDQ2Prefix(tmpSiteDQ2ID)
             # ignore empty
@@ -192,11 +192,11 @@ def getSitesShareDDM(siteMapper, siteName, prodSourceLabel):
         return []
     # get siteSpec
     siteSpec = siteMapper.getSite(siteName)
-    scope_site = select_scope(siteSpec, prodSourceLabel)
+    scope_site_input, scope_site_output = select_scope(siteSpec, prodSourceLabel)
     # loop over all sites
     retSites = []
     for tmpSiteName,tmpSiteSpec in siteMapper.siteSpecList.iteritems():
-        scope_tmpSite = select_scope(tmpSiteSpec, prodSourceLabel)
+        scope_tmpSite_input, scope_tmpSite_output = select_scope(tmpSiteSpec, prodSourceLabel)
         # only same type
         if siteSpec.type != tmpSiteSpec.type:
             continue
@@ -205,8 +205,8 @@ def getSitesShareDDM(siteMapper, siteName, prodSourceLabel):
             continue
         # same endpoint
         try:
-            if siteSpec.ddm_input[scope_site] != tmpSiteSpec.ddm_input[scope_tmpSite] \
-                    and siteSpec.ddm_output[scope_site] not in tmpSiteSpec.ddm_endpoints_input[scope_tmpSite].all.keys():
+            if siteSpec.ddm_input[scope_site_input] != tmpSiteSpec.ddm_input[scope_tmpSite_input] \
+                    and siteSpec.ddm_output[scope_site_output] not in tmpSiteSpec.ddm_endpoints_input[scope_tmpSite_input].all.keys():
                 continue
         except:
             continue
@@ -315,11 +315,17 @@ def cleanupDN(realDN):
 
 def select_scope(site_spec, prodsourcelabel):
     """
-    Select the scope of the activity. The scope was introduced for prod-analy queues where you might want
+    Select the scopes of the activity for input and output. The scope was introduced for prod-analy queues where you might want
     to associate different RSEs depending on production or analysis.
     """
-    scopes = site_spec.ddm_endpoints_input.keys()
-    if prodsourcelabel == 'user' and 'analysis' in scopes:
-        return 'analysis'
-    else:
-        return 'default'
+    scope_input = 'default'
+    aux_scopes_input = site_spec.ddm_endpoints_input.keys()
+    if prodsourcelabel == 'user' and 'analysis' in aux_scopes_input:
+        scope_input = 'analysis'
+
+    scope_output = 'default'
+    aux_scopes_output = site_spec.ddm_endpoints_output.keys()
+    if prodsourcelabel == 'user' and 'analysis' in aux_scopes_output:
+        scope_output = 'analysis'
+
+    return scope_input, scope_output

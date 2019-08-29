@@ -340,10 +340,10 @@ class SiteMapper:
         if not self.checkSite(siteID):
             return None
         siteSpec =  self.getSite(siteID)
-        scope = select_scope(siteSpec, prodSourceLabel)
-        if storageToken in siteSpec.setokens_output[scope]:
-            return siteSpec.setokens_output[scope][storageToken]
-        return siteSpec.ddm_output[scope]
+        scope_input, scope_output = select_scope(siteSpec, prodSourceLabel)
+        if storageToken in siteSpec.setokens_output[scope_output]:
+            return siteSpec.setokens_output[scope_output][storageToken]
+        return siteSpec.ddm_output[scope_output]
 
 
 

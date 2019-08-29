@@ -10,7 +10,6 @@ import threading
 from config import panda_config
 
 from brokerage.SiteMapper import SiteMapper
-from dataservice.DataServiceUtils import select_scope
 
 from pandalogger.PandaLogger import PandaLogger
 

@@ -326,8 +326,8 @@ class DynDataDistributer:
                     # make subscription
                     if not self.simul:
                         selectedSiteSpec = self.siteMapper.getSite(selectedSite)
-                        scope = select_scope(selectedSiteSpec, prodsourcelabel)
-                        subRet,dq2ID = self.makeSubscription(tmpDS,selectedSite, scope, ddmShare='secondary')
+                        scope_input, scope_output = select_scope(selectedSiteSpec, prodsourcelabel)
+                        subRet,dq2ID = self.makeSubscription(tmpDS,selectedSite, scope_input, ddmShare='secondary')
                         self.putLog("made subscription to %s:%s" % (selectedSite,dq2ID),sendLog=True)
                         usedSites.append(selectedSite)
                         # update database
@@ -399,8 +399,8 @@ class DynDataDistributer:
             # DQ2 prefix of T1
             tmpT1SiteID = self.siteMapper.getCloud(cloud)['source']
             tmpT1SiteSpec = self.siteMapper.getSite(tmpT1SiteID)
-            tmp_scope = select_scope(tmpT1SiteSpec, prodsourcelabel)
-            tmpT1DQ2ID  = tmpT1SiteSpec.ddm_input[tmp_scope]
+            tmp_scope_input, tmp_scope_output = select_scope(tmpT1SiteSpec, prodsourcelabel)
+            tmpT1DQ2ID  = tmpT1SiteSpec.ddm_input[tmp_scope_input]
             prefixDQ2T1 = re.sub('[^_]+DISK$','',tmpT1DQ2ID)
             # loop over all datasets     
             for tmpDS,tmpRepMap in tmpRepMaps.iteritems():
@@ -444,15 +444,15 @@ class DynDataDistributer:
                 # check sites
                 nUserSub = 0
                 for tmpSiteSpec in allSiteMap[cloud]:
-                    tmp_scope = select_scope(tmpSiteSpec, prodsourcelabel)
+                    tmp_scope_input, tmp_scope_output = select_scope(tmpSiteSpec, prodsourcelabel)
 
                     # check cloud
                     if tmpSiteSpec.cloud != cloud:
                         continue
                     # prefix of DQ2 ID
-                    if tmpSiteSpec.ddm_input[tmp_scope] is None:
+                    if tmpSiteSpec.ddm_input[tmp_scope_input] is None:
                         continue
-                    prefixDQ2 = re.sub('[^_]+DISK$', '', tmpSiteSpec.ddm_input[tmp_scope])
+                    prefixDQ2 = re.sub('[^_]+DISK$', '', tmpSiteSpec.ddm_input[tmp_scope_input])
                     # skip T1
                     if prefixDQ2 == prefixDQ2T1:
                         continue
@@ -482,7 +482,7 @@ class DynDataDistributer:
                             candSites.append(tmpSiteSpec.sitename)
                         else:
                             # use close sites only
-                            if self.getDQ2ID(tmpSiteSpec.sitename, tmpDS, tmp_scope) in closeSiteList:
+                            if self.getDQ2ID(tmpSiteSpec.sitename, tmpDS, tmp_scope_input) in closeSiteList:
                                 candSites.append(tmpSiteSpec.sitename)
                     # the number of subscriptions
                     for tmpUserSub in userSubscriptions:
@@ -500,6 +500,7 @@ class DynDataDistributer:
     
     # get map of DQ2 IDs
     def getDQ2ID(self, sitename, dataset, scope):
+
         # get DQ2 ID
         if not self.siteMapper.checkSite(sitename):
             self.putLog("cannot find SiteSpec for %s" % sitename)
@@ -570,8 +571,8 @@ class DynDataDistributer:
         for sitename in sitenames:
             # get DQ2 ID
             siteSpec = self.siteMapper.getSite(sitename)
-            scope = select_scope(siteSpec, prodsourcelabel)
-            dq2ID = self.getDQ2ID(sitename,dataset, scope)
+            scope_input, scope_output = select_scope(siteSpec, prodsourcelabel)
+            dq2ID = self.getDQ2ID(sitename,dataset, scope_input)
             if dq2ID == '':
                 self.putLog("cannot find DQ2 ID for %s:%s" % (sitename,dataset))
                 return retFailed
@@ -600,8 +601,8 @@ class DynDataDistributer:
                 continue
             # get DQ2 IDs
             siteSpec = self.siteMapper.getSite(sitename)
-            scope = select_scope(siteSpec, prodsourcelabel)
-            dq2ID = self.getDQ2ID(sitename, dataset, scope)
+            scope_input, scope_output = select_scope(siteSpec, prodsourcelabel)
+            dq2ID = self.getDQ2ID(sitename, dataset, scope_input)
             if dq2ID == '':
                 self.putLog("cannot find DQ2 ID for %s:%s" % (sitename,dataset))
                 return retFailed
@@ -1340,8 +1341,8 @@ class DynDataDistributer:
         # make subscription
         tmpJob.computingSite = selectedSite
         tmpSiteSpec = self.siteMapper.getSite(tmpJob.computingSite)
-        scope = select_scope(tmpSiteSpec, prodsourcelabel)
-        subRet,dq2ID = self.makeSubscription(tmpDS, tmpJob.computingSite, scope)
+        scope_input, scope_output = select_scope(tmpSiteSpec, prodsourcelabel)
+        subRet,dq2ID = self.makeSubscription(tmpDS, tmpJob.computingSite, scope_input)
         tmpTagsMap = {'site':tmpJob.computingSite,'dataset':tmpDS}
         if nUsed != None:
             tmpTagsMap['nused'] = nUsed
@@ -1377,8 +1378,8 @@ class DynDataDistributer:
         dq2List = []
         for tmpCandidate in allCandidates:
             tmpCandidateSpec = self.siteMapper.getSite(tmpCandidate)
-            scope = select_scope(tmpCandidateSpec, prodsourcelabel)
-            tmpDQ2ID = self.getDQ2ID(tmpCandidate, tmpDS, scope)
+            scope_input, scope_output = select_scope(tmpCandidateSpec, prodsourcelabel)
+            tmpDQ2ID = self.getDQ2ID(tmpCandidate, tmpDS, scope_input)
             if not tmpDQ2ID in dq2List:
                 # append
                 dq2List.append(tmpDQ2ID)
@@ -1422,8 +1423,8 @@ class DynDataDistributer:
             return False,None
         # make subscription
         selectedSiteSpec = self.siteMapper.getSite(selectedSite)
-        scope = select_scope(selectedSiteSpec, prodsourcelabel)
-        subRet,dq2ID = self.makeSubscription(tmpDS, selectedSite, scope)
+        scope_input, scope_output = select_scope(selectedSiteSpec, prodsourcelabel)
+        subRet,dq2ID = self.makeSubscription(tmpDS, selectedSite, scope_input)
         tmpTagsMap = {'site':selectedSite,'dataset':tmpDS}
         if nUsed != None:
             tmpTagsMap['nused'] = nUsed

@@ -77,15 +77,15 @@ def _checkRelease(jobRels,siteRels):
 def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,prodsourcelabel,tmpLog=None,
                 scopeList=None,allScopeList=None):
 
-    scope_association = select_scope(v_ce, prodsourcelabel)
-    dq2IDs = v_ce.setokens_input[scope_association].values()
+    scope_association_input, scope_association_output  = select_scope(v_ce, prodsourcelabel)
+    dq2IDs = v_ce.setokens_input[scope_association_input].values()
     try:
         dq2IDs.remove('')
     except:
         pass
     dq2IDs.sort()
     if dq2IDs == []:
-        dq2ID = v_ce.ddm_input[scope_association]
+        dq2ID = v_ce.ddm_input[scope_association_input]
     else:
         dq2ID = ''
         for tmpID in dq2IDs:
@@ -93,7 +93,7 @@ def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,prodsourcela
         dq2ID = dq2ID[:-1]    
     # set LFC and SE name 
     dq2URL = 'rucio://atlas-rucio.cern.ch:/grid/atlas'
-    tmpSE = v_ce.ddm_endpoints_input[scope_association].getAllEndPoints()
+    tmpSE = v_ce.ddm_endpoints_input[scope_association_input].getAllEndPoints()
     if tmpLog != None:
         tmpLog.debug('getOkFiles for %s with dq2ID:%s,LFC:%s,SE:%s' % (v_ce.sitename,dq2ID,dq2URL,str(tmpSE)))
     anyID = 'any'
@@ -140,12 +140,12 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog):
     allOK = True
     tmpSiteSpec = siteMapper.getSite(tmpJob.computingSite)
     tmpSrcSpec  = siteMapper.getSite(siteMapper.getCloud(tmpJob.getCloud())['source'])
-    scope_association_site = select_scope(tmpSiteSpec, tmpJob.prodSourceLabel)
-    scope_association_src = select_scope(tmpSrcSpec, tmpJob.prodSourceLabel)
-    tmpTapeEndPoints = tmpSiteSpec.ddm_endpoints_input[scope_association_site].getTapeEndPoints()
+    scope_association_site_input, scope_association_site_output = select_scope(tmpSiteSpec, tmpJob.prodSourceLabel)
+    scope_association_src_input, scope_association_src_output = select_scope(tmpSrcSpec, tmpJob.prodSourceLabel)
+    tmpTapeEndPoints = tmpSiteSpec.ddm_endpoints_input[scope_association_site_input].getTapeEndPoints()
     # direct usage of remote SE
-    if tmpSiteSpec.ddm_input[scope_association_site] != tmpSrcSpec.ddm_input[scope_association_site] \
-            and tmpSrcSpec.ddm_input[scope_association_src] in tmpSiteSpec.setokens_input[scope_association_site].values():
+    if tmpSiteSpec.ddm_input[scope_association_site_input] != tmpSrcSpec.ddm_input[scope_association_src_input] \
+            and tmpSrcSpec.ddm_input[scope_association_src_input] in tmpSiteSpec.setokens_input[scope_association_site_input].values():
         tmpSiteSpec = tmpSrcSpec
         tmpLog.debug('%s uses remote SiteSpec of %s for %s' % (tmpJob.PandaID,tmpSrcSpec.sitename,tmpJob.computingSite))
     for tmpFile in tmpJob.Files:
@@ -157,7 +157,7 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog):
                 tmpFile.status = 'cached'
                 tmpFile.dispatchDBlock = 'NULL'
             elif tmpJob.computingSite == siteMapper.getCloud(tmpJob.getCloud())['source'] or \
-                    tmpSiteSpec.ddm_input[scope_association_site] == tmpSrcSpec.ddm_input[scope_association_src]:
+                    tmpSiteSpec.ddm_input[scope_association_site_input] == tmpSrcSpec.ddm_input[scope_association_src_input]:
                 # use DDM prestage only for on-tape files
                 if len(tmpTapeEndPoints) > 0 and tmpFile.lfn in okFiles:
                     tapeOnly = True
@@ -332,9 +332,9 @@ def getHospitalQueues(siteMapper, forAnalysis):
         # get T1
         tmpT1Name = tmpCloudSpec['source']
         tmpT1Spec = siteMapper.getSite(tmpT1Name)
-        scope_association_t1 = select_scope(tmpT1Spec, prodSourceLabel)
+        scope_association_t1_input, scope_association_t1_output = select_scope(tmpT1Spec, prodSourceLabel)
         # skip if DDM is undefined
-        if not tmpT1Spec.ddm_input[scope_association_t1]:
+        if not tmpT1Spec.ddm_input[scope_association_t1_input]:
             continue
         # loop over all sites
         for tmpSiteName in tmpCloudSpec['sites']:
@@ -358,9 +358,9 @@ def getHospitalQueues(siteMapper, forAnalysis):
                 prodSourceLabel = 'user'
             else:
                 prodSourceLabel = 'managed'
-            scope_association_site = select_scope(tmpSiteSpec, prodSourceLabel)
+            scope_association_site_input, scope_association_site_output = select_scope(tmpSiteSpec, prodSourceLabel)
             # check DDM
-            if tmpT1Spec.ddm_input[scope_association_t1] == tmpSiteSpec.ddm_input[scope_association_site]:
+            if tmpT1Spec.ddm_input[scope_association_t1_input] == tmpSiteSpec.ddm_input[scope_association_site_input]:
                 # append
                 if not retMap.has_key(tmpCloudName):
                     retMap[tmpCloudName] = []
@@ -386,7 +386,7 @@ def getPrestageSites(siteMapper, forAnalysis):
     # get T1
     tmpT1Name = tmpCloudSpec['source']
     tmpT1Spec = siteMapper.getSite(tmpT1Name)
-    scope_T1 = select_scope(tmpT1Spec, prodsourcelabel)
+    scope_T1_input, scope_T1_output = select_scope(tmpT1Spec, prodsourcelabel)
     # loop over all sites
     for tmpSiteName in tmpCloudSpec['sites']:
         # check site
@@ -394,9 +394,9 @@ def getPrestageSites(siteMapper, forAnalysis):
             continue
         # get spec
         tmpSiteSpec = siteMapper.getSite(tmpSiteName)
-        scope_tmpSite = select_scope(tmpSiteSpec, prodsourcelabel)
+        scope_tmpSite_input, scope_tmpSite_output = select_scope(tmpSiteSpec, prodsourcelabel)
         # add if DDM is the same as T1
-        if tmpT1Spec.ddm_input[scope_T1] == tmpSiteSpec.ddm_input[scope_tmpSite] and not tmpSiteName in retList:
+        if tmpT1Spec.ddm_input[scope_T1_input] == tmpSiteSpec.ddm_input[scope_tmpSite_input] and not tmpSiteName in retList:
             retList.append(tmpSiteName)
     _log.debug('US prestage sites : %s' % str(retList))            
     # return
