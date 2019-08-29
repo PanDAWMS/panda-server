@@ -10134,10 +10134,10 @@ class DBProxy:
             panda_endpoint_map.setdefault(panda_site_name, {})
 
             if 'read_lan' in tmp_relation['roles']:
-                panda_endpoint_map[panda_site_name].setdefault(scope, {'input': DdmSpec()}
+                panda_endpoint_map[panda_site_name].setdefault(scope, {'input': DdmSpec()})
                 panda_endpoint_map[panda_site_name][scope]['input'].add(tmp_relation, endpoint_dict)
             if 'write_lan' in tmp_relation['roles']:
-                panda_endpoint_map[panda_site_name].setdefault(scope, {'output': DdmSpec()}
+                panda_endpoint_map[panda_site_name].setdefault(scope, {'output': DdmSpec()})
                 panda_endpoint_map[panda_site_name][scope]['output'].add(tmp_relation, endpoint_dict)
         
         _logger.debug("{0} done".format(methodName))
