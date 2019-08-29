@@ -10017,8 +10017,10 @@ class DBProxy:
                     ret.ddm_endpoints_output = {}
                     if siteid in pandaEndpointMap:
                         for scope in pandaEndpointMap[siteid]:
-                            ret.ddm_endpoints_input[scope] = pandaEndpointMap[siteid][scope]['input']
-                            ret.ddm_endpoints_output[scope] = pandaEndpointMap[siteid][scope]['output']
+                            if 'input' in pandaEndpointMap[siteid][scope]:
+                                ret.ddm_endpoints_input[scope] = pandaEndpointMap[siteid][scope]['input']
+                            if 'output' in pandaEndpointMap[siteid][scope]:
+                                ret.ddm_endpoints_output[scope] = pandaEndpointMap[siteid][scope]['output']
                     else:
                         # empty
                         ret.ddm_endpoints_input['default'] = DdmSpec()
@@ -10130,11 +10132,12 @@ class DBProxy:
             panda_site_name = tmp_relation['panda_site_name']
             scope = tmp_relation['scope']
             panda_endpoint_map.setdefault(panda_site_name, {})
-            panda_endpoint_map[panda_site_name].setdefault(scope, {'input': DdmSpec(), 'output': DdmSpec()})
 
             if 'read_lan' in tmp_relation['roles']:
+                panda_endpoint_map[panda_site_name].setdefault(scope, {'input': DdmSpec()}
                 panda_endpoint_map[panda_site_name][scope]['input'].add(tmp_relation, endpoint_dict)
             if 'write_lan' in tmp_relation['roles']:
+                panda_endpoint_map[panda_site_name].setdefault(scope, {'output': DdmSpec()}
                 panda_endpoint_map[panda_site_name][scope]['output'].add(tmp_relation, endpoint_dict)
         
         _logger.debug("{0} done".format(methodName))

@@ -4,7 +4,6 @@ site specification
 """
 
 import re
-from . import JobUtils
 
 
 class SiteSpec(object):
