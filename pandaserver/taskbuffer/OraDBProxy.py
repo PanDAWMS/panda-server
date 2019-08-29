@@ -10029,17 +10029,20 @@ class DBProxy:
                     # initialize dictionary fields
                     ret.setokens_input = {}
                     ret.setokens_output = {}
-                    ret.ddm_input = {}
-                    ret.ddm_output = {}                    
+                    ret.ddm_input = {}                  
                     for scope in ret.ddm_endpoints_input:
                         # mapping between token and endpoints
                         ret.setokens_input[scope] = ret.ddm_endpoints_input[scope].getTokenMap('input')
-                        ret.setokens_output[scope] = ret.ddm_endpoints_output[scope].getTokenMap('output')
-                    
                         # set DDM to the default endpoint
                         ret.ddm_input[scope] = ret.ddm_endpoints_input[scope].getDefaultRead()
+
+                    ret.ddm_output = {}
+                    for scope in ret.ddm_endpoints_output:
+                        # mapping between token and endpoints
+                        ret.setokens_output[scope] = ret.ddm_endpoints_output[scope].getTokenMap('output')
+                        # set DDM to the default endpoint
                         ret.ddm_output[scope] = ret.ddm_endpoints_output[scope].getDefaultWrite()
-                    
+
                     # object stores
                     try:
                         ret.objectstores = json.loads(objectstores)
