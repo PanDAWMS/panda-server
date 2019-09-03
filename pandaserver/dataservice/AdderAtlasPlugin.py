@@ -97,6 +97,8 @@ class AdderAtlasPlugin (AdderPluginBase):
             somethingToTranfer = False
             for file in self.job.Files:
                 if file.type == 'output' or file.type == 'log':
+                    if file.status == 'nooutput':
+                        continue
                     if DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) == None \
                             and not file.lfn in self.job.altStgOutFileList():
                         somethingToTranfer = True
