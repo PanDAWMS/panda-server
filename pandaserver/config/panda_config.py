@@ -90,6 +90,14 @@ if not tmpSelf.__dict__.has_key('def_gatekeeper'):
     tmpSelf.__dict__['def_gatekeeper'] = 'gridgk01.racf.bnl.gov'
 if not tmpSelf.__dict__.has_key('def_status'):
     tmpSelf.__dict__['def_status'] = 'online'
+if 'token_authType' not in tmpSelf.__dict__:
+    tmpSelf.__dict__['token_authType'] = None
+if 'token_audience' not in tmpSelf.__dict__:
+    tmpSelf.__dict__['token_audience'] = 'https://pandaserver.cern.ch'
+if 'token_issuers' not in tmpSelf.__dict__:
+    tmpSelf.__dict__['token_issuers'] = ''
+
+
 
 # dict for plugins
 g_pluginMap = {}    

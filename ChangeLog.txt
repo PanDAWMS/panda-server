@@ -1,5 +1,8 @@
 Release Notes
 
+* 9/3/2019
+  * token-based auth
+
 * 8/26/2019
   * changed sub dataset names
   * changed heartbeat timeout to be configurable

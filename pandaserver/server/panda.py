@@ -107,13 +107,18 @@ if panda_config.useFastCGI or panda_config.useWSGI:
     import cgi
     import sys
     from pandalogger.PandaLogger import PandaLogger
+    from pandalogger.LogWrapper import LogWrapper
+
+    if panda_config.token_authType == 'scitokens':
+        import scitokens
 
     # logger
     _logger = PandaLogger().getLogger('Entry')
 
+
     # dummy request object
     class DummyReq:
-        def __init__(self,env,):
+        def __init__(self, env, tmpLog):
             # environ
             self.subprocess_env = env
             # header
@@ -121,6 +126,29 @@ if panda_config.useFastCGI or panda_config.useWSGI:
             # content-length
             if self.subprocess_env.has_key('CONTENT_LENGTH'):
                 self.headers_in["content-length"] = self.subprocess_env['CONTENT_LENGTH']
+            # scitoken
+            try:
+                if panda_config.token_authType == 'scitokens' and 'HTTP_AUTHORIZATION' in env:
+                    serialized_token = env['HTTP_AUTHORIZATION'].split()[1]
+                    token = scitokens.SciToken.deserialize(serialized_token, audience=panda_config.token_audience)
+                    # check issuer
+                    if 'iss' not in token:
+                        tmpLog.error('issuer is undefined')
+                    elif panda_config.token_issuers != '' and token['iss'] not in panda_config.token_issuers.split(','):
+                        tmpLog.error('invalid issuer {0}'.format(token['iss']))
+                    else:
+                        for c, v in token.claims():
+                            self.subprocess_env['SCI_TOKEN_{0}'.format(str(c))] = str(v)
+                        # use sub and scope as DN and FQAN
+                        if 'SSL_CLIENT_S_DN' not in self.subprocess_env:
+                            self.subprocess_env['SSL_CLIENT_S_DN'] = str(token['sub'])
+                            i = 0
+                            for scope in token['scope'].split():
+                                if scope.startswith('role:'):
+                                    self.subprocess_env['GRST_CRED_SCI_TOKEN_{0}'.format(i)] = 'VOMS ' + str(scope.split(':')[-1])
+                                    i += 1
+            except Exception as e:
+                tmpLog.error('invalid token: {0}'.format(str(e)))
 
         # get remote host    
         def get_remote_host(self):
@@ -144,12 +172,13 @@ if panda_config.useFastCGI or panda_config.useWSGI:
         methodName = ''
         if environ.has_key('SCRIPT_NAME'):
             methodName = environ['SCRIPT_NAME'].split('/')[-1]
-        _logger.debug("PID=%s %s start" % (os.getpid(),methodName))
+        tmpLog = LogWrapper(_logger, "PID={0} {1}".format(os.getpid(), methodName))
+        tmpLog.debug("start")
         regStart = datetime.datetime.utcnow()
         retType = None
         # check method name    
         if not methodName in allowedMethods:
-            _logger.error("PID=%s %s is forbidden" % (os.getpid(),methodName))
+            tmpLog.error("is forbidden")
             exeRes = "False : %s is forbidden" % methodName
         else:
             # get method object
@@ -160,7 +189,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                 pass
             # object not found
             if tmpMethod == None:
-                _logger.error("PID=%s %s is undefined" % (os.getpid(),methodName))
+                tmpLog.error("is undefined")
                 exeRes = "False"
             else:
                 try:
@@ -177,9 +206,9 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                             # string
                             params[tmpKey] = tmpPars.getfirst(tmpKey)
                     if panda_config.entryVerbose:
-                        _logger.debug("PID=%s %s with %s" % (os.getpid(),methodName,str(params.keys())))
+                        tmpLog.debug("with %s" % str(params.keys()))
                     # dummy request object
-                    dummyReq = DummyReq(environ)
+                    dummyReq = DummyReq(environ, tmpLog)
                     # exec
                     exeRes = apply(tmpMethod,[dummyReq],params)
                     # extract return type
@@ -189,23 +218,21 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                     # convert bool to string
                     if exeRes in [True,False]:
                         exeRes = str(exeRes)
-                except:
-                    errType,errValue = sys.exc_info()[:2]
-                    _logger.error("execution failure : %s %s %s" % (errType,errValue,traceback.format_exc()))
+                except Exception as e:
+                    tmpLog.error("execution failure : {0}".format(str(e)))
                     errStr = ""
                     for tmpKey,tmpVal in environ.iteritems():
                         errStr += "%s : %s\n" % (tmpKey,str(tmpVal))
-                    _logger.error(errStr)
+                    tmpLog.error(errStr)
                     # return internal server error
                     start_response('500 INTERNAL SERVER ERROR', [('Content-Type', 'text/plain')]) 
-                    return ["%s %s" % (errType,errValue)]
+                    return [str(e)]
         if panda_config.entryVerbose:
-            _logger.debug("PID=%s %s out" % (os.getpid(),methodName))
+            tmpLog.debug("done")
         regTime = datetime.datetime.utcnow() - regStart
-        _logger.info("PID=%s %s exec_time=%s.%03d sec, return len=%s B" % (os.getpid(),
-                                                                              methodName,regTime.seconds,
-                                                                              regTime.microseconds/1000,
-                                                                              len(str(exeRes))))
+        tmpLog.info("exec_time=%s.%03d sec, return len=%s B" % (regTime.seconds,
+                                                                regTime.microseconds/1000,
+                                                                len(str(exeRes))))
         # return
         if exeRes == taskbuffer.ErrorCode.EC_NotFound:
             start_response('404 Not Found', [('Content-Type', 'text/plain')])
