@@ -5,15 +5,17 @@ from OpenSSL import crypto
 
 # get prefix for DQ2
 def getDQ2Prefix(dq2SiteID):
-    # prefix of DQ2 ID
-    tmpDQ2IDPrefix = re.sub('_[A-Z,0-9]+DISK$','',dq2SiteID)
-    # remove whitespace 
-    tmpDQ2IDPrefix = tmpDQ2IDPrefix.strip()
-    # patchfor MWT2
-    if tmpDQ2IDPrefix == 'MWT2_UC':
-        tmpDQ2IDPrefix = 'MWT2'
-    return tmpDQ2IDPrefix
-
+    try:
+        # prefix of DQ2 ID
+        tmpDQ2IDPrefix = re.sub('_[A-Z,0-9]+DISK$','',dq2SiteID)
+        # remove whitespace 
+        tmpDQ2IDPrefix = tmpDQ2IDPrefix.strip()
+        # patchfor MWT2
+        if tmpDQ2IDPrefix == 'MWT2_UC':
+            tmpDQ2IDPrefix = 'MWT2'
+        return tmpDQ2IDPrefix
+    except Exception:
+        return ''
 
 # check if the file is cached
 def isCachedFile(datasetName,siteSpec):
