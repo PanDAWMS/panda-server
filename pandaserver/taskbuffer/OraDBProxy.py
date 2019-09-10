@@ -21583,6 +21583,7 @@ class DBProxy:
         
         for harvester_id in harvester_ids:
             for job_type in worker_stats[harvester_id]:
+                workers_queued.setdefault(job_type, {})
                 for resource_type in worker_stats[harvester_id][job_type]:
                     # TODO: this needs to be converted into cores, or we stay at worker level???
                     # how do I know ncores from only the resource_type???
@@ -21591,16 +21592,16 @@ class DBProxy:
                     except KeyError:
                         pass
 
-                    try:
-                        workers_queued.setdefault(resource_type, 0)
-                        workers_queued[resource_type] = workers_queued[resource_type] + worker_stats[harvester_id][job_type][resource_type]['submitted']
+                    try: # submitted
+                        workers_queued[job_type].setdefault(resource_type, 0)
+                        workers_queued[job_type][resource_type] = workers_queued[job_type][resource_type] + worker_stats[harvester_id][job_type][resource_type]['submitted']
                         n_workers_queued = n_workers_queued + worker_stats[harvester_id][job_type][resource_type]['submitted']
                     except KeyError:
                         pass
 
-                    try:
-                        workers_queued.setdefault(resource_type, 0)
-                        workers_queued[resource_type] = workers_queued[resource_type] + worker_stats[harvester_id][job_type][resource_type]['ready']
+                    try: # ready
+                        workers_queued[job_type].setdefault(resource_type, 0)
+                        workers_queued[job_type][resource_type] = workers_queued[job_type][resource_type] + worker_stats[harvester_id][job_type][resource_type]['ready']
                         n_workers_queued = n_workers_queued + worker_stats[harvester_id][job_type][resource_type]['ready']
                     except KeyError:
                         pass
@@ -21641,7 +21642,7 @@ class DBProxy:
             tmpLog.debug('Processing share: {0}. Got {1} activated jobs'.format(share.name, len(activated_jobs)))
             for gshare, job_type, resource_type in activated_jobs:
                 workers_queued.setdefault(job_type, {resource_type: 0})
-                workers_queued[job_type][resource_type] = workers_queued[resource_type] - 1
+                workers_queued[job_type][resource_type] = workers_queued[job_type][resource_type] - 1
                 if workers_queued[job_type][resource_type] <= 0:
                     # we've gone over the jobs that already have a queued worker, now we go for new workers
                     n_workers_to_submit = n_workers_to_submit - 1
@@ -21661,7 +21662,7 @@ class DBProxy:
         new_workers = {}
         for job_type in workers_queued:
             new_workers.setdefault(job_type, {})
-            for resource_type in workers_queued[prodsourcelabel]:
+            for resource_type in workers_queued[job_type]:
                 if workers_queued[job_type][resource_type] >= 0:
                     # we have too many workers queued already, don't submit more
                     new_workers[job_type][resource_type] = 0
@@ -21685,7 +21686,7 @@ class DBProxy:
             new_workers_per_harvester.setdefault(harvester_id, {})
             for job_type in new_workers:
                 new_workers_per_harvester[harvester_id].setdefault(job_type, {})
-                for resource_type in new_workers[prodsourcelabel]:
+                for resource_type in new_workers[job_type]:
                     new_workers_per_harvester[harvester_id][job_type][resource_type] = int(math.ceil(new_workers[job_type][resource_type] * 1.0 / len(harvester_ids)))
 
         tmpLog.debug('Workers to submit: {0}'.format(new_workers_per_harvester))
