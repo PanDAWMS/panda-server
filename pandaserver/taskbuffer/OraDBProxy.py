@@ -21677,7 +21677,7 @@ class DBProxy:
                     workers = True
                     break
         if not workers:
-            new_workers['managed']['SCORE'] = 1
+            new_workers['managed'] = {'SCORE': 1}
 
         # In case multiple harvester instances are serving a panda queue, split workers evenly between them
         new_workers_per_harvester = {}
