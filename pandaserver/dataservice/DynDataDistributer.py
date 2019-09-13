@@ -4,6 +4,7 @@ find candidate site to distribute input datasets
 '''
 
 import re
+import fnmatch
 import sys
 import time
 import math
@@ -943,8 +944,7 @@ class DynDataDistributer:
                     if dsFilters != []:
                         flagMatch = False
                         for tmpFilter in dsFilters:
-                            tmpFilter = tmpFilter.replace('*','.*')
-                            if re.search(tmpFilter,tmpDsName) != None:
+                            if fnmatch.fnmatchcase(tmpDsName, tmpFilter):
                                 flagMatch = True
                                 break
                         # not match
