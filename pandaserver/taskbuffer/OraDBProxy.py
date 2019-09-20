@@ -10215,13 +10215,12 @@ class DBProxy:
             return self.getCriteriaByAge(site_name, max_jobs)
         else:
             # generate the global share sorting
-            _logger.debug('{1} sorting by gshare'.format(method_name))
+            _logger.debug('{0} sorting by gshare'.format(method_name))
             return self.getCriteriaForGlobalShares(site_name, max_jobs)
 
     # get selection criteria for share of production activities
     def getCriteriaForGlobalShares(self, site_name, max_jobs):
         method_name = 'getCriteriaForGlobalShare'
-
         # return for no criteria
         var_map = {}
         ret_empty = '', {}
