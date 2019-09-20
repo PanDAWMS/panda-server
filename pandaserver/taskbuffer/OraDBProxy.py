@@ -10203,9 +10203,10 @@ class DBProxy:
         method_name = 'getSortingCriteria'
         # throw the dice to decide the algorithm
         random_number = random.randrange(100)
-        sloppy_ratio = 10
-        if hasattr(panda_config, 'SLOPPY_DISPATCH_RATIO'):
-            sloppy_ratio = panda_config.SLOPPY_DISPATCH_RATIO
+
+        sloppy_ratio = self.getConfigValue('jobdispatch', 'SLOPPY_DISPATCH_RATIO')
+        if not sloppy_ratio:
+            sloppy_ratio = 10
         
         _logger.debug('{0} random_number: {1} sloppy_ratio: {2}'.format(method_name, random_number, sloppy_ratio))
         
