@@ -10200,36 +10200,40 @@ class DBProxy:
 
     # get dispatch sorting criteria
     def getSortingCriteria(self, site_name, max_jobs):
-        
+        method_name = 'getSortingCriteria'
         # throw the dice to decide the algorithm
         random_number = random.randrange(100)
         sloppy_ratio = 90
         if hasattr(panda_config, 'SLOPPY_DISPATCH_RATIO'):
             sloppy_ratio = panda_config.SLOPPY_DISPATCH_RATIO
         
+        _logger.debug('{0} random_number: {1} sloppy_ratio: {2}'.format(method_name, random_number, sloppy_ratio))
+        
         if random_number <= sloppy_ratio:
             # generate the age sorting
+            _logger.debug('{0} sorting by age'.format(method_name))
             return self.getCriteriaByAge(site_name, max_jobs)
         else:
             # generate the global share sorting
+            _logger.debug('{1} sorting by gshare'.format(method_name))
             return self.getCriteriaForGlobalShares(site_name, max_jobs)
 
     # get selection criteria for share of production activities
     def getCriteriaForGlobalShares(self, site_name, max_jobs):
-        comment = ' /* DBProxy.getCriteriaForGlobalShare */'
+        method_name = 'getCriteriaForGlobalShare'
+
         # return for no criteria
-        ret_sql = ''
         var_map = {}
         ret_empty = '', {}
 
         try:
             # Get the share leaves sorted by order of under-pledging
-            _logger.debug('Going to call get sorted leaves')
+            _logger.debug('{0} Going to call get sorted leaves'.format(method_name))
             t_before = time.time()
             sorted_leaves = self.get_sorted_leaves()
             t_after = time.time()
             total = t_after - t_before
-            _logger.debug('Sorting leaves took {0}s'.format(total))
+            _logger.debug('{0} Sorting leaves took {1}s'.format(method_name, total))
 
             i = 0
             tmp_list = []
@@ -10252,13 +10256,13 @@ class DBProxy:
                       WHERE ROWNUM <= {0}
                       """.format(':njobs', leave_bindings, len(sorted_leaves))
 
-            _logger.debug('ret_sql: {0}'.format(ret_sql))
-            _logger.debug('var_map: {0}'.format(var_map))
+            _logger.debug('{0} ret_sql: {1}'.format(method_name, ret_sql))
+            _logger.debug('{0} var_map: {1}'.format(method_name, var_map))
             return ret_sql, var_map
 
         except:
             err_type, err_value = sys.exc_info()[:2]
-            err_str = "getCriteriaForGlobalShare {0} : {1} {2}".format(site_name, err_type, err_value)
+            err_str = "{0} {1} : {2} {3}".format(method_name, site_name, err_type, err_value)
             err_str.strip()
             err_str += traceback.format_exc()
             _logger.error(err_str)
