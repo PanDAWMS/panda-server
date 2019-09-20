@@ -50,7 +50,6 @@ class _TimedMethod:
         thr.join() #self.timeout)
 
 
-
 # cached object
 class CachedObject:
     # constructor
@@ -102,7 +101,6 @@ class CachedObject:
     # release object
     def releaseObj(self):
         self.lock.release()
-
 
 
 # job dipatcher

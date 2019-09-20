@@ -3221,15 +3221,6 @@ class DBProxy:
         """
         comment = ' /* DBProxy.getJobs */'
 
-        # aggregated sites which use different appdirs
-        aggSiteMap = {'CERN-PROD':{'CERN-RELEASE':'release',
-                                   'CERN-UNVALID':'unvalid',
-                                   'CERN-BUILDS' :'builds',
-                                   },
-                      }
-
-        # Global share clauses and varmap
-        global_share_sql, global_share_varmap = None, {}
         # Number of PanDAIDs that will be tried
         maxAttemptIDx = 10
 
@@ -3240,17 +3231,8 @@ class DBProxy:
         getValMap[':computingSite'] = siteName
 
         # sql1 is the WHERE clause with all the applicable filters for the request
-        if not aggSiteMap.has_key(siteName):
-            sql1 = "WHERE jobStatus=:oldJobStatus AND computingSite=:computingSite AND commandToPilot IS NULL "
-        else:
-            # aggregated sites 
-            sql1 = "WHERE jobStatus=:oldJobStatus AND computingSite IN (:computingSite,"
-            for tmpAggIdx,tmpAggSite in enumerate(aggSiteMap[siteName].keys()):
-                tmpKeyName = ':computingSite%s' % tmpAggIdx
-                sql1 += '%s,' % tmpKeyName
-                getValMap[tmpKeyName] = tmpAggSite
-            sql1 = sql1[:-1]
-            sql1 += ") AND commandToPilot IS NULL "
+        sql1 = "WHERE jobStatus=:oldJobStatus AND computingSite=:computingSite AND commandToPilot IS NULL "
+
         if not mem in [0,'0']:
             sql1+= "AND (minRamCount<=:minRamCount OR minRamCount=0) "
             getValMap[':minRamCount'] = mem
@@ -3819,11 +3801,7 @@ class DBProxy:
                 # commit
                 if not self._commit():
                     raise RuntimeError, 'Commit error'
-                # overwrite processingType for appdir at aggrigates sites
-                if aggSiteMap.has_key(siteName):
-                    if aggSiteMap[siteName].has_key(job.computingSite):
-                        job.processingType = aggSiteMap[siteName][job.computingSite]
-                        job.computingSite  = job.computingSite
+
                 # append
                 retJobs.append(job)
                 # record status change
