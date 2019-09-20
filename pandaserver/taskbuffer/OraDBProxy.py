@@ -10203,7 +10203,7 @@ class DBProxy:
         
         # throw the dice to decide the algorithm
         random_number = random.randrange(100)
-        sloppy_threshold = 90
+        sloppy_ratio = 90
         if hasattr(panda_config, 'SLOPPY_DISPATCH_RATIO'):
             sloppy_ratio = panda_config.SLOPPY_DISPATCH_RATIO
         
