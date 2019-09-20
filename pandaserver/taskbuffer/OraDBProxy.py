@@ -11,7 +11,6 @@ import math
 import copy
 import glob
 import uuid
-import types
 import random
 import urllib
 import socket
@@ -42,7 +41,6 @@ from Utils import create_shards
 from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
 from config import panda_config
-from brokerage.PandaSiteIDs import PandaSiteIDs
 from SupErrors import SupErrors
 from __builtin__ import True
 
@@ -3210,9 +3208,9 @@ class DBProxy:
 
         
     # get jobs
-    def getJobs(self,nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                atlasRelease,prodUserID,countryGroup,workingGroup,allowOtherCountry,taskID,background,
-                resourceType,harvester_id,worker_id,schedulerID):
+    def getJobs(self, nJobs, siteName, prodSourceLabel, cpu, mem, diskSpace, node, timeout, computingElement,
+                atlasRelease, prodUserID, countryGroup, workingGroup, allowOtherCountry, taskID, background,
+                resourceType, harvester_id, worker_id, schedulerID):
         """
         1. Construct where clause (sql1) based on applicable filters for request
         2. Select n jobs with the highest priorities and the lowest pandaids
@@ -3289,12 +3287,11 @@ class DBProxy:
             sql1+= "AND jediTaskID=:taskID "
             getValMap[':taskID'] = taskID
 
-        # generate the global share sorting
-        global_share_sql, global_share_varmap = self.getCriteriaForGlobalShares(siteName, maxAttemptIDx)
-
-        if global_share_varmap:  # copy the var map, but not the sql, since it has to be at the very end
-            for tmpShareKey in global_share_varmap.keys():
-                getValMap[tmpShareKey] = global_share_varmap[tmpShareKey]
+        # get the sorting criteria (global shares, age, etc.)
+        sorting_sql, sorting_varmap = self.getSortingCriteria(siteName, maxAttemptIDx)
+        if sorting_varmap:  # copy the var map, but not the sql, since it has to be at the very end
+            for tmp_key in sorting_varmap.keys():
+                getValMap[tmp_key] = sorting_varmap[tmp_key]
 
         # sql2 is query to get the DB entry for a specific PanDA ID
         sql2 = "SELECT %s FROM ATLAS_PANDA.jobsActive4 " % JobSpec.columnNames()
@@ -3395,9 +3392,9 @@ class DBProxy:
                             sqlP = "SELECT /*+ INDEX_RS_ASC(tab (PRODSOURCELABEL COMPUTINGSITE JOBSTATUS) ) */ PandaID,currentPriority,specialHandling FROM ATLAS_PANDA.jobsActive4 tab "
                             sqlP += sql1
 
-                            if global_share_sql:
+                            if sorting_sql:
                                 sqlP = 'SELECT * FROM (' + sqlP
-                                sqlP += global_share_sql
+                                sqlP += sorting_sql
 
                             _logger.debug(sqlP+comment+str(getValMap))
                             # start transaction
@@ -10201,6 +10198,21 @@ class DBProxy:
             self._rollback()
             return
 
+    # get dispatch sorting criteria
+    def getSortingCriteria(self, site_name, max_jobs):
+        
+        # throw the dice to decide the algorithm
+        random_number = random.randrange(100)
+        sloppy_threshold = 90
+        if hasattr(panda_config, 'SLOPPY_DISPATCH_RATIO'):
+            sloppy_ratio = panda_config.SLOPPY_DISPATCH_RATIO
+        
+        if random_number <= sloppy_ratio:
+            # generate the age sorting
+            return self.getCriteriaByAge(site_name, max_jobs)
+        else:
+            # generate the global share sorting
+            return self.getCriteriaForGlobalShares(site_name, max_jobs)
 
     # get selection criteria for share of production activities
     def getCriteriaForGlobalShares(self, site_name, max_jobs):
@@ -10230,7 +10242,7 @@ class DBProxy:
                     tmp_list.append(':leave{0}, {0}'.format(i))
                 i += 1
 
-            # Only get max_jobs, to avoid getting all activated jobs from the
+            # Only get max_jobs, to avoid getting all activated jobs from the table
             var_map[':njobs'] = max_jobs
 
             # We want to sort by global share, highest priority and lowest pandaid
@@ -10254,6 +10266,37 @@ class DBProxy:
             self._rollback()
             return ret_empty
 
+    # get selection criteria for share of production activities
+    def getCriteriaByAge(self, site_name, max_jobs):
+        comment = ' /* DBProxy.getCriteriaByAge */'
+        # return for no criteria
+        ret_sql = ''
+        var_map = {}
+        ret_empty = '', {}
+
+        try:
+            # Only get max_jobs, to avoid getting all activated jobs from the table
+            var_map[':njobs'] = max_jobs
+
+            # We want to ignore global share and just take the oldest pandaid
+            ret_sql = """
+                      ORDER BY pandaid asc)
+                      WHERE ROWNUM <= :njobs
+                      """
+
+            _logger.debug('ret_sql: {0}'.format(ret_sql))
+            _logger.debug('var_map: {0}'.format(var_map))
+            return ret_sql, var_map
+
+        except:
+            err_type, err_value = sys.exc_info()[:2]
+            err_str = "getCriteriaByAge {0} : {1} {2}".format(site_name, err_type, err_value)
+            err_str.strip()
+            err_str += traceback.format_exc()
+            _logger.error(err_str)
+            # roll back
+            self._rollback()
+            return ret_empty
 
     # get beyond pledge resource ratio
     def getPledgeResourceRatio(self):
