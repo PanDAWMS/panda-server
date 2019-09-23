@@ -684,7 +684,7 @@ class JsonDumper(threading.Thread):
         """
         Principal function
         """
-        taskBuffer.upsertQueuesInJSONSchedconfig()
+        taskBuffer.upsertQueuesInJSONSchedconfig(self.schedconfig_dump)
 
 if __name__ == "__main__":
 

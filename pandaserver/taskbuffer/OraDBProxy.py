@@ -22818,7 +22818,7 @@ class DBProxy:
             return None
 
     # update queues
-    def upsertQueuesInJSONSchedconfig(self):
+    def upsertQueuesInJSONSchedconfig(self, schedconfig_dump):
         comment = ' /* DBProxy.updateQueuesInJSONSchedconfig */'
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmp_log = LogWrapper(_logger, method_name)

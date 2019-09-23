@@ -3836,6 +3836,16 @@ class TaskBuffer:
         # return
         return ret
 
+  # update/insert JSON queue information into the scheconfig replica
+    def upsertQueuesInJSONSchedconfig(self, schedconfig_dump):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.upsertQueuesInJSONSchedconfig(schedconfig_dump)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
 
 # Singleton
 taskBuffer = TaskBuffer()
