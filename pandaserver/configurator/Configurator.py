@@ -16,6 +16,7 @@ _session = dbif.get_session()
 WRITE_LAN = 'write_lan'
 READ_LAN = 'read_lan'
 
+
 class Configurator(threading.Thread):
 
     def __init__(self):
@@ -658,6 +659,33 @@ class NetworkConfigurator(threading.Thread):
         else:
             return False
 
+
+class JsonDumper(threading.Thread):
+    """
+    Downloads the AGIS schedconfig dump and stores it in the DB, one row per queue
+    """
+    def __init__(self):
+        """
+        Initialization and configuration
+        """
+        threading.Thread.__init__(self)
+        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
+
+        if hasattr(panda_config, 'AGIS_URL_SCHEDCONFIG'):
+            self.AGIS_URL_SCHEDCONFIG = panda_config.AGIS_URL_SCHEDCONFIG
+        else:
+            self.AGIS_URL_SCHEDCONFIG = 'http://atlas-agis-api.cern.ch/request/pandaqueue/query/list/?json&preset=schedconf.all&vo_name=atlas&state=ACTIVE'
+
+        _logger.debug('Getting schedconfig dump...')
+        self.schedconfig_dump = aux.get_dump(self.AGIS_URL_SCHEDCONFIG)
+        _logger.debug('Done')
+
+    def run(self):
+        """
+        Principal function
+        """
+        taskBuffer.upsertQueuesInJSONSchedconfig()
+
 if __name__ == "__main__":
 
     # If no argument, call the basic configurator
@@ -677,7 +705,14 @@ if __name__ == "__main__":
             _logger.critical("Configurator loop FAILED")
         t2 = time.time()
         _logger.debug(" run took {0}s".format(t2-t1))
-
+    # If --json_dump
+    elif len(sys.argv) == 2 and sys.argv[1].lower() == '--json_dump':
+        t1 = time.time()
+        json_dumper = JsonDumper()
+        if not json_dumper.run():
+            _logger.critical("Json_dumper FAILED")
+        t2 = time.time()
+        _logger.debug(" run took {0}s".format(t2-t1))
     else:
         _logger.error("Configurator being called with wrong arguments. Use either no arguments or --network")
 
