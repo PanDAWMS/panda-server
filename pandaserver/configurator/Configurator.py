@@ -709,8 +709,8 @@ if __name__ == "__main__":
     elif len(sys.argv) == 2 and sys.argv[1].lower() == '--json_dump':
         t1 = time.time()
         json_dumper = JsonDumper()
-        out_msg = json_dumper.run():
-            _logger.debug("Json_dumper finished with {0}".format(out_msg))
+        out_msg = json_dumper.run()
+        _logger.debug("Json_dumper finished with {0}".format(out_msg))
         t2 = time.time()
         _logger.debug(" run took {0}s".format(t2-t1))
     else:
