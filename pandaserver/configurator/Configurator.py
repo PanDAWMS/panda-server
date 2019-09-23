@@ -684,7 +684,7 @@ class JsonDumper(threading.Thread):
         """
         Principal function
         """
-        taskBuffer.upsertQueuesInJSONSchedconfig(self.schedconfig_dump)
+        return taskBuffer.upsertQueuesInJSONSchedconfig(self.schedconfig_dump)
 
 if __name__ == "__main__":
 
@@ -709,10 +709,10 @@ if __name__ == "__main__":
     elif len(sys.argv) == 2 and sys.argv[1].lower() == '--json_dump':
         t1 = time.time()
         json_dumper = JsonDumper()
-        if not json_dumper.run():
-            _logger.critical("Json_dumper FAILED")
+        out_msg = json_dumper.run():
+            _logger.debug("Json_dumper finished with {0}".format(out_msg))
         t2 = time.time()
         _logger.debug(" run took {0}s".format(t2-t1))
     else:
-        _logger.error("Configurator being called with wrong arguments. Use either no arguments or --network")
+        _logger.error("Configurator being called with wrong arguments. Use either no arguments or --network or --json_dump")
 

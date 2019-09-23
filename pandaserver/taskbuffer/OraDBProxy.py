@@ -22819,7 +22819,7 @@ class DBProxy:
 
     # update queues
     def upsertQueuesInJSONSchedconfig(self, schedconfig_dump):
-        comment = ' /* DBProxy.updateQueuesInJSONSchedconfig */'
+        comment = ' /* DBProxy.upsertQueuesInJSONSchedconfig */'
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")
@@ -22835,9 +22835,9 @@ class DBProxy:
             var_map_update = []
             for pq in schedconfig_dump:
                 if pq in existing_queues:
-                    var_map_update.append({'pq': pq, 'data': schedconfig_dump[pq]})
+                    var_map_update.append({':pq': pq, ':data': json.dumps(schedconfig_dump[pq])})
                 else:
-                    var_map_insert.append({'pq': pq, 'data': schedconfig_dump[pq]})
+                    var_map_insert.append({':pq': pq, ':data': json.dumps(schedconfig_dump[pq])})
 
             # start transaction
             self.conn.begin()
@@ -22851,7 +22851,7 @@ class DBProxy:
             self.cur.executemany(sql_update + comment, var_map_update)
             tmp_log.debug("finished {0} updates".format(self.cur.rowcount))
 
-            # run the updates
+            # run the inserts
             sql_insert = """
                          INSERT INTO ATLAS_PANDA.SCHEDCONFIG_JSON (panda_queue, data, last_update)
                          VALUES (:pq, :data, sysdate)
@@ -22862,9 +22862,11 @@ class DBProxy:
 
             if not self._commit():
                 raise RuntimeError, 'Commit error'
+            return 'OK'
 
         except:
             # roll back
             self._rollback()
             self.dumpErrorMessage(_logger, method_name)
+            return 'ERROR'
 
