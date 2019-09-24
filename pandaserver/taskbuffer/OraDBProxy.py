@@ -22804,7 +22804,7 @@ class DBProxy:
             # start transaction
             self.conn.begin()
             self.cur.execute(sqlC + comment)
-            panda_queues = self.cur.fetchall()
+            panda_queues = [row[0] for row in self.cur.fetchall()]
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
@@ -22841,24 +22841,28 @@ class DBProxy:
 
             # start transaction
             self.conn.begin()
-            
+
+            rowcount_aux = 0            
             # run the updates
-            sql_update = """
-                         UPDATE ATLAS_PANDA.SCHEDCONFIG_JSON SET data = :data, last_update = sysdate
-                         WHERE panda_queue = :pq
-                         """
-            tmp_log.debug("start updates")
-            self.cur.executemany(sql_update + comment, var_map_update)
-            tmp_log.debug("finished {0} updates".format(self.cur.rowcount))
+            if var_map_update:
+                sql_update = """
+                             UPDATE ATLAS_PANDA.SCHEDCONFIG_JSON SET data = :data, last_update = sysdate
+                             WHERE panda_queue = :pq
+                             """
+                tmp_log.debug("start updates")
+                self.cur.executemany(sql_update + comment, var_map_update)
+                tmp_log.debug("finished {0} updates".format(self.cur.rowcount - rowcount_aux))
+                rowcount_aux = self.cur.rowcount
 
             # run the inserts
-            sql_insert = """
-                         INSERT INTO ATLAS_PANDA.SCHEDCONFIG_JSON (panda_queue, data, last_update)
-                         VALUES (:pq, :data, sysdate)
-                         """
-            tmp_log.debug("start inserts")
-            self.cur.executemany(sql_insert + comment, var_map_insert)
-            tmp_log.debug("finished {0} inserts".format(self.cur.rowcount))
+            if var_map_insert:
+                sql_insert = """
+                             INSERT INTO ATLAS_PANDA.SCHEDCONFIG_JSON (panda_queue, data, last_update)
+                             VALUES (:pq, :data, sysdate)
+                             """
+                tmp_log.debug("start inserts")
+                self.cur.executemany(sql_insert + comment, var_map_insert)
+                tmp_log.debug("finished {0} inserts".format(self.cur.rowcount - rowcount_aux))
 
             if not self._commit():
                 raise RuntimeError, 'Commit error'
