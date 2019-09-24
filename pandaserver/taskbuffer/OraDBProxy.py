@@ -22833,11 +22833,16 @@ class DBProxy:
             # separate the queues to the ones we have to update (existing) and the ones we have to insert (new) 
             var_map_insert = []
             var_map_update = []
+            utc_now = datetime.datetime.utcnow()
             for pq in schedconfig_dump:
                 if pq in existing_queues:
-                    var_map_update.append({':pq': pq, ':data': json.dumps(schedconfig_dump[pq])})
+                    var_map_update.append({':pq': pq,
+                                           ':data': json.dumps(schedconfig_dump[pq]),
+                                           ':last_update': utc_now})
                 else:
-                    var_map_insert.append({':pq': pq, ':data': json.dumps(schedconfig_dump[pq])})
+                    var_map_insert.append({':pq': pq,
+                                           ':data': json.dumps(schedconfig_dump[pq]),
+                                           ':last_update': utc_now})
 
             # start transaction
             self.conn.begin()
@@ -22863,6 +22868,15 @@ class DBProxy:
                 tmp_log.debug("start inserts")
                 self.cur.executemany(sql_insert + comment, var_map_insert)
                 tmp_log.debug("finished {0} inserts".format(self.cur.rowcount - rowcount_aux))
+                rowcount_aux = self.cur.rowcount
+            
+            # delete inactive queues
+            tmp_log.debug("Going to delete obsoleted queues")
+            sql_delete = """
+                         DELETE FROM ATLAS_PANDA.SCHEDCONFIG_JSON WHERE last_update < sysdate - INTERVAL '7' DAY
+                         """
+            self.cur.execute(sql_delete + comment)
+            tmp_log.debug("deleted {0} old queues".format(self.cur.rowcount - rowcount_aux))
 
             if not self._commit():
                 raise RuntimeError, 'Commit error'
