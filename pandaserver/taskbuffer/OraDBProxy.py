@@ -22846,8 +22846,7 @@ class DBProxy:
 
             # start transaction
             self.conn.begin()
-
-            rowcount_aux = 0            
+            
             # run the updates
             if var_map_update:
                 sql_update = """
@@ -22856,8 +22855,7 @@ class DBProxy:
                              """
                 tmp_log.debug("start updates")
                 self.cur.executemany(sql_update + comment, var_map_update)
-                tmp_log.debug("finished {0} updates".format(self.cur.rowcount - rowcount_aux))
-                rowcount_aux = self.cur.rowcount
+                tmp_log.debug("finished updates")
 
             # run the inserts
             if var_map_insert:
@@ -22867,8 +22865,7 @@ class DBProxy:
                              """
                 tmp_log.debug("start inserts")
                 self.cur.executemany(sql_insert + comment, var_map_insert)
-                tmp_log.debug("finished {0} inserts".format(self.cur.rowcount - rowcount_aux))
-                rowcount_aux = self.cur.rowcount
+                tmp_log.debug("finished inserts")
             
             # delete inactive queues
             tmp_log.debug("Going to delete obsoleted queues")
@@ -22876,7 +22873,7 @@ class DBProxy:
                          DELETE FROM ATLAS_PANDA.SCHEDCONFIG_JSON WHERE last_update < sysdate - INTERVAL '7' DAY
                          """
             self.cur.execute(sql_delete + comment)
-            tmp_log.debug("deleted {0} old queues".format(self.cur.rowcount - rowcount_aux))
+            tmp_log.debug("deleted old queues")
 
             if not self._commit():
                 raise RuntimeError, 'Commit error'
