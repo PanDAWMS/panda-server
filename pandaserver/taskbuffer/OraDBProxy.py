@@ -20748,7 +20748,8 @@ class DBProxy:
                 sqlCJ += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
                 sqlJAC  = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID  "
                 sqlJAA  = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID AND jobStatus IN (:js1,:js2) "
-                sqlJAE  = "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:code,taskBufferErrorDiag=:diag "
+                sqlJAE  = "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:code,taskBufferErrorDiag=:diag,"
+                sqlJAE += "startTime=(CASE WHEN jobStatus=:starting THEN NULL ELSE startTime END) "
                 sqlJAE += "WHERE PandaID=:PandaID "
                 sqlJSE  = "UPDATE {0} SET supErrorCode=:code,supErrorDiag=:diag,stateChangeTime=CURRENT_DATE "
                 sqlJSE += "WHERE PandaID=:PandaID AND NOT jobStatus IN (:finished) AND modificationTime>CURRENT_DATE-30"
@@ -20774,11 +20775,12 @@ class DBProxy:
                                 varMap = dict()
                                 varMap[':PandaID'] = pandaID
                                 varMap[':code'] = ErrorCode.EC_WorkerDone
+                                varMap[':starting'] = 'starting'
                                 varMap[':diag'] = "The worker was {0} while the job was {1} : {2}".format(workerSpec.status, jobStatus,
                                                                                                           workerSpec.diagMessage)
                                 varMap[':diag'] = JobSpec.truncateStringAttr('taskBufferErrorDiag', varMap[':diag'])
                                 self.cur.execute(sqlJAE+comment, varMap)
-                                # make an empty file to trigger registration for zip files in Adder
+                                # make an empty file to triggre registration for zip files in Adder
                                 tmpFileName = '{0}_{1}_{2}'.format(pandaID, 'failed',
                                                                    uuid.uuid3(uuid.NAMESPACE_DNS,''))
                                 tmpFileName = os.path.join(panda_config.logdir, tmpFileName)
@@ -20787,12 +20789,13 @@ class DBProxy:
                                 except:
                                     pass
                         if workerSpec.errorCode not in [None, 0]:
+                            varMap = dict()
+                            varMap[':PandaID'] = pandaID
+                            varMap[':code'] = workerSpec.errorCode
+                            varMap[':diag'] = "Diag from worker : {0}".format(workerSpec.diagMessage)
+                            varMap[':diag'] = JobSpec.truncateStringAttr('supErrorDiag', varMap[':diag'])
+                            varMap[':finished'] = 'finished'
                             for tableName in ['ATLAS_PANDA.jobsActive4', 'ATLAS_PANDA.jobsArchived4', 'ATLAS_PANDAARCH.jobsArchived']:
-                                varMap[':PandaID'] = pandaID
-                                varMap[':code'] = workerSpec.errorCode
-                                varMap[':diag'] = "Diag from worker : {0}".format(workerSpec.diagMessage)
-                                varMap[':diag'] = JobSpec.truncateStringAttr('supErrorDiag', varMap[':diag'])
-                                varMap[':finished'] = 'finished'
                                 self.cur.execute(sqlJSE.format(tableName)+comment, varMap)
                     """
                     varMap = dict()
