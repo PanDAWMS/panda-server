@@ -20773,7 +20773,8 @@ class DBProxy:
                 sqlCJ += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
                 sqlJAC  = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID  "
                 sqlJAA  = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID AND jobStatus IN (:js1,:js2) "
-                sqlJAE  = "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:code,taskBufferErrorDiag=:diag "
+                sqlJAE  = "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:code,taskBufferErrorDiag=:diag,"
+                sqlJAE += "startTime=(CASE WHEN jobStatus=:starting THEN NULL ELSE startTime END) "
                 sqlJAE += "WHERE PandaID=:PandaID "
                 sqlJSE  = "UPDATE {0} SET supErrorCode=:code,supErrorDiag=:diag,stateChangeTime=CURRENT_DATE "
                 sqlJSE += "WHERE PandaID=:PandaID AND NOT jobStatus IN (:finished) AND modificationTime>CURRENT_DATE-30"
@@ -20799,11 +20800,12 @@ class DBProxy:
                                 varMap = dict()
                                 varMap[':PandaID'] = pandaID
                                 varMap[':code'] = ErrorCode.EC_WorkerDone
+                                varMap[':starting'] = 'starting'
                                 varMap[':diag'] = "The worker was {0} while the job was {1} : {2}".format(workerSpec.status, jobStatus,
                                                                                                           workerSpec.diagMessage)
                                 varMap[':diag'] = JobSpec.truncateStringAttr('taskBufferErrorDiag', varMap[':diag'])
                                 self.cur.execute(sqlJAE+comment, varMap)
-                                # make an empty file to trigger registration for zip files in Adder
+                                # make an empty file to triggre registration for zip files in Adder
                                 tmpFileName = '{0}_{1}_{2}'.format(pandaID, 'failed',
                                                                    uuid.uuid3(uuid.NAMESPACE_DNS,''))
                                 tmpFileName = os.path.join(panda_config.logdir, tmpFileName)
@@ -20812,12 +20814,13 @@ class DBProxy:
                                 except:
                                     pass
                         if workerSpec.errorCode not in [None, 0]:
+                            varMap = dict()
+                            varMap[':PandaID'] = pandaID
+                            varMap[':code'] = workerSpec.errorCode
+                            varMap[':diag'] = "Diag from worker : {0}".format(workerSpec.diagMessage)
+                            varMap[':diag'] = JobSpec.truncateStringAttr('supErrorDiag', varMap[':diag'])
+                            varMap[':finished'] = 'finished'
                             for tableName in ['ATLAS_PANDA.jobsActive4', 'ATLAS_PANDA.jobsArchived4', 'ATLAS_PANDAARCH.jobsArchived']:
-                                varMap[':PandaID'] = pandaID
-                                varMap[':code'] = workerSpec.errorCode
-                                varMap[':diag'] = "Diag from worker : {0}".format(workerSpec.diagMessage)
-                                varMap[':diag'] = JobSpec.truncateStringAttr('supErrorDiag', varMap[':diag'])
-                                varMap[':finished'] = 'finished'
                                 self.cur.execute(sqlJSE.format(tableName)+comment, varMap)
                     """
                     varMap = dict()
@@ -22815,3 +22818,100 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return {}
+
+
+    # get output datasets
+    def getQueuesInJSONSchedconfig(self):
+        comment = ' /* DBProxy.getQueuesInJSONSchedconfig */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName)
+        tmpLog.debug("start")
+        try:
+            # sql to get workers
+            sqlC = "SELECT panda_queue FROM ATLAS_PANDA.schedconfig_json"
+            # start transaction
+            self.conn.begin()
+            self.cur.execute(sqlC + comment)
+            panda_queues = [row[0] for row in self.cur.fetchall()]
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("got {0} queues".format(len(panda_queues)))
+            return panda_queues
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, methodName)
+            return None
+
+    # update queues
+    def upsertQueuesInJSONSchedconfig(self, schedconfig_dump):
+        comment = ' /* DBProxy.upsertQueuesInJSONSchedconfig */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        
+        try:
+            existing_queues = self.getQueuesInJSONSchedconfig()
+            if existing_queues is None:
+                tmp_log.error('Could not retrieve already existing queues')
+                return None
+        
+            # separate the queues to the ones we have to update (existing) and the ones we have to insert (new) 
+            var_map_insert = []
+            var_map_update = []
+            utc_now = datetime.datetime.utcnow()
+            for pq in schedconfig_dump:
+                if pq in existing_queues:
+                    var_map_update.append({':pq': pq,
+                                           ':data': json.dumps(schedconfig_dump[pq]),
+                                           ':last_update': utc_now})
+                else:
+                    var_map_insert.append({':pq': pq,
+                                           ':data': json.dumps(schedconfig_dump[pq]),
+                                           ':last_update': utc_now})
+
+            # start transaction
+            self.conn.begin()
+            
+            # run the updates
+            if var_map_update:
+                sql_update = """
+                             UPDATE ATLAS_PANDA.SCHEDCONFIG_JSON SET data = :data, last_update = :last_update
+                             WHERE panda_queue = :pq
+                             """
+                tmp_log.debug("start updates")
+                self.cur.executemany(sql_update + comment, var_map_update)
+                tmp_log.debug("finished updates")
+
+            # run the inserts
+            if var_map_insert:
+                sql_insert = """
+                             INSERT INTO ATLAS_PANDA.SCHEDCONFIG_JSON (panda_queue, data, last_update)
+                             VALUES (:pq, :data, :last_update)
+                             """
+                tmp_log.debug("start inserts")
+                self.cur.executemany(sql_insert + comment, var_map_insert)
+                tmp_log.debug("finished inserts")
+            
+            # delete inactive queues
+            tmp_log.debug("Going to delete obsoleted queues")
+            sql_delete = """
+                         DELETE FROM ATLAS_PANDA.SCHEDCONFIG_JSON WHERE last_update < sysdate - INTERVAL '7' DAY
+                         """
+            self.cur.execute(sql_delete + comment)
+            tmp_log.debug("deleted old queues")
+
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            
+            tmp_log.debug("done")
+            return 'OK'
+
+        except:
+            # roll back
+            self._rollback()
+            self.dumpErrorMessage(_logger, method_name)
+            return 'ERROR'
+
