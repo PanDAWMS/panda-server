@@ -22851,7 +22851,7 @@ class DBProxy:
             # run the updates
             if var_map_update:
                 sql_update = """
-                             UPDATE ATLAS_PANDA.SCHEDCONFIG_JSON SET data = :data, last_update = sysdate
+                             UPDATE ATLAS_PANDA.SCHEDCONFIG_JSON SET data = :data, last_update = :last_update
                              WHERE panda_queue = :pq
                              """
                 tmp_log.debug("start updates")
@@ -22863,7 +22863,7 @@ class DBProxy:
             if var_map_insert:
                 sql_insert = """
                              INSERT INTO ATLAS_PANDA.SCHEDCONFIG_JSON (panda_queue, data, last_update)
-                             VALUES (:pq, :data, sysdate)
+                             VALUES (:pq, :data, :last_update)
                              """
                 tmp_log.debug("start inserts")
                 self.cur.executemany(sql_insert + comment, var_map_insert)
