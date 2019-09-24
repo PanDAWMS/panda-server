@@ -22866,6 +22866,8 @@ class DBProxy:
 
             if not self._commit():
                 raise RuntimeError, 'Commit error'
+            
+            tmp_log.debug("done")
             return 'OK'
 
         except:
