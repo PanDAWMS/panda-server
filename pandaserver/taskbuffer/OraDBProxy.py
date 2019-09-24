@@ -22793,3 +22793,100 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger,methodName)
             return {}
+
+
+    # get output datasets
+    def getQueuesInJSONSchedconfig(self):
+        comment = ' /* DBProxy.getQueuesInJSONSchedconfig */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName)
+        tmpLog.debug("start")
+        try:
+            # sql to get workers
+            sqlC = "SELECT panda_queue FROM ATLAS_PANDA.schedconfig_json"
+            # start transaction
+            self.conn.begin()
+            self.cur.execute(sqlC + comment)
+            panda_queues = [row[0] for row in self.cur.fetchall()]
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug("got {0} queues".format(len(panda_queues)))
+            return panda_queues
+        except:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, methodName)
+            return None
+
+    # update queues
+    def upsertQueuesInJSONSchedconfig(self, schedconfig_dump):
+        comment = ' /* DBProxy.upsertQueuesInJSONSchedconfig */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        
+        try:
+            existing_queues = self.getQueuesInJSONSchedconfig()
+            if existing_queues is None:
+                tmp_log.error('Could not retrieve already existing queues')
+                return None
+        
+            # separate the queues to the ones we have to update (existing) and the ones we have to insert (new) 
+            var_map_insert = []
+            var_map_update = []
+            utc_now = datetime.datetime.utcnow()
+            for pq in schedconfig_dump:
+                if pq in existing_queues:
+                    var_map_update.append({':pq': pq,
+                                           ':data': json.dumps(schedconfig_dump[pq]),
+                                           ':last_update': utc_now})
+                else:
+                    var_map_insert.append({':pq': pq,
+                                           ':data': json.dumps(schedconfig_dump[pq]),
+                                           ':last_update': utc_now})
+
+            # start transaction
+            self.conn.begin()
+            
+            # run the updates
+            if var_map_update:
+                sql_update = """
+                             UPDATE ATLAS_PANDA.SCHEDCONFIG_JSON SET data = :data, last_update = :last_update
+                             WHERE panda_queue = :pq
+                             """
+                tmp_log.debug("start updates")
+                self.cur.executemany(sql_update + comment, var_map_update)
+                tmp_log.debug("finished updates")
+
+            # run the inserts
+            if var_map_insert:
+                sql_insert = """
+                             INSERT INTO ATLAS_PANDA.SCHEDCONFIG_JSON (panda_queue, data, last_update)
+                             VALUES (:pq, :data, :last_update)
+                             """
+                tmp_log.debug("start inserts")
+                self.cur.executemany(sql_insert + comment, var_map_insert)
+                tmp_log.debug("finished inserts")
+            
+            # delete inactive queues
+            tmp_log.debug("Going to delete obsoleted queues")
+            sql_delete = """
+                         DELETE FROM ATLAS_PANDA.SCHEDCONFIG_JSON WHERE last_update < sysdate - INTERVAL '7' DAY
+                         """
+            self.cur.execute(sql_delete + comment)
+            tmp_log.debug("deleted old queues")
+
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            
+            tmp_log.debug("done")
+            return 'OK'
+
+        except:
+            # roll back
+            self._rollback()
+            self.dumpErrorMessage(_logger, method_name)
+            return 'ERROR'
+
