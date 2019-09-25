@@ -22903,7 +22903,7 @@ class DBProxy:
             SELECT data FROM ATLAS_PANDA.SCHEDCONFIG_JSON
             WHERE panda_queue = :pq
             """
-            self.cur.executemany(sql_get_queue_config + comment, var_map)
+            self.cur.execute(sql_get_queue_config + comment, var_map)
 
             pq_data = self.cur.fetchone()[0]
             pq_data_des = json.loads(pq_data)
