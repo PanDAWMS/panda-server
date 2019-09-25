@@ -22933,7 +22933,7 @@ class DBProxy:
                       "computingElement": ce_list_des_sanitized,
                       "submissionHost": submission_host_list_des}
 
-            taskBuffer.commandToHarvester(harvester_id, command, ack_requested, status,
+            self.commandToHarvester(harvester_id, command, ack_requested, status,
                                           lock_interval, com_interval, params)
 
             tmp_log.debug("done")
