@@ -73,7 +73,8 @@ from userinterface.UserIF import submitJobs, getJobStatus, queryPandaIDs, killJo
      changeTaskModTimePanda, avalancheTask, getPandaIDsWithTaskID, reactivateTask, getTaskStatus, \
      reassignShare, listTasksInShare, getTaskParamsMap, updateWorkers, harvesterIsAlive,\
      reportWorkerStats, addHarvesterDialogs, getJobStatisticsPerSiteResource, setNumSlotsForWP,\
-     reloadInput, enableJumboJobs, updateServiceMetrics, getUserJobMetadata, getJumboJobDatasets, getGShareStatus
+     reloadInput, enableJumboJobs, updateServiceMetrics, getUserJobMetadata, getJumboJobDatasets, getGShareStatus,\
+     sweepPQ
 
 allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
                    'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
@@ -94,7 +95,7 @@ allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reass
                    'reassignShare', 'listTasksInShare', 'getTaskParamsMap', 'updateWorkers', 'harvesterIsAlive',
                    'reportWorkerStats', 'addHarvesterDialogs', 'getJobStatisticsPerSiteResource', 'setNumSlotsForWP',
                    'reloadInput', 'enableJumboJobs', 'updateServiceMetrics', 'getUserJobMetadata', 'getJumboJobDatasets',
-                   'getGShareStatus']
+                   'getGShareStatus', 'sweepPQ']
 
 # import error
 import taskbuffer.ErrorCode

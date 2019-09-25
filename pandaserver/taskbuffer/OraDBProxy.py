@@ -21195,7 +21195,6 @@ class DBProxy:
             return {}, 0
 
 
-
     # send command to harvester or lock command
     def commandToHarvester(self, harvester_ID, command, ack_requested, status, lockInterval, comInterval, params, useCommit=True):
         comment = ' /* DBProxy.commandToHarvester */'
@@ -22890,3 +22889,56 @@ class DBProxy:
             self.dumpErrorMessage(_logger, method_name)
             return 'ERROR'
 
+    # update queues
+    def sweepPQ(self, panda_queue_des, status_list_des, ce_list_des, submission_host_list_des):
+        comment = ' /* DBProxy.sweepPQ */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+
+        try:
+            # Figure out the harvester instance serving the queues and check the CEs match
+            var_map = {':pq': panda_queue_des}
+            sql_get_queue_config = """
+            SELECT data FROM ATLAS_PANDA.SCHEDCONFIG_JSON
+            WHERE panda_queue = :pq
+            """
+            self.cur.executemany(sql_get_queue_config + comment, var_map)
+
+            pq_data = self.cur.fetchone()[0]
+            pq_data_des = json.loads(pq_data)
+            
+            # retrieve harvester ID
+            harvester_id = pq_data_des['harvester']
+            if not harvester_id:
+                return 'Queue not served by any harvester ID'
+            
+            # check CEs
+            if ce_list_des == 'ALL':
+                ce_list_des_sanitized = 'ALL'
+            else:
+                computing_elements = pq_data_des['queues']
+                ce_names = [str(ce['ce_name']) for ce in computing_elements]
+                ce_list_des_sanitized = [ce for ce in ce_list_des if ce in ce_names] 
+
+            # we can't correct submission hosts or the status list
+
+            command = 'KILL_WORKERS'
+            ack_requested = False
+            status = 'new'
+            lock_interval = None
+            com_interval = None
+            params = {"status": status_list_des,
+                      "computingSite": [panda_queue_des],
+                      "computingElement": ce_list_des_sanitized,
+                      "submissionHost": submission_host_list_des}
+
+            taskBuffer.commandToHarvester(harvester_id, command, ack_requested, status,
+                                          lock_interval, com_interval, params)
+
+            tmp_log.debug("done")
+            return None
+
+        except:
+            self.dumpErrorMessage(_logger, method_name)
+            return 'Problem generating command. Check PanDA server logs'

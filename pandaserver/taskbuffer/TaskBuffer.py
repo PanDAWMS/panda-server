@@ -3847,6 +3847,17 @@ class TaskBuffer:
         # return
         return ret
 
+  # generate a harvester command to clean up the workers of a site
+    def sweepPQ(self, panda_queue_des, status_list_des, ce_list_des, submission_host_list_des):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.sweepPQ(panda_queue_des, status_list_des, ce_list_des, submission_host_list_des)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
 # Singleton
 taskBuffer = TaskBuffer()
 
