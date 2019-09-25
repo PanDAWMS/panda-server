@@ -2613,5 +2613,4 @@ def sweepPQ(req, panda_queue, status_list, ce_list, submission_host_list):
     if not prod_role:
         return json.dumps((False, "production or pilot role required"))
 
-    return json.dumps((True, userIF.sweepPQ(panda_queue, status_list, ce_list, submission_host_list))
-
+    return json.dumps((True, userIF.sweepPQ(panda_queue, status_list, ce_list, submission_host_list)))
