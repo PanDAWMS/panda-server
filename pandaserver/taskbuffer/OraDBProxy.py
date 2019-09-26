@@ -248,14 +248,14 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            return ret,res
+            return ret, res
         except:
             # roll back
             self._rollback()
             type, value, traceBack = sys.exc_info()
             _logger.error("getClobObj : %s %s" % (sql,str(varMap)))
             _logger.error("getClobObj : %s %s" % (type,value))
-            return -1,None
+            return -1, None
 
 
     # get configuration value. cached for an hour
@@ -22903,10 +22903,20 @@ class DBProxy:
             SELECT data FROM ATLAS_PANDA.SCHEDCONFIG_JSON
             WHERE panda_queue = :pq
             """
-            self.cur.execute(sql_get_queue_config + comment, var_map)
-
-            pq_data = self.cur.fetchone()[0]
-            pq_data_des = json.loads(pq_data)
+            # self.cur.execute(sql_get_queue_config + comment, var_map)
+            # pq_data = self.cur.fetchone()[0]
+            # pq_data_des = json.loads(pq_data)
+            tmp_v, pq_data = self.getClobObj(sql_get_queue_config + comment, var_map)
+            if pq_data is None:
+                err_str = 'Could not find queue configuration'
+                tmp_log.error(err_str)
+                return err_str
+            try:
+                pq_data_des = json.loads(pq_data[0][0])
+            except Exception:
+                err_str = "Could not deserialize queue configuration"
+                tmp_log.error(err_str)
+                return err_str
             
             # retrieve harvester ID
             harvester_id = pq_data_des['harvester']
