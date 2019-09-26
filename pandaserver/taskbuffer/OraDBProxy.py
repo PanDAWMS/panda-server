@@ -22928,7 +22928,7 @@ class DBProxy:
                 ce_list_des_sanitized = 'ALL'
             else:
                 computing_elements = pq_data_des['queues']
-                ce_names = [str(ce['ce_name']) for ce in computing_elements]
+                ce_names = [str(ce['ce_endpoint']) for ce in computing_elements]
                 ce_list_des_sanitized = [ce for ce in ce_list_des if ce in ce_names] 
 
             # we can't correct submission hosts or the status list
@@ -22947,7 +22947,7 @@ class DBProxy:
                                           lock_interval, com_interval, params)
 
             tmp_log.debug("done")
-            return None
+            return 'OK'
 
         except:
             self.dumpErrorMessage(_logger, method_name)
