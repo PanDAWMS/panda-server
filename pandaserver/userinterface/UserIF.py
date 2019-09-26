@@ -1068,6 +1068,22 @@ class UserIF:
         # serialize 
         return json.dumps(retVal)
 
+    # sweep panda queue
+    def sweepPQ(self, panda_queue, status_list, ce_list, submission_host_list):
+        # deserialize variables
+        try:
+            panda_queue_des = json.loads(panda_queue)
+            status_list_des = json.loads(status_list)
+            ce_list_des = json.loads(ce_list)
+            submission_host_list_des = json.loads(submission_host_list)
+        except:
+            _logger.error('Problem deserializing variables')
+
+        # reassign jobs
+        ret = self.taskBuffer.sweepPQ(panda_queue_des, status_list_des, ce_list_des, submission_host_list_des)
+        # serialize
+        return pickle.dumps(ret)
+
 
 # Singleton
 userIF = UserIF()
@@ -2214,7 +2230,6 @@ def pauseTask(req,jediTaskID):
     return pickle.dumps(ret)
 
 
-
 # resume task
 def resumeTask(req,jediTaskID):
     # check security
@@ -2233,7 +2248,6 @@ def resumeTask(req,jediTaskID):
         return pickle.dumps((False, 'jediTaskID must be an integer'))
     ret = userIF.resumeTask(jediTaskID,user,prodRole)
     return pickle.dumps(ret)
-
 
 
 # force avalanche for task
@@ -2587,3 +2601,16 @@ def getGShareStatus(req):
         return json.dumps((False,"SSL is required"))
     ret = userIF.getGShareStatus()
     return json.dumps(ret)
+
+
+# send Harvester the command to clean up the workers for a panda queue
+def sweepPQ(req, panda_queue, status_list, ce_list, submission_host_list):
+    # check security
+    if not isSecure(req):
+        return json.dumps((False,"SSL is required"))
+    # check role
+    prod_role = _isProdRoleATLAS(req)
+    if not prod_role:
+        return json.dumps((False, "production or pilot role required"))
+
+    return json.dumps((True, userIF.sweepPQ(panda_queue, status_list, ce_list, submission_host_list)))

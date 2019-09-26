@@ -246,14 +246,14 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError, 'Commit error'
-            return ret,res
+            return ret, res
         except:
             # roll back
             self._rollback()
             type, value, traceBack = sys.exc_info()
             _logger.error("getClobObj : %s %s" % (sql,str(varMap)))
             _logger.error("getClobObj : %s %s" % (type,value))
-            return -1,None
+            return -1, None
 
 
     # get configuration value. cached for an hour
@@ -21220,7 +21220,6 @@ class DBProxy:
             return {}, 0
 
 
-
     # send command to harvester or lock command
     def commandToHarvester(self, harvester_ID, command, ack_requested, status, lockInterval, comInterval, params, useCommit=True):
         comment = ' /* DBProxy.commandToHarvester */'
@@ -22915,3 +22914,66 @@ class DBProxy:
             self.dumpErrorMessage(_logger, method_name)
             return 'ERROR'
 
+    # update queues
+    def sweepPQ(self, panda_queue_des, status_list_des, ce_list_des, submission_host_list_des):
+        comment = ' /* DBProxy.sweepPQ */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+
+        try:
+            # Figure out the harvester instance serving the queues and check the CEs match
+            var_map = {':pq': panda_queue_des}
+            sql_get_queue_config = """
+            SELECT data FROM ATLAS_PANDA.SCHEDCONFIG_JSON
+            WHERE panda_queue = :pq
+            """
+            # self.cur.execute(sql_get_queue_config + comment, var_map)
+            # pq_data = self.cur.fetchone()[0]
+            # pq_data_des = json.loads(pq_data)
+            tmp_v, pq_data = self.getClobObj(sql_get_queue_config + comment, var_map)
+            if pq_data is None:
+                err_str = 'Could not find queue configuration'
+                tmp_log.error(err_str)
+                return err_str
+            try:
+                pq_data_des = json.loads(pq_data[0][0])
+            except Exception:
+                err_str = "Could not deserialize queue configuration"
+                tmp_log.error(err_str)
+                return err_str
+            
+            # retrieve harvester ID
+            harvester_id = pq_data_des['harvester']
+            if not harvester_id:
+                return 'Queue not served by any harvester ID'
+            
+            # check CEs
+            if ce_list_des == 'ALL':
+                ce_list_des_sanitized = 'ALL'
+            else:
+                computing_elements = pq_data_des['queues']
+                ce_names = [str(ce['ce_endpoint']) for ce in computing_elements]
+                ce_list_des_sanitized = [ce for ce in ce_list_des if ce in ce_names] 
+
+            # we can't correct submission hosts or the status list
+
+            command = 'KILL_WORKERS'
+            ack_requested = False
+            status = 'new'
+            lock_interval = None
+            com_interval = None
+            params = {"status": status_list_des,
+                      "computingSite": [panda_queue_des],
+                      "computingElement": ce_list_des_sanitized,
+                      "submissionHost": submission_host_list_des}
+
+            self.commandToHarvester(harvester_id, command, ack_requested, status,
+                                          lock_interval, com_interval, params)
+
+            tmp_log.debug("done")
+            return 'OK'
+
+        except:
+            self.dumpErrorMessage(_logger, method_name)
+            return 'Problem generating command. Check PanDA server logs'
