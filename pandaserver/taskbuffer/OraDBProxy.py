@@ -21633,6 +21633,17 @@ class DBProxy:
         n_workers_queued = 0
         harvester_ids_temp = worker_stats.keys()
 
+        # get the configuration for maximum workers of each type
+        pq_data_des = self.get_config_for_pq(queue)
+        resource_type_limits = {}
+        if not pq_data_des:
+            tmpLog.debug('Error retrieving queue configuration from DB, limits can not be applied')
+        else:
+            try:
+                resource_type_limits = pq_data_des['uconfig']['resource_type_limits']
+            except KeyError:
+                pass
+
         # Filter central harvester instances that support UPS model
         harvester_ids = []
         for harvester_id in harvester_ids_temp:
@@ -21642,9 +21653,10 @@ class DBProxy:
         for harvester_id in harvester_ids:
             for resource_type in worker_stats[harvester_id]:
                 # TODO: this needs to be converted into cores, or we stay at worker level???
-                # how do I know ncores from only the resource_type???
                 try:
                     n_workers_running = n_workers_running + worker_stats[harvester_id][resource_type]['running']
+                    if resource_type in resource_type_limits:
+                        resource_type_limits[resource_type] = resource_type_limits[resource_type] -  worker_stats[harvester_id][resource_type]['running']
                 except KeyError:
                     pass
 
@@ -21663,11 +21675,6 @@ class DBProxy:
                     pass
 
         tmpLog.debug('Queue {0} queued worker overview: {1}'.format(queue, workers_queued))
-        
-        # TODO: what is a good strategy??? how many jobs/cores should be queued compared to running
-        # TODO: for the moment we'll target nqueued = nrunning for simplification
-        # TODO: if there are no pilots queued or running, we should submit a configurable minimum, or set the minimum based 
-        #       on the number of activated jobs
 
         # Temporary workaround. CERN needs more pressure to start running
         if queue == 'CERN-PROD_UCORE':
@@ -21697,6 +21704,10 @@ class DBProxy:
             activated_jobs = self.cur.fetchall()
             tmpLog.debug('Processing share: {0}. Got {1} activated jobs'.format(share.name, len(activated_jobs)))
             for gshare, resource_type in activated_jobs:
+                # if we reached the limit for the resource type, skip the job
+                if resource_type in resource_type_limits and resource_type_limits[resource_type] <= 0:
+                    continue
+
                 workers_queued.setdefault(resource_type, 0)
                 workers_queued[resource_type] = workers_queued[resource_type] - 1
                 if workers_queued[resource_type] <= 0:
@@ -22923,27 +22934,10 @@ class DBProxy:
 
         try:
             # Figure out the harvester instance serving the queues and check the CEs match
-            var_map = {':pq': panda_queue_des}
-            sql_get_queue_config = """
-            SELECT data FROM ATLAS_PANDA.SCHEDCONFIG_JSON
-            WHERE panda_queue = :pq
-            """
-            # self.cur.execute(sql_get_queue_config + comment, var_map)
-            # pq_data = self.cur.fetchone()[0]
-            # pq_data_des = json.loads(pq_data)
-            tmp_v, pq_data = self.getClobObj(sql_get_queue_config + comment, var_map)
-            if pq_data is None:
-                err_str = 'Could not find queue configuration'
-                tmp_log.error(err_str)
-                return err_str
-            try:
-                pq_data_des = json.loads(pq_data[0][0])
-            except Exception:
-                err_str = "Could not deserialize queue configuration"
-                tmp_log.error(err_str)
-                return err_str
-            
-            # retrieve harvester ID
+            pq_data_des = self.get_config_for_pq(panda_queue_des)
+            if not pq_data_des:
+                return 'Error retrieving queue configuration from DB'
+
             harvester_id = pq_data_des['harvester']
             if not harvester_id:
                 return 'Queue not served by any harvester ID'
@@ -22977,3 +22971,32 @@ class DBProxy:
         except:
             self.dumpErrorMessage(_logger, method_name)
             return 'Problem generating command. Check PanDA server logs'
+
+    def get_config_for_pq(self, pq_name):
+        """
+        Get the AGIS json configuration for a particular queue  
+        """
+
+        comment = ' /* DBProxy.get_config_for_pq */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+
+        var_map = {':pq': pq_name}
+        sql_get_queue_config = """
+        SELECT data FROM ATLAS_PANDA.SCHEDCONFIG_JSON
+        WHERE panda_queue = :pq
+        """
+        tmp_v, pq_data = self.getClobObj(sql_get_queue_config + comment, var_map)
+        if pq_data is None:
+            tmp_log.error('Could not find queue configuration')
+            return None
+        
+        try:
+            pq_data_des = json.loads(pq_data[0][0])
+        except:
+            tmp_log.error('Could not find queue configuration')
+            return None
+        
+        tmp_log.debug("done")
+        return pq_data_des
