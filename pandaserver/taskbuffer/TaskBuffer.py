@@ -735,16 +735,16 @@ class TaskBuffer:
 
 
     # get jobs
-    def getJobs(self,nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry,
-                taskID,background,resourceType,harvester_id,worker_id,schedulerID):
+    def getJobs(self, nJobs, siteName, prodSourceLabel, cpu, mem, diskSpace, node, timeout, computingElement,
+                atlasRelease, prodUserID, getProxyKey, countryGroup, workingGroup, allowOtherCountry,
+                taskID, background, resourceType, harvester_id, worker_id, schedulerID):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get waiting jobs
         t_before = time.time()
-        jobs,nSent = proxy.getJobs(nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                                   atlasRelease,prodUserID,countryGroup,workingGroup,allowOtherCountry,
-                                   taskID,background,resourceType,harvester_id,worker_id,schedulerID)
+        jobs,nSent = proxy.getJobs(nJobs, siteName, prodSourceLabel, cpu, mem, diskSpace, node, timeout, computingElement,
+                                   atlasRelease ,prodUserID, countryGroup, workingGroup, allowOtherCountry,
+                                   taskID, background, resourceType, harvester_id, worker_id, schedulerID)
         t_after = time.time()
         t_total = t_after - t_before
         _logger.debug("getJobs : took {0}s for {1} nJobs={2} prodSourceLabel={3}"

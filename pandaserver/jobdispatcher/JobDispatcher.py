@@ -187,7 +187,6 @@ class JobDipatcher:
 
         t_getJob_start = time.time()
         jobs = []
-        useGLEXEC = False
         useProxyCache = False
         try:
             tmpNumJobs = int(nJobs)
@@ -197,17 +196,17 @@ class JobDipatcher:
             tmpNumJobs = 1
         # wrapper function for timeout
         tmpWrapper = _TimedMethod(self.taskBuffer.getJobs, timeout)
-        tmpWrapper.run(tmpNumJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                       atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry,
-                       taskID,background,resourceType,harvester_id,worker_id,schedulerID)
+        tmpWrapper.run(tmpNumJobs, siteName, prodSourceLabel, cpu, mem, diskSpace, node, timeout, computingElement,
+                       atlasRelease, prodUserID, getProxyKey, countryGroup, workingGroup, allowOtherCountry,
+                       taskID, background, resourceType, harvester_id, worker_id, schedulerID)
 
         if isinstance(tmpWrapper.result,types.ListType):
             jobs = jobs + tmpWrapper.result
         # make response
         if len(jobs) > 0:
             proxyKey = jobs[-1]
-            nSent    = jobs[-2]
-            jobs     = jobs[:-2]
+            nSent = jobs[-2]
+            jobs = jobs[:-2]
         if len(jobs) != 0:
             # succeed
             self.siteMapperCache.update()
@@ -215,26 +214,15 @@ class JobDipatcher:
             # append Jobs
             for tmpJob in jobs:
                 response=Protocol.Response(Protocol.SC_Success)
-                response.appendJob(tmpJob,self.siteMapperCache)
+                response.appendJob(tmpJob, self.siteMapperCache)
                 # append nSent
-                response.appendNode('nSent',nSent)
+                response.appendNode('nSent', nSent)
                 # set proxy key
                 if getProxyKey:
                     response.setProxyKey(proxyKey)
-                # check if glexec or proxy cache is used
+                # check if proxy cache is used
                 if hasattr(panda_config,'useProxyCache') and panda_config.useProxyCache == True:
                     self.specialDispatchParams.update()
-                    if not 'glexecSites' in self.specialDispatchParams:
-                        glexecSites = {}
-                    else:
-                        glexecSites = self.specialDispatchParams['glexecSites']
-                    if siteName in glexecSites:
-                        if glexecSites[siteName] == 'True':
-                            useGLEXEC = True
-                        elif glexecSites[siteName] == 'test' and \
-                                (prodSourceLabel in ['test','prod_test'] or \
-                                     (tmpJob.processingType in ['gangarobot'])):
-                            useGLEXEC = True
                     if not 'proxyCacheSites' in self.specialDispatchParams:
                         proxyCacheSites = {}
                     else:
@@ -242,7 +230,7 @@ class JobDipatcher:
                     if siteName in proxyCacheSites:
                         useProxyCache = True
                 # set proxy
-                if useGLEXEC or useProxyCache:
+                if useProxyCache:
                     try:
                         #  get compact
                         compactDN = self.taskBuffer.cleanUserID(realDN)
@@ -306,7 +294,7 @@ class JobDipatcher:
                     response = Protocol.Response(Protocol.SC_NoJobs)
                 _pilotReqLogger.info('method=noJob,site=%s,node=%s,type=%s' % (siteName, node, prodSourceLabel))
         # return
-        _logger.debug("getJob : %s %s useGLEXEC=%s ret -> %s" % (siteName,node,useGLEXEC,response.encode(acceptJson)))
+        _logger.debug("getJob : %s %s ret -> %s" % (siteName, node, response.encode(acceptJson)))
 
         t_getJob_end = time.time()
         t_getJob_spent = t_getJob_end - t_getJob_start
