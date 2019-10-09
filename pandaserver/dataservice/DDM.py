@@ -593,6 +593,8 @@ class RucioAPI:
 
     # get dataset size
     def getDatasetSize(self,datasetName):
+        if datasetName.endswith('/'):
+            datasetName = datasetName[:-1]
         # extract scope from dataset
         scope,dsn = self.extract_scope(datasetName)
         client = RucioClient()

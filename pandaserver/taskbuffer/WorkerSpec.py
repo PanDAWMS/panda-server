@@ -10,7 +10,7 @@ class WorkerSpec(object):
     # attributes
     _attributes = ('harvesterID','workerID','batchID','queueName','status','computingSite','nCore',
                    'nodeID','submitTime','startTime','endTime','lastUpdate', 'stdOut', 'stdErr',
-                   'batchLog', 'resourceType', 'nativeExitCode', 'nativeStatus', 'diagMessage',
+                   'batchLog', 'jdl', 'resourceType', 'nativeExitCode', 'nativeStatus', 'diagMessage',
                    'nJobs', 'computingElement', 'submissionHost', 'harvesterHost', 'errorCode')
     # slots
     __slots__ = _attributes + ('_changedAttrs',)

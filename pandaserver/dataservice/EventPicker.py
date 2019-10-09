@@ -243,7 +243,7 @@ class EventPicker:
                     # decompose container to transfer datasets separately
                     tmpRet,tmpOut = self.pd2p.getListDatasetReplicasInContainer(self.userDatasetName) 
                     if not tmpRet:
-                        self.endWithError('Failed to get the size of %s' % self.userDatasetName)
+                        self.endWithError('Failed to get replicas in %s' % self.userDatasetName)
                         return False
                     userDatasetNameList = tmpOut.keys()
                 else:
@@ -255,7 +255,7 @@ class EventPicker:
                     # get size of dataset container
                     tmpRet,totalInputSize = rucioAPI.getDatasetSize(tmpUserDatasetName)
                     if not tmpRet:
-                        self.endWithError('Failed to get the size of %s' % tmpUserDatasetName)
+                        self.endWithError('Failed to get the size of {0} with {1}'.format(tmpUserDatasetName, totalInputSize))
                         return False
                     # run brokerage
                     tmpJob = JobSpec()

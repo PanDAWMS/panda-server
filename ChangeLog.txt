@@ -1,5 +1,19 @@
 Release Notes
 
+* 9/3/2019
+  * token-based auth
+
+* 8/26/2019
+  * changed sub dataset names
+  * changed heartbeat timeout to be configurable
+
+* 8/22/2019
+  * removed zero padding in _sub
+  * using only 5 digits in SUBCOUNTER_SUBID_SEQ
+
+* 8/21/2019
+  * taking ddm blacklist into account for site inputs
+
 * 4/23/2019
   * supplemental error for lost-heartbeat jobs
 

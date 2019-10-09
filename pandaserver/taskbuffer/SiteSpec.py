@@ -5,7 +5,6 @@ site specification
 
 import re
 
-
 class SiteSpec(object):
     # attributes
     _attributes = ('sitename','nickname','dq2url','cloud','ddm','ddm_input','ddm_output','lfchost','type','gatekeeper',
@@ -19,7 +18,7 @@ class SiteSpec(object):
                    'sitershare','cloudrshare','corepower','wnconnectivity','catchall',
                    'role','pandasite_state','ddm_endpoints_input','ddm_endpoints_output','maxrss','minrss',
                    'direct_access_lan','direct_access_wan','tier','objectstores','is_unified',
-                   'unified_name','jobseed','capability','num_slots_map', 'workflow')
+                   'unified_name','jobseed','capability','num_slots_map', 'workflow', 'maxDiskio')
 
     # constructor
     def __init__(self):
@@ -37,23 +36,8 @@ class SiteSpec(object):
 
     # check if direct IO
     def isDirectIO(self):
-        try:
-            params = self.copysetup.split('^')
-            # long format
-            if len(params) >= 5: 
-                # directIn
-                directIn = params[4]
-                if directIn == 'True':
-                    return True
-            # TURL PFC creation
-            if len(params) == 3:
-                directIn = params[2]
-                if directIn == 'True':
-                    return True
-            if self.direct_access_lan:
-                return True
-        except:
-            pass
+        if self.direct_access_lan is True:
+            return True
         return False
 
 
@@ -191,4 +175,15 @@ class SiteSpec(object):
             return numMap[sw_id][resource_type]
         elif None in numMap[sw_id]:
             return numMap[sw_id][None]
+        return None
+
+
+
+    # get max disk per core
+    def get_max_disk_per_core(self):
+        tmpVal = self.getValueFromCatchall('maxDiskPerCore')
+        try:
+            return int(tmpVal)
+        except Exception:
+            pass
         return None

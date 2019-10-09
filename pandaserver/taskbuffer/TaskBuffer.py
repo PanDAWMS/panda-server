@@ -735,16 +735,16 @@ class TaskBuffer:
 
 
     # get jobs
-    def getJobs(self,nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry,
-                taskID,background,resourceType,harvester_id,worker_id,schedulerID):
+    def getJobs(self, nJobs, siteName, prodSourceLabel, cpu, mem, diskSpace, node, timeout, computingElement,
+                atlasRelease, prodUserID, getProxyKey, countryGroup, workingGroup, allowOtherCountry,
+                taskID, background, resourceType, harvester_id, worker_id, schedulerID):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get waiting jobs
         t_before = time.time()
-        jobs,nSent = proxy.getJobs(nJobs,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-                                   atlasRelease,prodUserID,countryGroup,workingGroup,allowOtherCountry,
-                                   taskID,background,resourceType,harvester_id,worker_id,schedulerID)
+        jobs,nSent = proxy.getJobs(nJobs, siteName, prodSourceLabel, cpu, mem, diskSpace, node, timeout, computingElement,
+                                   atlasRelease ,prodUserID, countryGroup, workingGroup, allowOtherCountry,
+                                   taskID, background, resourceType, harvester_id, worker_id, schedulerID)
         t_after = time.time()
         t_total = t_after - t_before
         _logger.debug("getJobs : took {0}s for {1} nJobs={2} prodSourceLabel={3}"
@@ -1194,20 +1194,26 @@ class TaskBuffer:
                     errStr += "for the last {0} days. You may change &days=N in the URL".format(days)
                 return errStr
             tmpJob = tmpJobs[0]
+            # user job
+            isUser = False
+            for trf in ['runAthena', 'runGen', 'runcontainer', 'runMerge', 'buildJob', 'buildGen']:
+                if trf in tmpJob.transformation:
+                    isUser = True
+                    break
             # check prodSourceLabel
-            if tmpJob.prodSourceLabel in ['managed','test']:
-                # release and trf
-                tmpAtls = tmpJob.AtlasRelease.split("\n") 
-                tmpRels = tmpJob.homepackage.split("\n")
-                tmpPars = tmpJob.jobParameters.split("\n")
-                tmpTrfs = tmpJob.transformation.split("\n")
-            elif tmpJob.prodSourceLabel == 'user':
+            if tmpJob.prodSourceLabel == 'user':
+                isUser = True
+            if isUser:
                 tmpAtls = [tmpJob.AtlasRelease] 
                 tmpRels = [re.sub('^AnalysisTransforms-*', '', tmpJob.homepackage)]
                 tmpPars = [tmpJob.jobParameters]
                 tmpTrfs = [tmpJob.transformation]
             else:
-                return "ERROR: Non production job : prodSourceLabel=%s. This method is only for production jobs" % tmpJob.prodSourceLabel
+                # release and trf
+                tmpAtls = tmpJob.AtlasRelease.split("\n") 
+                tmpRels = tmpJob.homepackage.split("\n")
+                tmpPars = tmpJob.jobParameters.split("\n")
+                tmpTrfs = tmpJob.transformation.split("\n")
             if not (len(tmpRels) == len(tmpPars) == len(tmpTrfs)):
                 return "ERROR: The number of releases or parameters or trfs is inconsitent with others"
             # construct script
@@ -1228,7 +1234,7 @@ class TaskBuffer:
                     # ln
                     tmpScope,tmpBareLFN = tmpLFN.split(':')
                     scrStr += "ln -fs %s/%s ./%s\n" % (tmpScope,tmpBareLFN,tmpBareLFN)
-            if tmpJob.prodSourceLabel == 'user':
+            if isUser:
                 scrStr += "\n#get trf\n"
                 scrStr += "wget %s\n" % tmpTrfs[0]
                 scrStr += "chmod +x %s\n" % tmpTrfs[0].split('/')[-1]
@@ -1237,9 +1243,11 @@ class TaskBuffer:
                 # asetup
                 atlRel = re.sub('Atlas-', '', tmpAtls[tmpIdx])
                 atlTags = re.split("/|_", tmpRel)
-                if atlRel != '' and atlRel not in atlTags and re.search('^\d+\.\d+\.\d+$', atlRel) is None:
+                if '' in atlTags:
+                    atlTags.remove('')
+                if atlRel != '' and atlRel not in atlTags and (re.search('^\d+\.\d+\.\d+$', atlRel) is None or isUser):
                     atlTags.append(atlRel)
-                scrStr += "asetup --platform=%s %s\n" % (tmpJob.cmtConfig, ','.join(atlTags))
+                scrStr += "asetup --platform=%s %s\n" % (tmpJob.cmtConfig.split('@')[0], ','.join(atlTags))
                 # athenaMP
                 if not tmpJob.coreCount in ['NULL',None] and tmpJob.coreCount > 1:
                     scrStr += "export ATHENA_PROC_NUMBER=%s\n" % tmpJob.coreCount
@@ -1260,7 +1268,7 @@ class TaskBuffer:
                             tmpParamStr = tmpParamStr.replace(tmpMatch.group(0),
                                                               tmpArgName+'"'+tmpArgVal+'"')
                 # run trf
-                if tmpJob.prodSourceLabel == 'user':
+                if isUser:
                     scrStr += './'
                 scrStr += "%s %s\n\n" % (tmpTrfs[tmpIdx].split('/')[-1], tmpParamStr)
             return scrStr
@@ -2704,11 +2712,11 @@ class TaskBuffer:
 
 
     # throttle user jobs
-    def throttleUserJobs(self,prodUserName):
+    def throttleUserJobs(self,prodUserName, workingGroup):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.throttleUserJobs(prodUserName)
+        ret = proxy.throttleUserJobs(prodUserName, workingGroup)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -2730,11 +2738,11 @@ class TaskBuffer:
 
 
     # unthrottle user jobs
-    def unThrottleUserJobs(self,prodUserName):
+    def unThrottleUserJobs(self,prodUserName, workingGroup):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.unThrottleUserJobs(prodUserName)
+        ret = proxy.unThrottleUserJobs(prodUserName, workingGroup)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -3787,6 +3795,75 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # exec
         ret = proxy.insert_pq_json(pq, json_data)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+    # get user job metadata
+    def getUserJobMetadata(self, jediTaskID):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getUserJobMetadata(jediTaskID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # get jumbo job datasets
+    def getJumboJobDatasets(self, n_days, grace_period):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getJumboJobDatasets(n_days, grace_period)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # get global shares status
+    def getGShareStatus(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getGShareStatus()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # get output datasets
+    def getOutputDatasetsJEDI(self, panda_id):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getOutputDatasetsJEDI(panda_id)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+  # update/insert JSON queue information into the scheconfig replica
+    def upsertQueuesInJSONSchedconfig(self, schedconfig_dump):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.upsertQueuesInJSONSchedconfig(schedconfig_dump)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+  # generate a harvester command to clean up the workers of a site
+    def sweepPQ(self, panda_queue_des, status_list_des, ce_list_des, submission_host_list_des):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.sweepPQ(panda_queue_des, status_list_des, ce_list_des, submission_host_list_des)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

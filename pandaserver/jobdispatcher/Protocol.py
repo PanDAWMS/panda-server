@@ -358,12 +358,20 @@ class Response:
         scope_input, scope_output = DataServiceUtils.select_scope(siteSpec, prodSourceLabel)
         if siteSpec == None or mode not in ['input', 'output']:
             return ''
+
+        if mode == 'input':
+            connected_endpoints = siteSpec.ddm_endpoints_input
+        elif mode == 'output':
+            connected_endpoints = siteSpec.ddm_endpoints_output
+
         endPoint = DataServiceUtils.getDestinationSE(spaceToken)
-        if endPoint != None:
+        if endPoint is not None and connected_endpoints.isAssociated(endPoint):
             return endPoint
+
         endPoint = DataServiceUtils.getDistributedDestination(spaceToken)
-        if endPoint != None:
+        if endPoint is not None and connected_endpoints.isAssociated(endPoint):
             return endPoint
+
         if mode == 'input':
             setokens = siteSpec.setokens_input[scope_input]
             ddm = siteSpec.ddm_input[scope_input]
@@ -378,7 +386,6 @@ class Response:
             ddm = ''
 
         return ddm
-
                 
 
 # check if secure connection
@@ -394,5 +401,3 @@ def getUserDN(req):
         return req.subprocess_env['SSL_CLIENT_S_DN']
     except:
         return 'None'
-
-                

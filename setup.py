@@ -221,9 +221,11 @@ setup(
                              'templates/panda_server-shareMgr.exe.template',
                              'templates/panda_server-configurator.exe.template',
                              'templates/panda_server-network_configurator.exe.template',
+                             'templates/panda_server-schedconfig_json.exe.template',
                              'templates/panda_server-esPreemption.exe.template',
                              'templates/panda_server-harvesterCtl.exe.template',
-                             'templates/panda_server-pilot_streaming.exe.template'
+                             'templates/panda_server-pilot_streaming.exe.template',
+                             'templates/panda_server-frontier_retagging.exe.template'
                              ]
                  ),
 

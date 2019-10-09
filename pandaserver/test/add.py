@@ -310,7 +310,7 @@ class ForkThr (threading.Thread):
         self.fileName = fileName
 
     def run(self):
-        setupStr += 'source /etc/sysconfig/panda_server; '
+        setupStr = 'source /etc/sysconfig/panda_server; '
         runStr  = '%s/python -Wignore ' % panda_config.native_python
         runStr += panda_config.pandaPython_dir + '/dataservice/forkSetupper.py -i '
         runStr += self.fileName
