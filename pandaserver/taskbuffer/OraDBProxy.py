@@ -10103,7 +10103,7 @@ class DBProxy:
         sql_panda_ddm = """
                SELECT pdr.panda_site_name, pdr.ddm_endpoint_name, pdr.is_local, de.ddm_spacetoken_name, 
                       de.is_tape, pdr.default_read, pdr.default_write, pdr.roles, pdr.order_read, pdr.order_write, 
-                      nvl(pdr.scope, 'default'), de.blacklisted 
+                      nvl(pdr.scope, 'default') as scope, de.blacklisted 
                FROM ATLAS_PANDA.panda_ddm_relation pdr, ATLAS_PANDA.ddm_endpoint de
                WHERE pdr.ddm_endpoint_name = de.ddm_endpoint_name
                """
