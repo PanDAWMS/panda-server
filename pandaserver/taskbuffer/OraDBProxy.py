@@ -10103,7 +10103,7 @@ class DBProxy:
         sql_panda_ddm = """
                SELECT pdr.panda_site_name, pdr.ddm_endpoint_name, pdr.is_local, de.ddm_spacetoken_name, 
                       de.is_tape, pdr.default_read, pdr.default_write, pdr.roles, pdr.order_read, pdr.order_write, 
-                      pdr.scope, de.blacklisted 
+                      nvl(pdr.scope, 'default'), de.blacklisted 
                FROM ATLAS_PANDA.panda_ddm_relation pdr, ATLAS_PANDA.ddm_endpoint de
                WHERE pdr.ddm_endpoint_name = de.ddm_endpoint_name
                """
@@ -15849,7 +15849,7 @@ class DBProxy:
             else:
                 sqlSN += "AND sc.status=:siteStatus "
             sqlSN += "AND dr.default_write ='Y' "
-            sqlSN += "AND scope = 'default' " # skip endpoints with analysis roles
+            sqlSN += "AND (scope = 'default' OR scope IS NULL) " # skip endpoints with analysis roles
             sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
             varMap = {}
             varMap[':site'] = jobSpec.computingSite
@@ -15900,7 +15900,7 @@ class DBProxy:
                 sqlSN += "AND NOT sc.siteid LIKE 'ANALY_%' " 
                 sqlSN += "AND sc.status=:siteStatus "
                 sqlSN += "AND dr.default_write='Y' "
-                sqlSN += "AND scope = 'default' "  # skip endpoints with analysis roles
+                sqlSN += "AND (scope = 'default' OR scope IS NULL) "  # skip endpoints with analysis roles
                 sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
                 varMap = {}
                 varMap[':nucleus'] = tmpNucleus
@@ -15924,7 +15924,7 @@ class DBProxy:
             sqlSN += "AND NOT sc.siteid LIKE 'ANALY_%' " 
             sqlSN += "AND sc.status=:siteStatus "
             sqlSN += "AND dr.default_write='Y' "
-            sqlSN += "AND scope = 'default' " # skip endpoints with analysis roles
+            sqlSN += "AND (scope = 'default' OR scope IS NULL) " # skip endpoints with analysis roles
             sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
             varMap = {}
             varMap[':siteStatus'] = 'online'
