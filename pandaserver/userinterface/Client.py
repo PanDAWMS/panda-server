@@ -944,10 +944,11 @@ def getJobStatisticsPerUserSite():
 
 
 # get job statistics per site and resource
-def getJobStatisticsPerSiteResource():
+def getJobStatisticsPerSiteResource(timeWindow=None):
     """Get job statistics with job attributes
 
        args:
+          timeWindow: to count number of jobs that finish/failed/cancelled for last N minutes. 12*60 by default
        returns:
            status code
                  0: communication succeeded to the panda server 
@@ -960,6 +961,8 @@ def getJobStatisticsPerSiteResource():
     # execute
     url = baseURL + '/getJobStatisticsPerSiteResource'
     data = {}
+    if timeWindow is not None:
+        data['timeWindow'] = timeWindow
     status,output = curl.get(url,data)
     try:
         return status,json.loads(output)

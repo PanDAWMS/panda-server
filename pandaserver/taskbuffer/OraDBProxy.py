@@ -22134,7 +22134,7 @@ class DBProxy:
 
 
     # get job statistics per site and resource
-    def getJobStatisticsPerSiteResource(self):
+    def getJobStatisticsPerSiteResource(self, timeWindow):
         comment = ' /* DBProxy.getJobStatisticsPerSiteResource */'
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmp_log = LogWrapper(_logger, method_name)
@@ -22149,8 +22149,11 @@ class DBProxy:
         sqlMV = re.sub('COUNT\(\*\)', 'SUM(njobs)', sql0)
         sqlMV = re.sub('SELECT ', 'SELECT /*+ RESULT_CACHE */ ', sqlMV)
         ret = dict()
-        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
         try:
+            if timeWindow is None:
+                timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
+            else:
+                timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=int(timeWindow))
             for table in tables:
                 # start transaction
                 self.conn.begin()

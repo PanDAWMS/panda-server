@@ -3706,11 +3706,11 @@ class TaskBuffer:
 
 
     # get job statistics per site and resource
-    def getJobStatisticsPerSiteResource(self):
+    def getJobStatisticsPerSiteResource(self, timeWindow=None):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.getJobStatisticsPerSiteResource()
+        ret = proxy.getJobStatisticsPerSiteResource(timeWindow)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

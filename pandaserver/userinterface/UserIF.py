@@ -360,9 +360,9 @@ class UserIF:
 
 
     # get job statistics per site and resource
-    def getJobStatisticsPerSiteResource(self):
+    def getJobStatisticsPerSiteResource(self, timeWindow):
         # get job statistics
-        ret = self.taskBuffer.getJobStatisticsPerSiteResource()
+        ret = self.taskBuffer.getJobStatisticsPerSiteResource(timeWindow)
         # serialize 
         return json.dumps(ret)
 
@@ -1369,8 +1369,8 @@ def getJobStatisticsPerUserSite(req):
 
 
 # get job statistics per site and resource
-def getJobStatisticsPerSiteResource(req):
-    return userIF.getJobStatisticsPerSiteResource()
+def getJobStatisticsPerSiteResource(req, timeWindow=None):
+    return userIF.getJobStatisticsPerSiteResource(timeWindow)
 
 
 # get job statistics per site
