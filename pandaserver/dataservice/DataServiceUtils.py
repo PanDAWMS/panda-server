@@ -32,7 +32,7 @@ def isCachedFile(datasetName,siteSpec):
 
 # get the list of sites where dataset is available
 def getSitesWithDataset(tmpDsName, siteMapper, replicaMap, cloudKey, prodSourceLabel, useHomeCloud=False, getDQ2ID=False,
-                        useOnlineSite=False, includeT1=False, logger=None):
+                        useOnlineSite=False, includeT1=False):
     retList = []
     retDQ2Map = {}
     # no replica map
@@ -57,10 +57,7 @@ def getSitesWithDataset(tmpDsName, siteMapper, replicaMap, cloudKey, prodSourceL
             # hospital queue
             tmpSrcSpec = siteMapper.getSite(siteMapper.getCloud(cloudKey)['source'])
             scopeSrcSpec_input, scopeSrcSpec_output = select_scope(tmpSrcSpec, prodSourceLabel)
-            if logger:
-                logger.debug('tmpSiteSpec name: {0}, ddm_input: {1}'.format(tmpSiteSpec.sitename, tmpSiteSpec.ddm_input))
-                logger.debug('tmpSrcSpec name: {0}, ddm_input: {1}'.format(tmpSrcSpec.sitename, tmpSrcSpec.ddm_input))
-            if tmpSiteSpec.ddm_input[scopeSiteSpec_input] == tmpSrcSpec.ddm_input[scopeSrcSpec_input]:
+            if tmpSiteSpec.ddm_input.get(scopeSiteSpec_input) == tmpSrcSpec.ddm_input.get(scopeSrcSpec_input):
                 continue
         # use home cloud
         if useHomeCloud:
@@ -73,7 +70,7 @@ def getSitesWithDataset(tmpDsName, siteMapper, replicaMap, cloudKey, prodSourceL
         tmpFoundFlag = False
 
         # skip misconfigured sites
-        if not tmpSiteSpec.ddm_input[scopeSiteSpec_input] and not tmpSiteSpec.setokens_input[scopeSiteSpec_input].values():
+        if not tmpSiteSpec.ddm_input.get(scopeSiteSpec_input) and not tmpSiteSpec.setokens_input.get(scopeSiteSpec_input).values():
             continue
 
         for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input[scopeSiteSpec_input]]+tmpSiteSpec.setokens_input[scopeSiteSpec_input].values():
