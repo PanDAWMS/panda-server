@@ -1291,7 +1291,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 tmpDsName = lfnDsMap[tmpCheckLFN]
                 if not self.availableLFNsInT2[cloudKey].has_key(tmpDsName):
                     # collect sites
-                    tmpSiteNameDQ2Map = DataServiceUtils.getSitesWithDataset(tmpDsName, self.siteMapper, replicaMap, cloudKey, self.prodSourceLabel, getDQ2ID=True)
+                    tmpSiteNameDQ2Map = DataServiceUtils.getSitesWithDataset(tmpDsName, self.siteMapper, replicaMap, cloudKey, self.prodSourceLabel, getDQ2ID=True, logger=self.logger)
                     if tmpSiteNameDQ2Map == {}:
                         continue
                     self.availableLFNsInT2[cloudKey][tmpDsName] = {'allfiles':[],'allguids':[],'allscopes':[],'sites':{}}
