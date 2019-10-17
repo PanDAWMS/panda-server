@@ -360,16 +360,16 @@ class Response:
             return ''
 
         if mode == 'input':
-            connected_endpoints = siteSpec.ddm_endpoints_input
+            connected_endpoints = siteSpec.ddm_endpoints_input.get(scope_input)
         elif mode == 'output':
-            connected_endpoints = siteSpec.ddm_endpoints_output
+            connected_endpoints = siteSpec.ddm_endpoints_output.get(scope_output)
 
         endPoint = DataServiceUtils.getDestinationSE(spaceToken)
-        if endPoint and connected_endpoints.isAssociated(endPoint):
+        if endPoint and connected_endpoints and connected_endpoints.isAssociated(endPoint):
             return endPoint
 
         endPoint = DataServiceUtils.getDistributedDestination(spaceToken)
-        if endPoint and connected_endpoints.isAssociated(endPoint):
+        if endPoint and connected_endpoints and connected_endpoints.isAssociated(endPoint):
             return endPoint
 
         if mode == 'input':
