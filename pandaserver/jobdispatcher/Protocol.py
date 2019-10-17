@@ -146,7 +146,7 @@ class Response:
                     else:
                         strCheckSum += '%s,' % file.md5sum
                     strScopeIn += '%s,' % file.scope
-                    ddmEndPointIn.append(self.getDdmEndpoint(siteSpec,file.dispatchDBlockToken, 'input',
+                    ddmEndPointIn.append(self.getDdmEndpoint(siteSpec, file.dispatchDBlockToken, 'input',
                                                              job.prodSourceLabel))
                     if not file.dataset in inDsLfnMap:
                         inDsLfnMap[file.dataset] = []
@@ -173,7 +173,7 @@ class Response:
                 strDestToken += re.sub('^ddd:','dst:',file.destinationDBlockToken.split(',')[0])
                 strDisTokenForOutput += '%s,' % file.dispatchDBlockToken
                 strProdTokenForOutput += '%s,' % file.prodDBlockToken
-                ddmEndPointOut.append(self.getDdmEndpoint(siteSpec,file.destinationDBlockToken.split(',')[0], 'output',
+                ddmEndPointOut.append(self.getDdmEndpoint(siteSpec, file.destinationDBlockToken.split(',')[0], 'output',
                                                           job.prodSourceLabel))
                 if file.isAllowedNoOutput():
                     noOutput.append(file.lfn)
@@ -354,9 +354,9 @@ class Response:
 
 
     # get ddm endpoint
-    def getDdmEndpoint(self,siteSpec,spaceToken, mode, prodSourceLabel):
+    def getDdmEndpoint(self, siteSpec, spaceToken, mode, prodSourceLabel):
         scope_input, scope_output = DataServiceUtils.select_scope(siteSpec, prodSourceLabel)
-        if siteSpec == None or mode not in ['input', 'output']:
+        if not siteSpec or mode not in ['input', 'output']:
             return ''
 
         if mode == 'input':
@@ -365,19 +365,19 @@ class Response:
             connected_endpoints = siteSpec.ddm_endpoints_output
 
         endPoint = DataServiceUtils.getDestinationSE(spaceToken)
-        if endPoint is not None and connected_endpoints.isAssociated(endPoint):
+        if endPoint and connected_endpoints.isAssociated(endPoint):
             return endPoint
 
         endPoint = DataServiceUtils.getDistributedDestination(spaceToken)
-        if endPoint is not None and connected_endpoints.isAssociated(endPoint):
+        if endPoint and connected_endpoints.isAssociated(endPoint):
             return endPoint
 
         if mode == 'input':
-            setokens = siteSpec.setokens_input[scope_input]
-            ddm = siteSpec.ddm_input[scope_input]
+            setokens = siteSpec.setokens_input.get(scope_input, [])
+            ddm = siteSpec.ddm_input.get(scope_input)
         elif mode == 'output':
-            setokens = siteSpec.setokens_output[scope_output]
-            ddm = siteSpec.ddm_output[scope_output]
+            setokens = siteSpec.setokens_output.get(scope_output, [])
+            ddm = siteSpec.ddm_output.get(scope_output)
         if spaceToken in setokens:
             return setokens[spaceToken]
 

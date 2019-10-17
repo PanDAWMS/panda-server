@@ -13,7 +13,6 @@ import Protocol
 import time
 import socket
 import datetime
-import commands
 import traceback
 from threading import Lock
 from config import panda_config
@@ -22,7 +21,6 @@ from pandalogger.PandaLogger import PandaLogger
 from pandalogger.LogWrapper import LogWrapper
 import DispatcherUtils
 from taskbuffer import EventServiceUtils
-from taskbuffer import retryModule
 from brokerage.SiteMapper import SiteMapper
 from proxycache import panda_proxy_cache
 
@@ -213,8 +211,15 @@ class JobDipatcher:
             responseList = []
             # append Jobs
             for tmpJob in jobs:
-                response=Protocol.Response(Protocol.SC_Success)
-                response.appendJob(tmpJob, self.siteMapperCache)
+                try:
+                    response=Protocol.Response(Protocol.SC_Success)
+                    response.appendJob(tmpJob, self.siteMapperCache)
+                except:
+                    errtype, errvalue = sys.exc_info()[:2]
+                    tmpMsg = "getJob failed with {0} {1}".format(errtype.__name__, errvalue)
+                    _logger.error(tmpMsg + '\n' + traceback.format_exc())
+                    raise
+
                 # append nSent
                 response.appendNode('nSent', nSent)
                 # set proxy key
@@ -254,9 +259,9 @@ class JobDipatcher:
                                 _logger.warning("getJob : %s %s failed to get user proxy : %s" % (siteName,node,
                                                                                                   tmpOut))
                     except:
-                        errtype,errvalue = sys.exc_info()[:2]
+                        errtype, errvalue = sys.exc_info()[:2]
                         _logger.warning("getJob : %s %s failed to get user proxy with %s:%s" % (siteName,node,
-                                                                                                errtype.__name__,errvalue))
+                                                                                                errtype.__name__, errvalue))
                 # panda proxy
                 if 'pandaProxySites' in self.specialDispatchParams and siteName in self.specialDispatchParams['pandaProxySites'] \
                         and (EventServiceUtils.isEventServiceJob(tmpJob) or EventServiceUtils.isEventServiceMerge(tmpJob)):
@@ -274,11 +279,18 @@ class JobDipatcher:
                 responseList.append(response.data)
             # make response for bulk
             if nJobs != None:
-                response = Protocol.Response(Protocol.SC_Success)
-                if not acceptJson:
-                    response.appendNode('jobs',json.dumps(responseList))
-                else:
-                    response.appendNode('jobs',responseList)
+                try:
+                    response = Protocol.Response(Protocol.SC_Success)
+                    if not acceptJson:
+                        response.appendNode('jobs',json.dumps(responseList))
+                    else:
+                        response.appendNode('jobs',responseList)
+                except:
+                    errtype, errvalue = sys.exc_info()[:2]
+                    tmpMsg = "getJob failed with {0} {1}".format(errtype.__name__, errvalue)
+                    _logger.error(tmpMsg + '\n' + traceback.format_exc())
+                    raise
+
         else:
             if tmpWrapper.result == Protocol.TimeOutToken:
                 # timeout
