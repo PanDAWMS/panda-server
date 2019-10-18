@@ -98,7 +98,7 @@ for harvesterID in harvesterIDs:
             taskBuffer.releaseCommandLockHarvester(harvesterID, com, siteName, resourceType, pid)
 
     # get lock to send SET_N_WORKERS command
-    com = 'SET_N_WORKERS'
+    com = 'SET_N_WORKERS_JOBTYPE'
     tmpLog.debug('locking for com={0} id={1}'.format(com, harvesterID))
     locks = taskBuffer.getCommandLocksHarvester(harvesterID, com, pid, lockInterval, setInterval)
     # send command to set nWorkers
