@@ -3398,6 +3398,18 @@ class TaskBuffer:
         return res
 
 
+    # report stat of workers
+    def reportWorkerStats_jobtype(self, harvesterID, siteName, paramsList):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.reportWorkerStats_jobtype(harvesterID, siteName, paramsList)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
     # get command locks
     def getCommandLocksHarvester(self, harvester_ID, command, lockedBy, 
                                  lockInterval, commandInterval):

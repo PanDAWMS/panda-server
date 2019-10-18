@@ -21150,11 +21150,54 @@ class DBProxy:
         tmp_log.debug('done. resource_type is Undefined')
         return 'Undefined'
 
-
-
     # update stat of workers
     def reportWorkerStats(self, harvesterID, siteName, paramsList):
         comment = ' /* DBProxy.reportWorkerStats */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName+' < harvesterID={0} siteName={1} >'.format(harvesterID, siteName))
+        tmpLog.debug('start')
+        tmpLog.debug('params={0}'.format(str(paramsList)))
+        try:
+            # load new site data
+            paramsList = json.loads(paramsList)
+            # set autocommit on
+            self.conn.begin()
+            # delete old site data
+            sqlDel = "DELETE FROM ATLAS_PANDA.Harvester_Worker_Stats "
+            sqlDel += "WHERE harvester_ID=:harvesterID AND computingSite=:siteName "
+            varMap = dict()
+            varMap[':harvesterID'] = harvesterID
+            varMap[':siteName'] = siteName
+            self.cur.execute(sqlDel+comment, varMap)
+            # insert new site data
+            sqlI = 'INSERT INTO ATLAS_PANDA.Harvester_Worker_Stats (harvester_ID,computingSite,resourceType,status,n_workers,lastUpdate) '
+            sqlI += 'VALUES (:harvester_ID,:siteName,:resourceType,:status,:n_workers,CURRENT_DATE) '
+            for resourceType, params in paramsList.iteritems():
+                if resourceType == 'Undefined':
+                    continue
+                for status, n_workers in params.iteritems():
+                    varMap = dict()
+                    varMap[':harvester_ID'] = harvesterID
+                    varMap[':siteName'] = siteName
+                    varMap[':status'] = status
+                    varMap[':resourceType'] = resourceType
+                    varMap[':n_workers'] = n_workers
+                    self.cur.execute(sqlI+comment, varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # return
+            tmpLog.debug('done')
+            return True,'OK'
+        except:
+            # roll back
+            self._rollback()
+            self.dumpErrorMessage(tmpLog,methodName)
+            return False,'database error'
+
+    # update stat of workers with jobtype breakdown
+    def reportWorkerStats_jobtype(self, harvesterID, siteName, paramsList):
+        comment = ' /* DBProxy.reportWorkerStats_jobtype */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger, methodName+' < harvesterID={0} siteName={1} >'.format(harvesterID, siteName))
         tmpLog.debug('start')
