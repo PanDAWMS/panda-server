@@ -179,10 +179,11 @@ class AdderAtlasPlugin (AdderPluginBase):
         # add nEvents info for zip files
         for tmpZipFileName, tmpZipContents in zipFileMap.iteritems():
             if tmpZipFileName not in self.extraInfo['nevents']:
-                self.extraInfo['nevents'][tmpZipFileName] = 0
                 for tmpZipContent in tmpZipContents:
                     for tmpLFN in nEventsInput.keys():
-                        if re.search('^' + tmpZipContent + '$', tmpLFN) is not None:
+                        if re.search('^' + tmpZipContent + '$', tmpLFN) is not None \
+                           and tmpLFN in nEventsInput and nEventsInput[tmpLFN] is not None:
+                            self.extraInfo['nevents'].setdefault(tmpZipFileName, 0)
                             self.extraInfo['nevents'][tmpZipFileName] += nEventsInput[tmpLFN]
         # check files
         idMap = {}
