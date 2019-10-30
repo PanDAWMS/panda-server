@@ -2196,7 +2196,7 @@ class DBProxy:
                     pass
             if key == 'jobMetrics':
                 try:
-                    tmpM = re.search('leak=(\d+\.*\d+)', param[key])
+                    tmpM = re.search('leak=(-?\d+\.*\d+)', param[key])
                     if tmpM is not None:
                         memoryLeak = long(float(tmpM.group(1)))
                         tmpKey = 'memory_leak'
