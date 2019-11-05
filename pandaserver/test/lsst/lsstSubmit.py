@@ -1,9 +1,10 @@
 import sys
 import time
-import commands
-import userinterface.Client as Client
-from taskbuffer.JobSpec import JobSpec
-from taskbuffer.FileSpec import FileSpec
+import uuid
+
+import pandaserver.userinterface.Client as Client
+from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.taskbuffer.FileSpec import FileSpec
 
 aSrvID = None
 prodUserNameDefault = 'unknown-user'
@@ -21,7 +22,7 @@ for idx,argv in enumerate(sys.argv):
     if argv == '--site':
         try:
             site = sys.argv[idx + 1]
-        except:
+        except Exception:
             site = 'ANALY_BNL-LSST'
     if argv == '-DP_USER':
         try:
@@ -31,7 +32,7 @@ for idx,argv in enumerate(sys.argv):
             lsstJobParams += "%(key)s=%(value)s" % \
                 {'key': 'DP_USER', \
                  'value': str(prodUserNameDP)}
-        except:
+        except Exception:
             prodUserNameDP = None
     if argv == '-PIPELINE_USER':
         try:
@@ -41,7 +42,7 @@ for idx,argv in enumerate(sys.argv):
             lsstJobParams += "%(key)s=%(value)s" % \
                 {'key': 'PIPELINE_USER', \
                  'value': str(prodUserNamePipeline)}
-        except:
+        except Exception:
             prodUserNamePipeline = None
     if argv == '-PIPELINE_TASK':
         try:
@@ -51,7 +52,7 @@ for idx,argv in enumerate(sys.argv):
             lsstJobParams += "%(key)s=%(value)s" % \
                 {'key': 'PIPELINE_TASK', \
                  'value': str(PIPELINE_TASK)}
-        except:
+        except Exception:
             PIPELINE_TASK = None
     if argv == '-PIPELINE_PROCESSINSTANCE':
         try:
@@ -61,7 +62,7 @@ for idx,argv in enumerate(sys.argv):
             lsstJobParams += "%(key)s=%(value)s" % \
                 {'key': 'PIPELINE_PROCESSINSTANCE', \
                  'value': str(PIPELINE_PROCESSINSTANCE)}
-        except:
+        except Exception:
             PIPELINE_PROCESSINSTANCE = None
     if argv == '-PIPELINE_EXECUTIONNUMBER':
         try:
@@ -71,7 +72,7 @@ for idx,argv in enumerate(sys.argv):
             lsstJobParams += "%(key)s=%(value)s" % \
                 {'key': 'PIPELINE_EXECUTIONNUMBER', \
                  'value': str(PIPELINE_EXECUTIONNUMBER)}
-        except:
+        except Exception:
             PIPELINE_EXECUTIONNUMBER = None
     if argv == '-PIPELINE_STREAM':
         try:
@@ -81,7 +82,7 @@ for idx,argv in enumerate(sys.argv):
             lsstJobParams += "%(key)s=%(value)s" % \
                 {'key': 'PIPELINE_STREAM', \
                  'value': str(PIPELINE_STREAM)}
-        except:
+        except Exception:
             PIPELINE_STREAM = None
     if argv == '-s':
         aSrvID = sys.argv[idx+1]
@@ -114,7 +115,7 @@ if prodUserName is not None \
      'PIPELINE_PROCESSINSTANCE': str(PIPELINE_PROCESSINSTANCE) \
      }
 else:
-    datasetName = 'panda.lsst.user.jschovan.%s' % commands.getoutput('uuidgen')
+    datasetName = 'panda.lsst.user.jschovan.%s' % str(uuid.uuid4())
 
 if prodUserName is not None \
     and PIPELINE_TASK is not None \
@@ -128,7 +129,7 @@ if prodUserName is not None \
      'PIPELINE_PROCESSINSTANCE': str(PIPELINE_PROCESSINSTANCE) \
      }
 else:
-    jobName = "%s" % commands.getoutput('uuidgen')
+    jobName = "%s" % str(uuid.uuid4())
 
 if PIPELINE_STREAM is not None:
     jobDefinitionID = PIPELINE_STREAM
@@ -166,6 +167,6 @@ job.addFile(fileOL)
 
 
 s,o = Client.submitJobs([job],srvID=aSrvID)
-print s
+print(s)
 for x in o:
-    print "PandaID=%s" % x[0]
+    print("PandaID=%s" % x[0])

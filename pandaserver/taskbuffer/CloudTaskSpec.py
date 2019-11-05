@@ -20,7 +20,7 @@ class CloudTaskSpec(object):
     # override __getattribute__ for SQL and PandaID
     def __getattribute__(self,name):
         ret = object.__getattribute__(self,name)
-        if ret == None:
+        if ret is None:
             return "NULL"
         return ret
 

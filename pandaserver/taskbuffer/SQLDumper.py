@@ -1,4 +1,4 @@
-from pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 # logger
 _logger = PandaLogger().getLogger('SQLDumper')

@@ -2,18 +2,15 @@ import re
 import sys
 import copy
 import traceback
-from config import panda_config
+from pandaserver.config import panda_config
 
 # logger
-from pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger('SiteMapper')
 
-# PandaIDs
-from PandaSiteIDs import PandaSiteIDs
-
 # default site
-from taskbuffer.SiteSpec import SiteSpec
-from taskbuffer.NucleusSpec import NucleusSpec
+from pandaserver.taskbuffer.SiteSpec import SiteSpec
+from pandaserver.taskbuffer.NucleusSpec import NucleusSpec
 
 defSite = SiteSpec()
 defSite.sitename   = panda_config.def_sitename
@@ -61,7 +58,8 @@ class SiteMapper:
             resourceTypes = taskBuffer.load_resource_types()
             # create CloudSpec list 
             tmpCloudListDB = taskBuffer.getCloudList()
-            for tmpName,tmpCloudSpec in tmpCloudListDB.iteritems():
+            for tmpName in tmpCloudListDB:
+                tmpCloudSpec = tmpCloudListDB[tmpName]
                 cloudSpec = {}
                 # copy attributes from CloudSepc
                 for tmpAttr in tmpCloudSpec._attributes:
@@ -86,32 +84,32 @@ class SiteMapper:
             # read full list from DB
             siteFullList = taskBuffer.getSiteInfo()
             # read DB to produce paramters in siteinfo dynamically
-            for tmpID,tmpNicknameList in siteIDsList.iteritems():
+            for tmpID in siteIDsList:
+                tmpNicknameList = siteIDsList[tmpID]
                 for tmpNickname in tmpNicknameList:
                     # invalid nickname
-                    if not siteFullList.has_key(tmpNickname):
+                    if tmpNickname not in siteFullList:
                         continue
                     # get full spec
                     ret = siteFullList[tmpNickname]
                     # append
-                    if ret == None:
+                    if ret is None:
                         _logger.error('Could not read site info for %s:%s' % (tmpID,tmpNickname))
-                    elif (firstDefault and tmpID == defSite.sitename) or (not self.siteSpecList.has_key(tmpID)) \
-                             or (self.siteSpecList.has_key(tmpID) and self.siteSpecList[tmpID].status in ['offline','']):
+                    elif (firstDefault and tmpID == defSite.sitename) or (tmpID not in self.siteSpecList) \
+                             or (tmpID in self.siteSpecList and self.siteSpecList[tmpID].status in ['offline','']):
                         # overwrite default or remove existing offline 
                         if firstDefault and tmpID == defSite.sitename:
                             del self.siteSpecList[tmpID]
                             firstDefault = False
-                        elif self.siteSpecList.has_key(tmpID) and self.siteSpecList[tmpID].status in ['offline','']:
+                        elif tmpID in self.siteSpecList and self.siteSpecList[tmpID].status in ['offline','']:
                             del self.siteSpecList[tmpID]
                         # append
-                        if not self.siteSpecList.has_key(tmpID):
+                        if tmpID not in self.siteSpecList:
                             # determine type following a convention
                             tmpType = 'production'
                             if tmpID.startswith('ANALY_'):
                                 tmpType = 'analysis'
-                            elif re.search('test',tmpID,re.I) or \
-                                     (PandaSiteIDs.has_key(tmpID) and PandaSiteIDs[tmpID]['status']!='OK'):
+                            elif re.search('test',tmpID,re.I):
                                 tmpType = 'test'
                             # set type
                             ret.sitename = tmpID
@@ -135,7 +133,7 @@ class SiteMapper:
                                     if (self.siteSpecList[tmpID].memory != 0 and self.siteSpecList[tmpID].memory < ret.memory) or \
                                            ret.memory == 0:
                                         self.siteSpecList[tmpID].memory = ret.memory
-                            except:
+                            except Exception:
                                 errtype, errvalue = sys.exc_info()[:2]
                                 _logger.error("%s memory/inputsize failure : %s %s" % (tmpID,errtype,errvalue))
                     # collect nuclei and satellites
@@ -174,7 +172,7 @@ class SiteMapper:
                             self.collectNS(childSiteSpec)
                         # set unified flag
                         siteSpec.is_unified = True
-            except:
+            except Exception:
                 _logger.error(traceback.format_exc())
             # make cloudSpec
             for siteSpec in self.siteSpecList.values():
@@ -183,7 +181,7 @@ class SiteMapper:
                     continue
                 # append prod site in cloud
                 for tmpCloud in siteSpec.cloudlist:
-                    if self.cloudSpec.has_key(tmpCloud):
+                    if tmpCloud in self.cloudSpec:
                         if not siteSpec.sitename in self.cloudSpec[tmpCloud]['sites']:
                             # append
                             self.cloudSpec[tmpCloud]['sites'].append(siteSpec.sitename)
@@ -196,7 +194,7 @@ class SiteMapper:
                 if not siteSpec.sitename in self.worldCloudSpec['sites']:
                     self.worldCloudSpec['sites'].append(siteSpec.sitename)
             # set defCloudSites for backward compatibility
-            if self.cloudSpec.has_key('US'):
+            if 'US' in self.cloudSpec:
                 # use US sites
                 self.defCloudSites = self.cloudSpec['US']['sites']
             else:
@@ -205,27 +203,29 @@ class SiteMapper:
             # dump sites
             if verbose:
                 _logger.debug('========= dump =========')
-                for tmpSite,tmpSiteSpec in self.siteSpecList.iteritems():
+                for tmpSite in self.siteSpecList:
+                    tmpSiteSpec = self.siteSpecList[tmpSite]
                     _logger.debug('Site->%s' % str(tmpSiteSpec))
             # check
-            for tmpCloud,tmpVals in self.cloudSpec.iteritems():
+            for tmpCloud in self.cloudSpec:
+                tmpVals = self.cloudSpec[tmpCloud]
                 # set T1
                 try:
                     tmpVals['sites'].remove(tmpVals['dest'])
-                except:
+                except Exception:
                     pass
                 tmpVals['sites'].insert(0,tmpVals['dest'])
                 # dump
                 _logger.debug('Cloud:%s has %s' % (tmpCloud,tmpVals['sites']))
                 for tmpSite in tmpVals['sites']:
-                    if not self.siteSpecList.has_key(tmpSite):
+                    if tmpSite not in self.siteSpecList:
                         _logger.debug("  '%s' doesn't exist" % tmpSite)
                         continue
                     tmpSiteSpec = self.siteSpecList[tmpSite]
                     if tmpSiteSpec.status in ['offline']:
                         _logger.debug('  %s:%s' % (tmpSite,tmpSiteSpec.status))
             _logger.debug('Cloud:XX has %s' % self.defCloudSites)
-        except:
+        except Exception:
             type, value, traceBack = sys.exc_info()
             _logger.error("__init__ SiteMapper : %s %s" % (type,value))
             _logger.error(traceback.format_exc())
@@ -259,9 +259,9 @@ class SiteMapper:
                     site = self.nuclei[tmpName].getOnePandaSite()
                 elif tmpName in self.satellites:
                     site = self.satellites[tmpName].getOnePandaSite()
-        except:
+        except Exception:
             pass
-        if self.siteSpecList.has_key(site):
+        if site in self.siteSpecList:
             return self.siteSpecList[site]
         else:
             # return default site
@@ -277,9 +277,9 @@ class SiteMapper:
                     site = self.nuclei[tmpName].getOnePandaSite()
                 elif tmpName in self.satellites:
                     site = self.satellites[tmpName].getOnePandaSite()
-        except:
+        except Exception:
             pass
-        return self.siteSpecList.has_key(site)
+        return site in self.siteSpecList
 
 
     # resolve nucleus
@@ -291,7 +291,7 @@ class SiteMapper:
                     site = self.nuclei[tmpName].getOnePandaSite()
                 elif tmpName in self.satellites:
                     site = self.satellites[tmpName].getOnePandaSite()
-        except:
+        except Exception:
             pass
         if site == 'NULL':
             site = None
@@ -300,7 +300,7 @@ class SiteMapper:
 
     # accessor for cloud
     def getCloud(self,cloud):
-        if self.cloudSpec.has_key(cloud):
+        if cloud in self.cloudSpec:
             return self.cloudSpec[cloud]
         elif cloud == worldCloudName:
             return self.worldCloudSpec
@@ -317,7 +317,7 @@ class SiteMapper:
 
     # accessor for cloud
     def checkCloud(self,cloud):
-        if self.cloudSpec.has_key(cloud):
+        if cloud in self.cloudSpec:
             return True
         elif cloud == worldCloudName:
             return True
@@ -353,7 +353,8 @@ class SiteMapper:
 
     # get nucleus with ddm endpoint
     def getNucleusWithDdmEndpoint(self, ddmEndpoint):
-        for nucleusName,nucleusSpec in self.nuclei.iteritems():
+        for nucleusName in self.nuclei:
+            nucleusSpec = self.nuclei[nucleusName]
             if nucleusSpec.isAssociatedEndpoint(ddmEndpoint):
                 return nucleusName
         return None

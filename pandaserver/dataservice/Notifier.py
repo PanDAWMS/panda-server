@@ -5,19 +5,17 @@ notifier
 
 import re
 import sys
-import fcntl
-import commands
+import uuid
 import urllib
-import shelve
 import smtplib
 import datetime
 import time
 
-from config import panda_config
-from taskbuffer.OraDBProxy import DBProxy
-from pandalogger.PandaLogger import PandaLogger
-from dataservice.DDM import rucioAPI
-import taskbuffer.ErrorCode
+from pandaserver.config import panda_config
+from pandaserver.taskbuffer.OraDBProxy import DBProxy
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.dataservice.DDM import rucioAPI
+import pandaserver.taskbuffer.ErrorCode
 
 # logger
 _logger = PandaLogger().getLogger('Notifier')
@@ -67,7 +65,7 @@ class Notifier:
 
     # main
     def run(self):
-        if self.mailFile == None:
+        if self.mailFile is None:
             _logger.debug("%s start" % self.job.PandaID)
             try:
                 # check job type
@@ -77,7 +75,7 @@ class Notifier:
                     return
                 # ignore some DNs to avoid mail storm
                 for igName in _ignoreList:
-                    if re.search(igName,self.job.prodUserID) != None:
+                    if re.search(igName,self.job.prodUserID) is not None:
                         _logger.debug("Ignore DN : %s" % self.job.prodUserID)
                         _logger.debug("%s end" % self.job.PandaID)
                         return
@@ -88,21 +86,22 @@ class Notifier:
                     _logger.debug("%s end" % self.job.PandaID)
                     return
                 # not send 
-                if mailAddr in ['notsend','',None] or (mailAddr != None and mailAddr.startswith('notsend')):
+                if mailAddr in ['notsend','',None] or (mailAddr is not None and mailAddr.startswith('notsend')):
                     _logger.debug("not send to %s" % self.job.prodUserID)
                     _logger.debug("%s end" % self.job.PandaID)
                     return
                 # use all datasets
                 if self.summary != {}:
                     self.datasets = []
-                    for tmpJobID,tmpDsList in self.summary.iteritems():
+                    for tmpJobID in self.summary:
+                        tmpDsList = self.summary[tmpJobID]
                         if tmpDsList == []:
                             continue
                         self.datasets += tmpDsList
                 # get full jobSpec including metadata
                 self.job = self.taskBuffer.peekJobs([self.job.PandaID],fromDefined=False,
                                     fromActive=False,fromWaiting=False)[0]
-                if self.job == None:
+                if self.job is None:
                     _logger.error('%s : not found in DB' % self.job.PandaID)
                     _logger.debug("%s end" % self.job.PandaID)
                     return
@@ -143,7 +142,7 @@ class Notifier:
                     siteMap = {}
                     logDS = None 
                     for tmpJob in jobs:
-                        if not siteMap.has_key(tmpJob.jobDefinitionID):
+                        if tmpJob.jobDefinitionID not in siteMap:
                             siteMap[tmpJob.jobDefinitionID] = tmpJob.computingSite
                         for file in tmpJob.Files:
                             if file.type == 'input':
@@ -171,10 +170,10 @@ class Notifier:
                         jobsetID = self.job.jobsetID
                     # count
                     for job in jobs:
-                        if job == None:
+                        if job is None:
                             continue
                         # ignore pilot-retried job
-                        if job.taskBufferErrorCode in [taskbuffer.ErrorCode.EC_PilotRetried]:
+                        if job.taskBufferErrorCode in [pandaserver.taskbuffer.ErrorCode.EC_PilotRetried]:
                             continue
                         # total
                         nTotal += 1
@@ -278,7 +277,7 @@ PandaMonURL : http://panda.cern.ch/server/pandamon/query?%s""" % urllib.urlencod
 """
 
 PandaMonURL : http://panda.cern.ch/server/pandamon/query?%s""" % urllib.urlencode(urlData)
-                        if logDS != None:
+                        if logDS is not None:
                             message += \
 """
 TaskMonitorURL : https://dashb-atlas-task.cern.ch/templates/task-analysis/#task=%s""" % logDS
@@ -302,7 +301,7 @@ Report Panda problems of any sort to
 
                     # send mail
                     self.sendMail(self.job.PandaID,fromadd,mailAddr,message,1,True)                                                
-            except:
+            except Exception:
                 errType,errValue = sys.exc_info()[:2]            
                 _logger.error("%s %s %s" % (self.job.PandaID,errType,errValue))
             _logger.debug("%s end" % self.job.PandaID)
@@ -317,7 +316,7 @@ Report Panda problems of any sort to
                 _logger.debug("%s start recovery" % pandaID)
                 if message != '':
                     self.sendMail(pandaID,fromadd,mailAddr,message,5,False)
-            except:
+            except Exception:
                 errType,errValue = sys.exc_info()[:2]            
                 _logger.error("%s %s %s" % (self.mailFileName,errType,errValue))
             _logger.debug("end recovery for %s" % self.mailFileName)
@@ -340,7 +339,7 @@ Report Panda problems of any sort to
                 _logger.debug('%s %s' % (pandaID,str(out)))
                 server.quit()
                 break
-            except:
+            except Exception:
                 errType,errValue = sys.exc_info()[:2]
                 if iTry+1 < nTry:
                     # sleep for retry
@@ -350,13 +349,13 @@ Report Panda problems of any sort to
                     _logger.error("%s %s %s" % (pandaID,errType,errValue))
                     if fileBackUp:
                         # write to file which is processed in add.py
-                        mailFile = '%s/mail_%s_%s' % (panda_config.logdir,self.job.PandaID,commands.getoutput('uuidgen'))
+                        mailFile = '%s/mail_%s_%s' % (panda_config.logdir,self.job.PandaID,str(uuid.uuid4()))
                         oMail = open(mailFile,"w")
                         oMail.write(str(self.job.PandaID)+'\n'+fromadd+'\n'+mailAddr+'\n'+message)
                         oMail.close()
         try:
             smtplib.stderr = org_smtpstderr
-        except:
+        except Exception:
             pass
         
 
@@ -380,7 +379,7 @@ Report Panda problems of any sort to
             if mailAddrInDB.split(':')[0] == 'notsend':
                 notSendMail = True
         # avoid too frequently lookup
-        if dbUptime != None and datetime.datetime.utcnow()-dbUptime < datetime.timedelta(hours=1):
+        if dbUptime is not None and datetime.datetime.utcnow()-dbUptime < datetime.timedelta(hours=1):
             _logger.debug("no lookup")
             if notSendMail or mailAddrInDB in [None,'']:
                 return 'notsend'
@@ -393,7 +392,7 @@ Report Panda problems of any sort to
             tmpStatus,userInfo = rucioAPI.finger(realDN)
             mailAddr = userInfo['email']
             _logger.debug("email from DDM : '%s'" % mailAddr)
-            if mailAddr == None:
+            if mailAddr is None:
                 mailAddr = ''
             # make email field to update DB
             mailAddrToDB = ''
@@ -406,10 +405,7 @@ Report Panda problems of any sort to
             if notSendMail:
                 return 'notsend'
             return mailAddr
-        except:
+        except Exception:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("%s %s" % (errType,errValue))
-            return ""
         return ""
-                    
-        

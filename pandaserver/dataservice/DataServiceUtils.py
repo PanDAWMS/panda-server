@@ -26,7 +26,7 @@ def isCachedFile(datasetName,siteSpec):
     if not datasetName.startswith('ddo'):
         return False
     # look for three digits
-    if re.search('v\d{6}$',datasetName) == None:
+    if re.search('v\d{6}$',datasetName) is None:
         return False
     return True
 
@@ -37,7 +37,7 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
     retList = []
     retDQ2Map = {}
     # no replica map
-    if not replicaMap.has_key(tmpDsName):
+    if tmpDsName not in replicaMap:
         if getDQ2ID:
             return retDQ2Map
         return retList
@@ -96,9 +96,9 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
                     if not getDQ2ID:
                         break
                     # append map
-                    if not retDQ2Map.has_key(tmpSiteName):
+                    if tmpSiteName not in retDQ2Map:
                         retDQ2Map[tmpSiteName] = []
-                    if not tmpDQ2ID in retDQ2Map[tmpSiteName]:    
+                    if not tmpDQ2ID in retDQ2Map[tmpSiteName]:
                         retDQ2Map[tmpSiteName].append(tmpDQ2ID)    
         # append
         if tmpFoundFlag:
@@ -125,10 +125,11 @@ def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap,additiona
                 prefixList.append(tmpDQ2IDPrefix)
         # loop over datasets
         totalNum = 0
-        for tmpDsName,tmpSitesData in replicaMap.iteritems():
+        for tmpDsName in replicaMap:
+            tmpSitesData = replicaMap[tmpDsName]
             # cached files
-            if isCachedFile(tmpDsName,tmpSiteSpec) and fileCounts != None and \
-               fileCounts.has_key(tmpDsName):
+            if isCachedFile(tmpDsName,tmpSiteSpec) and fileCounts is not None and \
+               tmpDsName in fileCounts:
                 # add with no check
                 totalNum += fileCounts[tmpDsName]
                 continue
@@ -155,34 +156,34 @@ def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap,additiona
                     # loop over all sites
                     for tmpSE in tmpSitesData.keys():
                         # skip bad metadata
-                        if badMetaMap.has_key(tmpDsName) and tmpSE in badMetaMap[tmpDsName]:
+                        if tmpDsName in badMetaMap and tmpSE in badMetaMap[tmpDsName]:
                             continue
                         # check match
-                        if re.search(tmpSePat,tmpSE) == None:
+                        if re.search(tmpSePat,tmpSE) is None:
                             continue
                         # get max num of files
                         tmpN = tmpSitesData[tmpSE][0][columnName]                            
-                        if tmpN != None and tmpN > maxNumFile:
+                        if tmpN is not None and tmpN > maxNumFile:
                             maxNumFile = tmpN
             else:
                 # check explicit endpoint name
                 for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input]+tmpSiteSpec.setokens_input.values():
                     # skip bad metadata
-                    if badMetaMap.has_key(tmpDsName) and tmpSiteDQ2ID in badMetaMap[tmpDsName]:
+                    if tmpDsName in badMetaMap and tmpSiteDQ2ID in badMetaMap[tmpDsName]:
                         continue
                     # ignore empty
                     if tmpSiteDQ2ID == '':
                         continue
                     # get max num of files
-                    if tmpSitesData.has_key(tmpSiteDQ2ID):
+                    if tmpSiteDQ2ID in tmpSitesData:
                         tmpN = tmpSitesData[tmpSiteDQ2ID][0][columnName]
-                        if tmpN != None and tmpN > maxNumFile:
+                        if tmpN is not None and tmpN > maxNumFile:
                             maxNumFile = tmpN
                 # check prefix
                 for tmpDQ2IDPrefix in prefixList:
-                    for tmpDQ2ID,tmpStat in tmpSitesData.iteritems():
+                    for tmpDQ2ID in tmpSitesData:
                         # skip bad metadata
-                        if badMetaMap.has_key(tmpDsName) and tmpDQ2ID in badMetaMap[tmpDsName]:
+                        if tmpDsName in badMetaMap and tmpDQ2ID in badMetaMap[tmpDsName]:
                             continue
                         # ignore NG
                         if     '_SCRATCHDISK'    in tmpDQ2ID or \
@@ -197,13 +198,13 @@ def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap,additiona
                         # check prefix
                         if tmpDQ2ID.startswith(tmpDQ2IDPrefix):
                             tmpN = tmpSitesData[tmpDQ2ID][0][columnName]
-                            if tmpN != None and tmpN > maxNumFile:
+                            if tmpN is not None and tmpN > maxNumFile:
                                 maxNumFile = tmpN
             # sum
             totalNum += maxNumFile
         # return
         return True,totalNum
-    except:
+    except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         return False,'%s:%s' % (errtype,errvalue) 
 
@@ -226,7 +227,7 @@ def getEndpointsAtT1(tmpRepMap,siteMapper,cloudName):
         # loop over all sites
         for tmpSE in tmpRepMap.keys():
             # check match
-            if re.search(tmpSePat,tmpSE) == None:
+            if re.search(tmpSePat,tmpSE) is None:
                 continue
             # append
             if not tmpSE in retList:
@@ -254,7 +255,7 @@ def isDBR(datasetName):
 
 # check invalid characters in dataset name
 def checkInvalidCharacters(datasetName):
-    if re.match("^[A-Za-z0-9][A-Za-z0-9\.\-\_/]{1,255}$",datasetName) != None:
+    if re.match("^[A-Za-z0-9][A-Za-z0-9\.\-\_/]{1,255}$",datasetName) is not None:
         return True
     return False
 
@@ -291,7 +292,7 @@ def getDatasetType(dataset):
     datasetType = None
     try:
         datasetType = dataset.split('.')[4]
-    except:
+    except Exception:
         pass
     return datasetType
 
@@ -299,12 +300,12 @@ def getDatasetType(dataset):
 # check certificate
 def checkCertificate(certName):
     try:
-        cert = crypto.load_certificate(crypto.FILETYPE_PEM,file(certName).read())
+        cert = crypto.load_certificate(crypto.FILETYPE_PEM, open(certName).read())
         if cert.has_expired() is True:
             return False,"{0} expired".format(certName)
         else:
             return True,None
-    except:
+    except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         return False,'{0}:{1}'.format(errtype.__name__,errvalue)
 
@@ -318,7 +319,8 @@ def getSitesShareDDM(siteMapper,siteName):
     siteSpec = siteMapper.getSite(siteName)
     # loop over all sites
     retSites = []
-    for tmpSiteName,tmpSiteSpec in siteMapper.siteSpecList.iteritems():
+    for tmpSiteName in siteMapper.siteSpecList:
+        tmpSiteSpec = siteMapper.siteSpecList[tmpSiteName]
         # only same type
         if siteSpec.type != tmpSiteSpec.type:
             continue
@@ -329,7 +331,7 @@ def getSitesShareDDM(siteMapper,siteName):
         try:
             if siteSpec.ddm_input != tmpSiteSpec.ddm_input and siteSpec.ddm_output not in tmpSiteSpec.ddm_endpoints_input.all.keys():
                 continue
-        except:
+        except Exception:
             continue
         # skip itself
         if siteName == tmpSiteSpec.sitename:
@@ -343,10 +345,10 @@ def getSitesShareDDM(siteMapper,siteName):
 
  # check if destination is specified
 def getDestinationSE(destinationDBlockToken):
-    if destinationDBlockToken != None:
+    if destinationDBlockToken is not None:
         for tmpToken in destinationDBlockToken.split(','):
             tmpMatch = re.search('^dst:([^/]*)(/.*)*$',tmpToken)
-            if tmpMatch != None:
+            if tmpMatch is not None:
                 return tmpMatch.group(1)
     return None
 
@@ -354,7 +356,7 @@ def getDestinationSE(destinationDBlockToken):
 # check if job sets destination
 def checkJobDestinationSE(tmpJob):
     for tmpFile in tmpJob.Files:
-        if getDestinationSE(tmpFile.destinationDBlockToken) != None:
+        if getDestinationSE(tmpFile.destinationDBlockToken) is not None:
             return tmpFile.destinationSE
     return None
 
@@ -362,41 +364,12 @@ def checkJobDestinationSE(tmpJob):
 
  # check if destination is distributed
 def getDistributedDestination(destinationDBlockToken):
-    if destinationDBlockToken != None:
+    if destinationDBlockToken is not None:
         for tmpToken in destinationDBlockToken.split(','):
             tmpMatch = re.search('^ddd:([^/]*)(/.*)*$',tmpToken)
-            if tmpMatch != None:
+            if tmpMatch is not None:
                 return tmpMatch.group(1)
     return None
-
-
-
-# change output of listDatasets to include dataset info
-def changeListDatasetsOut(out,datasetName=None):
-    try:
-        exec 'origMap = '+out.split('\n')[0]
-        newMap = {}
-        for tmpkey,tmpval in origMap.iteritems():
-            # rucio doesn't put / for container
-            rucioConvention = False
-            if datasetName != None and datasetName.endswith('/') and not tmpkey.endswith('/'):
-                rucioConvention = True
-            # original key-value
-            newMap[tmpkey] = tmpval
-            if rucioConvention:
-                # add /
-                newMap[tmpkey+'/'] = tmpval
-            # remove scope
-            if ':' in tmpkey:
-                newMap[tmpkey.split(':')[-1]] = tmpval
-                if rucioConvention:
-                    # add /
-                    newMap[tmpkey.split(':')[-1]+'/'] = tmpval
-        return str(newMap)
-    except:
-        pass
-    return out
-    
 
 
 # extract importand error string
@@ -410,7 +383,7 @@ def extractImportantError(out):
                     retStr += line
                     retStr += ' '
         retStr = retStr[:-1]
-    except:
+    except Exception:
         pass
     return retStr
 

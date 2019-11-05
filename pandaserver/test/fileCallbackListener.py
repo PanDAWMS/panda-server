@@ -5,23 +5,26 @@ import ssl
 import time
 import signal
 import socket
-import commands
 import optparse
 import datetime
-import cPickle as pickle
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
+
 import stomp
 
-from dq2.common import log as logging
-from config import panda_config
-from brokerage.SiteMapper import SiteMapper
-from dataservice.Finisher import Finisher
-from dataservice import DataServiceUtils
+from pandaserver.config import panda_config
+from pandaserver.brokerage.SiteMapper import SiteMapper
+from pandaserver.dataservice.Finisher import Finisher
+from pandaserver.dataservice import DataServiceUtils
+from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
 import logging
 logging.basicConfig(level = logging.DEBUG)
 
 # logger
-from pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger('fileCallbackListener')
 
 # keep PID
@@ -38,11 +41,11 @@ expirationTime = datetime.datetime.utcnow() + datetime.timedelta(minutes=overall
 def catch_sig(sig, frame):
     try:
         os.remove(pidFile)
-    except:
+    except Exception:
         pass
     # kill
     _logger.debug('terminating ...')
-    commands.getoutput('kill -9 -- -%s' % os.getpgrp())
+    commands_get_status_output('kill -9 -- -%s' % os.getpgrp())
     # exit
     sys.exit(0)
                                         
@@ -102,7 +105,8 @@ class FileCallbackListener(stomp.ConnectionListener):
             dsNameMap = self.taskBuffer.getDatasetWithFile(lfn,800)
             _logger.debug('%s ds=%s' % (lfn,str(dsNameMap)))
             # loop over all datasets
-            for dsName,dsData in dsNameMap.iteritems():
+            for dsName in dsNameMap:
+                dsData = dsNameMap[dsName]
                 pandaSite,dsToken = dsData
                 # skip multiple destination since each file doesn't have
                 # transferStatus
@@ -111,10 +115,10 @@ class FileCallbackListener(stomp.ConnectionListener):
                     continue
                 # check site
                 tmpSiteSpec = self.siteMapper.getSite(pandaSite)
-                if re.search('_dis\d+$',dsName) != None:
+                if re.search('_dis\d+$',dsName) is not None:
                     setokens = tmpSiteSpec.setokens_input
                     ddm = tmpSiteSpec.ddm_input
-                elif re.search('_sub\d+$',dsName) != None:
+                elif re.search('_sub\d+$',dsName) is not None:
                     setokens = tmpSiteSpec.setokens_output
                     ddm = tmpSiteSpec.ddm_output
                 if dsToken in setokens:
@@ -127,17 +131,17 @@ class FileCallbackListener(stomp.ConnectionListener):
                     continue
                 # update file
                 forInput = None
-                if re.search('_dis\d+$',dsName) != None:
+                if re.search('_dis\d+$',dsName) is not None:
                     # dispatch datasets
                     forInput = True
                     ids = self.taskBuffer.updateInFilesReturnPandaIDs(dsName,'ready',lfn)
-                elif re.search('_sub\d+$',dsName) != None:
+                elif re.search('_sub\d+$',dsName) is not None:
                     # sub datasets
                     forInput = False
                     ids = self.taskBuffer.updateOutFilesReturnPandaIDs(dsName,lfn)
                 _logger.debug('%s ds=%s ids=%s' % (lfn,dsName,str(ids)))
                 # loop over all PandaIDs
-                if forInput != None and len(ids) != 0:
+                if forInput is not None and len(ids) != 0:
                     # remove None and unknown
                     targetIDs = []
                     for tmpID in ids:
@@ -157,7 +161,7 @@ class FileCallbackListener(stomp.ConnectionListener):
                             jobs = self.taskBuffer.peekJobs(targetIDs,fromDefined=False,fromArchived=False,
                                                             fromWaiting=False)
                         for tmpJob in jobs:
-                            if tmpJob == None or tmpJob.jobStatus == 'unknown':
+                            if tmpJob is None or tmpJob.jobStatus == 'unknown':
                                 continue
                             targetJobs.append(tmpJob)
                     # trigger subsequent processe
@@ -176,7 +180,7 @@ class FileCallbackListener(stomp.ConnectionListener):
                                 fThr.start()
                                 fThr.join()
             _logger.debug('%s done' % lfn)
-        except:
+        except Exception:
             errtype,errvalue = sys.exc_info()[:2]
             _logger.error("on_message : %s %s %s" % (lfn,errtype,errvalue))
         
@@ -198,7 +202,7 @@ def main(backGround=False):
         time.sleep(1)
     else:    
         # main loop
-        from taskbuffer.TaskBuffer import taskBuffer
+        from pandaserver.taskbuffer.TaskBuffer import taskBuffer
         # check certificate
         certName = '%s/pandasv1_usercert.pem' %panda_config.certdir
         keyName = '%s/pandasv1_userkey.pem' %panda_config.certdir
@@ -208,7 +212,7 @@ def main(backGround=False):
         if not certOK:
             _logger.error('bad certificate : {0}'.format(certMsg))
         # initialize cx_Oracle using dummy connection
-        from taskbuffer.Initializer import initializer
+        from pandaserver.taskbuffer.Initializer import initializer
         initializer.init()
         # instantiate TB
         taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
@@ -231,7 +235,7 @@ def main(backGround=False):
                 _logger.debug('setting listener %s' % clientid)
                 conn = stomp.Connection(host_and_ports = [(tmpBroker, 61023)], **ssl_opts)
                 connList.append(conn)
-            except:     
+            except Exception:
                 errtype,errvalue = sys.exc_info()[:2]
                 _logger.error("failed to connect to %s : %s %s" % (tmpBroker,errtype,errvalue))
                 catch_sig(None,None)
@@ -245,7 +249,7 @@ def main(backGround=False):
                         conn.connect(headers = {'client-id': clientid})
                         conn.subscribe(destination=queue, id=subscription_id, ack='client-individual')
                         _logger.debug('listener %s is up and running' % clientid)
-                except:     
+                except Exception:
                     errtype,errvalue = sys.exc_info()[:2]
                     _logger.error("failed to set listener on %s : %s %s" % (tmpBroker,errtype,errvalue))
                     catch_sig(None,None)
@@ -261,14 +265,14 @@ if __name__ == "__main__":
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(seconds=overallTimeout-180)
         # get process list
         scriptName = sys.argv[0]
-        out = commands.getoutput('env TZ=UTC ps axo user,pid,lstart,args | grep %s' % scriptName)
+        out = commands_get_status_output('env TZ=UTC ps axo user,pid,lstart,args | grep %s' % scriptName)[-1]
         for line in out.split('\n'):
             items = line.split()
             # owned process
             if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
                 continue
             # look for python
-            if re.search('python',line) == None:
+            if re.search('python',line) is None:
                 continue
             # PID
             pid = items[1]
@@ -279,8 +283,8 @@ if __name__ == "__main__":
             if startTime < timeLimit:
                 _logger.debug("old process : %s %s" % (pid,startTime))
                 _logger.debug(line)            
-                commands.getoutput('kill -9 %s' % pid)
-    except:
+                commands_get_status_output('kill -9 %s' % pid)
+    except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         _logger.error("kill process : %s %s" % (errtype,errvalue))
     # main loop    

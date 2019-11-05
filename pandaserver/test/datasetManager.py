@@ -2,33 +2,22 @@ import os
 import re
 import sys
 import time
-import fcntl
-import types
-import shelve
-import random
 import datetime
-import commands
 import traceback
 import threading
-import userinterface.Client as Client
-from dataservice.DDM import rucioAPI
-from taskbuffer.OraDBProxy import DBProxy
-from taskbuffer.TaskBuffer import taskBuffer
-from taskbuffer import EventServiceUtils
-from pandalogger.PandaLogger import PandaLogger
-from jobdispatcher.Watcher import Watcher
-from brokerage.SiteMapper import SiteMapper
-from dataservice.Finisher import Finisher
-from dataservice.MailUtils import MailUtils
-from dataservice import DataServiceUtils
-from dataservice.Closer import Closer
-from taskbuffer import ProcessGroups
-import taskbuffer.ErrorCode
-import dataservice.DDM
+from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+from pandaserver.taskbuffer import EventServiceUtils
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.brokerage.SiteMapper import SiteMapper
+from pandaserver.dataservice.Finisher import Finisher
+from pandaserver.dataservice import DataServiceUtils
+from pandaserver.dataservice.Closer import Closer
+import pandaserver.taskbuffer.ErrorCode
+from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
 # password
-from config import panda_config
-passwd = panda_config.dbpasswd
+from pandaserver.config import panda_config
 
 # logger
 _logger = PandaLogger().getLogger('datasetManager')
@@ -60,7 +49,7 @@ def _memoryCheck(str):
                 continue
         procfile.close()
         _logger.debug('MemCheck - %s Name=%s VSZ=%s RSS=%s : %s' % (os.getpid(),name,vmSize,vmRSS,str))
-    except:
+    except Exception:
         type, value, traceBack = sys.exc_info()
         _logger.error("memoryCheck() : %s %s" % (type,value))
         _logger.debug('MemCheck - %s unknown : %s' % (os.getpid(),str))
@@ -74,7 +63,8 @@ try:
     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
     # get process list
     scriptName = sys.argv[0]
-    out = commands.getoutput('ps axo user,pid,lstart,args | grep dq2.clientapi | grep -v PYTHONPATH | grep -v grep')
+    out = commands_get_status_output(
+        'ps axo user,pid,lstart,args | grep dq2.clientapi | grep -v PYTHONPATH | grep -v grep')[-1]
     for line in out.split('\n'):
         if line == '':
             continue
@@ -83,7 +73,7 @@ try:
         if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
             continue
         # look for python
-        if re.search('python',line) == None:
+        if re.search('python',line) is None:
             continue
         # PID
         pid = items[1]
@@ -94,8 +84,8 @@ try:
         if startTime < timeLimit:
             _logger.debug("old dq2 process : %s %s" % (pid,startTime))
             _logger.debug(line)            
-            commands.getoutput('kill -9 %s' % pid)
-except:
+            commands_get_status_output('kill -9 %s' % pid)
+except Exception:
     type, value, traceBack = sys.exc_info()
     _logger.error("kill dq2 process : %s %s" % (type,value))
 
@@ -106,14 +96,14 @@ try:
     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=7)
     # get process list
     scriptName = sys.argv[0]
-    out = commands.getoutput('ps axo user,pid,lstart,args | grep %s' % scriptName)
+    out = commands_get_status_output('ps axo user,pid,lstart,args | grep %s' % scriptName)[-1]
     for line in out.split('\n'):
         items = line.split()
         # owned process
         if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
             continue
         # look for python
-        if re.search('python',line) == None:
+        if re.search('python',line) is None:
             continue
         # PID
         pid = items[1]
@@ -124,8 +114,8 @@ try:
         if startTime < timeLimit:
             _logger.debug("old process : %s %s" % (pid,startTime))
             _logger.debug(line)            
-            commands.getoutput('kill -9 %s' % pid)
-except:
+            commands_get_status_output('kill -9 %s' % pid)
+except Exception:
     type, value, traceBack = sys.exc_info()
     _logger.error("kill process : %s %s" % (type,value))
     
@@ -180,12 +170,12 @@ def setTobeDeletedToDis(subDsName):
                 # another thread already took care of the _dis
                 continue
             # skip non _dis
-            if re.search('_dis\d+$',tmpDisName) == None:
+            if re.search('_dis\d+$',tmpDisName) is None:
                 continue
             # get dataset
             _logger.debug("setTobeDeletedToDis : try to get %s in DB" % tmpDisName)            
             tmpDS = taskBuffer.queryDatasetWithMap({'name':tmpDisName})
-            if tmpDS == None:
+            if tmpDS is None:
                 _logger.error("setTobeDeletedToDis : cannot get %s in DB" % tmpDisName)
                 continue
             # check status
@@ -205,7 +195,7 @@ def setTobeDeletedToDis(subDsName):
             retU = taskBuffer.updateDatasets([tmpDS],withLock=True,withCriteria="status<>:crStatus",
                                              criteriaMap={':crStatus':excStatus})
             _logger.debug("setTobeDeletedToDis : set %s to %s with %s" % (tmpDS.status,tmpDisName,str(retU)))
-    except:
+    except Exception:
         errType,errValue = sys.exc_info()[:2]
         _logger.error("setTobeDeletedToDis : %s %s %s" % (subDsName,errType,errValue))
             
@@ -258,11 +248,11 @@ class CloserThr (threading.Thread):
                     # check if dataset exists
                     status,out = rucioAPI.getMetaData(name)
                     if status == True:
-                        if out != None:
+                        if out is not None:
                             try:
                                 rucioAPI.closeDataset(name)
                                 status = True
-                            except:
+                            except Exception:
                                 errtype,errvalue = sys.exc_info()[:2]
                                 out = 'failed to freeze : {0} {1}'.format(errtype,errvalue)
                                 status = False
@@ -302,9 +292,9 @@ class CloserThr (threading.Thread):
                                 _logger.debug('erase %s' % name)
                                 status,out = rucioAPI.eraseDataset(name)
                                 _logger.debug('OK with %s' % name)
-                        except:
+                        except Exception:
                             pass
-        except:
+        except Exception:
             pass
         self.pool.remove(self)
         self.lock.release()
@@ -331,7 +321,7 @@ while True:
     proxyS = taskBuffer.proxyPool.getProxy()
     res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
     taskBuffer.proxyPool.putProxy(proxyS)
-    if res == None:
+    if res is None:
         _logger.debug("# of datasets to be closed: %s" % res)
     else:
         _logger.debug("# of datasets to be closed: %s" % len(res))
@@ -409,14 +399,14 @@ class Freezer (threading.Thread):
                                                                   ':statusM':'merging',
                                                                   ':statusF':'failed'})
                             self.proxyLock.release()
-                            if resMer != None and len(resMer)>0:
+                            if resMer is not None and len(resMer)>0:
                                 mergeID = resMer[0][0]
                                 # get merging jobs
                                 self.proxyLock.acquire()
                                 mergingJobs = taskBuffer.peekJobs([mergeID],fromDefined=False,fromArchived=False,fromWaiting=False)
                                 self.proxyLock.release()    
                                 mergeJob = mergingJobs[0]
-                                if mergeJob != None:
+                                if mergeJob is not None:
                                     tmpDestDBlocks = []
                                     # get destDBlock
                                     for tmpFile in mergeJob.Files:
@@ -441,11 +431,11 @@ class Freezer (threading.Thread):
                             # check if dataset exists
                             status,out = rucioAPI.getMetaData(name)
                             if status == True:
-                                if out != None:
+                                if out is not None:
                                     try:
                                         rucioAPI.closeDataset(name)
                                         status = True
-                                    except:
+                                    except Exception:
                                         errtype,errvalue = sys.exc_info()[:2]
                                         out = 'failed to freeze : {0} {1}'.format(errtype,errvalue)
                                         status = False
@@ -484,7 +474,7 @@ class Freezer (threading.Thread):
                                         _logger.debug('erase %s' % name)                                
                                         status,out = rucioAPI.eraseDataset(name)
                                         _logger.debug('OK with %s' % name)
-                                except:
+                                except Exception:
                                     pass
                     else:
                         _logger.debug("wait %s " % name)
@@ -492,7 +482,7 @@ class Freezer (threading.Thread):
                         taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid", {':vuid':vuid})
                         self.proxyLock.release()                                                    
                 _logger.debug("end %s " % name)
-        except:
+        except Exception:
             errStr = traceback.format_exc()
             _logger.error(errStr)
         self.pool.remove(self)
@@ -515,7 +505,7 @@ varMap[':subType'] = 'sub'
 varMap[':oldStatus'] = 'doing'
 retReset,resReset = taskBuffer.querySQLS(sql,varMap)
 sql = "UPDATE ATLAS_PANDA.Datasets SET status=:newStatus,modificationdate=:modificationdateU WHERE name=:name AND status=:oldStatus "
-if resReset != None:
+if resReset is not None:
     for name, in resReset:
         varMap = {}
         varMap[':name'] = name
@@ -549,7 +539,7 @@ while True:
     proxyS = taskBuffer.proxyPool.getProxy()
     res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
     taskBuffer.proxyPool.putProxy(proxyS)
-    if res == None:
+    if res is None:
         _logger.debug("# of datasets to be frozen: %s" % res)
     else:
         _logger.debug("# of datasets to be frozen: %s" % len(res))
@@ -616,13 +606,13 @@ class T2Cleaner (threading.Thread):
                         if siteMapper.checkSite(destSE):
                             cloudName = siteMapper.getSite(destSE).cloud
                         # cloud is not found
-                        if cloudName == None:        
+                        if cloudName is None:        
                             _logger.error("cannot find cloud for %s : %s" % (name,str(tmpRepSites)))
                         else:
                             _logger.debug('cloud=%s for %s' % (cloudName,name))
                             t1SiteDDMs  = siteMapper.getSite(destSE).setokens_output.values() # TODO: check with Tadashi
                             specifiedDest = DataServiceUtils.getDestinationSE(destDBlockToken)
-                            if specifiedDest != None:
+                            if specifiedDest is not None:
                                 t1SiteDDMs.append(specifiedDest)
                             # look for T2 IDs
                             t2DDMs = []
@@ -630,7 +620,8 @@ class T2Cleaner (threading.Thread):
                                 if not tmpDDM in t1SiteDDMs:
                                     # check home cloud
                                     notDeleteFlag = False
-                                    for tmpT2siteID,tmpT2siteSpec in siteMapper.siteSpecList.iteritems():
+                                    for tmpT2siteID in siteMapper.siteSpecList:
+                                        tmpT2siteSpec = siteMapper.siteSpecList[tmpT2siteID]
                                         if tmpT2siteSpec.ddm == tmpDDM:
                                             # not delete if src and dest are in US. OSG is regarded as US due to tier1
                                             if tmpT2siteSpec.cloud in ['US'] and cloudName in ['US','OSG']:
@@ -638,7 +629,7 @@ class T2Cleaner (threading.Thread):
                                     if not notDeleteFlag:            
                                         t2DDMs.append(tmpDDM)
                             # delete replica for sub
-                            if re.search('_sub\d+$',name) != None and t2DDMs != []:
+                            if re.search('_sub\d+$',name) is not None and t2DDMs != []:
                                 setMetaFlag = True
                                 _logger.debug(('deleteDatasetReplicas',name,t2DDMs))
                                 status,out = rucioAPI.deleteDatasetReplicas(name,t2DDMs)
@@ -646,7 +637,7 @@ class T2Cleaner (threading.Thread):
                                     _logger.error(out)
                                     continue
                             else:
-                                _logger.debug('no delete for %s due to empty target in %s' % (name,listOut))
+                                _logger.debug('no delete for %s due to empty target' % name)
                     # update        
                     self.proxyLock.acquire()
                     varMap = {}
@@ -656,7 +647,7 @@ class T2Cleaner (threading.Thread):
                                          varMap)
                     self.proxyLock.release()                            
                 _logger.debug("end %s " % name)
-        except:
+        except Exception:
             pass
         self.pool.remove(self)
         self.lock.release()
@@ -684,7 +675,7 @@ while True:
     proxyS = taskBuffer.proxyPool.getProxy()
     res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
     taskBuffer.proxyPool.putProxy(proxyS)
-    if res == None:
+    if res is None:
         _logger.debug("# of datasets to be deleted from T2: %s" % res)
     else:
         _logger.debug("# of datasets to be deleted from T2: %s" % len(res))
@@ -724,7 +715,7 @@ class EraserThr (threading.Thread):
             # loop over all datasets
             for vuid,name,modDate in self.datasets:
                 # only dis datasets
-                if re.search('_dis\d+$',name) == None:
+                if re.search('_dis\d+$',name) is None:
                     _logger.error("Eraser : non disDS %s" % name)
                     continue
                 # delete
@@ -744,7 +735,7 @@ class EraserThr (threading.Thread):
                 taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:status,modificationdate=CURRENT_DATE WHERE vuid=:vuid",
                                      varMap)
                 self.proxyLock.release()
-        except:
+        except Exception:
             errStr = traceback.format_exc()
             _logger.error(errStr)
         self.pool.remove(self)
@@ -774,7 +765,7 @@ for targetStatus in ['deleting','shortening']:
         proxyS = taskBuffer.proxyPool.getProxy()
         res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
         taskBuffer.proxyPool.putProxy(proxyS)
-        if res == None:
+        if res is None:
             _logger.debug("# of dis datasets for %s: None" % targetStatus)
         else:
             _logger.debug("# of dis datasets for %s: %s" % (targetStatus,len(res)))
@@ -822,19 +813,19 @@ class FinisherThr (threading.Thread):
             upJobs = []
             finJobs = []
             for job in jobs:
-                if job == None or job.jobStatus == 'unknown':
+                if job is None or job.jobStatus == 'unknown':
                     continue
                 seList = ['dummy']
                 tmpNucleus = siteMapper.getNucleus(job.nucleus)
                 # get SEs
-                if job.prodSourceLabel == 'user' and not siteMapper.siteSpecList.has_key(job.destinationSE):
+                if job.prodSourceLabel == 'user' and job.destinationSE not in siteMapper.siteSpecList:
                     # using --destSE for analysis job to transfer output
                     seList = [job.destinationSE]
                 elif tmpNucleus is not None:
                     seList = tmpNucleus.allDdmEndPoints.keys()
                 elif siteMapper.checkCloud(job.cloud):
                     # normal production jobs
-                    if DataServiceUtils.checkJobDestinationSE(job) == None:
+                    if DataServiceUtils.checkJobDestinationSE(job) is None:
                         tmpDstID = siteMapper.getCloud(job.cloud)['dest']
                     else:
                         tmpDstID = job.destinationSE
@@ -850,7 +841,7 @@ class FinisherThr (threading.Thread):
                     if file.type == 'output' or file.type == 'log':
                         if file.status == 'nooutput':
                             continue
-                        if DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) != None:
+                        if DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) is not None:
                             continue
                         lfns.append(file.lfn)
                         guids.append(file.GUID)
@@ -864,7 +855,8 @@ class FinisherThr (threading.Thread):
                     okFiles = {}
                 # count files
                 nOkTokens = 0
-                for okLFN,okSEs in okFiles.iteritems():
+                for okLFN in okFiles:
+                    okSEs = okFiles[okLFN]
                     nOkTokens += len(okSEs)
                 # check all files are ready    
                 _logger.debug("%s nToken:%s nOkToken:%s" % (job.PandaID,nTokens,nOkTokens))
@@ -883,12 +875,12 @@ class FinisherThr (threading.Thread):
                     # priority-dependent timeout
                     tmpCloudSpec = siteMapper.getCloud(job.cloud)
                     if job.currentPriority >= 800 and (not job.prodSourceLabel in ['user']):
-                        if tmpCloudSpec.has_key('transtimehi'):
+                        if 'transtimehi' in tmpCloudSpec:
                             timeOutValue = tmpCloudSpec['transtimehi']
                         else:
                             timeOutValue = 1
                     else:
-                        if tmpCloudSpec.has_key('transtimelo'):                    
+                        if 'transtimelo' in tmpCloudSpec:
                             timeOutValue = tmpCloudSpec['transtimelo']
                         else:
                             timeOutValue = 2                        
@@ -905,7 +897,7 @@ class FinisherThr (threading.Thread):
                             if not lfn in okFiles:
                                 strMiss += ' %s' % lfn
                         job.jobStatus = 'failed'
-                        job.taskBufferErrorCode = taskbuffer.ErrorCode.EC_Transfer
+                        job.taskBufferErrorCode = pandaserver.taskbuffer.ErrorCode.EC_Transfer
                         job.taskBufferErrorDiag = 'transfer timeout for '+strMiss
                         guidMap = {}
                         for file in job.Files:
@@ -914,7 +906,7 @@ class FinisherThr (threading.Thread):
                                 file.status = 'failed'
                             # collect GUIDs to delete files from _tid datasets
                             if file.type == 'output' or file.type == 'log':
-                                if not guidMap.has_key(file.destinationDBlock):
+                                if file.destinationDBlock not in guidMap:
                                     guidMap[file.destinationDBlock] = []
                                 guidMap[file.destinationDBlock].append(file.GUID)
                     else:
@@ -936,7 +928,7 @@ class FinisherThr (threading.Thread):
                 fThr.join()
             _logger.debug("done")
             time.sleep(1)
-        except:
+        except Exception:
             errtype,errvalue = sys.exc_info()[:2]
             errStr  = "FinisherThr failed with %s %s" % (errtype,errvalue)
             errStr += traceback.format_exc()
@@ -963,11 +955,11 @@ for loopIdx in ['low','high']:
         ret,res = taskBuffer.lockJobsForFinisher(timeNow,200,highPrioFlag)
         finisherProxyLock.release()
         finisherLock.release()
-        if res == None:
+        if res is None:
             _logger.debug("# of jobs to be finished for %s : %s" % (loopIdx,res))
         else:
             _logger.debug("# of jobs to be finished for %s : %s" % (loopIdx,len(res)))
-        if res == None or len(res) == 0:
+        if res is None or len(res) == 0:
             break
         # run thread
         finThr = FinisherThr(finisherLock,finisherProxyLock,res,finisherThreadPool,timeNow)
@@ -996,7 +988,7 @@ class ActivatorThr (threading.Thread):
             self.proxyLock.release()
             actJobs = []
             for tmpJob in jobs:
-                if tmpJob == None or tmpJob.jobStatus == 'unknown':
+                if tmpJob is None or tmpJob.jobStatus == 'unknown':
                     continue
                 # get LFN list
                 lfns   = []
@@ -1043,7 +1035,7 @@ class ActivatorThr (threading.Thread):
             self.proxyLock.release()
             _logger.debug("done")
             time.sleep(1)
-        except:
+        except Exception:
             errtype,errvalue = sys.exc_info()[:2]
             _logger.error("ActivatorThr failed with %s %s" % (errtype,errvalue))
         self.pool.remove(self)
@@ -1066,11 +1058,11 @@ for ii in range(1000):
     ret,res = taskBuffer.lockJobsForActivator(timeLimit,100,800)
     activatorProxyLock.release()
     activatorLock.release()
-    if res == None:
+    if res is None:
         _logger.debug("# of jobs to be activated for %s " % res)
     else:
         _logger.debug("# of jobs to be activated for %s " % len(res))
-    if res == None or len(res) == 0:
+    if res is None or len(res) == 0:
         break
     # run thread
     actThr = ActivatorThr(activatorLock,activatorProxyLock,res,activatorThreadPool)
@@ -1100,7 +1092,7 @@ class ActivatorWithRuleThr (threading.Thread):
             actJobs = []
             replicaMap = dict()
             for tmpJob in jobs:
-                if tmpJob == None or tmpJob.jobStatus == 'unknown':
+                if tmpJob is None or tmpJob.jobStatus == 'unknown':
                     continue
                 # check if locally available
                 siteSpec = siteMapper.getSite(tmpJob.computingSite)
@@ -1115,7 +1107,8 @@ class ActivatorWithRuleThr (threading.Thread):
                                 repMap = {}
                             replicaMap[tmpFile.dispatchDBlock] = repMap
                         # check RSEs
-                        for rse, repInfo in replicaMap[tmpFile.dispatchDBlock].iteritems():
+                        for rse in replicaMap[tmpFile.dispatchDBlock]:
+                            repInfo = replicaMap[tmpFile.dispatchDBlock][rse]
                             if siteSpec.ddm_endpoints_input.isAssociated(rse) and \
                                     siteSpec.ddm_endpoints_input.getEndPoint(rse)['is_tape'] == 'N' and \
                                     repInfo[0]['total'] == repInfo[0]['found'] and repInfo[0]['total'] is not None:
@@ -1138,7 +1131,7 @@ class ActivatorWithRuleThr (threading.Thread):
             self.proxyLock.release()
             _logger.debug("done")
             time.sleep(1)
-        except:
+        except Exception:
             errtype,errvalue = sys.exc_info()[:2]
             _logger.error("ActivatorThr failed with %s %s" % (errtype,errvalue))
         self.pool.remove(self)
@@ -1161,11 +1154,11 @@ for ii in range(1000):
     ret,res = taskBuffer.lockJobsForActivator(timeLimit,100,0)
     activatorProxyLock.release()
     activatorLock.release()
-    if res == None:
+    if res is None:
         _logger.debug("# of jobs to be activated with rule for %s " % res)
     else:
         _logger.debug("# of jobs to be activated with rule for %s " % len(res))
-    if res == None or len(res) == 0:
+    if res is None or len(res) == 0:
         break
     # run thread
     actThr = ActivatorWithRuleThr(activatorLock,activatorProxyLock,res,activatorThreadPool)
@@ -1231,7 +1224,7 @@ class SubDeleter (threading.Thread):
                             try:
                                 rucioAPI.eraseDataset(name, grace_period=4)
                                 status = True
-                            except:
+                            except Exception:
                                 errtype,errvalue = sys.exc_info()[:2]
                                 out = '{0} {1}'.format(errtype,errvalue)
                                 _logger.error('{0} failed to erase with {1}'.format(name,out))
@@ -1249,7 +1242,7 @@ class SubDeleter (threading.Thread):
                                      varMap)
                 self.proxyLock.release()                            
                 _logger.debug("end %s " % name)
-        except:
+        except Exception:
             errStr = traceback.format_exc()
             _logger.error(errStr)
         self.pool.remove(self)
@@ -1280,7 +1273,7 @@ while True:
     proxyS = taskBuffer.proxyPool.getProxy()
     res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
     taskBuffer.proxyPool.putProxy(proxyS)
-    if res == None:
+    if res is None:
         _logger.debug("# of sub datasets to be deleted %s" % res)
     else:
         _logger.debug("# of sub datasets to be deleted %s" % len(res))

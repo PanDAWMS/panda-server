@@ -1,6 +1,0 @@
-#!/bin/bash
-
-# import env vars from sysconfig
-source /etc/sysconfig/panda_server
-
-python@@python_exec_version@@ @@install_purelib@@/pandaserver/test/runRebro.py

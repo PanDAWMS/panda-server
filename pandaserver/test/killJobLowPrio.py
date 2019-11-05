@@ -1,14 +1,13 @@
 import time
-import sys
 import optparse
 
-import userinterface.Client as Client
+import pandaserver.userinterface.Client as Client
 
 aSrvID = None
 
-from taskbuffer.OraDBProxy import DBProxy
+from pandaserver.taskbuffer.OraDBProxy import DBProxy
 # password
-from config import panda_config
+from pandaserver.config import panda_config
 
 usageStr = """%prog [options] <priority>
 
@@ -23,7 +22,7 @@ optP.add_option('--cloud',action='store',dest='cloud',default=None,help='cloud')
 optP.add_option('--maxJobs',action='store',dest='maxJobs',default=None,help='max number of jobs to be killed')
 options,args = optP.parse_args()
 
-if options.cloud == None and options.site == None:
+if options.cloud is None and options.site is None:
     optP.error("--site=<computingSite> and/or --cloud=<cloud> is required")
         
 proxyS = DBProxy()
@@ -41,17 +40,17 @@ sql = "SELECT PandaID,currentPriority FROM %s WHERE prodSourceLabel=:prodSourceL
 if options.killRunning:
     sql += "AND jobStatus=:jobStatus "
     varMap[':jobStatus'] = 'running'
-if options.cloud != None:
+if options.cloud is not None:
     sql += "AND cloud=:cloud "
     varMap[':cloud'] = options.cloud
-if options.site != None:
+if options.site is not None:
     sql += "AND computingSite=:site "
     varMap[':site'] = options.site
 for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsDefined4']:
     status,res = proxyS.querySQLS(sql % table,varMap)
-    if res != None:
+    if res is not None:
         for id,prio in res:
-            if not jobsMap.has_key(prio):
+            if prio not in jobsMap:
                 jobsMap[prio] = []
             if not id in jobsMap[prio]:
                 jobsMap[prio].append(id)
@@ -67,15 +66,15 @@ for prio in prioList:
     ids.reverse()
     jobs += ids
 
-if options.maxJobs != None:
+if options.maxJobs is not None:
     jobs = jobs[:int(options.maxJobs)]
                 
-print 'The number of jobs with priorities below %s : %s' % (args[0],len(jobs))
+print('The number of jobs with priorities below %s : %s' % (args[0],len(jobs)))
 if len(jobs):
     nJob = 100
     iJob = 0
     while iJob < len(jobs):
-        print 'kill %s' % str(jobs[iJob:iJob+nJob])
+        print('kill %s' % str(jobs[iJob:iJob+nJob]))
         if options.forceKill:
             Client.killJobs(jobs[iJob:iJob+nJob],9)
         else:

@@ -3,26 +3,22 @@ watch job
 
 '''
 
-import re
 import sys
 import time
-import commands
 import datetime
 import threading
 import traceback
-import ErrorCode
 
-import taskbuffer.ErrorCode
-from taskbuffer.JobSpec import JobSpec
-from taskbuffer.SupErrors import SupErrors
+from pandaserver.jobdispatcher import ErrorCode
 
-from taskbuffer import EventServiceUtils
-from taskbuffer import retryModule
+from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.taskbuffer.SupErrors import SupErrors
 
-from brokerage.PandaSiteIDs import PandaSiteIDs
+from pandaserver.taskbuffer import EventServiceUtils
+from pandaserver.taskbuffer import retryModule
 
-from dataservice.Closer  import Closer
-from pandalogger.PandaLogger import PandaLogger
+from pandaserver.dataservice.Closer  import Closer
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 # logger
 _logger = PandaLogger().getLogger('Watcher')
@@ -48,7 +44,7 @@ class Watcher (threading.Thread):
                                                fromArchived=False,fromWaiting=False)[0]
                 _logger.debug('%s in %s' % (self.pandaID, job.jobStatus))
                 # check job status
-                if job == None:
+                if job is None:
                     _logger.debug('%s escape : not found' % self.pandaID)
                     return
                 if not job.jobStatus in ['running','sent','starting','holding',
@@ -157,7 +153,7 @@ class Watcher (threading.Thread):
                     return
                 # sleep
                 time.sleep(60*self.sleepTime)
-        except:
+        except Exception:
             type, value, traceBack = sys.exc_info()
             _logger.error("run() : %s %s" % (type,value))
             return

@@ -5,8 +5,8 @@ email utilities
 import sys
 import smtplib
 
-from config import panda_config
-from pandalogger.PandaLogger import PandaLogger
+from pandaserver.config import panda_config
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 # logger
 _logger = PandaLogger().getLogger('MailUtils')
@@ -49,7 +49,7 @@ To: %s
             _logger.debug(out)
             server.quit()
             retVal = True
-        except:
+        except Exception:
             type, value, traceBack = sys.exc_info()
             _logger.error("%s %s" % (type,value))
             retVal = False
@@ -75,7 +75,8 @@ To: %s
         mailSubject = "PANDA Access Requests in %s" % cloud
         # message
         mailBody = "Hello,\n\nThere are access requests to be approved or rejected.\n\n"
-        for pandaSite,userNames in requestsMap.iteritems():
+        for pandaSite in requestsMap:
+            userNames = requestsMap[pandaSite]
             mailBody += "   %s\n" % pandaSite
             userStr = ''
             for userName in userNames:
@@ -100,4 +101,3 @@ Report Panda problems of any sort to
     https://its.cern.ch/jira/browse/ATLASPANDA
 """
         return msg
-

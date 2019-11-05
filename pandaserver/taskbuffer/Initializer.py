@@ -1,11 +1,12 @@
 import sys
 from threading import Lock
 
-from config import panda_config
+from pandaserver.config import panda_config
 
 # logger
-from pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger('Initializer')
+
 
 # initialize cx_Oracle using dummy connection to avoid "Unable to acquire Oracle environment handle"
 class Initializer:
@@ -37,7 +38,7 @@ class Initializer:
                 # close
                 conn.close()
                 _logger.debug("done")                
-            except:
+            except Exception:
                 self.lock.release()                
                 type, value, traceBack = sys.exc_info()
                 _logger.error("connect : %s %s" % (type,value))

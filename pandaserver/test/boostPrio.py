@@ -1,10 +1,9 @@
-import time
 import sys
 
-from taskbuffer.OraDBProxy import DBProxy
+from pandaserver.taskbuffer.OraDBProxy import DBProxy
 
 # password
-from config import panda_config
+from pandaserver.config import panda_config
 
 proxyS = DBProxy()
 proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,panda_config.dbname)
@@ -16,5 +15,3 @@ varMap[':prio'] = sys.argv[2]
 sql = "UPDATE %s SET currentPriority=currentPriority+:prio WHERE prodSourceLabel=:prodSourceLabel AND taskID=:taskID"
 for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsDefined4']:
     status,res = proxyS.querySQLS(sql % table,varMap)
-                        
-

@@ -8,16 +8,20 @@ import fnmatch
 import sys
 import time
 import math
-import types
 import random
 import datetime
 
-from dataservice.DDM import rucioAPI
-from taskbuffer.JobSpec import JobSpec
-import brokerage.broker
+from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.taskbuffer.JobSpec import JobSpec
+import pandaserver.brokerage.broker
 
-from config import panda_config
-from pandalogger.PandaLogger import PandaLogger
+from pandaserver.config import panda_config
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+
+try:
+    long
+except NameError:
+    long = int
 
 # logger
 _logger = PandaLogger().getLogger('DynDataDistributer')
@@ -57,7 +61,7 @@ class DynDataDistributer:
         self.jobs = jobs
         self.taskBuffer = taskBuffer
         self.siteMapper = siteMapper
-        if token == None:
+        if token is None:
             self.token = datetime.datetime.utcnow().isoformat(' ')
         else:
             self.token = token
@@ -110,7 +114,7 @@ class DynDataDistributer:
                 if not moveFlag:
                     self.putLog("skip non official dataset %s" % inputDS)
                     continue
-                if re.search('_sub\d+$',inputDS) != None or re.search('_dis\d+$',inputDS) != None:
+                if re.search('_sub\d+$',inputDS) is not None or re.search('_dis\d+$',inputDS) is not None:
                     self.putLog("skip dis/sub dataset %s" % inputDS)
                     continue
                 # check type
@@ -139,7 +143,8 @@ class DynDataDistributer:
                 nWaitingJobsets = self.taskBuffer.getNumWaitingJobsetsForPD2P(inputDS)
                 # loop over all datasets
                 usedSites = []
-                for tmpDS,tmpVal in sitesMaps.iteritems():
+                for tmpDS in sitesMaps:
+                    tmpVal = sitesMaps[tmpDS]
                     self.putLog("triggered for %s" % tmpDS,sendLog=True)
                     # increment used counter
                     if not self.simul:
@@ -164,7 +169,9 @@ class DynDataDistributer:
                     nReplicasInCloud = {}
                     allCandidatesMoU = []
                     nTier1Copies = 0
-                    for tmpCloud,(candSites,sitesComDS,sitesPd2pDS,nUserSub,t1HasReplica,t1HasPrimary,nSecReplicas,nT1Sub,candForMoU) in tmpVal.iteritems():
+                    for tmpCloud in tmpVal:
+                        (candSites, sitesComDS, sitesPd2pDS, nUserSub, t1HasReplica,
+                         t1HasPrimary, nSecReplicas, nT1Sub, candForMoU) = tmpVal[tmpCloud]
                         self.putLog("%s sites with comp DS:%s compPD2P:%s candidates:%s nSub:%s T1:%s Pri:%s nSec:%s nT1Sub:%s candMoU:%s" % \
                                     (tmpCloud,str(sitesComDS),str(sitesPd2pDS),str(candSites),nUserSub,t1HasReplica,t1HasPrimary,
                                      nSecReplicas,nT1Sub,str(candForMoU)))
@@ -231,7 +238,7 @@ class DynDataDistributer:
                     if triggeredT1PD2P:
                         # TODO
                         retT2MoU,selectedSite = self.makeT2SubscriptionMoU(allCandidatesMoU,tmpDS,dsSize,'T1MOU',nUsed)
-                        if retT2MoU and selectedSite != None:
+                        if retT2MoU and selectedSite is not None:
                             # remove from candidate list
                             if selectedSite in allCandidates:
                                 allCandidates.remove(selectedSite)
@@ -294,11 +301,12 @@ class DynDataDistributer:
                     tmpJob = JobSpec()
                     tmpJob.AtlasRelease = ''
                     self.putLog("run brokerage for %s" % tmpDS)
-                    usedWeight = brokerage.broker.schedule([tmpJob],self.taskBuffer,self.siteMapper,True,allCandidates,
+                    usedWeight = pandaserver.brokerage.broker.schedule([tmpJob],self.taskBuffer,self.siteMapper,True,allCandidates,
                                                            True,specialWeight=weightForBrokerage,getWeight=True,
                                                            sizeMapForCheck=freeSizeMap,datasetSize=dsSize)
                     selectedSite = tmpJob.computingSite
-                    for tmpWeightSite,tmpWeightStr in usedWeight.iteritems():
+                    for tmpWeightSite in usedWeight:
+                        tmpWeightStr = usedWeight[tmpWeightSite]
                         tmpTagsMap = {'site':tmpWeightSite,'weight':tmpWeightStr,'dataset':tmpDS}                        
                         if tmpWeightSite == selectedSite:
                             if nUsed == 1:
@@ -333,7 +341,7 @@ class DynDataDistributer:
                     if nUsed == 1 or self.simul:
                         retT2MoU,selectedSite = self.makeT2SubscriptionMoU(allCandidatesMoU,tmpDS,dsSize,'T2MOU',nUsed)
             self.putLog("end for %s" % self.jobs[0].PandaID)
-        except:
+        except Exception:
             errType,errValue = sys.exc_info()[:2]
             self.putLog("%s %s" % (errType,errValue),'error')
 
@@ -351,7 +359,8 @@ class DynDataDistributer:
                 status,tmpUsedDsList = self.getUsedDatasets(tmpRepMaps)
                 # remove unused datasets
                 newRepMaps = {}
-                for tmpKey,tmpVal in tmpRepMaps.iteritems():
+                for tmpKey in tmpRepMaps:
+                    tmpVal = tmpRepMaps[tmpKey]
                     if tmpKey in tmpUsedDsList:
                         newRepMaps[tmpKey] = tmpVal
                 tmpRepMaps = newRepMaps        
@@ -367,7 +376,8 @@ class DynDataDistributer:
         closeSitesMap = {}
         # get all sites
         allSiteMap = {}
-        for tmpSiteName,tmpSiteSpec in self.siteMapper.siteSpecList.iteritems():
+        for tmpSiteName in self.siteMapper.siteSpecList:
+            tmpSiteSpec = self.siteMapper.siteSpecList[tmpSiteName]
             # check cloud
             if not tmpSiteSpec.cloud in self.pd2pClouds:
                 continue
@@ -381,8 +391,7 @@ class DynDataDistributer:
             if not tmpSiteSpec.status in ['online']:
                 self.putLog("skip %s due to status=%s" % (tmpSiteName,tmpSiteSpec.status))
                 continue
-            if not allSiteMap.has_key(tmpSiteSpec.cloud):
-                allSiteMap[tmpSiteSpec.cloud] = []
+            allSiteMap.setdefault(tmpSiteSpec.cloud, [])
             allSiteMap[tmpSiteSpec.cloud].append(tmpSiteSpec)
         # NG DQ2 IDs
         ngDQ2SuffixList = ['LOCALGROUPDISK','STAGING']
@@ -396,7 +405,8 @@ class DynDataDistributer:
             tmpT1DQ2ID  = self.siteMapper.getSite(tmpT1SiteID).ddm_input # TODO: check with Tadashi
             prefixDQ2T1 = re.sub('[^_]+DISK$','',tmpT1DQ2ID)
             # loop over all datasets     
-            for tmpDS,tmpRepMap in tmpRepMaps.iteritems():
+            for tmpDS in tmpRepMaps:
+                tmpRepMap = tmpRepMaps[tmpDS]
                 candSites     = []
                 sitesComDS    = []
                 sitesCompPD2P = []
@@ -406,7 +416,7 @@ class DynDataDistributer:
                 nSecReplicas = 0
                 closeSiteList = []
                 candForMoU = []
-                for tmpDQ2ID,tmpStatMap in tmpRepMap.iteritems():
+                for tmpDQ2ID in tmpRepMap:
                     # check NG suffix
                     ngSuffixFlag = False
                     for tmpNGSuffix in ngDQ2SuffixList:
@@ -416,18 +426,17 @@ class DynDataDistributer:
                     if ngSuffixFlag:
                         continue
                     # get close sites
-                    if closeSitesMap.has_key(tmpDQ2ID):
+                    if tmpDQ2ID in closeSitesMap:
                         for tmpCloseSiteID in closeSitesMap[tmpDQ2ID]:
                             if not tmpCloseSiteID in closeSiteList:
                                 closeSiteList.append(tmpCloseSiteID)
                 self.putLog("close sites : %s" % str(closeSiteList))
                 # get on-going subscriptions
                 timeRangeSub = 7
-                if not userSubscriptionsMap.has_key(tmpDS):
-                    userSubscriptionsMap[tmpDS] = self.taskBuffer.getUserSubscriptions(tmpDS,timeRangeSub)
+                userSubscriptionsMap.setdefault(tmpDS, self.taskBuffer.getUserSubscriptions(tmpDS,timeRangeSub))
                 userSubscriptions = userSubscriptionsMap[tmpDS]
                 # unused cloud
-                if not allSiteMap.has_key(cloud):
+                if cloud not in allSiteMap:
                     continue
                 # count the number of T1 subscriptions
                 nT1Sub = 0
@@ -449,7 +458,8 @@ class DynDataDistributer:
                         continue
                     # check if corresponding DQ2 ID is a replica location
                     hasReplica = False
-                    for tmpDQ2ID,tmpStatMap in tmpRepMap.iteritems():
+                    for tmpDQ2ID in tmpRepMap:
+                        tmpStatMap = tmpRepMap[tmpDQ2ID]
                         # check NG suffix
                         ngSuffixFlag = False
                         for tmpNGSuffix in ngDQ2SuffixList:
@@ -481,8 +491,7 @@ class DynDataDistributer:
                             nUserSub += 1
                             break
                 # append
-                if not returnMap.has_key(tmpDS):
-                    returnMap[tmpDS] = {}
+                returnMap.setdefault(tmpDS, {})
                 returnMap[tmpDS][cloud] = (candSites,sitesComDS,sitesCompPD2P,nUserSub,t1HasReplica,t1HasPrimary,
                                            nSecReplicas,nT1Sub,candForMoU)
         # return
@@ -499,7 +508,7 @@ class DynDataDistributer:
         if True:
             # data
             matchEOS = re.search('_EOS[^_]+DISK$',dq2ID)
-            if matchEOS != None:
+            if matchEOS is not None:
                 dq2ID = re.sub('_EOS[^_]+DISK','_EOSDATADISK',dq2ID)
             else:
                 dq2ID = re.sub('_[^_]+DISK','_DATADISK',dq2ID)
@@ -519,7 +528,7 @@ class DynDataDistributer:
         # return for failuer
         retFailed = False,''
         # get DQ2 IDs
-        if givenDQ2ID == None:
+        if givenDQ2ID is None:
             dq2ID = self.getDQ2ID(sitename,dataset)
         else:
             dq2ID = givenDQ2ID
@@ -535,7 +544,7 @@ class DynDataDistributer:
                                                               activity='Data Brokering')
                 out = 'OK'
                 break
-            except:
+            except Exception:
                 status = False
                 errType,errValue = sys.exc_info()[:2]
                 out = "%s %s" % (errType,errValue)
@@ -565,7 +574,7 @@ class DynDataDistributer:
                 self.putLog("cannot find DQ2 ID for %s:%s" % (sitename,dataset))
                 return retFailed
             # append
-            if numUserSubs.has_key(dq2ID):
+            if dq2ID in numUserSubs:
                 retMap[sitename] = 1 + numUserSubs[dq2ID]
             else:
                 retMap[sitename] = 1
@@ -584,7 +593,7 @@ class DynDataDistributer:
         sizeMap = {}
         for sitename in siteList:
             # reuse cached value
-            if self.cachedSizeMap.has_key(sitename):
+            if sitename in self.cachedSizeMap:
                 sizeMap[sitename] = self.cachedSizeMap[sitename]
                 continue
             # get DQ2 IDs
@@ -670,7 +679,7 @@ class DynDataDistributer:
                     fileItems,out = rucioAPI.listFilesInDataset(datasetName)
                     status = True
                     break
-                except:
+                except Exception:
                     status = False
                     errType,errValue = sys.exc_info()[:2]
                     out = '{0} {1}'.format(errType,errValue)
@@ -703,7 +712,7 @@ class DynDataDistributer:
         resForFailure = (False,None)
         # get files in datasets
         global g_filesInDsMap
-        if not g_filesInDsMap.has_key(datasetName):
+        if datasetName not in g_filesInDsMap:
             nTry = 3
             for iDDMTry in range(nTry):
                 try:
@@ -711,7 +720,7 @@ class DynDataDistributer:
                     fileItems,out = rucioAPI.listFilesInDataset(datasetName)
                     status = True
                     break
-                except:
+                except Exception:
                     status = False
                     errType,errValue = sys.exc_info()[:2]
                     out = '{0} {1}'.format(errType,errValue)
@@ -736,7 +745,8 @@ class DynDataDistributer:
                     retList.append(retMap)
             return True,retList        
         # return
-        for tmpLFN,tmpVal in g_filesInDsMap[datasetName].iteritems():
+        for tmpLFN in g_filesInDsMap[datasetName]:
+            tmpVal = g_filesInDsMap[datasetName][tmpLFN]
             if tmpVal['guid'] == guid:
                 retMap = tmpVal
                 retMap['lfn'] = tmpLFN
@@ -748,7 +758,7 @@ class DynDataDistributer:
     # register new dataset container with datasets
     def registerDatasetContainerWithDatasets(self,containerName,files,replicaMap,nSites=1,owner=None):
         # parse DN
-        if owner != None:
+        if owner is not None:
             out = rucioAPI.parse_dn(owner)
             status,userInfo = rucioAPI.finger(out)
             if not status:
@@ -770,8 +780,7 @@ class DynDataDistributer:
                 continue
             tmpLocations = newLocations
             tmpKey = tuple(tmpLocations)
-            if not filesMap.has_key(tmpKey):
-                filesMap[tmpKey] = []
+            filesMap.setdefault(tmpKey, [])
             # append file
             filesMap[tmpKey].append(tmpFile)
         # get nfiles per dataset
@@ -784,7 +793,8 @@ class DynDataDistributer:
         # register new datasets
         datasetNames = []
         tmpIndex = 1
-        for tmpLocations,tmpFiles in filesMap.iteritems():
+        for tmpLocations in filesMap:
+            tmpFiles = filesMap[tmpLocations]
             tmpSubIndex = 0
             while tmpSubIndex < len(tmpFiles):
                 tmpDsName = containerName[:-1] + '_%04d' % tmpIndex
@@ -807,7 +817,7 @@ class DynDataDistributer:
                 status = rucioAPI.registerContainer(containerName,datasetNames)
                 out = 'OK'
                 break
-            except:
+            except Exception:
                 status = False
                 errType,errValue = sys.exc_info()[:2]
                 out = '{0} {1}'.format(errType,errValue)
@@ -845,7 +855,7 @@ class DynDataDistributer:
                                                lifetime=14)
                 self.putLog(out)
                 break
-            except:
+            except Exception:
                 errType,errValue = sys.exc_info()[:2]
                 self.putLog("%s %s" % (errType,errValue),'error')
                 if iDDMTry+1 == nTry:
@@ -859,7 +869,7 @@ class DynDataDistributer:
             try:
                 rucioAPI.closeDataset(datasetName)
                 status = True
-            except:
+            except Exception:
                 errtype,errvalue = sys.exc_info()[:2]
                 out = 'failed to freeze : {0} {1}'.format(errtype,errvalue)
                 status = False
@@ -881,7 +891,7 @@ class DynDataDistributer:
                     self.putLog(out)
                     status = True
                     break
-                except:
+                except Exception:
                     status = False
                     errType,errValue = sys.exc_info()[:2]
                     self.putLog("%s %s" % (errType,errValue),'error')
@@ -908,7 +918,7 @@ class DynDataDistributer:
                 out = rucioAPI.listDatasetsByGUIDs(guids)
                 status = True
                 break
-            except:
+            except Exception:
                 errtype,errvalue = sys.exc_info()[:2]
                 out = 'failed to get datasets with GUIDs : {0} {1}'.format(errtype,errvalue)
                 status = False
@@ -927,7 +937,7 @@ class DynDataDistributer:
             for guid in guids:
                 tmpDsNames = []
                 # GUID not found
-                if not outMap.has_key(guid):
+                if guid not in outMap:
                     self.putLog('GUID=%s not found' % guid,'error')
                     return resForFatal
                 # ignore junk datasets
@@ -936,9 +946,9 @@ class DynDataDistributer:
                            tmpDsName.startswith('user') or \
                            tmpDsName.startswith('group') or \
                            tmpDsName.startswith('archive') or \
-                           re.search('_sub\d+$',tmpDsName) != None or \
-                           re.search('_dis\d+$',tmpDsName) != None or \
-                           re.search('_shadow$',tmpDsName) != None:
+                           re.search('_sub\d+$',tmpDsName) is not None or \
+                           re.search('_dis\d+$',tmpDsName) is not None or \
+                           re.search('_shadow$',tmpDsName) is not None:
                         continue
                     # check with filters
                     if dsFilters != []:
@@ -962,7 +972,7 @@ class DynDataDistributer:
                     return resForFatal
                 # append
                 retMap[guid] = tmpDsNames[0]
-        except:
+        except Exception:
             self.putLog('failed to list datasets by GUIDs','error')
             return resForFailure
         return True,retMap
@@ -985,7 +995,7 @@ class DynDataDistributer:
             from eventLookupClientEI import eventLookupClientEI
             elssiIF = eventLookupClientEI()
             # Oracle EI
-            from taskbuffer.EiTaskBuffer import eiTaskBuffer
+            from pandaserver.taskbuffer.EiTaskBuffer import eiTaskBuffer
             eiTaskBuffer.init()
             # loop over all events
             nEventsPerLoop = 500
@@ -1041,7 +1051,8 @@ class DynDataDistributer:
         allDatasets  = []
         allFiles     = []
         allLocations = {}
-        for tmpIdx,tmpguids in runEvtGuidMap.iteritems():
+        for tmpIdx in runEvtGuidMap:
+            tmpguids = runEvtGuidMap[tmpIdx]
             runNr,evtNr = tmpIdx
             tmpDsRet,tmpDsMap = self.listDatasetsByGUIDs(tmpguids,dsFilters)
             # failed
@@ -1060,7 +1071,8 @@ class DynDataDistributer:
                             type='error')
                 return fatalRet
             # append
-            for tmpGUID,tmpDsName in tmpDsMap.iteritems():
+            for tmpGUID in tmpDsMap:
+                tmpDsName = tmpDsMap[tmpGUID]
                 # collect dataset names
                 if not tmpDsName in allDatasets:
                     allDatasets.append(tmpDsName)
@@ -1075,7 +1087,7 @@ class DynDataDistributer:
                     for tmpLocation in replicaMap.keys():
                         # use only complete replicas
                         dsStatDict = replicaMap[tmpLocation][0]
-                        if dsStatDict['total'] != None and dsStatDict['total'] == dsStatDict['found']:
+                        if dsStatDict['total'] is not None and dsStatDict['total'] == dsStatDict['found']:
                             if not tmpLocation in tmpLocationList:
                                 tmpLocationList.append(tmpLocation)
                     allLocations[tmpDsName] = tmpLocationList
@@ -1090,170 +1102,22 @@ class DynDataDistributer:
         # return
         self.putLog('converted to %s, %s, %s' % (str(allDatasets),str(allLocations),str(allFiles)))
         return True,allLocations,allFiles
-        
 
-    # get mapping between TAG and parent GUIDs
-    def getMapTAGandParentGUIDs(self,dsName,tagQuery,streamRef):
-        # remove _tidXYZ
-        dsNameForLookUp = re.sub('_tid\d+(_\d+)*$','',dsName)
-        # reuse
-        if self.mapTAGandParentGUIDs.has_key(dsNameForLookUp):
-            return self.mapTAGandParentGUIDs[dsNameForLookUp]
-        # set
-        from countGuidsClient import countGuidsClient
-        tagIF = countGuidsClient()
-        tagResults = tagIF.countGuidsSSL(dsNameForLookUp,tagQuery,streamRef+',StreamTAG_ref')
-        if tagResults == None:
-            errStr = ''    
-            for tmpLine in tagIF.output:
-                if tmpLine == '\n':
-                    continue
-                errStr += tmpLine
-            self.putLog(errStr,type='error')
-            errStr2  = "invalid return from Event Lookup service. "
-            if "No collection in the catalog matches the dataset name" in errStr:
-                errStr2 += "Note that only merged TAG is uploaded to the TAG DB, "
-                errStr2 += "so you need to use merged TAG datasets (or container) for inDS. "
-                errStr2 += "If this is already the case please contact atlas-event-metadata@cern.ch"            
-            self.putLog(errStr2,type='error')
-            return None
-        # empty
-        if not tagResults[0]:
-            errStr = "No GUIDs found for %s" % dsName
-            self.putLog(errStr,type='error')
-            return None
-        # collect
-        retMap = {}
-        for guidCount,guids in tagResults[1]:
-            self.putLog('%s %s' % (guidCount,guids))
-            parentGUID,tagGUID = guids
-            # append TAG GUID
-            if not retMap.has_key(tagGUID):
-                retMap[tagGUID] = {}
-            # append parent GUID and the number of selected events
-            if retMap[tagGUID].has_key(parentGUID):
-                errStr = "GUIDs=%s is duplicated" % parentGUID
-                self.putLog(errStr,type='error')
-                return None
-            retMap[tagGUID][parentGUID] = long(guidCount)
-        # keep to avoid redundant lookup    
-        self.mapTAGandParentGUIDs[dsNameForLookUp] = retMap
-        # return
-        return retMap
-
-
-    # get TAG files and parent DS/files using TAG query
-    def getTagParentInfoUsingTagQuery(self,tagDsList,tagQuery,streamRef):
-        # return code for failure
-        failedRet = False,{},[]
-        allDatasets  = []
-        allFiles     = []
-        allLocations = {}
-        # set empty if Query is undefined
-        if tagQuery == False:
-            tagQuery = ''
-        # loop over all tags
-        self.putLog('getting parent dataset names and LFNs from TAG DB using EventSelector.Query="%s"' % tagQuery)
-        for tagDS in tagDsList:
-            if tagDS.endswith('/'):
-                # get elements in container
-                tmpStat,elementMap = self.getListDatasetReplicasInContainer(tagDS)
-            else:
-                tmpStat,elementMap = self.getListDatasetReplicas(tagDS)
-            # loop over all elemets
-            for dsName in elementMap.keys():
-                self.putLog("DS=%s Query=%s Ref:%s" % (dsName,tagQuery,streamRef))
-                guidMap = self.getMapTAGandParentGUIDs(dsName,tagQuery,streamRef)
-                # failed
-                if guidMap == None:
-                    self.putLog("failed to get mappping between TAG and parent GUIDs",type='error')
-                    return failedRet
-                # convert TAG GUIDs to LFNs
-                tmpTagRet,tmpTagDsMap = self.listDatasetsByGUIDs(guidMap.keys(),[])
-                # failed
-                if not tmpTagRet:
-                    self.putLog("failed to convert GUIDs to datasets",type='error')
-                    return failedRet
-                # empty
-                if tmpTagDsMap == {}:
-                    self.putLog("there is no dataset for DS=%s Query=%s Ref:%s" % (dsName,tagQuery,streamRef),type='error')
-                    return failedRet
-                # convert parent GUIDs for each TAG file
-                for tagGUID in guidMap.keys():
-                    # not found
-                    if not tmpTagDsMap.has_key(tagGUID):
-                        errStr = 'TAG GUID=%s not found in DQ2' % tagGUID
-                        self.putLog(errStr,type='error')
-                        return failedRet
-                    # get TAG file info
-                    tagElementDS = tmpTagDsMap[tagGUID]
-                    tmpFileRet,tmpTagFileInfo = self.getFileFromDataset(tmpTagDsMap[tagGUID],tagGUID)
-                    # failed
-                    if not tmpFileRet:
-                        self.putLog("failed to get fileinfo for GUID:%s DS:%s" % (tagGUID,tmpTagDsMap[tagGUID]),type='error')
-                        return failedRet
-                    # convert parent GUIDs to DS/LFNs
-                    tmpParentRet,tmpParentDsMap = self.listDatasetsByGUIDs(guidMap[tagGUID].keys(),[])
-                    # failed
-                    if not tmpParentRet:
-                        self.putLog("failed to convert GUIDs:%s to parent datasets" % str(guidMap[tagGUID].keys()),type='error')
-                        return failedRet
-                    # empty
-                    if tmpParentDsMap == {}:
-                        self.putLog("there is no parent dataset for GUIDs:%s" % str(guidMap[tagGUID].keys()),type='error')
-                        return failedRet
-                    # loop over all parent GUIDs
-                    for parentGUID in guidMap[tagGUID].keys():
-                        # not found
-                        if not tmpParentDsMap.has_key(parentGUID):
-                            errStr = '%s GUID=%s not found in DQ2' % (re.sub('_ref$','',streamRef),parentGUID)
-                            self.putLog(errStr,type='error')
-                            return failedRet
-                        # get parent file info
-                        tmpParentDS = tmpParentDsMap[parentGUID]
-                        tmpFileRet,tmpParentFileInfo = self.getFileFromDataset(tmpParentDS,parentGUID)
-                        # failed
-                        if not tmpFileRet:
-                            self.putLog("failed to get parent fileinfo for GUID:%s DS:%s" % (parentGUID,tmpParentDS),
-                                        type='error')
-                            return failedRet
-                        # collect files
-                        allFiles.append(tmpParentFileInfo)
-                        # get location
-                        if not tmpParentDS in allDatasets:
-                            allDatasets.append(tmpParentDS)
-                            # get location
-                            statRep,replicaMap = self.getListDatasetReplicas(tmpParentDS)
-                            # failed
-                            if not statRep:
-                                self.putLog("failed to get locations for DS:%s" % tmpParentDS,type='error')
-                                return failedRet
-                            # collect locations
-                            tmpLocationList = []
-                            for tmpLocation in replicaMap.keys():
-                                if not tmpLocation in tmpLocationList:
-                                    tmpLocationList.append(tmpLocation)
-                            allLocations[tmpParentDS] = tmpLocationList
-        # return
-        self.putLog('converted to %s, %s, %s' % (str(allDatasets),str(allLocations),str(allFiles)))
-        return True,allLocations,allFiles
-
-        
     # put log
     def putLog(self,msg,type='debug',sendLog=False,actionTag='',tagsMap={}):
-        if self.logger == None:
+        if self.logger is None:
             tmpMsg = self.token+' '+str(msg)
         else:
             tmpMsg = str(msg)
         if type == 'error':
-            if self.logger == None:
+            if self.logger is None:
                 _logger.error(tmpMsg)
             else:
                 self.logger.error(tmpMsg)
             # keep last error message
             self.lastMessage = tmpMsg   
         else:
-            if self.logger == None:
+            if self.logger is None:
                 _logger.debug(tmpMsg)
             else:
                 self.logger.debug(tmpMsg)
@@ -1262,7 +1126,8 @@ class DynDataDistributer:
             tmpMsg = self.token + ' - '
             if actionTag != '':
                 tmpMsg += 'action=%s ' % actionTag
-                for tmpTag,tmpTagVal in tagsMap.iteritems():
+                for tmpTag in tagsMap:
+                    tmpTagVal = tagsMap[tmpTag]
                     tmpMsg += '%s=%s ' % (tmpTag,tmpTagVal)
             tmpMsg += '- ' + msg    
             tmpPandaLogger = PandaLogger()
@@ -1319,18 +1184,18 @@ class DynDataDistributer:
         if self.simul:
             return True,useSmallT1
         # no candidate
-        if selectedSite == None:
+        if selectedSite is None:
             self.putLog("no candidate for T1-T1")
             return False,useSmallT1
         # make subscription
         tmpJob.computingSite = selectedSite
         subRet,dq2ID = self.makeSubscription(tmpDS,tmpJob.computingSite)
         tmpTagsMap = {'site':tmpJob.computingSite,'dataset':tmpDS}
-        if nUsed != None:
+        if nUsed is not None:
             tmpTagsMap['nused'] = nUsed
-        if nWaitingJobs != None:
+        if nWaitingJobs is not None:
             tmpTagsMap['nwaitingjobs'] = nWaitingJobs
-        if nWaitingJobsets != None:
+        if nWaitingJobsets is not None:
             tmpTagsMap['nwaitingjobsets'] = nWaitingJobsets
         self.putLog("made subscription for T1-T1 to %s:%s" % (tmpJob.computingSite,dq2ID),sendLog=True,
                     actionTag='SELECTEDT1',tagsMap=tmpTagsMap)
@@ -1352,7 +1217,7 @@ class DynDataDistributer:
         if allCandidates == []:
             return True,None
         # get MoU share
-        if self.shareMoUForT2 == None:
+        if self.shareMoUForT2 is None:
             self.shareMoUForT2 = self.taskBuffer.getMouShareForT2PD2P()
         # convert to DQ2 ID
         t2Candidates = []
@@ -1364,7 +1229,7 @@ class DynDataDistributer:
                 # append
                 dq2List.append(tmpDQ2ID)
                 # get MoU share
-                if not self.shareMoUForT2.has_key(tmpDQ2ID):
+                if tmpDQ2ID not in self.shareMoUForT2:
                     # site is undefined in t_regions_replication 
                     self.putLog("%s is not in MoU table" % tmpDQ2ID,type='error')
                     continue
@@ -1398,17 +1263,17 @@ class DynDataDistributer:
         if self.simul:
             return True,selectedSite
         # no candidate
-        if selectedSite == None:
+        if selectedSite is None:
             self.putLog("no candidate for T2 with %s" % pd2pType)
             return False,None
         # make subscription
         subRet,dq2ID = self.makeSubscription(tmpDS,selectedSite)
         tmpTagsMap = {'site':selectedSite,'dataset':tmpDS}
-        if nUsed != None:
+        if nUsed is not None:
             tmpTagsMap['nused'] = nUsed
-        if nWaitingJobs != None:    
+        if nWaitingJobs is not None:
             tmpTagsMap['nwaitingjobs'] = nWaitingJobs
-        if nWaitingJobsets != None:    
+        if nWaitingJobsets is not None:
             tmpTagsMap['nwaitingjobsets'] = nWaitingJobsets
         self.putLog("made subscription for T2 with %s to %s:%s" % (pd2pType,selectedSite,dq2ID),sendLog=True,
                     actionTag='SELECTEDT2_%s' % pd2pType,tagsMap=tmpTagsMap)
@@ -1425,9 +1290,10 @@ class DynDataDistributer:
         # loop over all candidates
         totalW = 0
         allCandidates = []
-        for tmpCan,tmpW in canWeights.iteritems():
+        for tmpCan in canWeights:
+            tmpW = canWeights[tmpCan]
             # size check
-            if freeSizeMap.has_key(tmpCan):
+            if tmpCan in freeSizeMap:
                 # disk threshold for PD2P max(5%,3TB)
                 diskThresholdPD2P = 1024 * 3
                 thrForThisSite = long(freeSizeMap[tmpCan]['total'] * 5 / 100)

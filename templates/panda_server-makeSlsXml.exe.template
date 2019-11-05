@@ -42,7 +42,7 @@ def __main__() :
 		tmp_xml = make_bamboo( host )
 		file_part = 'PandaBamboo'
 	else :
-		print "Err: please choose a use, 'mon', 'server' or 'bamboo'."
+		print("Err: please choose a use, 'mon', 'server' or 'bamboo'.")
 		return
 	
 	if( options.dir ) :
@@ -53,16 +53,17 @@ def __main__() :
 	file_name = '%s/%s_%s.xml' % ( file_dir, file_part, host )
 	tmp_file = open( file_name, 'w' )
 	tmp_file.write( tmp_xml )
-	tmp_file.close
+	tmp_file.close()
+
 
 def make_server( host ) :
 
-	if( options.debug ) : print "Creating the server monitoring xml"
+	if( options.debug ) : print("Creating the server monitoring xml")
 	
 	server_avail = server_availability( host )
 	add_processes = count_add_processes()
 	num_holdings  = count_holdings()
-        data_used     = volume_use( 'data' )
+	data_used     = volume_use( 'data' )
 	var_used      = volume_use( 'var' )
 	ave_regtime   = registration_time()
 	ave_regtimeDQ2 = registration_time(onlyDQ2=True)
@@ -98,7 +99,7 @@ def make_server( host ) :
 
 def make_bamboo( host ) :
 
-	if( options.debug ) : print "Creating the server monitoring xml"
+	if( options.debug ) : print("Creating the server monitoring xml")
 	
 	server_avail = bamboo_availability( host )
 
@@ -111,7 +112,7 @@ def make_bamboo( host ) :
 
 def make_monitor( host ) :
 
-	if( options.debug ) : print "Creating the monitor monitoring xml"
+	if( options.debug ) : print("Creating the monitor monitoring xml")
 	
 	errormes = False
 	messagetext = ''
@@ -140,8 +141,8 @@ def make_monitor( host ) :
 		error_mail( host, messagetext )
 
 	if( options.debug ) :
-		print 'web - %s, squid - %s, panda - %s' % ( http_avail, squid_avail,
-			panda_avail )
+		print('web - %s, squid - %s, panda - %s' % ( http_avail, squid_avail,
+			panda_avail ))
 
 	sls_xml = SLSxml.xml_doc()
 	sls_xml.set_id( 'PandaMon_%s' % ( host ) )
@@ -227,17 +228,17 @@ def check_url( url, check_string ) :
 def check_command( command, check_string ) :
 	
 	if( options.debug ) :
-		print "Checking command : %s" % ( command )
-		print "For string : %s" % ( check_string )
+		print("Checking command : %s" % ( command ))
+		print("For string : %s" % ( check_string ))
 	
 	tmp_array = command.split()
 	output = subprocess.Popen( tmp_array, stdout=subprocess.PIPE ).communicate()[0]
 		
 	if( re.search( check_string, output ) ) :
-		if( options.debug ) : print "Found the string, return 100"
+		if( options.debug ) : print("Found the string, return 100")
 		return '100'
 	else :
-		if( options.debug ) : print "String not found, return 0"
+		if( options.debug ) : print("String not found, return 0")
 		return '0'
 
 def count_processes() :
@@ -263,7 +264,7 @@ def count_add_processes() :
 def count_holdings() :
 	output = subprocess.Popen("ls /var/log/panda/ | egrep '(finished|failed)'",
 				  stdout=subprocess.PIPE,shell=True).communicate()[0]
-        count =0
+	count =0
 	for line in output.split( '\n' ) :
 		line = line.strip()
 		if  line == '':
@@ -287,17 +288,17 @@ def registration_time(timeSlice=False,onlyDQ2=False) :
 				items = line.split()
 				timestamp = items[1][:2]
 				regtime   = float(items[-2])
-				if not regtimeMap.has_key(timestamp):
+				if timestamp not in regtimeMap:
 					regtimeMap[timestamp] = {'totalTime':0.,'totalReg':0}
 				regtimeMap[timestamp]['totalTime'] += regtime
 				regtimeMap[timestamp]['totalReg'] += 1
-			except:
+			except Exception:
 				pass
 		timestamps = regtimeMap.keys()
 		if timeSlice:	
 			timestamps.sort()
 			for timestamp in timestamps:
-				print "%s %4.1fsec" % (timestamp,regtimeMap[timestamp]['totalTime']/float(regtimeMap[timestamp]['totalReg']))
+				print("%s %4.1fsec" % (timestamp,regtimeMap[timestamp]['totalTime']/float(regtimeMap[timestamp]['totalReg'])))
 		else:
 			totalTime = 0.
 			totalReg  = 0
@@ -306,9 +307,9 @@ def registration_time(timeSlice=False,onlyDQ2=False) :
 				totalReg  += regtimeMap[timestamp]['totalReg']
 			if totalReg > 0:	
 				aveRegTime = '%4.1f' % (totalTime/float(totalReg))	
-        except:
+	except Exception:
 		errtype,ervalue = sys.exc_info()[:2]
-		print "ERROR : %s:%s in registration_time" % (errtype,ervalue)
+		print("ERROR : %s:%s in registration_time" % (errtype,ervalue))
 	return aveRegTime
 
 def filelookup_time(timeSlice=False) :
@@ -329,20 +330,20 @@ def filelookup_time(timeSlice=False) :
 				timestamp = items[1][:2]
 				regtime   = float(items[-2])
 				tmpMatch = re.search(' (\d+) LFNs',line)
-				if tmpMatch == None:
+				if tmpMatch is None:
 					continue
 				nFiles = int(tmpMatch.group(1))
-				if not regtimeMap.has_key(timestamp):
+				if timestamp not in regtimeMap:
 					regtimeMap[timestamp] = {'totalTime':0.,'totalReg':0}
 				regtimeMap[timestamp]['totalTime'] += regtime
 				regtimeMap[timestamp]['totalReg'] += nFiles
-			except:
+			except Exception:
 				pass
 		timestamps = regtimeMap.keys()
 		if timeSlice:	
 			timestamps.sort()
 			for timestamp in timestamps:
-				print "%s %4.1fsec" % (timestamp,100*regtimeMap[timestamp]['totalTime']/float(regtimeMap[timestamp]['totalReg']))
+				print("%s %4.1fsec" % (timestamp,100*regtimeMap[timestamp]['totalTime']/float(regtimeMap[timestamp]['totalReg'])))
 		else:
 			totalTime = 0.
 			totalReg  = 0
@@ -351,9 +352,9 @@ def filelookup_time(timeSlice=False) :
 				totalReg  += regtimeMap[timestamp]['totalReg']
 			if totalReg > 0:	
 				aveRegTime = '%4.1f' % (100*totalTime/float(totalReg))	
-        except:
+	except Exception:
 		errtype,ervalue = sys.exc_info()[:2]
-		print "ERROR : %s:%s in filelookup_time" % (errtype,ervalue)
+		print("ERROR : %s:%s in filelookup_time" % (errtype,ervalue))
 	return aveRegTime
 
 
@@ -403,10 +404,10 @@ def count_finished_callback() :
 				pandaID = line.split()[-4]
 				if not pandaID in pandaIDs:
 					pandaIDs.append(pandaID)
-			except:
+			except Exception:
 				pass
 		nJobs = len(pandaIDs)
-	except:
+	except Exception:
 		pass
 	return nJobs
 
@@ -430,10 +431,10 @@ def count_finished_catalogcheck() :
 				pandaID = line.split()[-4]
 				if not pandaID in pandaIDs:
 					pandaIDs.append(pandaID)
-			except:
+			except Exception:
 				pass
 		nJobs = len(pandaIDs)
-	except:
+	except Exception:
 		pass
 	return nJobs
 

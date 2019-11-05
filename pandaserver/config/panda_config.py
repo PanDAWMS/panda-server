@@ -1,7 +1,7 @@
 import re
 import sys
-import commands
-from liveconfigparser.LiveConfigParser import LiveConfigParser
+import socket
+from pandacommon.liveconfigparser.LiveConfigParser import LiveConfigParser
 
 # get ConfigParser
 tmpConf = LiveConfigParser()
@@ -14,7 +14,8 @@ tmpDict = tmpConf.server
 
 # expand all values
 tmpSelf = sys.modules[ __name__ ]
-for tmpKey,tmpVal in tmpDict.iteritems():
+for tmpKey in tmpDict:
+    tmpVal = tmpDict[tmpKey]
     # convert string to bool/int
     if tmpVal == 'True':
         tmpVal = True
@@ -26,15 +27,15 @@ for tmpKey,tmpVal in tmpDict.iteritems():
     tmpSelf.__dict__[tmpKey] = tmpVal
 
 # set hostname
-if not tmpSelf.__dict__.has_key('pserverhost'):
-    tmpSelf.__dict__['pserverhost'] = commands.getoutput('hostname -f')
+if 'pserverhost' not in tmpSelf.__dict__:
+    tmpSelf.__dict__['pserverhost'] = socket.getfqdn()
 
 # set port for http
-if not tmpSelf.__dict__.has_key('pserverporthttp'):
+if 'pserverporthttp' not in tmpSelf.__dict__:
     tmpSelf.__dict__['pserverporthttp'] = 25080
 
 # set host for http
-if not tmpSelf.__dict__.has_key('pserverhosthttp'):
+if 'pserverhosthttp' not in tmpSelf.__dict__:
     tmpSelf.__dict__['pserverhosthttp'] = tmpSelf.__dict__['pserverhost']
 
 # change the number of database connections for FastCGI/WSGI
@@ -42,53 +43,53 @@ if tmpSelf.__dict__['useFastCGI'] or tmpSelf.__dict__['useWSGI']:
     tmpSelf.__dict__['nDBConnection'] = tmpSelf.__dict__['nDBConForFastCGIWSGI']
 
 # DB backend
-if not tmpSelf.__dict__.has_key('backend'):
+if 'backend' not in tmpSelf.__dict__:
     tmpSelf.__dict__['backend'] = 'oracle'
-if not tmpSelf.__dict__.has_key('dbport'):
+if 'dbport' not in tmpSelf.__dict__:
     tmpSelf.__dict__['dbport'] = 0
-if not tmpSelf.__dict__.has_key('dbtimeout'):
+if 'dbtimeout' not in tmpSelf.__dict__:
     tmpSelf.__dict__['dbtimeout'] = 60
     
 # Directory for certs
-if not tmpSelf.__dict__.has_key('certdir'):
+if 'certdir' not in tmpSelf.__dict__:
     tmpSelf.__dict__['certdir'] = '/data/atlpan'
 
 # endpoint map file
-if not tmpSelf.__dict__.has_key('endpoint_mapfile'):
+if 'endpoint_mapfile' not in tmpSelf.__dict__:
     tmpSelf.__dict__['endpoint_mapfile'] = '/cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_ddmendpoints.json'
 
 # schemas
-if not tmpSelf.__dict__.has_key('schemaPANDA'):
+if 'schemaPANDA' not in tmpSelf.__dict__:
     tmpSelf.__dict__['schemaPANDA'] = 'ATLAS_PANDA'
-if not tmpSelf.__dict__.has_key('schemaPANDAARCH'):
+if 'schemaPANDAARCH' not in tmpSelf.__dict__:
     tmpSelf.__dict__['schemaPANDAARCH'] = 'ATLAS_PANDAARCH'
-if not tmpSelf.__dict__.has_key('schemaMETA'):
+if 'schemaMETA' not in tmpSelf.__dict__:
     tmpSelf.__dict__['schemaMETA'] = 'ATLAS_PANDAMETA'
-if not tmpSelf.__dict__.has_key('schemaJEDI'):
+if 'schemaJEDI' not in tmpSelf.__dict__:
     tmpSelf.__dict__['schemaJEDI'] = 'ATLAS_PANDA'
-if not tmpSelf.__dict__.has_key('schemaDEFT'):
+if 'schemaDEFT' not in tmpSelf.__dict__:
     tmpSelf.__dict__['schemaDEFT'] = 'ATLAS_DEFT'
-if not tmpSelf.__dict__.has_key('schemaGRISLI'):
+if 'schemaGRISLI' not in tmpSelf.__dict__:
     tmpSelf.__dict__['schemaGRISLI'] = 'ATLAS_GRISLI'
-if not tmpSelf.__dict__.has_key('schemaEI'):
+if 'schemaEI' not in tmpSelf.__dict__:
     tmpSelf.__dict__['schemaEI'] = 'ATLAS_EVENTINDEX'
     
 # default site
-if not tmpSelf.__dict__.has_key('def_sitename'):
+if 'def_sitename' not in tmpSelf.__dict__:
     tmpSelf.__dict__['def_sitename'] = 'BNL_ATLAS_1'
-if not tmpSelf.__dict__.has_key('def_queue'):
+if 'def_queue' not in tmpSelf.__dict__:
     tmpSelf.__dict__['def_queue'] = 'ANALY_BNL_ATLAS_1'
-if not tmpSelf.__dict__.has_key('def_nickname'):
+if 'def_nickname' not in tmpSelf.__dict__:
     tmpSelf.__dict__['def_nickname']= 'BNL_ATLAS_1-condor'
-if not tmpSelf.__dict__.has_key('def_dq2url'):
+if 'def_dq2url' not in tmpSelf.__dict__:
     tmpSelf.__dict__['def_dq2url']= 'http://dms02.usatlas.bnl.gov:8000/dq2/'
-if not tmpSelf.__dict__.has_key('def_ddm'):
+if 'def_ddm' not in tmpSelf.__dict__:
     tmpSelf.__dict__['def_ddm']= 'PANDA_UNDEFINED2'
-if not tmpSelf.__dict__.has_key('def_type'):
+if 'def_type' not in tmpSelf.__dict__:
     tmpSelf.__dict__['def_type']= 'production'
-if not tmpSelf.__dict__.has_key('def_gatekeeper'):
+if 'def_gatekeeper' not in tmpSelf.__dict__:
     tmpSelf.__dict__['def_gatekeeper'] = 'gridgk01.racf.bnl.gov'
-if not tmpSelf.__dict__.has_key('def_status'):
+if 'def_status' not in tmpSelf.__dict__:
     tmpSelf.__dict__['def_status'] = 'online'
 if 'token_authType' not in tmpSelf.__dict__:
     tmpSelf.__dict__['token_authType'] = None
@@ -106,8 +107,7 @@ g_pluginMap = {}
 def parsePluginConf(modConfigName):
     global tmpSelf
     global g_pluginMap
-    if not g_pluginMap.has_key(modConfigName):
-        g_pluginMap[modConfigName] = {}
+    g_pluginMap.setdefault(modConfigName, {})
     # parse plugin setup
     try:
         for configStr in getattr(tmpSelf,modConfigName).split(','):
@@ -124,18 +124,18 @@ def parsePluginConf(modConfigName):
                 # get class
                 cls = getattr(mod,className)
                 g_pluginMap[modConfigName][vo] = cls
-    except:
+    except Exception:
         pass
 
 
 # accessor for plugin
 def getPlugin(modConfigName,vo):
-    if not g_pluginMap.has_key(modConfigName):
+    if modConfigName not in g_pluginMap:
         return None
-    elif g_pluginMap[modConfigName].has_key(vo):
+    elif vo in g_pluginMap[modConfigName]:
         # VO specified
         return g_pluginMap[modConfigName][vo]
-    elif g_pluginMap[modConfigName].has_key('any'):
+    elif 'any' in g_pluginMap[modConfigName]:
         # catch all
         return g_pluginMap[modConfigName]['any']
     # undefined

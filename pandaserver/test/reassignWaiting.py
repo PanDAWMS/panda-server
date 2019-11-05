@@ -1,11 +1,10 @@
 import time
 import datetime
-from taskbuffer.OraDBProxy import DBProxy
-import userinterface.Client as Client
+from pandaserver.taskbuffer.OraDBProxy import DBProxy
+import pandaserver.userinterface.Client as Client
 
 # password
-from config import panda_config
-passwd = panda_config.dbpasswd
+from pandaserver.config import panda_config
 
 # time limit
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
@@ -32,8 +31,7 @@ while True:
     nJob = 300
     iJob = 0
     while iJob < len(jobs):
-        print 'reassignJobs(%s)' % jobs[iJob:iJob+nJob]
+        print('reassignJobs(%s)' % jobs[iJob:iJob+nJob])
         Client.reassignJobs(jobs[iJob:iJob+nJob])
         iJob += nJob
         time.sleep(60)
-

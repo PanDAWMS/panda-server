@@ -23,7 +23,7 @@ class DatasetSpec(object):
     # override __getattribute__ for SQL
     def __getattribute__(self,name):
         ret = object.__getattribute__(self,name)
-        if ret == None:
+        if ret is None:
             return "NULL"
         return ret
 
@@ -112,7 +112,3 @@ class DatasetSpec(object):
         ret = ret[:-1]
         return ret
     bindUpdateExpression = classmethod(bindUpdateExpression)
-
-        
-
-                       

@@ -2,6 +2,11 @@ import os
 import tempfile
 import subprocess
 
+try:
+    long
+except NameError:
+    long = int
+
 
 class eventLookupClientEI:
 
@@ -23,7 +28,7 @@ class eventLookupClientEI:
             command += "-s {0} ".format(stream)
         if not amitag in [None,'']:
             command += "-p {0} ".format(amitag)
-        if user != None:
+        if user is not None:
             command += '-info "{0}" '.format(user)
         if ei_api:
             command += '-api {0} '.format(ei_api)
@@ -53,13 +58,13 @@ class eventLookupClientEI:
                     if len(tmpItem) == 2:
                         tmpToken = tmpItem[1]
                         tmpGUID = tmpItem[0]
-                        if tokens == None or tokens == tmpToken:
+                        if tokens is None or tokens == tmpToken:
                             guids[runEvent].add(tmpGUID)
                     continue
             if '0 results found' in tmpOut:
                 # add dummy
                 guids[None] = None
-        except:
+        except Exception:
             pass
         return guids,command,tmpOut,tmpErr
 

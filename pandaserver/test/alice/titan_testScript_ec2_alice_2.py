@@ -3,10 +3,11 @@
 #                                                                               
 import sys
 import time
-import commands
-import userinterface.Client as Client
-from taskbuffer.JobSpec import JobSpec
-from taskbuffer.FileSpec import FileSpec
+import uuid
+
+import pandaserver.userinterface.Client as Client
+from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.taskbuffer.FileSpec import FileSpec
 
 aSrvID = None
 
@@ -19,12 +20,12 @@ for idx,argv in enumerate(sys.argv):
 
 site = sys.argv[1]
 
-datasetName = 'panda.destDB.%s' % commands.getoutput('uuidgen')
+datasetName = 'panda.destDB.%s' % str(uuid.uuid4())
 destName    = 'local'
 
 job = JobSpec()
 job.jobDefinitionID   = int(time.time()) % 10000
-job.jobName           = "%s" % commands.getoutput('uuidgen')
+job.jobName           = "%s" % str(uuid.uuid4())
 # MPI transform on Titan that will run actual job                               
 job.transformation    = '/lustre/atlas/proj-shared/csc108/transforms/mpi_wrapper_alice_A01alicegeo.py'
 
@@ -46,6 +47,6 @@ job.addFile(fileOL)
 
 
 s,o = Client.submitJobs([job],srvID=aSrvID)
-print s
+print(s)
 for x in o:
-    print "PandaID=%s" % x[0]
+    print("PandaID=%s" % x[0])

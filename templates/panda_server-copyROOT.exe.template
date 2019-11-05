@@ -1,6 +1,0 @@
-#!/bin/bash
-
-# import env vars from sysconfig
-source /etc/sysconfig/panda_server
-
-python @@install_purelib@@/pandaserver/test/copyROOT.py

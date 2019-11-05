@@ -5,22 +5,24 @@ import types
 import fcntl
 import random
 import datetime
-import commands
-import ErrorCode
-import PandaSiteIDs
-from taskbuffer import ProcessGroups
-from dataservice import DataServiceUtils
-from dataservice.DDM import rucioAPI
-from config import panda_config
+import uuid
+from pandaserver.brokerage import ErrorCode
+from pandaserver.taskbuffer import ProcessGroups
+from pandaserver.dataservice import DataServiceUtils
+from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.config import panda_config
 
-from pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 _log = PandaLogger().getLogger('broker')
 
+try:
+    long
+except NameError:
+    long = int
+
 # all known sites
-_allSites = PandaSiteIDs.PandaSiteIDs.keys()
-        
-# sites for prestaging
-#prestageSites = ['BNL_ATLAS_test','BNL_ATLAS_1','BNL_ATLAS_2']
+_allSites = []
+
 
 # non LRC checking
 _disableLRCcheck = []
@@ -80,7 +82,7 @@ def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,tmpLog=None,
     dq2IDs = v_ce.setokens_input.values()
     try:
         dq2IDs.remove('')
-    except:
+    except Exception:
         pass
     dq2IDs.sort()
     if dq2IDs == []:
@@ -93,7 +95,7 @@ def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,tmpLog=None,
     # set LFC and SE name 
     dq2URL = 'rucio://atlas-rucio.cern.ch:/grid/atlas'
     tmpSE = v_ce.ddm_endpoints_input.getAllEndPoints()
-    if tmpLog != None:
+    if tmpLog is not None:
         tmpLog.debug('getOkFiles for %s with dq2ID:%s,LFC:%s,SE:%s' % (v_ce.sitename,dq2ID,dq2URL,str(tmpSE)))
     anyID = 'any'
     # use bulk lookup
@@ -112,7 +114,7 @@ def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,tmpLog=None,
         # make return map
         retMap = {}
         for tmpLFN in v_files:
-            if allOkFilesMap[dq2URL][dq2ID].has_key(tmpLFN):
+            if tmpLFN in allOkFilesMap[dq2URL][dq2ID]:
                 retMap[tmpLFN] = allOkFilesMap[dq2URL][dq2ID][tmpLFN]
         tmpLog.debug('getOkFiles done')
         # return
@@ -125,7 +127,7 @@ def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,tmpLog=None,
 
 # check reprocessing or not
 def _isReproJob(tmpJob):
-    if tmpJob != None:
+    if tmpJob is not None:
         if tmpJob.processingType in ['reprocessing']:
             return True
         if tmpJob.transformation in ['csc_cosmics_trf.py','csc_BSreco_trf.py','BStoESDAODDPD_trf.py']:
@@ -194,49 +196,6 @@ def _isTooManyInput(nFilesPerJob,inputSizePerJob):
     return False
 
 
-# send analysis brokerage info
-def sendAnalyBrokeageInfo(results,prevRelease,diskThreshold,chosenSite,prevCmtConfig,
-                          siteReliability):
-    # send log messages
-    messageList = []
-    for resultType,resultList in results.iteritems():
-        for resultItem in resultList:
-            if resultType == 'rel':
-                if prevCmtConfig in ['','NULL',None]:
-                    msgBody = 'action=skip site=%s reason=missingapp - app=%s is missing' % (resultItem,prevRelease)
-                else:
-                    msgBody = 'action=skip site=%s reason=missingapp - app=%s/%s is missing' % (resultItem,prevRelease,prevCmtConfig)
-            elif resultType == 'pilot':
-                msgBody = 'action=skip site=%s reason=nopilot - no pilots for last 3 hours' % resultItem
-            elif resultType == 'disk':
-                msgBody = 'action=skip site=%s reason=diskshortage - disk shortage < %sGB' % (resultItem,diskThreshold)
-            elif resultType == 'memory':
-                msgBody = 'action=skip site=%s reason=ramshortage - RAM shortage' % resultItem
-            elif resultType == 'maxtime':
-                msgBody = 'action=skip site=%s reason=maxtime - shorter walltime limit' % resultItem
-            elif resultType == 'status':
-                msgBody = 'action=skip site=%s reason=sitestatus - not online' % resultItem 
-            elif resultType == 'reliability':
-                msgBody = 'action=skip site=%s reason=reliability - insufficient>%s' % (resultItem ,siteReliability)
-            elif resultType == 'weight':
-                tmpSite,tmpWeight = resultItem
-                if tmpSite == chosenSite:
-                    msgBody = 'action=choose site=%s reason=maxweight - max weight=%s' % (tmpSite,tmpWeight)
-                else:
-                    msgBody = 'action=skip site=%s reason=notmaxweight - weight=%s' % (tmpSite,tmpWeight)
-            elif resultType == 'prefcountry':
-                tmpSite,tmpCountry = resultItem
-                if tmpSite == chosenSite:
-                    msgBody = 'action=prefer country=%s reason=countrygroup - preferential brokerage for beyond-pledge' % tmpCountry
-                else:
-                    continue
-            else:
-                continue
-            messageList.append(msgBody)
-    # return
-    return messageList
-
-
 # send analysis brokerage info to logger
 def sendMsgToLogger(message):
     _log.debug(message)
@@ -272,33 +231,33 @@ def sendMsgToLoggerHTTP(msgList,job):
             iMsg += 1
             if iMsg % 5 == 0:
                 time.sleep(1)
-    except:
+    except Exception:
         errType,errValue = sys.exc_info()[:2]
         _log.error("sendMsgToLoggerHTTP : %s %s" % (errType,errValue))
     
 
 # get T2 candidates when files are missing at T2
 def getT2CandList(tmpJob,siteMapper,t2FilesMap):
-    if tmpJob == None:
+    if tmpJob is None:
         return []
     # no cloud info
-    if not t2FilesMap.has_key(tmpJob.getCloud()):
+    if tmpJob.getCloud() not in t2FilesMap:
         return []
     # loop over all files
     tmpCandT2s = None
     for tmpFile in tmpJob.Files:
         if tmpFile.type == 'input' and tmpFile.status == 'missing':
             # no dataset info
-            if not t2FilesMap[tmpJob.getCloud()].has_key(tmpFile.dataset):
+            if tmpFile.dataset not in t2FilesMap[tmpJob.getCloud()]:
                 return []
             # initial candidates
-            if tmpCandT2s == None:
+            if tmpCandT2s is None:
                 tmpCandT2s = t2FilesMap[tmpJob.getCloud()][tmpFile.dataset]['sites']
             # check all candidates
             newCandT2s = []
             for tmpCandT2 in tmpCandT2s:
                 # site doesn't have the dataset
-                if not t2FilesMap[tmpJob.getCloud()][tmpFile.dataset]['sites'].has_key(tmpCandT2):
+                if tmpCandT2 not in t2FilesMap[tmpJob.getCloud()][tmpFile.dataset]['sites']:
                     continue
                 # site has the file
                 if tmpFile.lfn in t2FilesMap[tmpJob.getCloud()][tmpFile.dataset]['sites'][tmpCandT2]:
@@ -309,7 +268,7 @@ def getT2CandList(tmpJob,siteMapper,t2FilesMap):
             if tmpCandT2s == []:
                 break
     # return [] if no missing files         
-    if tmpCandT2s == None:
+    if tmpCandT2s is None:
         return []
     # return
     tmpCandT2s.sort() 
@@ -339,7 +298,7 @@ def getHospitalQueues(siteMapper):
             # check hospital words
             checkHospWord = False
             for tmpGoodWord in goodWordList:
-                if re.search(tmpGoodWord,tmpSiteName) != None:
+                if re.search(tmpGoodWord,tmpSiteName) is not None:
                     checkHospWord = True
                     break
             if not checkHospWord:
@@ -351,38 +310,13 @@ def getHospitalQueues(siteMapper):
             # check DDM
             if tmpT1Spec.ddm_input == tmpSiteSpec.ddm_input: # TODO: check with Tadashi
                 # append
-                if not retMap.has_key(tmpCloudName):
+                if tmpCloudName not in retMap:
                     retMap[tmpCloudName] = []
                 if not tmpSiteName in retMap[tmpCloudName]:
                     retMap[tmpCloudName].append(tmpSiteName)
     _log.debug('hospital queues : %s' % str(retMap))
     # return
     return retMap
-
-
-# get prestage sites
-def getPrestageSites(siteMapper):
-    # disable PandaMover
-    return []
-    retList = []
-    # get cloud
-    tmpCloudSpec = siteMapper.getCloud('US')
-    # get T1
-    tmpT1Name = tmpCloudSpec['source']
-    tmpT1Spec = siteMapper.getSite(tmpT1Name)
-    # loop over all sites
-    for tmpSiteName in tmpCloudSpec['sites']:
-        # check site
-        if not siteMapper.checkSite(tmpSiteName):
-            continue
-        # get spec
-        tmpSiteSpec = siteMapper.getSite(tmpSiteName)
-        # add if DDM is the same as T1
-        if tmpT1Spec.ddm_input == tmpSiteSpec.ddm_input and not tmpSiteName in retList:
-            retList.append(tmpSiteName)
-    _log.debug('US prestage sites : %s' % str(retList))            
-    # return
-    return retList
 
 
 # make compact dialog message
@@ -410,13 +344,14 @@ def makeCompactDiagMessage(header,results):
         retStr = 'special brokerage for %s - ' % header
     # count number of sites per type
     numTypeMap = {}
-    for resultType,resultList in results.iteritems():
+    for resultType in results:
+        resultList = results[resultType]
         # ignore empty
         if len(resultList) == 0:
             continue
         # add
         nSites = len(resultList)
-        if not numTypeMap.has_key(nSites):
+        if nSites not in numTypeMap:
             numTypeMap[nSites] = []
         numTypeMap[nSites].append(resultType)    
     # sort
@@ -430,7 +365,7 @@ def makeCompactDiagMessage(header,results):
     for numTypeKey in numTypeKeys:
         for resultType in numTypeMap[numTypeKey]:
             # label
-            if messageMap.has_key(resultType):
+            if resultType in messageMap:
                 retStr += '%s at ' % messageMap[resultType]
             else:
                 retStr += '%s at' % resultType
@@ -541,7 +476,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         manyInputsThr     = 20
         weightUsedByBrokerage = {}
 
-        prestageSites = getPrestageSites(siteMapper)
+        prestageSites = []
 
         # check if only JEDI
         onlyJEDI = True
@@ -553,6 +488,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         # get statistics
         faresharePolicy = {}
         newJobStatWithPrio = {}
+        jobStatBrokerClouds = {}
         jobStatBrokerCloudsWithPrio = {}
         if len(jobs) > 0 and (jobs[0].processingType.startswith('gangarobot') or \
                               jobs[0].processingType.startswith('hammercloud') or \
@@ -571,7 +507,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 jobStatBrokerClouds = taskBuffer.getJobStatisticsBrokerage()
                 faresharePolicy = taskBuffer.getFaresharePolicy()
             else:
-                if minPriority == None:
+                if minPriority is None:
                     jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage()
                 else:
                     jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage(minPriority=minPriority)                    
@@ -598,7 +534,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         for job in jobs+[None]:
             indexJob += 1
             # ignore failed jobs
-            if job == None:
+            if job is None:
                 pass
             elif job.jobStatus == 'failed':
                 continue
@@ -608,7 +544,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             brokerageNote = ''
             # send jobs to T2 when files are missing at T1
             goToT2Flag = False
-            if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
+            if job is not None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
                    and specialBrokergageSiteList == []:
                 currentT2CandList = getT2CandList(job,siteMapper,t2FilesMap)
                 if currentT2CandList != []:
@@ -617,16 +553,16 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     tmpLog.debug('PandaID:%s -> set SiteList=%s to use T2 for missing files at T1' % (job.PandaID,specialBrokergageSiteList))
                     brokerageNote = 'useT2'
             # set computingSite to T1 for high priority jobs
-            if job != None and job.currentPriority >= 950 and job.computingSite == 'NULL' \
+            if job is not None and job.currentPriority >= 950 and job.computingSite == 'NULL' \
                    and job.prodSourceLabel in ('test','managed') and specialBrokergageSiteList == []:
                 specialBrokergageSiteList = [siteMapper.getCloud(job.getCloud())['source']]
                 # set site list to use T1 and T1_VL
-                if hospitalQueueMap.has_key(job.getCloud()):
+                if job.getCloud() in hospitalQueueMap:
                     specialBrokergageSiteList += hospitalQueueMap[job.getCloud()]
                 tmpLog.debug('PandaID:%s -> set SiteList=%s for high prio' % (job.PandaID,specialBrokergageSiteList))
                 brokerageNote = 'highPrio'
             # use limited sites for MP jobs
-            if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
+            if job is not None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
                    and not job.coreCount in [None,'NULL'] and job.coreCount > 1 and specialBrokergageSiteList == []:
                 for tmpSiteName in siteMapper.getCloud(job.getCloud())['sites']:
                     if siteMapper.checkSite(tmpSiteName):
@@ -635,25 +571,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             specialBrokergageSiteList.append(tmpSiteName)
                 tmpLog.debug('PandaID:%s -> set SiteList=%s for MP=%scores' % (job.PandaID,specialBrokergageSiteList,job.coreCount))
                 brokerageNote = 'MP=%score' % job.coreCount
-            # set computingSite to T1 when too many inputs are required
-            """    
-            if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
-                   and specialBrokergageSiteList == []:
-                # counts # of inputs
-                tmpTotalInput = 0
-                for tmpFile in job.Files:
-                    if tmpFile.type == 'input':
-                        tmpTotalInput += 1
-                if tmpTotalInput >= manyInputsThr:
-                    specialBrokergageSiteList = [siteMapper.getCloud(job.getCloud())['source']]
-                    # set site list to use T1 and T1_VL
-                    if hospitalQueueMap.has_key(job.getCloud()):
-                        specialBrokergageSiteList += hospitalQueueMap[job.getCloud()]
-                    tmpLog.debug('PandaID:%s -> set SiteList=%s for too many inputs' % (job.PandaID,specialBrokergageSiteList))
-                    brokerageNote = 'manyInput'
-            """        
             # use limited sites for reprocessing
-            if job != None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
+            if job is not None and job.computingSite == 'NULL' and job.prodSourceLabel in ('test','managed') \
                    and job.processingType in ['reprocessing'] and specialBrokergageSiteList == []:
                 for tmpSiteName in siteMapper.getCloud(job.getCloud())['sites']:
                     if siteMapper.checkSite(tmpSiteName):
@@ -664,7 +583,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 brokerageNote = '%s' % job.processingType                
             # manually set site
             manualPreset = False
-            if job != None and job.computingSite != 'NULL' and job.prodSourceLabel in ('test','managed') \
+            if job is not None and job.computingSite != 'NULL' and job.prodSourceLabel in ('test','managed') \
                    and specialBrokergageSiteList == []:
                 specialBrokergageSiteList = [job.computingSite]
                 manualPreset = True
@@ -672,11 +591,11 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             overwriteSite = False
             # check JEDI
             isJEDI = False
-            if job != None and job.lockedby == 'jedi' and job.processingType != 'evtest':
+            if job is not None and job.lockedby == 'jedi' and job.processingType != 'evtest':
                 isJEDI = True
             # new bunch or terminator
-            if job == None or len(fileList) >= nFile \
-                   or (dispatchDBlock == None and job.homepackage.startswith('AnalysisTransforms')) \
+            if job is None or len(fileList) >= nFile \
+                   or (dispatchDBlock is None and job.homepackage.startswith('AnalysisTransforms')) \
                    or prodDBlock != job.prodDBlock or job.computingSite != computingSite or iJob > nJob \
                    or previousCloud != job.getCloud() or prevRelease != job.AtlasRelease \
                    or prevCmtConfig != job.cmtConfig \
@@ -720,7 +639,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                      jobsInBunch = jobs[indexJob-iJob-1:indexJob-1]
                      if jobsInBunch != [] and fileList != [] and (not computingSite in prestageSites) \
                             and (jobsInBunch[0].prodSourceLabel in ['managed','software'] or \
-                                 re.search('test',jobsInBunch[0].prodSourceLabel) != None):
+                                 re.search('test',jobsInBunch[0].prodSourceLabel) is not None):
                          # get site spec
                          tmp_chosen_ce = siteMapper.getSite(computingSite)
                          # get files from LRC 
@@ -750,7 +669,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         # use given sites
                         scanSiteList = setScanSiteList
                         # add long queue
-                        for tmpShortQueue,tmpLongQueue in shortLongMap.iteritems():
+                        for tmpShortQueue in shortLongMap:
+                            tmpLongQueue = shortLongMap[tmpShortQueue]
                             if tmpShortQueue in scanSiteList:
                                 if not tmpLongQueue in scanSiteList:
                                     scanSiteList.append(tmpLongQueue)
@@ -763,7 +683,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                            (not prevCoreCount in ['NULL',None] and prevCoreCount > 1):
                         scanSiteList = [siteMapper.getCloud(previousCloud)['source']]
                         # set site list to use T1 and T1_VL
-                        if hospitalQueueMap.has_key(previousCloud):
+                        if previousCloud in hospitalQueueMap:
                             scanSiteList += hospitalQueueMap[previousCloud]
                     # get availabe sites with cache
                     useCacheVersion = False
@@ -778,7 +698,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     tmpCmtConfig = 'i686%'
                                 # extract OS ver
                                 tmpMatch = re.search('(slc\d+)',prevCmtConfig)
-                                if tmpMatch != None:
+                                if tmpMatch is not None:
                                     tmpCmtConfig += tmpMatch.group(1)
                                     tmpCmtConfig += '%'
                                 useCacheVersion = True
@@ -790,15 +710,15 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             else:
                                 # reset release info for backward compatibility
                                 prevRelease = ''
-                        elif re.search('-\d+\.\d+\.\d+\.\d+',prevRelease) != None:
+                        elif re.search('-\d+\.\d+\.\d+\.\d+',prevRelease) is not None:
                             useCacheVersion = True
                             siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,caches=prevRelease,cmtConfig=prevCmtConfig)
                             tmpLog.debug('  using installSW for cache %s' % prevRelease)
-                        elif re.search('-\d+\.\d+\.\d+$',prevRelease) != None:
+                        elif re.search('-\d+\.\d+\.\d+$',prevRelease) is not None:
                             useCacheVersion = True
                             siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,releases=prevRelease,cmtConfig=prevCmtConfig)
                             tmpLog.debug('  using installSW for release %s' % prevRelease)
-                        elif re.search(':rel_\d+$$',prevRelease) != None:
+                        elif re.search(':rel_\d+$$',prevRelease) is not None:
                             useCacheVersion = True
                             # FIXME
                             #siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,
@@ -811,7 +731,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             useCacheVersion = True
                             # change / to -
                             convedPrevHomePkg = prevHomePkg.replace('/','-')
-                            if re.search('rel_\d+(\n|$)',prevHomePkg) == None:
+                            if re.search('rel_\d+(\n|$)',prevHomePkg) is None:
                                 # only cache is used for normal jobs
                                 siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,caches=convedPrevHomePkg,
                                                                                      cmtConfig=prevCmtConfig)
@@ -897,7 +817,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                             tmpLog.debug('  skip: site memory shortage %s<%s' % (tmpSiteSpec.memory,prevMemory))
                                             resultsForAnal['memory'].append(site)
                                             continue
-                                    except:
+                                    except Exception:
                                         errtype,errvalue = sys.exc_info()[:2]
                                         tmpLog.error("max memory check : %s %s" % (errtype,errvalue))
                                 # check min memory
@@ -907,7 +827,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                             tmpLog.debug('  skip: job memory shortage %s>%s' % (tmpSiteSpec.memory,prevMemory))
                                             resultsForAnal['memory'].append(site)
                                             continue
-                                    except:
+                                    except Exception:
                                         errtype,errvalue = sys.exc_info()[:2]
                                         tmpLog.error("min memory check : %s %s" % (errtype,errvalue))
                                 # check maxcpucount
@@ -917,7 +837,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                             tmpLog.debug('  skip: insufficient maxtime %s<%s' % (tmpSiteSpec.maxtime,prevMaxCpuCount))
                                             resultsForAnal['maxtime'].append(site)
                                             continue
-                                    except:
+                                    except Exception:
                                         errtype,errvalue = sys.exc_info()[:2]
                                         tmpLog.error("maxtime check : %s %s" % (errtype,errvalue))
                                 if tmpSiteSpec.mintime != 0 and not prevMaxCpuCount in [None,0,'NULL']:
@@ -926,7 +846,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                             tmpLog.debug('  skip: insufficient job maxtime %s<%s' % (prevMaxCpuCount,tmpSiteSpec.mintime))
                                             resultsForAnal['maxtime'].append(site)
                                             continue
-                                    except:
+                                    except Exception:
                                         errtype,errvalue = sys.exc_info()[:2]
                                         tmpLog.error("mintime check : %s %s" % (errtype,errvalue))
                                 # check max work dir size
@@ -936,13 +856,13 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                             tmpLog.debug('  skip: not enough disk %s<%s' % (tmpSiteSpec.maxwdir,prevDiskCount))
                                             resultsForAnal['scratch'].append(site)
                                             continue
-                                    except:
+                                    except Exception:
                                         errtype,errvalue = sys.exc_info()[:2]
                                         tmpLog.error("disk check : %s %s" % (errtype,errvalue))
                                 tmpLog.debug('   maxwdir=%s' % tmpSiteSpec.maxwdir)
                                 # reliability
                                 if forAnalysis and isinstance(siteReliability,types.IntType):
-                                    if tmpSiteSpec.reliabilityLevel != None and tmpSiteSpec.reliabilityLevel > siteReliability:
+                                    if tmpSiteSpec.reliabilityLevel is not None and tmpSiteSpec.reliabilityLevel > siteReliability:
                                         tmpLog.debug(' skip: insufficient reliability %s > %s' % (tmpSiteSpec.reliabilityLevel,siteReliability))
                                         resultsForAnal['reliability'].append(site)
                                         continue
@@ -977,7 +897,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         if trustIS:
                                             resultsForAnal['rel'].append(site)
                                         continue
-                                elif prevRelease != None and \
+                                elif prevRelease is not None and \
                                          (useCacheVersion and not tmpSiteSpec.cloud in ['ND'] and not site in ['CERN-RELEASE']) and \
                                          (not prevProType in ['reprocessing']) and \
                                          (not site in siteListWithCache):
@@ -990,10 +910,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                                 message = '%s - cache %s/%s not found' % (site,prevHomePkg.replace('\n',' '),prevCmtConfig)
                                                 if not message in loggerMessages:
                                                     loggerMessages.append(message)
-                                        except:
+                                        except Exception:
                                             pass
                                         continue
-                                elif prevRelease != None and \
+                                elif prevRelease is not None and \
                                      ((not useCacheVersion and releases != [] and not tmpSiteSpec.cloud in ['ND'] and not site in ['CERN-RELEASE']) or prevProType in ['reprocessing']) and \
                                      (((not _checkRelease(prevRelease,releases) and prevManualPreset == False) or not site in siteListWithCache) and not tmpSiteSpec.cloud in ['ND'] and not site in ['CERN-RELEASE']):
                                     # release matching
@@ -1015,7 +935,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 nPilotsUpdate = 0
                                 if nWNmap == {}:
                                     nWNmap = taskBuffer.getCurrentSiteData()
-                                if nWNmap.has_key(site):    
+                                if site in nWNmap:
                                     nPilots = nWNmap[site]['getJob'] + nWNmap[site]['updateJob']
                                     nPilotsGet = nWNmap[site]['getJob']
                                     nPilotsUpdate = nWNmap[site]['updateJob']
@@ -1037,16 +957,15 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     resultsForAnal['pilot'].append(site)
                                     continue
                                 # if no jobs in jobsActive/jobsDefined
-                                if not jobStatistics.has_key(site):
-                                    jobStatistics[site] = {'assigned':0,'activated':0,'running':0,'transferring':0}
+                                jobStatistics.setdefault(site,
+                                                         {'assigned':0,'activated':0,'running':0,'transferring':0})
                                 # set nRunning 
                                 if forAnalysis:
-                                    if not nRunningMap.has_key(site):
-                                        nRunningMap[site] = 0
+                                    nRunningMap.setdefault(site, 0)
                                 # check space
                                 if specialWeight != {}:
                                     # for PD2P
-                                    if sizeMapForCheck.has_key(site):
+                                    if site in sizeMapForCheck:
                                         # threshold for PD2P max(5%,3TB)
                                         thrForThisSite = long(sizeMapForCheck[site]['total'] * 5 / 100)
                                         if thrForThisSite < diskThresholdPD2P:
@@ -1092,7 +1011,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                                     message = '%s - disk %s < %s' % (site,remSpace,diskThreshold)
                                                     if not message in loggerMessages:
                                                         loggerMessages.append(message)
-                                            except:
+                                            except Exception:
                                                 pass
                                             continue
                                 # get the process group
@@ -1103,20 +1022,20 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 # production share
                                 skipDueToShare = False
                                 try:
-                                    if not forAnalysis and prevSourceLabel in ['managed'] and faresharePolicy.has_key(site):
+                                    if not forAnalysis and prevSourceLabel in ['managed'] and site in faresharePolicy:
                                         for tmpPolicy in faresharePolicy[site]['policyList']:
                                             # ignore priority policy
-                                            if tmpPolicy['priority'] != None:
+                                            if tmpPolicy['priority'] is not None:
                                                 continue
                                             # only zero share
                                             if tmpPolicy['share'] != '0%':
                                                 continue
                                             # check group
-                                            if tmpPolicy['group'] != None:
+                                            if tmpPolicy['group'] is not None:
                                                 if '*' in tmpPolicy['group']:
                                                     # wildcard
                                                     tmpPatt = '^' + tmpPolicy['group'].replace('*','.*') + '$'
-                                                    if re.search(tmpPatt,prevWorkingGroup) == None:
+                                                    if re.search(tmpPatt,prevWorkingGroup) is None:
                                                         continue
                                                 else:
                                                     # normal definition
@@ -1131,7 +1050,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                                     if '*' in groupInDefItem:
                                                         # wildcard
                                                         tmpPatt = '^' + groupInDefItem.replace('*','.*') + '$'
-                                                        if re.search(tmpPatt,prevWorkingGroup) != None:
+                                                        if re.search(tmpPatt,prevWorkingGroup) is not None:
                                                             usedByAnother = True
                                                             break
                                                     else:
@@ -1142,7 +1061,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                                 if usedByAnother:
                                                     continue
                                             # check type
-                                            if tmpPolicy['type'] != None:
+                                            if tmpPolicy['type'] is not None:
                                                 if tmpPolicy['type'] == tmpProGroup:
                                                     skipDueToShare = True
                                                     break
@@ -1162,30 +1081,29 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                             tmpLog.debug(" skip: %s zero share" % site)
                                             resultsForAnal['share'].append(site)
                                             continue
-                                except:
+                                except Exception:
                                     errtype,errvalue = sys.exc_info()[:2]
                                     tmpLog.error("share check : %s %s" % (errtype,errvalue))
                                 # the number of assigned and activated
-                                if not forAnalysis:                                
-                                    if not jobStatBrokerClouds.has_key(previousCloud):
-                                        jobStatBrokerClouds[previousCloud] = {}
+                                if not forAnalysis:
+                                    jobStatBrokerClouds.setdefault(previousCloud, {})
                                     # use number of jobs in the cloud    
                                     jobStatBroker = jobStatBrokerClouds[previousCloud]
-                                if not jobStatBroker.has_key(site):
+                                if site not in jobStatBroker:
                                     jobStatBroker[site] = {}
-                                if not jobStatBroker[site].has_key(tmpProGroup):
+                                if tmpProGroup not in jobStatBroker[site]:
                                     jobStatBroker[site][tmpProGroup] = {'assigned':0,'activated':0,'running':0,'transferring':0}
                                 # count # of assigned and activated jobs for prod by taking priorities in to account
                                 nRunJobsPerGroup = None
                                 if not forAnalysis and prevSourceLabel in ['managed','test']:
-                                    if not jobStatBrokerCloudsWithPrio.has_key(prevPriority):
-                                        jobStatBrokerCloudsWithPrio[prevPriority] = taskBuffer.getJobStatisticsBrokerage(prevPriority,prevPriority+prioInterval)
-                                    if not jobStatBrokerCloudsWithPrio[prevPriority].has_key(previousCloud):
-                                        jobStatBrokerCloudsWithPrio[prevPriority][previousCloud] = {}
-                                    if not jobStatBrokerCloudsWithPrio[prevPriority][previousCloud].has_key(site):
-                                        jobStatBrokerCloudsWithPrio[prevPriority][previousCloud][site] = {}
-                                    if not jobStatBrokerCloudsWithPrio[prevPriority][previousCloud][site].has_key(tmpProGroup):
-                                        jobStatBrokerCloudsWithPrio[prevPriority][previousCloud][site][tmpProGroup] = {'assigned':0,'activated':0,'running':0,'transferring':0}
+                                    jobStatBrokerCloudsWithPrio.setdefault(prevPriority,
+                                                                           taskBuffer.getJobStatisticsBrokerage(
+                                                                               prevPriority,
+                                                                               prevPriority+prioInterval))
+                                    jobStatBrokerCloudsWithPrio[prevPriority].setdefaut(previousCloud, {})
+                                    jobStatBrokerCloudsWithPrio[prevPriority][previousCloud].setdefault(site, {})
+                                    jobStatBrokerCloudsWithPrio[prevPriority][previousCloud][site].setdefault(
+                                        tmpProGroup, {'assigned':0,'activated':0,'running':0,'transferring':0})
                                     nAssJobs = jobStatBrokerCloudsWithPrio[prevPriority][previousCloud][site][tmpProGroup]['assigned']
                                     nActJobs = jobStatBrokerCloudsWithPrio[prevPriority][previousCloud][site][tmpProGroup]['activated']
                                     nRunJobsPerGroup = jobStatBrokerCloudsWithPrio[prevPriority][previousCloud][site][tmpProGroup]['running']
@@ -1193,25 +1111,25 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     for tmpNewPriority in newJobStatWithPrio.keys():
                                         if tmpNewPriority < prevPriority:
                                             continue
-                                        if not newJobStatWithPrio[tmpNewPriority].has_key(previousCloud):
+                                        if previousCloud not in newJobStatWithPrio[tmpNewPriority]:
                                             continue
-                                        if not newJobStatWithPrio[tmpNewPriority][previousCloud].has_key(site):
+                                        if site not in newJobStatWithPrio[tmpNewPriority][previousCloud]:
                                             continue
-                                        if not newJobStatWithPrio[tmpNewPriority][previousCloud][site].has_key(tmpProGroup):
+                                        if tmpProGroup not in newJobStatWithPrio[tmpNewPriority][previousCloud][site]:
                                             continue
                                         nAssJobs += newJobStatWithPrio[tmpNewPriority][previousCloud][site][tmpProGroup]
                                 else:
                                     nAssJobs = jobStatBroker[site][tmpProGroup]['assigned']
-                                    if forAnalysis and jobStatBroker[site][tmpProGroup].has_key('defined'):
+                                    if forAnalysis and 'defined' in jobStatBroker[site][tmpProGroup]:
                                         nAssJobs += jobStatBroker[site][tmpProGroup]['defined']
                                     nActJobs = jobStatBroker[site][tmpProGroup]['activated']
                                 # number of jobs per node
-                                if not nWNmap.has_key(site):
+                                if site not in nWNmap:
                                     nJobsPerNode = 1
                                 elif jobStatistics[site]['running']==0 or nWNmap[site]['updateJob']==0:
                                     nJobsPerNode = 1
                                 else:
-                                    if nRunJobsPerGroup == None:
+                                    if nRunJobsPerGroup is None:
                                         nJobsPerNode = float(jobStatistics[site]['running'])/float(nWNmap[site]['updateJob'])
                                     else:
                                         if nRunJobsPerGroup == 0:
@@ -1227,10 +1145,11 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 if not forAnalysis and not tmpSiteSpec.cloud in ['ND']:
                                     nTraJobs = 0
                                     nRunJobs = 0
-                                    for tmpGroupForTra,tmpCountsForTra in jobStatBroker[site].iteritems():
-                                        if tmpCountsForTra.has_key('running'):
+                                    for tmpGroupForTra in jobStatBroker[site]:
+                                        tmpCountsForTra = jobStatBroker[site][tmpGroupForTra]
+                                        if 'running' in tmpCountsForTra:
                                             nRunJobs += tmpCountsForTra['running']
-                                        if tmpCountsForTra.has_key('transferring'):
+                                        if 'transferring' in tmpCountsForTra:
                                             nTraJobs += tmpCountsForTra['transferring']
                                     tmpLog.debug('   running=%s transferring=%s max=%s' % (nRunJobs,nTraJobs,maxTransferring))
                                     if max(maxTransferring,2*nRunJobs) < nTraJobs:
@@ -1263,7 +1182,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     if not pd2pT1:
                                         # weight for T2 PD2P
                                         nSubs = 1
-                                        if specialWeight.has_key(site):
+                                        if site in specialWeight:
                                             nSubs = specialWeight[site]
                                         tmpLog.debug('   %s nSubs:%s assigned:%s activated:%s running:%s nWNsG:%s nWNsU:%s' % \
                                                    (site,nSubs,nAssJobs,nActJobs,nRunningMap[site],nPilotsGet,nPilotsUpdate))
@@ -1278,7 +1197,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                             weightUsedByBrokerage[site] = "%s" % specialWeight[site]
                                 else:
                                     if not forAnalysis:
-                                        if nRunJobsPerGroup == None:
+                                        if nRunJobsPerGroup is None:
                                             tmpLog.debug('   %s assigned:%s activated:%s running:%s nPilotsGet:%s nPilotsUpdate:%s multiCloud:%s' %
                                                          (site,nAssJobs,nActJobs,jobStatistics[site]['running'],nPilotsGet,nPilotsUpdate,multiCloudFactor))
                                         else:
@@ -1290,7 +1209,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     if forAnalysis:
                                         winv = float(nAssJobs+nActJobs) / float(1+nRunningMap[site]) / (1.0+float(nPilotsGet)/float(1+nPilotsUpdate))
                                     else:
-                                        if nRunJobsPerGroup == None:
+                                        if nRunJobsPerGroup is None:
                                             winv = float(nAssJobs+nActJobs) / float(1+jobStatistics[site]['running']) / (float(1+nPilotsGet)/float(1+nPilotsUpdate))
                                         else:
                                             winv = float(nAssJobs+nActJobs) / float(1+nRunJobsPerGroup) / (float(1+nPilotsGet)/float(1+nPilotsUpdate))
@@ -1299,14 +1218,14 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     if _isTooManyInput(nFilesPerJob,inputSizePerJob):
                                         if site == siteMapper.getCloud(previousCloud)['source'] or \
                                            (site=='NIKHEF-ELPROD' and previousCloud=='NL' and prevProType=='reprocessing') or \
-                                           (hospitalQueueMap.has_key(previousCloud) and site in hospitalQueueMap[previousCloud]):
+                                           (previousCloud in hospitalQueueMap and site in hospitalQueueMap[previousCloud]):
                                             cloudT1Weight = 2.0
                                             # use weight in cloudconfig
                                             try:
                                                 tmpCloudT1Weight = float(siteMapper.getCloud(previousCloud)['weight'])
                                                 if tmpCloudT1Weight != 0.0:
                                                     cloudT1Weight = tmpCloudT1Weight
-                                            except:
+                                            except Exception:
                                                 pass
                                             winv /= cloudT1Weight
                                             tmpLog.debug('   special weight for %s : nInputs/Job=%s inputSize/Job=%s weight=%s' % 
@@ -1322,7 +1241,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             if len(minSites) > nMinSites:
                                 maxSite = site
                                 maxWinv = winv
-                                for tmpSite,tmpWinv in minSites.iteritems():
+                                for tmpSite in minSites:
+                                    tmpWinv = minSites[tmpSite]
                                     if tmpWinv > maxWinv:
                                         maxSite = tmpSite
                                         maxWinv = tmpWinv
@@ -1333,14 +1253,16 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 # look for minimum
                                 minSite = minSites.keys()[0]
                                 minWinv = minSites[minSite]
-                                for tmpSite,tmpWinv in minSites.iteritems():
+                                for tmpSite in minSites:
+                                    tmpWinv = minSites[tmpSite]
                                     if tmpWinv < minWinv:
                                         minSite = tmpSite
                                         minWinv = tmpWinv
                                 # look for too different weights
                                 difference = 2
                                 removeSites = []
-                                for tmpSite,tmpWinv in minSites.iteritems():
+                                for tmpSite in minSites:
+                                    tmpWinv = minSites[tmpSite]
                                     if tmpWinv > minWinv*difference:
                                         removeSites.append(tmpSite)
                                 # remove
@@ -1366,7 +1288,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         # choose min 1/weight
                         minSite = minSites.keys()[0]
                         minWinv = minSites[minSite]
-                        for tmpSite,tmpWinv in minSites.iteritems():
+                        for tmpSite in minSites:
+                            tmpWinv = minSites[tmpSite]
                             if tmpWinv < minWinv:
                                 minSite = tmpSite
                                 minWinv = tmpWinv
@@ -1424,12 +1347,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             tmpJob.computingSite = resultsForAnalStr
                         else:
                             tmpJob.computingSite = chosenCE.sitename
-                        # send log
-                        if forAnalysis and trustIS and reportLog:
-                            # put logging info to ErrorDiag just to give it back to the caller
-                            tmpJob.brokerageErrorDiag = sendAnalyBrokeageInfo(resultsForAnal,prevRelease,diskThresholdAna,
-                                                                              tmpJob.computingSite,prevCmtConfig,
-                                                                              siteReliability)
                         tmpLog.debug('PandaID:%s -> site:%s' % (tmpJob.PandaID,tmpJob.computingSite))
                         if tmpJob.computingElement == 'NULL':
                             if tmpJob.prodSourceLabel == 'ddm':
@@ -1470,7 +1387,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.homepackage,tmpJob.cmtConfig,tmpJob.computingSite)
                                     else:
                                         tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.AtlasRelease,tmpJob.cmtConfig,tmpJob.computingSite)
-                                except:
+                                except Exception:
                                     errtype,errvalue = sys.exc_info()[:2]
                                     tmpLog.error("failed to set diag for %s: %s %s" % (tmpJob.PandaID,errtype,errvalue))
                                     tmpJob.brokerageErrorDiag = 'failed to set diag. see brokerage log in the panda server'
@@ -1478,7 +1395,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 try:
                                     # make message
                                     tmpJob.brokerageErrorDiag = makeCompactDiagMessage(prevBrokerageNote,resultsForAnal)
-                                except:
+                                except Exception:
                                     errtype,errvalue = sys.exc_info()[:2]
                                     tmpLog.error("failed to set special diag for %s: %s %s" % (tmpJob.PandaID,errtype,errvalue))
                                     tmpJob.brokerageErrorDiag = 'failed to set diag. see brokerage log in the panda server'
@@ -1490,7 +1407,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             else:
                                 try:
                                     tmpJob.brokerageErrorDiag = makeCompactDiagMessage('',resultsForAnal)
-                                except:
+                                except Exception:
                                     errtype,errvalue = sys.exc_info()[:2]
                                     tmpLog.error("failed to set compact diag for %s: %s %s" % (tmpJob.PandaID,errtype,errvalue))
                                     tmpJob.brokerageErrorDiag = 'failed to set diag. see brokerage log in the panda server'
@@ -1504,27 +1421,22 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         if tmpJob.processingType in skipBrokerageProTypes:
                             # use original processingType since prod_test is in the test category and thus is interfered by validations 
                             tmpProGroup = tmpJob.processingType
-                        if not jobStatistics.has_key(tmpJob.computingSite):
-                            jobStatistics[tmpJob.computingSite] = {'assigned':0,'activated':0,'running':0}
-                        if not jobStatBroker.has_key(tmpJob.computingSite):
-                            jobStatBroker[tmpJob.computingSite] = {}
-                        if not jobStatBroker[tmpJob.computingSite].has_key(tmpProGroup):
-                            jobStatBroker[tmpJob.computingSite][tmpProGroup] = {'assigned':0,'activated':0,'running':0}
+                        jobStatistics.setdefault(tmpJob.computingSite, {'assigned':0,'activated':0,'running':0})
+                        jobStatBroker.setdefault(tmpJob.computingSite, {})
+                        jobStatBroker[tmpJob.computingSite].setdefault(tmpProGroup,
+                                                                       {'assigned':0,'activated':0,'running':0})
                         jobStatistics[tmpJob.computingSite]['assigned'] += 1
                         jobStatBroker[tmpJob.computingSite][tmpProGroup]['assigned'] += 1
                         # update statistics by taking priorities into account
                         if not forAnalysis and prevSourceLabel in ['managed','test']:
-                            if not newJobStatWithPrio.has_key(prevPriority):
-                                newJobStatWithPrio[prevPriority] = {}
-                            if not newJobStatWithPrio[prevPriority].has_key(tmpJob.getCloud()):
-                                newJobStatWithPrio[prevPriority][tmpJob.getCloud()] = {}
-                            if not newJobStatWithPrio[prevPriority][tmpJob.getCloud()].has_key(tmpJob.computingSite):
-                                newJobStatWithPrio[prevPriority][tmpJob.getCloud()][tmpJob.computingSite] = {}
-                            if not newJobStatWithPrio[prevPriority][tmpJob.getCloud()][tmpJob.computingSite].has_key(tmpProGroup):
-                                newJobStatWithPrio[prevPriority][tmpJob.getCloud()][tmpJob.computingSite][tmpProGroup] = 0
+                            newJobStatWithPrio.setdefault(prevPriority, {})
+                            newJobStatWithPrio[prevPriority].setdefault(tmpJob.getCloud(), {})
+                            newJobStatWithPrio[prevPriority][tmpJob.getCloud()].setdefault(tmpJob.computingSite, {})
+                            newJobStatWithPrio[prevPriority][tmpJob.getCloud()][tmpJob.computingSite].setdefault(
+                                tmpProGroup, 0)
                             newJobStatWithPrio[prevPriority][tmpJob.getCloud()][tmpJob.computingSite][tmpProGroup] += 1
                 # terminate
-                if job == None:
+                if job is None:
                     break
                 # reset iJob
                 iJob = 0
@@ -1540,14 +1452,14 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     # get datatype
                     try:
                         tmpDataType = job.prodDBlock.split('.')[-2]
-                    except:
+                    except Exception:
                         # default
                         tmpDataType = 'GEN'                        
                     if len(tmpDataType) > 20:
                         # avoid too long name
                         tmpDataType = 'GEN'
                     dispatchDBlock = "panda.%s.%s.%s.%s_dis%s" % (job.taskID,time.strftime('%m.%d'),tmpDataType,
-                                                                  commands.getoutput('uuidgen'),job.PandaID)
+                                                                  str(uuid.uuid4()), job.PandaID)
                     tmpLog.debug('New dispatchDBlock: %s' % dispatchDBlock)                    
                 prodDBlock = job.prodDBlock
                 # already define computingSite
@@ -1602,8 +1514,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     else:
                         job.computingElement = chosen_ce.gatekeeper
                 # update statistics
-                if not jobStatistics.has_key(job.computingSite):
-                    jobStatistics[job.computingSite] = {'assigned':0,'activated':0,'running':0}
+                jobStatistics.setdefault(job.computingSite, {'assigned':0,'activated':0,'running':0})
                 jobStatistics[job.computingSite]['assigned'] += 1
                 tmpLog.debug('PandaID:%s -> preset site:%s' % (job.PandaID,chosen_ce.sitename))
                 # set cloud
@@ -1615,7 +1526,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 # use cloud dest for non-exsiting sites
                 if job.prodSourceLabel != 'user' and (not job.destinationSE in siteMapper.siteSpecList.keys()) \
                        and job.destinationSE != 'local':
-                    if DataServiceUtils.checkJobDestinationSE(job) != None:
+                    if DataServiceUtils.checkJobDestinationSE(job) is not None:
                         destSE = DataServiceUtils.checkJobDestinationSE(job)
                     else:
                         destSE = siteMapper.getCloud(job.getCloud())['dest'] 
@@ -1645,10 +1556,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         try:
                             # get total number/size of inputs except DBRelease
                             # tgz inputs for evgen may be negligible
-                            if re.search('\.tar\.gz',file.lfn) == None:
+                            if re.search('\.tar\.gz',file.lfn) is None:
                                 totalNumInputs += 1
                                 totalInputSize += file.fsize
-                        except:
+                        except Exception:
                             pass
                 # destinationSE
                 if file.type in ['output','log'] and destSE != '':
@@ -1658,7 +1569,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         pass
                     elif destSE == 'local':
                         pass
-                    elif DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) != None:
+                    elif DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) is not None:
                         pass
                     else:
                         file.destinationSE = destSE
@@ -1667,7 +1578,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     # get lock
                     fcntl.flock(_lockGetUU.fileno(), fcntl.LOCK_EX)                
                     # generate GUID
-                    file.GUID = commands.getoutput('uuidgen')
+                    file.GUID = str(uuid.uuid4())
                     # release lock
                     fcntl.flock(_lockGetUU.fileno(), fcntl.LOCK_UN)
         # send log messages
@@ -1683,10 +1594,10 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 # release HTTP handler
                 _pandaLogger.release()
                 time.sleep(1)
-        except:
+        except Exception:
             pass
         # send analysis brokerage info when jobs are submitted
-        if len(jobs) > 0 and jobs[0] != None and not forAnalysis and not pd2pT1 and specialWeight=={}:
+        if len(jobs) > 0 and jobs[0] is not None and not forAnalysis and not pd2pT1 and specialWeight=={}:
             # for analysis job. FIXME once ganga is updated to send analy brokerage info
             if jobs[0].prodSourceLabel in ['user','panda'] and jobs[0].processingType in ['pathena','prun']:
                 # send countryGroup
@@ -1707,7 +1618,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         tmpLog.debug('finished')
         if getWeight:
             return weightUsedByBrokerage
-    except:
+    except Exception:
         type, value, traceBack = sys.exc_info()
         tmpLog.error("schedule : %s %s" % (type,value))
         if getWeight:

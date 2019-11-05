@@ -1,5 +1,4 @@
 import os
-import re
 import sys
 import time
 import types
@@ -7,15 +6,23 @@ import socket
 import signal
 import random
 import threading
-import cPickle as pickle
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
-import OraDBProxy as DBProxy
+from pandaserver.taskbuffer import OraDBProxy as DBProxy
 
-from config      import panda_config
-from JobSpec     import JobSpec
-from FileSpec    import FileSpec
-from DatasetSpec import DatasetSpec
-from pandalogger.PandaLogger import PandaLogger
+from pandaserver.config      import panda_config
+from pandaserver.taskbuffer.JobSpec     import JobSpec
+from pandaserver.taskbuffer.FileSpec    import FileSpec
+from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+
+try:
+    long
+except NameError:
+    long = int
 
 # logger
 _logger = PandaLogger().getLogger('ConBridge')
@@ -40,7 +47,7 @@ class Terminator (threading.Thread):
         # watching control socket
         try:
             rcvSize = self.consock.recv(1)
-        except:
+        except Exception:
             pass
         # get PID
         pid = os.getpid()
@@ -48,11 +55,11 @@ class Terminator (threading.Thread):
         # kill 
         try:
             os.kill(pid,signal.SIGTERM)
-        except:
+        except Exception:
             pass
         try:
             os.kill(pid,signal.SIGKILL)
-        except:
+        except Exception:
             pass
 
 
@@ -143,7 +150,7 @@ class ConBridge (object):
                 self.bridge_getResponse()
                 _logger.debug('master %s got ready from child=%s' % (self.pid,self.child_pid))
                 return True
-            except:
+            except Exception:
                 errType,errValue = sys.exc_info()[:2]
                 _logger.error('master %s failed to setup child=%s : %s %s' % \
                               (self.pid,self.child_pid,errType,errValue))
@@ -171,18 +178,17 @@ class ConBridge (object):
             # set timeout back
             if self.isMaster:
                 self.mysock.settimeout(None)
-        except:
-            errType,errValue = sys.exc_info()[:2]
+        except Exception as e:
             if self.isMaster:
                 roleType = 'master'
             else:
                 roleType = 'child '                
-            _logger.error('%s %s send error : val=%s - %s %s' % \
-                          (roleType,self.pid,str(val),errType,errValue))
+            _logger.error('%s %s send error : val=%s - %s' % \
+                          (roleType, self.pid, str(val), str(e)))
             # terminate child
             if not self.isMaster:
                 self.bridge_childExit()
-            raise errType,errValue    
+            raise e
             
 
     # receive packet
@@ -199,10 +205,10 @@ class ConBridge (object):
                 tmpStr = self.mysock.recv(tmpSize)
                 if tmpStr == '':
                     if self.isMaster:
-                        raise socket.error,'empty packet'
+                        raise socket.error('empty packet')
                     else:
                         # master closed socket
-                        raise HarmlessEx,'empty packet'
+                        raise HarmlessEx('empty packet')
                 strSize += tmpStr
             # get body
             strBody = ''
@@ -212,10 +218,10 @@ class ConBridge (object):
                 tmpStr = self.mysock.recv(tmpSize)
                 if tmpStr == '':
                     if self.isMaster:
-                        raise socket.error,'empty packet'
+                        raise socket.error('empty packet')
                     else:
                         # master closed socket
-                        raise HarmlessEx,'empty packet'
+                        raise HarmlessEx('empty packet')
                 strBody += tmpStr
             # set timeout back
             if self.isMaster:
@@ -223,22 +229,21 @@ class ConBridge (object):
             # deserialize
             retVal = pickle.loads(strBody)
             return True,retVal
-        except:
+        except Exception as e:
             if self.isMaster:
                 roleType = 'master'
             else:
-                roleType = 'child '                
-            errType,errValue = sys.exc_info()[:2]
-            if errType == HarmlessEx:
+                roleType = 'child '
+            if type(e) == HarmlessEx:
                 _logger.debug('%s %s recv harmless ex : %s' % \
-                              (roleType,self.pid,errValue))
+                              (roleType, self.pid, e.message))
             else:
-                _logger.error('%s %s recv error : %s %s' % \
-                              (roleType,self.pid,errType,errValue))
+                _logger.error('%s %s recv error : %s' % \
+                              (roleType, self.pid, str(e)))
             # terminate child            
             if not self.isMaster:
                 self.bridge_childExit()
-            raise errType,errValue
+            raise e
                                     
     
 
@@ -252,7 +257,7 @@ class ConBridge (object):
         # check if pickle-able
         try:
             pickle.dumps(val)
-        except:
+        except Exception:
             # use RuntimeError
             val = (RuntimeError,str(val[-1]))
         # send exceptions
@@ -274,11 +279,11 @@ class ConBridge (object):
             # close sockets
             try:
                 self.mysock.shutdown(socket.SHUT_RDWR)
-            except:
+            except Exception:
                 pass
             try:
                 self.consock.shutdown(socket.SHUT_RDWR)
-            except:
+            except Exception:
                 pass
             # exit
             _logger.debug("child  %s going to exit" % self.pid)            
@@ -293,12 +298,12 @@ class ConBridge (object):
                 # get command
                 status,comStr = self.bridge_recv()
                 if not status:
-                    raise RuntimeError,'invalid command'
+                    raise RuntimeError('invalid command')
                 # get variables
                 status,variables = self.bridge_recv()
                 if not status:
-                    raise RuntimeError,'invalid variables'
-            except:
+                    raise RuntimeError('invalid variables')
+            except Exception:
                 errType,errValue = sys.exc_info()[:2]
                 _logger.error('child  %s died : %s %s' % (self.pid,errType,errValue))
                 # exit
@@ -308,16 +313,16 @@ class ConBridge (object):
             try:    
                 # execute
                 method = getattr(self.proxy,comStr)
-                res = apply(method,variables[0],variables[1])
+                res = method(*variables[0], **variables[1])
                 # FIXME : modify response since cx_Oracle types cannot be picked
                 if comStr in ['querySQLS']:
                     newRes = [True]+res[1:]
                     res = newRes
                 if self.verbose:    
                     _logger.debug('child  %s method %s completed' % (self.pid,comStr))
-                # return    
+                # return
                 self.bridge_sendResponse((res,variables[0],variables[1]))
-            except:
+            except Exception:
                 errType,errValue = sys.exc_info()[:2]
                 _logger.error('child  %s method %s failed : %s %s' % (self.pid,comStr,errType,errValue))
                 if errType in [socket.error,socket.timeout]:
@@ -339,32 +344,32 @@ class ConBridge (object):
             # close sockets
             _logger.debug('master %s closing sockets for child=%s' % (self.pid,self.child_pid))
             try:
-                if self.mysock != None:
+                if self.mysock is not None:
                     self.mysock.shutdown(socket.SHUT_RDWR)
-            except:
+            except Exception:
                 pass
             try:
-                if self.consock != None:
+                if self.consock is not None:
                     self.consock.shutdown(socket.SHUT_RDWR)
-            except:
+            except Exception:
                 pass
             _logger.debug('master %s killing child=%s' % (self.pid,self.child_pid))
             # send SIGTERM
             try:
                 os.kill(self.child_pid,signal.SIGTERM)
-            except:
+            except Exception:
                 pass
             time.sleep(2)
             # send SIGKILL
             try:
                 os.kill(self.child_pid,signal.SIGKILL)
-            except:
+            except Exception:
                 pass
             # wait for completion of child
             _logger.debug('master %s waiting child=%s' % (self.pid,self.child_pid))
             try:
                 os.waitpid(self.child_pid,0)
-            except:
+            except Exception:
                 pass
             # sleep to avoid burst reconnection
             time.sleep(random.randint(5,15))
@@ -376,25 +381,25 @@ class ConBridge (object):
         # get status
         status,strStatus = self.bridge_recv()
         if not status:
-            raise RuntimeError,'master %s got invalid status response from child=%s' % \
-                  (self.pid,self.child_pid)
+            raise RuntimeError('master %s got invalid status response from child=%s' % \
+                  (self.pid,self.child_pid))
         if strStatus == 'OK':
             # return res
             status,ret = self.bridge_recv()
             if not status:
-                raise RuntimeError,'master %s got invalid response body from child=%s' % \
-                      (self.pid,self.child_pid)
+                raise RuntimeError('master %s got invalid response body from child=%s' % \
+                      (self.pid,self.child_pid))
             return ret
         elif strStatus == 'NG':
             # raise error
             status,ret = self.bridge_recv()
             if not status:
-                raise RuntimeError,'master %s got invalid response value from child=%s' % \
-                      (self.pid,self.child_pid)
-            raise ret[0],ret[1]
+                raise RuntimeError('master %s got invalid response value from child=%s' % \
+                      (self.pid,self.child_pid))
+            raise ret[0](ret[1])
         else:
-            raise RuntimeError,'master %s got invalid response from child=%s : %s' % \
-                  (self.pid,self.child_pid,str(strStatus))
+            raise RuntimeError('master %s got invalid response from child=%s : %s' % \
+                  (self.pid,self.child_pid,str(strStatus)))
 
 
     # method wrapper class
@@ -457,11 +462,12 @@ class ConBridge (object):
                     for idxArg,tmpArg in enumerate(args):
                         self.copyChanges(tmpArg,newArgs[idxArg])
                     # propagate child's changes in keywords to master
-                    for tmpKey,tmpArg in keywords.iteritems():
+                    for tmpKey in keywords:
+                        tmpArg = keywords[tmpKey]
                         self.copyChanges(tmpArg,newKeywords[tmpKey])
                     # return
                     return retVal
-                except:
+                except Exception:
                     errType,errValue = sys.exc_info()[:2]
                     _logger.error('master %s method %s failed : %s %s' % \
                                   (self.pid,self.name,errType,errValue))
@@ -478,7 +484,7 @@ class ConBridge (object):
                         _logger.debug('master %s trying to reconnect' % self.pid)
                         self.parent.connect()
                         _logger.debug('master %s reconnect completed' % self.pid)
-                    except:
+                    except Exception:
                         _logger.error('master %s connect failed' % self.pid)
 
                     
@@ -488,7 +494,7 @@ class ConBridge (object):
             try:
                 # return origianl attribute
                 return object.__getattribute__(self,name)
-            except:
+            except Exception:
                 # append methods
                 if not name.startswith('_') and hasattr(DBProxy.DBProxy,name) and \
                        isinstance(getattr(DBProxy.DBProxy,name),types.UnboundMethodType):

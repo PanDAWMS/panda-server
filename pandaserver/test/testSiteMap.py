@@ -1,9 +1,8 @@
-from taskbuffer.TaskBuffer import taskBuffer
-from brokerage import SiteMapper
+from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+from pandaserver.brokerage import SiteMapper
 
 # password
-from config import panda_config
-passwd = panda_config.dbpasswd
+from pandaserver.config import panda_config
 
 # instantiate TB
 taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)

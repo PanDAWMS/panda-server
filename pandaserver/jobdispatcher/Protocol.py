@@ -1,9 +1,11 @@
 import re
-import sys
 import json
-import urllib
-from taskbuffer import EventServiceUtils
-from dataservice import DataServiceUtils
+try:
+    from urllib import urlencode
+except ImportError:
+    from urllib.parse import urlencode
+from pandaserver.taskbuffer import EventServiceUtils
+from pandaserver.dataservice import DataServiceUtils
 
 # constants
 TimeOutToken = "TimeOut"
@@ -38,14 +40,14 @@ class Response:
     def __init__(self,statusCode,errorDialog=None):
         # create data object
         self.data = {'StatusCode':statusCode}
-        if errorDialog != None:
+        if errorDialog is not None:
             self.data['errorDialog'] = errorDialog
 
 
     # URL encode
     def encode(self,acceptJson=False):
         if not acceptJson:
-            return urllib.urlencode(self.data)
+            return urlencode(self.data)
         else:
             return {'type':'json','content':json.dumps(self.data)}
 
@@ -106,7 +108,7 @@ class Response:
         siteSpec = None
         inDsLfnMap = {}
         inLFNset = set()
-        if siteMapperCache != None:
+        if siteMapperCache is not None:
             siteMapper = siteMapperCache.getObj()
             siteSpec = siteMapper.getSite(job.computingSite)
             # resove destSE
@@ -114,7 +116,7 @@ class Response:
                 job.destinationSE = siteMapper.resolveNucleus(job.destinationSE)
                 for tmpFile in job.Files:
                     tmpFile.destinationSE = siteMapper.resolveNucleus(tmpFile.destinationSE)
-            except:
+            except Exception:
                 pass
             siteMapperCache.releaseObj()
         for file in job.Files:
@@ -264,7 +266,7 @@ class Response:
         # walltime
         self.data['maxWalltime'] = job.maxWalltime
         # debug mode
-        if job.specialHandling != None and 'debug' in job.specialHandling:
+        if job.specialHandling is not None and 'debug' in job.specialHandling:
             self.data['debug'] = 'True'
         # event service or job cloning
         if EventServiceUtils.isJobCloningJob(job):
@@ -279,21 +281,23 @@ class Response:
             # write to file for ES merge
             writeToFileStr = ''
             try:
-                for outputName,inputList in job.metadata[0].iteritems():
+                for outputName in job.metadata[0]:
+                    inputList = job.metadata[0][outputName]
                     writeToFileStr += 'inputFor_{0}:'.format(outputName)
                     for tmpInput in inputList:
                         writeToFileStr += '{0},'.format(tmpInput)
                     writeToFileStr = writeToFileStr[:-1]
                     writeToFileStr += '^'
                 writeToFileStr = writeToFileStr[:-1]
-            except:
+            except Exception:
                 pass
             self.data['writeToFile'] = writeToFileStr
         elif job.writeInputToFile():
             try:
                 # write input to file
                 writeToFileStr = ''
-                for inDS,inputList in inDsLfnMap.iteritems():
+                for inDS in inDsLfnMap:
+                    inputList = inDsLfnMap[inDS]
                     inDS = re.sub('/$','',inDS)
                     inDS = inDS.split(':')[-1]
                     writeToFileStr += 'tmpin_{0}:'.format(inDS)
@@ -301,24 +305,25 @@ class Response:
                     writeToFileStr += '^'
                 writeToFileStr = writeToFileStr[:-1]
                 self.data['writeToFile'] = writeToFileStr
-            except:
+            except Exception:
                 pass
         # replace placeholder
         if EventServiceUtils.isJumboJob(job) or EventServiceUtils.isCoJumboJob(job):
             try:
-                for inDS,inputList in inDsLfnMap.iteritems():
+                for inDS in inDsLfnMap:
+                    inputList = inDsLfnMap[inDS]
                     inDS = re.sub('/$','',inDS)
                     inDS = inDS.split(':')[-1]
                     srcStr = 'tmpin__cnt_{0}'.format(inDS)
                     dstStr = ','.join(inputList)
                     self.data['jobPars'] = self.data['jobPars'].replace(srcStr, dstStr)
-            except:
+            except Exception:
                 pass
         # no output
         if noOutput != []:
             self.data['allowNoOutput'] = ','.join(noOutput)
         # alternative stage-out
-        if job.getAltStgOut() != None:
+        if job.getAltStgOut() is not None:
             self.data['altStageOut'] = job.getAltStgOut()
         # log to OS
         if job.putLogToOS():
@@ -341,7 +346,7 @@ class Response:
     def setProxyKey(self,proxyKey):
         names = ['credname','myproxy']
         for name in names:
-            if proxyKey.has_key(name):
+            if name in proxyKey:
                 self.data[name] = proxyKey[name]
             else:
                 self.data[name] = ''
@@ -354,7 +359,7 @@ class Response:
 
     # get ddm endpoint
     def getDdmEndpoint(self, siteSpec, spaceToken, mode):
-        if siteSpec == None or mode not in ['input', 'output']:
+        if siteSpec is None or mode not in ['input', 'output']:
             return ''
 
         if mode == 'input':
@@ -388,7 +393,7 @@ class Response:
 
 # check if secure connection
 def isSecure(req):
-    if not req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+    if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
         return False
     return True
 
@@ -397,5 +402,5 @@ def isSecure(req):
 def getUserDN(req):
     try:
         return req.subprocess_env['SSL_CLIENT_S_DN']
-    except:
+    except Exception:
         return 'None'

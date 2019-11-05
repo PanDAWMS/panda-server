@@ -1939,7 +1939,6 @@ Release Notes
   * use taskBuffer in add.py for all DB access
   * use fasttrack for all tasktypes and prio>=700
   * use taskBuffer for reassignment in copyArchived
-  * cleanup old PandaSiteIDs for UK
   * set the number of treads to 2 in wsgi daemon
   * set MaxRequestsPerChild
   * enabled KeepAlive for proxy sites

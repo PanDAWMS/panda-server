@@ -5,23 +5,26 @@ import ssl
 import time
 import signal
 import socket
-import commands
 import optparse
 import datetime
-import cPickle as pickle
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 import stomp
 
-from config import panda_config
-from brokerage.SiteMapper import SiteMapper
-from dataservice import DataServiceUtils
-from dataservice.DDMHandler import DDMHandler
+from pandaserver.config import panda_config
+from pandaserver.brokerage.SiteMapper import SiteMapper
+from pandaserver.dataservice import DataServiceUtils
+from pandaserver.dataservice.DDMHandler import DDMHandler
+from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
 import yaml
 import logging
 logging.basicConfig(level = logging.DEBUG)
 
 # logger
-from pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger('datasetCallbackListener')
 
 # keep PID
@@ -38,11 +41,11 @@ expirationTime = datetime.datetime.utcnow() + datetime.timedelta(minutes=overall
 def catch_sig(sig, frame):
     try:
         os.remove(pidFile)
-    except:
+    except Exception:
         pass
     # kill
     _logger.debug('terminating ...')
-    commands.getoutput('kill -9 -- -%s' % os.getpgrp())
+    commands_get_status_output('kill -9 -- -%s' % os.getpgrp())
     # exit
     sys.exit(0)
                                         
@@ -75,28 +78,28 @@ class DatasetCallbackListener(stomp.ConnectionListener):
             # send ack
             id = headers['message-id']
             #self.conn.ack(id,self.subscription_id)
-	    # convert message form str to dict
+            # convert message form str to dict
             messageDict = yaml.load(message)
             # check event type
             if not messageDict['event_type'] in ['datasetlock_ok']:
                 _logger.debug('%s skip' % messageDict['event_type'])
                 return
-	    _logger.debug('%s start' % messageDict['event_type'])  
+            _logger.debug('%s start' % messageDict['event_type'])
             messageObj = messageDict['payload']
             # only for _dis or _sub
-	    dsn = messageObj['name']
-	    if (re.search('_dis\d+$',dsn) == None) and (re.search('_sub\d+$',dsn) == None):
-		_logger.debug('%s is not _dis or _sub dataset, skip' % dsn)
-		return
+            dsn = messageObj['name']
+            if (re.search('_dis\d+$',dsn) is None) and (re.search('_sub\d+$',dsn) is None):
+                _logger.debug('%s is not _dis or _sub dataset, skip' % dsn)
+                return
             # take action
-	    scope = messageObj['scope']
-	    site  = messageObj['rse']
-	    _logger.debug('%s site=%s type=%s' % (dsn, site, messageDict['event_type']))
-	    thr = DDMHandler(self.taskBuffer,None,site,dsn,scope)
-	    thr.start()
-	    thr.join()
-	    _logger.debug('done %s' % dsn)
-        except:
+            scope = messageObj['scope']
+            site  = messageObj['rse']
+            _logger.debug('%s site=%s type=%s' % (dsn, site, messageDict['event_type']))
+            thr = DDMHandler(self.taskBuffer,None,site,dsn,scope)
+            thr.start()
+            thr.join()
+            _logger.debug('done %s' % dsn)
+        except Exception:
             errtype,errvalue = sys.exc_info()[:2]
             _logger.error("on_message : %s %s" % (errtype,errvalue))
         
@@ -118,7 +121,7 @@ def main(backGround=False):
         time.sleep(1)
     else:    
         # main loop
-        from taskbuffer.TaskBuffer import taskBuffer
+        from pandaserver.taskbuffer.TaskBuffer import taskBuffer
         # check certificate
         certName = '%s/pandasv1_usercert.pem' %panda_config.certdir
         keyName = '%s/pandasv1_userkey.pem' %panda_config.certdir
@@ -127,21 +130,21 @@ def main(backGround=False):
         if not certOK:
             _logger.error('bad certificate : {0}'.format(certMsg))
         # initialize cx_Oracle using dummy connection
-        from taskbuffer.Initializer import initializer
+        from pandaserver.taskbuffer.Initializer import initializer
         initializer.init()
         # instantiate TB
         taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
         # instantiate sitemapper
         siteMapper = SiteMapper(taskBuffer)
         # ActiveMQ params
-	queue = '/queue/Consumer.panda.rucio.events'
+        queue = '/queue/Consumer.panda.rucio.events'
         ssl_opts = {'use_ssl' : True,
                     'ssl_version' : ssl.PROTOCOL_TLSv1,
                     'ssl_cert_file' : certName,
                     'ssl_key_file'  : keyName}
         # resolve multiple brokers
         brokerList = socket.gethostbyname_ex('atlas-mb.cern.ch')[-1]
-	# set listener
+        # set listener
         connList = []
         for tmpBroker in brokerList:
             try:
@@ -150,7 +153,7 @@ def main(backGround=False):
                 _logger.debug('setting listener %s to broker %s' % (clientid, tmpBroker))
                 conn = stomp.Connection(host_and_ports = [(tmpBroker, 61023)], **ssl_opts)
                 connList.append(conn)
-            except:
+            except Exception:
                 errtype,errvalue = sys.exc_info()[:2]
                 _logger.error("failed to connect to %s : %s %s" % (tmpBroker,errtype,errvalue))
                 catch_sig(None,None)
@@ -164,7 +167,7 @@ def main(backGround=False):
                         conn.connect(headers = {'client-id': clientid})
                         conn.subscribe(destination=queue, id=subscription_id, ack='auto')
                         _logger.debug('listener %s is up and running' % clientid)
-                except:     
+                except Exception:
                     errtype,errvalue = sys.exc_info()[:2]
                     _logger.error("failed to set listener on %s : %s %s" % (tmpBroker,errtype,errvalue))
                     catch_sig(None,None)
@@ -179,14 +182,14 @@ if __name__ == "__main__":
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(seconds=overallTimeout-180)
         # get process list
         scriptName = sys.argv[0]
-        out = commands.getoutput('env TZ=UTC ps axo user,pid,lstart,args | grep %s' % scriptName)
+        out = commands_get_status_output('env TZ=UTC ps axo user,pid,lstart,args | grep %s' % scriptName)[-1]
         for line in out.split('\n'):
             items = line.split()
             # owned process
             if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
                 continue
             # look for python
-            if re.search('python',line) == None:
+            if re.search('python',line) is None:
                 continue
             # PID
             pid = items[1]
@@ -197,8 +200,8 @@ if __name__ == "__main__":
             if startTime < timeLimit:
                 _logger.debug("old process : %s %s" % (pid,startTime))
                 _logger.debug(line)            
-                commands.getoutput('kill -9 %s' % pid)
-    except:
+                commands_get_status_output('kill -9 %s' % pid)
+    except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         _logger.error("kill process : %s %s" % (errtype,errvalue))
     # main loop    

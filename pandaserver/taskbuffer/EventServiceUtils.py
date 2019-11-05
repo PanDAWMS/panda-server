@@ -1,6 +1,11 @@
 import re
 
-from JobSpec import JobSpec
+from pandaserver.taskbuffer.JobSpec import JobSpec
+
+try:
+    long
+except NameError:
+    long = int
 
 # status codes for each event range
 ST_ready     = 0
@@ -72,14 +77,14 @@ PEC_corruptedInputFilesTmp = [1099]
 # encode file info
 def encodeFileInfo(lfn,startEvent,endEvent,nEventsPerWorker,
                    maxAttempt=None,firstOffset=None,firstEvent=None):
-    if maxAttempt == None:
+    if maxAttempt is None:
         maxAttempt = 10
-    if firstOffset == None:
+    if firstOffset is None:
         return '{0}/{1}/{2}/{3}/{4}^'.format(lfn,startEvent,endEvent,nEventsPerWorker,maxAttempt)
     else:
         try:
             totalOffset = firstEvent - firstOffset
-        except:
+        except Exception:
             totalOffset = 0
         return '{0}/{1}/{2}/{3}/{4}/{5}^'.format(lfn,startEvent,endEvent,nEventsPerWorker,
                                                  maxAttempt,totalOffset)
@@ -103,7 +108,7 @@ def decodeFileInfo(specialHandling):
                 tmpItem = re.sub('^'+esHeader,'',tmpItem)
                 # look for event service index
                 tmpMatch = re.search('^(\d+):',tmpItem)
-                if tmpMatch != None:
+                if tmpMatch is not None:
                     esIndex = tmpMatch.group(1)
                     tmpItem = re.sub('^(\d+):','',tmpItem)
                 for esItem in tmpItem.split('^'):
@@ -134,7 +139,7 @@ def decodeFileInfo(specialHandling):
             else:
                 newSpecialHandling += '{0},'.format(tmpItem)
         newSpecialHandling = newSpecialHandling[:-1]
-    except:
+    except Exception:
         newSpecialHandling = specialHandling
     return eventServiceInfo,newSpecialHandling,esIndex
 
@@ -143,9 +148,9 @@ def decodeFileInfo(specialHandling):
 # check if event service job
 def isEventServiceJob(job):
     try:
-        if job.specialHandling != None and esToken in job.specialHandling.split(','):
+        if job.specialHandling is not None and esToken in job.specialHandling.split(','):
             return True
-    except:
+    except Exception:
         pass
     return False
 
@@ -154,9 +159,9 @@ def isEventServiceJob(job):
 # check if event service merge job
 def isEventServiceMerge(job):
     try:
-        if job.specialHandling != None and esMergeToken in job.specialHandling.split(','):
+        if job.specialHandling is not None and esMergeToken in job.specialHandling.split(','):
             return True
-    except:
+    except Exception:
         pass
     return False
 
@@ -165,9 +170,9 @@ def isEventServiceMerge(job):
 # check if specialHandling for event service
 def isEventServiceSH(specialHandling):
     try:
-        if specialHandling != None and esToken in specialHandling.split(','):
+        if specialHandling is not None and esToken in specialHandling.split(','):
             return True
-    except:
+    except Exception:
         pass
     return False
 
@@ -176,9 +181,9 @@ def isEventServiceSH(specialHandling):
 # check if specialHandling for event service merge 
 def isEventServiceMergeSH(specialHandling):
     try:
-        if specialHandling != None and esMergeToken in specialHandling.split(','):
+        if specialHandling is not None and esMergeToken in specialHandling.split(','):
             return True
-    except:
+    except Exception:
         pass
     return False
 
@@ -192,7 +197,7 @@ def setEventServiceMerge(job):
         # set gshare to express
         job.gshare = 'Express'
         # set flag for merging
-        if job.specialHandling == None:
+        if job.specialHandling is None:
             job.specialHandling = esMergeToken
         else:
             newSpecialHandling = ''
@@ -206,7 +211,7 @@ def setEventServiceMerge(job):
             job.specialHandling = newSpecialHandling
         # remove fake flag
         job.removeFakeJobToIgnore()
-    except:
+    except Exception:
         pass
 
 
@@ -214,11 +219,11 @@ def setEventServiceMerge(job):
 # check if specialHandling for job cloning
 def isJobCloningSH(specialHandling):
     try:
-        if specialHandling != None:
+        if specialHandling is not None:
             for token in specialHandling.split(','):
                 if singleToken == token.split(':')[0]:
                     return True
-    except:
+    except Exception:
         pass
     return False
 
@@ -232,13 +237,13 @@ def isJobCloningJob(job):
 
 # set header for job cloning
 def setHeaderForJobCloning(specialHandling,scType):
-    if specialHandling == None:
+    if specialHandling is None:
         specialHandling = ''
     tokens = specialHandling.split(',')
     while True:
         try:
             tokens.remove('')
-        except:
+        except Exception:
             break
     if scType in singleConsumerType.values():
         tokens.append('{0}:{1}'.format(singleToken,scType))
@@ -248,10 +253,11 @@ def setHeaderForJobCloning(specialHandling,scType):
 
 # get consumer type
 def getJobCloningType(job):
-    if job.specialHandling != None:
+    if job.specialHandling is not None:
         for token in job.specialHandling.split(','):
             if singleToken == token.split(':')[0]:
-                for tmpKey,tmpVal in singleConsumerType.iteritems():
+                for tmpKey in singleConsumerType:
+                    tmpVal = singleConsumerType[tmpKey]
                     if tmpVal == token.split(':')[-1]:
                         return tmpKey
     return ''
@@ -268,13 +274,13 @@ def getJobCloningValue(scType):
 
 # set header for dynamic number of events
 def setHeaderForDynNumEvents(specialHandling):
-    if specialHandling == None:
+    if specialHandling is None:
         specialHandling = ''
     tokens = specialHandling.split(',')
     while True:
         try:
             tokens.remove('')
-        except:
+        except Exception:
             break
     tokens.append(dynamicNumEventsToken)
     return ','.join(tokens)
@@ -284,10 +290,10 @@ def setHeaderForDynNumEvents(specialHandling):
 # check if specialHandling for dynamic number of events
 def isDynNumEventsSH(specialHandling):
     try:
-        if specialHandling != None:
+        if specialHandling is not None:
             if dynamicNumEventsToken in specialHandling.split(','):
                 return True
-    except:
+    except Exception:
         pass
     return False
 
@@ -295,11 +301,11 @@ def isDynNumEventsSH(specialHandling):
 
 # remove event service header
 def removeHeaderForES(job):
-    if job.specialHandling != None:
+    if job.specialHandling is not None:
         items = job.specialHandling.split(',')
         newItems = []
         for item in items:
-            if re.search('^'+esHeader+'.+',item) == None:
+            if re.search('^'+esHeader+'.+',item) is None:
                 newItems.append(item)
     job.specialHandling = ','.join(newItems)
 
@@ -319,13 +325,13 @@ def isCoJumboJob(job):
 
 # set header for merge at OS
 def setHeaderForMergeAtOS(specialHandling):
-    if specialHandling == None:
+    if specialHandling is None:
         specialHandling = ''
     tokens = specialHandling.split(',')
     while True:
         try:
             tokens.remove('')
-        except:
+        except Exception:
             break
     if mergeAtOsToken not in tokens:
         tokens.append(mergeAtOsToken)
@@ -336,10 +342,10 @@ def setHeaderForMergeAtOS(specialHandling):
 # check if specialHandling for merge at OS
 def isMergeAtOS(specialHandling):
     try:
-        if specialHandling != None:
+        if specialHandling is not None:
             if mergeAtOsToken in specialHandling.split(','):
                 return True
-    except:
+    except Exception:
         pass
     return False
 
@@ -354,13 +360,13 @@ def getEsDatasetName(taskID):
 
 # set header to resurrect consumers
 def setHeaderToResurrectConsumers(specialHandling):
-    if specialHandling == None:
+    if specialHandling is None:
         specialHandling = ''
     tokens = specialHandling.split(',')
     while True:
         try:
             tokens.remove('')
-        except:
+        except Exception:
             break
     if resurrectConsumersToken not in tokens:
         tokens.append(resurrectConsumersToken)
@@ -374,6 +380,6 @@ def isResurrectConsumers(specialHandling):
         if specialHandling is not None:
             if resurrectConsumersToken in specialHandling.split(','):
                 return True
-    except:
+    except Exception:
         pass
     return False

@@ -1,6 +1,9 @@
 import sys
-import StringIO
-import cPickle as pickle
+from io import BytesIO
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 # wrapper to avoid de-serializing unsafe objects
 class WrappedPickle(object):
@@ -10,29 +13,36 @@ class WrappedPickle(object):
         '__builtin__'         : ['object'],
         'datetime'            : ['datetime'],
         'taskbuffer.JobSpec'  : ['JobSpec'],
-        'taskbuffer.FileSpec' : ['FileSpec'],        
+        'taskbuffer.FileSpec' : ['FileSpec'],
+        'pandaserver.taskbuffer.JobSpec': ['JobSpec'],
+        'pandaserver.taskbuffer.FileSpec' : ['FileSpec'],
         }
+    # bare modules
+    bareMods = {'taskbuffer.': 'pandaserver.'}
 
     # check module and class 
     @classmethod
     def find_class(cls,module,name):
+        # append prefix to bare modules
+        for bareMod in cls.bareMods:
+            if module.startswith(bareMod):
+                module = cls.bareMods[bareMod] + module
+                break
         # check module
-        if not cls.allowedModClass.has_key(module):
-            raise pickle.UnpicklingError,'Attempting to import disallowed module %s' % module
+        if module not in cls.allowedModClass:
+            raise pickle.UnpicklingError('Attempting to import disallowed module %s' % module)
         # import module
         __import__(module)
         mod = sys.modules[module]
         # check class
-        if not name in cls.allowedModClass[module]:
-            raise pickle.UnpicklingError,'Attempting to get disallowed class %s in %s' % (name,module)
+        if name not in cls.allowedModClass[module]:
+            raise pickle.UnpicklingError('Attempting to get disallowed class %s in %s' % (name,module))
         klass = getattr(mod,name)
         return klass
 
     # loads
     @classmethod
     def loads(cls,pickle_string):
-        pickle_obj = pickle.Unpickler(StringIO.StringIO(pickle_string))
+        pickle_obj = pickle.Unpickler(BytesIO(pickle_string))
         pickle_obj.find_global = cls.find_class
         return pickle_obj.load()
-
-    

@@ -9,22 +9,20 @@ import sys
 import json
 import types
 import threading
-import Protocol
+from pandaserver.jobdispatcher import Protocol
 import time
 import socket
 import datetime
-import commands
 import traceback
 from threading import Lock
-from config import panda_config
-from dataservice.AdderGen import AdderGen
-from pandalogger.PandaLogger import PandaLogger
-from pandalogger.LogWrapper import LogWrapper
-import DispatcherUtils
-from taskbuffer import EventServiceUtils
-from taskbuffer import retryModule
-from brokerage.SiteMapper import SiteMapper
-from proxycache import panda_proxy_cache
+from pandaserver.config import panda_config
+from pandaserver.dataservice.AdderGen import AdderGen
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandaserver.jobdispatcher import DispatcherUtils
+from pandaserver.taskbuffer import EventServiceUtils
+from pandaserver.brokerage.SiteMapper import SiteMapper
+from pandaserver.proxycache import panda_proxy_cache
 
 # logger
 _logger = PandaLogger().getLogger('JobDispatcher')
@@ -39,7 +37,7 @@ class _TimedMethod:
         
     # method emulation    
     def __call__(self,*var):
-        self.result = apply(self.method,var)
+        self.result = self.method(*var)
 
     # run
     def run(self,*var):
@@ -72,7 +70,7 @@ class CachedObject:
         # lock
         self.lock.acquire()
         # update if old
-        if self.cachedObj == None or current-self.lastUpdated > self.timeInterval:
+        if self.cachedObj is None or current-self.lastUpdated > self.timeInterval:
             self.cachedObj = self.updateFunc()
             self.lastUpdated = current
         # release
@@ -132,22 +130,22 @@ class JobDipatcher:
         # lock
         self.lock.acquire()
         # set TB
-        if self.taskBuffer == None:
+        if self.taskBuffer is None:
             self.taskBuffer = taskBuffer
         # update DN/token map
-        if self.tokenDN == None:
+        if self.tokenDN is None:
             self.tokenDN = self.taskBuffer.getListSchedUsers()
         # get pilot owners
-        if self.pilotOwners == None:
+        if self.pilotOwners is None:
             self.pilotOwners = self.taskBuffer.getPilotOwners()
         # get allowed nodes
-        if self.allowedNodes == None:
+        if self.allowedNodes is None:
             self.allowedNodes = self.taskBuffer.getAllowedNodes()
         # special dipatcher parameters
-        if self.specialDispatchParams == None:
+        if self.specialDispatchParams is None:
             self.specialDispatchParams = CachedObject(60*30,self.taskBuffer.getSpecialDispatchParams)
         # site mapper cache
-        if self.siteMapperCache == None:
+        if self.siteMapperCache is None:
             self.siteMapperCache = CachedObject(60*30,self.getSiteMapper)
         # release
         self.lock.release()
@@ -156,7 +154,7 @@ class JobDipatcher:
     # set user proxy
     def setUserProxy(self,response,realDN=None,role=None):
         try:
-            if realDN == None:
+            if realDN is None:
                 realDN = response.data['prodUserID']
             # remove redundant extensions
             realDN = re.sub('/CN=limited proxy','',realDN)
@@ -165,14 +163,14 @@ class JobDipatcher:
             pIF = panda_proxy_cache.MyProxyInterface()
             tmpOut = pIF.retrieve(realDN,role=role)
             # not found
-            if tmpOut == None:
+            if tmpOut is None:
                 tmpMsg = 'proxy not found for {0}'.format(realDN)
                 response.appendNode('errorDialog',tmpMsg)
                 return False,tmpMsg
             # set
             response.appendNode('userProxy',tmpOut)
             return True,''
-        except:
+        except Exception:
             errtype,errvalue = sys.exc_info()[:2]
             tmpMsg = "proxy retrieval failed with {0} {1}".format(errtype.__name__,errvalue)
             response.appendNode('errorDialog',tmpMsg)
@@ -190,9 +188,9 @@ class JobDipatcher:
         useProxyCache = False
         try:
             tmpNumJobs = int(nJobs)
-        except:
+        except Exception:
             tmpNumJobs = None
-        if tmpNumJobs == None:
+        if tmpNumJobs is None:
             tmpNumJobs = 1
         # wrapper function for timeout
         tmpWrapper = _TimedMethod(self.taskBuffer.getJobs, timeout)
@@ -253,7 +251,7 @@ class JobDipatcher:
                             if not tmpStat:
                                 _logger.warning("getJob : %s %s failed to get user proxy : %s" % (siteName,node,
                                                                                                   tmpOut))
-                    except:
+                    except Exception:
                         errtype,errvalue = sys.exc_info()[:2]
                         _logger.warning("getJob : %s %s failed to get user proxy with %s:%s" % (siteName,node,
                                                                                                 errtype.__name__,errvalue))
@@ -262,7 +260,7 @@ class JobDipatcher:
                         and (EventServiceUtils.isEventServiceJob(tmpJob) or EventServiceUtils.isEventServiceMerge(tmpJob)):
                     # get secret key
                     tmpSecretKey,tmpErrMsg = DispatcherUtils.getSecretKey(tmpJob.PandaID)
-                    if tmpSecretKey == None:
+                    if tmpSecretKey is None:
                         _logger.warning("getJob : PandaID=%s site=%s failed to get panda proxy secret key : %s" % (tmpJob.PandaID,
                                                                                                                    siteName,
                                                                                                                    tmpErrMsg))
@@ -273,7 +271,7 @@ class JobDipatcher:
                 # add
                 responseList.append(response.data)
             # make response for bulk
-            if nJobs != None:
+            if nJobs is not None:
                 response = Protocol.Response(Protocol.SC_Success)
                 if not acceptJson:
                     response.appendNode('jobs',json.dumps(responseList))
@@ -312,7 +310,7 @@ class JobDipatcher:
             try:
                 self.taskBuffer.storePilotLog(int(jobID), pilotLog)
                 _logger.debug('saving pilot log DONE')
-            except:
+            except Exception:
                 _logger.debug('saving pilot log FAILED')
         # add metadata
         if metadata != '':
@@ -383,7 +381,7 @@ class JobDipatcher:
                 retStr = ''
                 attStr = ''
                 for job in tmpWrapper.result:
-                    if job == None:
+                    if job is None:
                         retStr += '%s+' % 'notfound'
                         attStr += '0+'
                     else:
@@ -429,7 +427,7 @@ class JobDipatcher:
             # timeout
             response=Protocol.Response(Protocol.SC_TimeOut)
         else:
-            if tmpWrapper.result != None:
+            if tmpWrapper.result is not None:
                 # succeed
                 response=Protocol.Response(Protocol.SC_Success)
                 # make return
@@ -492,7 +490,7 @@ class JobDipatcher:
             # timeout
             response=Protocol.Response(Protocol.SC_TimeOut)
         else:
-            if tmpWrapper.result != None:
+            if tmpWrapper.result is not None:
                 # succeed
                 response=Protocol.Response(Protocol.SC_Success)
                 # make return
@@ -526,7 +524,7 @@ class JobDipatcher:
     def genPilotToken(self,schedulerhost,scheduleruser,schedulerid):
         retVal = self.taskBuffer.genPilotToken(schedulerhost,scheduleruser,schedulerid)
         # failed
-        if retVal == None:
+        if retVal is None:
             return "ERROR : failed to generate token"
         return "SUCCEEDED : " + retVal
 
@@ -534,7 +532,7 @@ class JobDipatcher:
     # get key pair
     def getKeyPair(self,realDN,publicKeyName,privateKeyName,acceptJson):
         tmpMsg = "getKeyPair {0}/{1} json={2}: ".format(publicKeyName,privateKeyName,acceptJson)
-        if realDN == None:
+        if realDN is None:
             # cannot extract DN
             tmpMsg += "failed since DN cannot be extracted"
             _logger.debug(tmpMsg)
@@ -664,7 +662,7 @@ class JobDipatcher:
     # get proxy
     def getProxy(self,realDN,role):
         tmpMsg = "getProxy DN={0} role={1} : ".format(realDN,role)
-        if realDN == None:
+        if realDN is None:
             # cannot extract DN
             tmpMsg += "failed since DN cannot be extracted"
             _logger.debug(tmpMsg)
@@ -711,7 +709,8 @@ del JobDipatcher
 # get FQANs
 def _getFQAN(req):
     fqans = []
-    for tmpKey,tmpVal in req.subprocess_env.iteritems():
+    for tmpKey in req.subprocess_env:
+        tmpVal = req.subprocess_env[tmpKey]
         # compact credentials
         if tmpKey.startswith('GRST_CRED_'):
             # VOMS attribute
@@ -767,9 +766,9 @@ def _checkRole(fqans,dn,jdCore,withVomsPatch=True,site='',hostname=''):
                     break
         # grid-free authorization
         if not prodManager:
-            if hostname != '' and jdCore.allowedNodes.has_key(site):
+            if hostname != '' and site in jdCore.allowedNodes:
                 for tmpPat in jdCore.allowedNodes[site]:
-                    if re.search(tmpPat,hostname) != None:
+                    if re.search(tmpPat,hostname) is not None:
                         prodManager = True
                         break
         # check DN with pilotOwners
@@ -780,10 +779,10 @@ def _checkRole(fqans,dn,jdCore,withVomsPatch=True,site='',hostname=''):
                 tmpPilotOwners = jdCore.pilotOwners[None]
             for owner in tmpPilotOwners:
                 # check
-                if re.search(owner,dn) != None:
+                if re.search(owner,dn) is not None:
                     prodManager = True
                     break
-    except:
+    except Exception:
         pass
     # return
     return prodManager
@@ -792,7 +791,7 @@ def _checkRole(fqans,dn,jdCore,withVomsPatch=True,site='',hostname=''):
 # get DN
 def _getDN(req):
     realDN = None
-    if req.subprocess_env.has_key('SSL_CLIENT_S_DN'):
+    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
         realDN = req.subprocess_env['SSL_CLIENT_S_DN']
         # remove redundant CN
         realDN = re.sub('/CN=limited proxy','',realDN)
@@ -804,12 +803,12 @@ def _getDN(req):
 # check token
 def _checkToken(token,jdCore):
     # not check None until all pilots use tokens
-    if token == None:
+    if token is None:
         return True
     # get map
     tokenDN = jdCore.getDnTokenMap()
     # return
-    return tokenDN.has_key(token)
+    return token in tokenDN
     
 
 """
@@ -849,13 +848,13 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
         mem = int(float(mem))
         if mem < 0:
             mem = 0
-    except:
+    except Exception:
         mem = 0        
     try:
         diskSpace = int(float(diskSpace))
         if diskSpace < 0:
             diskSpace = 0
-    except:
+    except Exception:
         diskSpace = 0
     if background == 'True':
         background = True
@@ -950,65 +949,65 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     param = {}
     if cpuConsumptionTime not in [None, '']:
         param['cpuConsumptionTime']=cpuConsumptionTime
-    if cpuConsumptionUnit != None:
+    if cpuConsumptionUnit is not None:
         param['cpuConsumptionUnit']=cpuConsumptionUnit
-    if node != None:
+    if node is not None:
         param['modificationHost']=node[:128]
-    if transExitCode != None:
+    if transExitCode is not None:
         try:
             int(transExitCode)
             param['transExitCode'] = transExitCode
-        except:
+        except Exception:
             pass
-    if pilotErrorCode != None:
+    if pilotErrorCode is not None:
         try:
             int(pilotErrorCode)
             param['pilotErrorCode'] = pilotErrorCode
-        except:
+        except Exception:
             pass
-    if pilotErrorDiag != None:
+    if pilotErrorDiag is not None:
         param['pilotErrorDiag']=pilotErrorDiag[:500]
-    if jobMetrics != None:
+    if jobMetrics is not None:
         param['jobMetrics']=jobMetrics[:500]
-    if schedulerID != None:
+    if schedulerID is not None:
         param['schedulerID']=schedulerID
-    if pilotID != None:
+    if pilotID is not None:
         param['pilotID']=pilotID[:200]
-    if batchID != None:
+    if batchID is not None:
         param['batchID']=batchID[:80]
-    if exeErrorCode != None:
+    if exeErrorCode is not None:
         param['exeErrorCode']=exeErrorCode
-    if exeErrorDiag != None:
+    if exeErrorDiag is not None:
         param['exeErrorDiag']=exeErrorDiag[:500]
-    if cpuConversionFactor != None:
+    if cpuConversionFactor is not None:
         param['cpuConversion']=cpuConversionFactor
-    if pilotTiming != None:
+    if pilotTiming is not None:
         param['pilotTiming']=pilotTiming
-    if computingElement != None:
+    if computingElement is not None:
         param['computingElement']=computingElement
-    if nEvents != None:
+    if nEvents is not None:
         param['nEvents']=nEvents
-    if nInputFiles != None:
+    if nInputFiles is not None:
         param['nInputFiles']=nInputFiles
     if not jobSubStatus in [None,'']:
         param['jobSubStatus']=jobSubStatus
     if not coreCount in [None,'']:
         param['actualCoreCount']=coreCount
-    if maxRSS != None:
+    if maxRSS is not None:
         param['maxRSS'] = maxRSS
-    if maxVMEM != None:
+    if maxVMEM is not None:
         param['maxVMEM'] = maxVMEM
-    if maxSWAP != None:
+    if maxSWAP is not None:
         param['maxSWAP'] = maxSWAP
-    if maxPSS != None:
+    if maxPSS is not None:
         param['maxPSS'] = maxPSS
-    if avgRSS != None:
+    if avgRSS is not None:
         param['avgRSS'] = avgRSS
-    if avgVMEM != None:
+    if avgVMEM is not None:
         param['avgVMEM'] = avgVMEM
-    if avgSWAP != None:
+    if avgSWAP is not None:
         param['avgSWAP'] = avgSWAP
-    if avgPSS != None:
+    if avgPSS is not None:
         param['avgPSS'] = avgPSS
     if totRCHAR is not None:
         totRCHAR = int(totRCHAR) / 1024 # convert to kByte
@@ -1038,20 +1037,20 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     if rateWBYTES is not None:
         rateWBYTES = min(10 ** 10 - 1, int(rateWBYTES))  # limit to 10 digit
         param['rateWBYTES'] = rateWBYTES
-    if startTime != None:
+    if startTime is not None:
         try:
             param['startTime']=datetime.datetime(*time.strptime(startTime,'%Y-%m-%d %H:%M:%S')[:6])
-        except:
+        except Exception:
             pass
-    if endTime != None:
+    if endTime is not None:
         try:
             param['endTime']=datetime.datetime(*time.strptime(endTime,'%Y-%m-%d %H:%M:%S')[:6])
-        except:
+        except Exception:
             pass
-    if attemptNr != None:
+    if attemptNr is not None:
         try:
             attemptNr = int(attemptNr)
-        except:
+        except Exception:
             attemptNr = None
     if stdout != '':
         stdout = stdout[:2048]
@@ -1081,7 +1080,7 @@ def updateJobsInBulk(req, jobList, harvester_id=None):
             tmpRet = updateJob(req, jobId, state, **jobDict)
             retList.append(tmpRet)
         retVal = True
-    except:
+    except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         tmpMsg = "updateJobsInBulk {0} failed with {1} {2}".format(harvester_id, errtype.__name__, errvalue)
         retList = tmpMsg
@@ -1161,7 +1160,7 @@ def updateEventRanges(req,eventRanges,timeout=120,version=0,pandaID=None):
         return tmpOut
     try:
         version = int(version)
-    except:
+    except Exception:
         version = 0
     return jobDispatcher.updateEventRanges(eventRanges,int(timeout),req.acceptJson(),version)
 
@@ -1189,10 +1188,10 @@ def genPilotToken(req,schedulerid,host=None):
     prodManager = _checkRole(fqans,realDN,jobDispatcher,False)
     if not prodManager:
         return "ERROR : production or pilot role is required"
-    if realDN == None:
+    if realDN is None:
         return "ERROR : failed to retrive DN"
     # hostname
-    if host == None:
+    if host is None:
         host = req.get_remote_host()
     # return
     return jobDispatcher.genPilotToken(host,realDN,schedulerid)
@@ -1224,7 +1223,7 @@ def checkPilotPermission(req, site=''):
     prodManager = _checkRole(fqans,realDN,jobDispatcher,True,site)
     if not prodManager:
         return False,"production or pilot role is required"
-    if realDN == None:
+    if realDN is None:
         return False,"failed to retrive DN"
     return True,None
 

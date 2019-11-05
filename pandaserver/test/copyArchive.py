@@ -3,29 +3,19 @@ import re
 import sys
 import time
 import fcntl
-import types
 import shelve
-import random
 import datetime
-import commands
-import threading
-import userinterface.Client as Client
-from dataservice.DDM import rucioAPI
-from taskbuffer.OraDBProxy import DBProxy
-from taskbuffer.TaskBuffer import taskBuffer
-from taskbuffer import EventServiceUtils
-from pandalogger.PandaLogger import PandaLogger
-from jobdispatcher.Watcher import Watcher
-from brokerage.SiteMapper import SiteMapper
-from dataservice.Finisher import Finisher
-from dataservice.MailUtils import MailUtils
-from taskbuffer import ProcessGroups
-import taskbuffer.ErrorCode
-import dataservice.DDM
+import pandaserver.userinterface.Client as Client
+from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+from pandaserver.taskbuffer import EventServiceUtils
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.jobdispatcher.Watcher import Watcher
+from pandaserver.brokerage.SiteMapper import SiteMapper
+from pandaserver.dataservice.MailUtils import MailUtils
+from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
 # password
-from config import panda_config
-passwd = panda_config.dbpasswd
+from pandaserver.config import panda_config
 
 # logger
 _logger = PandaLogger().getLogger('copyArchive')
@@ -57,7 +47,7 @@ def _memoryCheck(str):
                 continue
         procfile.close()
         _logger.debug('MemCheck - %s Name=%s VSZ=%s RSS=%s : %s' % (os.getpid(),name,vmSize,vmRSS,str))
-    except:
+    except Exception:
         type, value, traceBack = sys.exc_info()
         _logger.error("memoryCheck() : %s %s" % (type,value))
         _logger.debug('MemCheck - %s unknown : %s' % (os.getpid(),str))
@@ -71,7 +61,8 @@ try:
     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
     # get process list
     scriptName = sys.argv[0]
-    out = commands.getoutput('ps axo user,pid,lstart,args | grep dq2.clientapi | grep -v PYTHONPATH | grep -v grep')
+    out = commands_get_status_output(
+        'ps axo user,pid,lstart,args | grep dq2.clientapi | grep -v PYTHONPATH | grep -v grep')[-1]
     for line in out.split('\n'):
         if line == '':
             continue
@@ -80,7 +71,7 @@ try:
         if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
             continue
         # look for python
-        if re.search('python',line) == None:
+        if re.search('python',line) is None:
             continue
         # PID
         pid = items[1]
@@ -91,8 +82,8 @@ try:
         if startTime < timeLimit:
             _logger.debug("old dq2 process : %s %s" % (pid,startTime))
             _logger.debug(line)            
-            commands.getoutput('kill -9 %s' % pid)
-except:
+            commands_get_status_output('kill -9 %s' % pid)
+except Exception:
     type, value, traceBack = sys.exc_info()
     _logger.error("kill dq2 process : %s %s" % (type,value))
 
@@ -103,14 +94,14 @@ try:
     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=7)
     # get process list
     scriptName = sys.argv[0]
-    out = commands.getoutput('ps axo user,pid,lstart,args | grep %s' % scriptName)
+    out = commands_get_status_output('ps axo user,pid,lstart,args | grep %s' % scriptName)[-1]
     for line in out.split('\n'):
         items = line.split()
         # owned process
         if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
             continue
         # look for python
-        if re.search('python',line) == None:
+        if re.search('python',line) is None:
             continue
         # PID
         pid = items[1]
@@ -121,8 +112,8 @@ try:
         if startTime < timeLimit:
             _logger.debug("old process : %s %s" % (pid,startTime))
             _logger.debug(line)            
-            commands.getoutput('kill -9 %s' % pid)
-except:
+            commands_get_status_output('kill -9 %s' % pid)
+except Exception:
     type, value, traceBack = sys.exc_info()
     _logger.error("kill process : %s %s" % (type,value))
     
@@ -172,7 +163,7 @@ try:
             varMap = {}
             varMap[':userName'] = userName
             stUM,resUM = taskBuffer.querySQLS(sqlUM,varMap)
-            if resUM == None or len(resUM) == 0:
+            if resUM is None or len(resUM) == 0:
                 _logger.error("email address is unavailable for '%s'" % userName)
             else:
                 userMailAddr = resUM[0][0]
@@ -191,21 +182,21 @@ try:
             stUp,resUp = taskBuffer.querySQLS(sqlUp,varMap)
         else:
             # append cloud
-            if not requestsInCloud.has_key(cloud):
-                requestsInCloud[cloud] = {}
+            requestsInCloud.setdefault(cloud, {})
             # append site
-            if not requestsInCloud[cloud].has_key(pandaSite):
-                requestsInCloud[cloud][pandaSite] = []
+            requestsInCloud[cloud].setdefault(pandaSite, [])
             # append user
             requestsInCloud[cloud][pandaSite].append(userName)
     # send requests to the cloud responsible
-    for cloud,requestsMap in requestsInCloud.iteritems():
+    for cloud in requestsInCloud:
+        requestsMap = requestsInCloud[cloud]
         _logger.debug("requests for approval : cloud=%s" % cloud)
         # send
-        if contactAddr.has_key(cloud) and (not contactAddr[cloud] in ['',None,'None']):
+        if cloud in contactAddr and contactAddr[cloud] not in ['',None,'None']:
             # get site contact
-            for pandaSite,userNames in requestsMap.iteritems():
-                if not siteContactAddr.has_key(pandaSite):
+            for pandaSite in requestsMap:
+                userNames = requestsMap[pandaSite]
+                if pandaSite not in siteContactAddr:
                     varMap = {}
                     varMap[':siteid'] = pandaSite
                     sqlSite = "SELECT email FROM ATLAS_PANDAMETA.schedconfig WHERE siteid=:siteid AND rownum<=1"
@@ -222,7 +213,8 @@ try:
             if retMail:
                 sqlUp  = "UPDATE ATLAS_PANDAMETA.siteaccess SET status=:newStatus "
                 sqlUp += "WHERE pandaSite=:pandaSite AND dn=:userName"
-                for pandaSite,userNames in requestsMap.iteritems():
+                for pandaSite in requestsMap:
+                    userNames = requestsMap[pandaSite]
                     for userName in userNames:
                         varMap = {}
                         varMap[':userName']  = userName
@@ -231,7 +223,7 @@ try:
                         stUp,resUp = taskBuffer.querySQLS(sqlUp,varMap)
         else:
             _logger.error("contact email address is unavailable for %s" % cloud)
-except:
+except Exception:
     type, value, traceBack = sys.exc_info()
     _logger.error("Failed with %s %s" % (type,value))
 _logger.debug("Site Access : done")    
@@ -248,7 +240,7 @@ try:
     varMap[':jobStatus']       = 'failed'
     varMap[':prodSourceLabel'] = 'user'
     status,res = taskBuffer.querySQLS(sql,varMap)
-    if res != None:
+    if res is not None:
         # loop over all user/jobdefID
         for pandaID,prodUserName,jobDefinitionID,jediTaskID,computingSite in res:
             # check
@@ -277,12 +269,12 @@ try:
             varMap[':prodUserName']    = prodUserName
             statC,resC = taskBuffer.querySQLS(sqlC,varMap)
             # finalize if there is no non-failed jobs
-            if resC != None:
+            if resC is not None:
                 _logger.debug("n of non-failed jobs : %s" % resC[0][0])
                 if resC[0][0] == 0:
                     jobSpecs = taskBuffer.peekJobs([pandaID],fromDefined=False,fromArchived=False,fromWaiting=False)
                     jobSpec = jobSpecs[0]
-                    if jobSpec == None:
+                    if jobSpec is None:
                         _logger.debug("skip PandaID={0} not found in jobsActive".format(pandaID))
                         continue
                     _logger.debug("finalize %s %s" % (prodUserName,jobDefinitionID)) 
@@ -294,7 +286,7 @@ try:
                         subDsList = []
                         for tmpFileSpec in jobSpec.Files:
                             if tmpFileSpec.type in ['log','output'] and \
-                                    re.search('_sub\d+$',tmpFileSpec.destinationDBlock) != None:
+                                    re.search('_sub\d+$',tmpFileSpec.destinationDBlock) is not None:
                                 if tmpFileSpec.destinationDBlock in subDsNames:
                                     continue
                                 subDsNames.add(tmpFileSpec.destinationDBlock)
@@ -304,7 +296,7 @@ try:
                         taskBuffer.updateUnmergedDatasets(jobSpec,subDsList)
             else:
                 _logger.debug("n of non-failed jobs : None")
-except:
+except Exception:
     errType,errValue = sys.exc_info()[:2]
     _logger.error("AnalFinalizer failed with %s %s" % (errType,errValue))
 
@@ -342,7 +334,7 @@ try:
             varMap[':fileType'] = 'log'
             sql = "SELECT d.status FROM ATLAS_PANDA.filesTable4 f,ATLAS_PANDA.datasets d WHERE PandaID=:PandaID AND f.type=:fileType AND d.name=f.destinationDBlock "
             tmpS,resS = taskBuffer.querySQLS(sql,varMap)
-            if resS != None:
+            if resS is not None:
                 subStatus, = resS[0]
                 if subStatus in ['completed']:
                     jobSpecs = taskBuffer.peekJobs([PandaID],fromDefined=False,fromArchived=False,fromWaiting=False)
@@ -351,7 +343,7 @@ try:
                     subDsList = []
                     for tmpFileSpec in jobSpec.Files:
                         if tmpFileSpec.type in ['log','output'] and \
-                                re.search('_sub\d+$',tmpFileSpec.destinationDBlock) != None:
+                                re.search('_sub\d+$',tmpFileSpec.destinationDBlock) is not None:
                             if tmpFileSpec.destinationDBlock in subDsNames:
                                 continue
                             subDsNames.add(tmpFileSpec.destinationDBlock)
@@ -359,7 +351,7 @@ try:
                             subDsList.append(datasetSpec)
                     _logger.debug("update unmerged datasets for jediTaskID={0} PandaID={1}".format(jediTaskID,PandaID))
                     taskBuffer.updateUnmergedDatasets(jobSpec,subDsList,updateCompleted=True)
-except:
+except Exception:
     errType,errValue = sys.exc_info()[:2]
     _logger.error("check for stuck merging jobs failed with %s %s" % (errType,errValue))
 
@@ -402,7 +394,7 @@ varMap[':jobStatus4'] = 'stageout'
 sql  = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE (prodSourceLabel=:prodSourceLabel1 OR prodSourceLabel=:prodSourceLabel2) "
 sql += "AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4) AND modificationTime<:modificationTime"
 status,res = taskBuffer.querySQLS(sql,varMap)
-if res == None:
+if res is None:
     _logger.debug("# of Anal Watcher : %s" % res)
 else:
     _logger.debug("# of Anal Watcher : %s" % len(res))    
@@ -422,7 +414,7 @@ varMap[':jobStatus1'] = 'transferring'
 sql  = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
 sql += "AND jobStatus=:jobStatus1 AND modificationTime<:modificationTime"
 status,res = taskBuffer.querySQLS(sql,varMap)
-if res == None:
+if res is None:
     _logger.debug("# of Transferring Anal Watcher : %s" % res)
 else:
     _logger.debug("# of Transferring Anal Watcher : %s" % len(res))    
@@ -439,7 +431,7 @@ varMap[':jobStatus'] = 'sent'
 varMap[':modificationTime'] = timeLimit
 status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND modificationTime<:modificationTime",
                               varMap)
-if res == None:
+if res is None:
     _logger.debug("# of Sent Watcher : %s" % res)
 else:
     _logger.debug("# of Sent Watcher : %s" % len(res))
@@ -456,7 +448,7 @@ xmlIDs = []
 xmlFiles = os.listdir(panda_config.logdir)
 for file in xmlFiles:
     match = re.search('^(\d+)_([^_]+)_.{36}$',file)
-    if match != None:
+    if match is not None:
         id = match.group(1)
         xmlIDs.append(int(id))
 sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime)) AND (prodSourceLabel=:prodSourceLabel1 OR prodSourceLabel=:prodSourceLabel2 OR prodSourceLabel=:prodSourceLabel3) AND stateChangeTime != modificationTime"
@@ -468,7 +460,7 @@ varMap[':prodSourceLabel1'] = 'panda'
 varMap[':prodSourceLabel2'] = 'user'
 varMap[':prodSourceLabel3'] = 'ddm'
 status,res = taskBuffer.querySQLS(sql,varMap)
-if res == None:
+if res is None:
     _logger.debug("# of Holding Anal/DDM Watcher : %s" % res)
 else:
     _logger.debug("# of Holding Anal/DDM Watcher : %s - XMLs : %s" % (len(res),len(xmlIDs)))
@@ -493,7 +485,7 @@ varMap[':endTime'] = timeLimit
 varMap[':jobStatus'] = 'holding'
 varMap[':pLimit'] = 800
 status,res = taskBuffer.querySQLS(sql,varMap)
-if res == None:
+if res is None:
     _logger.debug("# of High prio Holding Watcher : %s" % res)
 else:
     _logger.debug("# of High prio Holding Watcher : %s" % len(res))    
@@ -512,7 +504,7 @@ varMap[':modificationTime'] = timeLimit
 varMap[':endTime'] = timeLimit
 varMap[':jobStatus'] = 'holding'
 status,res = taskBuffer.querySQLS(sql,varMap)
-if res == None:
+if res is None:
     _logger.debug("# of Holding Watcher : %s" % res)
 else:
     _logger.debug("# of Holding Watcher : %s" % len(res))    
@@ -549,7 +541,7 @@ for workflow in workflows:
     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeOutVal)
     varMap[':modificationTime'] = timeLimit
     status,res = taskBuffer.querySQLS(sqlX, varMap)
-    if res == None:
+    if res is None:
         _logger.debug("# of Internal Staging Watcher with workflow={0}: {1}".format(workflow, res))
     else:
         _logger.debug("# of Internal Staging Watcher with workflow={0}: {1}".format(workflow, len(res)))
@@ -588,7 +580,7 @@ for workflow in workflows:
     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeOutVal)
     varMap[':modificationTime'] = timeLimit
     status,res = taskBuffer.querySQLS(sqlX, varMap)
-    if res == None:
+    if res is None:
         _logger.debug("# of General Watcher with workflow={0}: {1}".format(workflow, res))
     else:
         _logger.debug("# of General Watcher with workflow={0}: {1}".format(workflow, len(res)))
@@ -609,7 +601,7 @@ status,res = taskBuffer.querySQLS("SELECT PandaID,cloud,prodSourceLabel FROM ATL
                               {':creationTime':timeLimit})
 jobs=[]
 dashFileMap = {}
-if res != None:
+if res is not None:
     for pandaID,cloud,prodSourceLabel in res:
         # collect PandaIDs
         jobs.append(pandaID)
@@ -625,7 +617,7 @@ varMap[':creationTime'] = timeLimit
 status,res = taskBuffer.querySQLS("SELECT PandaID from ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime",
                               varMap)
 jobs=[]
-if res != None:
+if res is not None:
     for (id,) in res:
         jobs.append(id)
 if len(jobs):
@@ -645,7 +637,7 @@ _logger.debug(sql+str(varMap))
 status,res = taskBuffer.querySQLS(sql,varMap)
 _logger.debug(res)
 jobs=[]
-if res != None:
+if res is not None:
     for (id,) in res:
         jobs.append(id)
 if len(jobs):
@@ -665,13 +657,13 @@ status,res = taskBuffer.querySQLS(sql,varMap)
 _logger.debug(res)
 jobs   = []
 movers = []
-if res != None:
+if res is not None:
     for id, in res:
         movers.append(id)
         # get dispatch dataset
         sql = 'SELECT name FROM ATLAS_PANDA.Datasets WHERE MoverID=:MoverID'
         stDS,resDS = taskBuffer.querySQLS(sql,{':MoverID':id})
-        if resDS != None:
+        if resDS is not None:
             disDS = resDS[0][0]
             # get PandaIDs associated to the dis dataset
             sql = "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND dispatchDBlock=:dispatchDBlock"
@@ -679,7 +671,7 @@ if res != None:
             varMap[':jobStatus'] = 'assigned'
             varMap[':dispatchDBlock'] = disDS
             stP,resP = taskBuffer.querySQLS(sql,varMap)
-            if resP != None:
+            if resP is not None:
                 for pandaID, in resP:
                     jobs.append(pandaID)
 # kill movers                    
@@ -736,7 +728,7 @@ for tmpSite, in resDS:
     varMap[':hours'] = 3
     varMap[':laststart'] = timeLimitSite
     stSS,resSS = taskBuffer.querySQLS(sqlSS,varMap)
-    if stSS != None and len(resSS) > 0:
+    if stSS is not None and len(resSS) > 0:
         # get jobs
         varMap = {}
         varMap[':prodSourceLabel'] = 'managed'
@@ -752,7 +744,7 @@ for tmpSite, in resDS:
         jediJobs = []
         # reassign
         _logger.debug('reassignJobs for JEDI at inactive site %s laststart=%s' % (tmpSite,resSS[0][0]))
-        if resPI != None:
+        if resPI is not None:
             for pandaID, eventService, attemptNr in resPI:
                 if eventService in [EventServiceUtils.esMergeJobFlagNumber]:
                     _logger.debug('retrying es merge %s at inactive site %s' % (pandaID,tmpSite))
@@ -774,7 +766,7 @@ status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsDefined4",timeLimit
                                             True)
 jobs = []
 jediJobs = []
-if res != None:
+if res is not None:
     for (id,lockedby) in res:
         if lockedby == 'jedi':
             jediJobs.append(id)
@@ -804,7 +796,7 @@ status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsDefined4",timeLimit
                                             True)
 jobs = []
 jediJobs = []
-if res != None:
+if res is not None:
     for (id,lockedby) in res:
         if lockedby == 'jedi':
             jediJobs.append(id)
@@ -840,7 +832,7 @@ for tmpCloud in siteMapper.getCloudList():
                                                 True,onlyReassignable=True)
     jobs = []
     jediJobs = []
-    if res != None:
+    if res is not None:
         for (id,lockedby) in res:
             if lockedby == 'jedi':
                 jediJobs.append(id)
@@ -875,7 +867,7 @@ try:
     varMap[':processingType2']  = 'simul'
     status,res = taskBuffer.querySQLS("SELECT cloud,computingSite,jobStatus,COUNT(*) FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus IN (:jobStatus1,:jobStatus2) AND prodSourceLabel=:prodSourceLabel AND processingType IN (:processingType1,:processingType2) GROUP BY cloud,computingSite,jobStatus",
                                       varMap)
-    if res != None:
+    if res is not None:
         # get ratio of activated/running
         siteStatData = {}
         for tmpCloud,tmpComputingSite,tmpJobStatus,tmpCount in res:
@@ -887,15 +879,16 @@ try:
                 continue
             # add cloud/site
             tmpKey = (tmpCloud,tmpComputingSite)
-            if not siteStatData.has_key(tmpKey):
+            if tmpKey not in siteStatData:
                 siteStatData[tmpKey] = {'activated':0,'running':0}
             # add the number of jobs
-            if siteStatData[tmpKey].has_key(tmpJobStatus):
+            if tmpJobStatus in siteStatData[tmpKey]:
                 siteStatData[tmpKey][tmpJobStatus] += tmpCount
         # look for stuck site
         stuckThr = 10
         stuckSites = []
-        for tmpKey,tmpStatData in siteStatData.iteritems():
+        for tmpKey in siteStatData:
+            tmpStatData = siteStatData[tmpKey]
             if tmpStatData['running'] == 0 or \
                    float(tmpStatData['activated'])/float(tmpStatData['running']) > stuckThr:
                 tmpCloud,tmpComputingSite = tmpKey
@@ -906,7 +899,7 @@ try:
                                                             onlyReassignable=True)
                 jobs = []
                 jediJobs = []
-                if res != None:
+                if res is not None:
                     for (id,lockedby) in res:
                         if lockedby == 'jedi':
                             jediJobs.append(id)
@@ -928,7 +921,7 @@ try:
                         _logger.debug('reassignJobs for Active T2 JEDI evgensimul (%s)' % jediJobs[iJob:iJob+nJob])
                         Client.killJobs(jediJobs[iJob:iJob+nJob],51,keepUnmerged=True)
                         iJob += nJob
-except:
+except Exception:
     errType,errValue = sys.exc_info()[:2]
     _logger.error("failed to reassign T2 evgensimul with %s:%s" % (errType,errValue))
 
@@ -938,7 +931,7 @@ status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,
                                             onlyReassignable=True,getEventService=True)
 jobs = []
 jediJobs = []
-if res != None:
+if res is not None:
     for pandaID, lockedby, eventService, attemptNr, computingSite in res:
         if computingSite in sitesToSkipTO:
             _logger.debug('skip reassignJobs for PandaID={0} for long activated in active table since timeout is disabled at {1}'.format(pandaID,computingSite))
@@ -974,7 +967,7 @@ status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,
                                             onlyReassignable=True,useStateChangeTime=True,getEventService=True)
 jobs = []
 jediJobs = []
-if res != None:
+if res is not None:
     for pandaID, lockedby, eventService, attemptNr, computingSite in res:
         if computingSite in sitesToSkipTO:
             _logger.debug('skip reassignJobs for PandaID={0} for long starting in active table since timeout is disabled at {1}'.format(pandaID,computingSite))
@@ -1011,7 +1004,7 @@ varMap[':modificationTime'] = timeLimit
 status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE (prodSourceLabel=:prodSourceLabel1 OR prodSourceLabel=:prodSourceLabel2 OR prodSourceLabel=:prodSourceLabel3) AND modificationTime<:modificationTime ORDER BY PandaID",
                               varMap)
 jobs = []
-if res != None:
+if res is not None:
     for (id,) in res:
         jobs.append(id)
 # kill
@@ -1028,7 +1021,7 @@ varMap[':creationTime'] = timeLimit
 status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime",
                                   varMap)
 jobs = []
-if res != None:
+if res is not None:
     for (id,) in res:
         jobs.append(id)
 # kill
@@ -1052,14 +1045,15 @@ sql  = "SELECT PandaID,computingSite FROM ATLAS_PANDA.jobsWaiting4 WHERE jobStat
 sql += "AND eventService=:esMerge ORDER BY jediTaskID "
 status,res = taskBuffer.querySQLS(sql, varMap)
 jobsMap = {}
-if res != None:
+if res is not None:
     for id,site in res:
         if site not in jobsMap:
             jobsMap[site] = []
         jobsMap[site].append(id)
 # kick
 if len(jobsMap):
-    for site, jobs in jobsMap.iteritems():
+    for site in jobsMap:
+        jobs = jobsMap[site]
         nJob = 100
         iJob = 0
         while iJob < len(jobs):
@@ -1077,7 +1071,7 @@ sql  = "SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE jobStatus=:jobStatus 
 sql += "AND (eventService IS NULL OR eventService<>:coJumbo) "
 status,res = taskBuffer.querySQLS(sql, varMap)
 jobs = []
-if res != None:
+if res is not None:
     for (id,) in res:
         jobs.append(id)
 # kill
@@ -1102,7 +1096,7 @@ sql  = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus IN (:jobStat
 sql += "AND eventService IN (:esJob,:coJumbo) AND currentPriority>=900 "
 status,res = taskBuffer.querySQLS(sql, varMap)
 jobs = []
-if res != None:
+if res is not None:
     for (id,) in res:
         jobs.append(id)
 # kill
@@ -1125,7 +1119,7 @@ sql  = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus IN (:jobStat
 sql += "AND eventService=:esMergeJob "
 status,res = taskBuffer.querySQLS(sql, varMap)
 jobs = []
-if res != None:
+if res is not None:
     for (id,) in res:
         jobs.append(id)
 # kill
@@ -1146,7 +1140,7 @@ varMap[':timeLimit'] = timeLimit
 varMap[':coJumbo'] = EventServiceUtils.coJumboJobFlagNumber
 status,res = taskBuffer.querySQLS(sql, varMap)
 jobs = []
-if res != None:
+if res is not None:
     for (id,) in res:
         jobs.append(id)
 # kill
@@ -1161,7 +1155,7 @@ timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
 status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsWaiting4",timeLimit,['waiting'],['managed'],[],[],[],True)
 jobs = []
 jediJobs = []
-if res != None:
+if res is not None:
     for (id,lockedby) in res:
         if lockedby == 'jedi':
             jediJobs.append(id)
@@ -1190,7 +1184,7 @@ timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=21)
 status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE creationTime<:creationTime",
                               {':creationTime':timeLimit})
 jobs = []
-if res != None:
+if res is not None:
     for (id,) in res:
         jobs.append(id)
 # kill
@@ -1218,7 +1212,7 @@ varMap[':creationTime'] = timeLimit
 status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE prodSourceLabel=:prodSourceLabel AND creationTime<:creationTime",
                               varMap)
 jobs = []
-if res != None:
+if res is not None:
     for (id,) in res:
         jobs.append(id)
 # kill
@@ -1235,7 +1229,7 @@ varMap[':creationTime'] = timeLimit
 status,res = taskBuffer.querySQLS("SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime ",
                                   varMap)
 jobs = []
-if res != None:
+if res is not None:
     for (id,) in res:
         jobs.append(id)
 # kill
@@ -1291,7 +1285,7 @@ for file in files:
         if timestamp < timeLimit:
             _logger.debug("delete %s " % file)
             os.remove('%s/%s' % (panda_config.cache_dir,file))
-    except:
+    except Exception:
         pass
 
 
@@ -1304,7 +1298,7 @@ for file in os.listdir(dirName):
         _logger.debug("delete %s " % file)
         try:
             os.remove('%s/%s' % (dirName,file))
-        except:
+        except Exception:
             pass
 
                     
@@ -1320,14 +1314,16 @@ fcntl.flock(_lockGetMail.fileno(), fcntl.LOCK_EX)
 pDB = shelve.open(panda_config.emailDB)
 # read
 mailMap = {}
-for name,addr in pDB.iteritems():
+for name in pDB:
+    addr = pDB[name]
     mailMap[name] = addr
 # close DB
 pDB.close()
 # release file lock
 fcntl.flock(_lockGetMail.fileno(), fcntl.LOCK_UN)
 # set email address
-for name,addr in mailMap.iteritems():
+for name in mailMap:
+    addr = mailMap[name]
     # remove _
     name = re.sub('_$','',name)
     status,res = taskBuffer.querySQLS("SELECT email FROM ATLAS_PANDAMETA.users WHERE name=:name",{':name':name})

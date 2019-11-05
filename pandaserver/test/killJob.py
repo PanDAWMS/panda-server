@@ -1,6 +1,6 @@
 import sys
 import optparse
-import userinterface.Client as Client
+import pandaserver.userinterface.Client as Client
 
 optP = optparse.OptionParser(conflict_handler="resolve")
 optP.add_option('-9',action='store_const',const=True,dest='forceKill',
@@ -36,12 +36,14 @@ if options.killOwnProdJobs:
     useMailAsIDV = True
 
 if len(args) == 1:
-    Client.killJobs([args[0]], code=codeV, useMailAsID=useMailAsIDV, keepUnmerged=options.keepUnmerged, jobSubStatus=options.jobSubStatus)
+    Client.killJobs([args[0]], code=codeV, useMailAsID=useMailAsIDV, keepUnmerged=options.keepUnmerged,
+                    jobSubStatus=options.jobSubStatus)
 else:
     startID = int(args[0])
     endID   = int(args[1])
     if startID > endID:
-        print '%d is less than %d' % (endID,startID)
+        print('%d is less than %d' % (endID,startID))
         sys.exit(1)
-    Client.killJobs(range(startID,endID+1),code=codeV,useMailAsID=useMailAsIDV,keepUnmerged=options.keepUnmerged, jobSubStatus=options.jobSubStatus)
+    Client.killJobs(range(startID,endID+1),code=codeV,useMailAsID=useMailAsIDV,
+                    keepUnmerged=options.keepUnmerged, jobSubStatus=options.jobSubStatus)
 

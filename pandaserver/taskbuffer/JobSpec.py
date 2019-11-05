@@ -95,7 +95,7 @@ class JobSpec(object):
     # override __getattribute__ for SQL
     def __getattribute__(self,name):
         ret = object.__getattribute__(self,name)
-        if ret == None:
+        if ret is None:
             return "NULL"
         return ret
 
@@ -147,10 +147,10 @@ class JobSpec(object):
     def valuesMap(self,useSeq=False,onlyChanged=False):
         ret = {}
         for attr in self._attributes:
-            if useSeq and self._seqAttrMap.has_key(attr):
+            if useSeq and attr in self._seqAttrMap:
                 continue
             if onlyChanged:
-                if not self._changedAttrs.has_key(attr):
+                if attr not in self._changedAttrs:
                     continue
             val = getattr(self,attr)
             if val == 'NULL':
@@ -162,8 +162,8 @@ class JobSpec(object):
             if attr in self._suppAttrs:
                 val = None
             # truncate too long values
-            if self._limitLength.has_key(attr):
-                if val != None:
+            if attr in self._limitLength:
+                if val is not None:
                     val = val[:self._limitLength[attr]]
             ret[':%s' % attr] = val
         return ret
@@ -222,10 +222,10 @@ class JobSpec(object):
 
     # return expression of bind values for INSERT
     def bindValuesExpression(cls,useSeq=False):
-        from config import panda_config
+        from pandaserver.config import panda_config
         ret = "VALUES("
         for attr in cls._attributes:
-            if useSeq and cls._seqAttrMap.has_key(attr):
+            if useSeq and attr in cls._seqAttrMap:
                 if panda_config.backend == 'mysql':
                     # mysql
                     ret += "%s," % "NULL"
@@ -284,7 +284,7 @@ class JobSpec(object):
     def bindUpdateChangesExpression(self):
         ret = ""
         for attr in self._attributes:
-            if self._changedAttrs.has_key(attr):
+            if attr in self._changedAttrs:
                 ret += '%s=:%s,' % (attr,attr)
         ret  = ret[:-1]
         ret += ' '
@@ -302,9 +302,9 @@ class JobSpec(object):
 
     # truncate string attribute
     def truncateStringAttr(cls,attr,val):
-        if not cls._limitLength.has_key(attr):
+        if attr not in cls._limitLength:
             return val
-        if val == None:
+        if val is None:
             return val
         return val[:cls._limitLength[attr]]
     truncateStringAttr = classmethod(truncateStringAttr)
@@ -335,7 +335,7 @@ class JobSpec(object):
 
     # get LB number
     def getLumiBlockNr(self):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             for tmpItem in self.specialHandling.split(','):
                 if tmpItem.startswith('lb:'):
                     return int(tmpItem.split(':')[-1])
@@ -345,7 +345,7 @@ class JobSpec(object):
 
     # get DDM backend
     def getDdmBackEnd(self):
-        if self.specialHandling == None:
+        if self.specialHandling is None:
             return None
         for tmpItem in self.specialHandling.split(','):
             if tmpItem.startswith('ddm:'):
@@ -385,7 +385,7 @@ class JobSpec(object):
 
     # get cloud
     def getCloud(self):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             for tmpItem in self.specialHandling.split(','):
                 if tmpItem.startswith('hc:'): # hc: Home Cloud
                     return tmpItem.split(':')[-1]
@@ -401,11 +401,11 @@ class JobSpec(object):
     # get file names which were uploaded to alternative locations
     def altStgOutFileList(self):
         try:
-            if self.jobMetrics != None:
+            if self.jobMetrics is not None:
                 for item in self.jobMetrics.split():
                     if item.startswith('altTransferred='):
                         return item.split('=')[-1].split(',')
-        except:
+        except Exception:
             pass
         return []
 
@@ -413,7 +413,7 @@ class JobSpec(object):
 
     # get mode for alternative stage-out
     def getAltStgOut(self):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             for tmpItem in self.specialHandling.split(','):
                 if tmpItem.startswith('{0}:'.format(self._tagForSH['altStgOut'])):
                     return tmpItem.split(':')[-1]
@@ -423,7 +423,7 @@ class JobSpec(object):
 
     # set alternative stage-out
     def setAltStgOut(self,mode):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             items = self.specialHandling.split(',')
         else:
             items = []
@@ -440,7 +440,7 @@ class JobSpec(object):
 
     # put log files to OS
     def putLogToOS(self):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             return self._tagForSH['putLogToOS'] in self.specialHandling.split(',')
         return False
 
@@ -448,7 +448,7 @@ class JobSpec(object):
 
     # set to put log files to OS
     def setToPutLogToOS(self):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             items = self.specialHandling.split(',')
         else:
             items = []
@@ -460,7 +460,7 @@ class JobSpec(object):
 
     # write input to file
     def writeInputToFile(self):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             return self._tagForSH['writeInputToFile'] in self.specialHandling.split(',')
         return False
 
@@ -468,7 +468,7 @@ class JobSpec(object):
 
     # set to write input to file
     def setToWriteInputToFile(self):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             items = self.specialHandling.split(',')
         else:
             items = []
@@ -480,7 +480,7 @@ class JobSpec(object):
 
     # set request type
     def setRequestType(self,reqType):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             items = self.specialHandling.split(',')
         else:
             items = []
@@ -509,7 +509,7 @@ class JobSpec(object):
                 for tmpFile in lfnMap[tmpLFN]:
                     newFiles.append(tmpFile)
             self.Files = newFiles
-        except:
+        except Exception:
             pass
 
 
@@ -525,7 +525,7 @@ class JobSpec(object):
                         zipFile,conFiles = item.split(':')
                         conFiles = conFiles.split(',')
                         zipMap[zipFile] = conFiles
-        except:
+        except Exception:
             pass
         return zipMap
 
@@ -533,7 +533,7 @@ class JobSpec(object):
 
     # suppress execute string conversion
     def noExecStrCnv(self):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             return self._tagForSH['noExecStrCnv'] in self.specialHandling.split(',')
         return False
 
@@ -541,7 +541,7 @@ class JobSpec(object):
 
     # set to suppress execute string conversion
     def setNoExecStrCnv(self):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             items = self.specialHandling.split(',')
         else:
             items = []
@@ -553,7 +553,7 @@ class JobSpec(object):
 
     # in-file positional event number
     def inFilePosEvtNum(self):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             return self._tagForSH['inFilePosEvtNum'] in self.specialHandling.split(',')
         return False
 
@@ -561,7 +561,7 @@ class JobSpec(object):
 
     # set to use in-file positional event number
     def setInFilePosEvtNum(self):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             items = self.specialHandling.split(',')
         else:
             items = []
@@ -573,7 +573,7 @@ class JobSpec(object):
 
     # register event service files
     def registerEsFiles(self):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             return self._tagForSH['registerEsFiles'] in self.specialHandling.split(',')
         return False
 
@@ -581,7 +581,7 @@ class JobSpec(object):
 
     # set to register event service files
     def setRegisterEsFiles(self):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             items = self.specialHandling.split(',')
         else:
             items = []
@@ -599,12 +599,12 @@ class JobSpec(object):
         try:
             if self.inputFileBytes / self.maxWalltime > 5000:
                 return
-        except:
+        except Exception:
             return
         try:
             if self.coreCount <= 1:
                 return
-        except:
+        except Exception:
             return
         if self.currentPriority > 250:
             return
@@ -614,7 +614,7 @@ class JobSpec(object):
 
     # use prefetcher
     def usePrefetcher(self):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             return self._tagForSH['usePrefetcher'] in self.specialHandling.split(',')
         return False
 
@@ -622,7 +622,7 @@ class JobSpec(object):
 
     # set to use prefetcher
     def setUsePrefetcher(self):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             items = self.specialHandling.split(',')
         else:
             items = []
@@ -634,7 +634,7 @@ class JobSpec(object):
 
     # use zip to pin
     def useZipToPin(self):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             return self._tagForSH['useZipToPin'] in self.specialHandling.split(',')
         return False
 
@@ -642,7 +642,7 @@ class JobSpec(object):
 
     # set to use zip to pin
     def setUseZipToPin(self):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             items = self.specialHandling.split(',')
         else:
             items = []
@@ -654,7 +654,7 @@ class JobSpec(object):
 
     # not discard events
     def notDiscardEvents(self):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             return self._tagForSH['notDiscardEvents'] in self.specialHandling.split(',')
         return False
 
@@ -662,7 +662,7 @@ class JobSpec(object):
 
     # set not to discard events
     def setNotDiscardEvents(self):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             items = self.specialHandling.split(',')
         else:
             items = []
@@ -674,7 +674,7 @@ class JobSpec(object):
 
     # all events are done
     def allOkEvents(self):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             return self._tagForSH['allOkEvents'] in self.specialHandling.split(',')
         return False
 
@@ -682,7 +682,7 @@ class JobSpec(object):
 
     # set all events are done
     def setAllOkEvents(self):
-        if self.specialHandling != None:
+        if self.specialHandling is not None:
             items = self.specialHandling.split(',')
         else:
             items = []
@@ -771,5 +771,5 @@ class JobSpec(object):
     def get_task_attribute(self, key):
         try:
             return self.metadata[2][key]
-        except:
+        except Exception:
             return None

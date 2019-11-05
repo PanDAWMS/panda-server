@@ -9,8 +9,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import exc, func
 
 #PanDA server libraries
-from config import panda_config
-from pandalogger.PandaLogger import PandaLogger
+from pandaserver.config import panda_config
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 #Configurator libraries
 from models import Site, PandaSite, DdmEndpoint, Schedconfig, Jobsactive4, SiteStats, PandaDdmRelation

@@ -1,13 +1,14 @@
+import sys
 import threading
 import traceback
 import aux
 from aux import *
 from datetime import datetime, timedelta
 
-from config import panda_config
-from pandalogger.PandaLogger import PandaLogger
-import db_interface as dbif
-from taskbuffer.TaskBuffer import taskBuffer
+from pandaserver.config import panda_config
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.configurator import db_interface as dbif
+from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 
 _logger = PandaLogger().getLogger('configurator')
 _session = dbif.get_session()
@@ -133,7 +134,7 @@ class Configurator(threading.Thread):
         # Used to fill atlas_panda.panda_ddm_relation table
         try:
             panda_ddm_relation_dict = self.get_panda_ddm_relation()
-        except:
+        except Exception:
             # Temporary protection to prevent issues
             _logger.critical('get_panda_ddm_relation excepted with {0}'.format(traceback.print_exc()))
             panda_ddm_relation_dict = {}

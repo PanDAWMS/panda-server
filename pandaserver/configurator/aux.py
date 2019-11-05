@@ -1,6 +1,8 @@
-import urllib2
+try:
+    from urllib2 import urlopen
+except ImportError:
+    from urllib.request import urlopen
 import json
-import sys
 import time
 
 GB = 1024**3
@@ -26,9 +28,9 @@ def get_dump(url):
     """
     Retrieves a json file from the given URL and loads it into memory
     """
-    for i in xrange(1, 4): # 3 retries
+    for i in range(1, 4): # 3 retries
         try:
-            response = urllib2.urlopen(url)
+            response = urlopen(url)
             json_str = response.read()
             dump = json.loads(json_str)
             return dump

@@ -43,7 +43,7 @@ class NucleusSpec(object):
     def getEndpoint(self,endPoint):
         try:
             return self.allDdmEndPoints[endPoint]
-        except:
+        except Exception:
             None
 
 
@@ -60,7 +60,7 @@ class NucleusSpec(object):
             # if self.allDdmEndPoints[endPointName]['type'] in ['TEST','SPECIAL']:
             #    continue
             # check name
-            if re.search(patt,endPointName) != None:
+            if re.search(patt,endPointName) is not None:
                 return self.allDdmEndPoints[endPointName]
             # check type
             pattwoVO = re.sub('ATLAS','',patt)

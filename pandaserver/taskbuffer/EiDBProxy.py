@@ -3,13 +3,12 @@ proxy for database connection
 
 """
 import re
-import sys
-import traceback
+
 import warnings
-from config import panda_config
-from pandalogger.PandaLogger import PandaLogger
-from pandalogger.LogWrapper import LogWrapper
-import OraDBProxy
+from pandaserver.config import panda_config
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandaserver.taskbuffer import OraDBProxy
 
 warnings.filterwarnings('ignore')
 
@@ -39,7 +38,7 @@ class EiDBProxy(OraDBProxy.DBProxy):
     # get index of AMI tag
     def getIndexAmiTag(self,tagList,amiTag):
         for idxTag,tagPattern in enumerate(tagList):
-            if re.search('^'+tagPattern+'$',amiTag) != None:
+            if re.search('^'+tagPattern+'$',amiTag) is not None:
                 return idxTag
         return None
 
@@ -87,7 +86,7 @@ class EiDBProxy(OraDBProxy.DBProxy):
             resRG = self.cur.fetchall()
             # commit
             if not self._commit():
-                raise RuntimeError, 'Commit error'
+                raise RuntimeError('Commit error')
             retValue = {}
             keyAmiIdxMap = {}
             for tmpItem in resRG:
@@ -100,7 +99,7 @@ class EiDBProxy(OraDBProxy.DBProxy):
                     # get index number for the AMI tag in the list
                     idxTag = self.getIndexAmiTag(amiTags,amiTag)
                     # didn't match
-                    if idxTag == None:
+                    if idxTag is None:
                         continue
                 tmpKey = (runNumber,eventNumber)
                 # use AMI tag in a preference orde
@@ -110,7 +109,7 @@ class EiDBProxy(OraDBProxy.DBProxy):
                 retValue[tmpKey] = [guid]
             tmpLog.debug("found {0} events".format(len(retValue)))
             return True,retValue
-        except:
+        except Exception:
             # roll back
             self._rollback()
             # error

@@ -3,16 +3,14 @@ setup dataset
 
 '''
 
-import re
 import sys
-import datetime
-import commands
+import uuid
 import threading
 
-from config import panda_config
-from pandalogger.PandaLogger import PandaLogger
-from pandalogger.LogWrapper import LogWrapper
-from taskbuffer import EventServiceUtils
+from pandaserver.config import panda_config
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandaserver.taskbuffer import EventServiceUtils
 
 # logger
 _logger = PandaLogger().getLogger('Setupper')
@@ -65,15 +63,15 @@ class Setupper (threading.Thread):
                     else:
                         tmpVO = tmpJob.VO
                     # make map
-                    if not voJobsMap.has_key(tmpVO):
-                        voJobsMap[tmpVO] = []
+                    voJobsMap.setdefault(tmpVO, [])
                     voJobsMap[tmpVO].append(tmpJob)
                 # loop over all VOs
-                for tmpVO,tmpJobList in voJobsMap.iteritems():
+                for tmpVO in voJobsMap:
+                    tmpJobList = voJobsMap[tmpVO]
                     tmpLog.debug('vo={0} has {1} jobs'.format(tmpVO,len(tmpJobList)))
                     # get plugin
                     setupperPluginClass = panda_config.getPlugin('setupper_plugins',tmpVO)
-                    if setupperPluginClass == None:
+                    if setupperPluginClass is None:
                         # use ATLAS plug-in by default
                         from SetupperAtlasPlugin import SetupperAtlasPlugin
                         setupperPluginClass = SetupperAtlasPlugin
@@ -98,7 +96,7 @@ class Setupper (threading.Thread):
                             tmpLog.debug('post execute plugin')
                             setupperPlugin.postRun()
                         tmpLog.debug('done plugin')
-                    except:
+                    except Exception:
                         errtype,errvalue = sys.exc_info()[:2]
                         tmpLog.error('plugin failed with {0}:{1}'.format(errtype, errvalue))
                 tmpLog.debug('main end')
@@ -107,7 +105,7 @@ class Setupper (threading.Thread):
                 # write jobs to file
                 import os
                 import cPickle as pickle
-                outFileName = '%s/set.%s_%s' % (panda_config.logdir,self.jobs[0].PandaID,commands.getoutput('uuidgen'))
+                outFileName = '%s/set.%s_%s' % (panda_config.logdir,self.jobs[0].PandaID,str(uuid.uuid4()))
                 outFile = open(outFileName,'w')
                 pickle.dump(self.jobs,outFile)
                 outFile.close()
@@ -125,7 +123,7 @@ class Setupper (threading.Thread):
                 status,output = self.taskBuffer.processLimiter.getstatusoutput(com)
                 tmpLog.debug("return from main process: %s %s" % (status,output))                
                 tmpLog.debug('fork end')
-        except:
+        except Exception:
             errtype,errvalue = sys.exc_info()[:2]
             tmpLog.error('master failed with {0}:{1}'.format(errtype,errvalue))
 

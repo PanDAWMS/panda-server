@@ -1,9 +1,17 @@
-import urllib
-import httplib
 import re
 import os
 import time
-import userinterface.Client as Client
+
+try:
+    from urllib import urlencode
+except ImportError:
+    from urllib.parse import urlencode
+try:
+    from httplib import HTTPSConnection
+except ImportError:
+    from http.client import HTTPSConnection
+
+import pandaserver.userinterface.Client as Client
 
 
 def sendCommand(function, node, _logger):
@@ -15,7 +23,7 @@ def sendCommand(function, node, _logger):
     """
 
     # Prepare certificate
-    if os.environ.has_key('X509_USER_PROXY'):
+    if 'X509_USER_PROXY' in os.environ:
         certKey = os.environ['X509_USER_PROXY']
     else:
         certKey = '/tmp/x509up_u%s' % os.getuid()
@@ -25,10 +33,10 @@ def sendCommand(function, node, _logger):
     match = re.search('[^:/]+://([^/]+)(/.+)', url)
     host = match.group(1)
     path = match.group(2)
-    request = urllib.urlencode(node)
+    request = urlencode(node)
 
     st = time.time()
-    conn = httplib.HTTPSConnection(host, key_file=certKey, cert_file=certKey)
+    conn = HTTPSConnection(host, key_file=certKey, cert_file=certKey)
     conn.request('POST', path, request)
     resp = conn.getresponse()
     data = resp.read()

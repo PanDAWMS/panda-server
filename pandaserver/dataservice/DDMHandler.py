@@ -6,11 +6,11 @@ master hander for DDM
 import re
 import threading
 
-from Finisher  import Finisher
-from Activator import Activator
+from pandaserver.dataservice.Finisher  import Finisher
+from pandaserver.dataservice.Activator import Activator
 
-from pandalogger.PandaLogger import PandaLogger
-from pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.LogWrapper import LogWrapper
 
 # logger
 _logger = PandaLogger().getLogger('DDMHandler')
@@ -35,11 +35,11 @@ class DDMHandler (threading.Thread):
                                                                           self.dataset))
         # query dataset
         tmpLog.debug("start")
-        if self.vuid != None:
+        if self.vuid is not None:
             dataset = self.taskBuffer.queryDatasetWithMap({'vuid':self.vuid})
         else:
             dataset = self.taskBuffer.queryDatasetWithMap({'name':self.dataset})
-        if dataset == None:
+        if dataset is None:
             tmpLog.error("Not found")
             tmpLog.debug("end")
             return
@@ -48,7 +48,7 @@ class DDMHandler (threading.Thread):
             # activate jobs in jobsDefined
             Activator(self.taskBuffer,dataset).start()
         if dataset.type == 'output':
-            if dataset.name != None and re.search('^panda\..*_zip$',dataset.name) != None:
+            if dataset.name is not None and re.search('^panda\..*_zip$',dataset.name) is not None:
                 # start unmerge jobs
                 Activator(self.taskBuffer,dataset,enforce=True).start()
             else:

@@ -78,26 +78,6 @@ $ emacs -nw .gacl
 </entry>
 </gacl>
 
-
-4. Add grid-env.sh if needed
-
-e.g.,
-$ cat INSTALLDIR/etc/grid-env.sh
-export LD_LIBRARY_PATH=/opt/glite/lib64:/opt/globus/lib:/opt/lcg/lib64:$LD_LIBRARY_PATH
-export PYTHONPATH=/opt/glite/lib64/python:/opt/lcg/lib64/python:$PYTHONPATH
-export PATH=/opt/edg/bin:/opt/glite/bin:/opt/globus/bin:/opt/lcg/bin:$PATH
-
-and modify panda_server.cfg
-
-$ emacs -nw INSTALLDIR/etc/panda/panda_server.cfg
-
-glite_source = /opt/glite/etc/profile.d/grid-env.sh
-
-->
-
-glite_source = INSTALLDIR/etc/grid-env.sh
-
-
 5. Make log and cache dirs, and change owner if RPM is used 
 
 mkdir -p /var/log/panda

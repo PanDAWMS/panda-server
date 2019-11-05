@@ -1,4 +1,3 @@
-import re
 import json
 
 
@@ -14,7 +13,8 @@ PERMISSION_SUPER_GROUP = 'g'
 def unicodeConvert(input):
     if isinstance(input,dict):
         retMap = {}
-        for tmpKey,tmpVal in input.iteritems():
+        for tmpKey in input:
+            tmpVal = input[tmpKey]
             retMap[unicodeConvert(tmpKey)] = unicodeConvert(tmpVal)
         return retMap
     elif isinstance(input,list):

@@ -1,5 +1,10 @@
 import re
 
+try:
+    long
+except NameError:
+    long = int
+
 # list of prod source label for pilot tests
 list_ptest_prod_sources = ['ptest', 'rc_test', 'rc_test2', 'rc_alrb']
 
@@ -12,20 +17,20 @@ priorityTasksToJumpOver = 1500
 def getCoreCount(actualCoreCount, defCoreCount, jobMetrics):
     coreCount = 1
     try:
-        if actualCoreCount != None:
+        if actualCoreCount is not None:
             coreCount = actualCoreCount
         else:
             tmpMatch = None
-            if jobMetrics != None:
+            if jobMetrics is not None:
                 # extract coreCount
                 tmpMatch = re.search('coreCount=(\d+)',jobMetrics)
-            if tmpMatch != None:
+            if tmpMatch is not None:
                 coreCount = long(tmpMatch.group(1))
             else:
                 # use jobdef
                 if not defCoreCount in [None, 0]:
                     coreCount = defCoreCount
-    except:
+    except Exception:
         pass
     return coreCount
 
@@ -44,7 +49,7 @@ def getHS06sec(startTime, endTime, corePower, coreCount, baseWalltime=0, cpuEffi
             return 0
         hs06sec = float(tmpVal-baseWalltime) * corePower * coreCount * float(cpuEfficiency) / 100.0
         return hs06sec
-    except:
+    except Exception:
         return None
     
 
@@ -63,7 +68,7 @@ def parseNumStandby(catchall):
                 sw_id, resource_type, num = tmpSubStr.split(':')
                 try:
                     sw_id = int(sw_id)
-                except:
+                except Exception:
                     pass
                 if sw_id not in retMap:
                     retMap[sw_id] = {}
