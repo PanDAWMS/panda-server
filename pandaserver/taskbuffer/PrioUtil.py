@@ -1,5 +1,9 @@
 import json
 
+try:
+    unicode
+except NameError:
+    unicode = str
 
 # special permission
 PERMISSION_KEY = 'k'

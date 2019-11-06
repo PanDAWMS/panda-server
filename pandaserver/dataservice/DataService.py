@@ -30,7 +30,7 @@ web interface
 
 '''
 
-from DDMHandler import DDMHandler
+from pandaserver.dataservice.DDMHandler import DDMHandler
 
 
 # callback for dataset verification

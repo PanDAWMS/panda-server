@@ -10,8 +10,8 @@ OPTIONS="-f ${VIRTUAL_ENV}/etc/panda/panda_server-httpd.conf"
 
 # reset PATH/LD_LIBRARY_PATH since atlpan's ones break grid-tools
 export PATH=/bin:/usr/local/bin:/usr/bin
-if [[ -z "${VIRTUAL_ENV}" ]]; then
-  PATH=${VIRTUAL_ENV}/bin:${VIRTUAL_ENV}/usr/local/bin:${VIRTUAL_ENV}/usr/bin:${VIRTUAL_ENV}
+if [[ -n "${VIRTUAL_ENV}" ]]; then
+  PATH=${VIRTUAL_ENV}/bin:${VIRTUAL_ENV}/usr/local/bin:${VIRTUAL_ENV}/usr/bin:${VIRTUAL_ENV}:${PATH}
 fi
 unset LD_LIBRARY_PATH
 
@@ -21,7 +21,7 @@ export RUCIO_ACCOUNT=panda
 export RUCIO_APPID=pandasrv
 
 # panda home
-if [[ -z "${VIRTUAL_ENV}" ]]; then
+if [[ -n "${VIRTUAL_ENV}" ]]; then
   export PANDA_HOME=${VIRTUAL_ENV}
 else
   export PANDA_HOME=/data/atlpan

@@ -55,7 +55,7 @@ class NucleusSpec(object):
             patt = patt.split(':')[-1]
         if patt in self.allDdmEndPoints:
             return self.allDdmEndPoints[patt]
-        for endPointName in self.allDdmEndPoints.keys():
+        for endPointName in self.allDdmEndPoints:
             # ignore TEST or SPECIAL
             # if self.allDdmEndPoints[endPointName]['type'] in ['TEST','SPECIAL']:
             #    continue

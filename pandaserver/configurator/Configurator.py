@@ -56,7 +56,7 @@ class Configurator(threading.Thread):
         else:
             self.AGIS_URL_DDMBLACKLIST = 'http://atlas-agis-api.cern.ch/request/ddmendpointstatus/query/list/?json&fstate=OFF&activity=w'
         _logger.debug('Getting schedconfig dump...')
-        self.blacklisted_endpoints = aux.get_dump(self.AGIS_URL_DDMBLACKLIST).keys()
+        self.blacklisted_endpoints = list(aux.get_dump(self.AGIS_URL_DDMBLACKLIST))
         _logger.debug('Blacklisted endpoints {0}'.format(self.blacklisted_endpoints))
         _logger.debug('Done')
         
@@ -112,7 +112,7 @@ class Configurator(threading.Thread):
         """
         site_to_endpoints_dict = {} 
         for site in self.site_dump:
-            site_to_endpoints_dict[site['name']] = site['ddmendpoints'].keys()
+            site_to_endpoints_dict[site['name']] = list(site['ddmendpoints'])
         
         return site_to_endpoints_dict
 

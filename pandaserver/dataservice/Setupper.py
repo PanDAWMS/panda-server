@@ -5,6 +5,7 @@ setup dataset
 
 import sys
 import uuid
+import traceback
 import threading
 
 from pandaserver.config import panda_config
@@ -73,7 +74,7 @@ class Setupper (threading.Thread):
                     setupperPluginClass = panda_config.getPlugin('setupper_plugins',tmpVO)
                     if setupperPluginClass is None:
                         # use ATLAS plug-in by default
-                        from SetupperAtlasPlugin import SetupperAtlasPlugin
+                        from pandaserver.dataservice.SetupperAtlasPlugin import SetupperAtlasPlugin
                         setupperPluginClass = SetupperAtlasPlugin
                     tmpLog.debug('plugin name -> {0}'.format(setupperPluginClass.__name__))
                     try:
@@ -104,10 +105,13 @@ class Setupper (threading.Thread):
                 tmpLog.debug('fork start')
                 # write jobs to file
                 import os
-                import cPickle as pickle
+                try:
+                    import cPickle as pickle
+                except ImportError:
+                    import pickle
                 outFileName = '%s/set.%s_%s' % (panda_config.logdir,self.jobs[0].PandaID,str(uuid.uuid4()))
-                outFile = open(outFileName,'w')
-                pickle.dump(self.jobs,outFile)
+                outFile = open(outFileName, 'wb')
+                pickle.dump(self.jobs, outFile, protocol=0)
                 outFile.close()
                 # run main procedure in another process because python doesn't release memory
                 com =  'cd %s > /dev/null 2>&1; export HOME=%s; ' % (panda_config.home_dir_cwd,panda_config.home_dir_cwd)
@@ -119,13 +123,12 @@ class Setupper (threading.Thread):
                 if not self.firstSubmission:
                     com += " -f"
                 tmpLog.debug(com)
-                # exeute
+                # execute
                 status,output = self.taskBuffer.processLimiter.getstatusoutput(com)
                 tmpLog.debug("return from main process: %s %s" % (status,output))                
                 tmpLog.debug('fork end')
-        except Exception:
-            errtype,errvalue = sys.exc_info()[:2]
-            tmpLog.error('master failed with {0}:{1}'.format(errtype,errvalue))
+        except Exception as e:
+            tmpLog.error('master failed with {0} {1}'.format(str(e), traceback.format_exc()))
 
 
 

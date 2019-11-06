@@ -181,7 +181,7 @@ class AdderAtlasPlugin (AdderPluginBase):
             if tmpZipFileName not in self.extraInfo['nevents']:
                 self.extraInfo['nevents'][tmpZipFileName] = 0
                 for tmpZipContent in tmpZipContents:
-                    for tmpLFN in nEventsInput.keys():
+                    for tmpLFN in nEventsInput:
                         if re.search('^' + tmpZipContent + '$', tmpLFN) is not None:
                             self.extraInfo['nevents'][tmpZipFileName] += nEventsInput[tmpLFN]
         # check files
@@ -501,12 +501,11 @@ class AdderAtlasPlugin (AdderPluginBase):
                                  'ds'       : fileSpec.dataset}
                     zipFiles[zipFileName]['files'].append(fileAttrs)
         # cleanup submap
-        tmpKeys = subMap.keys()
-        for tmpKey in tmpKeys:
+        for tmpKey in subMap:
             if subMap[tmpKey] == []:
                 del subMap[tmpKey]
         # add data to original dataset
-        for destinationDBlock in idMap.keys():
+        for destinationDBlock in idMap:
             origDBlock = None
             match = re.search('^(.+)_sub\d+$',destinationDBlock)
             if match is not None:
@@ -529,7 +528,7 @@ class AdderAtlasPlugin (AdderPluginBase):
         self.logger.debug("extraInfo = %s" % str(self.extraInfo))
         # check consistency of destinationDBlock
         hasSub = False
-        for destinationDBlock in idMap.keys():
+        for destinationDBlock in idMap:
             match = re.search('^(.+)_sub\d+$',destinationDBlock)
             if match is not None:
                 hasSub = True
@@ -682,7 +681,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                         # register location
                         tmpDsNameLoc = subToDsMap[tmpName]
                         repLifeTime = 14
-                        for tmpLocName in optSource.keys():
+                        for tmpLocName in optSource:
                             self.logger.debug("%s %s %s %s" % ('registerDatasetLocation',tmpDsNameLoc,tmpLocName,
                                                                {'lifetime':"14 days"}))
                             for iDDMTry in range(3):
@@ -831,7 +830,7 @@ class AdderAtlasPlugin (AdderPluginBase):
     # decompose idMap
     def decomposeIdMap(self, idMap, dsDestMap, osDsFileMap, subToDsMap):
         # add item for top datasets
-        for tmpDS in dsDestMap.keys():
+        for tmpDS in dsDestMap:
             tmpTopDS = subToDsMap[tmpDS]
             if tmpTopDS != tmpDS:
                 dsDestMap[tmpTopDS] = dsDestMap[tmpDS]

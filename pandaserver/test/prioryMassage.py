@@ -167,7 +167,7 @@ for computingSite in siteRunDone:
 # check if the number of user's jobs is lower than the average 
 for prodUserName in usageBreakDownPerUser:
 	wgValMap = usageBreakDownPerUser[prodUserName]
-	for workingGroup in wgValMap.keys():
+	for workingGroup in wgValMap:
 		tmpLog.debug("---> %s group=%s" % (prodUserName, workingGroup))
 		# count the number of running/done jobs 
 		userTotalRunDone = 0
@@ -502,7 +502,7 @@ try:
 						userMap = sourceMap['user'][prodUserName]
 						if userMap['activated']['nJobs'] < maxActivated:
 							# activate jobs with higher priorities
-							currentPriorityList = userMap['throttled']['jobList'].keys()
+							currentPriorityList = list(userMap['throttled']['jobList'])
 							currentPriorityList.sort()
 							currentPriorityList.reverse()
 							nActivated = userMap['activated']['nJobs']

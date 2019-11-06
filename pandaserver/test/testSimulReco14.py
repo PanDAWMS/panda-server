@@ -29,7 +29,7 @@ files = {
 jobList = []
 
 index = 0
-for lfn in files.keys():
+for lfn in files:
     index += 1
     job = JobSpec()
     job.jobDefinitionID   = (time.time()) % 10000

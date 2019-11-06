@@ -616,7 +616,7 @@ class T2Cleaner (threading.Thread):
                                 t1SiteDDMs.append(specifiedDest)
                             # look for T2 IDs
                             t2DDMs = []
-                            for tmpDDM in tmpRepSites.keys():
+                            for tmpDDM in tmpRepSites:
                                 if not tmpDDM in t1SiteDDMs:
                                     # check home cloud
                                     notDeleteFlag = False
@@ -822,7 +822,7 @@ class FinisherThr (threading.Thread):
                     # using --destSE for analysis job to transfer output
                     seList = [job.destinationSE]
                 elif tmpNucleus is not None:
-                    seList = tmpNucleus.allDdmEndPoints.keys()
+                    seList = list(tmpNucleus.allDdmEndPoints)
                 elif siteMapper.checkCloud(job.cloud):
                     # normal production jobs
                     if DataServiceUtils.checkJobDestinationSE(job) is None:

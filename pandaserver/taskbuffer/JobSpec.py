@@ -502,7 +502,7 @@ class JobSpec(object):
                 if not tmpFile.lfn in lfnMap:
                     lfnMap[tmpFile.lfn] = []
                 lfnMap[tmpFile.lfn].append(tmpFile)
-            lfns = lfnMap.keys()
+            lfns = list(lfnMap)
             lfns.sort()
             newFiles = []
             for tmpLFN in lfns:
@@ -759,7 +759,7 @@ class JobSpec(object):
 
     # set task attribute
     def set_task_attribute(self, key, value):
-        if not isinstance(self.metadata, types.ListType):
+        if not isinstance(self.metadata, list):
             self.metadata = [None, None]
         if len(self.metadata) != 3:
             self.metadata.append({})

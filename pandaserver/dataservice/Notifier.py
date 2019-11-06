@@ -159,7 +159,7 @@ class Notifier:
                         jobsetID = self.job.jobDefinitionID
                         jobDefIDList = [self.job.jobDefinitionID]
                     else:
-                        jobDefIDList = self.summary.keys()
+                        jobDefIDList = list(self.summary)
                         jobDefIDList.sort()
                         jobIDsite = ''
                         tmpIndent = "             "

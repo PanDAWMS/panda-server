@@ -198,7 +198,7 @@ class JobDipatcher:
                        atlasRelease, prodUserID, getProxyKey, countryGroup, workingGroup, allowOtherCountry,
                        taskID, background, resourceType, harvester_id, worker_id, schedulerID)
 
-        if isinstance(tmpWrapper.result,types.ListType):
+        if isinstance(tmpWrapper.result, list):
             jobs = jobs + tmpWrapper.result
         # make response
         if len(jobs) > 0:
@@ -347,7 +347,7 @@ class JobDipatcher:
                 # succeed
                 response=Protocol.Response(Protocol.SC_Success)
                 # set command
-                if isinstance(tmpWrapper.result,types.StringType):
+                if isinstance(tmpWrapper.result, str):
                     response.appendNode('command',tmpWrapper.result)
                 else:
                     response.appendNode('command','NULL')
@@ -374,7 +374,7 @@ class JobDipatcher:
             # timeout
             response=Protocol.Response(Protocol.SC_TimeOut)
         else:
-            if isinstance(tmpWrapper.result,types.ListType):
+            if isinstance(tmpWrapper.result, list):
                 # succeed
                 response=Protocol.Response(Protocol.SC_Success)
                 # make return
@@ -406,7 +406,7 @@ class JobDipatcher:
             # timeout
             response=Protocol.Response(Protocol.SC_TimeOut)
         else:
-            if isinstance(tmpWrapper.result,types.ListType):
+            if isinstance(tmpWrapper.result, list):
                 # succeed
                 response=Protocol.Response(Protocol.SC_Success)
                 response.appendNode('data', tmpWrapper.result)

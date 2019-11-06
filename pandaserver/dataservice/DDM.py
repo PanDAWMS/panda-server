@@ -6,6 +6,7 @@ provide primitive methods for DDM
 import re
 import sys
 import hashlib
+import traceback
 
 from rucio.client import Client as RucioClient
 from rucio.common.exception import UnsupportedOperation,DataIdentifierNotFound,\
@@ -84,7 +85,7 @@ class RucioAPI:
                         except FileAlreadyExists:
                             pass
                 iFiles += nFiles
-        vuid = hashlib.md5(scope+':'+dsn).hexdigest()
+        vuid = hashlib.md5((scope + ':' + dsn).encode()).hexdigest()
         vuid = '%s-%s-%s-%s-%s' % (vuid[0:8], vuid[8:12], vuid[12:16], vuid[16:20], vuid[20:32])
         duid = vuid
         return {'duid': duid, 'version': 1, 'vuid': vuid}
@@ -349,7 +350,7 @@ class RucioAPI:
             # get dids
             client = RucioClient()
             for name in client.list_dids(scope, filters, type=collection):
-                vuid = hashlib.md5(scope + ':' + name).hexdigest()
+                vuid = hashlib.md5((scope + ':' + name).encode()).hexdigest()
                 vuid = '%s-%s-%s-%s-%s' % (vuid[0:8], vuid[8:12], vuid[12:16], vuid[16:20], vuid[20:32])
                 duid = vuid
                 # add /
@@ -362,9 +363,8 @@ class RucioAPI:
                 if keyName not in result:
                     result[keyName] = {'duid': duid, 'vuids': [vuid]}
             return result,''
-        except Exception:
-            errType,errVale = sys.exc_info()[:2]
-            return None,'%s %s' % (errType,errVale)
+        except Exception as e:
+            return None,'%s %s' % (str(e), traceback.format_exc())
 
 
 
@@ -500,7 +500,7 @@ class RucioAPI:
                 if len(dids) % nGUID == 0 or iGUID == len(lfns):
                     for tmpDict in client.list_replicas(dids):
                         tmpLFN = str(tmpDict['name'])
-                        tmpRses = tmpDict['rses'].keys()
+                        tmpRses = list(tmpDict['rses'])
                         # RSE selection
                         if rses is not None:
                             newRSEs = []
@@ -535,7 +535,6 @@ class RucioAPI:
                         tmpScope = str(tmpDict['scope'])
                         tmpLFN = str(tmpDict['name'])
                         tmpDID = '{0}:{1}'.format(tmpScope, tmpLFN)
-                        tmpRses = tmpDict['rses'].keys()
                         # RSE selection
                         for pfn in tmpDict['pfns']:
                             pfnData = tmpDict['pfns'][pfn]

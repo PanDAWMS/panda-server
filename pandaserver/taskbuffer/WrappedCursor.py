@@ -123,7 +123,7 @@ class WrappedCursor(object):
             # bind variables
             newVarDict = {}
             # make sure that :prodDBlockToken will not be replaced by %(prodDBlock)sToken
-            keys = sorted(varDict.keys(), key=lambda s:-len(str(s)))
+            keys = sorted(list(varDict), key=lambda s:-len(str(s)))
             for key in keys:
                 val = varDict[key]
                 if key[0] == ':':

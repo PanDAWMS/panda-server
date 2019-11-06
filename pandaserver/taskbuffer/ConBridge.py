@@ -6,6 +6,7 @@ import socket
 import signal
 import random
 import threading
+import traceback
 try:
     import cPickle as pickle
 except ImportError:
@@ -150,10 +151,9 @@ class ConBridge (object):
                 self.bridge_getResponse()
                 _logger.debug('master %s got ready from child=%s' % (self.pid,self.child_pid))
                 return True
-            except Exception:
-                errType,errValue = sys.exc_info()[:2]
+            except Exception as e:
                 _logger.error('master %s failed to setup child=%s : %s %s' % \
-                              (self.pid,self.child_pid,errType,errValue))
+                              (self.pid, self.child_pid, str(e), traceback.format_exc()))
                 # kill child
                 self.bridge_killChild()
                 return False
@@ -170,9 +170,10 @@ class ConBridge (object):
             if self.isMaster:
                 self.mysock.settimeout(self.timeout)
             # serialize
-            tmpStr = pickle.dumps(val)
+            tmpStr = pickle.dumps(val, protocol=0)
             # send size
-            self.mysock.sendall("%50s" % len(tmpStr))
+            sizeStr = "%50s" % len(tmpStr)
+            self.mysock.sendall(sizeStr.encode())
             # send body
             self.mysock.sendall(tmpStr)
             # set timeout back
@@ -183,8 +184,9 @@ class ConBridge (object):
                 roleType = 'master'
             else:
                 roleType = 'child '                
-            _logger.error('%s %s send error : val=%s - %s' % \
-                          (roleType, self.pid, str(val), str(e)))
+            _logger.error('%s %s send error : val=%s - %s %s' % \
+                          (roleType, self.pid, str(val), str(e),
+                           traceback.format_exc()))
             # terminate child
             if not self.isMaster:
                 self.bridge_childExit()
@@ -198,31 +200,49 @@ class ConBridge (object):
             if self.isMaster:
                 self.mysock.settimeout(self.timeout)
             # get size
-            strSize = ''
+            strSize = None
             headSize = 50
-            while len(strSize) < headSize:
-                tmpSize = headSize - len(strSize)
+            while strSize is None or len(strSize) < headSize:
+                if strSize is None:
+                    tmpSize = headSize
+                else:
+                    tmpSize = headSize - len(strSize)
                 tmpStr = self.mysock.recv(tmpSize)
-                if tmpStr == '':
+                if len(tmpStr) == 0:
                     if self.isMaster:
                         raise socket.error('empty packet')
                     else:
                         # master closed socket
                         raise HarmlessEx('empty packet')
-                strSize += tmpStr
+                if strSize is None:
+                    strSize = tmpStr
+                else:
+                    strSize += tmpStr
+            if strSize is None:
+                strSize = ''
+            else:
+                strSize = strSize.decode()
             # get body
-            strBody = ''
+            strBody = None
             bodySize = long(strSize)
-            while len(strBody) < bodySize:
-                tmpSize = bodySize - len(strBody)
+            while strBody is None or len(strBody) < bodySize:
+                if strBody is None:
+                    tmpSize = bodySize
+                else:
+                    tmpSize = bodySize - len(strBody)
                 tmpStr = self.mysock.recv(tmpSize)
-                if tmpStr == '':
+                if len(tmpStr) == 0:
                     if self.isMaster:
                         raise socket.error('empty packet')
                     else:
                         # master closed socket
                         raise HarmlessEx('empty packet')
-                strBody += tmpStr
+                if strBody is None:
+                    strBody = tmpStr
+                else:
+                    strBody += tmpStr
+            if strBody is None:
+                strBody = ''.encode()
             # set timeout back
             if self.isMaster:
                 self.mysock.settimeout(None)
@@ -238,8 +258,9 @@ class ConBridge (object):
                 _logger.debug('%s %s recv harmless ex : %s' % \
                               (roleType, self.pid, e.message))
             else:
-                _logger.error('%s %s recv error : %s' % \
-                              (roleType, self.pid, str(e)))
+                _logger.error('%s %s recv error : %s %s' % \
+                              (roleType, self.pid, str(e),
+                               traceback.format_exc()))
             # terminate child            
             if not self.isMaster:
                 self.bridge_childExit()
@@ -256,7 +277,7 @@ class ConBridge (object):
         self.bridge_send("NG")
         # check if pickle-able
         try:
-            pickle.dumps(val)
+            pickle.dumps(val, protocol=0)
         except Exception:
             # use RuntimeError
             val = (RuntimeError,str(val[-1]))
@@ -433,16 +454,16 @@ class ConBridge (object):
         
         # copy changes in objects to master
         def copyChanges(self,oldPar,newPar):
-            if isinstance(oldPar,types.ListType):
+            if isinstance(oldPar, list):
                 # delete all elements first
                 while len(oldPar) > 0:
                     oldPar.pop()
                 # append
                 for tmpItem in newPar:
                     oldPar.append(tmpItem)
-            elif isinstance(oldPar,types.DictType):
+            elif isinstance(oldPar, dict):
                 # replace
-                for tmpKey in newPar.keys():
+                for tmpKey in newPar:
                     oldPar[tmpKey] = newPar[tmpKey]
             else:
                 self.copyTbObjChanges(oldPar,newPar)
@@ -497,7 +518,8 @@ class ConBridge (object):
             except Exception:
                 # append methods
                 if not name.startswith('_') and hasattr(DBProxy.DBProxy,name) and \
-                       isinstance(getattr(DBProxy.DBProxy,name),types.UnboundMethodType):
+                       isinstance(getattr(DBProxy.DBProxy,name),
+                                  (types.MethodType, types.FunctionType)):
                     # get DBProxy's method wrapper
                     method = ConBridge.bridge_masterMethod(name,self)
                     # set method

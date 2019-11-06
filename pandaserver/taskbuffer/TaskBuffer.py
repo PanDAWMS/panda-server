@@ -1,10 +1,10 @@
 import re
 import sys
 import json
-import types
 import shlex
 import time
 import datetime
+import traceback
 from pandaserver.taskbuffer import ProcessGroups
 from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.taskbuffer import ErrorCode
@@ -18,6 +18,7 @@ from pandaserver.dataservice.ProcessLimiter import ProcessLimiter
 
 # logger
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.LogWrapper import LogWrapper
 _logger = PandaLogger().getLogger('TaskBuffer')
 
 class TaskBuffer:
@@ -837,7 +838,7 @@ class TaskBuffer:
             if idStatus == {}:
                 return retNA
             # use larger PandaID which corresponds to runXYZ
-            tmpKeys = idStatus.keys()
+            tmpKeys = list(idStatus)
             tmpKeys.sort()
             pandaID = tmpKeys[-1]
             # get job
@@ -964,7 +965,7 @@ class TaskBuffer:
             if retInfo == {}:
                 retInfo = tmpRetInfo
             else:
-                for outKey in tmpRetInfo.keys():
+                for outKey in tmpRetInfo:
                     if outKey not in retInfo:
                         retInfo[outKey] = []
                     # append
@@ -1345,7 +1346,9 @@ class TaskBuffer:
     # reassign jobs
     def reassignJobs(self,ids,attempt=0,joinThr=False,forkSetupper=False,forPending=False,
                      firstSubmission=True):
-        # get DBproxy
+        tmpLog = LogWrapper(_logger, 'reassignJobs')
+        tmpLog.debug('start for {0} IDs'.format(len(ids)))
+        # get DB proxy
         proxy = self.proxyPool.getProxy()
         jobs = []
         oldSubMap = {}
@@ -1359,7 +1362,7 @@ class TaskBuffer:
                 # try to reset active job
                 if not forPending:
                     tmpRet = proxy.resetJob(id,keepSite=keepSiteFlag,getOldSubs=True)
-                    if isinstance(tmpRet,types.TupleType):
+                    if isinstance(tmpRet, tuple):
                         ret,tmpOldSubList = tmpRet
                     else:
                         ret,tmpOldSubList = tmpRet,[]
@@ -1370,7 +1373,7 @@ class TaskBuffer:
                         continue
                 # try to reset waiting job
                 tmpRet = proxy.resetJob(id,False,keepSite=keepSiteFlag,getOldSubs=False,forPending=forPending)
-                if isinstance(tmpRet,types.TupleType):
+                if isinstance(tmpRet, tuple):
                     ret,tmpOldSubList = tmpRet
                 else:
                     ret,tmpOldSubList = tmpRet,[]
@@ -1381,7 +1384,7 @@ class TaskBuffer:
                 # try to reset defined job
                 if not forPending:
                     tmpRet = proxy.resetDefinedJob(id,keepSite=keepSiteFlag,getOldSubs=True)
-                    if isinstance(tmpRet,types.TupleType):
+                    if isinstance(tmpRet, tuple):
                         ret,tmpOldSubList = tmpRet
                     else:
                         ret,tmpOldSubList = tmpRet,[]
@@ -1390,8 +1393,8 @@ class TaskBuffer:
                         for tmpOldSub in tmpOldSubList:
                             oldSubMap.setdefault(tmpOldSub, ret)
                         continue
-            except Exception:
-                pass
+            except Exception as e:
+                tmpLog.error('failed with {0} {1}'.format(str(e), traceback.format_exc()))
         # release DB proxy
         self.proxyPool.putProxy(proxy)
         # run Closer for old sub datasets
@@ -1401,6 +1404,7 @@ class TaskBuffer:
                 cThr = Closer(self,[tmpOldSub],tmpJob)
                 cThr.start()
                 cThr.join()
+        tmpLog.debug('got {0} IDs'.format(len(jobs)))
         # setup dataset
         if jobs != []:
             if joinThr:
@@ -1412,6 +1416,7 @@ class TaskBuffer:
                 # cannot use 'thr =' because it may trigger garbage collector
                 Setupper(self,jobs,resubmit=True,ddmAttempt=attempt,forkRun=forkSetupper,
                          firstSubmission=firstSubmission).start()
+        tmpLog.debug('done')
         # return
         return True
 

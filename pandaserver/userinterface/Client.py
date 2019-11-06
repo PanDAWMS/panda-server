@@ -65,6 +65,15 @@ else:
 baseURLBAMBOO = 'http://pandabamboo.cern.ch:25070/bamboo/bamboo'
 
 
+# wrapper for pickle with python 3
+def pickle_dumps(obj):
+    return pickle.dumps(obj, protocol=0)
+
+
+def pickle_loads(obj_string):
+    return pickle.loads(obj_string.encode())
+
+
 # get URL
 def _getURL(type,srvID=None):
     if srvID in serverURLs:
@@ -76,7 +85,7 @@ def _getURL(type,srvID=None):
 
 # get Panda srvIDs
 def getPandas():
-    srvs = serverURLs.keys()
+    srvs = list(serverURLs)
     # remove 'default'
     try:
         srvs.remove('default')
@@ -140,7 +149,7 @@ class _Curl:
         com += ' -m 600' 
         # data
         strData = ''
-        for key in data.keys():
+        for key in data:
             strData += 'data="%s"\n' % urlencode({key:data[key]})
         # write data to temporary config file
         try:
@@ -188,7 +197,7 @@ class _Curl:
         com += ' -m 600' 
         # data
         strData = ''
-        for key in data.keys():
+        for key in data:
             strData += 'data="%s"\n' % urlencode({key:data[key]})
         # write data to temporary config file
         try:
@@ -233,7 +242,7 @@ class _Curl:
         if self.sslKey != '':
             com += ' --key %s' % self.sslKey
         # emulate PUT 
-        for key in data.keys():
+        for key in data:
             com += ' -F "%s=@%s"' % (key,data[key])
         com += ' %s' % url
         # execute
@@ -290,7 +299,7 @@ def submitJobs(jobs,srvID=None,toPending=False):
     for job in jobs:
         job.creationHost = hostname
     # serialize
-    strJobs = pickle.dumps(jobs)
+    strJobs = pickle_dumps(jobs)
     # instantiate curl
     curl = _Curl()
     curl.sslCert = _x509()
@@ -305,7 +314,7 @@ def submitJobs(jobs,srvID=None,toPending=False):
         print(output)
         return status,output
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         type, value, traceBack = sys.exc_info()
         errStr =  "ERROR submitJobs : %s %s" % (type,value)
@@ -332,7 +341,7 @@ def runTaskAssignment(jobs):
     for job in jobs:
         job.creationHost = hostname
     # serialize
-    strJobs = pickle.dumps(jobs)
+    strJobs = pickle_dumps(jobs)
     # instantiate curl
     curl = _Curl()
     curl.sslCert = _x509()
@@ -345,7 +354,7 @@ def runTaskAssignment(jobs):
         print(output)
         return status,output
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         type, value, traceBack = sys.exc_info()
         errStr =  "ERROR runTaskAssignment : %s %s" % (type,value)
@@ -366,7 +375,7 @@ def getJobStatus(ids,srvID=None):
            the list of JobSpecs (or Nones for non-existing PandaIDs)
     """     
     # serialize
-    strIDs = pickle.dumps(ids)
+    strIDs = pickle_dumps(ids)
     # instantiate curl
     curl = _Curl()
     # execute
@@ -374,7 +383,7 @@ def getJobStatus(ids,srvID=None):
     data = {'ids':strIDs}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         type, value, traceBack = sys.exc_info()
         errStr = "ERROR getJobStatus : %s %s" % (type,value)
@@ -395,7 +404,7 @@ def getPandaIDwithJobExeID(ids):
            the list of PandaIDs (or Nones for non-existing IDs)
     """     
     # serialize
-    strIDs = pickle.dumps(ids)
+    strIDs = pickle_dumps(ids)
     # instantiate curl
     curl = _Curl()
     # execute
@@ -403,7 +412,7 @@ def getPandaIDwithJobExeID(ids):
     data = {'ids':strIDs}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         type, value, traceBack = sys.exc_info()
         errStr = "ERROR getPandaIDwithJobExeID : %s %s" % (type,value)
@@ -429,7 +438,7 @@ def getAssigningTask():
     url = baseURL + '/getAssigningTask'
     status,output = curl.get(url,{})
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         print(output)
         type, value, traceBack = sys.exc_info()
@@ -454,7 +463,7 @@ def seeCloudTask(ids):
 
     """     
     # serialize
-    strIDs = pickle.dumps(ids)
+    strIDs = pickle_dumps(ids)
     # instantiate curl
     curl = _Curl()
     # execute
@@ -462,7 +471,7 @@ def seeCloudTask(ids):
     data = {'ids':strIDs}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         type, value, traceBack = sys.exc_info()
         errStr = "ERROR seeCloudTask : %s %s" % (type,value)
@@ -500,7 +509,7 @@ def killJobs(ids,code=None,verbose=False,srvID=None,useMailAsID=False,keepUnmerg
            the list of clouds (or Nones if tasks are not yet assigned) 
     """     
     # serialize
-    strIDs = pickle.dumps(ids)
+    strIDs = pickle_dumps(ids)
     # instantiate curl
     curl = _Curl()
     curl.sslCert = _x509()
@@ -517,7 +526,7 @@ def killJobs(ids,code=None,verbose=False,srvID=None,useMailAsID=False,keepUnmerg
     data['killOpts'] = killOpts[:-1]
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         type, value, traceBack = sys.exc_info()
         errStr = "ERROR killJobs : %s %s" % (type,value)
@@ -543,7 +552,7 @@ def reassignJobs(ids,forPending=False,firstSubmission=None):
 
     """     
     # serialize
-    strIDs = pickle.dumps(ids)
+    strIDs = pickle_dumps(ids)
     # instantiate curl
     curl = _Curl()
     curl.sslCert = _x509()
@@ -557,7 +566,7 @@ def reassignJobs(ids,forPending=False,firstSubmission=None):
         data['firstSubmission'] = firstSubmission
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         type, value, traceBack = sys.exc_info()
         errStr = "ERROR reassignJobs : %s %s" % (type,value)
@@ -568,7 +577,7 @@ def reassignJobs(ids,forPending=False,firstSubmission=None):
 # query PandaIDs (obsolete)
 def queryPandaIDs(ids):
     # serialize
-    strIDs = pickle.dumps(ids)
+    strIDs = pickle_dumps(ids)
     # instantiate curl
     curl = _Curl()
     # execute
@@ -576,7 +585,7 @@ def queryPandaIDs(ids):
     data = {'ids':strIDs}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         type, value, traceBack = sys.exc_info()
         errStr = "ERROR queryPandaIDs : %s %s" % (type,value)
@@ -595,7 +604,7 @@ def queryJobInfoPerCloud(cloud,schedulerID=None):
         data['schedulerID'] = schedulerID
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         type, value, traceBack = sys.exc_info()
         errStr = "ERROR queryJobInfoPerCloud : %s %s" % (type,value)
@@ -630,7 +639,7 @@ def getJobStatistics(sourcetype=None):
             data['sourcetype'] = sourcetype            
         status,output = curl.get(url,data)
         try:
-            tmpRet = status,pickle.loads(output)
+            tmpRet = status,pickle_loads(output)
             if status != 0:
                 return tmpRet
         except Exception:
@@ -680,7 +689,7 @@ def getJobStatisticsForBamboo(useMorePG=False):
             data['useMorePG'] = useMorePG
         status,output = curl.get(url,data)
         try:
-            tmpRet = status,pickle.loads(output)
+            tmpRet = status,pickle_loads(output)
             if status != 0:
                 return tmpRet
         except Exception:
@@ -735,7 +744,7 @@ def getHighestPrioJobStat(perPG=False,useMorePG=False):
         data['useMorePG'] = useMorePG
     status,output = curl.get(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         print(output)
         type, value, traceBack = sys.exc_info()
@@ -765,7 +774,7 @@ def getJobsToBeUpdated(limit=5000,lockedby='',srvID=None):
     url = _getURL('URL',srvID) + '/getJobsToBeUpdated'
     status,output = curl.get(url,{'limit':limit,'lockedby':lockedby})
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         print(output)
         type, value, traceBack = sys.exc_info()
@@ -792,7 +801,7 @@ def updateProdDBUpdateTimes(params,verbose=False,srvID=None):
 
     """
     # serialize
-    strPar = pickle.dumps(params)
+    strPar = pickle_dumps(params)
     # instantiate curl
     curl = _Curl()
     curl.sslCert = _x509()
@@ -803,7 +812,7 @@ def updateProdDBUpdateTimes(params,verbose=False,srvID=None):
     data = {'params':strPar}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         type, value, traceBack = sys.exc_info()
         errStr = "ERROR updateProdDBUpdateTimes : %s %s" % (type,value)
@@ -832,7 +841,7 @@ def getPandaIDsSite(site,status,limit=500):
     url = baseURL + '/getPandaIDsSite'
     status,output = curl.get(url,{'site':site,'status':status,'limit':limit})
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         print(output)
         type, value, traceBack = sys.exc_info()
@@ -882,7 +891,7 @@ def getJobStatisticsPerSite(predefined=False,workingGroup='',countryGroup='',job
             data['readArchived'] = readArchived    
         status,output = curl.get(url,data)
         try:
-            tmpRet = status,pickle.loads(output)
+            tmpRet = status,pickle_loads(output)
             if status != 0:
                 return tmpRet
         except Exception:
@@ -930,7 +939,7 @@ def getJobStatisticsWithLabel(site=''):
         data['site'] = site
     status,output = curl.get(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         print(output)
         type, value, traceBack = sys.exc_info()
@@ -948,7 +957,7 @@ def getJobStatisticsPerUserSite():
     data = {}
     status,output = curl.get(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         print(output)
         type, value, traceBack = sys.exc_info()
@@ -1004,7 +1013,7 @@ def queryLastFilesInDataset(datasets):
 
     """     
     # serialize
-    strDSs = pickle.dumps(datasets)
+    strDSs = pickle_dumps(datasets)
     # instantiate curl
     curl = _Curl()
     # execute
@@ -1012,7 +1021,7 @@ def queryLastFilesInDataset(datasets):
     data = {'datasets':strDSs}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         type, value, traceBack = sys.exc_info()
         print("ERROR queryLastFilesInDataset : %s %s" % (type,value))
@@ -1117,7 +1126,7 @@ def getSiteSpecs(siteType=None):
         data = {'siteType':siteType}
     status,output = curl.get(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         type, value, traceBack = sys.exc_info()
         errStr = "ERROR getSiteSpecs : %s %s" % (type,value)
@@ -1143,7 +1152,7 @@ def getCloudSpecs():
     url = baseURL + '/getCloudSpecs'
     status,output = curl.get(url,{})
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         type, value, traceBack = sys.exc_info()
         errStr = "ERROR getCloudSpecs : %s %s" % (type,value)
@@ -1159,7 +1168,7 @@ def getNumPilots():
     url = baseURL + '/getNumPilots'
     status,output = curl.get(url,{})
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         type, value, traceBack = sys.exc_info()
         errStr = "ERROR getNumPilots : %s %s" % (type,value)
@@ -1190,7 +1199,7 @@ def getNUserJobs(siteName):
     data = {'siteName':siteName}
     status,output = curl.get(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         type, value, traceBack = sys.exc_info()
         errStr = "ERROR getNUserJobs : %s %s" % (type,value)
@@ -1214,7 +1223,7 @@ def runBrokerage(sites,atlasRelease,cmtConfig=None):
 
     """     
     # serialize
-    strSites = pickle.dumps(sites)
+    strSites = pickle_dumps(sites)
     # instantiate curl
     curl = _Curl()
     # execute
@@ -1247,7 +1256,7 @@ def getRW(priority=0):
     data = {'priority':priority}        
     status,output = curl.get(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         type, value, traceBack = sys.exc_info()
         errStr = "ERROR getRW : %s %s" % (type,value)
@@ -1258,7 +1267,7 @@ def getRW(priority=0):
 # change job priorities (obsolete)
 def changeJobPriorities(newPrioMap):
     # serialize
-    newPrioMapStr = pickle.dumps(newPrioMap)
+    newPrioMapStr = pickle_dumps(newPrioMap)
     # instantiate curl
     curl = _Curl()
     curl.sslCert = _x509()
@@ -1268,7 +1277,7 @@ def changeJobPriorities(newPrioMap):
     data = {'newPrioMap':newPrioMapStr}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR changeJobPriorities : %s %s" % (errtype,errvalue)
@@ -1300,7 +1309,7 @@ def insertTaskParams(taskParams):
     data = {'taskParams':taskParamsStr}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR insertTaskParams : %s %s" % (errtype,errvalue)
@@ -1337,7 +1346,7 @@ def killTask(jediTaskID):
     data['properErrorCode'] = True
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR killTask : %s %s" % (errtype,errvalue)
@@ -1380,7 +1389,7 @@ def finishTask(jediTaskID,soft=False):
         data['soft'] = True
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR finishTask : %s %s" % (errtype,errvalue)
@@ -1423,7 +1432,7 @@ def reassignTaskToSite(jediTaskID,site,mode=None):
         data['mode'] = mode
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR reassignTaskToSite : %s %s" % (errtype,errvalue)
@@ -1463,7 +1472,7 @@ def reassignTaskToCloud(jediTaskID,cloud,mode=None):
         data['mode'] = mode
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR reassignTaskToCloud : %s %s" % (errtype,errvalue)
@@ -1503,7 +1512,7 @@ def reassignTaskToNucleus(jediTaskID,nucleus,mode=None):
         data['mode'] = mode
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR reassignTaskToCloud : %s %s" % (errtype,errvalue)
@@ -1568,7 +1577,7 @@ def changeTaskPriority(jediTaskID,newPriority):
             'newPriority':newPriority}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR changeTaskPriority : %s %s" % (errtype,errvalue)
@@ -1637,7 +1646,7 @@ def retryTask(jediTaskID,verbose=False,noChildRetry=False,discardEvents=False):
         data['discardEvents'] = True
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR retryTask : %s %s" % (errtype,errvalue)
@@ -1674,7 +1683,7 @@ def reloadInput(jediTaskID,verbose=False):
     data = {'jediTaskID':jediTaskID}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR reloadInput : %s %s" % (errtype,errvalue)
@@ -1709,7 +1718,7 @@ def changeTaskWalltime(jediTaskID,wallTime):
             'attrValue':wallTime}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR changeTaskWalltime : %s %s" % (errtype,errvalue)
@@ -1744,7 +1753,7 @@ def changeTaskCputime(jediTaskID,cpuTime):
             'attrValue':cpuTime}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR changeTaskCputime : %s %s" % (errtype,errvalue)
@@ -1779,7 +1788,7 @@ def changeTaskRamCount(jediTaskID,ramCount):
             'attrValue':ramCount}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR changeTaskRamCount : %s %s" % (errtype,errvalue)
@@ -1816,7 +1825,7 @@ def changeTaskAttribute(jediTaskID,attrName,attrValue):
             'attrValue':attrValue}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR changeTaskAttributePanda : %s %s" % (errtype,errvalue)
@@ -1853,7 +1862,7 @@ def changeTaskSplitRule(jediTaskID,ruleName,ruleValue):
             'attrValue':ruleValue}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR changeTaskSplitRule : %s %s" % (errtype,errvalue)
@@ -1890,7 +1899,7 @@ def pauseTask(jediTaskID,verbose=False):
     data = {'jediTaskID':jediTaskID}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR pauseTask : %s %s" % (errtype,errvalue)
@@ -1927,7 +1936,7 @@ def resumeTask(jediTaskID,verbose=False):
     data = {'jediTaskID':jediTaskID}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR resumeTask : %s %s" % (errtype,errvalue)
@@ -1964,7 +1973,7 @@ def avalancheTask(jediTaskID,verbose=False):
     data = {'jediTaskID':jediTaskID}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR resumeTask : %s %s" % (errtype,errvalue)
@@ -2001,7 +2010,7 @@ def increaseAttemptNr(jediTaskID,increase):
             'increasedNr':increase}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR increaseAttemptNr : %s %s" % (errtype,errvalue)
@@ -2046,7 +2055,7 @@ def killUnfinishedJobs(jediTaskID,code=None,verbose=False,srvID=None,useMailAsID
     data = {'jediTaskID':jediTaskID,'code':code,'useMailAsID':useMailAsID}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         type, value, traceBack = sys.exc_info()
         errStr = "ERROR killUnfinishedJobs : %s %s" % (type,value)
@@ -2080,7 +2089,7 @@ def triggerTaskBrokerage(jediTaskID):
             'diffValue':-12}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR triggerTaskBrokerage : %s %s" % (errtype,errvalue)
@@ -2107,7 +2116,7 @@ def getPandaIDsWithTaskID(jediTaskID):
     data = {'jediTaskID':jediTaskID}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         type, value, traceBack = sys.exc_info()
         errStr = "ERROR getPandaIDsWithTaskID : %s %s" % (type,value)
@@ -2140,7 +2149,7 @@ def reactivateTask(jediTaskID):
     data = {'jediTaskID':jediTaskID}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "ERROR reactivateTask : %s %s" % (errtype,errvalue)
@@ -2167,7 +2176,7 @@ def getTaskStatus(jediTaskID):
     data = {'jediTaskID':jediTaskID}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         type, value, traceBack = sys.exc_info()
         errStr = "ERROR getTaskStatus : %s %s" % (type,value)
@@ -2196,8 +2205,8 @@ def reassignShare(jedi_task_ids, share, reassign_running=False):
     curl.sslCert = _x509()
     curl.sslKey  = _x509()
 
-    jedi_task_ids_pickle = pickle.dumps(jedi_task_ids)
-    change_running_pickle = pickle.dumps(reassign_running)
+    jedi_task_ids_pickle = pickle_dumps(jedi_task_ids)
+    change_running_pickle = pickle_dumps(reassign_running)
     # execute
     url = baseURLSSL + '/reassignShare'
     data = {'jedi_task_ids_pickle': jedi_task_ids_pickle,
@@ -2206,7 +2215,7 @@ def reassignShare(jedi_task_ids, share, reassign_running=False):
     status, output = curl.post(url, data)
 
     try:
-        return status, pickle.loads(output)
+        return status, pickle_loads(output)
     except Exception:
         err_type, err_value = sys.exc_info()[:2]
         err_str = "ERROR reassignShare : {0} {1}".format(err_type, err_value)
@@ -2240,7 +2249,7 @@ def listTasksInShare(gshare, status='running'):
     status, output = curl.post(url, data)
 
     try:
-        return status, pickle.loads(output)
+        return status, pickle_loads(output)
     except Exception:
         err_type, err_value = sys.exc_info()[:2]
         err_str = "ERROR listTasksInShare : {0} {1}".format(err_type, err_value)
@@ -2269,7 +2278,7 @@ def getTaskParamsMap(jediTaskID):
     data = {'jediTaskID':jediTaskID}
     status,output = curl.post(url,data)
     try:
-        return status,pickle.loads(output)
+        return status,pickle_loads(output)
     except Exception:
         type, value, traceBack = sys.exc_info()
         errStr = "ERROR getTaskParamsMap : %s %s" % (type,value)

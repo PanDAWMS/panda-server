@@ -21,7 +21,7 @@ files = {
 
 jobList = []
 
-for lfn in files.keys():
+for lfn in files:
     job = JobSpec()
     job.jobDefinitionID   = int(time.time()) % 10000
     job.jobName           = str(uuid.uuid4())

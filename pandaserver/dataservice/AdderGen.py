@@ -10,10 +10,7 @@ import time
 import fcntl
 import traceback
 import xml.dom.minidom
-import ErrorCode
 import uuid
-
-import Closer
 
 from pandaserver.config import panda_config
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -22,6 +19,9 @@ from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.taskbuffer import retryModule
 from pandaserver.taskbuffer import JobUtils
 import pandaserver.taskbuffer.ErrorCode
+import pandaserver.dataservice.ErrorCode
+from pandaserver.dataservice import Closer
+
 
 try:
     long
@@ -80,7 +80,7 @@ class AdderGen:
         adderPluginClass = panda_config.getPlugin('adder_plugins',tmpVO)
         if adderPluginClass is None:
             # use ATLAS plugin by default
-            from AdderAtlasPlugin import AdderAtlasPlugin
+            from pandaserver.dataservice.AdderAtlasPlugin import AdderAtlasPlugin
             adderPluginClass = AdderAtlasPlugin
         self.logger.debug('plugin name {0}'.format(adderPluginClass.__name__))
         return adderPluginClass
@@ -151,7 +151,7 @@ class AdderGen:
                     if fileCheckInJEDI == False:
                         # set job status to failed since some file status is wrong in JEDI 
                         self.jobStatus = 'failed'
-                        self.job.ddmErrorCode = ErrorCode.EC_Adder
+                        self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
                         errStr = "inconsistent file status between Panda and JEDI. "
                         errStr += "failed to avoid duplicated processing caused by synchronization failure"
                         self.job.ddmErrorDiag = errStr
@@ -180,7 +180,7 @@ class AdderGen:
                         # failed to lock semaphore
                         if checkJC['lock'] == False:
                             self.jobStatus = 'failed'
-                            self.job.ddmErrorCode = ErrorCode.EC_Adder
+                            self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
                             self.job.ddmErrorDiag = "failed to lock semaphore for job cloning"
                             self.logger.debug("set jobStatus={0} since did not get semaphore for job cloning".format(self.jobStatus))
                 # use failed for cancelled/closed jobs
@@ -220,7 +220,7 @@ class AdderGen:
                                                                                                          errtype,
                                                                                                          errvalue)) 
                         addResult = None
-                        self.job.ddmErrorCode = ErrorCode.EC_Adder
+                        self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
                         self.job.ddmErrorDiag = "AdderPlugin failure"
                         
                     # ignore temporary errors
@@ -586,7 +586,7 @@ class AdderGen:
                     if (self.job.pilotErrorCode in [0,'0','NULL']) and \
                        (self.job.taskBufferErrorCode not in [pandaserver.taskbuffer.ErrorCode.EC_WorkerDone]) and \
                        (self.job.transExitCode  in [0,'0','NULL']):
-                        self.job.ddmErrorCode = ErrorCode.EC_Adder
+                        self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
                         self.job.ddmErrorDiag = "Could not get GUID/LFN/MD5/FSIZE/SURL from pilot XML"
                     return 2
                 else:
@@ -674,7 +674,7 @@ class AdderGen:
                     else:
                         file.status = 'failed'
                         self.job.jobStatus = 'failed'
-                        self.job.ddmErrorCode = ErrorCode.EC_Adder
+                        self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
                         self.job.ddmErrorDiag = "expected output {0} is missing in pilot XML".format(file.lfn)
                         self.logger.error(self.job.ddmErrorDiag)
                     continue
@@ -712,7 +712,7 @@ class AdderGen:
                 self.job.jobStatus = 'failed'
                 for tmpFile in self.job.Files:
                     tmpFile.status = 'failed'
-                self.job.ddmErrorCode = ErrorCode.EC_Adder
+                self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
                 self.job.ddmErrorDiag = "pilot produced {0} inconsistently with jobdef".format(lfn)
                 return 2
         # return
@@ -740,7 +740,7 @@ class AdderGen:
         for newLFN in lfns:
             if not newLFN in origOutputs:
                 # look for corresponding original output
-                for origLFN in origOutputs.keys():
+                for origLFN in origOutputs:
                     tmpPatt = '^{0}\.*_\d+$'.format(origLFN)
                     if re.search(tmpPatt,newLFN) is not None:
                         # copy file record

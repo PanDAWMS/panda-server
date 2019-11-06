@@ -1,5 +1,5 @@
 import sys
-import shutil
+import traceback
 
 from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
@@ -11,12 +11,11 @@ def run(inFile,v_onlyTA,v_firstSubmission):
         import pickle
     try:
         # read Jobs from file
-        f = open(inFile)
+        f = open(inFile, 'rb')
         jobs = pickle.load(f)
         f.close()
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        print("run() : %s %s" % (type,value))
+    except Exception as e:
+        print("run() : %s %s" % (str(e), traceback.format_exc()))
         return
     # password
     from pandaserver.config import panda_config

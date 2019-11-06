@@ -10,10 +10,7 @@ import json
 import types
 import datetime
 import traceback
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
+
 import pandaserver.jobdispatcher.Protocol as Protocol
 import pandaserver.taskbuffer.ProcessGroups
 from pandaserver.taskbuffer.WrappedPickle import WrappedPickle
@@ -103,7 +100,7 @@ class UserIF:
                                         hostname=host, toPending=toPending, userVO=userVO)
         _logger.debug("submitJobs %s ->:%s" % (user,len(ret)))
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # run task assignment
@@ -118,7 +115,7 @@ class UserIF:
         # run
         ret = self.taskBuffer.runTaskAssignment(jobs)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get serial number for group job
@@ -126,7 +123,7 @@ class UserIF:
         # get
         ret = self.taskBuffer.getSerialNumberForGroupJob(name)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # change job priorities
@@ -204,7 +201,7 @@ class UserIF:
         ret = self.taskBuffer.peekJobs(ids)
         _logger.debug("getJobStatus end")
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get PandaID with jobexeID
@@ -226,7 +223,7 @@ class UserIF:
         ret = self.taskBuffer.getPandaIDwithJobExeID(ids)
         _logger.debug("getPandaIDwithJobExeID end")
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
 
@@ -235,7 +232,7 @@ class UserIF:
         # get PandaIDs
         ret = self.taskBuffer.getPandaIDsWithTaskID(jediTaskID)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get assigned cloud for tasks
@@ -255,7 +252,7 @@ class UserIF:
             ret[id] = tmpRet
         _logger.debug("seeCloudTask end")
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get active datasets
@@ -271,7 +268,7 @@ class UserIF:
         # run
         ret = self.taskBuffer.getAssigningTask()
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # set task by user
@@ -286,7 +283,7 @@ class UserIF:
         # get job statistics
         ret = self.taskBuffer.getJobStatisticsForExtIF(sourcetype)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get highest prio jobs
@@ -294,7 +291,7 @@ class UserIF:
         # get job statistics
         ret = self.taskBuffer.getHighestPrioJobStat(perPG,useMorePG)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get queued analysis jobs at a site
@@ -302,7 +299,7 @@ class UserIF:
         # get job statistics
         ret = self.taskBuffer.getQueuedAnalJobs(site,dn)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get job statistics for Bamboo
@@ -310,7 +307,7 @@ class UserIF:
         # get job statistics
         ret = self.taskBuffer.getJobStatisticsForBamboo(useMorePG)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
         
 
     # get job statistics per site
@@ -320,7 +317,7 @@ class UserIF:
         ret = self.taskBuffer.getJobStatistics(readArchived,predefined,workingGroup,countryGroup,jobType,
                                                minPriority=minPriority)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get job statistics per site and resource
@@ -336,7 +333,7 @@ class UserIF:
         # get job statistics
         ret = self.taskBuffer.getJobStatisticsPerUserSite()
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get job statistics per site with label
@@ -344,7 +341,7 @@ class UserIF:
         # get job statistics
         ret = self.taskBuffer.getJobStatisticsWithLabel(site)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # query PandaIDs
@@ -354,7 +351,7 @@ class UserIF:
         # query PandaIDs 
         ret = self.taskBuffer.queryPandaIDs(ids)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get number of analysis jobs per user  
@@ -362,7 +359,7 @@ class UserIF:
         # get 
         ret = self.taskBuffer.getNUserJobs(siteName)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # query job info per cloud
@@ -370,7 +367,7 @@ class UserIF:
         # query PandaIDs 
         ret = self.taskBuffer.queryJobInfoPerCloud(cloud,schedulerID)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
     
     # query PandaIDs at site
@@ -378,7 +375,7 @@ class UserIF:
         # query PandaIDs 
         ret = self.taskBuffer.getPandaIDsSite(site,status,limit)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get PandaIDs to be updated in prodDB
@@ -386,7 +383,7 @@ class UserIF:
         # query PandaIDs 
         ret = self.taskBuffer.getPandaIDsForProdDB(limit,lockedby)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # update prodDBUpdateTimes
@@ -396,7 +393,7 @@ class UserIF:
         # get jobs
         ret = self.taskBuffer.updateProdDBUpdateTimes(params)
         # serialize 
-        return pickle.dumps(True)
+        return WrappedPickle.dumps(True)
 
 
     # query last files in datasets
@@ -406,7 +403,7 @@ class UserIF:
         # get files
         ret = self.taskBuffer.queryLastFilesInDataset(datasets)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get input files currently in used for analysis
@@ -414,7 +411,7 @@ class UserIF:
         # get files
         ret = self.taskBuffer.getFilesInUseForAnal(outDataset)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get list of dis dataset to get input files in shadow
@@ -422,7 +419,7 @@ class UserIF:
         # get files
         ret = self.taskBuffer.getDisInUseForAnal(outDataset)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get input LFNs currently in use for analysis with shadow dis
@@ -432,14 +429,14 @@ class UserIF:
         # get files
         ret = self.taskBuffer.getLFNsInUseForAnal(inputDisList)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # kill jobs
     def killJobs(self,idsStr,user,host,code,prodManager,useMailAsID,fqans,killOpts=[]):
         # deserialize IDs
         ids = WrappedPickle.loads(idsStr)
-        if not isinstance(ids,types.ListType):
+        if not isinstance(ids, list):
             ids = [ids]
         _logger.info("killJob : %s %s %s %s %s" % (user,code,prodManager,fqans,ids))
         try:
@@ -472,7 +469,7 @@ class UserIF:
         # kill jobs
         ret = self.taskBuffer.killJobs(ids,user,code,prodManager,wgProdRole,killOpts)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # reassign jobs
@@ -483,7 +480,7 @@ class UserIF:
         ret = self.taskBuffer.reassignJobs(ids,forkSetupper=True,forPending=forPending,
                                            firstSubmission=firstSubmission)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
         
 
     # resubmit jobs
@@ -493,7 +490,7 @@ class UserIF:
         # kill jobs
         ret = self.taskBuffer.resubmitJobs(ids)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get list of site spec
@@ -513,7 +510,7 @@ class UserIF:
                     tmpSpec[attr] = getattr(spec,attr)
                 specList[id] = tmpSpec
         # serialize
-        return pickle.dumps(specList)
+        return WrappedPickle.dumps(specList)
 
 
     # get list of cloud spec
@@ -521,7 +518,7 @@ class UserIF:
         # get cloud list
         siteMapper = SiteMapper(self.taskBuffer)
         # serialize
-        return pickle.dumps(siteMapper.cloudSpec)
+        return WrappedPickle.dumps(siteMapper.cloudSpec)
 
 
     # get list of cache prefix
@@ -529,7 +526,7 @@ class UserIF:
         # get
         ret = self.taskBuffer.getCachePrefixes()
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get list of cmtConfig
@@ -537,7 +534,7 @@ class UserIF:
         # get
         ret = self.taskBuffer.getCmtConfigList(relaseVer)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get nPilots
@@ -556,7 +553,7 @@ class UserIF:
             # append
             numMap[siteID] = {'nPilots':nPilots}
         # serialize
-        return pickle.dumps(numMap)
+        return WrappedPickle.dumps(numMap)
 
 
     # get script for offline running
@@ -588,7 +585,7 @@ class UserIF:
         # get files
         ret = self.taskBuffer.getProxyKey(dn)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get slimmed file info with PandaIDs
@@ -608,7 +605,7 @@ class UserIF:
         except Exception:
             ret = {}
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get JobIDs in a time range
@@ -616,7 +613,7 @@ class UserIF:
         # get IDs
         ret = self.taskBuffer.getJobIDsInTimeRange(dn,timeRange)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get active JediTasks in a time range
@@ -624,7 +621,7 @@ class UserIF:
         # get IDs
         ret = self.taskBuffer.getJediTasksInTimeRange(dn, timeRange, fullFlag, minTaskID)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get details of JediTask
@@ -632,7 +629,7 @@ class UserIF:
         # get IDs
         ret = self.taskBuffer.getJediTaskDetails(jediTaskID,fullFlag,withTaskInfo)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get PandaIDs for a JobID
@@ -640,7 +637,7 @@ class UserIF:
         # get IDs
         ret = self.taskBuffer.getPandIDsWithJobID(dn,jobID,nJobs)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # check merge job generation status
@@ -648,7 +645,7 @@ class UserIF:
         # check
         ret = self.taskBuffer.checkMergeGenerationStatus(dn,jobID)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # get full job status
@@ -670,7 +667,7 @@ class UserIF:
         ret = self.taskBuffer.getFullJobStatus(ids)
         _logger.debug("getFullJobStatus end")
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # add account to siteaccess
@@ -678,7 +675,7 @@ class UserIF:
         # add
         ret = self.taskBuffer.addSiteAccess(siteID,dn)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # list site access
@@ -686,7 +683,7 @@ class UserIF:
         # list
         ret = self.taskBuffer.listSiteAccess(siteID,dn,longFormat)
         # serialize 
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
     # update site access
@@ -975,7 +972,7 @@ class UserIF:
         # reassign jobs
         ret = self.taskBuffer.sweepPQ(panda_queue_des, status_list_des, ce_list_des, submission_host_list_des)
         # serialize
-        return pickle.dumps(ret)
+        return WrappedPickle.dumps(ret)
 
 
 # Singleton
@@ -1393,7 +1390,7 @@ def resubmitJobs(req,ids):
 def changeJobPriorities(req,newPrioMap=None):
     # check security
     if not isSecure(req):
-        return pickle.dumps((False,'secure connection is required'))
+        return WrappedPickle.dumps((False,'secure connection is required'))
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
@@ -1401,7 +1398,7 @@ def changeJobPriorities(req,newPrioMap=None):
     # check role
     prodRole = _isProdRoleATLAS(req)
     ret = userIF.changeJobPriorities(user,prodRole,newPrioMap)
-    return pickle.dumps(ret)
+    return WrappedPickle.dumps(ret)
 
 
 # get list of site spec
@@ -1713,7 +1710,7 @@ def insertTaskParams(req,taskParams=None,properErrorCode=None):
         properErrorCode = False
     # check security
     if not isSecure(req):
-        return pickle.dumps((False,'secure connection is required'))
+        return WrappedPickle.dumps((False,'secure connection is required'))
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
@@ -1722,13 +1719,13 @@ def insertTaskParams(req,taskParams=None,properErrorCode=None):
     try:
         json.loads(taskParams)
     except Exception:
-        return pickle.dumps((False,'failed to decode json'))        
+        return WrappedPickle.dumps((False,'failed to decode json'))        
     # check role
     prodRole = _isProdRoleATLAS(req)
     # get FQANs
     fqans = _getFQAN(req)
     ret = userIF.insertTaskParams(taskParams,user,prodRole,fqans,properErrorCode)
-    return pickle.dumps(ret)
+    return WrappedPickle.dumps(ret)
 
 
 
@@ -1741,9 +1738,9 @@ def killTask(req,jediTaskID=None,properErrorCode=None):
     # check security
     if not isSecure(req):
         if properErrorCode:
-            return pickle.dumps((100,'secure connection is required'))
+            return WrappedPickle.dumps((100,'secure connection is required'))
         else:
-            return pickle.dumps((False,'secure connection is required'))
+            return WrappedPickle.dumps((False,'secure connection is required'))
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
@@ -1755,11 +1752,11 @@ def killTask(req,jediTaskID=None,properErrorCode=None):
         jediTaskID = long(jediTaskID)
     except Exception:
         if properErrorCode:
-            return pickle.dumps((101,'jediTaskID must be an integer'))        
+            return WrappedPickle.dumps((101,'jediTaskID must be an integer'))        
         else:
-            return pickle.dumps((False,'jediTaskID must be an integer'))
+            return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
     ret = userIF.killTask(jediTaskID,user,prodRole,properErrorCode)
-    return pickle.dumps(ret)
+    return WrappedPickle.dumps(ret)
 
 
 
@@ -1781,9 +1778,9 @@ def retryTask(req,jediTaskID,properErrorCode=None,newParams=None,noChildRetry=No
     # check security
     if not isSecure(req):
         if properErrorCode:
-            return pickle.dumps((100,'secure connection is required'))
+            return WrappedPickle.dumps((100,'secure connection is required'))
         else:
-            return pickle.dumps((False,'secure connection is required'))
+            return WrappedPickle.dumps((False,'secure connection is required'))
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
@@ -1795,12 +1792,12 @@ def retryTask(req,jediTaskID,properErrorCode=None,newParams=None,noChildRetry=No
         jediTaskID = long(jediTaskID)
     except Exception:
         if properErrorCode:
-            return pickle.dumps((101,'jediTaskID must be an integer'))        
+            return WrappedPickle.dumps((101,'jediTaskID must be an integer'))        
         else:
-            return pickle.dumps((False,'jediTaskID must be an integer'))
+            return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
     ret = userIF.retryTask(jediTaskID,user,prodRole,properErrorCode,newParams,noChildRetry,
                            discardEvents)
-    return pickle.dumps(ret)
+    return WrappedPickle.dumps(ret)
 
 
 
@@ -1808,7 +1805,7 @@ def retryTask(req,jediTaskID,properErrorCode=None,newParams=None,noChildRetry=No
 def reassignTask(req,jediTaskID,site=None,cloud=None,nucleus=None,soft=None,mode=None):
     # check security
     if not isSecure(req):
-        return pickle.dumps((100,'secure connection is required'))
+        return WrappedPickle.dumps((100,'secure connection is required'))
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
@@ -1819,7 +1816,7 @@ def reassignTask(req,jediTaskID,site=None,cloud=None,nucleus=None,soft=None,mode
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return pickle.dumps((101,'jediTaskID must be an integer'))        
+        return WrappedPickle.dumps((101,'jediTaskID must be an integer'))        
     # site or cloud
     if site is not None:
         # set 'y' to go back to oldStatus immediately
@@ -1833,7 +1830,7 @@ def reassignTask(req,jediTaskID,site=None,cloud=None,nucleus=None,soft=None,mode
     elif mode == 'soft' or soft == 'True':
         comComment += ':soft reassign'
     ret = userIF.reassignTask(jediTaskID,user,prodRole,comComment)
-    return pickle.dumps(ret)
+    return WrappedPickle.dumps(ret)
 
 
 
@@ -1849,9 +1846,9 @@ def finishTask(req,jediTaskID=None,properErrorCode=None,soft=None):
     # check security
     if not isSecure(req):
         if properErrorCode:
-            return pickle.dumps((100,'secure connection is required'))
+            return WrappedPickle.dumps((100,'secure connection is required'))
         else:
-            return pickle.dumps((False,'secure connection is required'))
+            return WrappedPickle.dumps((False,'secure connection is required'))
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
@@ -1863,12 +1860,12 @@ def finishTask(req,jediTaskID=None,properErrorCode=None,soft=None):
         jediTaskID = long(jediTaskID)
     except Exception:
         if properErrorCode:
-            return pickle.dumps((101,'jediTaskID must be an integer'))        
+            return WrappedPickle.dumps((101,'jediTaskID must be an integer'))        
         else:
-            return pickle.dumps((False,'jediTaskID must be an integer'))
+            return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
     ret = userIF.finishTask(jediTaskID,user,prodRole,properErrorCode,
                             qualifier)
-    return pickle.dumps(ret)
+    return WrappedPickle.dumps(ret)
 
 
 # reload input
@@ -1880,9 +1877,9 @@ def reloadInput(req, jediTaskID, properErrorCode=None):
     # check security
     if not isSecure(req):
         if properErrorCode:
-            return pickle.dumps((100,'secure connection is required'))
+            return WrappedPickle.dumps((100,'secure connection is required'))
         else:
-            return pickle.dumps((False,'secure connection is required'))
+            return WrappedPickle.dumps((False,'secure connection is required'))
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
@@ -1894,11 +1891,11 @@ def reloadInput(req, jediTaskID, properErrorCode=None):
         jediTaskID = long(jediTaskID)
     except Exception:
         if properErrorCode:
-            return pickle.dumps((101,'jediTaskID must be an integer'))        
+            return WrappedPickle.dumps((101,'jediTaskID must be an integer'))        
         else:
-            return pickle.dumps((False,'jediTaskID must be an integer'))
+            return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
     ret = userIF.reloadInput(jediTaskID,user,prodRole)
-    return pickle.dumps(ret)
+    return WrappedPickle.dumps(ret)
 
 
 
@@ -1906,7 +1903,7 @@ def reloadInput(req, jediTaskID, properErrorCode=None):
 def getRetryHistory(req,jediTaskID=None):
     # check security
     if not isSecure(req):
-        return pickle.dumps((False,'secure connection is required'))
+        return WrappedPickle.dumps((False,'secure connection is required'))
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
@@ -1914,9 +1911,9 @@ def getRetryHistory(req,jediTaskID=None):
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return pickle.dumps((False,'jediTaskID must be an integer'))        
+        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))        
     ret = userIF.getRetryHistory(jediTaskID,user)
-    return pickle.dumps(ret)
+    return WrappedPickle.dumps(ret)
 
 
 
@@ -1924,7 +1921,7 @@ def getRetryHistory(req,jediTaskID=None):
 def changeTaskPriority(req,jediTaskID=None,newPriority=None):
     # check security
     if not isSecure(req):
-        return pickle.dumps((False,'secure connection is required'))
+        return WrappedPickle.dumps((False,'secure connection is required'))
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
@@ -1938,14 +1935,14 @@ def changeTaskPriority(req,jediTaskID=None,newPriority=None):
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return pickle.dumps((False,'jediTaskID must be an integer'))        
+        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))        
     # check priority
     try:
         newPriority = long(newPriority)
     except Exception:
-        return pickle.dumps((False,'newPriority must be an integer'))        
+        return WrappedPickle.dumps((False,'newPriority must be an integer'))        
     ret = userIF.changeTaskPriority(jediTaskID,newPriority)
-    return pickle.dumps(ret)
+    return WrappedPickle.dumps(ret)
 
 
 
@@ -1953,7 +1950,7 @@ def changeTaskPriority(req,jediTaskID=None,newPriority=None):
 def increaseAttemptNrPanda(req,jediTaskID,increasedNr):
     # check security
     if not isSecure(req):
-        return pickle.dumps((False,'secure connection is required'))
+        return WrappedPickle.dumps((False,'secure connection is required'))
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
@@ -1982,7 +1979,7 @@ def increaseAttemptNrPanda(req,jediTaskID,increasedNr):
     # exec
     if ret is None:
         ret = userIF.increaseAttemptNrPanda(jediTaskID,increasedNr)
-    return pickle.dumps(ret)
+    return WrappedPickle.dumps(ret)
 
 
 
@@ -1990,7 +1987,7 @@ def increaseAttemptNrPanda(req,jediTaskID,increasedNr):
 def changeTaskAttributePanda(req,jediTaskID,attrName,attrValue):
     # check security
     if not isSecure(req):
-        return pickle.dumps((False,'secure connection is required'))
+        return WrappedPickle.dumps((False,'secure connection is required'))
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
@@ -1999,17 +1996,17 @@ def changeTaskAttributePanda(req,jediTaskID,attrName,attrValue):
     prodRole = _isProdRoleATLAS(req)
     # only prod managers can use this method
     if not prodRole:
-        return pickle.dumps((False,"production or pilot role required"))
+        return WrappedPickle.dumps((False,"production or pilot role required"))
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return pickle.dumps((False,'jediTaskID must be an integer'))        
+        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))        
     # check attribute
     if not attrName in ['ramCount','wallTime','cpuTime','coreCount']:
-        return pickle.dumps((2,"disallowed to update {0}".format(attrName)))
+        return WrappedPickle.dumps((2,"disallowed to update {0}".format(attrName)))
     ret = userIF.changeTaskAttributePanda(jediTaskID,attrName,attrValue)
-    return pickle.dumps((ret,None))
+    return WrappedPickle.dumps((ret,None))
 
 
 
@@ -2017,7 +2014,7 @@ def changeTaskAttributePanda(req,jediTaskID,attrName,attrValue):
 def changeTaskSplitRulePanda(req,jediTaskID,attrName,attrValue):
     # check security
     if not isSecure(req):
-        return pickle.dumps((False,'secure connection is required'))
+        return WrappedPickle.dumps((False,'secure connection is required'))
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
@@ -2026,17 +2023,17 @@ def changeTaskSplitRulePanda(req,jediTaskID,attrName,attrValue):
     prodRole = _isProdRoleATLAS(req)
     # only prod managers can use this method
     if not prodRole:
-        return pickle.dumps((False,"production or pilot role required"))
+        return WrappedPickle.dumps((False,"production or pilot role required"))
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return pickle.dumps((False,'jediTaskID must be an integer'))        
+        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))        
     # check attribute
     if not attrName in ['TW','EC','ES','MF','NG','NI','NF','NJ']:
-        return pickle.dumps((2,"disallowed to update {0}".format(attrName)))
+        return WrappedPickle.dumps((2,"disallowed to update {0}".format(attrName)))
     ret = userIF.changeTaskSplitRulePanda(jediTaskID,attrName,attrValue)
-    return pickle.dumps((ret,None))
+    return WrappedPickle.dumps((ret,None))
 
 
 
@@ -2044,7 +2041,7 @@ def changeTaskSplitRulePanda(req,jediTaskID,attrName,attrValue):
 def pauseTask(req,jediTaskID):
     # check security
     if not isSecure(req):
-        return pickle.dumps((False, 'secure connection is required'))
+        return WrappedPickle.dumps((False, 'secure connection is required'))
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
@@ -2055,16 +2052,16 @@ def pauseTask(req,jediTaskID):
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return pickle.dumps((False, 'jediTaskID must be an integer'))
+        return WrappedPickle.dumps((False, 'jediTaskID must be an integer'))
     ret = userIF.pauseTask(jediTaskID,user,prodRole)
-    return pickle.dumps(ret)
+    return WrappedPickle.dumps(ret)
 
 
 # resume task
 def resumeTask(req,jediTaskID):
     # check security
     if not isSecure(req):
-        return pickle.dumps((False, 'secure connection is required'))
+        return WrappedPickle.dumps((False, 'secure connection is required'))
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
@@ -2075,16 +2072,16 @@ def resumeTask(req,jediTaskID):
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return pickle.dumps((False, 'jediTaskID must be an integer'))
+        return WrappedPickle.dumps((False, 'jediTaskID must be an integer'))
     ret = userIF.resumeTask(jediTaskID,user,prodRole)
-    return pickle.dumps(ret)
+    return WrappedPickle.dumps(ret)
 
 
 # force avalanche for task
 def avalancheTask(req,jediTaskID):
     # check security
     if not isSecure(req):
-        return pickle.dumps((False, 'secure connection is required'))
+        return WrappedPickle.dumps((False, 'secure connection is required'))
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
@@ -2095,9 +2092,9 @@ def avalancheTask(req,jediTaskID):
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return pickle.dumps((False, 'jediTaskID must be an integer'))
+        return WrappedPickle.dumps((False, 'jediTaskID must be an integer'))
     ret = userIF.avalancheTask(jediTaskID,user,prodRole)
-    return pickle.dumps(ret)
+    return WrappedPickle.dumps(ret)
 
 
 
@@ -2142,7 +2139,7 @@ def killUnfinishedJobs(req,jediTaskID,code=None,useMailAsID=None):
 def changeTaskModTimePanda(req,jediTaskID,diffValue):
     # check security
     if not isSecure(req):
-        return pickle.dumps((False,'secure connection is required'))
+        return WrappedPickle.dumps((False,'secure connection is required'))
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
@@ -2151,19 +2148,19 @@ def changeTaskModTimePanda(req,jediTaskID,diffValue):
     prodRole = _isProdRoleATLAS(req)
     # only prod managers can use this method
     if not prodRole:
-        return pickle.dumps((False,"production or pilot role required"))
+        return WrappedPickle.dumps((False,"production or pilot role required"))
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return pickle.dumps((False,'jediTaskID must be an integer'))
+        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
     try:
         diffValue = int(diffValue)
         attrValue = datetime.datetime.now() + datetime.timedelta(hours=diffValue)
     except Exception:
-        return pickle.dumps((False,'failed to convert {0} to time diff'.format(diffValue)))
+        return WrappedPickle.dumps((False,'failed to convert {0} to time diff'.format(diffValue)))
     ret = userIF.changeTaskAttributePanda(jediTaskID,'modificationTime',attrValue)
-    return pickle.dumps((ret,None))
+    return WrappedPickle.dumps((ret,None))
 
 
 
@@ -2172,12 +2169,12 @@ def getPandaIDsWithTaskID(req,jediTaskID):
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return pickle.dumps((False,'jediTaskID must be an integer'))
+        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
     idsStr = userIF.getPandaIDsWithTaskID(jediTaskID)
     # deserialize
     ids = WrappedPickle.loads(idsStr)
 
-    return pickle.dumps(ids)
+    return WrappedPickle.dumps(ids)
 
 
 
@@ -2185,15 +2182,15 @@ def getPandaIDsWithTaskID(req,jediTaskID):
 def reactivateTask(req,jediTaskID):
     # check security
     if not isSecure(req):
-        return pickle.dumps((False,'secure connection is required'))
+        return WrappedPickle.dumps((False,'secure connection is required'))
 
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return pickle.dumps((False,'jediTaskID must be an integer'))
+        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
     ret = userIF.reactivateTask(jediTaskID)
 
-    return pickle.dumps(ret)
+    return WrappedPickle.dumps(ret)
 
 
 
@@ -2202,16 +2199,16 @@ def getTaskStatus(req,jediTaskID):
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return pickle.dumps((False,'jediTaskID must be an integer'))
+        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
     ret = userIF.getTaskStatus(jediTaskID)
-    return pickle.dumps(ret)
+    return WrappedPickle.dumps(ret)
 
 
 # reassign share
 def reassignShare(req, jedi_task_ids_pickle, share, reassign_running):
     # check security
     if not isSecure(req):
-        return pickle.dumps((False,'secure connection is required'))
+        return WrappedPickle.dumps((False,'secure connection is required'))
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
@@ -2219,7 +2216,7 @@ def reassignShare(req, jedi_task_ids_pickle, share, reassign_running):
     # check role
     prod_role = _isProdRoleATLAS(req)
     if not prod_role:
-        return pickle.dumps((False,"production or pilot role required"))
+        return WrappedPickle.dumps((False,"production or pilot role required"))
 
     jedi_task_ids = WrappedPickle.loads(jedi_task_ids_pickle)
     _logger.debug('reassignShare: jedi_task_ids: {0}, share: {1}, reassign_running: {2}'.format(jedi_task_ids,
@@ -2227,17 +2224,17 @@ def reassignShare(req, jedi_task_ids_pickle, share, reassign_running):
                                                                                                 reassign_running))
 
     if not ((isinstance(jedi_task_ids, list) or (isinstance(jedi_task_ids, tuple)) and isinstance(share, str))):
-        return pickle.dumps((False, 'jedi_task_ids must be tuple/list and share must be string'))
+        return WrappedPickle.dumps((False, 'jedi_task_ids must be tuple/list and share must be string'))
 
     ret = userIF.reassignShare(jedi_task_ids, share, reassign_running)
-    return pickle.dumps(ret)
+    return WrappedPickle.dumps(ret)
 
 
 # list tasks in share
 def listTasksInShare(req, gshare, status):
     # check security
     if not isSecure(req):
-        return pickle.dumps((False,'secure connection is required'))
+        return WrappedPickle.dumps((False,'secure connection is required'))
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
@@ -2245,24 +2242,24 @@ def listTasksInShare(req, gshare, status):
     # check role
     prod_role = _isProdRoleATLAS(req)
     if not prod_role:
-        return pickle.dumps((False,"production or pilot role required"))
+        return WrappedPickle.dumps((False,"production or pilot role required"))
 
     _logger.debug('listTasksInShare: gshare: {0}, status: {1}'.format(gshare, status))
 
     if not ((isinstance(gshare, str) and isinstance(status, str))):
-        return pickle.dumps((False, 'gshare and status must be of type string'))
+        return WrappedPickle.dumps((False, 'gshare and status must be of type string'))
 
     ret = userIF.listTasksInShare(gshare, status)
-    return pickle.dumps(ret)
+    return WrappedPickle.dumps(ret)
 
 # get taskParamsMap with TaskID
 def getTaskParamsMap(req,jediTaskID):
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return pickle.dumps((False,'jediTaskID must be an integer'))
+        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
     ret = userIF.getTaskParamsMap(jediTaskID)
-    return pickle.dumps(ret)
+    return WrappedPickle.dumps(ret)
 
 
 # update workers
@@ -2406,7 +2403,7 @@ def getUserJobMetadata(req, jediTaskID):
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return pickle.dumps((False,'jediTaskID must be an integer'))
+        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
     return userIF.getUserJobMetadata(jediTaskID)
 
 
@@ -2416,11 +2413,11 @@ def getJumboJobDatasets(req, n_days, grace_period=0):
     try:
         n_days = long(n_days)
     except Exception:
-        return pickle.dumps((False,'wrong n_days'))
+        return WrappedPickle.dumps((False,'wrong n_days'))
     try:
         grace_period = long(grace_period)
     except Exception:
-        return pickle.dumps((False,'wrong grace_period'))
+        return WrappedPickle.dumps((False,'wrong grace_period'))
     return userIF.getJumboJobDatasets(n_days, grace_period)
 
 

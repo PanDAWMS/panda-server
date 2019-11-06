@@ -237,7 +237,7 @@ class EventPicker:
                     if not tmpRet:
                         self.endWithError('Failed to get replicas in %s' % self.userDatasetName)
                         return False
-                    userDatasetNameList = tmpOut.keys()
+                    userDatasetNameList = list(tmpOut)
                 else:
                     # transfer container at once
                     userDatasetNameList = [self.userDatasetName]

@@ -670,7 +670,7 @@ class DynDataDistributer:
         resForFailure = (False,[])
         # loop over all datasets
         usedDsList = []
-        for datasetName in datasetMap.keys():
+        for datasetName in datasetMap:
             # get file list
             nTry = 3
             for iDDMTry in range(nTry):
@@ -733,7 +733,7 @@ class DynDataDistributer:
             g_filesInDsMap[datasetName] = fileItems
         # random mode
         if randomMode:
-            tmpList = g_filesInDsMap[datasetName].keys()
+            tmpList = list(g_filesInDsMap[datasetName])
             random.shuffle(tmpList)
             retList = []
             for iSamples in range(nSamples):
@@ -1084,7 +1084,7 @@ class DynDataDistributer:
                         return failedRet
                     # collect locations
                     tmpLocationList = []
-                    for tmpLocation in replicaMap.keys():
+                    for tmpLocation in replicaMap:
                         # use only complete replicas
                         dsStatDict = replicaMap[tmpLocation][0]
                         if dsStatDict['total'] is not None and dsStatDict['total'] == dsStatDict['found']:

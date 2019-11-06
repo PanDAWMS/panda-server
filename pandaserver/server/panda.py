@@ -197,7 +197,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                                                keep_blank_values=1)
                     # convert to map
                     params = {}
-                    for tmpKey in tmpPars.keys():
+                    for tmpKey in list(tmpPars):
                         if tmpPars[tmpKey].file is not None and tmpPars[tmpKey].filename is not None:
                             # file
                             params[tmpKey] = tmpPars[tmpKey]
@@ -205,14 +205,14 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                             # string
                             params[tmpKey] = tmpPars.getfirst(tmpKey)
                     if panda_config.entryVerbose:
-                        tmpLog.debug("with %s" % str(params.keys()))
+                        tmpLog.debug("with %s" % str(list(params)))
                     # dummy request object
                     dummyReq = DummyReq(environ, tmpLog)
                     param_list = [dummyReq]
                     # exec
                     exeRes = tmpMethod(*param_list, **params)
                     # extract return type
-                    if type(exeRes) == types.DictType:
+                    if isinstance(exeRes, dict):
                         retType = exeRes['type']
                         exeRes  = exeRes['content']
                     # convert bool to string
@@ -246,6 +246,8 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                 start_response('200 OK', [('Content-Type', 'application/json')])
             else:
                 start_response('200 OK', [('Content-Type', 'text/plain')])
+            if isinstance(exeRes, str):
+                exeRes = exeRes.encode()
             return [exeRes]
 
     # start server

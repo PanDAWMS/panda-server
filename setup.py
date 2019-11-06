@@ -205,7 +205,10 @@ setup(
     author_email='atlas-adc-panda@cern.ch',
     url='https://twiki.cern.ch/twiki/bin/view/Atlas/PanDA',
     zip_safe=False,
-    install_requires=['panda-common'],
+    install_requires=['panda-common',
+                      'pyOpenSSL',
+                      #'rucio-clients'
+                      ],
     packages=[ 'pandaserver',
                'pandaserver.brokerage',
                'pandaserver.config',

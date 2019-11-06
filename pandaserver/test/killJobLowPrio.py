@@ -57,7 +57,7 @@ for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.
 
 # order by PandaID and currentPriority
 jobs = []
-prioList = jobsMap.keys()
+prioList = list(jobsMap)
 prioList.sort()
 for prio in prioList:
     # reverse order by PandaID to kill newer jobs

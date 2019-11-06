@@ -46,7 +46,7 @@ class DdmSpec(object):
 
     # get all endpoints
     def getAllEndPoints(self):
-        return self.all.keys()
+        return list(self.all)
 
     # get endpoint
     def getEndPoint(self,endpointName):

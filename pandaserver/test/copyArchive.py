@@ -378,7 +378,7 @@ for workflow, in res:
     timeout = taskBuffer.getConfigValue('watcher', 'HEARTBEAT_TIMEOUT_{0}'.format(workflow), 'pandaserver', 'atlas')
     if timeout is not None:
         workflow_timeout_map[workflow] = timeout
-workflows = workflow_timeout_map.keys()
+workflows = list(workflow_timeout_map)
 workflows.append(None)
 
 # check heartbeat for analysis jobs

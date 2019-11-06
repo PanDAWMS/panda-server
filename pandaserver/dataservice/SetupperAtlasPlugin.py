@@ -107,7 +107,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         tmpJobMap[tmpJob.computingSite].append(tmpJob)
                     # make new list    
                     tmpJobList = []
-                    for tmpSiteKey in tmpJobMap.keys():
+                    for tmpSiteKey in tmpJobMap:
                         tmpJobList += tmpJobMap[tmpSiteKey]
                     # set new list
                     self.jobs = tmpJobList
@@ -222,8 +222,9 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         else:
                             break
                     if newOut is None:
-                        prodError[job.prodDBlock] = "Setupper._setupSource() could not get VUID of prodDBlock with {0}".format(errMsg)
-                        self.logger.error(errMsg)                                            
+                        prodError[job.prodDBlock] = \
+                            "Setupper._setupSource() could not get VUID of prodDBlock with {0}".format(errMsg)
+                        self.logger.error(prodError[job.prodDBlock])
                     else:
                         self.logger.debug(newOut)
                         try:
@@ -244,9 +245,11 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             prodError[job.prodDBlock] = "Setupper._setupSource() could not decode VUID of prodDBlock"
                 # error
                 if prodError[job.prodDBlock] != '':
-                    job.jobStatus = 'failed'
-                    job.ddmErrorCode = ErrorCode.EC_Setupper
-                    job.ddmErrorDiag = prodError[job.prodDBlock]
+                    if job.jobStatus != 'failed':
+                        job.jobStatus = 'failed'
+                        job.ddmErrorCode = ErrorCode.EC_Setupper
+                        job.ddmErrorDiag = prodError[job.prodDBlock]
+                        self.logger.debug('failed PandaID={0} with {1}'.format(job.PandaID, job.ddmErrorDiag))
                     continue
             # dispatch datablock
             if job.dispatchDBlock != 'NULL':
@@ -315,7 +318,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             self.replicaMap[job.dispatchDBlock][file.dataset] = self.allReplicaMap[file.dataset]
         # register dispatch dataset
         dispList = []
-        for dispatchDBlock in fileList.keys():
+        for dispatchDBlock in fileList:
             # ignore empty dataset
             if len(fileList[dispatchDBlock]['lfns']) == 0:
                 continue
@@ -429,9 +432,11 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         # job status
         for job in self.jobs:
             if job.dispatchDBlock in dispError and dispError[job.dispatchDBlock] != '':
-                job.jobStatus = 'failed'
-                job.ddmErrorCode = ErrorCode.EC_Setupper                
-                job.ddmErrorDiag = dispError[job.dispatchDBlock]
+                if job.jobStatus != 'failed':
+                    job.jobStatus = 'failed'
+                    job.ddmErrorCode = ErrorCode.EC_Setupper
+                    job.ddmErrorDiag = dispError[job.dispatchDBlock]
+                    self.logger.debug('failed PandaID={0} with {1}'.format(job.PandaID, job.ddmErrorDiag))
         # delete explicitly some huge variables        
         del fileList
         del prodList
@@ -483,7 +488,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         # get serial number
                         sn,freshFlag = self.taskBuffer.getSerialNumber(file.destinationDBlock,definedFreshFlag)
                         if sn == -1:
-                            destError[dest] = "Setupper._setupDestination() could not get serial num for %s" % file.destinationDBlock
+                            destError[dest] = "Setupper._setupDestination() could not get serial num for %s" % \
+                                              file.destinationDBlock
                             continue
                         if not file.destinationDBlock in snGottenDS:
                             snGottenDS.append(file.destinationDBlock)
@@ -673,6 +679,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 else:
                                     break
                             if newOut is None:
+                                errMsg = 'failed to get VUID for {0} with {1}'.format(name, errMsg)
                                 self.logger.error(errMsg)
                             else:
                                 self.logger.debug(newOut)
@@ -698,15 +705,17 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     file.destinationDBlock = newnameList[dest]
                 # update job status if failed
                 if destError[dest] != '':
-                    job.jobStatus = 'failed'
-                    job.ddmErrorCode = ErrorCode.EC_Setupper                
-                    job.ddmErrorDiag = destError[dest]
+                    if job.jobStatus != 'failed':
+                        job.jobStatus = 'failed'
+                        job.ddmErrorCode = ErrorCode.EC_Setupper
+                        job.ddmErrorDiag = destError[dest]
+                        self.logger.debug('failed PandaID={0} with {1}'.format(job.PandaID, job.ddmErrorDiag))
                 else:
                     newdest = (file.destinationDBlock,file.destinationSE,job.computingSite)
                     # increment number of files
                     datasetList[newdest].numberfiles = datasetList[newdest].numberfiles + 1
         # dump
-        for tmpDsKey in datasetList.keys():
+        for tmpDsKey in datasetList:
             if re.search('_sub\d+$',tmpDsKey[0]) is not None:
                 self.logger.debug('made sub:%s for nFiles=%s' % (tmpDsKey[0],datasetList[tmpDsKey].numberfiles))
         # insert datasets to DB
@@ -933,10 +942,12 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 self.logger.debug(out)
             # failed jobs
             if dispError[disp] != '':
-                job.jobStatus = 'failed'
-                job.ddmErrorCode = ErrorCode.EC_Setupper                
-                job.ddmErrorDiag = dispError[disp]
-                failedJobs.append(job)
+                if job.jobStatus != 'failed':
+                    job.jobStatus = 'failed'
+                    job.ddmErrorCode = ErrorCode.EC_Setupper
+                    job.ddmErrorDiag = dispError[disp]
+                    self.logger.debug('failed PandaID={0} with {1}'.format(job.PandaID, job.ddmErrorDiag))
+                    failedJobs.append(job)
         # update failed jobs only. succeeded jobs should be activate by DDM callback
         self.updateFailedJobs(failedJobs)
         # submit ddm jobs
@@ -999,7 +1010,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             if self.onlyTA:            
                 self.logger.debug("start TA session %s" % (job.taskID))
             # check if sitename is known
-            if job.computingSite != 'NULL' and (not job.computingSite in self.siteMapper.siteSpecList.keys()):
+            if job.computingSite != 'NULL' and job.computingSite not in self.siteMapper.siteSpecList:
                 job.jobStatus    = 'failed'
                 job.ddmErrorCode = ErrorCode.EC_Setupper                
                 job.ddmErrorDiag = "computingSite:%s is unknown" % job.computingSite
@@ -1032,7 +1043,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     self.missingFilesInT1[job.getCloud()].add(file.lfn)
             # get LFN list
             for dataset in datasets:
-                if not dataset in lfnMap.keys():
+                if dataset not in lfnMap:
                     prodError[dataset] = ''
                     lfnMap[dataset] = {}
                     # get LFNs
@@ -1135,7 +1146,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                             basename = re.sub('\.\d+$','',file.lfn)
                             if basename == file.lfn:
                                 # replace
-                                if basename in lfnMap[file.dataset].keys():
+                                if basename in lfnMap[file.dataset]:
                                     file.lfn = lfnMap[file.dataset][basename]
                                     replaceList.append((basename,file.lfn))
                             # set GUID
@@ -1188,7 +1199,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         self.logger.debug('checking missing files at T1')
         # get missing LFNs from source LRC/LFC
         missLFNs = {}
-        for cloudKey in allLFNs.keys():
+        for cloudKey in allLFNs:
             # use cloud's source
             tmpSrcID   = self.siteMapper.getCloud(cloudKey)['source']
             srcSiteSpec = self.siteMapper.getSite(tmpSrcID)
@@ -1247,7 +1258,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     if tmpSiteNameDQ2Map == {}:
                         continue
                     self.availableLFNsInT2[cloudKey][tmpDsName] = {'allfiles':[],'allguids':[],'allscopes':[],'sites':{}}
-                    for tmpSiteName in tmpSiteNameDQ2Map.keys():
+                    for tmpSiteName in tmpSiteNameDQ2Map:
                         self.availableLFNsInT2[cloudKey][tmpDsName]['sites'][tmpSiteName] = []
                     self.availableLFNsInT2[cloudKey][tmpDsName]['siteDQ2IDs'] = tmpSiteNameDQ2Map   
                 # add files    
@@ -1256,10 +1267,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     self.availableLFNsInT2[cloudKey][tmpDsName]['allguids'].append(allGUIDs[cloudKey][allLFNs[cloudKey].index(tmpCheckLFN)])
                     self.availableLFNsInT2[cloudKey][tmpDsName]['allscopes'].append(allScopes[cloudKey][allLFNs[cloudKey].index(tmpCheckLFN)])
             # get available files at each T2
-            for tmpDsName in self.availableLFNsInT2[cloudKey].keys():
+            for tmpDsName in self.availableLFNsInT2[cloudKey]:
                 checkedDq2SiteMap = {}
                 checkLfcSeMap = {}
-                for tmpSiteName in self.availableLFNsInT2[cloudKey][tmpDsName]['sites'].keys():
+                for tmpSiteName in self.availableLFNsInT2[cloudKey][tmpDsName]['sites']:
                     tmpSiteSpec = self.siteMapper.getSite(tmpSiteName)
                     # get catalog 
                     catURL = 'rucio://atlas-rucio.cern.ch:/grid/atlas'
@@ -1269,11 +1280,11 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     checkLfcSeMap[catURL].setdefault(tmpSiteName,
                                                      tmpSiteSpec.ddm_endpoints_input.getTapeEndPoints())
                 # LFC lookup
-                for tmpCatURL in checkLfcSeMap.keys():  
+                for tmpCatURL in checkLfcSeMap:
                     # get SEs
                     tmpSEList = []
                     tmpSiteNameList = []
-                    for tmpSiteName in checkLfcSeMap[tmpCatURL].keys():
+                    for tmpSiteName in checkLfcSeMap[tmpCatURL]:
                         tmpSEList += checkLfcSeMap[tmpCatURL][tmpSiteName]
                         tmpSiteNameList.append(tmpSiteName)
                     # get available file list
@@ -1736,7 +1747,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     iFiles = 0
                     iLoop = 0
                     while iFiles < len(tmpFileList):
-                        subFileNames = tmpFileList.keys()[iFiles:iFiles+nMaxFiles]
+                        subFileNames = list(tmpFileList)[iFiles:iFiles+nMaxFiles]
                         if len(subFileNames) == 0:
                             break
                         # dis name
@@ -1941,7 +1952,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         for tmpDsName in allReplicaMap[tmpFile.dataset]:
                             tmpRepSitesMap = allReplicaMap[tmpFile.dataset][tmpDsName]
                             # loop over locations                        
-                            for tmpRepSite in tmpRepSitesMap.keys():
+                            for tmpRepSite in tmpRepSitesMap:
                                 if tmpRepSite.startswith(srcDQ2IDprefix) \
                                        and not 'TAPE' in tmpRepSite \
                                        and not '_LOCALGROUP' in tmpRepSite \

@@ -143,7 +143,8 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog):
     tmpSrcSpec  = siteMapper.getSite(siteMapper.getCloud(tmpJob.getCloud())['source'])
     tmpTapeEndPoints = tmpSiteSpec.ddm_endpoints_input.getTapeEndPoints()
     # direct usage of remote SE
-    if tmpSiteSpec.ddm_input != tmpSrcSpec.ddm_input and tmpSrcSpec.ddm_input in tmpSiteSpec.setokens_input.values(): # TODO: check with Tadashi
+    if tmpSiteSpec.ddm_input != tmpSrcSpec.ddm_input and \
+            tmpSrcSpec.ddm_input in tmpSiteSpec.setokens_input.values(): # TODO: check with Tadashi
         tmpSiteSpec = tmpSrcSpec
         tmpLog.debug('%s uses remote SiteSpec of %s for %s' % (tmpJob.PandaID,tmpSrcSpec.sitename,tmpJob.computingSite))
     for tmpFile in tmpJob.Files:
@@ -355,7 +356,7 @@ def makeCompactDiagMessage(header,results):
             numTypeMap[nSites] = []
         numTypeMap[nSites].append(resultType)    
     # sort
-    numTypeKeys = numTypeMap.keys()
+    numTypeKeys = list(numTypeMap)
     numTypeKeys.sort()
     # use compact format for largest one
     largeTypes = None
@@ -861,7 +862,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         tmpLog.error("disk check : %s %s" % (errtype,errvalue))
                                 tmpLog.debug('   maxwdir=%s' % tmpSiteSpec.maxwdir)
                                 # reliability
-                                if forAnalysis and isinstance(siteReliability,types.IntType):
+                                if forAnalysis and isinstance(siteReliability, (int, long)):
                                     if tmpSiteSpec.reliabilityLevel is not None and tmpSiteSpec.reliabilityLevel > siteReliability:
                                         tmpLog.debug(' skip: insufficient reliability %s > %s' % (tmpSiteSpec.reliabilityLevel,siteReliability))
                                         resultsForAnal['reliability'].append(site)
@@ -1108,7 +1109,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     nActJobs = jobStatBrokerCloudsWithPrio[prevPriority][previousCloud][site][tmpProGroup]['activated']
                                     nRunJobsPerGroup = jobStatBrokerCloudsWithPrio[prevPriority][previousCloud][site][tmpProGroup]['running']
                                     # add newly assigned jobs
-                                    for tmpNewPriority in newJobStatWithPrio.keys():
+                                    for tmpNewPriority in newJobStatWithPrio:
                                         if tmpNewPriority < prevPriority:
                                             continue
                                         if previousCloud not in newJobStatWithPrio[tmpNewPriority]:
@@ -1251,7 +1252,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             # remove too different weights
                             if len(minSites) >= 2:
                                 # look for minimum
-                                minSite = minSites.keys()[0]
+                                minSite = list(minSites)[0]
                                 minWinv = minSites[minSite]
                                 for tmpSite in minSites:
                                     tmpWinv = minSites[tmpSite]
@@ -1281,12 +1282,12 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     # use only one site for prod_test to skip LFC scan
                     if prevProType in skipBrokerageProTypes:
                         if len(minSites) > 1:
-                            minSites = {minSites.keys()[0]:0}
+                            minSites = {list(minSites)[0]:0}
                     # choose site
                     tmpLog.debug('Min Sites:%s' % minSites)
                     if len(fileList) ==0 or prevIsJEDI == True:
                         # choose min 1/weight
-                        minSite = minSites.keys()[0]
+                        minSite = list(minSites)[0]
                         minWinv = minSites[minSite]
                         for tmpSite in minSites:
                             tmpWinv = minSites[tmpSite]
@@ -1524,7 +1525,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             destSE = job.destinationSE
             if siteMapper.checkCloud(job.getCloud()):
                 # use cloud dest for non-exsiting sites
-                if job.prodSourceLabel != 'user' and (not job.destinationSE in siteMapper.siteSpecList.keys()) \
+                if job.prodSourceLabel != 'user' and job.destinationSE not in siteMapper.siteSpecList \
                        and job.destinationSE != 'local':
                     if DataServiceUtils.checkJobDestinationSE(job) is not None:
                         destSE = DataServiceUtils.checkJobDestinationSE(job)

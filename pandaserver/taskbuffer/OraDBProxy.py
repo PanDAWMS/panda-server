@@ -46,6 +46,10 @@ try:
     long
 except NameError:
     long = int
+try:
+    unicode
+except NameError:
+    unicode = str
 
 if panda_config.backend == 'oracle':
     import cx_Oracle
@@ -105,6 +109,9 @@ class DBProxy:
         self.__hs_distribution = None  # HS06s distribution of sites
         self.__t_update_distribution = None  # Timestamp when the HS06s distribution was last updated
 
+        # keep type
+        self.__orig_type = type
+
         # self.__reload_shares()
         # self.__reload_hs_distribution()
 
@@ -147,10 +154,10 @@ class DBProxy:
             except Exception:
                 pass
             self.hostname = self.cur.initialize()
+            _logger.debug("connect : re=%s ready" % reconnect)
             return True
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error("connect : %s %s" % (type,value))
+        except Exception as e:
+            _logger.error("connect : %s" % str(e))
             return False
 
     def getvalue_corrector(self, value):
@@ -2184,7 +2191,7 @@ class DBProxy:
         sql1 = "UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:jobStatus"
         varMap = {}
         presetEndTime = False
-        for key in param.keys():
+        for key in param:
             if key in ['corruptedFiles']:
                 continue
             if param[key] is not None or key in ['jobDispatcherErrorDiag']:
@@ -2411,7 +2418,7 @@ class DBProxy:
                                         # decrement nOnHold
                                         datasetContentsStat[tmpDatasetID] -= 1
                             # loop over all datasets
-                            tmpDatasetIDs = datasetContentsStat.keys()
+                            tmpDatasetIDs = list(datasetContentsStat)
                             tmpDatasetIDs.sort()
                             for tmpDatasetID in tmpDatasetIDs:
                                 diffNum = datasetContentsStat[tmpDatasetID]
@@ -2666,7 +2673,7 @@ class DBProxy:
                                 _logger.debug(sqlFileMeta+comment+str(varMap))
                                 self.cur.execute(sqlFileMeta+comment,varMap)
                     # loop over all JEDI datasets
-                    tmpDatasetIDs = datasetContentsStat.keys()
+                    tmpDatasetIDs = list(datasetContentsStat)
                     tmpDatasetIDs.sort()
                     for tmpDatasetID in tmpDatasetIDs:
                         valMap = datasetContentsStat[tmpDatasetID]
@@ -3295,7 +3302,7 @@ class DBProxy:
         # get the sorting criteria (global shares, age, etc.)
         sorting_sql, sorting_varmap = self.getSortingCriteria(siteName, maxAttemptIDx)
         if sorting_varmap:  # copy the var map, but not the sql, since it has to be at the very end
-            for tmp_key in sorting_varmap.keys():
+            for tmp_key in sorting_varmap:
                 getValMap[tmp_key] = sorting_varmap[tmp_key]
 
         # sql2 is query to get the DB entry for a specific PanDA ID
@@ -3353,7 +3360,7 @@ class DBProxy:
                             channelMap[channel][tmp_jobStatus] += int(tmp_count)
                     _logger.debug(channelMap)
                     # choose channel
-                    channels = channelMap.keys()
+                    channels = list(channelMap)
                     random.shuffle(channels)
                     foundChannel = False
                     for channel in channels:
@@ -3709,7 +3716,7 @@ class DBProxy:
                 mergeZipLFNs = set()
                 for tmpFileID in eventRangeIDs:
                     tmpMapEventRangeID = eventRangeIDs[tmpFileID]
-                    jobProcessIDs = tmpMapEventRangeID.keys()
+                    jobProcessIDs = list(tmpMapEventRangeID)
                     jobProcessIDs.sort()
                     # make input
                     for jobProcessID in jobProcessIDs:
@@ -3826,8 +3833,11 @@ class DBProxy:
 
     # reset job in jobsActive or jobsWaiting
     def resetJob(self,pandaID,activeTable=True,keepSite=False,getOldSubs=False,forPending=True):
-        comment = ' /* DBProxy.resetJob */'        
-        _logger.debug("resetJob : %s activeTable=%s" % (pandaID,activeTable))
+        comment = ' /* DBProxy.resetJob */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += ' <PandaID={0}>'.format(pandaID)
+        tmpLog = LogWrapper(_logger, methodName)
+        tmpLog.debug("activeTable=%s" % activeTable)
         # select table
         table = 'ATLAS_PANDA.jobsWaiting4'        
         if activeTable:
@@ -3884,7 +3894,7 @@ class DBProxy:
             self.cur.execute(sql2+comment,varMap)
             retD = self.cur.rowcount            
             # delete failed
-            _logger.debug("resetJobs : retD = %s" % retD)
+            tmpLog.debug("retD = %s" % retD)
             if retD != 1:
                 # commit
                 if not self._commit():
@@ -3955,7 +3965,7 @@ class DBProxy:
                 varMap = file.valuesMap(onlyChanged=True)
                 if varMap != {}:
                     varMap[':row_ID'] = file.row_ID
-                    _logger.debug(sqlF+comment+str(varMap))                    
+                    tmpLog.debug(sqlF+comment+str(varMap))
                     self.cur.execute(sqlF+comment, varMap)
             # commit
             if not self._commit():
@@ -3967,14 +3977,14 @@ class DBProxy:
                 _logger.error('recordStatusChange in resetJobs')
             if getOldSubs:
                 return job,oldSubList
+            tmpLog.debug('done')
             return job
         except Exception:
             # roll back
             self._rollback()
             # error report
             type, value, traceBack = sys.exc_info()
-            _logger.error("resetJobs : %s %s" % (type,value))
-            _logger.error("resetJobs : %s" % pandaID)
+            tmpLog.error("%s %s" % (type,value))
             return None
 
 
@@ -6701,7 +6711,7 @@ class DBProxy:
         else:
             sql1 = "SELECT %s FROM ATLAS_PANDA.Datasets" % DatasetSpec.columnNames()            
         varMap = {}
-        for key in map.keys():
+        for key in map:
             if len(varMap)==0:
                 sql1+= " WHERE %s=:%s" % (key,key)
             else:
@@ -6752,7 +6762,7 @@ class DBProxy:
                 # update
                 varMap = dataset.valuesMap()
                 varMap[':vuid'] = dataset.vuid
-                for cKey in criteriaMap.keys():
+                for cKey in criteriaMap:
                     varMap[cKey] = criteriaMap[cKey]
                 _logger.debug(sql1+comment+str(varMap))
                 self.cur.execute(sql1+comment, varMap)                
@@ -6804,7 +6814,7 @@ class DBProxy:
             _logger.debug("getSerialNumber(%s,%s)" % (datasetname,definedFreshFlag))
             if isinstance(datasetname,unicode):
                 datasetname = datasetname.encode('ascii','ignore')
-                _logger.debug("getSerialNumber convert unicode for %s" % datasetname)
+                _logger.debug("getSerialNumber converted unicode for %s" % datasetname)
             # start transaction
             self.conn.begin()
             # check freashness
@@ -7257,7 +7267,7 @@ class DBProxy:
         _logger.debug("queryFilesWithMap()")
         sql1 = "SELECT PandaID,%s FROM ATLAS_PANDA.filesTable4" % FileSpec.columnNames()
         varMap = {}
-        for key in map.keys():
+        for key in map:
             if len(varMap)==0:
                 sql1+= " WHERE %s=:%s" % (key,key)
             else:
@@ -7307,7 +7317,7 @@ class DBProxy:
         comment = ' /* DBProxy.countFilesWithMap */'        
         sql1 = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ COUNT(*) FROM ATLAS_PANDA.filesTable4 tab"
         varMap = {}
-        for key in map.keys():
+        for key in map:
             if len(varMap)==0:
                 sql1+= " WHERE %s=:%s" % (key,key)
             else:
@@ -8253,11 +8263,11 @@ class DBProxy:
                     self.conn.begin()
                     # select
                     varMap = {}
-                    for tmpJobType in tmpJobTypeMap.keys():
+                    for tmpJobType in tmpJobTypeMap:
                         varMap[tmpJobType] = tmpJobTypeMap[tmpJobType]
-                    for tmpGroup in tmpGroupMap.keys():
+                    for tmpGroup in tmpGroupMap:
                         varMap[tmpGroup] = tmpGroupMap[tmpGroup]
-                    for tmpPrio in tmpPrioMap.keys():
+                    for tmpPrio in tmpPrioMap:
                         varMap[tmpPrio] = tmpPrioMap[tmpPrio]
                     if table != 'ATLAS_PANDA.jobsArchived4':
                         self.cur.arraysize = 10000
@@ -8290,7 +8300,7 @@ class DBProxy:
                 stateList = ['assigned','activated','running']
                 if archived:
                     stateList += ['finished','failed']
-                for site in ret.keys():
+                for site in ret:
                     for state in stateList:
                         if state not in ret[site]:
                             ret[site][state] = 0
@@ -8406,7 +8416,7 @@ class DBProxy:
                     # select
                     varMap = {}
                     varMap[':prodSourceLabel1'] = 'managed'
-                    for tmpPrio in tmpPrioMap.keys():
+                    for tmpPrio in tmpPrioMap:
                         varMap[tmpPrio] = tmpPrioMap[tmpPrio]
                     self.cur.arraysize = 10000
                     useRunning = None
@@ -9367,7 +9377,7 @@ class DBProxy:
             if not self._commit():
                 raise RuntimeError('Commit error')
             # shuffle to avoid concatenation
-            tmpSiteList = pilotRequests.keys()
+            tmpSiteList = list(pilotRequests)
             random.shuffle(tmpSiteList)
             # loop over all sites
             for tmpSite in tmpSiteList:
@@ -12484,7 +12494,7 @@ class DBProxy:
             # no info
             return
         # convert NULL to None
-        for tmpKey in varMap.keys():
+        for tmpKey in varMap:
             if varMap[tmpKey] == 'NULL':
                 varMap[tmpKey] = None
         # insert
@@ -12862,7 +12872,7 @@ class DBProxy:
         # update JEDI_Datasets table
         nOutEvents = 0
         if datasetContentsStat != {}:
-            tmpDatasetIDs = datasetContentsStat.keys()
+            tmpDatasetIDs = list(datasetContentsStat)
             tmpDatasetIDs.sort()
             for tmpDatasetID in tmpDatasetIDs:
                 tmpContentsStat = datasetContentsStat[tmpDatasetID]
@@ -14401,7 +14411,7 @@ class DBProxy:
             jobStatMap = dict()
             for proc_status, ninputs in resJS:
                 jobStatMap[proc_status] = ninputs
-            psList = jobStatMap.keys()
+            psList = list(jobStatMap)
             psList.sort()
             retDict['statistics'] = ','.join(['{0}*{1}'.format(j, jobStatMap[j]) for j in psList])
             # command line parameters
@@ -16433,7 +16443,7 @@ class DBProxy:
             sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
             sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
             nKilled = 0
-            killPandaIDsList = killPandaIDs.keys()
+            killPandaIDsList = list(killPandaIDs)
             killPandaIDsList.sort()
             for pandaID in killPandaIDsList:
                 # ignore original PandaID since it will be killed by caller
@@ -21665,7 +21675,7 @@ class DBProxy:
         n_workers_running = 0
         workers_queued = {}
         n_workers_queued = 0
-        harvester_ids_temp = worker_stats.keys()
+        harvester_ids_temp = list(worker_stats)
 
         # get the configuration for maximum workers of each type
         pq_data_des = self.get_config_for_pq(queue)
@@ -22126,8 +22136,8 @@ class DBProxy:
                     ret[computingSite][resource_type][jobStatus] += nJobs
             # for zero
             stateList = ['assigned', 'activated', 'running', 'finished', 'failed']
-            for computingSite in ret.keys():
-                for resource_type in ret[computingSite].keys():
+            for computingSite in ret:
+                for resource_type in ret[computingSite]:
                     for jobStatus in stateList:
                         ret[computingSite][resource_type].setdefault(jobStatus, 0)
             # return

@@ -71,14 +71,14 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
         if not tmpSiteSpec.ddm_input and not tmpSiteSpec.setokens_input.values():
             continue
 
-        for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input]+tmpSiteSpec.setokens_input.values():
+        for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input]+list(tmpSiteSpec.setokens_input.values()):
             # prefix of DQ2 ID
             tmpDQ2IDPrefix = getDQ2Prefix(tmpSiteDQ2ID)
             # ignore empty
             if tmpDQ2IDPrefix == '':
                 continue
             # loop over all replica DQ2 IDs 
-            for tmpDQ2ID in replicaMap[tmpDsName].keys():
+            for tmpDQ2ID in replicaMap[tmpDsName]:
                 # use DATADISK or GROUPDISK 
                 if '_SCRATCHDISK'        in tmpDQ2ID or \
                        '_USERDISK'       in tmpDQ2ID or \
@@ -117,7 +117,7 @@ def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap,additiona
         # get DQ2 endpoints 
         tmpSiteSpec = siteMapper.getSite(siteName)
         prefixList = []
-        for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input]+tmpSiteSpec.setokens_input.values():
+        for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input]+list(tmpSiteSpec.setokens_input.values()):
             # prefix of DQ2 ID
             tmpDQ2IDPrefix = getDQ2Prefix(tmpSiteDQ2ID)
             # ignore empty
@@ -154,7 +154,7 @@ def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap,additiona
                         tmpSePat = tmpSePat.replace('*','.*')
                     tmpSePat = '^' + tmpSePat +'$'
                     # loop over all sites
-                    for tmpSE in tmpSitesData.keys():
+                    for tmpSE in tmpSitesData:
                         # skip bad metadata
                         if tmpDsName in badMetaMap and tmpSE in badMetaMap[tmpDsName]:
                             continue
@@ -167,7 +167,7 @@ def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap,additiona
                             maxNumFile = tmpN
             else:
                 # check explicit endpoint name
-                for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input]+tmpSiteSpec.setokens_input.values():
+                for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input]+list(tmpSiteSpec.setokens_input.values()):
                     # skip bad metadata
                     if tmpDsName in badMetaMap and tmpSiteDQ2ID in badMetaMap[tmpDsName]:
                         continue
@@ -225,7 +225,7 @@ def getEndpointsAtT1(tmpRepMap,siteMapper,cloudName):
             tmpSePat = tmpSePat.replace('*','.*')
         tmpSePat = '^' + tmpSePat +'$'
         # loop over all sites
-        for tmpSE in tmpRepMap.keys():
+        for tmpSE in tmpRepMap:
             # check match
             if re.search(tmpSePat,tmpSE) is None:
                 continue
@@ -329,7 +329,8 @@ def getSitesShareDDM(siteMapper,siteName):
             continue
         # same endpoint
         try:
-            if siteSpec.ddm_input != tmpSiteSpec.ddm_input and siteSpec.ddm_output not in tmpSiteSpec.ddm_endpoints_input.all.keys():
+            if siteSpec.ddm_input != tmpSiteSpec.ddm_input and \
+                    siteSpec.ddm_output not in tmpSiteSpec.ddm_endpoints_input.all:
                 continue
         except Exception:
             continue

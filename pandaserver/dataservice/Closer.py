@@ -210,7 +210,7 @@ class Closer:
                 closerPluginClass = panda_config.getPlugin('closer_plugins',self.job.VO)
                 if closerPluginClass is None and self.job.VO == 'atlas':
                     # use ATLAS plugin for ATLAS
-                    from CloserAtlasPlugin import CloserAtlasPlugin
+                    from pandaserver.dataservice.CloserAtlasPlugin import CloserAtlasPlugin
                     closerPluginClass = CloserAtlasPlugin
                 if closerPluginClass is not None:
                     closerPlugin = closerPluginClass(self.job,finalStatusDS,_logger)

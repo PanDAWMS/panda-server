@@ -5,6 +5,11 @@ worker specification
 
 import datetime
 
+try:
+    unicode
+except NameError:
+    unicode = str
+
 
 class WorkerSpec(object):
     # attributes

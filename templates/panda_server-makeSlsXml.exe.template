@@ -294,7 +294,7 @@ def registration_time(timeSlice=False,onlyDQ2=False) :
 				regtimeMap[timestamp]['totalReg'] += 1
 			except Exception:
 				pass
-		timestamps = regtimeMap.keys()
+		timestamps = list(regtimeMap)
 		if timeSlice:	
 			timestamps.sort()
 			for timestamp in timestamps:
@@ -339,7 +339,7 @@ def filelookup_time(timeSlice=False) :
 				regtimeMap[timestamp]['totalReg'] += nFiles
 			except Exception:
 				pass
-		timestamps = regtimeMap.keys()
+		timestamps = list(regtimeMap)
 		if timeSlice:	
 			timestamps.sort()
 			for timestamp in timestamps:

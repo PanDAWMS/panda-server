@@ -140,7 +140,7 @@ class SiteMapper:
                     self.collectNS(ret) 
             # make virtual queues from unified queues
             try:
-                for siteName in self.siteSpecList.keys():
+                for siteName in self.siteSpecList:
                     siteSpec = self.siteSpecList[siteName]
                     if siteSpec.hasValueInCatchall('unifiedPandaQueue') or siteSpec.capability == 'ucore':
                         for resourceSpec in resourceTypes:
@@ -327,7 +327,7 @@ class SiteMapper:
         
     # accessor for cloud list
     def getCloudList(self):
-        return self.cloudSpec.keys()
+        return list(self.cloudSpec)
 
 
 
