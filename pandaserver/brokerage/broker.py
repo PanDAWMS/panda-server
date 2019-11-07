@@ -1,7 +1,7 @@
 import re
 import sys
 import time
-import types
+import traceback
 import fcntl
 import random
 import datetime
@@ -1101,7 +1101,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                                                            taskBuffer.getJobStatisticsBrokerage(
                                                                                prevPriority,
                                                                                prevPriority+prioInterval))
-                                    jobStatBrokerCloudsWithPrio[prevPriority].setdefaut(previousCloud, {})
+                                    jobStatBrokerCloudsWithPrio[prevPriority].setdefault(previousCloud, {})
                                     jobStatBrokerCloudsWithPrio[prevPriority][previousCloud].setdefault(site, {})
                                     jobStatBrokerCloudsWithPrio[prevPriority][previousCloud][site].setdefault(
                                         tmpProGroup, {'assigned':0,'activated':0,'running':0,'transferring':0})
@@ -1619,9 +1619,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         tmpLog.debug('finished')
         if getWeight:
             return weightUsedByBrokerage
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        tmpLog.error("schedule : %s %s" % (type,value))
+    except Exception as e:
+        tmpLog.error("schedule : %s %s" % (str(e), traceback.format_exc()))
         if getWeight:
             return {}
 

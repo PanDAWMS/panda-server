@@ -1563,7 +1563,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             self.logger.debug('listDatasetReplicas '+dataset)
             status,out = self.getListDatasetReplicas(dataset)
             self.logger.debug(out)
-            if status != 0:
+            if not status:
                 if getMap:
                     return False, out
                 return status,out
