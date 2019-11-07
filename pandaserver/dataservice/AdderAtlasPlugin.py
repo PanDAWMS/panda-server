@@ -501,11 +501,11 @@ class AdderAtlasPlugin (AdderPluginBase):
                                  'ds'       : fileSpec.dataset}
                     zipFiles[zipFileName]['files'].append(fileAttrs)
         # cleanup submap
-        for tmpKey in subMap:
+        for tmpKey in list(subMap):
             if subMap[tmpKey] == []:
                 del subMap[tmpKey]
         # add data to original dataset
-        for destinationDBlock in idMap:
+        for destinationDBlock in list(idMap):
             origDBlock = None
             match = re.search('^(.+)_sub\d+$',destinationDBlock)
             if match is not None:
@@ -830,7 +830,7 @@ class AdderAtlasPlugin (AdderPluginBase):
     # decompose idMap
     def decomposeIdMap(self, idMap, dsDestMap, osDsFileMap, subToDsMap):
         # add item for top datasets
-        for tmpDS in dsDestMap:
+        for tmpDS in list(dsDestMap):
             tmpTopDS = subToDsMap[tmpDS]
             if tmpTopDS != tmpDS:
                 dsDestMap[tmpTopDS] = dsDestMap[tmpDS]

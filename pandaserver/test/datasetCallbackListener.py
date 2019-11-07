@@ -7,10 +7,6 @@ import signal
 import socket
 import optparse
 import datetime
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
 import stomp
 
 from pandaserver.config import panda_config

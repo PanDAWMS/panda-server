@@ -1,8 +1,8 @@
 import sys
 import threading
 import traceback
-import aux
-from aux import *
+from pandaserver.configurator import aux
+from pandaserver.configurator.aux import *
 from datetime import datetime, timedelta
 
 from pandaserver.config import panda_config

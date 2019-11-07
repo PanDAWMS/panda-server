@@ -10,7 +10,7 @@ except ImportError:
     from copyreg import _reconstructor as map__reconstructor
 
 # define Unpickler
-if hasattr(pickle.Unpickler, 'find_global'):
+if pickle.__name__ == 'cPickle':
     # python 2
     Common_Unpickler = pickle.Unpickler
 else:

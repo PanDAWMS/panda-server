@@ -2191,7 +2191,7 @@ class DBProxy:
         sql1 = "UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:jobStatus"
         varMap = {}
         presetEndTime = False
-        for key in param:
+        for key in list(param):
             if key in ['corruptedFiles']:
                 continue
             if param[key] is not None or key in ['jobDispatcherErrorDiag']:
