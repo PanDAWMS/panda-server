@@ -1,5 +1,10 @@
 Release Notes
 
+* 11/8/2019
+  * 0.0.21
+  * added python 2/3 compatibility
+  * added pip and virtual env support
+
 * 9/3/2019
   * token-based auth
 
