@@ -465,9 +465,10 @@ class RucioAPI:
             else:
                 value = 0.0001
             client.set_metadata(scope=scope, name=dsn, key='lifetime', value=value)
-        except Exception:
-            errType,errVale = sys.exc_info()[:2]
-            return False,'%s %s' % (errType,errVale)
+        except DataIdentifierNotFound:
+            pass
+        except Exception as e:
+            return False,'%s' % str(e)
         return True,''
 
 

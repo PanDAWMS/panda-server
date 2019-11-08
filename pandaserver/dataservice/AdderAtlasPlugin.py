@@ -469,9 +469,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                                                 # use default DDM
                                                 for dq2ID in tmpDstDDM.split(','):
                                                     subMap[fileDestinationDBlock].append((dq2ID,optSub,optSource))
-                except Exception:
-                    errStr = '%s %s' % sys.exc_info()[:2]
-                    self.logger.error(traceback.format_exc())
+                except Exception as e:
+                    errStr = str(e)
+                    self.logger.error(errStr + ' ' + traceback.format_exc())
                     self.result.setFatal()
                     self.job.ddmErrorDiag = 'failed before adding files : ' + errStr
                     return 1
