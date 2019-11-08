@@ -180,7 +180,7 @@ class AdderAtlasPlugin (AdderPluginBase):
             tmpZipContents = zipFileMap[tmpZipFileName]
             if tmpZipFileName not in self.extraInfo['nevents']:
                 for tmpZipContent in tmpZipContents:
-                    for tmpLFN in nEventsInput.keys():
+                    for tmpLFN in list(nEventsInput):
                         if re.search('^' + tmpZipContent + '$', tmpLFN) is not None \
                            and tmpLFN in nEventsInput and nEventsInput[tmpLFN] is not None:
                             self.extraInfo['nevents'].setdefault(tmpZipFileName, 0)
