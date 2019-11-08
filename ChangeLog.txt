@@ -1,6 +1,11 @@
 Release Notes
 
 * 11/8/2019
+  * 0.0.22
+  * enabled wheel
+  * fixed for pip+virtualenv
+
+* 11/7/2019
   * 0.0.21
   * added python 2/3 compatibility
   * added pip and virtual env support

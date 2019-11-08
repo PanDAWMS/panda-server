@@ -4,9 +4,6 @@
 #
 #
 
-panda_user = 'atlpan'
-panda_group = 'zp'
-
 # set PYTHONPATH to use the current directory first
 import sys
 sys.path.insert(0,'.')
@@ -22,6 +19,16 @@ import socket
 from setuptools import setup
 from setuptools.command.install import install as install_org
 from distutils.command.install_data import install_data as install_data_org
+
+# user
+if os.getgid() == 0:
+    panda_user = 'atlpan'
+    panda_group = 'zp'
+else:
+    panda_user = getpass.getuser()
+    panda_group = grp.getgrgid(os.getgid()).gr_name
+
+# package version
 import PandaPkgInfo
 release_version = PandaPkgInfo.release_version
 
@@ -105,9 +112,9 @@ class install_data_panda (install_data_org):
     
     def run (self):
         # not to use wheel to correctly generate setup.sh
-        if 'bdist_wheel' in self.distribution.get_cmdline_options():
+        #if 'bdist_wheel' in self.distribution.get_cmdline_options():
             # wheel is disabled
-            sys.exit('\n\033[32m'+'WARNING : Wheel is disabled. Please try installation from source'+'\033[0m')
+        #    sys.exit('\n\033[32m'+'WARNING : Wheel is disabled. Try installation from source'+'\033[0m')
         # setup.py install sets install_dir to /usr
         if self.install_dir == '/usr':
             self.install_dir = '/'
@@ -187,13 +194,24 @@ class install_data_panda (install_data_org):
         self.data_files = new_data_files
         install_data_org.run(self)
         
-        #post install
+        # post install
         uid = pwd.getpwnam(panda_user).pw_uid
         gid = grp.getgrnam(panda_group).gr_gid
         for directory in ['/var/log/panda', '/var/log/panda/wsgisocks', '/var/log/panda/fastsocks']:
+            directory = self.virtual_env + directory
             if not os.path.exists(directory):
                 os.makedirs(directory)
-                os.chown(directory, uid, gid)                
+                os.chown(directory, uid, gid)
+        if self.virtual_env != '':
+            target_dir = os.path.join(self.virtual_env, 'etc/sysconfig')
+            if not os.path.exists(target_dir):
+                os.makedirs(target_dir)
+            target = os.path.join(target_dir,'panda_server')
+            if not os.path.exists(target):
+                os.symlink(os.path.join(self.virtual_env, 'etc/panda/panda_server.sysconfig'),
+                           target)
+
+
         
 # setup for distutils
 setup(
