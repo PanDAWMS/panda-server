@@ -22,7 +22,7 @@ import socket
 from setuptools import setup
 from setuptools.command.install import install as install_org
 from distutils.command.install_data import install_data as install_data_org
-from . import PandaPkgInfo
+import PandaPkgInfo
 release_version = PandaPkgInfo.release_version
 
 # get panda specific params
