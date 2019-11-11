@@ -16,6 +16,7 @@ import site
 import stat
 import getpass
 import socket
+import distutils
 from setuptools import setup
 from setuptools.command.install import install as install_org
 from distutils.command.install_data import install_data as install_data_org
@@ -111,17 +112,20 @@ class install_data_panda (install_data_org):
         
     
     def run (self):
-        # not to use wheel to correctly generate setup.sh
-        #if 'bdist_wheel' in self.distribution.get_cmdline_options():
-            # wheel is disabled
-        #    sys.exit('\n\033[32m'+'WARNING : Wheel is disabled. Try installation from source'+'\033[0m')
         # setup.py install sets install_dir to /usr
         if self.install_dir == '/usr':
             self.install_dir = '/'
+        elif 'bdist_wheel' in self.distribution.get_cmdline_options():
+            # wheel
+            self.install_dir = self.prefix
+            self.install_purelib = distutils.sysconfig.get_python_lib()
+            self.install_scripts = os.path.join(self.prefix, 'bin')
         if not self.install_dir:
             if self.root:
                 # rpm
-                self.install_dir = self.root
+                self.install_dir = self.prefix
+                self.install_purelib = distutils.sysconfig.get_python_lib()
+                self.install_scripts = os.path.join(self.prefix, 'bin')
             else:
                 # sdist
                 if not self.prefix:

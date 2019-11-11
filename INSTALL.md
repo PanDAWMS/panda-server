@@ -126,5 +126,11 @@ $ sudo /sbin/service httpd-pandasrv stop
 
 
 
-
+Uploading to pip
+--------------------
+```
+python setup.py sdist upload
+```
+Uploading source to let wheel locally generate setup files.
+ 
 
