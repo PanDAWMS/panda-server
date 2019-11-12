@@ -976,16 +976,10 @@ class ActivatorWithRuleThr (threading.Thread):
                                 repMap = {}
                             replicaMap[tmpFile.dispatchDBlock] = repMap
                         # check RSEs
-<<<<<<< HEAD
-                        for rse, repInfo in replicaMap[tmpFile.dispatchDBlock].iteritems():
-                            if siteSpec.ddm_endpoints_input[scope_input].isAssociated(rse) and \
-                                    siteSpec.ddm_endpoints_input[scope_input].getEndPoint(rse)['is_tape'] == 'N' and \
-=======
                         for rse in replicaMap[tmpFile.dispatchDBlock]:
                             repInfo = replicaMap[tmpFile.dispatchDBlock][rse]
-                            if siteSpec.ddm_endpoints_input.isAssociated(rse) and \
-                                    siteSpec.ddm_endpoints_input.getEndPoint(rse)['is_tape'] == 'N' and \
->>>>>>> master
+                            if siteSpec.ddm_endpoints_input[scope_input].isAssociated(rse) and \
+                                    siteSpec.ddm_endpoints_input[scope_input].getEndPoint(rse)['is_tape'] == 'N' and \
                                     repInfo[0]['total'] == repInfo[0]['found'] and repInfo[0]['total'] is not None:
                                 tmpFile.status = 'ready'
                                 break
