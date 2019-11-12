@@ -362,7 +362,7 @@ class Response:
     # get ddm endpoint
     def getDdmEndpoint(self, siteSpec, spaceToken, mode, prodSourceLabel):
         scope_input, scope_output = DataServiceUtils.select_scope(siteSpec, prodSourceLabel)
-        if siteSpec is None or mode not in ['input', 'output']
+        if siteSpec is None or mode not in ['input', 'output']:
             return ''
 
         if mode == 'input':
