@@ -78,7 +78,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                 # protection against disappearance of dest from schedconfig
                 if not self.siteMapper.checkSite(self.job.destinationSE) and self.job.destinationSE != 'local':
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
-                    self.job.ddmErrorDiag = "destinaitonSE %s is unknown in schedconfig" % self.job.destinationSE
+                    self.job.ddmErrorDiag = "destinationSE %s is unknown in schedconfig" % self.job.destinationSE
                     self.logger.error("%s" % self.job.ddmErrorDiag)
                     # set fatal error code and return
                     self.result.setFatal()
