@@ -1,5 +1,6 @@
 import re
 import sys
+import traceback
 import time
 import types
 import fcntl
@@ -135,7 +136,7 @@ def _isReproJob(tmpJob):
 
     
 # set 'ready' if files are already there
-def _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog):
+def _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog):
     tmpLog.debug(str(okFiles))
     allOK = True
     tmpSiteSpec = siteMapper.getSite(tmpJob.computingSite)
@@ -325,6 +326,12 @@ def getHospitalQueues(siteMapper, forAnalysis):
     retMap = {}
     # hospital words
     goodWordList = ['CORE$','VL$','MEM$','MP\d+$','LONG$','_HIMEM','_\d+$']
+
+    # the prodSourcelabel is needed to know the def-vs-anal scope of the PQ-RSE association
+    prodSourcelabel = 'managed'
+    if forAnalysis:
+        prodSourcelabel = 'user'
+
     # loop over all clouds
     for tmpCloudName in siteMapper.getCloudList():
         # get cloud
@@ -353,11 +360,6 @@ def getHospitalQueues(siteMapper, forAnalysis):
             if not siteMapper.checkSite(tmpSiteName):
                 continue
             tmpSiteSpec = siteMapper.getSite(tmpSiteName)
-            # the prodSourcelabel is needed to know the def-vs-anal scope of the PQ-RSE association
-            if forAnalysis:
-                prodSourceLabel = 'user'
-            else:
-                prodSourceLabel = 'managed'
             scope_association_site_input, scope_association_site_output = select_scope(tmpSiteSpec, prodSourceLabel)
             # check DDM
             if tmpT1Spec.ddm_input[scope_association_t1_input] == tmpSiteSpec.ddm_input[scope_association_site_input]:
@@ -376,9 +378,9 @@ def getPrestageSites(siteMapper, forAnalysis):
     # disable PandaMover
     return []
 
-    prodsourcelabel = 'managed'
+    prodSourcelabel = 'managed'
     if forAnalysis:
-        prodsourcelabel = 'user'
+        prodSourcelabel = 'user'
 
     retList = []
     # get cloud
@@ -386,7 +388,7 @@ def getPrestageSites(siteMapper, forAnalysis):
     # get T1
     tmpT1Name = tmpCloudSpec['source']
     tmpT1Spec = siteMapper.getSite(tmpT1Name)
-    scope_T1_input, scope_T1_output = select_scope(tmpT1Spec, prodsourcelabel)
+    scope_T1_input, scope_T1_output = select_scope(tmpT1Spec, prodSourcelabel)
     # loop over all sites
     for tmpSiteName in tmpCloudSpec['sites']:
         # check site
@@ -394,7 +396,7 @@ def getPrestageSites(siteMapper, forAnalysis):
             continue
         # get spec
         tmpSiteSpec = siteMapper.getSite(tmpSiteName)
-        scope_tmpSite_input, scope_tmpSite_output = select_scope(tmpSiteSpec, prodsourcelabel)
+        scope_tmpSite_input, scope_tmpSite_output = select_scope(tmpSiteSpec, prodSourcelabel)
         # add if DDM is the same as T1
         if tmpT1Spec.ddm_input[scope_T1_input] == tmpSiteSpec.ddm_input[scope_tmpSite_input] and not tmpSiteName in retList:
             retList.append(tmpSiteName)
@@ -951,7 +953,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 if tmpSiteSpec.maxwdir != 0 and (not prevDiskCount in [None,0,'NULL']):
                                     try:
                                         if int(tmpSiteSpec.maxwdir) < int(prevDiskCount):
-                                            tmpLog.debug('  skip: not enough disk %s<%s' % (tmpSiteSpec.maxwdir,prevDiskCount))
+                                            tmpLog.debug('  skip: not enough disk %s<%s' % (tmpSiteSpec.maxwdir, prevDiskCount))
                                             resultsForAnal['scratch'].append(site)
                                             continue
                                     except:
@@ -982,7 +984,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     tmpLog.debug('   %s' % str(releases))
                                 if origReleases == ['ANY']:
                                     # doesn't check releases for catch all
-                                    tmpLog.debug(' no release check due to releases=%s'  % origReleases)
+                                    tmpLog.debug(' no release check due to releases=%s' % origReleases)
                                     foundRelease = True
                                 elif forAnalysis and (tmpSiteSpec.cloud in ['ND'] or prevRelease==''):
                                     # doesn't check releases for analysis
@@ -999,7 +1001,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                          (useCacheVersion and not tmpSiteSpec.cloud in ['ND'] and not site in ['CERN-RELEASE']) and \
                                          (not prevProType in ['reprocessing']) and \
                                          (not site in siteListWithCache):
-                                        tmpLog.debug(' skip: cache %s/%s not found' % (prevHomePkg.replace('\n',' '),prevCmtConfig))
+                                        tmpLog.debug(' skip: cache %s/%s not found' % (prevHomePkg.replace('\n',' '), prevCmtConfig))
                                         # send message to logger
                                         try:
                                             if prevSourceLabel in ['managed','test']:
@@ -1331,7 +1333,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                                        (site,nFilesPerJob,inputSizePerJob,cloudT1Weight))
                             # found at least one candidate
                             foundOneCandidate = True
-                            tmpLog.debug('Site:%s 1/Weight:%s' % (site,winv))
+                            tmpLog.debug('Site:%s 1/Weight:%s' % (site, winv))
                             if forAnalysis and trustIS and reportLog:
                                 resultsForAnal['weight'].append((site,'(1+%s/%s)*%s/%s%s' % (nPilotsGet,1+nPilotsUpdate,1+nRunningMap[site],
                                                                                              nAssJobs+nActJobs,preferredCountryWeightStr)))
@@ -1621,7 +1623,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         job.computingElement = chosen_ce.gatekeeper
                 # update statistics
                 if not jobStatistics.has_key(job.computingSite):
-                    jobStatistics[job.computingSite] = {'assigned':0,'activated':0,'running':0}
+                    jobStatistics[job.computingSite] = {'assigned': 0, 'activated': 0, 'running': 0}
                 jobStatistics[job.computingSite]['assigned'] += 1
                 tmpLog.debug('PandaID:%s -> preset site:%s' % (job.PandaID,chosen_ce.sitename))
                 # set cloud
@@ -1728,6 +1730,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
     except:
         type, value, traceBack = sys.exc_info()
         tmpLog.error("schedule : %s %s" % (type,value))
+        tmpLog.error("schedule : {0}".format(traceback.format_exc()))
         if getWeight:
             return {}
 
