@@ -479,7 +479,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
 
         nWNmap = {}
         indexJob = 0
-        vomsOK = None
 
         diskThresholdT1   = 20 * 1024
         diskThresholdT2   = 200
@@ -654,8 +653,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                          # get site spec
                          tmp_chosen_ce = siteMapper.getSite(computingSite)
                          # get files from LRC 
-                         okFiles = _getOkFiles(tmp_chosen_ce,fileList,guidList,allLFNs,allGUIDs,allOkFilesMap,
-                                               tmpLog,scopeList,allScopes)
+                         okFiles = _getOkFiles(tmp_chosen_ce, fileList, guidList, allLFNs, allGUIDs, allOkFilesMap,
+                                               jobsInBunch[0].prodSourceLabel, tmpLog, scopeList, allScopes)
+
                          nOkFiles = len(okFiles)
                          tmpLog.debug('site:%s - nFiles:%s/%s %s %s' % (computingSite,nOkFiles,len(fileList),str(fileList),str(okFiles)))
                          # loop over all jobs
@@ -1315,8 +1315,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 tmpOKFiles = {}
                             else:
                                 # get files from LRC 
-                                tmpOKFiles = _getOkFiles(tmp_chosen_ce,fileList,guidList,allLFNs,allGUIDs,allOkFilesMap,
-                                                         tmpLog,scopeList,allScopes)
+                                tmpOKFiles = _getOkFiles(tmp_chosen_ce, fileList, guidList, allLFNs, allGUIDs,
+                                                         allOkFilesMap, job.proSourceLabel, tmpLog, scopeList, allScopes)
                             nFiles = len(tmpOKFiles)
                             tmpLog.debug('site:%s - nFiles:%s/%s %s' % (site,nFiles,len(fileList),str(tmpOKFiles)))
                             # choose site holding max # of files
