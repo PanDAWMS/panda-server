@@ -285,10 +285,10 @@ def getHospitalQueues(siteMapper, forAnalysis):
     # hospital words
     goodWordList = ['CORE$','VL$','MEM$','MP\d+$','LONG$','_HIMEM','_\d+$']
 
-    # the prodSourcelabel is needed to know the def-vs-anal scope of the PQ-RSE association
-    prodSourcelabel = 'managed'
+    # the prodSourceLabel is needed to know the def-vs-anal scope of the PQ-RSE association
+    prodSourceLabel = 'managed'
     if forAnalysis:
-        prodSourcelabel = 'user'
+        prodSourceLabel = 'user'
 
     # loop over all clouds
     for tmpCloudName in siteMapper.getCloudList():
