@@ -523,7 +523,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                 tmpSrcDDM = tmpSite.ddm_output[scope_output]
                             else:                            
                                 tmpSrcDDM = tmpSite.ddm_output[scope_output]
-                            if job.prodSourceLabel == 'user' and file.destinationSE not in self.siteMapper.siteSpecList.has_key(file.destinationSE):
+                            if job.prodSourceLabel == 'user' and file.destinationSE not in self.siteMapper.siteSpecList:
                                 # DQ2 ID was set by using --destSE for analysis job to transfer output 
                                 tmpDstDDM = tmpSrcDDM
                             elif DataServiceUtils.getDestinationSE(file.destinationDBlockToken) is not None:
