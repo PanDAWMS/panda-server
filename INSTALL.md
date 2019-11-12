@@ -1,129 +1,68 @@
 Installation
 --------------------
 
-1. install panda-common and panda-server.
+1. Install panda-common and panda-server.
+   1. via tarball
+   ```
+   git clone git://git@github.com/PanDAWMS/panda-common.git
+   git clone git://git@github.com/PanDAWMS/panda-server.git
+   python setup.py install
+   cd ../panda-server
+   python setup.py install
+   ```
+   1. via pip
+   ```
+   pip install panda-server
+   ``` 
+1. Modify config files.
 
-* For tar-ball installation
-  
-  1. Checkout packages from git
-     $ git clone git://git@github.com/PanDAWMS/panda-common.git
-     $ git clone git://git@github.com/PanDAWMS/panda-server.git
+   ```
+   cd INSTALLDIR/etc/panda
+   mv panda_common.cfg.rpmnew panda_common.cfg
+   mv panda_server.cfg.rpmnew panda_server.cfg       
+   mv panda_server-httpd-FastCGI.conf.rpmnew panda_server-httpd.conf        
+   vi panda_server.cfg panda_server-httpd.conf
+   ln -fs INSTALLDIR/etc/panda/panda_server.sysconfig /etc/sysconfig/panda_server
+   vi /etc/sysconfig/panda_server
+   ```
 
-  2. Build and install
-     $ cd panda-common
-     $ python setup.py install
-     $ cd ../panda-server
-     $ python setup.py install
-
-* For RPM installation
-
-First you need to install CERN_Grid_Certification_Authority.pem. If you use Scientific Linux it is just
-
-$ yum install CERN-CA-certs
-
-Otherwise the installation has to be done manually:
-
-  1. Download the CERN Grid Certification Authority Certificate from https://gridca.cern.ch/gridca/
-     $ wget https://cafiles.cern.ch/cafiles/certificates/CERN%20Grid%20Certification%20Authority.crt
-
-  2. Copy to system location and rename. For example, 
-     $ sudo mv "CERN Grid Certification Authority.crt" /etc/pki/tls/certs/CERN_Grid_Certification_Authority.pem
-
-Next, configure PanDA yum repository
-
-$ sudo wget --directory-prefix /etc/yum.repos.d/ --no-check-certificate https://pandabuild.cern.ch:443/misc/pandabuild.repo
-
-Make sure that sslcacert in pandabuild.repo is consistent if you manully installed CERN_Grid_Certification_Authority.pem.
-Finally,
-
-$ sudo yum install panda-server
-
-2. Modify config files
-
-$ cd INSTALLDIR/etc/panda
-$ mv panda_common.cfg.rpmnew panda_common.cfg
-$ mv panda_server.cfg.rpmnew panda_server.cfg       
-$ mv panda_server-httpd-FastCGI.conf.rpmnew panda_server-httpd.conf        
-$ emacs -nw panda_server.cfg
-
-fix FIXME
-
-dq2_dir = /opt/dq2
-
-->
-
-dq2_dir = /data/atlpan/DQ2Clients/DQ2Clients
-
-$ emacs -nw panda_server-httpd.conf
-
-SSLCertificateFile      InstallDir/etc/panda/server.crt
-SSLCertificateKeyFile   InstallDir/etc/panda/server.key
-
-->
-
-SSLCertificateFile      /etc/httpd/conf/ssl.crt/server.crt
-SSLCertificateKeyFile   /etc/httpd/conf/ssl.key/server.key
-
-$ cp INSTALLDIR/etc/panda/panda_server.sysconfig /etc/sysconfig/panda_server
-$ emacs -nw /etc/sysconfig/panda_server # Edit and correct the URLs to your needs and check the correct values
-
-3. Add .gacl
-
-$ cd INSTALLDIR/lib/python*/site-packages/pandaserver/server/
-$ emacs -nw .gacl
-<gacl>
-<entry>
-  <any-user/>
-  <allow><read/><list/></allow>
-</entry>
-</gacl>
-
-5. Make log and cache dirs, and change owner if RPM is used 
-
-mkdir -p /var/log/panda
-mkdir -p /var/log/panda/wsgisocks
-mkdir -p /var/cache/pandaserver
-chown atlpan:zp /var/log/panda
-chown atlpan:zp /var/log/panda/wsgisocks
-chown atlpan:zp /var/cache/pandaserver
-# If log rotation is needed
-cp /etc/panda/panda_server.logrotate /etc/logrotate.d/panda_server
-
-6. For voatlas
-
-cp ~/devsrv/share/httpd-pandasrv /etc/rc.d/init.d/
-/sbin/chkconfig --add httpd-pandasrv
-cp ~/devsrv/share/panda_server-httpd.conf.VM /data/atlpan/srv/etc/panda/panda_server-httpd.conf
-cp ~/devsrv/share/panda_server.cfg.VM /data/atlpan/srv/etc/panda/panda_server.cfg
-cp ~/devsrv/share/x509up_u25606_novoms /data/atlpan/
-chown atlpan:zp /data/atlpan/x509up_u25606_novoms
-cp ~/devsrv/share/pandasrv /etc/logrotate.d/
-cp ~/devsrv/share/pandasrv.cron /etc/cron.d/
-
+1. Make log and cache dirs, and change owner if needed. 
+   ```
+   mkdir -p /var/log/panda
+   mkdir -p /var/log/panda/wsgisocks
+   mkdir -p /var/cache/pandaserver
+   chown atlpan:zp /var/log/panda
+   chown atlpan:zp /var/log/panda/wsgisocks
+   chown atlpan:zp /var/cache/pandaserver
+   # If log rotation is needed
+   ln -fs /etc/panda/panda_server.logrotate /etc/logrotate.d/panda_server
+   ```
 
 Start the server
 --------------------
 
-Install service
+1. Install service
+   ```
+   ln -fs INSTALLDIR/etc/init.d/panda_server /etc/rc.d/init.d/httpd-pandasrv
+   /sbin/chkconfig --add httpd-pandasrv
+   /sbin/chkconfig httpd-pandasrv on
+   ```
 
-$ sudo ln -fs INSTALLDIR/etc/init.d/panda_server /etc/rc.d/init.d/httpd-pandasrv
-$ sudo /sbin/chkconfig --add httpd-pandasrv
-$ sudo /sbin/chkconfig httpd-pandasrv on
+1. Add the following to crontab.
+   ```
+   0-59/5 * * * * INSTALLDIR/usr/bin/panda_server-add.sh > /dev/null 2>&1
+   15 0-21/3 * * * INSTALLDIR/usr/bin/panda_server-copyArchive.sh > /dev/null 2>&1
+   ```
+   
+1. Run the server.
+   ```
+   /sbin/service httpd-pandasrv start
+   ```
 
-Add the following to crontab.
-
-0-59/5 * * * * INSTALLDIR/usr/bin/panda_server-add.sh > /dev/null 2>&1
-15 0-21/3 * * * INSTALLDIR/usr/bin/panda_server-copyArchive.sh > /dev/null 2>&1
-
-Run the server.
-
-$ sudo /sbin/service httpd-pandasrv start
-
-Stop the server.
-
-$ sudo /sbin/service httpd-pandasrv stop
-
-
+1. Stop the server.
+   ```
+   /sbin/service httpd-pandasrv stop
+   ```
 
 
 Uploading to pip
@@ -131,6 +70,6 @@ Uploading to pip
 ```
 python setup.py sdist upload
 ```
-Uploading source to let wheel locally generate setup files.
+Note that source should be uploaded so that wheel locally generates setup files correctly.
  
 
