@@ -22,7 +22,7 @@ from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.taskbuffer import JobUtils
 from pandaserver.dataservice.MailUtils import MailUtils
 from pandaserver.dataservice import DataServiceUtils
-from DataServiceUtils import select_scope
+from pandaserver.dataservice.DataServiceUtils import select_scope
 
 try:
     long

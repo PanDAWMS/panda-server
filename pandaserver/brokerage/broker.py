@@ -9,7 +9,7 @@ import uuid
 from pandaserver.brokerage import ErrorCode
 from pandaserver.taskbuffer import ProcessGroups
 from pandaserver.dataservice import DataServiceUtils
-from DataServiceUtils import select_scope
+from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.DDM import rucioAPI
 from pandaserver.config import panda_config
 

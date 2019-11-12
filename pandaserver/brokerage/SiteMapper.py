@@ -12,7 +12,7 @@ _logger = PandaLogger().getLogger('SiteMapper')
 from pandaserver.taskbuffer.SiteSpec import SiteSpec
 from pandaserver.taskbuffer.NucleusSpec import NucleusSpec
 
-from dataservice.DataServiceUtils import select_scope
+from pandaserver.dataservice.DataServiceUtils import select_scope
 
 defSite = SiteSpec()
 defSite.sitename   = panda_config.def_sitename
