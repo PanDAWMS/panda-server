@@ -1228,8 +1228,14 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             tmpSrcID   = self.siteMapper.getCloud(cloudKey)['source']
             srcSiteSpec = self.siteMapper.getSite(tmpSrcID)
             scope_input, scope_output = select_scope(srcSiteSpec, self.prodSourceLabel)
-            allSEs = srcSiteSpec.ddm_endpoints_input[scope_input].getAllEndPoints()
-            tapeSEs = srcSiteSpec.ddm_endpoints_input[scope_input].getTapeEndPoints()
+            try:
+                allSEs = srcSiteSpec.ddm_endpoints_input[scope_input].getAllEndPoints()
+                tapeSEs = srcSiteSpec.ddm_endpoints_input[scope_input].getTapeEndPoints()
+            except KeyError:
+                self.logger.error('Queue {0} has ddm_endpoints_input {1}. No scope {} found'.
+                                  format(srcSiteSpec.sitename, srcSiteSpec.ddm_endpoints_input, scope_input))
+                continue
+
             # get availabe files
             tmpStat,tmpAvaFiles = rucioAPI.listFileReplicas(allScopes[cloudKey],
                                                             allLFNs[cloudKey],
