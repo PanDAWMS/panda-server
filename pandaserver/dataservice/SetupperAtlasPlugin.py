@@ -818,7 +818,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     diskID = tmpSiteSpec.setokens_input[scope_input]['ATLASDATADISK']
                                 if 'ATLASDATATAPE' in tmpSiteSpec.setokens_input[scope_input]:
                                     tapeID = tmpSiteSpec.setokens_input[scope_input]['ATLASDATATAPE']
-                                if 'ATLASMCTAPE' tmpSiteSpec.setokens_input[scope_input]:
+                                if 'ATLASMCTAPE' in tmpSiteSpec.setokens_input[scope_input]:
                                     mctapeID = tmpSiteSpec.setokens_input[scope_input]['ATLASMCTAPE']
                                 hotID  = 'TAIWAN-LCG2_HOTDISK'
                             for tmpDataset in self.replicaMap[job.dispatchDBlock]:
