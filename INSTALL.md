@@ -4,8 +4,8 @@ Installation
 1. Install panda-common and panda-server.
    1. via tarball
    ```
-   git clone git://git@github.com/PanDAWMS/panda-common.git
-   git clone git://git@github.com/PanDAWMS/panda-server.git
+   git clone git://github.com/PanDAWMS/panda-common.git
+   git clone git://github.com/PanDAWMS/panda-server.git
    python setup.py install
    cd ../panda-server
    python setup.py install
