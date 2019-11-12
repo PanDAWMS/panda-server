@@ -1234,7 +1234,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             except KeyError:
                 self.logger.error('Queue {0} has ddm_endpoints_input {1}. No scope {} found'.
                                   format(srcSiteSpec.sitename, srcSiteSpec.ddm_endpoints_input, scope_input))
-                continue
+                allSEs = []
+                tapeSEs = []
 
             # get availabe files
             tmpStat,tmpAvaFiles = rucioAPI.listFileReplicas(allScopes[cloudKey],
