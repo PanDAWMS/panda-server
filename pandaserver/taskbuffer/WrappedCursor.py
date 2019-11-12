@@ -5,10 +5,14 @@ WrappedCursor for a generic database connection proxy
 
 import re
 import os
-import sys
 import warnings
-from pandalogger.PandaLogger import PandaLogger
-from config import panda_config
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.config import panda_config
+
+try:
+    long
+except NameError:
+    long = int
 
 warnings.filterwarnings('ignore')
 
@@ -46,7 +50,7 @@ class WrappedCursor(object):
             # get hostname
             self.execute("SELECT SYS_CONTEXT('USERENV','HOST') FROM dual")
             res = self.fetchone()
-            if res != None:
+            if res is not None:
                 hostname = res[0]
             # set TZ
             self.execute("ALTER SESSION SET TIME_ZONE='UTC'")
@@ -56,7 +60,7 @@ class WrappedCursor(object):
             # get hostname
             self.execute("SELECT SUBSTRING_INDEX(USER(),'@',-1)")
             res = self.fetchone()
-            if res != None:
+            if res is not None:
                 hostname = res[0]
             # set TZ
             self.execute("SET @@SESSION.TIME_ZONE = '+00:00'")
@@ -84,8 +88,8 @@ class WrappedCursor(object):
             sql = re.sub('`','',sql)
             ret = cur.execute(sql, varDict)
         elif self.backend == 'mysql':
-            print "DEBUG execute : original SQL     %s " % sql
-            print "DEBUG execute : original varDict %s " % varDict
+            print("DEBUG execute : original SQL     %s " % sql)
+            print("DEBUG execute : original varDict %s " % varDict)
             # CURRENT_DATE interval
             sql = re.sub("CURRENT_DATE\s*-\s*(\d+|:[^\s\)]+)", "DATE_SUB(CURRENT_TIMESTAMP,INTERVAL \g<1> DAY)", sql)
             #CURRENT_DATE
@@ -119,7 +123,7 @@ class WrappedCursor(object):
             # bind variables
             newVarDict = {}
             # make sure that :prodDBlockToken will not be replaced by %(prodDBlock)sToken
-            keys = sorted(varDict.keys(), key=lambda s:-len(str(s)))
+            keys = sorted(list(varDict), key=lambda s:-len(str(s)))
             for key in keys:
                 val = varDict[key]
                 if key[0] == ':':
@@ -136,12 +140,12 @@ class WrappedCursor(object):
                     f = open('/data/atlpan/oracle/panda/monitor/logs/mysql_queries_WrappedCursor.txt', 'a')
                     f.write('mysql|%s|%s|%s\n' % (str(time.time()), str(sql), str(newVarDict)))
                     f.close()
-            except:
+            except Exception:
                 pass
             _logger.debug("execute : SQL     %s " % sql)
             _logger.debug("execute : varDict %s " % newVarDict)
-            print "DEBUG execute : SQL     %s " % sql
-            print "DEBUG execute : varDict %s " % newVarDict
+            print("DEBUG execute : SQL     %s " % sql)
+            print("DEBUG execute : varDict %s " % newVarDict)
             ret = cur.execute(sql, newVarDict)
             if returningInto is not None:
                 ret = self._returningIntoMySQLpost(returningInto, varDict, cur)
@@ -161,7 +165,7 @@ class WrappedCursor(object):
                     for x in listInto:
                         varDict[x] = cur.var(cx_Oracle.NUMBER)
                 result = ' RETURNING %(returning)s INTO %(into)s ' % {'returning': valReturning, 'into': valInto}
-            except:
+            except Exception:
                 pass
         return result
 
@@ -182,7 +186,7 @@ class WrappedCursor(object):
                     listReturning = [x['returning'] for x in returningInputData]
                     for x in listReturning:
                         varDict[':' + x] = None
-            except:
+            except Exception:
                 pass
 
     def _returningIntoMySQLpost(self, returningInputData, varDict, cur):
@@ -200,7 +204,7 @@ class WrappedCursor(object):
                             varDict[x] = long(result)
                         except KeyError:
                             pass
-                except:
+                except Exception:
                     pass
         return result
 

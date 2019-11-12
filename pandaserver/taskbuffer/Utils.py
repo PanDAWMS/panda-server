@@ -11,13 +11,18 @@ import time
 import socket
 import struct
 import datetime
-import jobdispatcher.Protocol as Protocol
-import ErrorCode
-from userinterface import Client
-from config import panda_config
+import pandaserver.jobdispatcher.Protocol as Protocol
+from pandaserver.taskbuffer import ErrorCode
+from pandaserver.userinterface import Client
+from pandaserver.config import panda_config
 
-from pandalogger.PandaLogger import PandaLogger
-from pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.LogWrapper import LogWrapper
+
+try:
+    long
+except NameError:
+    long = int
 
 # logger
 _logger = PandaLogger().getLogger('Utils')
@@ -58,7 +63,7 @@ def cleanUserID(id):
         username = username.replace(')','')
         username = username.replace("'",'')
         return username
-    except:
+    except Exception:
         return id
 
 
@@ -67,12 +72,12 @@ def insertWithRetryCassa(familyName,keyName,valMap,msgStr,nTry=3):
     for iTry in range(nTry):
         try:    
             familyName.insert(keyName,valMap)
-        except pycassa.MaximumRetryException,tmpE:
+        except pycassa.MaximumRetryException(tmpE):
             if iTry+1 < nTry:
                 _logger.debug("%s sleep %s/%s" % (msgStr,iTry,nTry))
                 time.sleep(30)
             else:
-                raise pycassa.MaximumRetryException,tmpE.value
+                raise pycassa.MaximumRetryException(tmpE.value)
         else:
             break
     
@@ -82,7 +87,7 @@ def touchFileCassa(filefamily,fileKeyName,timeNow):
     try:
         # get old timestamp
         oldFileInfo = filefamily.get(fileKeyName)
-    except:
+    except Exception:
         _logger.warning('cannot get old fileinfo for %s from Cassandra' % fileKeyName)
         return False
     try:
@@ -101,7 +106,7 @@ def touchFileCassa(filefamily,fileKeyName,timeNow):
                                  'touchFileCassa : %s' % fileKeyName
                                  )
         return True
-    except:
+    except Exception:
         errType,errValue = sys.exc_info()[:2]
         errStr = "cannot touch %s due to %s %s" % (fileKeyName,errType,errValue) 
         _logger.error(errStr)
@@ -127,8 +132,8 @@ def putFile(req,file):
     contentLength = 0
     try:
         contentLength = long(req.headers_in["content-length"])
-    except:
-        if req.headers_in.has_key("content-length"):
+    except Exception:
+        if "content-length" in req.headers_in:
             _logger.error("cannot get CL : %s" % req.headers_in["content-length"])
         else:
             _logger.error("no CL")
@@ -158,7 +163,7 @@ def putFile(req,file):
         fileContent = file.file.read()
         fo.write(fileContent)
         fo.close()
-    except:
+    except Exception:
         errStr = "ERROR : Cannot write file"
         _logger.error(errStr)
         _logger.debug("putFile : end")
@@ -169,7 +174,7 @@ def putFile(req,file):
         footer = fileContent[-8:]
         checkSum,isize = struct.unpack("II",footer)
         _logger.debug("CRC from gzip Footer %s" % checkSum)
-    except:
+    except Exception:
         # calculate on the fly
         """
         import zlib
@@ -251,7 +256,7 @@ def putFile(req,file):
                             touchFileCassa(filefamily,fileKeyName,timeNow)
                             _logger.debug("putFile : end")
                             return True
-                except:
+                except Exception:
                     gotoNextCassa = False
                     errType,errValue = sys.exc_info()[:2]
                     errStr = "cannot make alias for %s due to %s %s" % (fileKeyName,errType,errValue)
@@ -289,7 +294,7 @@ def putFile(req,file):
                                          'putFile : insert %s' % file.filename)
                 # set time
                 touchFileCassa(filefamily,fileKeyName,timeNow)
-        except:
+        except Exception:
             errType,errValue = sys.exc_info()[:2]
             errStr = "cannot put %s into Cassandra due to %s %s" % (fileKeyName,errType,errValue)
             _logger.error(errStr)
@@ -312,7 +317,7 @@ def getFile(req,fileName):
         filefamily = pycassa.ColumnFamily(pool,panda_config.cacheFileTable)
         fileInfo = filefamily.get(fileName)
         # check alias
-        if fileInfo.has_key('alias') and fileInfo['alias'] != '':
+        if 'alias' in fileInfo and fileInfo['alias'] != '':
             realFileName = fileInfo['alias']
             fileInfo = filefamily.get(realFileName)
             _logger.debug("getFile : %s use alias=%s" % (fileName,realFileName))
@@ -320,7 +325,7 @@ def getFile(req,fileName):
             realFileName = fileName
         # check cached file
         hostKey = socket.gethostname() + '_cache'
-        if fileInfo.has_key(hostKey) and fileInfo[hostKey] != '':
+        if hostKey in fileInfo and fileInfo[hostKey] != '':
             _logger.debug("getFile : %s found cache=%s" % (fileName,fileInfo[hostKey]))
             try:
                 fileFullPath = '%s%s' % (panda_config.cache_dir,fileInfo[hostKey])
@@ -329,7 +334,7 @@ def getFile(req,fileName):
                 _logger.debug("getFile : %s end" % fileName)                
                 # return
                 return ErrorCode.EC_Redirect('/cache%s' % fileInfo[hostKey])
-            except:
+            except Exception:
                 errtype,errvalue = sys.exc_info()[:2]
                 _logger.debug("getFile : %s failed to touch %s due to %s:%s" % (fileName,fileFullPath,errtype,errvalue))
         # write to cache file
@@ -354,11 +359,11 @@ def getFile(req,fileName):
     except pycassa.NotFoundException:
         _logger.error("getFile : %s not found" % fileName)
         return ErrorCode.EC_NotFound
-    except:
+    except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "getFile : %s %s for %s" % (errtype,errvalue,fileName)
         _logger.error(errStr)
-        raise RuntimeError,errStr
+        raise RuntimeError(errStr)
 
 
 # get event picking request
@@ -376,7 +381,7 @@ def putEventPickingRequest(req,runEventList='',eventPickDataType='',eventPickStr
     # get total size
     try:
         contentLength = long(req.headers_in["content-length"])
-    except:
+    except Exception:
         errStr = "cannot get content-length from HTTP request."
         _logger.error("putEventPickingRequest : " + errStr + " " + userName)
         _logger.debug("putEventPickingRequest : %s end" % userName)
@@ -421,7 +426,7 @@ def putEventPickingRequest(req,runEventList='',eventPickDataType='',eventPickStr
                 runEvtGuidMap[tuple(tmpItems[:2])] = [tmpItems[2]]
         fo.write("runEvtGuidMap=%s\n" % str(runEvtGuidMap))
         fo.close()
-    except:
+    except Exception:
         errType,errValue = sys.exc_info()[:2]
         errStr = "cannot put request due to %s %s" % (errType,errValue) 
         _logger.error("putEventPickingRequest : " + errStr + " " + userName)
@@ -438,7 +443,7 @@ def deleteFile(req,file):
         # may be reused for rebrokreage 
         #os.remove('%s/%s' % (panda_config.cache_dir,file.split('/')[-1]))
         return 'True'
-    except:
+    except Exception:
         return 'False'        
 
 
@@ -449,7 +454,7 @@ def touchFile(req,filename):
     try:
         os.utime('%s/%s' % (panda_config.cache_dir,filename.split('/')[-1]),None)
         return 'True'
-    except:
+    except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         _logger.error("touchFile : %s %s" % (errtype,errvalue))
         return 'False'        
@@ -477,7 +482,7 @@ def updateLog(req,file):
         ft = open(logName,'a')
         ft.write(extStr)
         ft.close()
-    except:
+    except Exception:
         type, value, traceBack = sys.exc_info()
         _logger.error("updateLog : %s %s" % (type,value))
     _logger.debug("updateLog : %s end" % file.filename)
@@ -497,7 +502,7 @@ def fetchLog(req,logName,offset=0):
         ft.seek(long(offset))
         retStr += ft.read()
         ft.close()
-    except:
+    except Exception:
         type, value, traceBack = sys.exc_info()
         _logger.error("fetchLog : %s %s" % (type,value))
     _logger.debug("fetchLog : %s end read=%s" % (logName,len(retStr)))
@@ -507,7 +512,8 @@ def fetchLog(req,logName,offset=0):
 # get VOMS attributes
 def getVomsAttr(req):
     vomsAttrs = []
-    for tmpKey,tmpVal in req.subprocess_env.iteritems():
+    for tmpKey in req.subprocess_env:
+        tmpVal = req.subprocess_env[tmpKey]
         # compact credentials
         if tmpKey.startswith('GRST_CRED_'):
             vomsAttrs.append('%s : %s\n' % (tmpKey,tmpVal))
@@ -521,8 +527,9 @@ def getVomsAttr(req):
 # get all attributes
 def getAttr(req):
     allAttrs = []
-    for tmpKey,tmpVal in req.subprocess_env.iteritems():
-            allAttrs.append('%s : %s\n' % (tmpKey,tmpVal))
+    for tmpKey in req.subprocess_env:
+        tmpVal = req.subprocess_env[tmpKey]
+        allAttrs.append('%s : %s\n' % (tmpKey,tmpVal))
     allAttrs.sort()
     retStr = ''
     for tmpStr in allAttrs:
@@ -544,8 +551,8 @@ def uploadLog(req,file):
     contentLength = 0
     try:
         contentLength = long(req.headers_in["content-length"])
-    except:
-        if req.headers_in.has_key("content-length"):
+    except Exception:
+        if "content-length" in req.headers_in:
             tmpLog.error("cannot get CL : %s" % req.headers_in["content-length"])
         else:
             tmpLog.error("no CL")
@@ -570,7 +577,7 @@ def uploadLog(req,file):
         fo.close()
         tmpLog.debug("written to {0}".format(fileFullPath))
         retStr = 'http://{0}/cache{1}/{2}'.format(getServerHTTP(None),jediLogDir,fileBaseName) 
-    except:
+    except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "failed to write log with {0}:{1}".format(errtype.__name__,errvalue)
         tmpLog.error(errStr)

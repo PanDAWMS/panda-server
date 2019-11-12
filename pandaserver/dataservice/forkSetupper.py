@@ -1,30 +1,32 @@
-import os
 import sys
-import commands
+import traceback
+
+from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
 # exec
 def run(inFile,v_onlyTA,v_firstSubmission):
-    import cPickle as pickle
+    try:
+        import cPickle as pickle
+    except ImportError:
+        import pickle
     try:
         # read Jobs from file
-        f = open(inFile)
+        f = open(inFile, 'rb')
         jobs = pickle.load(f)
         f.close()
-    except:
-        type, value, traceBack = sys.exc_info()
-        print("run() : %s %s" % (type,value))
+    except Exception as e:
+        print("run() : %s %s" % (str(e), traceback.format_exc()))
         return
     # password
-    from config import panda_config
-    passwd = panda_config.dbpasswd
+    from pandaserver.config import panda_config
     # initialize cx_Oracle using dummy connection
-    from taskbuffer.Initializer import initializer
+    from pandaserver.taskbuffer.Initializer import initializer
     initializer.init()
     # instantiate TB
-    from taskbuffer.TaskBuffer import taskBuffer
+    from pandaserver.taskbuffer.TaskBuffer import taskBuffer
     taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
     # run Setupper
-    from dataservice.Setupper import Setupper
+    from pandaserver.dataservice.Setupper import Setupper
     thr = Setupper(taskBuffer,jobs,onlyTA=v_onlyTA,firstSubmission=v_firstSubmission)
     thr.start()
     thr.join()
@@ -33,7 +35,7 @@ def run(inFile,v_onlyTA,v_firstSubmission):
 
 # exit action
 def _onExit(fname):
-    commands.getoutput('rm -rf %s' % fname)
+    commands_get_status_output('rm -rf %s' % fname)
         
 
 ####################################################################
@@ -54,7 +56,7 @@ def main():
     # get command-line parameters
     try:
         opts, args = getopt.getopt(sys.argv[1:],"i:tf")
-    except:
+    except Exception:
         print("ERROR : Invalid options")
         sys.exit(1)    
     # set options

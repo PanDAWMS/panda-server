@@ -6,48 +6,47 @@ entry point
 """
 
 import datetime
-import traceback
 import types
 
 # config file
-from config import panda_config
+from pandaserver.config import panda_config
 
 # initialize cx_Oracle using dummy connection
-from taskbuffer.Initializer import initializer
+from pandaserver.taskbuffer.Initializer import initializer
 initializer.init()
 
 # initialzie TaskBuffer
-from taskbuffer.TaskBuffer import taskBuffer
+from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,panda_config.nDBConnection,True)
 
 # initialize JobDispatcher
-from jobdispatcher.JobDispatcher import jobDispatcher
+from pandaserver.jobdispatcher.JobDispatcher import jobDispatcher
 if panda_config.nDBConnection != 0:
     jobDispatcher.init(taskBuffer)
 
 # initialize DataService
-from dataservice.DataService import dataService
+from pandaserver.dataservice.DataService import dataService
 if panda_config.nDBConnection != 0:
     dataService.init(taskBuffer)
 
 # initialize UserIF
-from userinterface.UserIF import userIF
+from pandaserver.userinterface.UserIF import userIF
 if panda_config.nDBConnection != 0:
     userIF.init(taskBuffer)
 
 # import web I/F
 allowedMethods = []
 
-from taskbuffer.Utils import isAlive, putFile, deleteFile, getServer, updateLog, fetchLog,\
+from pandaserver.taskbuffer.Utils import isAlive, putFile, deleteFile, getServer, updateLog, fetchLog,\
      touchFile, getVomsAttr, putEventPickingRequest, getAttr, getFile, uploadLog
 allowedMethods += ['isAlive','putFile','deleteFile','getServer','updateLog','fetchLog',
                    'touchFile','getVomsAttr','putEventPickingRequest','getAttr','getFile',
                    'uploadLog']
 
-from dataservice.DataService import datasetCompleted, updateFileStatusInDisp
+from pandaserver.dataservice.DataService import datasetCompleted, updateFileStatusInDisp
 allowedMethods += ['datasetCompleted', 'updateFileStatusInDisp']
 
-from jobdispatcher.JobDispatcher import getJob, updateJob, getStatus, genPilotToken,\
+from pandaserver.jobdispatcher.JobDispatcher import getJob, updateJob, getStatus, genPilotToken,\
     getEventRanges, updateEventRange, getKeyPair, updateEventRanges, getDNsForS3, getProxy, getCommands, ackCommands,\
     checkJobStatus, checkEventsAvailability, updateJobsInBulk, getResourceTypes
 allowedMethods += ['getJob', 'updateJob', 'getStatus', 'genPilotToken',
@@ -55,15 +54,15 @@ allowedMethods += ['getJob', 'updateJob', 'getStatus', 'genPilotToken',
                    'updateEventRanges', 'getDNsForS3', 'getProxy', 'getCommands', 'ackCommands',
                    'checkJobStatus', 'checkEventsAvailability', 'updateJobsInBulk', 'getResourceTypes']
 
-from userinterface.UserIF import submitJobs, getJobStatus, queryPandaIDs, killJobs, reassignJobs,\
+from pandaserver.userinterface.UserIF import submitJobs, getJobStatus, queryPandaIDs, killJobs, reassignJobs,\
      getJobStatistics, getJobStatisticsPerSite, resubmitJobs, queryLastFilesInDataset, getPandaIDsSite,\
      getJobsToBeUpdated, updateProdDBUpdateTimes, runTaskAssignment, getAssigningTask, getSiteSpecs,\
-     getCloudSpecs, runBrokerage, seeCloudTask, queryJobInfoPerCloud, registerProxyKey, getProxyKey,\
+     getCloudSpecs, seeCloudTask, queryJobInfoPerCloud, registerProxyKey, getProxyKey,\
      getJobIDsInTimeRange, getPandIDsWithJobID, getFullJobStatus, getJobStatisticsForBamboo,\
      getNUserJobs, addSiteAccess, listSiteAccess, getFilesInUseForAnal, updateSiteAccess,\
-     getPandaClientVer, getSlimmedFileInfoPandaIDs, runReBrokerage, getQueuedAnalJobs, getHighestPrioJobStat,\
+     getPandaClientVer, getSlimmedFileInfoPandaIDs, getQueuedAnalJobs, getHighestPrioJobStat,\
      getActiveDatasets, setCloudTaskByUser, getSerialNumberForGroupJob, getCachePrefixes,\
-     checkMergeGenerationStatus, sendLogInfo, getNumPilots, retryFailedJobsInActive,\
+     checkMergeGenerationStatus, getNumPilots, retryFailedJobsInActive,\
      getJobStatisticsWithLabel, getPandaIDwithJobExeID, getJobStatisticsPerUserSite,\
      getDisInUseForAnal, getLFNsInUseForAnal, getScriptOfflineRunning, setDebugMode,\
      insertSandboxFileInfo, checkSandboxFile, changeJobPriorities, insertTaskParams,\
@@ -79,12 +78,12 @@ from userinterface.UserIF import submitJobs, getJobStatus, queryPandaIDs, killJo
 allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
                    'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
                    'getJobsToBeUpdated','updateProdDBUpdateTimes','runTaskAssignment','getAssigningTask','getSiteSpecs',
-                   'getCloudSpecs','runBrokerage','seeCloudTask','queryJobInfoPerCloud','registerProxyKey','getProxyKey',
+                   'getCloudSpecs','seeCloudTask','queryJobInfoPerCloud','registerProxyKey','getProxyKey',
                    'getJobIDsInTimeRange','getPandIDsWithJobID','getFullJobStatus','getJobStatisticsForBamboo',
                    'getNUserJobs','addSiteAccess','listSiteAccess','getFilesInUseForAnal','updateSiteAccess',
-                   'getPandaClientVer','getSlimmedFileInfoPandaIDs','runReBrokerage','getQueuedAnalJobs','getHighestPrioJobStat',
+                   'getPandaClientVer','getSlimmedFileInfoPandaIDs','getQueuedAnalJobs','getHighestPrioJobStat',
                    'getActiveDatasets','setCloudTaskByUser','getSerialNumberForGroupJob','getCachePrefixes',
-                   'checkMergeGenerationStatus','sendLogInfo','getNumPilots','retryFailedJobsInActive',
+                   'checkMergeGenerationStatus','getNumPilots','retryFailedJobsInActive',
                    'getJobStatisticsWithLabel','getPandaIDwithJobExeID','getJobStatisticsPerUserSite',
                    'getDisInUseForAnal','getLFNsInUseForAnal','getScriptOfflineRunning','setDebugMode',
                    'insertSandboxFileInfo','checkSandboxFile','changeJobPriorities','insertTaskParams',
@@ -98,7 +97,7 @@ allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reass
                    'getGShareStatus', 'sweepPQ']
 
 # import error
-import taskbuffer.ErrorCode
+import pandaserver.taskbuffer.ErrorCode
 
 
 # FastCGI/WSGI entry
@@ -106,9 +105,8 @@ if panda_config.useFastCGI or panda_config.useWSGI:
 
     import os
     import cgi
-    import sys
-    from pandalogger.PandaLogger import PandaLogger
-    from pandalogger.LogWrapper import LogWrapper
+    from pandacommon.pandalogger.PandaLogger import PandaLogger
+    from pandacommon.pandalogger.LogWrapper import LogWrapper
 
     if panda_config.token_authType == 'scitokens':
         import scitokens
@@ -125,7 +123,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
             # header
             self.headers_in = {}
             # content-length
-            if self.subprocess_env.has_key('CONTENT_LENGTH'):
+            if 'CONTENT_LENGTH' in self.subprocess_env:
                 self.headers_in["content-length"] = self.subprocess_env['CONTENT_LENGTH']
             # scitoken
             try:
@@ -153,16 +151,16 @@ if panda_config.useFastCGI or panda_config.useWSGI:
 
         # get remote host    
         def get_remote_host(self):
-            if self.subprocess_env.has_key('REMOTE_HOST'):
+            if 'REMOTE_HOST' in self.subprocess_env:
                 return self.subprocess_env['REMOTE_HOST']
             return ""
 
         # accept json
         def acceptJson(self):
             try:
-                if self.subprocess_env.has_key('HTTP_ACCEPT'):
+                if 'HTTP_ACCEPT' in self.subprocess_env:
                     return 'application/json' in self.subprocess_env['HTTP_ACCEPT']
-            except:
+            except Exception:
                 pass
             return False
         
@@ -171,7 +169,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
     def application(environ, start_response):
         # get method name
         methodName = ''
-        if environ.has_key('SCRIPT_NAME'):
+        if 'SCRIPT_NAME' in environ:
             methodName = environ['SCRIPT_NAME'].split('/')[-1]
         tmpLog = LogWrapper(_logger, "PID={0} {1}".format(os.getpid(), methodName))
         tmpLog.debug("start")
@@ -185,11 +183,11 @@ if panda_config.useFastCGI or panda_config.useWSGI:
             # get method object
             tmpMethod = None
             try:
-                exec "tmpMethod = %s" % methodName
-            except:
+                tmpMethod = globals()[methodName]
+            except Exception:
                 pass
             # object not found
-            if tmpMethod == None:
+            if tmpMethod is None:
                 tmpLog.error("is undefined")
                 exeRes = "False"
             else:
@@ -199,21 +197,22 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                                                keep_blank_values=1)
                     # convert to map
                     params = {}
-                    for tmpKey in tmpPars.keys():
-                        if tmpPars[tmpKey].file != None and tmpPars[tmpKey].filename != None:
+                    for tmpKey in list(tmpPars):
+                        if tmpPars[tmpKey].file is not None and tmpPars[tmpKey].filename is not None:
                             # file
                             params[tmpKey] = tmpPars[tmpKey]
                         else:
                             # string
                             params[tmpKey] = tmpPars.getfirst(tmpKey)
                     if panda_config.entryVerbose:
-                        tmpLog.debug("with %s" % str(params.keys()))
+                        tmpLog.debug("with %s" % str(list(params)))
                     # dummy request object
                     dummyReq = DummyReq(environ, tmpLog)
+                    param_list = [dummyReq]
                     # exec
-                    exeRes = apply(tmpMethod,[dummyReq],params)
+                    exeRes = tmpMethod(*param_list, **params)
                     # extract return type
-                    if type(exeRes) == types.DictType:
+                    if isinstance(exeRes, dict):
                         retType = exeRes['type']
                         exeRes  = exeRes['content']
                     # convert bool to string
@@ -222,7 +221,8 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                 except Exception as e:
                     tmpLog.error("execution failure : {0}".format(str(e)))
                     errStr = ""
-                    for tmpKey,tmpVal in environ.iteritems():
+                    for tmpKey in environ:
+                        tmpVal = environ[tmpKey]
                         errStr += "%s : %s\n" % (tmpKey,str(tmpVal))
                     tmpLog.error(errStr)
                     # return internal server error
@@ -235,10 +235,10 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                                                                 regTime.microseconds/1000,
                                                                 len(str(exeRes))))
         # return
-        if exeRes == taskbuffer.ErrorCode.EC_NotFound:
+        if exeRes == pandaserver.taskbuffer.ErrorCode.EC_NotFound:
             start_response('404 Not Found', [('Content-Type', 'text/plain')])
             return ['not found']
-        elif isinstance(exeRes,taskbuffer.ErrorCode.EC_Redirect):
+        elif isinstance(exeRes, pandaserver.taskbuffer.ErrorCode.EC_Redirect):
             start_response('302 Redirect', [('Location', exeRes.url)])
             return ['redirect']
         else:                
@@ -246,6 +246,8 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                 start_response('200 OK', [('Content-Type', 'application/json')])
             else:
                 start_response('200 OK', [('Content-Type', 'text/plain')])
+            if isinstance(exeRes, str):
+                exeRes = exeRes.encode()
             return [exeRes]
 
     # start server

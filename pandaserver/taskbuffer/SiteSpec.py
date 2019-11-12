@@ -55,7 +55,7 @@ class SiteSpec(object):
 
     # check if resource fair share is used
     def useResourceFairShare(self):
-        if self.cloudrshare == None and self.sitershare == None:
+        if self.cloudrshare is None and self.sitershare is None:
             return False
         return True
 
@@ -63,7 +63,7 @@ class SiteSpec(object):
 
     # check if resource fair share is used at site level
     def useSiteResourceFairShare(self):
-        if self.sitershare == None:
+        if self.sitershare is None:
             return False
         return True
 
@@ -72,7 +72,7 @@ class SiteSpec(object):
     # check what type of jobs are allowed
     def getJobSeed(self):
         tmpVal = self.jobseed
-        if tmpVal == None:
+        if tmpVal is None:
             return 'std'
         return tmpVal
 
@@ -80,11 +80,11 @@ class SiteSpec(object):
 
     # get value from catchall
     def getValueFromCatchall(self,key):
-        if self.catchall == None:
+        if self.catchall is None:
             return None
         for tmpItem in self.catchall.split(','):
             tmpMatch = re.search('^{0}=(.+)'.format(key),tmpItem)
-            if tmpMatch != None:
+            if tmpMatch is not None:
                 return tmpMatch.group(1)
         return None
 
@@ -92,11 +92,11 @@ class SiteSpec(object):
 
     # has value in catchall
     def hasValueInCatchall(self,key):
-        if self.catchall == None:
+        if self.catchall is None:
             return False
         for tmpItem in self.catchall.split(','):
             tmpMatch = re.search('^{0}(=|)*'.format(key),tmpItem)
-            if tmpMatch != None:
+            if tmpMatch is not None:
                 return True
         return False
 

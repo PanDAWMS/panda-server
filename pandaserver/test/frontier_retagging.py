@@ -11,11 +11,11 @@ will not be reassigned are:
 import datetime
 from elasticsearch import Elasticsearch
 
-from pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger('frontier_retagging')
 
-from config import panda_config
-from taskbuffer.TaskBuffer import taskBuffer
+from pandaserver.config import panda_config
+from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
 
 import json
@@ -81,7 +81,7 @@ def get_task_attribute_map(task_id_list):
     var_map = {}
     for i, task_id in enumerate(task_id_list):
         var_map[':task_id{0}'.format(i)] = task_id
-    task_id_bindings = ','.join(':task_id{0}'.format(i) for i in xrange(len(task_id_list)))
+    task_id_bindings = ','.join(':task_id{0}'.format(i) for i in range(len(task_id_list)))
 
     sql = """
           SELECT jeditaskid, prodsourcelabel, gshare FROM ATLAS_PANDA.jedi_tasks 

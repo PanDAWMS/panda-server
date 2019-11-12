@@ -1,5 +1,5 @@
 from pandaserver.taskbuffer.OraDBProxy import DBProxy
-from config import panda_config
+from pandaserver.config import panda_config
 import sys
 
 if __name__ == "__main__":

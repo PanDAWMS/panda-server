@@ -1,4 +1,4 @@
-from . import JobUtils
+from pandaserver.taskbuffer import JobUtils
 
 
 processGroups = [('others',       []),
@@ -33,7 +33,7 @@ def getProcessGroup(valGroup):
     tmpGroup = None
     for tmpKey,tmpList in processGroups:
         # set default
-        if tmpGroup == None:
+        if tmpGroup is None:
             tmpGroup = tmpKey
             continue
         if valGroup in tmpList:
@@ -47,7 +47,7 @@ def getProcessGroup(valGroup):
 def converCPTforEPG(cloud,processingType,coreCount,workingGroup=None):
     if coreCount in [0,1,None]:
         # use group queue for GP jobs
-        if workingGroup != None and workingGroup.startswith('GP_'):
+        if workingGroup is not None and workingGroup.startswith('GP_'):
             return cloud,'group'
         return cloud,processingType
     else:
@@ -59,26 +59,26 @@ def converCPTforEPG(cloud,processingType,coreCount,workingGroup=None):
 def countJobsPerGroup(valMap):
     ret = {}
     # loop over all clouds
-    for cloud,cloudVal in valMap.iteritems():
+    for cloud in valMap:
+        cloudVal = valMap[cloud]
         # add cloud
-        if not ret.has_key(cloud):
-            ret[cloud] = {}
+        ret.setdefault(cloud, {})
         # loop over all sites
-        for site,siteVal in cloudVal.iteritems():
+        for site in cloudVal:
+            siteVal = cloudVal[site]
             # add site
-            if not ret[cloud].has_key(site):
-                ret[cloud][site] = {}
+            ret[cloud].setdefault(site, {})
             # loop over all types
-            for pType,typeVal in siteVal.iteritems():
+            for pType in siteVal:
+                typeVal = siteVal[pType]
                 # get process group
                 tmpGroup = getProcessGroup(pType)
                 # add group
-                if not ret[cloud][site].has_key(tmpGroup):
-                    ret[cloud][site][tmpGroup] = {}
+                ret[cloud][site].setdefault(tmpGroup, {})
                 # loop over all status
-                for jobStatus,statVal in typeVal.iteritems():
-                    if not ret[cloud][site][tmpGroup].has_key(jobStatus):
-                        ret[cloud][site][tmpGroup][jobStatus] = 0
+                for jobStatus in typeVal:
+                    statVal = typeVal[jobStatus]
+                    ret[cloud][site][tmpGroup].setdefault(jobStatus, 0)
                     # add
                     ret[cloud][site][tmpGroup][jobStatus] += statVal
     # return
@@ -89,21 +89,22 @@ def countJobsPerGroup(valMap):
 def countJobsPerGroupForAnal(valMap):
     ret = {}
     # loop over all sites
-    for site,siteVal in valMap.iteritems():
+    for site in valMap:
+        siteVal = valMap[site]
         # add site
-        if not ret.has_key(site):
-            ret[site] = {}
+        ret.setdefault(site, {})
         # loop over all types
-        for pType,typeVal in siteVal.iteritems():
+        for pType in siteVal:
+            typeVal = siteVal[pType]
             # get process group
             tmpGroup = getProcessGroup(pType)
             # add group
-            if not ret[site].has_key(tmpGroup):
+            if tmpGroup not in ret[site]:
                 ret[site][tmpGroup] = {}
             # loop over all status
-            for jobStatus,statVal in typeVal.iteritems():
-                if not ret[site][tmpGroup].has_key(jobStatus):
-                    ret[site][tmpGroup][jobStatus] = 0
+            for jobStatus in typeVal:
+                statVal = typeVal[jobStatus]
+                ret[site][tmpGroup].setdefault(jobStatus, 0)
                 # add
                 ret[site][tmpGroup][jobStatus] += statVal
     # return

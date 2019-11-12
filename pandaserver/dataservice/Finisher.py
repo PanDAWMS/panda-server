@@ -5,13 +5,12 @@ finish transferring jobs
 
 import re
 import sys
-import commands
+import uuid
 import threading
-from config import panda_config
 
-from brokerage.SiteMapper import SiteMapper
-
-from pandalogger.PandaLogger import PandaLogger
+from pandaserver.config import panda_config
+from pandaserver.brokerage.SiteMapper import SiteMapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 # logger
 _logger = PandaLogger().getLogger('Finisher')
@@ -43,11 +42,11 @@ class Finisher (threading.Thread):
                 siteMapper = SiteMapper(self.taskBuffer)
                 # get computingSite/destinationSE
                 computingSite,destinationSE = self.taskBuffer.getDestSE(self.dataset.name)
-                if destinationSE == None:
+                if destinationSE is None:
                     # try to get computingSite/destinationSE from ARCH to delete sub
                     # even if no active jobs left 
                     computingSite, destinationSE = self.taskBuffer.getDestSE(self.dataset.name,True)
-                    if destinationSE == None:
+                    if destinationSE is None:
                         _logger.error("cannot get source/destination for %s" % self.dataset.name)
                         _logger.debug("end: %s" % self.dataset.name)                
                         return
@@ -58,15 +57,16 @@ class Finisher (threading.Thread):
                 tmpDstSiteSpec = siteMapper.getSite(destinationSE)
                 _logger.debug(tmpDstSiteSpec.setokens_output)
                 destToken = None
-                for scope, setokens in tmpDstSiteSpec.setokens_output.iteritems():
-                    for tmpToken, tmpDdmId in setokens.iteritems():
-                        if self.site == tmpDdmId:
-                            destToken = tmpToken
-                            break
+                for scope in tmpDstSiteSpec.setokens_output:
+                    for setoken in tmpDstSiteSpec.setokens_output[scope]:
+                        for tmpDdmId in tmpDstSiteSpec.setokens_output[scope][setoken]:
+                            if self.site == tmpDdmId:
+                                destToken = setoken
+                                break
                 _logger.debug("use Token=%s" % destToken)
                 # get required tokens
                 reqTokens = self.taskBuffer.getDestTokens(self.dataset.name)
-                if reqTokens == None:
+                if reqTokens is None:
                     _logger.error("cannot get required token for %s" % self.dataset.name)
                     _logger.debug("end: %s" % self.dataset.name)                
                     return
@@ -104,13 +104,13 @@ class Finisher (threading.Thread):
             _logger.debug("IDs: %s" % ids)
             if len(ids) != 0:
                 # get job
-                if self.job == None:
+                if self.job is None:
                     jobs = self.taskBuffer.peekJobs(ids,fromDefined=False,fromArchived=False,fromWaiting=False)
                 else:
                     jobs = [self.job]
                 # loop over all jobs
                 for job in jobs:
-                    if job == None:
+                    if job is None:
                         continue
                     _logger.debug("Job: %s" % job.PandaID)
                     if job.jobStatus == 'transferring':
@@ -179,19 +179,20 @@ class Finisher (threading.Thread):
                                 else:
                                     statusFileName = 'failed'
                                 # write to file
-                                xmlFile = '%s/%s_%s_%s' % (panda_config.logdir,job.PandaID,statusFileName,commands.getoutput('uuidgen'))
+                                xmlFile = '%s/%s_%s_%s' % (panda_config.logdir,job.PandaID,statusFileName,
+                                                           str(uuid.uuid4()))
                                 oXML = open(xmlFile,"w")
                                 oXML.write(topNode.toxml())
                                 oXML.close()
-                            except:
+                            except Exception:
                                 type, value, traceBack = sys.exc_info()
                                 _logger.error("Job: %s %s %s" % (job.PandaID,type,value))
                     _logger.debug("Job: %s status: %s" % (job.PandaID,job.jobStatus))                
             # end
-            if self.job == None:        
+            if self.job is None:        
                 _logger.debug("end: %s" % self.dataset.name)
             else:
                 _logger.debug("end: %s" % self.job.PandaID)
-        except:
+        except Exception:
             type, value, traceBack = sys.exc_info()
             _logger.error("run() : %s %s" % (type,value))

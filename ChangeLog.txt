@@ -1,5 +1,19 @@
 Release Notes
 
+* 11/12/2019
+  * 0.0.23
+  * fixed for wheel
+
+* 11/8/2019
+  * 0.0.22
+  * enabled wheel
+  * fixed for pip+virtualenv
+
+* 11/7/2019
+  * 0.0.21
+  * added python 2/3 compatibility
+  * added pip and virtual env support
+
 * 9/3/2019
   * token-based auth
 
@@ -1939,7 +1953,6 @@ Release Notes
   * use taskBuffer in add.py for all DB access
   * use fasttrack for all tasktypes and prio>=700
   * use taskBuffer for reassignment in copyArchived
-  * cleanup old PandaSiteIDs for UK
   * set the number of treads to 2 in wsgi daemon
   * set MaxRequestsPerChild
   * enabled KeepAlive for proxy sites

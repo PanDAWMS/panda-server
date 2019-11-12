@@ -3,16 +3,18 @@ pool for DBProxies
 
 """
 
-import inspect
-import Queue
-import OraDBProxy as DBProxy
+try:
+    from Queue import Queue
+except ImportError:
+    from queue import Queue
+from pandaserver.taskbuffer import OraDBProxy as DBProxy
 import os
 import time
 import random
 from threading import Lock
-from config import panda_config
-from taskbuffer.ConBridge import ConBridge
-from pandalogger.PandaLogger import PandaLogger
+from pandaserver.config import panda_config
+from pandaserver.taskbuffer.ConBridge import ConBridge
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 # logger
 _logger = PandaLogger().getLogger('DBProxyPool')
@@ -25,10 +27,10 @@ class DBProxyPool:
         self.callers = []
         # create Proxies
         _logger.debug("init")
-        self.proxyList = Queue.Queue(nConnection)
+        self.proxyList = Queue(nConnection)
         for i in range(nConnection):
             _logger.debug("connect -> %s " % i)
-            if dbProxyClass != None:
+            if dbProxyClass is not None:
                 proxy = dbProxyClass()
             elif useTimeout and hasattr(panda_config,'usedbtimeout') and \
                    panda_config.usedbtimeout == True:

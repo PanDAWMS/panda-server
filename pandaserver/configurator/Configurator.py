@@ -1,14 +1,15 @@
+import sys
 import threading
 import traceback
-import aux
-from aux import *
+from pandaserver.configurator import aux
+from pandaserver.configurator.aux import *
 from datetime import datetime, timedelta
 
-from config import panda_config
-from pandalogger.PandaLogger import PandaLogger
-import db_interface as dbif
-from taskbuffer.TaskBuffer import taskBuffer
-from taskbuffer.TaskBuffer.Utils import create_shards
+from pandaserver.config import panda_config
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.configurator import db_interface as dbif
+from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+from pandaserver.taskbuffer.TaskBuffer.Utils import create_shards
 
 _logger = PandaLogger().getLogger('configurator')
 _session = dbif.get_session()
@@ -57,7 +58,7 @@ class Configurator(threading.Thread):
         else:
             self.AGIS_URL_DDMBLACKLIST = 'http://atlas-agis-api.cern.ch/request/ddmendpointstatus/query/list/?json&fstate=OFF&activity=w'
         _logger.debug('Getting schedconfig dump...')
-        self.blacklisted_endpoints = aux.get_dump(self.AGIS_URL_DDMBLACKLIST).keys()
+        self.blacklisted_endpoints = list(aux.get_dump(self.AGIS_URL_DDMBLACKLIST))
         _logger.debug('Blacklisted endpoints {0}'.format(self.blacklisted_endpoints))
         _logger.debug('Done')
         
@@ -113,7 +114,7 @@ class Configurator(threading.Thread):
         """
         site_to_endpoints_dict = {} 
         for site in self.site_dump:
-            site_to_endpoints_dict[site['name']] = site['ddmendpoints'].keys()
+            site_to_endpoints_dict[site['name']] = list(site['ddmendpoints'])
         
         return site_to_endpoints_dict
 
@@ -131,7 +132,7 @@ class Configurator(threading.Thread):
         # Used to fill atlas_panda.panda_ddm_relation table
         try:
             panda_ddm_relation_dict = self.get_panda_ddm_relation()
-        except:
+        except Exception:
             # Temporary protection to prevent issues
             _logger.critical('get_panda_ddm_relation excepted with {0}'.format(traceback.print_exc()))
             panda_ddm_relation_dict = {}

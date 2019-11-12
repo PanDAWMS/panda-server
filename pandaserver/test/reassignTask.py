@@ -1,17 +1,15 @@
-import re
-import sys
 import time
 import datetime
 import argparse
 
-from taskbuffer.OraDBProxy import DBProxy
+from pandaserver.taskbuffer.OraDBProxy import DBProxy
 # password
-from config import panda_config
+from pandaserver.config import panda_config
 
 proxyS = DBProxy()
 proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,panda_config.dbname)
 
-import userinterface.Client as Client
+import pandaserver.userinterface.Client as Client
 
 optP = argparse.ArgumentParser(conflict_handler="resolve",description='Reassign jobs in a task')
 optP.add_argument('taskid',action='store',
@@ -26,8 +24,10 @@ options = optP.parse_args()
 
 taskid = options.taskid
 
-print
-print 'trying to reassign jobs with modificationTime < CURRENT-{0}min. Change the limit using -m if necessary'.format(options.limit)
+print('')
+print(
+    'trying to reassign jobs with modificationTime < CURRENT-{0}min. Change the limit using -m if necessary'.format(
+        options.limit))
 
 codeV = 51
 if options.forceKill:
@@ -42,7 +42,7 @@ varMap[':modificationTime'] = timeLimit
 varMap[':taskID']    = taskid
 sql = "SELECT PandaID,lockedby FROM ATLAS_PANDA.jobsDefined4 WHERE taskID=:taskID AND modificationTime<:modificationTime "
 status,res = proxyS.querySQLS(sql,varMap)
-if res != None:
+if res is not None:
     for (id,lockedby) in res:
         if lockedby == 'jedi':
             jediJobs.append(id)
@@ -57,7 +57,7 @@ varMap[':modificationTime'] = timeLimit
 varMap[':taskID']    = taskid
 sql = "SELECT PandaID,lockedby FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus IN (:js1,:js2) AND taskID=:taskID AND modificationTime<:modificationTime "
 status,res = proxyS.querySQLS(sql,varMap)
-if res != None:
+if res is not None:
     for (id,lockedby) in res:
         if lockedby == 'jedi':
             jediJobs.append(id)
@@ -70,7 +70,7 @@ varMap[':modificationTime'] = timeLimit
 varMap[':taskID']    = taskid
 sql = "SELECT PandaID,lockedby FROM ATLAS_PANDA.jobsWaiting4 WHERE jobStatus=:jobStatus AND taskID=:taskID AND modificationTime<:modificationTime "
 status,res = proxyS.querySQLS(sql,varMap)
-if res != None:
+if res is not None:
     for (id,lockedby) in res:
         if lockedby == 'jedi':
             jediJobs.append(id)
@@ -83,7 +83,7 @@ if len(jobs):
     nJob = 100
     iJob = 0
     while iJob < len(jobs):
-        print 'reassign  %s' % str(jobs[iJob:iJob+nJob])
+        print('reassign  %s' % str(jobs[iJob:iJob+nJob]))
         Client.reassignJobs(jobs[iJob:iJob+nJob])
         iJob += nJob
         time.sleep(10)
@@ -92,11 +92,8 @@ if len(jediJobs) != 0:
     nJob = 100
     iJob = 0
     while iJob < len(jediJobs):
-        print 'kill JEDI jobs %s' % str(jediJobs[iJob:iJob+nJob])
+        print('kill JEDI jobs %s' % str(jediJobs[iJob:iJob+nJob]))
         Client.killJobs(jediJobs[iJob:iJob+nJob],codeV,keepUnmerged=options.keepUnmerged)
         iJob += nJob
 
-print
-print 'reassigned {0} jobs'.format(len(jobs+jediJobs))
-
-
+print('\nreassigned {0} jobs'.format(len(jobs+jediJobs)))

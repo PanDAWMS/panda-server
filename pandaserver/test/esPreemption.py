@@ -1,17 +1,12 @@
-import os
-import re
-import sys
 import datetime
-import traceback
-from taskbuffer.TaskBuffer import taskBuffer
-from pandalogger.PandaLogger import PandaLogger
-from pandalogger.LogWrapper import LogWrapper
-from brokerage.SiteMapper import SiteMapper
-from taskbuffer import ErrorCode
+from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandaserver.brokerage.SiteMapper import SiteMapper
+from pandaserver.taskbuffer import ErrorCode
 
 # password
-from config import panda_config
-passwd = panda_config.dbpasswd
+from pandaserver.config import panda_config
 
 # logger
 _logger = PandaLogger().getLogger('esPreemption')
@@ -44,7 +39,7 @@ varMap[':prio'] = 200
 varMap[':jobStat'] = 'running'
 # exec 	
 status,res = taskBuffer.querySQLS(sqlEsJobs,varMap,arraySize=100000)
-if res == None:
+if res is None:
     tmpLog.debug("total %s " % res)
 else:
     tmpLog.debug("total %s " % len(res))
@@ -70,7 +65,8 @@ else:
     sqlKill += "SET commandToPilot=:com,supErrorCode=:code,supErrorDiag=:diag "
     sqlKill += "WHERE PandaID=:pandaID AND jobStatus=:jobStatus "
     # check all sites
-    for siteName,jobsMap in siteJobsMap.iteritems():
+    for siteName in siteJobsMap:
+        jobsMap = siteJobsMap[siteName]
         # check jobseed
         siteSpec = siteMapper.getSite(siteName)
         # skip ES-only sites
@@ -84,7 +80,7 @@ else:
         varMap[':prio'] = 800
         varMap[':timeLimit'] = timeLimit
         status,res = taskBuffer.querySQLS(sqlHiJobs,varMap)
-        if res != None:
+        if res is not None:
             nJobs = res[0][0]
             nJobsToKill = nJobs-len(siteJobsMap[siteName]['killing'])
             tmpLog.debug("site={0} nHighPrioJobs={1} nRunnigES={2} nKillingES={3} nESToKill={4}".format(siteName,nJobs,

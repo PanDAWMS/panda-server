@@ -1,23 +1,24 @@
 import re
 import sys
 import json
-import types
 import shlex
 import time
 import datetime
-import ProcessGroups
-import EventServiceUtils
-import ErrorCode
-from . import JobUtils
+import traceback
+from pandaserver.taskbuffer import ProcessGroups
+from pandaserver.taskbuffer import EventServiceUtils
+from pandaserver.taskbuffer import ErrorCode
+from pandaserver.taskbuffer import JobUtils
 from threading import Lock
-from DBProxyPool import DBProxyPool
-from brokerage.SiteMapper import SiteMapper
-from dataservice.Setupper import Setupper
-from dataservice.Closer import Closer
-from dataservice.ProcessLimiter import ProcessLimiter
+from pandaserver.taskbuffer.DBProxyPool import DBProxyPool
+from pandaserver.brokerage.SiteMapper import SiteMapper
+from pandaserver.dataservice.Setupper import Setupper
+from pandaserver.dataservice.Closer import Closer
+from pandaserver.dataservice.ProcessLimiter import ProcessLimiter
 
 # logger
-from pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.LogWrapper import LogWrapper
 _logger = PandaLogger().getLogger('TaskBuffer')
 
 class TaskBuffer:
@@ -40,10 +41,10 @@ class TaskBuffer:
         # lock
         self.lock.acquire()
         # create Proxy Pool
-        if self.proxyPool == None:
+        if self.proxyPool is None:
             self.proxyPool = DBProxyPool(dbname,dbpass,nDBConnection,useTimeout)
         # create process limiter
-        if self.processLimiter == None:
+        if self.processLimiter is None:
             self.processLimiter = ProcessLimiter()
         # release
         self.lock.release()
@@ -54,7 +55,7 @@ class TaskBuffer:
         for fqan in fqans:
             # check production role
             match = re.search('/([^/]+)/Role=production',fqan)
-            if match != None:
+            if match is not None:
                 return True,match.group(1)
         return False,None
 
@@ -89,7 +90,7 @@ class TaskBuffer:
             if jobs[0].processingType in ['hammercloud-fax']:    
                 priorityOffset = 1001
         # check quota
-        if weight == None:
+        if weight is None:
             weight = proxy.checkQuota(user)
             # get nJob
             if jobs == []:
@@ -154,7 +155,7 @@ class TaskBuffer:
                 # check quota for express jobs
                 if 'express' in jobs[0].specialHandling:
                     expressQuota = proxy.getExpressJobs(user)
-                    if expressQuota != None and expressQuota['status'] and expressQuota['quota'] > 0:
+                    if expressQuota is not None and expressQuota['status'] and expressQuota['quota'] > 0:
                         nExpressJobs = expressQuota['quota']
                         if nExpressJobs > 0:
                             useExpress = True
@@ -178,7 +179,7 @@ class TaskBuffer:
                             continue
                         # loop over all FQANs
                         for tmpFQAN in fqans:
-                            if re.search('^%s' % tmpGroup,tmpFQAN) != None:
+                            if re.search('^%s' % tmpGroup,tmpFQAN) is not None:
                                 userStatus = True
                                 break
                         # escape
@@ -194,13 +195,13 @@ class TaskBuffer:
                         tmpGroup = tmpGP.split(':')[0]
                         try:
                             tmpOffset = int(tmpGP.split(':')[-1])
-                        except:
+                        except Exception:
                             tmpOffset = 0
                         # loop over all FQANs
                         for tmpFQAN in fqans:
                             _logger.debug(tmpFQAN)
-                            if re.search('^%s/' % tmpGroup,tmpFQAN) != None or \
-                                   re.search('%s$' % tmpGroup,tmpFQAN) != None:
+                            if re.search('^%s/' % tmpGroup,tmpFQAN) is not None or \
+                                   re.search('%s$' % tmpGroup,tmpFQAN) is not None:
                                 # use the largest offset
                                 if tmpOffset > priorityOffset:
                                     priorityOffset = tmpOffset
@@ -212,12 +213,12 @@ class TaskBuffer:
                         userStatus = False
                 # set priority offset
                 if userStatus:        
-                    if userSiteAccess.has_key('poffset') and userSiteAccess['poffset'] > priorityOffset: 
+                    if 'poffset' in userSiteAccess and userSiteAccess['poffset'] > priorityOffset:
                         priorityOffset = userSiteAccess['poffset']
                 # extract country group
                 for tmpFQAN in fqans:
                     match = re.search('^/atlas/([^/]+)/',tmpFQAN)
-                    if match != None:
+                    if match is not None:
                         tmpCountry = match.group(1)
                         # use country code or usatlas
                         if len(tmpCountry) == 2:
@@ -236,7 +237,7 @@ class TaskBuffer:
             # extract VO
             for tmpFQAN in fqans:
                 match = re.search('^/([^/]+)/',tmpFQAN)
-                if match != None:
+                if match is not None:
                     userVO = match.group(1)
                     break
             # get number of jobs currently in PandaDB
@@ -252,7 +253,7 @@ class TaskBuffer:
                 userWorkingGroupList = []
                 for tmpFQAN in fqans:
                     match = re.search('/([^/]+)/Role=production',tmpFQAN)
-                    if match != None:
+                    if match is not None:
                         userWorkingGroupList.append(match.group(1))
                 # check workingGroup
                 if not jobs[0].workingGroup in ['',None,'NULL']:
@@ -336,7 +337,7 @@ class TaskBuffer:
                         if isScout:
                             job.setScoutJobFlag()
                         # set DDM backend
-                        if ddmBackEnd != None:
+                        if ddmBackEnd is not None:
                             job.setDdmBackEnd(ddmBackEnd)
                     if job.prodSourceLabel != 'panda':
                         nRunJob += 1
@@ -382,13 +383,13 @@ class TaskBuffer:
                 origEsJob = False
                 if eventServiceInfo != {}:
                     # set jobsetID 
-                    if esJobsetMap.has_key(esIndex):
+                    if esIndex in esJobsetMap:
                         job.jobsetID = esJobsetMap[esIndex]
                     else:
                         origEsJob = True
                     # sort files since file order is important for positional event number
                     job.sortFiles()
-                if oldPandaIDs != None and len(oldPandaIDs) > idxJob:
+                if oldPandaIDs is not None and len(oldPandaIDs) > idxJob:
                     jobOldPandaIDs = oldPandaIDs[idxJob]
                 else:
                     jobOldPandaIDs = None
@@ -436,7 +437,7 @@ class TaskBuffer:
                 serNum += 1
                 try:
                     fileIDPool = fileIDPool[len(job.Files):]
-                except:
+                except Exception:
                     fileIDPool = []
             # release DB proxy
             self.proxyPool.putProxy(proxy)
@@ -454,7 +455,7 @@ class TaskBuffer:
             if getEsJobsetMap:
                 return (ret, esJobsetMap, unprocessedMap)
             return ret
-        except:
+        except Exception:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("storeJobs : %s %s" % (errType,errValue))
             errStr = "ERROR: ServerError with storeJobs"
@@ -557,7 +558,7 @@ class TaskBuffer:
         for idxJob,job in enumerate(jobs):
             # update DB
             tmpddmIDs = []
-            if oldJobStatusList != None and idxJob < len(oldJobStatusList):
+            if oldJobStatusList is not None and idxJob < len(oldJobStatusList):
                 oldJobStatus = oldJobStatusList[idxJob]
             else:
                 oldJobStatus = None
@@ -589,7 +590,7 @@ class TaskBuffer:
         # release proxy
         self.proxyPool.putProxy(proxy)
         # retry mover
-        if newMover != None:
+        if newMover is not None:
             self.storeJobs([newMover],None,joinThr=True)
         # reassign jobs when ddm failed
         if ddmIDs != []:
@@ -711,7 +712,7 @@ class TaskBuffer:
             if prodManager:
                 jobList = proxy.getActiveDebugJobs(prodRole=True)
                 limitNum = ProcessGroups.maxDebugProdJobs
-            elif workingGroup != None:
+            elif workingGroup is not None:
                 jobList = proxy.getActiveDebugJobs(workingGroup=workingGroup)
                 limitNum = ProcessGroups.maxDebugWgJobs
             else:
@@ -776,9 +777,9 @@ class TaskBuffer:
             if not job.taskID in ['NULL',0,'']:
                 # get cloud
                 cloudTask = proxy.getCloudTask(job.taskID)
-                if cloudTask != None and cloudTask.status == 'assigned':
+                if cloudTask is not None and cloudTask.status == 'assigned':
                     ret = cloudTask.cloud
-            if ret == None:
+            if ret is None:
                 # append for TA
                 newJobs.append(job)
             retList.append(ret)    
@@ -837,12 +838,12 @@ class TaskBuffer:
             if idStatus == {}:
                 return retNA
             # use larger PandaID which corresponds to runXYZ
-            tmpKeys = idStatus.keys()
+            tmpKeys = list(idStatus)
             tmpKeys.sort()
             pandaID = tmpKeys[-1]
             # get job
             tmpJobs = self.getFullJobStatus([pandaID])
-            if tmpJobs == [] or tmpJobs[0] == None:
+            if tmpJobs == [] or tmpJobs[0] is None:
                 return retNA
             pandaJob = tmpJobs[0]
             # non-merge job
@@ -858,7 +859,7 @@ class TaskBuffer:
                         subDsList.append(tmpFile.destinationDBlock)
                         # get dataset
                         tmpDsSpec = self.queryDatasetWithMap({'name':tmpFile.destinationDBlock})
-                        if tmpDsSpec != None:
+                        if tmpDsSpec is not None:
                             if tmpDsSpec.status in ['tobemerged']:
                                 # going to be merged
                                 mergeStatus = 'generating'
@@ -877,11 +878,11 @@ class TaskBuffer:
             if mergeStatus == 'generated' and mergeIDs == []:
                 mergeStatus = 'aborted'
             # jobs are still runnign
-            if mergeStatus == None:
+            if mergeStatus is None:
                 mergeStatus = 'standby'
             # return
             return {'status':mergeStatus,'mergeIDs':mergeIDs}
-        except:
+        except Exception:
             return retNA
 
     
@@ -964,8 +965,8 @@ class TaskBuffer:
             if retInfo == {}:
                 retInfo = tmpRetInfo
             else:
-                for outKey in tmpRetInfo.keys():
-                    if not retInfo.has_key(outKey):
+                for outKey in tmpRetInfo:
+                    if outKey not in retInfo:
                         retInfo[outKey] = []
                     # append
                     for tmpItemRetInfo in tmpRetInfo[outKey]:
@@ -982,7 +983,7 @@ class TaskBuffer:
             return []
         # check timeRange
         match = re.match('^(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)$',timeRangeStr)
-        if match == None:
+        if match is None:
             return []
         timeRange = datetime.datetime(year   = int(match.group(1)),
                                       month  = int(match.group(2)),
@@ -1023,7 +1024,7 @@ class TaskBuffer:
         try:
             jobID = long(jobID)
             nJobs = long(nJobs)
-        except:
+        except Exception:
             return idStatus
         # get DBproxy
         proxy = self.proxyPool.getProxy()
@@ -1165,7 +1166,7 @@ class TaskBuffer:
             self.proxyPool.putProxy(proxy)
         # get IDs
         for jobID in jobIDs:
-            if retJobMap[jobID] == None:
+            if retJobMap[jobID] is None:
                 # get ArchiveDBproxy
                 proxy = self.proxyPool.getProxy()
                 # peek job
@@ -1186,9 +1187,9 @@ class TaskBuffer:
         try:
             # get job
             tmpJobs = self.getFullJobStatus([pandaID],days=days)
-            if tmpJobs == [] or tmpJobs[0] == None:
+            if tmpJobs == [] or tmpJobs[0] is None:
                 errStr = "ERROR: Cannot get PandaID=%s in DB " % pandaID
-                if days == None:
+                if days is None:
                     errStr += "for the last 30 days. You may add &days=N to the URL"
                 else:
                     errStr += "for the last {0} days. You may change &days=N in the URL".format(days)
@@ -1222,12 +1223,13 @@ class TaskBuffer:
             dsFileMap = {}
             for tmpFile in tmpJob.Files:
                 if tmpFile.type=='input':
-                    if not dsFileMap.has_key(tmpFile.dataset):
+                    if tmpFile.dataset not in dsFileMap:
                         dsFileMap[tmpFile.dataset] = []
                     if not tmpFile.lfn in dsFileMap[tmpFile.dataset]:    
                         dsFileMap[tmpFile.dataset].append(tmpFile.scope+':'+tmpFile.lfn)
             # get
-            for tmpDS,tmpFileList in dsFileMap.iteritems():
+            for tmpDS in dsFileMap:
+                tmpFileList = dsFileMap[tmpDS]
                 for tmpLFN in tmpFileList:
                     scrStr += "rucio download "
                     scrStr += "%s\n" % tmpLFN
@@ -1247,6 +1249,7 @@ class TaskBuffer:
                     atlTags.remove('')
                 if atlRel != '' and atlRel not in atlTags and (re.search('^\d+\.\d+\.\d+$', atlRel) is None or isUser):
                     atlTags.append(atlRel)
+                scrStr += 'source ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh -c %s\n' % tmpJob.cmtConfig.split('@')[0]
                 scrStr += "asetup --platform=%s %s\n" % (tmpJob.cmtConfig.split('@')[0], ','.join(atlTags))
                 # athenaMP
                 if not tmpJob.coreCount in ['NULL',None] and tmpJob.coreCount > 1:
@@ -1259,7 +1262,7 @@ class TaskBuffer:
                 # loop for params
                 for tmpItem in tmpSplitter:
                     tmpMatch = re.search('^(-[^=]+=)(.+)$',tmpItem)
-                    if tmpMatch != None:
+                    if tmpMatch is not None:
                         tmpArgName = tmpMatch.group(1)
                         tmpArgVal  = tmpMatch.group(2)
                         tmpArgIdx = tmpParamStr.find(tmpArgName) + len(tmpArgName)
@@ -1272,7 +1275,7 @@ class TaskBuffer:
                     scrStr += './'
                 scrStr += "%s %s\n\n" % (tmpTrfs[tmpIdx].split('/')[-1], tmpParamStr)
             return scrStr
-        except:
+        except Exception:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("getScriptOfflineRunning : %s %s" % (errType,errValue))
             return "ERROR: ServerError in getScriptOfflineRunning with %s %s" % (errType,errValue)
@@ -1314,7 +1317,7 @@ class TaskBuffer:
             rets.append(ret)
             if ret and userInfo['prodSourceLabel'] in ['user','managed','test']:
                 jobIDKey = (userInfo['prodUserID'],userInfo['jobDefinitionID'],userInfo['jobsetID'])
-                if not pandaIDforCloserMap.has_key(jobIDKey):
+                if jobIDKey not in pandaIDforCloserMap:
                     pandaIDforCloserMap[jobIDKey] = id
         # release proxy
         self.proxyPool.putProxy(proxy)
@@ -1324,7 +1327,7 @@ class TaskBuffer:
                 for pandaIDforCloser in pandaIDforCloserMap.values():
                     tmpJobs = self.peekJobs([pandaIDforCloser])
                     tmpJob = tmpJobs[0]
-                    if tmpJob != None:
+                    if tmpJob is not None:
                         tmpDestDBlocks = []
                         # get destDBlock
                         for tmpFile in tmpJob.Files:
@@ -1335,7 +1338,7 @@ class TaskBuffer:
                         cThr = Closer(self,tmpDestDBlocks,tmpJob)
                         cThr.start()
                         cThr.join()
-        except:
+        except Exception:
             pass
         # return
         return rets
@@ -1344,7 +1347,9 @@ class TaskBuffer:
     # reassign jobs
     def reassignJobs(self,ids,attempt=0,joinThr=False,forkSetupper=False,forPending=False,
                      firstSubmission=True):
-        # get DBproxy
+        tmpLog = LogWrapper(_logger, 'reassignJobs')
+        tmpLog.debug('start for {0} IDs'.format(len(ids)))
+        # get DB proxy
         proxy = self.proxyPool.getProxy()
         jobs = []
         oldSubMap = {}
@@ -1358,49 +1363,49 @@ class TaskBuffer:
                 # try to reset active job
                 if not forPending:
                     tmpRet = proxy.resetJob(id,keepSite=keepSiteFlag,getOldSubs=True)
-                    if isinstance(tmpRet,types.TupleType):
+                    if isinstance(tmpRet, tuple):
                         ret,tmpOldSubList = tmpRet
                     else:
                         ret,tmpOldSubList = tmpRet,[]
-                    if ret != None:
+                    if ret is not None:
                         jobs.append(ret)
                         for tmpOldSub in tmpOldSubList:
-                            if not oldSubMap.has_key(tmpOldSub):
-                                oldSubMap[tmpOldSub] = ret
+                            oldSubMap.setdefault(tmpOldSub, ret)
                         continue
                 # try to reset waiting job
                 tmpRet = proxy.resetJob(id,False,keepSite=keepSiteFlag,getOldSubs=False,forPending=forPending)
-                if isinstance(tmpRet,types.TupleType):
+                if isinstance(tmpRet, tuple):
                     ret,tmpOldSubList = tmpRet
                 else:
                     ret,tmpOldSubList = tmpRet,[]
-                if ret != None:
+                if ret is not None:
                     jobs.append(ret)
                     # waiting jobs don't create sub or dis
                     continue
                 # try to reset defined job
                 if not forPending:
                     tmpRet = proxy.resetDefinedJob(id,keepSite=keepSiteFlag,getOldSubs=True)
-                    if isinstance(tmpRet,types.TupleType):
+                    if isinstance(tmpRet, tuple):
                         ret,tmpOldSubList = tmpRet
                     else:
                         ret,tmpOldSubList = tmpRet,[]
-                    if ret != None:
+                    if ret is not None:
                         jobs.append(ret)
                         for tmpOldSub in tmpOldSubList:
-                            if not oldSubMap.has_key(tmpOldSub):
-                                oldSubMap[tmpOldSub] = ret
+                            oldSubMap.setdefault(tmpOldSub, ret)
                         continue
-            except:
-                pass
+            except Exception as e:
+                tmpLog.error('failed with {0} {1}'.format(str(e), traceback.format_exc()))
         # release DB proxy
         self.proxyPool.putProxy(proxy)
         # run Closer for old sub datasets
         if not forPending:
-            for tmpOldSub,tmpJob in oldSubMap.iteritems():
+            for tmpOldSub in oldSubMap:
+                tmpJob = oldSubMap[tmpOldSub]
                 cThr = Closer(self,[tmpOldSub],tmpJob)
                 cThr.start()
                 cThr.join()
+        tmpLog.debug('got {0} IDs'.format(len(jobs)))
         # setup dataset
         if jobs != []:
             if joinThr:
@@ -1412,6 +1417,7 @@ class TaskBuffer:
                 # cannot use 'thr =' because it may trigger garbage collector
                 Setupper(self,jobs,resubmit=True,ddmAttempt=attempt,forkRun=forkSetupper,
                          firstSubmission=firstSubmission).start()
+        tmpLog.debug('done')
         # return
         return True
 
@@ -1425,7 +1431,7 @@ class TaskBuffer:
         for id in ids:
             # try to reset waiting job
             ret = proxy.resetJob(id,False)
-            if ret != None:
+            if ret is not None:
                 jobs.append(ret)
         # release DB proxy
         self.proxyPool.putProxy(proxy)
@@ -2003,7 +2009,8 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # get Proxy Key
         ret = {}
-        for userID,nJobs in tmpRet.iteritems():
+        for userID in tmpRet:
+            nJobs = tmpRet[userID]
             proxyKey = proxy.getProxyKey(userID)
             if proxyKey != {}:
                 # add nJobs
@@ -2566,7 +2573,7 @@ class TaskBuffer:
             return {}
         # check timeRange
         match = re.match('^(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)$',timeRangeStr)
-        if match == None:
+        if match is None:
             return {}
         timeRange = datetime.datetime(year   = int(match.group(1)),
                                       month  = int(match.group(2)),
@@ -2632,7 +2639,7 @@ class TaskBuffer:
         # extract return
         try:
             retVal = ret[0][0]
-        except:
+        except Exception:
             retVal = False
         # return
         return retVal,json.dumps(ret[1])
@@ -2644,7 +2651,7 @@ class TaskBuffer:
         # decode json
         try:
             eventRanges = json.loads(eventRanges)
-        except:
+        except Exception:
             return json.dumps("ERROR : failed to convert eventRanges with json")
         # get proxy
         proxy = self.proxyPool.getProxy()
@@ -3570,7 +3577,7 @@ class TaskBuffer:
     def checkJobStatus(self, pandaIDs):
         try:
             pandaIDs = pandaIDs.split(',')
-        except:
+        except Exception:
             pandaIDs = []
         # get DBproxy
         proxy = self.proxyPool.getProxy()

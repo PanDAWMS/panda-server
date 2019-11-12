@@ -3,7 +3,7 @@ activate job
 
 '''
 
-from pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 # logger
 _logger = PandaLogger().getLogger('Activator')
@@ -39,7 +39,7 @@ class Activator:
                 # remove None and unknown
                 acJobs = []
                 for job in jobs:
-                    if job == None or job.jobStatus == 'unknown':
+                    if job is None or job.jobStatus == 'unknown':
                         continue
                     acJobs.append(job)
                 # activate

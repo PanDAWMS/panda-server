@@ -1,13 +1,18 @@
 # Configuration file for the httpd service.
 
-OPTIONS="-f /etc/panda/panda_server-httpd.conf"
+@@virtual_env_setup@@
+
+OPTIONS="-f ${VIRTUAL_ENV}/etc/panda/panda_server-httpd.conf"
 
 # for FastCGI/WSGI
-#OPTIONS="-f /etc/panda/panda_server-httpd-FastCGI.conf"
+#OPTIONS="-f ${VIRTUAL_ENV}/etc/panda/panda_server-httpd-FastCGI.conf"
 #HTTPD='/usr/sbin/httpd'
 
 # reset PATH/LD_LIBRARY_PATH since atlpan's ones break grid-tools
 export PATH=/bin:/usr/local/bin:/usr/bin
+if [[ -n "${VIRTUAL_ENV}" ]]; then
+  PATH=${VIRTUAL_ENV}/bin:${VIRTUAL_ENV}/usr/local/bin:${VIRTUAL_ENV}/usr/bin:${VIRTUAL_ENV}:${PATH}
+fi
 unset LD_LIBRARY_PATH
 
 # for DQ2
@@ -16,8 +21,11 @@ export RUCIO_ACCOUNT=panda
 export RUCIO_APPID=pandasrv
 
 # panda home
-export PANDA_HOME=/data/atlpan
-
+if [[ -n "${VIRTUAL_ENV}" ]]; then
+  export PANDA_HOME=${VIRTUAL_ENV}
+else
+  export PANDA_HOME=/data/atlpan
+fi
 # timezone
 export TZ=UTC
 

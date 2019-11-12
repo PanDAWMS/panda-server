@@ -61,10 +61,10 @@ dq2_dir = /opt/dq2
 globus_dir = /opt/globus
 
 # path to native python 
-native_python = /usr/bin
+native_python = @@virtual_env@@/usr/bin
 
 # path to python for lfc client (/data/atlpan/bin/python cannot be used due to lack of libpythonX.Y.so)
-native_python32 = /usr/bin
+native_python32 = @@virtual_env@@/usr/bin
 
 # location for Panda common
 pandaCommon_dir = @@install_purelib@@/pandacommon
@@ -181,7 +181,7 @@ emailDB = %(logdir)s/email_db
 emailSMTPsrv = cernmx.cern.ch
 
 # sender address for notification
-emailSender = atlpan@cern.ch
+emailSender = atlas-adc-panda-no-reply@cern.ch
 
 # login name for SMTP
 emailLogin  = atlpan
@@ -267,7 +267,7 @@ cacheFileTable = FileTable
 #
 
 # enable job status change monitoring
-record_statuschange = False
+record_statuschange = True
 
 
 
@@ -303,7 +303,7 @@ adder_plugins = local:dataservice.AdderDummyPlugin:AdderDummyPlugin
 setupper_plugins = local:dataservice.SetupperDummyPlugin:SetupperDummyPlugin
 
 # plugins for Closer
-setupper_plugins = atlas:dataservice.CloserAtlasPlugin:CloserAtlasPlugin
+closer_plugins = atlas:dataservice.CloserAtlasPlugin:CloserAtlasPlugin
 
 
 
@@ -331,7 +331,7 @@ pandaProxy_ca_certs = /etc/pki/tls/certs/CERN-bundle.pem
 #def_status     = online
 #def_gatekeeper = gridgk01.racf.bnl.gov
 
-#
+
 
 
 ##########################
@@ -353,3 +353,17 @@ ei_dbname = PandaDB
 
 # timout value
 ei_dbtimeout = 300
+
+
+
+
+##########################
+#
+# Parameters for token-based authentication
+#
+
+token_authType = None
+
+token_issuers = https://aipanda026.cern.ch/scitokens
+
+token_audience = https://pandaserver.cern.ch

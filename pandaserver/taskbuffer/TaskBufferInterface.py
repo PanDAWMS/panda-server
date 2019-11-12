@@ -3,10 +3,11 @@ import pickle
 import multiprocessing
 
 # required to reserve changed attributes
-import taskbuffer.JobSpec
-import taskbuffer.FileSpec
-taskbuffer.JobSpec.reserveChangedState = True
-taskbuffer.FileSpec.reserveChangedState = True
+
+from pandaserver.taskbuffer import JobSpec
+from pandaserver.taskbuffer import FileSpec
+JobSpec.reserveChangedState = True
+FileSpec.reserveChangedState = True
 
 
 # method class
@@ -39,7 +40,7 @@ class TaskBufferMethod:
             return res
         else:
             errtype,errvalue = res
-            raise RuntimeError,"{0}: {1} {2}".format(self.methodName,errtype.__name__,errvalue)
+            raise RuntimeError("{0}: {1} {2}".format(self.methodName,errtype.__name__,errvalue))
 
 
 
@@ -81,9 +82,9 @@ class TaskBufferInterface:
             # execute
             try:
                 method = getattr(taskBuffer,methodName)
-                res = apply(method,args,kwargs)
+                res = method(*args, **kwargs)
                 commDict['stat'] = 0
-            except:
+            except Exception:
                 res = sys.exc_info()[:2]
                 commDict['stat'] = 1
             # set response

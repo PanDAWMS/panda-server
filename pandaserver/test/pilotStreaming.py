@@ -1,8 +1,8 @@
 import time
 
-from pandalogger.PandaLogger import PandaLogger
-from taskbuffer.TaskBuffer import taskBuffer
-from config import panda_config
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+from pandaserver.config import panda_config
 
 taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
 

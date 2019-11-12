@@ -25,9 +25,11 @@ class DdmSpec(object):
 
         # all endpoints, copy all properties about ddm endpoint and relation
         self.all[name] = {}
-        for key, value in endpointDict[name].iteritems():
+        for key in endpointDict[name]:
+            value = endpointDict[name][key]
             self.all[name][key] = value
-        for key, value in relation.iteritems():
+        for key in relation:
+            value = relation[key]
             self.all[name][key] = value
 
         # local endpoints
@@ -44,7 +46,7 @@ class DdmSpec(object):
 
     # get all endpoints
     def getAllEndPoints(self):
-        return self.all.keys()
+        return list(self.all)
 
     # get endpoint
     def getEndPoint(self,endpointName):
@@ -86,7 +88,8 @@ class DdmSpec(object):
 
         endpoint = None
         order = 10**6 # Like infinite
-        for tmp_ddm_endpoint_name, tmp_ddm_endpoint_dict in self.all.iteritems():
+        for tmp_ddm_endpoint_name in self.all:
+            tmp_ddm_endpoint_dict = self.all[tmp_ddm_endpoint_name]
             # get the order of the current loop endpoint
             if mode == 'input':
                 tmp_order = tmp_ddm_endpoint_dict['order_read']
@@ -97,7 +100,7 @@ class DdmSpec(object):
                 continue
 
             # check name
-            if re.search(patt, tmp_ddm_endpoint_name) != None:
+            if re.search(patt, tmp_ddm_endpoint_name) is not None:
                 endpoint = self.all[tmp_ddm_endpoint_name]
                 order = tmp_order
 
@@ -113,7 +116,8 @@ class DdmSpec(object):
     def getTokenMap(self, mode):
         ret_map = {}
         orders = {}
-        for tmp_ddm_endpoint_name, tmp_ddm_endpoint_dict in self.all.iteritems():
+        for tmp_ddm_endpoint_name in self.all:
+            tmp_ddm_endpoint_dict = self.all[tmp_ddm_endpoint_name]
             token = tmp_ddm_endpoint_dict['ddm_spacetoken_name']
 
             # get the order
@@ -135,4 +139,3 @@ class DdmSpec(object):
             orders[token] = order
 
         return ret_map
-

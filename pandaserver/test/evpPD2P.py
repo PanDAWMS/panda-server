@@ -3,14 +3,14 @@ import sys
 import glob
 import time
 import os.path
-import commands
 import datetime
 import threading
-from config import panda_config
-from taskbuffer.TaskBuffer import taskBuffer
-from brokerage import SiteMapper
-from dataservice.EventPicker import EventPicker
-from pandalogger.PandaLogger import PandaLogger
+from pandaserver.config import panda_config
+from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+from pandaserver.brokerage import SiteMapper
+from pandaserver.dataservice.EventPicker import EventPicker
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
 # logger
 _logger = PandaLogger().getLogger('evpPD2P')
@@ -30,14 +30,14 @@ try:
     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=overallTimeout)
     # get process list
     scriptName = sys.argv[0]
-    out = commands.getoutput('env TZ=UTC ps axo user,pid,lstart,args | grep %s' % scriptName)
+    out = commands_get_status_output('env TZ=UTC ps axo user,pid,lstart,args | grep %s' % scriptName)[-1]
     for line in out.split('\n'):
         items = line.split()
         # owned process
         if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
             continue
         # look for python
-        if re.search('python',line) == None:
+        if re.search('python',line) is None:
             continue
         # PID
         pid = items[1]
@@ -48,8 +48,8 @@ try:
         if startTime < timeLimit:
             _logger.debug("old process : %s %s" % (pid,startTime))
             _logger.debug(line)            
-            commands.getoutput('kill -9 %s' % pid)
-except:
+            commands_get_status_output('kill -9 %s' % pid)
+except Exception:
     type, value, traceBack = sys.exc_info()
     _logger.error("kill process : %s %s" % (type,value))
 
@@ -145,7 +145,7 @@ while len(fileList) != 0:
             thr.start()
         else:
             _logger.debug("%s : %s" % ((timeInt - modTime),fileName))
-    except:
+    except Exception:
         errType,errValue = sys.exc_info()[:2]
         _logger.error("%s %s" % (errType,errValue))
 
@@ -153,4 +153,3 @@ while len(fileList) != 0:
 adderThreadPool.join()
 
 _logger.debug("===================== end =====================")
-

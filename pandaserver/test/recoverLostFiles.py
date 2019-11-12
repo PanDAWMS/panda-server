@@ -1,11 +1,11 @@
 import sys
 import argparse
-from taskbuffer.TaskBuffer import taskBuffer
-from config import panda_config
-from userinterface import Client
+from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+from pandaserver.config import panda_config
+from pandaserver.userinterface import Client
 from rucio.client import Client as RucioClient
 from rucio.common.exception import DataIdentifierNotFound
-from dataservice.DDM import rucioAPI
+from pandaserver.dataservice.DDM import rucioAPI
 
 taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
 
@@ -41,8 +41,8 @@ else:
     for tmpLFN, in fo:
         if tmpLFN not in files_rucio:
             files.append(tmpLFN)
-    print
-    print 'found {0} lost files -> {1}'.format(len(files), ','.join(files))
+    print('')
+    print('found {0} lost files -> {1}'.format(len(files), ','.join(files)))
 
 s,jediTaskID = taskBuffer.resetFileStatusInJEDI('',True,options.ds,files,[],options.dryRun)
 if options.dryRun:
@@ -59,14 +59,13 @@ if s:
                     rc.get_did(scope, name)
                     break
                 except DataIdentifierNotFound:
-                    print 'resurrect {0}'.format(datasetName)
+                    print('resurrect {0}'.format(datasetName))
                     rc.resurrect([{'scope': scope, 'name': name}])
                     try:
                         rc.set_metadata(scope, name, 'lifetime', None)
-                    except:
+                    except Exception:
                         pass
-    print Client.retryTask(jediTaskID, noChildRetry=options.noChildRetry)[-1][-1]
-    print 'done for jediTaskID={0}'.format(jediTaskID)
+    print(Client.retryTask(jediTaskID, noChildRetry=options.noChildRetry)[-1][-1])
+    print('done for jediTaskID={0}'.format(jediTaskID))
 else:
-    print 'failed'
-
+    print('failed')

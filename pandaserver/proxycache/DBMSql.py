@@ -2,7 +2,6 @@ import cx_Oracle
 
 import sys
 from types import TupleType
-import datetime
 
 # Common items
 ORAC_CON = None
@@ -10,7 +9,7 @@ ORAC_CON = None
 
 OracleList = ['oracle']
 
-from config import panda_config
+from pandaserver.config import panda_config
 
 #
 # Connection initializers
@@ -27,11 +26,11 @@ def getOracleConnection(db_type) :
     poolmax = 3
     poolincr = 1
 
-    print "Initializing Oracle connection"
+    print("Initializing Oracle connection")
     try :
         cpool = cx_Oracle.SessionPool(user, pssw, serv, poolmin, poolmax, poolincr)
         ORAC_CON = cpool.acquire()
-    except:
+    except Exception:
         import traceback
         traceback.print_stack()
         traceback.print_exc()
@@ -49,11 +48,11 @@ class DBMSql:
         if self.db_type in OracleList :
             self.oracle_con = getOracleConnection(self.db_type)
         else:
-            print "Unknown database type:" + self.db_type
-            print "ERROR. Unknown database type", self.db_type
+            print("Unknown database type:" + self.db_type)
+            print("ERROR. Unknown database type", self.db_type)
             sys.exit(1)
 
-        print "Database connection created for " + self.db_type
+        print("Database connection created for " + self.db_type)
 
     # Method to execute sql query (SELECT)
     def executeQuery(self, sql):
@@ -62,7 +61,7 @@ class DBMSql:
             bindDict = sql[1]
             sql = sql[0]
         if sql.strip()[0:6].lower() != "select":
-            print "not a SELECT statement!!"
+            print("not a SELECT statement!!")
             return []
         try:
             if self.db_type in OracleList :
@@ -87,9 +86,9 @@ class DBMSql:
                 return ret
 
             else:
-                raise DBMSqlError, "not support:%s" % (self.db_type)
-        except:
-            raise DBMSqlError, "executeQuery error:%s \n %s" % (sys.exc_info()[1], sql)
+                raise DBMSqlError("not support:%s" % (self.db_type))
+        except Exception:
+            raise DBMSqlError("executeQuery error:%s \n %s" % (sys.exc_info()[1], sql))
 
 
 class DBMSqlError(Exception):
@@ -105,5 +104,4 @@ class DBMSqlError(Exception):
 if __name__ == '__main__':
 
     dbm = DBMSql(_db_type='oracle')
-    print dbm.executeQuery('select * from services')
-
+    print(dbm.executeQuery('select * from services'))

@@ -1,10 +1,9 @@
 import sys
 import time
-import random
-import commands
-import userinterface.Client as Client
-from taskbuffer.JobSpec import JobSpec
-from taskbuffer.FileSpec import FileSpec
+import uuid
+import pandaserver.userinterface.Client as Client
+from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.taskbuffer.FileSpec import FileSpec
 
 site  = sys.argv[1]
 cloud = sys.argv[2]
@@ -18,7 +17,7 @@ if len(sys.argv)==5:
     prodDBlock = sys.argv[3]
     inputFile  = sys.argv[4]
 
-datasetName = 'panda.destDB.%s' % commands.getoutput('uuidgen')
+datasetName = 'panda.destDB.%s' % str(uuid.uuid4())
 
 files = {
     inputFile:None,
@@ -27,11 +26,11 @@ files = {
 jobList = []
 
 index = 0
-for lfn in files.keys():
+for lfn in files:
     index += 1
     job = JobSpec()
     job.jobDefinitionID   = (time.time()) % 10000
-    job.jobName           = "%s_%d" % (commands.getoutput('uuidgen'),index)
+    job.jobName           = "%s_%d" % (str(uuid.uuid4()),index)
     job.AtlasRelease      = 'Atlas-17.0.5'
     job.homepackage       = 'AtlasProduction/17.0.5.6'
     job.transformation    = 'AtlasG4_trf.py'
@@ -82,7 +81,7 @@ for lfn in files.keys():
     jobList.append(job)
     
 s,o = Client.submitJobs(jobList)
-print "---------------------"
-print s
+print("---------------------")
+print(s)
 for x in o:
-    print "PandaID=%s" % x[0]
+    print("PandaID=%s" % x[0])

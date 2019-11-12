@@ -1,7 +1,6 @@
 import sys
 import time
-from pandalogger.PandaLogger import PandaLogger
-from config import panda_config
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 import re
 from re import error as ReError
 # logger
@@ -232,7 +231,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                         message = "action=increaseRAMLimit for PandaID={0} jediTaskID={1} ( ErrorSource={2} ErrorCode={3} ErrorDiag: {4}. Error/action active={5} error_id={6} )"\
                             .format(jobID, job.jediTaskID,  error_source, error_code, error_diag_rule, active, error_id)
                         _logger.info(message)
-                    except:
+                    except Exception:
                         errtype,errvalue = sys.exc_info()[:2]
                         _logger.error("Failed to increase RAM limit : %s %s" % (errtype,errvalue))
 
@@ -254,7 +253,7 @@ def apply_retrial_rules(task_buffer, jobID, error_source, error_code, error_diag
                         message = "action=increaseCpuTime requested recalculation of task parameters for PandaID={0} jediTaskID={1} (active={2} ), applied={3}. ( ErrorSource={4} ErrorCode={5} ErrorDiag: {6}. Error/action active={7} error_id={8} )"\
                             .format(jobID, job.jediTaskID, active, applied, error_source, error_code, error_diag_rule, active, error_id)
                         _logger.info(message)
-                    except:
+                    except Exception:
                         errtype,errvalue = sys.exc_info()[:2]
                         _logger.error("Failed to increase CPU-Time : %s %s" % (errtype,errvalue))
 

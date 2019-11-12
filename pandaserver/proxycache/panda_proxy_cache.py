@@ -3,7 +3,7 @@ import hashlib
 import os
 import datetime
 
-from pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 # logger
 _logger = PandaLogger().getLogger('ProxyCache')
 
@@ -52,7 +52,7 @@ class MyProxyInterface(object):
         if status == 1:
             return status
         #proxyValidity = checkValidity(proxy_path)
-        if role != None:
+        if role is not None:
             _logger.debug('proxy needs {0} - need to add voms attributes and store it in the cache'.format(role))
             tmpExtension = self.getExtension(role)
             prodproxy_path = os.path.join(self.__target_path, str(hashlib.sha1(user_dn + tmpExtension).hexdigest()))
@@ -95,7 +95,7 @@ class MyProxyInterface(object):
 
     def retrieve(self, user_dn, production=False, role=None):
         """Retrieve proxy from proxy cache."""
-        if role != None:
+        if role is not None:
             tmpExtension = self.getExtension(role)
             proxy_path = os.path.join(self.__target_path, str(hashlib.sha1(user_dn + tmpExtension).hexdigest()))
         elif production:
@@ -110,7 +110,7 @@ class MyProxyInterface(object):
 
     def checkProxy(self, user_dn, production=False, role=None):
         """Check the validity of a proxy."""
-        if role != None:
+        if role is not None:
             tmpExtension = self.getExtension(role)
             proxy_path = os.path.join(self.__target_path, str(hashlib.sha1(user_dn + tmpExtension).hexdigest()))
         elif production:
@@ -162,6 +162,6 @@ class MyProxyInterface(object):
 
     # get extension
     def getExtension(self, role):
-        if role != None:
+        if role is not None:
             return '.' + role.split('=')[-1]
         return None

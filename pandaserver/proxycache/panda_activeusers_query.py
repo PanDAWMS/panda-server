@@ -1,12 +1,12 @@
 import re
-from config import panda_config
+from pandaserver.config import panda_config
 
-from taskbuffer.TaskBuffer import taskBuffer
+from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 
-from pandalogger.PandaLogger import PandaLogger
-from pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.LogWrapper import LogWrapper
 
-import panda_proxy_cache
+from pandaserver.proxycache import panda_proxy_cache
 
 # logger
 _logger = PandaLogger().getLogger('panda_activeusers_query')

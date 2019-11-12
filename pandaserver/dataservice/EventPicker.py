@@ -9,19 +9,18 @@ import sys
 import fcntl
 import datetime
 import traceback
+import pandaserver.brokerage.broker
+from pandaserver.dataservice import DynDataDistributer
+from pandaserver.dataservice.MailUtils import MailUtils
+from pandaserver.dataservice.Notifier import Notifier
+from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.userinterface import Client
 
-import brokerage.broker
-from dataservice import DynDataDistributer
-from dataservice.MailUtils import MailUtils
-from dataservice.Notifier import Notifier
-from dataservice.DDM import rucioAPI
-from dataservice.DataServiceUtils import select_scope
+from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.dataservice.DataServiceUtils import select_scope
 
-from taskbuffer.JobSpec import JobSpec
-from userinterface import Client
-
-from pandalogger.PandaLogger import PandaLogger
-from pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.LogWrapper import LogWrapper
 
 # logger
 _logger = PandaLogger().getLogger('EventPicker')
@@ -60,7 +59,7 @@ class EventPicker:
             self.evpFile = open(self.evpFileName)
             try:
                 fcntl.flock(self.evpFile.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
-            except:
+            except Exception:
                 # relase
                 self.putLog("cannot lock %s" % self.evpFileName)
                 self.evpFile.close()
@@ -83,7 +82,7 @@ class EventPicker:
             for tmpLine in self.evpFile:
                 tmpMatch = re.search('^([^=]+)=(.+)$',tmpLine)
                 # check format
-                if tmpMatch == None:
+                if tmpMatch is None:
                     continue
                 tmpItems = tmpMatch.groups()
                 if tmpItems[0] == 'runEvent':
@@ -107,7 +106,7 @@ class EventPicker:
                     # the number of sites where datasets are distributed
                     try:
                         eventPickNumSites = int(tmpItems[1])
-                    except:
+                    except Exception:
                         pass
                 elif tmpItems[0] == 'userName':
                     # user name
@@ -136,7 +135,7 @@ class EventPicker:
                     inputFileList = tmpItems[1].split(',')
                     try:
                         inputFileList.remove('')
-                    except:
+                    except Exception:
                         pass
                 elif tmpItems[0] == 'tagDS':
                     # TAG dataset
@@ -152,18 +151,18 @@ class EventPicker:
                 elif tmpItems[0] == 'runEvtGuidMap':
                     # GUIDs
                     try:
-                        exec "runEvtGuidMap="+tmpItems[1]
-                    except:
+                        runEvtGuidMap = eval(tmpItems[1])
+                    except Exception:
                         pass
             # extract task name
             if self.userTaskName == '' and self.params != '':
                 try:
                     tmpMatch = re.search('--outDS(=| ) *([^ ]+)',self.params)
-                    if tmpMatch != None:
+                    if tmpMatch is not None:
                         self.userTaskName = tmpMatch.group(2)
                         if not self.userTaskName.endswith('/'):
                             self.userTaskName += '/'
-                except:
+                except Exception:
                     pass
             # suppress DaTRI
             if self.params != '':
@@ -173,29 +172,21 @@ class EventPicker:
             compactDN = self.taskBuffer.cleanUserID(self.userDN)
             # get jediTaskID
             self.jediTaskID = self.taskBuffer.getTaskIDwithTaskNameJEDI(compactDN,self.userTaskName)
-            # convert 
-            if tagDsList == [] or tagQuery == '':
-                # convert run/event list to dataset/file list
-                tmpRet,locationMap,allFiles = self.pd2p.convertEvtRunToDatasets(runEvtList,
-                                                                                eventPickDataType,
-                                                                                eventPickStreamName,
-                                                                                eventPickDS,
-                                                                                eventPickAmiTag,
-                                                                                self.userDN,
-                                                                                runEvtGuidMap,
-                                                                                ei_api
-                                                                                )
-                if not tmpRet:
-                    if 'isFatal' in locationMap and locationMap['isFatal'] == True:
-                        self.ignoreError = False
-                    self.endWithError('Failed to convert the run/event list to a dataset/file list')
-                    return False
-            else:
-                # get parent dataset/files with TAG
-                tmpRet,locationMap,allFiles = self.pd2p.getTagParentInfoUsingTagQuery(tagDsList,tagQuery,tagStreamRef) 
-                if not tmpRet:
-                    self.endWithError('Failed to get parent dataset/file list with TAG')
-                    return False
+            # convert run/event list to dataset/file list
+            tmpRet,locationMap,allFiles = self.pd2p.convertEvtRunToDatasets(runEvtList,
+                                                                            eventPickDataType,
+                                                                            eventPickStreamName,
+                                                                            eventPickDS,
+                                                                            eventPickAmiTag,
+                                                                            self.userDN,
+                                                                            runEvtGuidMap,
+                                                                            ei_api
+                                                                            )
+            if not tmpRet:
+                if 'isFatal' in locationMap and locationMap['isFatal'] == True:
+                    self.ignoreError = False
+                self.endWithError('Failed to convert the run/event list to a dataset/file list')
+                return False
             # use only files in the list
             if inputFileList != []:
                 tmpAllFiles = []
@@ -230,8 +221,10 @@ class EventPicker:
                     return False
                 # collect all candidates
                 allCandidates = [] 
-                for tmpDS,tmpDsVal in candidateMaps.iteritems():
-                    for tmpCloud,tmpCloudVal in tmpDsVal.iteritems():
+                for tmpDS in candidateMaps:
+                    tmpDsVal = candidateMaps[tmpDS]
+                    for tmpCloud in tmpDsVal:
+                        tmpCloudVal = tmpDsVal[tmpCloud]
                         for tmpSiteName in tmpCloudVal[0]:
                             if not tmpSiteName in allCandidates:
                                 allCandidates.append(tmpSiteName)
@@ -245,7 +238,7 @@ class EventPicker:
                     if not tmpRet:
                         self.endWithError('Failed to get replicas in %s' % self.userDatasetName)
                         return False
-                    userDatasetNameList = tmpOut.keys()
+                    userDatasetNameList = list(tmpOut)
                 else:
                     # transfer container at once
                     userDatasetNameList = [self.userDatasetName]
@@ -261,7 +254,7 @@ class EventPicker:
                     tmpJob = JobSpec()
                     tmpJob.AtlasRelease = ''
                     self.putLog("run brokerage for %s" % tmpDS)
-                    brokerage.broker.schedule([tmpJob],self.taskBuffer,self.siteMapper,True,allCandidates,
+                    pandaserver.brokerage.broker.schedule([tmpJob],self.taskBuffer,self.siteMapper,True,allCandidates,
                                               True,datasetSize=totalInputSize)
                     if tmpJob.computingSite.startswith('ERROR'):
                         self.endWithError('brokerage failed with %s' % tmpJob.computingSite)
@@ -272,7 +265,7 @@ class EventPicker:
                         tmpDN = rucioAPI.parse_dn(tmpDN)
                         tmpStatus,userInfo = rucioAPI.finger(tmpDN)
                         if not tmpStatus:
-                            raise RuntimeError,'user info not found for {0} with {1}'.format(tmpDN,userInfo)
+                            raise RuntimeError('user info not found for {0} with {1}'.format(tmpDN,userInfo))
                         tmpDN = userInfo['nickname']
                         tmpSiteSpec = self.siteMapper.getSite(tmpJob.computingSite)
                         scope_input, scope_output = select_scope(tmpSiteSpec, 'user')
@@ -285,7 +278,7 @@ class EventPicker:
                         rucioAPI.registerDatasetLocation(tmpDS,[tmpDQ2ID],lifetime=14,owner=tmpDN,
                                                          activity="User Subscriptions")
                         self.putLog('OK')
-                    except:
+                    except Exception:
                         errType,errValue = sys.exc_info()[:2]
                         tmpStr = 'Failed to send transfer request : %s %s' % (errType,errValue)
                         tmpStr.strip()
@@ -312,12 +305,12 @@ class EventPicker:
                 fcntl.flock(self.evpFile.fileno(),fcntl.LOCK_UN)
                 self.evpFile.close()
                 os.remove(self.evpFileName)
-            except:
+            except Exception:
                 pass
             # successfully terminated
             self.putLog("end %s" % self.evpFileName)
             return True
-        except:
+        except Exception:
             errType,errValue = sys.exc_info()[:2]
             self.endWithError('Got exception %s:%s %s' % (errType,errValue,traceback.format_exc()))
             return False
@@ -335,10 +328,10 @@ class EventPicker:
                 os.remove(self.evpFileName)
                 # send email notification
                 self.sendEmail(False,message)
-        except:
+        except Exception:
             pass
         # upload log
-        if self.jediTaskID != None:
+        if self.jediTaskID is not None:
             outLog = self.uploadLog()
             self.taskBuffer.updateTaskErrorDialogJEDI(self.jediTaskID,'event picking failed. '+outLog)
             # update task
@@ -387,7 +380,7 @@ class EventPicker:
     
     # upload log
     def uploadLog(self):
-        if self.jediTaskID == None:
+        if self.jediTaskID is None:
             return 'cannot find jediTaskID'
         strMsg = self.logger.dumpToString()
         s,o = Client.uploadLog(strMsg,self.jediTaskID)
@@ -396,5 +389,3 @@ class EventPicker:
         if o.startswith('http'):
             return '<a href="{0}">log</a>'.format(o)
         return o
-
-

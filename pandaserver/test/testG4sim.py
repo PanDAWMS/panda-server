@@ -1,17 +1,16 @@
 import sys
 import time
-import random
-import commands
-import userinterface.Client as Client
-from taskbuffer.JobSpec import JobSpec
-from taskbuffer.FileSpec import FileSpec
+import uuid
+import pandaserver.userinterface.Client as Client
+from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.taskbuffer.FileSpec import FileSpec
 
 if len(sys.argv)>1:
     site = sys.argv[1]
 else:
     site = None
 
-datasetName = 'panda.destDB.%s' % commands.getoutput('uuidgen')
+datasetName = 'panda.destDB.%s' % str(uuid.uuid4())
 destName    = 'BNL_ATLAS_2'
 #destName    = 'BU_ATLAS_Tier2'
 
@@ -22,10 +21,10 @@ files = {
 
 jobList = []
 
-for lfn in files.keys():
+for lfn in files:
     job = JobSpec()
     job.jobDefinitionID   = int(time.time()) % 10000
-    job.jobName           = commands.getoutput('uuidgen') 
+    job.jobName           = str(uuid.uuid4())
     job.AtlasRelease      = 'Atlas-11.0.3'
     job.homepackage       = 'JobTransforms-11-00-03-02'
     job.transformation    = 'share/csc.simul.trf'
@@ -46,7 +45,7 @@ for lfn in files.keys():
     job.addFile(fileI)
 
     fileOE = FileSpec()
-    fileOE.lfn = "%s.HITS.pool.root" % commands.getoutput('uuidgen') 
+    fileOE.lfn = "%s.HITS.pool.root" % str(uuid.uuid4())
     fileOE.destinationDBlock = job.destinationDBlock
     fileOE.destinationSE     = job.destinationSE
     fileOE.dataset           = job.destinationDBlock
@@ -55,7 +54,7 @@ for lfn in files.keys():
     job.addFile(fileOE)
 
     fileOA = FileSpec()
-    fileOA.lfn = "%s.RDO.pool.root" % commands.getoutput('uuidgen') 
+    fileOA.lfn = "%s.RDO.pool.root" % str(uuid.uuid4())
     fileOA.destinationDBlock = job.destinationDBlock
     fileOA.destinationSE     = job.destinationSE
     fileOA.dataset           = job.destinationDBlock
@@ -64,7 +63,7 @@ for lfn in files.keys():
     job.addFile(fileOA)
 
     fileOL = FileSpec()
-    fileOL.lfn = "%s.job.log.tgz" % commands.getoutput('uuidgen') 
+    fileOL.lfn = "%s.job.log.tgz" % str(uuid.uuid4())
     fileOL.destinationDBlock = job.destinationDBlock
     fileOL.destinationSE     = job.destinationSE
     fileOL.dataset           = job.destinationDBlock
@@ -77,7 +76,7 @@ for lfn in files.keys():
     jobList.append(job)
     
 s,o = Client.submitJobs(jobList)
-print "---------------------"
-print s
+print("---------------------")
+print(s)
 for x in o:
-    print "PandaID=%s" % x[0]
+    print("PandaID=%s" % x[0])

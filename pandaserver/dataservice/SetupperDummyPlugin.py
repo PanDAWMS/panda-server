@@ -1,4 +1,4 @@
-from SetupperPluginBase import SetupperPluginBase
+from pandaserver.dataservice.SetupperPluginBase import SetupperPluginBase
 
 
 class SetupperDummyPlugin (SetupperPluginBase):
@@ -17,4 +17,3 @@ class SetupperDummyPlugin (SetupperPluginBase):
     # post run
     def postRun(self):
         pass
-

@@ -1,11 +1,11 @@
-from config import panda_config
+from pandaserver.config import panda_config
 
-from DBProxyPool import DBProxyPool
-from EiDBProxy import EiDBProxy
+from pandaserver.taskbuffer.DBProxyPool import DBProxyPool
+from pandaserver.taskbuffer.EiDBProxy import EiDBProxy
 
 
 # logger
-from pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger('EiTaskBuffer')
 
 
@@ -22,7 +22,7 @@ class EiTaskBuffer:
     # initialize
     def init(self):
         # create Proxy Pool
-        if self.proxyPool == None:
+        if self.proxyPool is None:
             self.proxyPool = DBProxyPool(panda_config.ei_dbhost,panda_config.ei_dbpasswd,
                                          1,dbProxyClass=EiDBProxy)
 

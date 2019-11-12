@@ -1,7 +1,7 @@
 import os
 import sys
 import requests
-from config import panda_config
+from pandaserver.config import panda_config
 
 # get secret key
 def getSecretKey(pandaID):
@@ -26,8 +26,6 @@ def getSecretKey(pandaID):
         else:
             # failed
             return None,tmpDict['errorDiag']
-    except:
+    except Exception:
         errType,errValue = sys.exc_info()[:2]
         return None,"{0}:{1}".format(errType,errValue)
-
-

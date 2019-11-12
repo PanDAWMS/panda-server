@@ -6,23 +6,26 @@ import glob
 import fcntl
 import random
 import datetime
-import commands
 import traceback
 import threading
 import multiprocessing
-import userinterface.Client as Client
-from taskbuffer.TaskBuffer import taskBuffer
-import taskbuffer.ErrorCode
-import pandalogger.PandaLogger
-from taskbuffer import EventServiceUtils
-from pandalogger.PandaLogger import PandaLogger
-from brokerage.SiteMapper import SiteMapper
-from pandautils import PandaUtils
-from pandalogger.LogWrapper import LogWrapper
+import pandaserver.userinterface.Client as Client
+from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+import pandaserver.taskbuffer.ErrorCode
+from pandaserver.taskbuffer import EventServiceUtils
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.brokerage.SiteMapper import SiteMapper
+from pandacommon.pandautils import PandaUtils
+from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandaserver.srvcore.CoreUtils import commands_get_status_output
+
+try:
+    long
+except NameError:
+    long = int
 
 # password
-from config import panda_config
-passwd = panda_config.dbpasswd
+from pandaserver.config import panda_config
 
 # logger
 _logger = PandaLogger().getLogger('add')
@@ -37,7 +40,7 @@ overallTimeout = 20
 # grace period
 try:
     gracePeriod = int(sys.argv[1])
-except:
+except Exception:
     gracePeriod = 3
 
 # current minute
@@ -49,14 +52,14 @@ try:
     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=overallTimeout)
     # get process list
     scriptName = sys.argv[0]
-    out = commands.getoutput('env TZ=UTC ps axo user,pid,lstart,args | grep %s' % scriptName)
+    out = commands_get_status_output('env TZ=UTC ps axo user,pid,lstart,args | grep %s' % scriptName)[-1]
     for line in out.split('\n'):
         items = line.split()
         # owned process
         if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
             continue
         # look for python
-        if re.search('python',line) == None:
+        if re.search('python',line) is None:
             continue
         # PID
         pid = items[1]
@@ -67,8 +70,8 @@ try:
         if startTime < timeLimit:
             tmpLog.debug("old process : %s %s" % (pid,startTime))
             tmpLog.debug(line)            
-            commands.getoutput('kill -9 %s' % pid)
-except:
+            commands_get_status_output('kill -9 %s' % pid)
+except Exception:
     type, value, traceBack = sys.exc_info()
     tmpLog.error("kill process : %s %s" % (type,value))
 
@@ -82,11 +85,11 @@ aSiteMapper = SiteMapper(taskBuffer)
 # delete
 tmpLog.debug("Del session")
 status,retSel = taskBuffer.querySQLS("SELECT MAX(PandaID) FROM ATLAS_PANDA.jobsDefined4",{})
-if retSel != None:
+if retSel is not None:
     try:
         maxID = retSel[0][0]
         tmpLog.debug("maxID : %s" % maxID)
-        if maxID != None:
+        if maxID is not None:
             varMap = {}
             varMap[':maxID'] = maxID
             varMap[':jobStatus1'] = 'activated'
@@ -94,7 +97,7 @@ if retSel != None:
             varMap[':jobStatus3'] = 'failed'
             varMap[':jobStatus4'] = 'cancelled'            
             status,retDel = taskBuffer.querySQLS("DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID<:maxID AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4)",varMap)
-    except:
+    except Exception:
         pass
 
 # count # of getJob/updateJob in dispatcher's log
@@ -113,11 +116,11 @@ try:
         timeLimitS  = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
         # check if tgz is required
         com = 'head -1 %s' % dispLogName
-        lostat,loout = commands.getstatusoutput(com)
+        lostat,loout = commands_get_status_output(com)
         useLogTgz = True
         if lostat == 0:
             match = re.search('^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}',loout)
-            if match != None:
+            if match is not None:
                 startTime = datetime.datetime(*time.strptime(match.group(0),'%Y-%m-%d %H:%M:%S')[:6])
                 # current log contains all info
                 if startTime<timeLimit:
@@ -138,10 +141,10 @@ try:
                 com = 'gunzip -c %s > %s' % (tmpDispLogName,tmpLogName)
             else:
                 com = 'cp %s %s' % (tmpDispLogName,tmpLogName)            
-            lostat,loout = commands.getstatusoutput(com)
+            lostat,loout = commands_get_status_output(com)
             if lostat != 0:
                 errMsg = 'failed to expand/copy %s with : %s' % (tmpDispLogName,loout)
-                raise RuntimeError,errMsg
+                raise RuntimeError(errMsg)
             # search string
             sStr  = '^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*'
             sStr += 'method=(.+),site=(.+),node=(.+),type=(.+)'        
@@ -150,7 +153,7 @@ try:
             for line in logFH:
                 # check format
                 match = re.search(sStr,line)
-                if match != None: 
+                if match is not None:
                     # check timerange
                     timeStamp = datetime.datetime(*time.strptime(match.group(1),'%Y-%m-%d %H:%M:%S')[:6])
                     if timeStamp < timeLimit:
@@ -165,12 +168,9 @@ try:
                     if tmpSite not in aSiteMapper.siteSpecList:
                         continue
                     # sum
-                    if not pilotCounts.has_key(tmpSite):
-                        pilotCounts[tmpSite] = {}
-                    if not pilotCounts[tmpSite].has_key(tmpMethod):
-                        pilotCounts[tmpSite][tmpMethod] = {}
-                    if not pilotCounts[tmpSite][tmpMethod].has_key(tmpNode):
-                        pilotCounts[tmpSite][tmpMethod][tmpNode] = 0
+                    pilotCounts.setdefault(tmpSite, {})
+                    pilotCounts[tmpSite].setdefault(tmpMethod, {})
+                    pilotCounts[tmpSite][tmpMethod].setdefault(tmpNode, 0)
                     pilotCounts[tmpSite][tmpMethod][tmpNode] += 1
                     # short
                     if timeStamp > timeLimitS:
@@ -184,7 +184,7 @@ try:
             # close            
             logFH.close()
         # delete tmp
-        commands.getoutput('rm %s' % tmpLogName)
+        commands_get_status_output('rm %s' % tmpLogName)
         # update
         hostID = panda_config.pserverhost.split('.')[0]
         tmpLog.debug("pilotCounts session")    
@@ -192,7 +192,7 @@ try:
         tmpLog.debug(retPC)
         retPC = taskBuffer.updateSiteData(hostID,pilotCountsS,interval=1)
         tmpLog.debug(retPC)
-except:
+except Exception:
     errType,errValue = sys.exc_info()[:2]
     tmpLog.error("updateJob/getJob : %s %s" % (errType,errValue))
 
@@ -203,7 +203,7 @@ try:
     if (currentMinute / panda_config.nrun_interval) % panda_config.nrun_hosts == panda_config.nrun_snum:
         retNR = taskBuffer.insertnRunningInSiteData()
         tmpLog.debug(retNR)
-except:
+except Exception:
     errType,errValue = sys.exc_info()[:2]
     tmpLog.error("nRunning : %s %s" % (errType,errValue))
 
@@ -225,24 +225,24 @@ class MailSender (threading.Thread):
             mailFile = open(tmpFile)
             try:
                 fcntl.flock(mailFile.fileno(), fcntl.LOCK_EX|fcntl.LOCK_NB)
-            except:
+            except Exception:
                 tmpLog.debug("mail : failed to lock %s" % tmpFile.split('/')[-1])
                 mailFile.close()
                 continue
             # start notifier
-            from dataservice.Notifier import Notifier
+            from pandaserver.dataservice.Notifier import Notifier
             nThr = Notifier(None,None,None,None,mailFile,tmpFile)
             nThr.run()
             # remove
             try:
                 os.remove(tmpFile)
-            except:
+            except Exception:
                 pass
             # unlock
             try:
                 fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
                 mailFile.close()
-            except:
+            except Exception:
                 pass
             
 # start sender
@@ -266,7 +266,7 @@ try:
                 if not fileCheckInJEDI:
                     jobSpec.jobStatus = 'closed'
                     jobSpec.jobSubStatus = 'cojumbo_wrong'
-                    jobSpec.taskBufferErrorCode = taskbuffer.ErrorCode.EC_EventServiceInconsistentIn
+                    jobSpec.taskBufferErrorCode = pandaserver.taskbuffer.ErrorCode.EC_EventServiceInconsistentIn
                 taskBuffer.archiveJobs([jobSpec],False)
         tmpLog.debug("finish {0} co-jumbo jobs in Defined".format(len(coJumboD)))
         if len(coJumboD) > 0:
@@ -276,7 +276,7 @@ try:
                 if not fileCheckInJEDI:
                     jobSpec.jobStatus = 'closed'
                     jobSpec.jobSubStatus = 'cojumbo_wrong'
-                    jobSpec.taskBufferErrorCode = taskbuffer.ErrorCode.EC_EventServiceInconsistentIn
+                    jobSpec.taskBufferErrorCode = pandaserver.taskbuffer.ErrorCode.EC_EventServiceInconsistentIn
                 taskBuffer.archiveJobs([jobSpec],True)
         tmpLog.debug("finish {0} co-jumbo jobs in Waiting".format(len(coJumboW)))
         if len(coJumboW) > 0:
@@ -286,7 +286,7 @@ try:
                 if not fileCheckInJEDI:
                     jobSpec.jobStatus = 'closed'
                     jobSpec.jobSubStatus = 'cojumbo_wrong'
-                    jobSpec.taskBufferErrorCode = taskbuffer.ErrorCode.EC_EventServiceInconsistentIn
+                    jobSpec.taskBufferErrorCode = pandaserver.taskbuffer.ErrorCode.EC_EventServiceInconsistentIn
                 taskBuffer.archiveJobs([jobSpec],False,True)
         tmpLog.debug("kill {0} co-jumbo jobs in Waiting".format(len(coJumboTokill)))
         if len(coJumboTokill) > 0:
@@ -297,7 +297,7 @@ try:
                 tmpLog.debug(' killing %s' % str(jediJobs[iJob:iJob+nJob]))
                 Client.killJobs(jediJobs[iJob:iJob+nJob],51,keepUnmerged=True)
                 iJob += nJob
-except:
+except Exception:
     errStr = traceback.format_exc()
     tmpLog.error(errStr)
 
@@ -310,7 +310,11 @@ class ForkThr (threading.Thread):
         self.fileName = fileName
 
     def run(self):
-        setupStr = 'source /etc/sysconfig/panda_server; '
+        if 'VIRTUAL_ENV' in os.environ:
+            prefix = os.environ['VIRTUAL_ENV']
+        else:
+            prefix = ''
+        setupStr = 'source {0}/etc/sysconfig/panda_server; '.format(prefix)
         runStr  = '%s/python -Wignore ' % panda_config.native_python
         runStr += panda_config.pandaPython_dir + '/dataservice/forkSetupper.py -i '
         runStr += self.fileName
@@ -318,7 +322,7 @@ class ForkThr (threading.Thread):
             runStr += ' -t'
         comStr = setupStr + runStr    
         tmpLog.debug(comStr)    
-        commands.getstatusoutput(comStr)
+        commands_get_status_output(comStr)
 
 # get set.* files
 filePatt = panda_config.logdir + '/' + 'set.*'
@@ -338,8 +342,8 @@ for tmpName in fileList:
         # takes care of only recent files
         modTime = datetime.datetime(*(time.gmtime(os.path.getmtime(tmpName))[:7]))
         if (timeNow - modTime) > datetime.timedelta(minutes=1) and \
-               (timeNow - modTime) < datetime.timedelta(hours=1):
-            cSt,cOut = commands.getstatusoutput('ps aux | grep fork | grep -v PYTH')
+                (timeNow - modTime) < datetime.timedelta(hours=1):
+            cSt,cOut = commands_get_status_output('ps aux | grep fork | grep -v PYTH')
             # if no process is running for the file
             if cSt == 0 and not tmpName in cOut:
                 nThr += 1
@@ -348,7 +352,7 @@ for tmpName in fileList:
                 forkThrList.append(thr)
                 if nThr > maxThr:
                     break
-    except:
+    except Exception:
         errType,errValue = sys.exc_info()[:2]
         tmpLog.error("%s %s" % (errType,errValue))
             
@@ -384,7 +388,7 @@ class AdderProcess:
     # main loop
     def run(self,taskBuffer,aSiteMapper,holdingAna):
         # import 
-        from dataservice.AdderGen import AdderGen
+        from pandaserver.dataservice.AdderGen import AdderGen
         # get logger
         _logger = PandaLogger().getLogger('add_process')
         # get file list
@@ -398,14 +402,14 @@ class AdderProcess:
         uMap = {}
         for file in fileList:
             match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
-            if match != None:
+            if match is not None:
                 fileName = '%s/%s' % (dirName,file)
                 id = match.group(1)
                 jobStatus = match.group(2)
-                if uMap.has_key(id):
+                if id in uMap:
                     try:
                         os.remove(fileName)
-                    except:
+                    except Exception:
                         pass
                 else:
                     if jobStatus != EventServiceUtils.esRegStatus:
@@ -436,14 +440,14 @@ class AdderProcess:
                 uMap = {}
                 for file in fileList:
                     match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
-                    if match != None:
+                    if match is not None:
                         fileName = '%s/%s' % (dirName,file)
                         id = match.group(1)
                         jobStatus = match.group(2)
-                        if uMap.has_key(id):
+                        if id in uMap:
                             try:
                                 os.remove(fileName)
-                            except:
+                            except Exception:
                                 pass
                         else:
                             if jobStatus != EventServiceUtils.esRegStatus:
@@ -462,7 +466,7 @@ class AdderProcess:
             file = fileList.pop(0)
             # check format
             match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
-            if match != None:
+            if match is not None:
                 fileName = '%s/%s' % (dirName,file)
                 if not os.path.exists(fileName):
                     continue
@@ -479,9 +483,9 @@ class AdderProcess:
                         tmpLog.debug("Add File {0} : {1}".format(os.getpid(),fileName))
                         thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
                                        ignoreTmpError=True,siteMapper=aSiteMapper)
-                    if thr != None:
+                    if thr is not None:
                         thr.run()
-                except:
+                except Exception:
                     type, value, traceBack = sys.exc_info()
                     tmpLog.error("%s %s" % (type,value))
 
@@ -506,7 +510,7 @@ varMap = {}
 varMap[':prodSourceLabel'] = 'panda'
 varMap[':jobStatus'] = 'holding'
 status,res = taskBuffer.querySQLS("SELECT PandaID from ATLAS_PANDA.jobsActive4 WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus",varMap)
-if res != None:
+if res is not None:
     for id, in res:
         holdingAna.append(id)
 tmpLog.debug("holding Ana %s " % holdingAna)
@@ -515,7 +519,7 @@ tmpLog.debug("holding Ana %s " % holdingAna)
 tmpLog.debug("Adder session")
 
 # make TaskBuffer IF
-from taskbuffer.TaskBufferInterface import TaskBufferInterface
+from pandaserver.taskbuffer.TaskBufferInterface import TaskBufferInterface
 taskBufferIF = TaskBufferInterface()
 taskBufferIF.launch(taskBuffer)
 

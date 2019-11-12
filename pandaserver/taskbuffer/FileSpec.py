@@ -37,12 +37,12 @@ class FileSpec(object):
     def __getattribute__(self,name):
         # PandaID
         if name == 'PandaID':
-            if self._owner == None:
+            if self._owner is None:
                 return 'NULL'
             return self._owner.PandaID
         # others
         ret = object.__getattribute__(self,name)
-        if ret == None:
+        if ret is None:
             return "NULL"
         return ret
 
@@ -82,13 +82,13 @@ class FileSpec(object):
     def valuesMap(self,useSeq=False,onlyChanged=False):
         ret = {}
         for attr in self._attributes:
-            if useSeq and self._seqAttrMap.has_key(attr):
+            if useSeq and attr in self._seqAttrMap:
                 continue
             if onlyChanged:
                 if attr == 'PandaID':
                     if self.PandaID == self._oldPandaID:
                         continue
-                elif not self._changedAttrs.has_key(attr):
+                elif attr not in self._changedAttrs:
                     continue
             val = getattr(self,attr)
             if val == 'NULL':
@@ -167,10 +167,10 @@ class FileSpec(object):
 
     # return expression of bind variables for INSERT
     def bindValuesExpression(cls,useSeq=False,withMod=False):
-        from config import panda_config
+        from pandaserver.config import panda_config
         ret = "VALUES("
         for attr in cls._attributes:
-            if useSeq and cls._seqAttrMap.has_key(attr):
+            if useSeq and attr in cls._seqAttrMap:
                 if panda_config.backend == 'mysql':
                     # mysql
                     ret += "%s," % "NULL"
@@ -214,7 +214,7 @@ class FileSpec(object):
     def bindUpdateChangesExpression(self):
         ret = ""
         for attr in self._attributes:
-            if self._changedAttrs.has_key(attr) or \
+            if attr in self._changedAttrs or \
                    (attr == 'PandaID' and self.PandaID != self._oldPandaID):
                 ret += '%s=:%s,' % (attr,attr)
         ret  = ret[:-1]
@@ -252,7 +252,7 @@ class FileSpec(object):
         try:
             if 'an' in self.dispatchDBlockToken.split(','):
                 return True
-        except:
+        except Exception:
             pass
         return False
 

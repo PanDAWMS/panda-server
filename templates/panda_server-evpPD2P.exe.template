@@ -6,6 +6,6 @@ source $ATLAS_LOCAL_ROOT_BASE/user/atlasLocalSetup.sh
 lsetup eiclient
 
 # import env vars from sysconfig
-source /etc/sysconfig/panda_server
+source @@virtual_env@@/etc/sysconfig/panda_server
 
-python@@python_exec_version@@ @@install_purelib@@/pandaserver/test/evpPD2P.py
+python @@install_purelib@@/pandaserver/test/evpPD2P.py

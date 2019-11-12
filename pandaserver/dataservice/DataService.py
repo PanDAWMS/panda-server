@@ -3,12 +3,9 @@ provide web service for DDM
 
 """
 
-import re
 import sys
-import cPickle as pickle
-from config import panda_config
-from taskbuffer.WrappedPickle import WrappedPickle
-from pandalogger.PandaLogger import PandaLogger
+from pandaserver.taskbuffer.WrappedPickle import WrappedPickle
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 # logger
 _logger = PandaLogger().getLogger('DataService')
@@ -33,7 +30,7 @@ web interface
 
 '''
 
-from DDMHandler import DDMHandler
+from pandaserver.dataservice.DDMHandler import DDMHandler
 
 
 # callback for dataset verification
@@ -47,7 +44,8 @@ def datasetCompleted(req,vuid,site=None):
 # get FQANs
 def _getFQAN(req):
     fqans = []
-    for tmpKey,tmpVal in req.subprocess_env.iteritems():
+    for tmpKey in req.subprocess_env:
+        tmpVal = req.subprocess_env[tmpKey]
         # compact credentials
         if tmpKey.startswith('GRST_CRED_'):
             # VOMS attribute
@@ -92,8 +90,7 @@ def updateFileStatusInDisp(req,dataset,fileStatus):
         dataService.taskBuffer.updateFileStatusInDisp(dataset,fileStatusMap)
         _logger.debug('updateFileStatusInDisp : done')
         return "True"
-    except:
+    except Exception:
         type,value,traceBack = sys.exc_info()
         _logger.error("updateFileStatusInDisp : %s %s" % (type,value))
         return "False"
-        

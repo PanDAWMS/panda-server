@@ -6,6 +6,7 @@ provide primitive methods for DDM
 import re
 import sys
 import hashlib
+import traceback
 
 from rucio.client import Client as RucioClient
 from rucio.common.exception import UnsupportedOperation,DataIdentifierNotFound,\
@@ -31,7 +32,15 @@ class RucioAPI:
 
 
     # register dataset
-    def registerDataset(self,dsn,lfns=[],guids=[],sizes=[],checksums=[],lifetime=None,scope=None,metadata=None):
+    def registerDataset(self,dsn,lfns=None,guids=None,sizes=None,checksums=None,lifetime=None,scope=None,metadata=None):
+        if lfns is None:
+            lfns = []
+        if guids is None:
+            guids = []
+        if sizes is None:
+            sizes = []
+        if checksums is None:
+            checksums = []
         presetScope = scope
         files = []
         for lfn, guid, size, checksum in zip(lfns, guids, sizes, checksums):
@@ -52,14 +61,14 @@ class RucioAPI:
             if presetScope is not None:
                 scope = presetScope
             client.add_dataset(scope=scope, name=dsn, meta=metadata)
-            if lifetime != None:
+            if lifetime is not None:
                 client.set_metadata(scope,dsn,key='lifetime',value=lifetime*86400)
         except DataIdentifierAlreadyExists:
             pass
         # open dataset just in case
         try:
             client.set_status(scope,dsn,open=True)
-        except:
+        except Exception:
             pass
         # add files
         if len(files) > 0:
@@ -76,7 +85,7 @@ class RucioAPI:
                         except FileAlreadyExists:
                             pass
                 iFiles += nFiles
-        vuid = hashlib.md5(scope+':'+dsn).hexdigest()
+        vuid = hashlib.md5((scope + ':' + dsn).encode()).hexdigest()
         vuid = '%s-%s-%s-%s-%s' % (vuid[0:8], vuid[8:12], vuid[12:16], vuid[16:20], vuid[20:32])
         duid = vuid
         return {'duid': duid, 'version': 1, 'vuid': vuid}
@@ -89,7 +98,7 @@ class RucioAPI:
         if grouping is None:
             grouping = 'DATASET'
         presetScope = scope
-        if lifetime != None:
+        if lifetime is not None:
             lifetime = lifetime*24*60*60
         scope,dsn = self.extract_scope(dsn)    
         if presetScope is not None:
@@ -132,7 +141,7 @@ class RucioAPI:
     # register dataset subscription
     def registerDatasetSubscription(self,dsn,rses,lifetime=None,owner=None,activity=None,dn=None,
                                     comment=None):
-        if lifetime != None:
+        if lifetime is not None:
             lifetime = lifetime*24*60*60
         scope, dsn = self.extract_scope(dsn)
         dids = []
@@ -213,9 +222,11 @@ class RucioAPI:
     def registerFilesInDataset(self,idMap,filesWoRSEs=None):
         # loop over all rse
         attachmentList = []
-        for rse,tmpMap in idMap.iteritems():
+        for rse in idMap:
+            tmpMap = idMap[rse]
             # loop over all datasets
-            for datasetName,fileList in tmpMap.iteritems():
+            for datasetName in tmpMap:
+                fileList = tmpMap[datasetName]
                 # extract scope from dataset
                 scope,dsn = self.extract_scope(datasetName)
                 filesWithRSE = []
@@ -224,7 +235,7 @@ class RucioAPI:
                     # convert file attribute
                     file = self.convFileAttr(tmpFile, scope)
                     # append files
-                    if rse != None and (filesWoRSEs is None or file['name'] not in filesWoRSEs):
+                    if rse is not None and (filesWoRSEs is None or file['name'] not in filesWoRSEs):
                         filesWithRSE.append(file)
                     else:
                         if 'pfn' in file:
@@ -264,7 +275,8 @@ class RucioAPI:
             return
         client = RucioClient()
         # loop over all zip files
-        for zipFileName, zipFileAttr in zipMap.iteritems():
+        for zipFileName in zipMap:
+            zipFileAttr = zipMap[zipFileName]
             # convert file attribute
             zipFile = self.convFileAttr(zipFileAttr, zipFileAttr['scope'])
             # loop over all contents
@@ -304,21 +316,21 @@ class RucioAPI:
                 if item['source'] == src:
                     try:
                         total = item['total']/1024/1024/1024
-                    except:
+                    except Exception:
                         total = None
                     try:
                         used = item['used']/1024/1024/1024
-                    except:
+                    except Exception:
                         used = None
                     try:
                         free = item['free']/1024/1024/1024
-                    except:
+                    except Exception:
                         free = None
                     retMap = {'total':total,
                               'used':used,
                               'free':free}
                     break
-        except:
+        except Exception:
             pass
         return retMap
 
@@ -338,7 +350,7 @@ class RucioAPI:
             # get dids
             client = RucioClient()
             for name in client.list_dids(scope, filters, type=collection):
-                vuid = hashlib.md5(scope + ':' + name).hexdigest()
+                vuid = hashlib.md5((scope + ':' + name).encode()).hexdigest()
                 vuid = '%s-%s-%s-%s-%s' % (vuid[0:8], vuid[8:12], vuid[12:16], vuid[16:20], vuid[20:32])
                 duid = vuid
                 # add /
@@ -351,9 +363,8 @@ class RucioAPI:
                 if keyName not in result:
                     result[keyName] = {'duid': duid, 'vuids': [vuid]}
             return result,''
-        except:
-            errType,errVale = sys.exc_info()[:2]
-            return None,'%s %s' % (errType,errVale)
+        except Exception as e:
+            return None,'%s %s' % (str(e), traceback.format_exc())
 
 
 
@@ -371,7 +382,7 @@ class RucioAPI:
                 if i['type'] == 'DATASET':
                     result.append(str('%s:%s' % (i['scope'], i['name'])))
             return result,''
-        except:
+        except Exception:
             errType,errVale = sys.exc_info()[:2]
             return None,'%s %s' % (errType,errVale)
 
@@ -392,7 +403,7 @@ class RucioAPI:
                                 'found':item["available_length"],
                                 'immutable':1}]
             return 0,retMap
-        except:
+        except Exception:
             errType,errVale = sys.exc_info()[:2]
             return 1,'%s %s' % (errType,errVale)
 
@@ -404,9 +415,10 @@ class RucioAPI:
         client = RucioClient()
         try:
             scope,dsn = self.extract_scope(dsn)
-            for tmpKey,tmpValue in metadata.iteritems():
+            for tmpKey in metadata:
+                tmpValue = metadata[tmpKey]
                 client.set_metadata(scope,dsn,key=tmpKey,value=tmpValue)
-        except:
+        except Exception:
             errType,errVale = sys.exc_info()[:2]
             return False,'%s %s' % (errType,errVale)
         return True,''
@@ -422,7 +434,7 @@ class RucioAPI:
             return True,client.get_metadata(scope,dsn)
         except DataIdentifierNotFound:
             return True,None
-        except:
+        except Exception:
             errType,errVale = sys.exc_info()[:2]
             return False,'%s %s' % (errType,errVale)
 
@@ -453,9 +465,10 @@ class RucioAPI:
             else:
                 value = 0.0001
             client.set_metadata(scope=scope, name=dsn, key='lifetime', value=value)
-        except:
-            errType,errVale = sys.exc_info()[:2]
-            return False,'%s %s' % (errType,errVale)
+        except DataIdentifierNotFound:
+            pass
+        except Exception as e:
+            return False,'%s' % str(e)
         return True,''
 
 
@@ -488,7 +501,7 @@ class RucioAPI:
                 if len(dids) % nGUID == 0 or iGUID == len(lfns):
                     for tmpDict in client.list_replicas(dids):
                         tmpLFN = str(tmpDict['name'])
-                        tmpRses = tmpDict['rses'].keys()
+                        tmpRses = list(tmpDict['rses'])
                         # RSE selection
                         if rses is not None:
                             newRSEs = []
@@ -500,7 +513,7 @@ class RucioAPI:
                             retVal[tmpLFN] = tmpRses
                     dids = []
             return True,retVal
-        except:
+        except Exception:
             errType,errVale = sys.exc_info()[:2]
             return False,'%s %s' % (errType,errVale)
 
@@ -523,9 +536,9 @@ class RucioAPI:
                         tmpScope = str(tmpDict['scope'])
                         tmpLFN = str(tmpDict['name'])
                         tmpDID = '{0}:{1}'.format(tmpScope, tmpLFN)
-                        tmpRses = tmpDict['rses'].keys()
                         # RSE selection
-                        for pfn, pfnData in tmpDict['pfns'].iteritems():
+                        for pfn in tmpDict['pfns']:
+                            pfnData = tmpDict['pfns'][pfn]
                             if (rses is None or pfnData['rse'] in rses) and pfnData['domain'] == 'zip':
                                 zipFileName = pfn.split('/')[-1]
                                 zipFileName = re.sub('\?.+$', '', zipFileName)
@@ -533,7 +546,7 @@ class RucioAPI:
                                 break
                     data = []
             return True, retVal
-        except:
+        except Exception:
             errType, errVale = sys.exc_info()[:2]
             return False, '%s %s' % (errType,errVale)
 
@@ -549,7 +562,7 @@ class RucioAPI:
         return_dict = {}
         for x in client.list_files(scope, dsn, long=long):
             tmpLFN = str(x['name'])
-            if fileList != None:
+            if fileList is not None:
                 genLFN = re.sub('\.\d+$','',tmpLFN)
                 if not tmpLFN in fileList and not genLFN in fileList:
                     continue
@@ -584,7 +597,7 @@ class RucioAPI:
             return True,nFiles
         except DataIdentifierNotFound:
             return None,'dataset not found'
-        except:
+        except Exception:
             errtype, errvalue = sys.exc_info()[:2]
             errMsg = '{0} {1}'.format(errtype.__name__, errvalue)
             return False,errMsg
@@ -605,12 +618,10 @@ class RucioAPI:
             return True,tSize
         except DataIdentifierNotFound:
             return None,'dataset not found'
-        except:
+        except Exception:
             errtype, errvalue = sys.exc_info()[:2]
             errMsg = '{0} {1}'.format(errtype.__name__, errvalue)
             return False,errMsg
-
-
 
     # delete dataset replicas
     def deleteDatasetReplicas(self,datasetName,locations):
@@ -618,46 +629,18 @@ class RucioAPI:
         scope,dsn = self.extract_scope(datasetName)
         client = RucioClient()
         try:
-            for rule in self.client.list_did_rules(scope, dsn):
-                if rule['account'] != self.client.account:
+            for rule in client.list_did_rules(scope, dsn):
+                if rule['account'] != client.account:
                     continue
                 if rule['rse_expression'] in locations:
                     client.delete_replication_rule(rule['id'])
         except DataIdentifierNotFound:
             pass
-        except:
+        except Exception:
             errtype, errvalue = sys.exc_info()[:2]
             errMsg = '{0} {1}'.format(errtype.__name__, errvalue)
             return False,errMsg
         return True,''
-
-
-
-    # list active subscriptions
-    def deleteDatasetReplicas(self,datasetName):
-        # extract scope from dataset
-        scope,dsn = self.extract_scope(datasetName)
-        client = RucioClient()
-        rse_expressions = []
-        list_rses = []
-        result = []
-        try:
-            for rule in self.client.list_did_rules(scope, dsn):
-                if rule['state'] != 'OK' and rule['rse_expression'] not in rse_expressions:
-                    rse_expressions.append(rule['rse_expression'])
-            for rse_expression in rse_expressions:
-                for rse in client.list_rses(rse_expression):
-                    if rse not in list_rses:
-                        list_rses.append(rse['rse'])
-            result = list_rses
-        except DataIdentifierNotFound:
-            pass
-        except:
-            errtype, errvalue = sys.exc_info()[:2]
-            errMsg = '{0} {1}'.format(errtype.__name__, errvalue)
-            return False,errMsg
-        return True,result
-
 
 
     # register files
@@ -711,7 +694,7 @@ class RucioAPI:
                 userInfo = {'nickname':i['account'],
                             'email':i['email']}
                 break
-            if userInfo == None:
+            if userInfo is None:
                 # remove /CN=\d
                 userName = re.sub('(/CN=\d+)+$','',userName)
                 for i in client.list_accounts(account_type='USER',identity=userName):
@@ -720,7 +703,7 @@ class RucioAPI:
                     break
             if userInfo is not None:
                 retVal = True
-        except:
+        except Exception:
             errtype, errvalue = sys.exc_info()[:2]
             errMsg = '{0} {1}'.format(errtype.__name__, errvalue)
             userInfo = errMsg
@@ -775,4 +758,3 @@ class RucioAPI:
 # instantiate
 rucioAPI = RucioAPI()
 del RucioAPI
-

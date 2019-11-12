@@ -25,7 +25,7 @@ def isCachedFile(datasetName,siteSpec):
     if not datasetName.startswith('ddo'):
         return False
     # look for three digits
-    if re.search('v\d{6}$',datasetName) == None:
+    if re.search('v\d{6}$',datasetName) is None:
         return False
     return True
 
@@ -36,7 +36,7 @@ def getSitesWithDataset(tmpDsName, siteMapper, replicaMap, cloudKey, prodSourceL
     retList = []
     retDQ2Map = {}
     # no replica map
-    if not replicaMap.has_key(tmpDsName):
+    if tmpDsName not in replicaMap:
         if getDQ2ID:
             return retDQ2Map
         return retList
@@ -73,14 +73,14 @@ def getSitesWithDataset(tmpDsName, siteMapper, replicaMap, cloudKey, prodSourceL
         if not tmpSiteSpec.ddm_input.get(scopeSiteSpec_input) and not tmpSiteSpec.setokens_input.get(scopeSiteSpec_input).values():
             continue
 
-        for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input[scopeSiteSpec_input]]+tmpSiteSpec.setokens_input[scopeSiteSpec_input].values():
+        for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input[scopeSiteSpec_input]]+list(tmpSiteSpec.setokens_input[scopeSiteSpec_input].values()):
             # prefix of DQ2 ID
             tmpDQ2IDPrefix = getDQ2Prefix(tmpSiteDQ2ID)
             # ignore empty
             if tmpDQ2IDPrefix == '':
                 continue
             # loop over all replica DQ2 IDs 
-            for tmpDQ2ID in replicaMap[tmpDsName].keys():
+            for tmpDQ2ID in replicaMap[tmpDsName]:
                 # use DATADISK or GROUPDISK 
                 if '_SCRATCHDISK'        in tmpDQ2ID or \
                        '_USERDISK'       in tmpDQ2ID or \
@@ -98,9 +98,9 @@ def getSitesWithDataset(tmpDsName, siteMapper, replicaMap, cloudKey, prodSourceL
                     if not getDQ2ID:
                         break
                     # append map
-                    if not retDQ2Map.has_key(tmpSiteName):
+                    if tmpSiteName not in retDQ2Map:
                         retDQ2Map[tmpSiteName] = []
-                    if not tmpDQ2ID in retDQ2Map[tmpSiteName]:    
+                    if not tmpDQ2ID in retDQ2Map[tmpSiteName]:
                         retDQ2Map[tmpSiteName].append(tmpDQ2ID)    
         # append
         if tmpFoundFlag:
@@ -128,9 +128,9 @@ def getEndpointsAtT1(tmpRepMap,siteMapper,cloudName):
             tmpSePat = tmpSePat.replace('*','.*')
         tmpSePat = '^' + tmpSePat +'$'
         # loop over all sites
-        for tmpSE in tmpRepMap.keys():
+        for tmpSE in tmpRepMap:
             # check match
-            if re.search(tmpSePat,tmpSE) == None:
+            if re.search(tmpSePat,tmpSE) is None:
                 continue
             # append
             if not tmpSE in retList:
@@ -158,7 +158,7 @@ def isDBR(datasetName):
 
 # check invalid characters in dataset name
 def checkInvalidCharacters(datasetName):
-    if re.match("^[A-Za-z0-9][A-Za-z0-9\.\-\_/]{1,255}$",datasetName) != None:
+    if re.match("^[A-Za-z0-9][A-Za-z0-9\.\-\_/]{1,255}$",datasetName) is not None:
         return True
     return False
 
@@ -168,7 +168,7 @@ def getDatasetType(dataset):
     datasetType = None
     try:
         datasetType = dataset.split('.')[4]
-    except:
+    except Exception:
         pass
     return datasetType
 
@@ -176,12 +176,12 @@ def getDatasetType(dataset):
 # check certificate
 def checkCertificate(certName):
     try:
-        cert = crypto.load_certificate(crypto.FILETYPE_PEM,file(certName).read())
+        cert = crypto.load_certificate(crypto.FILETYPE_PEM, open(certName).read())
         if cert.has_expired() is True:
             return False,"{0} expired".format(certName)
         else:
             return True,None
-    except:
+    except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         return False,'{0}:{1}'.format(errtype.__name__,errvalue)
 
@@ -197,7 +197,8 @@ def getSitesShareDDM(siteMapper, siteName, prodSourceLabel):
     scope_site_input, scope_site_output = select_scope(siteSpec, prodSourceLabel)
     # loop over all sites
     retSites = []
-    for tmpSiteName,tmpSiteSpec in siteMapper.siteSpecList.iteritems():
+    for tmpSiteName in siteMapper.siteSpecList:
+        tmpSiteSpec = siteMapper.siteSpecList[tmpSiteName]
         scope_tmpSite_input, scope_tmpSite_output = select_scope(tmpSiteSpec, prodSourceLabel)
         # only same type
         if siteSpec.type != tmpSiteSpec.type:
@@ -208,9 +209,9 @@ def getSitesShareDDM(siteMapper, siteName, prodSourceLabel):
         # same endpoint
         try:
             if siteSpec.ddm_input[scope_site_input] != tmpSiteSpec.ddm_input[scope_tmpSite_input] \
-                    and siteSpec.ddm_output[scope_site_output] not in tmpSiteSpec.ddm_endpoints_input[scope_tmpSite_input].all.keys():
+                    and siteSpec.ddm_output[scope_site_output] not in tmpSiteSpec.ddm_endpoints_input[scope_tmpSite_input].all:
                 continue
-        except:
+        except Exception:
             continue
         # skip itself
         if siteName == tmpSiteSpec.sitename:
@@ -224,10 +225,10 @@ def getSitesShareDDM(siteMapper, siteName, prodSourceLabel):
 
  # check if destination is specified
 def getDestinationSE(destinationDBlockToken):
-    if destinationDBlockToken != None:
+    if destinationDBlockToken is not None:
         for tmpToken in destinationDBlockToken.split(','):
             tmpMatch = re.search('^dst:([^/]*)(/.*)*$',tmpToken)
-            if tmpMatch != None:
+            if tmpMatch is not None:
                 return tmpMatch.group(1)
     return None
 
@@ -235,7 +236,7 @@ def getDestinationSE(destinationDBlockToken):
 # check if job sets destination
 def checkJobDestinationSE(tmpJob):
     for tmpFile in tmpJob.Files:
-        if getDestinationSE(tmpFile.destinationDBlockToken) != None:
+        if getDestinationSE(tmpFile.destinationDBlockToken) is not None:
             return tmpFile.destinationSE
     return None
 
@@ -243,41 +244,12 @@ def checkJobDestinationSE(tmpJob):
 
  # check if destination is distributed
 def getDistributedDestination(destinationDBlockToken):
-    if destinationDBlockToken != None:
+    if destinationDBlockToken is not None:
         for tmpToken in destinationDBlockToken.split(','):
             tmpMatch = re.search('^ddd:([^/]*)(/.*)*$',tmpToken)
-            if tmpMatch != None:
+            if tmpMatch is not None:
                 return tmpMatch.group(1)
     return None
-
-
-
-# change output of listDatasets to include dataset info
-def changeListDatasetsOut(out,datasetName=None):
-    try:
-        exec 'origMap = '+out.split('\n')[0]
-        newMap = {}
-        for tmpkey,tmpval in origMap.iteritems():
-            # rucio doesn't put / for container
-            rucioConvention = False
-            if datasetName != None and datasetName.endswith('/') and not tmpkey.endswith('/'):
-                rucioConvention = True
-            # original key-value
-            newMap[tmpkey] = tmpval
-            if rucioConvention:
-                # add /
-                newMap[tmpkey+'/'] = tmpval
-            # remove scope
-            if ':' in tmpkey:
-                newMap[tmpkey.split(':')[-1]] = tmpval
-                if rucioConvention:
-                    # add /
-                    newMap[tmpkey.split(':')[-1]+'/'] = tmpval
-        return str(newMap)
-    except:
-        pass
-    return out
-    
 
 
 # extract importand error string
@@ -291,7 +263,7 @@ def extractImportantError(out):
                     retStr += line
                     retStr += ' '
         retStr = retStr[:-1]
-    except:
+    except Exception:
         pass
     return retStr
 

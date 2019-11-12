@@ -1,8 +1,8 @@
 import datetime
-import commands
 import threading
 
-from pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
 # logger
 _logger = PandaLogger().getLogger('ProcessLimiter')
@@ -22,7 +22,7 @@ class ProcessLimiter:
         # lock
         self.dataLock.acquire()
         # update
-        if self.summary.has_key(dataName):
+        if dataName in self.summary:
             self.summary[dataName] += change
         # release
         self.dataLock.release()
@@ -41,7 +41,7 @@ class ProcessLimiter:
         _logger.debug('%s got lock' % timestamp)
         # execute
         self.updateSummary('nRunning',1)
-        status,output = commands.getstatusoutput(commandStr)
+        status,output = commands_get_status_output(commandStr)
         _logger.debug('%s executed' % timestamp)        
         self.updateSummary('nRunning',-1)
         # release queue
@@ -50,5 +50,3 @@ class ProcessLimiter:
         self.updateSummary('nQueued',-1)        
         # return
         return status,output
-        
-        

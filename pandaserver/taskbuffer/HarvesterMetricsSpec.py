@@ -5,6 +5,11 @@ worker specification
 
 import datetime
 
+try:
+    unicode
+except NameError:
+    unicode = str
+
 
 class HarvesterMetricsSpec(object):
     # attributes
@@ -77,7 +82,7 @@ class HarvesterMetricsSpec(object):
 
     # return expression of bind variables for INSERT
     def bindValuesExpression(cls):
-        from config import panda_config
+        from pandaserver.config import panda_config
         ret = "VALUES("
         for attr in cls._attributes:
             ret += ":%s," % attr

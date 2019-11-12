@@ -1,4 +1,4 @@
-from taskbuffer import EventServiceUtils
+from pandaserver.taskbuffer import EventServiceUtils
 
 
 class SetupperPluginBase(object):
@@ -14,20 +14,21 @@ class SetupperPluginBase(object):
         self.taskBuffer = taskBuffer
         self.logger = logger
         # set named parameters
-        for tmpKey,tmpVal in params.iteritems():
+        for tmpKey in params:
+            tmpVal = params[tmpKey]
             setattr(self,tmpKey,tmpVal)
         # set defaults
-        for tmpKey,tmpVal in defaultMap.iteritems():
+        for tmpKey in defaultMap:
+            tmpVal = defaultMap[tmpKey]
             if not hasattr(self,tmpKey):
                 setattr(self,tmpKey,tmpVal)
-
 
     # abstracts
     def run(self):
         pass
+
     def postRun(self):
         pass
-
 
     # update failed jobs
     def updateFailedJobs(self,jobs):

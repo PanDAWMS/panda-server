@@ -4,10 +4,6 @@
 #
 #
 
-release_version='0.0.2'
-panda_user = 'atlpan'
-panda_group = 'zp'
-
 # set PYTHONPATH to use the current directory first
 import sys
 sys.path.insert(0,'.')
@@ -16,10 +12,26 @@ import os
 import pwd
 import grp
 import re
-import commands
-from distutils.core import setup
-from distutils.command.install import install as install_org
+import site
+import stat
+import getpass
+import socket
+import distutils
+from setuptools import setup
+from setuptools.command.install import install as install_org
 from distutils.command.install_data import install_data as install_data_org
+
+# user
+if os.getgid() == 0:
+    panda_user = 'atlpan'
+    panda_group = 'zp'
+else:
+    panda_user = getpass.getuser()
+    panda_group = grp.getgrgid(os.getgid()).gr_name
+
+# package version
+import PandaPkgInfo
+release_version = PandaPkgInfo.release_version
 
 # get panda specific params
 optPanda = {}
@@ -38,7 +50,7 @@ while idx < len(sys.argv):
             tmpVal = sys.argv[idx]
             idx += 1
         else:
-            raise RuntimeError,"invalid panda option : %s" % tmpArg
+            raise RuntimeError("invalid panda option : %s" % tmpArg)
         # get key             
         tmpKey = re.sub('--panda_','',tmpArg)
         # set params
@@ -56,6 +68,11 @@ class install_panda(install_org):
     def initialize_options (self):
         install_org.initialize_options(self)
 
+    # disable egg
+    def finalize_options(self):
+        install_org.finalize_options(self)
+        self.single_version_externally_managed = True
+
 # generates files using templates and install them
 class install_data_panda (install_data_org):
 
@@ -65,6 +82,12 @@ class install_data_panda (install_data_org):
         self.panda_user = panda_user
         self.panda_group = panda_group
         self.python_exec_version = '%s.%s' % sys.version_info[:2]
+        if 'VIRTUAL_ENV' in os.environ:
+            self.virtual_env = os.environ['VIRTUAL_ENV']
+            self.virtual_env_setup = 'source {0}/bin/activate'.format(os.environ['VIRTUAL_ENV'])
+        else:
+            self.virtual_env = ''
+            self.virtual_env_setup = ''
         
     def finalize_options (self):
         # set install_purelib
@@ -73,29 +96,52 @@ class install_data_panda (install_data_org):
         # set reaming params
         install_data_org.finalize_options(self)
         # set hostname
-        if optPanda.has_key('hostname') and optPanda['hostname'] != '':
+        if 'hostname' in optPanda and optPanda['hostname'] != '':
             self.hostname = optPanda['hostname']
         else:
-            self.hostname = commands.getoutput('hostname -f')
+            self.hostname = socket.getfqdn()
         # set user and group
-        if optPanda.has_key('username') and optPanda['username'] != '':
+        if 'username' in optPanda and optPanda['username'] != '':
             self.username  = optPanda['username']
         else:
-            self.username  = commands.getoutput('id -un')
-        if optPanda.has_key('usergroup') and optPanda['usergroup'] != '':
+            self.username  = getpass.getuser()
+        if 'usergroup' in optPanda and optPanda['usergroup'] != '':
             self.usergroup = optPanda['usergroup']
         else:
-            self.usergroup = commands.getoutput('id -gn')             
+            self.usergroup = grp.getgrgid(os.getgid()).gr_name
         
     
     def run (self):
+        # setup.py install sets install_dir to /usr
+        if self.install_dir == '/usr':
+            self.install_dir = '/'
+        elif 'bdist_wheel' in self.distribution.get_cmdline_options():
+            # wheel
+            self.install_dir = self.prefix
+            self.install_purelib = distutils.sysconfig.get_python_lib()
+            self.install_scripts = os.path.join(self.prefix, 'bin')
+        if not self.install_dir:
+            if self.root:
+                # rpm
+                self.install_dir = self.prefix
+                self.install_purelib = distutils.sysconfig.get_python_lib()
+                self.install_scripts = os.path.join(self.prefix, 'bin')
+            else:
+                # sdist
+                if not self.prefix:
+                    if '--user' in self.distribution.script_args:
+                        self.install_dir = site.USER_BASE
+                    else:
+                        self.install_dir = site.PREFIXES[0]
+                else:
+                    self.install_dir = self.prefix
         # remove /usr for bdist/bdist_rpm
         match = re.search('(build/[^/]+/dumb)/usr',self.install_dir)
-        if match != None:
+        if match is not None:
             self.install_dir = re.sub(match.group(0),match.group(1),self.install_dir)
         # remove /var/tmp/*-buildroot for bdist_rpm
         match = re.search('(/var/tmp/.*-buildroot)/usr',self.install_dir)
-        if match != None:
+        if match is not None:
             self.install_dir = re.sub(match.group(0),match.group(1),self.install_dir)
         # create tmp area
         tmpDir = 'build/tmp'
@@ -106,7 +152,7 @@ class install_data_panda (install_data_org):
             for srcFile in dataFiles:
                 # check extension
                 if not srcFile.endswith('.template'):
-                    raise RuntimeError,"%s doesn't have the .template extension" % srcFile
+                    raise RuntimeError("%s doesn't have the .template extension" % srcFile)
                 # dest filename
                 destFile = re.sub('(\.exe)*\.template$','',srcFile)
                 destFile = re.sub(r'^templates/','',destFile)
@@ -120,7 +166,7 @@ class install_data_panda (install_data_org):
                 # replace patterns
                 for item in re.findall('@@([^@]+)@@',filedata):
                     if not hasattr(self,item):
-                        raise RuntimeError,'unknown pattern %s in %s' % (item,srcFile)
+                        raise RuntimeError('unknown pattern %s in %s' % (item,srcFile))
                     # get pattern
                     patt = getattr(self,item)
                     # remove install root, if any
@@ -142,7 +188,8 @@ class install_data_panda (install_data_org):
                 oFile.close()
                 # chmod for exe
                 if srcFile.endswith('.exe.template'):
-                    commands.getoutput('chmod +x %s' % destFile)
+                    tmp_st = os.stat(destFile)
+                    os.chmod(destFile, tmp_st.st_mode | stat.S_IEXEC | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
                 # append
                 newFilesList.append(destFile)
             # replace dataFiles to install generated file
@@ -151,13 +198,24 @@ class install_data_panda (install_data_org):
         self.data_files = new_data_files
         install_data_org.run(self)
         
-        #post install
+        # post install
         uid = pwd.getpwnam(panda_user).pw_uid
         gid = grp.getgrnam(panda_group).gr_gid
         for directory in ['/var/log/panda', '/var/log/panda/wsgisocks', '/var/log/panda/fastsocks']:
+            directory = self.virtual_env + directory
             if not os.path.exists(directory):
                 os.makedirs(directory)
-                os.chown(directory, uid, gid)                
+                os.chown(directory, uid, gid)
+        if self.virtual_env != '':
+            target_dir = os.path.join(self.virtual_env, 'etc/sysconfig')
+            if not os.path.exists(target_dir):
+                os.makedirs(target_dir)
+            target = os.path.join(target_dir,'panda_server')
+            if not os.path.exists(target):
+                os.symlink(os.path.join(self.virtual_env, 'etc/panda/panda_server.sysconfig'),
+                           target)
+
+
         
 # setup for distutils
 setup(
@@ -169,12 +227,18 @@ setup(
     author='Panda Team',
     author_email='atlas-adc-panda@cern.ch',
     url='https://twiki.cern.ch/twiki/bin/view/Atlas/PanDA',
+    zip_safe=False,
+    install_requires=['panda-common',
+                      'pyOpenSSL',
+                      #'rucio-clients'
+                      ],
     packages=[ 'pandaserver',
                'pandaserver.brokerage',
                'pandaserver.config',
                'pandaserver.dataservice',
                'pandaserver.jobdispatcher',
                'pandaserver.server',
+               'pandaserver.srvcore',
                'pandaserver.taskbuffer',
                'pandaserver.test',
                'pandaserver.test.lsst',
@@ -186,10 +250,9 @@ setup(
     package_data = {'pandaserver.server': ['.gacl']},
     data_files=[
                 # config files 
-                ('/etc/panda', ['templates/panda_server-httpd.conf.rpmnew.template',
+                ('etc/panda', ['templates/panda_server-httpd.conf.rpmnew.template',
                                'templates/panda_server-httpd-FastCGI.conf.rpmnew.template',
                                'templates/panda_server.cfg.rpmnew.template',
-                               'templates/panda_server-grid-env.template',
                                'templates/pandasrv.cron.template',
                                'templates/logrotate.d/panda_server.logrotate.template',
                                'templates/sysconfig/panda_server.sysconfig.template'
@@ -197,33 +260,25 @@ setup(
                  ),
 
                 # init script
-                ('/etc/rc.d/init.d', ['templates/init.d/panda_server.exe.template',
+                ('etc/rc.d/init.d', ['templates/init.d/panda_server.exe.template',
                                    ]
                  ),
                 # crons
-                ('/usr/bin', ['templates/panda_server-add.exe.template',
+                ('usr/bin', ['templates/panda_server-add.exe.template',
                              'templates/panda_server-priority.exe.template',
                              'templates/panda_server-copyArchive.exe.template',
-                             'templates/panda_server-copyROOT.exe.template',
                              'templates/panda_server-vomsrenew.exe.template',
-                             'templates/panda_server-archivelog.exe.template',
                              'templates/panda_server-tmpwatch.exe.template',
-                             'templates/panda_server-backupJobArch.exe.template',
-                             'templates/panda_server-deleteJobs.exe.template',
-                             'templates/panda_server-merge.exe.template',
                              'templates/panda_server-datasetManager.exe.template',
                              'templates/panda_server-evpPD2P.exe.template',
                              'templates/panda_server-callback.exe.template',
                              'templates/panda_server-makeSlsXml.exe.template',
                              'templates/panda_server-boostUser.exe.template',
-                             'templates/panda_server-runRebro.exe.template',
                              'templates/panda_server-proxyCache.exe.template',
-                             'templates/panda_server-shareMgr.exe.template',
                              'templates/panda_server-configurator.exe.template',
                              'templates/panda_server-network_configurator.exe.template',
                              'templates/panda_server-schedconfig_json.exe.template',
                              'templates/panda_server-esPreemption.exe.template',
-                             'templates/panda_server-harvesterCtl.exe.template',
                              'templates/panda_server-pilot_streaming.exe.template',
                              'templates/panda_server-frontier_retagging.exe.template'
                              ]

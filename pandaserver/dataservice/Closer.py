@@ -5,18 +5,11 @@ update dataset DB, and then close dataset and start Activator if needed
 
 import re
 import sys
-import time
-import urllib
-import commands
-import Notifier
-from Activator import Activator
-from pandalogger.PandaLogger import PandaLogger
-from taskbuffer.JobSpec import JobSpec
-from taskbuffer.FileSpec import FileSpec
-from taskbuffer.DatasetSpec import DatasetSpec
-from taskbuffer import EventServiceUtils
-from brokerage.SiteMapper import SiteMapper
-from config import panda_config
+from pandaserver.dataservice import Notifier
+from pandaserver.dataservice.Activator import Activator
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.taskbuffer import EventServiceUtils
+from pandaserver.config import panda_config
 
 # logger
 _logger = PandaLogger().getLogger('Closer')
@@ -26,7 +19,6 @@ def initLogger(pLogger):
     global _logger
     _logger = pLogger
     Notifier.initLogger(_logger)
-    RetryMaker.initLogger(_logger)
     
 
 class Closer:
@@ -65,16 +57,16 @@ class Closer:
                     _logger.debug('%s skip %s' % (self.pandaID,destinationDBlock))                
                     continue
                 # ignore HC datasets
-                if re.search('^hc_test\.',destinationDBlock) != None or re.search('^user\.gangarbt\.',destinationDBlock) != None:
-                    if re.search('_sub\d+$',destinationDBlock) == None and re.search('\.lib$',destinationDBlock) == None:
+                if re.search('^hc_test\.',destinationDBlock) is not None or re.search('^user\.gangarbt\.',destinationDBlock) is not None:
+                    if re.search('_sub\d+$',destinationDBlock) is None and re.search('\.lib$',destinationDBlock) is None:
                         _logger.debug('%s skip HC %s' % (self.pandaID,destinationDBlock))                
                         continue
                 # query dataset
-                if self.datasetMap.has_key(destinationDBlock):
+                if destinationDBlock in self.datasetMap:
                     dataset = self.datasetMap[destinationDBlock]
                 else:
                     dataset = self.taskBuffer.queryDatasetWithMap({'name':destinationDBlock})
-                if dataset == None:
+                if dataset is None:
                     _logger.error('%s Not found : %s' % (self.pandaID,destinationDBlock))
                     flagComplete = False
                     continue
@@ -139,7 +131,7 @@ class Closer:
                             # update if it is the first attempt
                             if topUserDsName != dataset.name and not topUserDsName in topUserDsList and self.job.lockedby != 'jedi':
                                 topUserDs = self.taskBuffer.queryDatasetWithMap({'name':topUserDsName})
-                                if topUserDs != None:
+                                if topUserDs is not None:
                                     # check status
                                     if topUserDs.status in ['completed','cleanup','tobeclosed','deleted',
                                                             'tobemerged','merging']:
@@ -166,14 +158,14 @@ class Closer:
                             # get parent dataset for merge job
                             if self.job.processingType == 'usermerge':
                                 tmpMatch = re.search('--parentDS ([^ \'\"]+)',self.job.jobParameters)
-                                if tmpMatch == None:
+                                if tmpMatch is None:
                                     _logger.error('%s failed to extract parentDS' % self.pandaID)
                                 else:
                                     unmergedDsName = tmpMatch.group(1)
                                     # update if it is the first attempt
                                     if not unmergedDsName in topUserDsList:
                                         unmergedDs = self.taskBuffer.queryDatasetWithMap({'name':unmergedDsName})
-                                        if unmergedDs == None:
+                                        if unmergedDs is None:
                                             _logger.error('%s failed to get parentDS=%s from DB' % (self.pandaID,unmergedDsName))
                                         else:
                                             # check status
@@ -192,7 +184,7 @@ class Closer:
                                                 else:
                                                     _logger.debug('%s failed to update parent dataset : %s' % (self.pandaID,unmergedDsName))
                         # start Activator
-                        if re.search('_sub\d+$',dataset.name) == None:
+                        if re.search('_sub\d+$',dataset.name) is None:
                             if self.job.prodSourceLabel=='panda' and self.job.processingType in ['merge','unmerge']:
                                 # don't trigger Activator for merge jobs
                                 pass
@@ -216,11 +208,11 @@ class Closer:
             # special actions for vo
             if flagComplete:
                 closerPluginClass = panda_config.getPlugin('closer_plugins',self.job.VO)
-                if closerPluginClass == None and self.job.VO == 'atlas':
+                if closerPluginClass is None and self.job.VO == 'atlas':
                     # use ATLAS plugin for ATLAS
-                    from CloserAtlasPlugin import CloserAtlasPlugin
+                    from pandaserver.dataservice.CloserAtlasPlugin import CloserAtlasPlugin
                     closerPluginClass = CloserAtlasPlugin
-                if closerPluginClass != None:
+                if closerPluginClass is not None:
                     closerPlugin = closerPluginClass(self.job,finalStatusDS,_logger)
                     closerPlugin.execute()
             # change pending jobs to failed
@@ -254,7 +246,7 @@ class Closer:
                         nThr.run()
                         _logger.debug('%s end Notifier' % self.pandaID)                    
             _logger.debug('%s End' % self.pandaID)
-        except:
+        except Exception:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("%s %s" % (errType,errValue))
             

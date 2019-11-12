@@ -21,7 +21,3 @@ class CloudSpec(object):
         for attr in self._attributes:
             str += '%s:%s ' % (attr,getattr(self,attr))
         return str
-
-        
-
-                       

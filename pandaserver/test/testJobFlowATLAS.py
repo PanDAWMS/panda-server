@@ -13,17 +13,25 @@ import nose
 import time
 import uuid
 import socket
-import urlparse
+try:
+    from urlparse import parse_qs
+except ImportError:
+    from urllib.parse import parse_qs
 import hashlib
 
-import userinterface.Client as Client
-from taskbuffer.JobSpec import JobSpec
-from taskbuffer.FileSpec import FileSpec
-from taskbuffer.TaskBuffer import taskBuffer
-from config import panda_config
-from testutils import sendCommand
+try:
+    long
+except NameError:
+    long = int
 
-from pandalogger.PandaLogger import PandaLogger
+import pandaserver.userinterface.Client as Client
+from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.taskbuffer.FileSpec import FileSpec
+from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+from pandaserver.config import panda_config
+from pandaserver.test.testutils import sendCommand
+
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger('testJobFlowATLAS')
 
 class JobFlowATLAS(object):
@@ -179,7 +187,7 @@ class JobFlowATLAS(object):
         node['node'] = socket.getfqdn()
         
         data = sendCommand(function, node)
-        jobD = urlparse.parse_qs(data)   #jobD indicates it's a job in dictionary format, not a JobSpec object
+        jobD = parse_qs(data)   #jobD indicates it's a job in dictionary format, not a JobSpec object
         return jobD
 
 
@@ -279,7 +287,7 @@ def testFlow():
 
     #Step 0: Create the testing class
     test = JobFlowATLAS(site, cloud, nJobs)
-    assert test != None, "JobFlowATLAS not created correctly"
+    assert test is not None, "JobFlowATLAS not created correctly"
 
     #Step 1: Create and submit test jobs 
     test.generateJobs()

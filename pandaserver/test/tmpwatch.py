@@ -23,7 +23,7 @@ for tmpPatt in tmpPatts:
     # loop over all files
     for tmpFile in tmpFiles:
         try:
-            print 'INFO: tmpfile -> %s' % tmpFile
+            print('INFO: tmpfile -> %s' % tmpFile)
             # only file
             if not os.path.isfile(tmpFile):
                 continue
@@ -39,9 +39,9 @@ for tmpPatt in tmpPatts:
             if timeStamp > timeLimit:
                 continue
             # remove
-            print 'INFO:    remove %s' % tmpFile
+            print('INFO:    remove %s' % tmpFile)
             if not options.test:
                 os.remove(tmpFile)
-        except:
+        except Exception:
             errType,errValue = sys.exc_info()[:2]
-            print 'ERROR:   failed with %s:%s' % (errType,errValue)
+            print('ERROR:   failed with %s:%s' % (errType,errValue))

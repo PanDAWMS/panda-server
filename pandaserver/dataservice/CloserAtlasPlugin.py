@@ -1,7 +1,8 @@
 import re
 import sys
-from pandalogger.LogWrapper import LogWrapper
-from DDM import rucioAPI
+from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandaserver.dataservice.DDM import rucioAPI
+
 
 # plugin for ATLAS closer
 class CloserAtlasPlugin:
@@ -25,20 +26,17 @@ class CloserAtlasPlugin:
                 return True
             # close datasets
             for datasetSpec in self.datasets:
-                if re.search('_sub\d+$',datasetSpec.name) == None:
+                if re.search('_sub\d+$',datasetSpec.name) is None:
                     continue
                 if datasetSpec.status != 'tobeclosed':
                     continue
                 try:
                     self.tmpLog.debug('immediate close {0}'.format(datasetSpec.name))
                     rucioAPI.closeDataset(datasetSpec.name)
-                except:
+                except Exception:
                     errtype,errvalue = sys.exc_info()[:2]
                     self.tmpLog.warning('failed to close : {0} {1}'.format(errtype,errvalue))
-        except:
+        except Exception:
             errtype,errvalue = sys.exc_info()[:2]
             self.tmpLog.warning('failed to execute : {0} {1}'.format(errtype,errvalue))
         return True
-        
-
-        

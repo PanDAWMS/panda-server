@@ -1,6 +1,6 @@
 import sys
 import optparse
-import userinterface.Client as Client
+import pandaserver.userinterface.Client as Client
 
 optP = optparse.OptionParser(conflict_handler="resolve",usage="%prog [options] <PandaID>")
 optP.add_option('--on',action='store_const',const=True,dest='modeOn',
@@ -11,7 +11,7 @@ options,args = optP.parse_args()
 
 
 if (options.modeOn and options.modeOff) or (not options.modeOn and not options.modeOff):
-    print "ERROR: please set --on or --off"
+    print("ERROR: please set --on or --off")
     sys.exit(1)
 
 if options.modeOn:
@@ -20,10 +20,10 @@ else:
     s,o = Client.setDebugMode(args[0],False)
 
 if o == 'Succeeded':
-    print o
+    print(o)
 else:
-    print "ERROR:",o
+    print("ERROR:",o)
 if s != 0:
-    print "ERROR: communication failure to the panda server"
+    print("ERROR: communication failure to the panda server")
     sys.exit(1)
 sys.exit(0)
