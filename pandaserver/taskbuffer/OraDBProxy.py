@@ -2511,7 +2511,9 @@ class DBProxy:
                                                              WHERE hw.workerid = hrjw.workerid AND hw.harvesterid = hrjw.harvesterid AND hrjw.pandaid = :PandaID) 
                                      """                                    
                             varMap[':PandaID'] = pandaID
-                            _logger.debug("updateJobStatus : succeeded to update CE from harvester table for pandaID {0}".format(pandaID))
+                            self.cur.execute(sql_ce + comment, varMap)
+                            nRow = self.cur.rowcount
+                            _logger.debug("updateJobStatus : succeeded to update CE from harvester table for pandaID {0} (rowcount={1})".format(pandaID, nRow))
                         except Exception:
                             _logger.error("updateJobStatus : failed to update CE from harvester table with {0} for PanDAID {1}".format(traceback.format_exc(), pandaID))
                 else:
