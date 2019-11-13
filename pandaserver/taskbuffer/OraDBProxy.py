@@ -2502,6 +2502,18 @@ class DBProxy:
                         self.cur.execute(sqlJWU + comment, varMap)
                         nRow = self.cur.rowcount
                         _logger.debug("updateJobStatus : {0} workers updated for pandaID {1}".format(nRow, pandaID))
+
+                        try:
+                            # try to update the computing element from the harvester worker table
+                            sql_ce = """
+                                     UPDATE ATLAS_PANDA.jobsActive4 where PandaID=:PandaID 
+                                     SET computingelement = (SELECT computingelement FROM atlas_panda.harvester_workers hw, atlas_panda.Harvester_Rel_Jobs_Workers hrjw
+                                                             WHERE hw.workerid = hrjw.workerid AND hw.harvesterid = hrjw.harvesterid AND hrjw.pandaid = :PandaID) 
+                                     """                                    
+                            varMap[':PandaID'] = pandaID
+                            _logger.debug("updateJobStatus : succeeded to update CE from harvester table for pandaID {0}".format(pandaID))
+                        except Exception:
+                            _logger.error("updateJobStatus : failed to update CE from harvester table with {0} for PanDAID {1}".format(traceback.format_exc(), pandaID))
                 else:
                     _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s notFound" % (pandaID,attemptNr))
                     # already deleted or bad attempt number
