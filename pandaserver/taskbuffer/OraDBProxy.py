@@ -2506,9 +2506,10 @@ class DBProxy:
                         try:
                             # try to update the computing element from the harvester worker table
                             sql_ce = """
-                                     UPDATE ATLAS_PANDA.jobsActive4 where PandaID=:PandaID 
+                                     UPDATE ATLAS_PANDA.jobsActive4  
                                      SET computingelement = (SELECT computingelement FROM atlas_panda.harvester_workers hw, atlas_panda.Harvester_Rel_Jobs_Workers hrjw
-                                                             WHERE hw.workerid = hrjw.workerid AND hw.harvesterid = hrjw.harvesterid AND hrjw.pandaid = :PandaID) 
+                                                             WHERE hw.workerid = hrjw.workerid AND hw.harvesterid = hrjw.harvesterid AND hrjw.pandaid = :PandaID)
+                                     where PandaID=:PandaID
                                      """                                    
                             varMap = {':PandaID': pandaID}
                             self.cur.execute(sql_ce + comment, varMap)
