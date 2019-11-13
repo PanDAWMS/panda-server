@@ -2510,7 +2510,7 @@ class DBProxy:
                                      SET computingelement = (SELECT computingelement FROM atlas_panda.harvester_workers hw, atlas_panda.Harvester_Rel_Jobs_Workers hrjw
                                                              WHERE hw.workerid = hrjw.workerid AND hw.harvesterid = hrjw.harvesterid AND hrjw.pandaid = :PandaID) 
                                      """                                    
-                            varMap[':PandaID'] = pandaID
+                            varMap = {':PandaID': pandaID}
                             self.cur.execute(sql_ce + comment, varMap)
                             nRow = self.cur.rowcount
                             _logger.debug("updateJobStatus : succeeded to update CE from harvester table for pandaID {0} (rowcount={1})".format(pandaID, nRow))
