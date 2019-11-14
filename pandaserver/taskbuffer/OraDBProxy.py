@@ -21279,8 +21279,6 @@ class DBProxy:
             sqlI += 'VALUES (:harvester_ID, :siteName, :jobType, :resourceType, :status, :n_workers, CURRENT_DATE) '
             
             for jobType, jt_params in paramsList.iteritems():
-                if jobType == "null":
-
                 for resourceType, params in jt_params.iteritems():
                     if resourceType == 'Undefined':
                         continue
