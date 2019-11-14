@@ -21241,6 +21241,7 @@ class DBProxy:
                     varMap[':status'] = status
                     varMap[':resourceType'] = resourceType
                     varMap[':n_workers'] = n_workers
+                    varMap[':jobType'] = 'DUMMY'
                     self.cur.execute(sqlI+comment, varMap)
             # commit
             if not self._commit():
@@ -21278,6 +21279,8 @@ class DBProxy:
             sqlI += 'VALUES (:harvester_ID, :siteName, :jobType, :resourceType, :status, :n_workers, CURRENT_DATE) '
             
             for jobType, jt_params in paramsList.iteritems():
+                if jobType == "null":
+
                 for resourceType, params in jt_params.iteritems():
                     if resourceType == 'Undefined':
                         continue
