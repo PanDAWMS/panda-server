@@ -3640,18 +3640,6 @@ class TaskBuffer:
         return ret
 
 
-    # load activated job stats
-    def ups_load_activated_job_stats(self, ups_queues):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        ret = proxy.ups_load_activated_job_stats(ups_queues)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-
     # load harvester worker stats
     def ups_load_worker_stats_legacy(self):
         # get DBproxy
@@ -3664,12 +3652,12 @@ class TaskBuffer:
         return ret
 
 
-    # load activated job stats
-    def ups_load_activated_job_stats_legacy(self, ups_queues):
+    # get the distribution of new workers to submit
+    def ups_new_worker_distribution(self, queue, worker_stats):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.ups_load_activated_job_stats_legacy(ups_queues)
+        ret = proxy.ups_new_worker_distribution(queue, worker_stats)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -3677,11 +3665,11 @@ class TaskBuffer:
 
 
     # get the distribution of new workers to submit
-    def ups_new_worker_distribution(self, queue, worker_stats):
+    def ups_new_worker_distribution_legacy(self, queue, worker_stats):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.ups_new_worker_distribution(queue, worker_stats)
+        ret = proxy.ups_new_worker_distribution_legacy(queue, worker_stats)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
