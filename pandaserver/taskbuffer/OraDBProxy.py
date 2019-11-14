@@ -21227,8 +21227,8 @@ class DBProxy:
             varMap[':siteName'] = siteName
             self.cur.execute(sqlDel+comment, varMap)
             # insert new site data
-            sqlI = 'INSERT INTO ATLAS_PANDA.Harvester_Worker_Stats (harvester_ID,computingSite,resourceType,status,n_workers,lastUpdate) '
-            sqlI += 'VALUES (:harvester_ID,:siteName,:resourceType,:status,:n_workers,CURRENT_DATE) '
+            sqlI = 'INSERT INTO ATLAS_PANDA.Harvester_Worker_Stats (harvester_ID,computingSite,resourceType,jobType,status,n_workers,lastUpdate) '
+            sqlI += 'VALUES (:harvester_ID,:siteName,:resourceType,:jobType,:status,:n_workers,CURRENT_DATE) '
             for resourceType in paramsList:
                 params = paramsList[resourceType]
                 if resourceType == 'Undefined':
