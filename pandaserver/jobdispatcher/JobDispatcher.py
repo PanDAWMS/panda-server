@@ -997,8 +997,9 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
         param['cpuConversion']=cpuConversionFactor
     if pilotTiming is not None:
         param['pilotTiming']=pilotTiming
-    if computingElement is not None:
-        param['computingElement']=computingElement
+    # disable pilot CE reporting. We will fill it from harvester table
+    #if computingElement is not None:
+    #    param['computingElement']=computingElement
     if nEvents is not None:
         param['nEvents']=nEvents
     if nInputFiles is not None:
