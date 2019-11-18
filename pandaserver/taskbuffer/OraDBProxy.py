@@ -21847,7 +21847,8 @@ class DBProxy:
                 # if we reached the limit for the resource type, skip the job
                 if resource_type in resource_type_limits and resource_type_limits[resource_type] <= 0:
                     continue
-                workers_queued.setdefault(job_type, {resource_type: 0})
+                workers_queued.setdefault(job_type, {})
+                workers_queued[job_type].setdefault(resource_type, 0)
                 workers_queued[job_type][resource_type] = workers_queued[job_type][resource_type] - 1
                 if workers_queued[job_type][resource_type] <= 0:
                     # we've gone over the jobs that already have a queued worker, now we go for new workers
