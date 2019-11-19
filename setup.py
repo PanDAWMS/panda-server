@@ -280,6 +280,7 @@ setup(
                              'templates/panda_server-schedconfig_json.exe.template',
                              'templates/panda_server-esPreemption.exe.template',
                              'templates/panda_server-pilot_streaming.exe.template',
+                             'templates/panda_server-pilot_streaming_legacy.exe.template',
                              'templates/panda_server-frontier_retagging.exe.template'
                              ]
                  ),

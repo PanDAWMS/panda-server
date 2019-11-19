@@ -1,7 +1,7 @@
 import re
 import sys
-import time
 import traceback
+import time
 import fcntl
 import random
 import datetime
@@ -9,6 +9,7 @@ import uuid
 from pandaserver.brokerage import ErrorCode
 from pandaserver.taskbuffer import ProcessGroups
 from pandaserver.dataservice import DataServiceUtils
+from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.DDM import rucioAPI
 from pandaserver.config import panda_config
 
@@ -75,18 +76,18 @@ def _checkRelease(jobRels,siteRels):
 
 
 # get list of files which already exist at the site
-def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,tmpLog=None,
+def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,prodsourcelabel,tmpLog=None,
                 scopeList=None,allScopeList=None):
-    # DQ2 URL
-    dq2URL = v_ce.dq2url
-    dq2IDs = v_ce.setokens_input.values()
+
+    scope_association_input, scope_association_output  = select_scope(v_ce, prodsourcelabel)
+    dq2IDs = v_ce.setokens_input[scope_association_input].values()
     try:
         dq2IDs.remove('')
     except Exception:
         pass
     dq2IDs.sort()
     if dq2IDs == []:
-        dq2ID = v_ce.ddm_input
+        dq2ID = v_ce.ddm_input[scope_association_input]
     else:
         dq2ID = ''
         for tmpID in dq2IDs:
@@ -94,7 +95,7 @@ def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,tmpLog=None,
         dq2ID = dq2ID[:-1]    
     # set LFC and SE name 
     dq2URL = 'rucio://atlas-rucio.cern.ch:/grid/atlas'
-    tmpSE = v_ce.ddm_endpoints_input.getAllEndPoints()
+    tmpSE = v_ce.ddm_endpoints_input[scope_association_input].getAllEndPoints()
     if tmpLog is not None:
         tmpLog.debug('getOkFiles for %s with dq2ID:%s,LFC:%s,SE:%s' % (v_ce.sitename,dq2ID,dq2URL,str(tmpSE)))
     anyID = 'any'
@@ -136,15 +137,17 @@ def _isReproJob(tmpJob):
 
     
 # set 'ready' if files are already there
-def _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog):
+def _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog):
     tmpLog.debug(str(okFiles))
     allOK = True
     tmpSiteSpec = siteMapper.getSite(tmpJob.computingSite)
     tmpSrcSpec  = siteMapper.getSite(siteMapper.getCloud(tmpJob.getCloud())['source'])
-    tmpTapeEndPoints = tmpSiteSpec.ddm_endpoints_input.getTapeEndPoints()
+    scope_association_site_input, scope_association_site_output = select_scope(tmpSiteSpec, tmpJob.prodSourceLabel)
+    scope_association_src_input, scope_association_src_output = select_scope(tmpSrcSpec, tmpJob.prodSourceLabel)
+    tmpTapeEndPoints = tmpSiteSpec.ddm_endpoints_input[scope_association_site_input].getTapeEndPoints()
     # direct usage of remote SE
-    if tmpSiteSpec.ddm_input != tmpSrcSpec.ddm_input and \
-            tmpSrcSpec.ddm_input in tmpSiteSpec.setokens_input.values(): # TODO: check with Tadashi
+    if tmpSiteSpec.ddm_input[scope_association_site_input] != tmpSrcSpec.ddm_input[scope_association_src_input] \
+            and tmpSrcSpec.ddm_input[scope_association_src_input] in tmpSiteSpec.setokens_input[scope_association_site_input].values():
         tmpSiteSpec = tmpSrcSpec
         tmpLog.debug('%s uses remote SiteSpec of %s for %s' % (tmpJob.PandaID,tmpSrcSpec.sitename,tmpJob.computingSite))
     for tmpFile in tmpJob.Files:
@@ -156,7 +159,7 @@ def _setReadyToFiles(tmpJob,okFiles,siteMapper,tmpLog):
                 tmpFile.status = 'cached'
                 tmpFile.dispatchDBlock = 'NULL'
             elif tmpJob.computingSite == siteMapper.getCloud(tmpJob.getCloud())['source'] or \
-                    tmpSiteSpec.ddm_input == tmpSrcSpec.ddm_input:
+                    tmpSiteSpec.ddm_input[scope_association_site_input] == tmpSrcSpec.ddm_input[scope_association_src_input]:
                 # use DDM prestage only for on-tape files
                 if len(tmpTapeEndPoints) > 0 and tmpFile.lfn in okFiles:
                     tapeOnly = True
@@ -277,10 +280,16 @@ def getT2CandList(tmpJob,siteMapper,t2FilesMap):
 
 
 # get hospital queues
-def getHospitalQueues(siteMapper):
+def getHospitalQueues(siteMapper, forAnalysis):
     retMap = {}
     # hospital words
     goodWordList = ['CORE$','VL$','MEM$','MP\d+$','LONG$','_HIMEM','_\d+$']
+
+    # the prodSourceLabel is needed to know the def-vs-anal scope of the PQ-RSE association
+    prodSourceLabel = 'managed'
+    if forAnalysis:
+        prodSourceLabel = 'user'
+
     # loop over all clouds
     for tmpCloudName in siteMapper.getCloudList():
         # get cloud
@@ -288,8 +297,9 @@ def getHospitalQueues(siteMapper):
         # get T1
         tmpT1Name = tmpCloudSpec['source']
         tmpT1Spec = siteMapper.getSite(tmpT1Name)
+        scope_association_t1_input, scope_association_t1_output = select_scope(tmpT1Spec, prodSourceLabel)
         # skip if DDM is undefined
-        if tmpT1Spec.ddm_input == []:
+        if not tmpT1Spec.ddm_input[scope_association_t1_input]:
             continue
         # loop over all sites
         for tmpSiteName in tmpCloudSpec['sites']:
@@ -308,8 +318,9 @@ def getHospitalQueues(siteMapper):
             if not siteMapper.checkSite(tmpSiteName):
                 continue
             tmpSiteSpec = siteMapper.getSite(tmpSiteName)
+            scope_association_site_input, scope_association_site_output = select_scope(tmpSiteSpec, prodSourceLabel)
             # check DDM
-            if tmpT1Spec.ddm_input == tmpSiteSpec.ddm_input: # TODO: check with Tadashi
+            if tmpT1Spec.ddm_input[scope_association_t1_input] == tmpSiteSpec.ddm_input[scope_association_site_input]:
                 # append
                 if tmpCloudName not in retMap:
                     retMap[tmpCloudName] = []
@@ -468,7 +479,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
 
         nWNmap = {}
         indexJob = 0
-        vomsOK = None
 
         diskThresholdT1   = 20 * 1024
         diskThresholdT2   = 200
@@ -476,7 +486,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         diskThresholdPD2P = 1024 * 3
         manyInputsThr     = 20
         weightUsedByBrokerage = {}
-
         prestageSites = []
 
         # check if only JEDI
@@ -513,7 +522,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 else:
                     jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage(minPriority=minPriority)                    
                 nRunningMap   = taskBuffer.getnRunningInSiteData()
-            hospitalQueueMap = getHospitalQueues(siteMapper)
+            hospitalQueueMap = getHospitalQueues(siteMapper, forAnalysis)
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs.sort(_compFunc)
         # brokerage for analysis 
@@ -644,8 +653,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                          # get site spec
                          tmp_chosen_ce = siteMapper.getSite(computingSite)
                          # get files from LRC 
-                         okFiles = _getOkFiles(tmp_chosen_ce,fileList,guidList,allLFNs,allGUIDs,allOkFilesMap,
-                                               tmpLog,scopeList,allScopes)
+                         okFiles = _getOkFiles(tmp_chosen_ce, fileList, guidList, allLFNs, allGUIDs, allOkFilesMap,
+                                               jobsInBunch[0].prodSourceLabel, tmpLog, scopeList, allScopes)
+
                          nOkFiles = len(okFiles)
                          tmpLog.debug('site:%s - nFiles:%s/%s %s %s' % (computingSite,nOkFiles,len(fileList),str(fileList),str(okFiles)))
                          # loop over all jobs
@@ -854,7 +864,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 if tmpSiteSpec.maxwdir != 0 and (not prevDiskCount in [None,0,'NULL']):
                                     try:
                                         if int(tmpSiteSpec.maxwdir) < int(prevDiskCount):
-                                            tmpLog.debug('  skip: not enough disk %s<%s' % (tmpSiteSpec.maxwdir,prevDiskCount))
+                                            tmpLog.debug('  skip: not enough disk %s<%s' % (tmpSiteSpec.maxwdir, prevDiskCount))
                                             resultsForAnal['scratch'].append(site)
                                             continue
                                     except Exception:
@@ -885,7 +895,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     tmpLog.debug('   %s' % str(releases))
                                 if origReleases == ['ANY']:
                                     # doesn't check releases for catch all
-                                    tmpLog.debug(' no release check due to releases=%s'  % origReleases)
+                                    tmpLog.debug(' no release check due to releases=%s' % origReleases)
                                     foundRelease = True
                                 elif forAnalysis and (tmpSiteSpec.cloud in ['ND'] or prevRelease==''):
                                     # doesn't check releases for analysis
@@ -902,7 +912,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                          (useCacheVersion and not tmpSiteSpec.cloud in ['ND'] and not site in ['CERN-RELEASE']) and \
                                          (not prevProType in ['reprocessing']) and \
                                          (not site in siteListWithCache):
-                                        tmpLog.debug(' skip: cache %s/%s not found' % (prevHomePkg.replace('\n',' '),prevCmtConfig))
+                                        tmpLog.debug(' skip: cache %s/%s not found' % (prevHomePkg.replace('\n',' '), prevCmtConfig))
                                         # send message to logger
                                         try:
                                             if prevSourceLabel in ['managed','test']:
@@ -1233,7 +1243,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                                        (site,nFilesPerJob,inputSizePerJob,cloudT1Weight))
                             # found at least one candidate
                             foundOneCandidate = True
-                            tmpLog.debug('Site:%s 1/Weight:%s' % (site,winv))
+                            tmpLog.debug('Site:%s 1/Weight:%s' % (site, winv))
                             if forAnalysis and trustIS and reportLog:
                                 resultsForAnal['weight'].append((site,'(1+%s/%s)*%s/%s%s' % (nPilotsGet,1+nPilotsUpdate,1+nRunningMap[site],
                                                                                              nAssJobs+nActJobs,preferredCountryWeightStr)))
@@ -1305,8 +1315,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 tmpOKFiles = {}
                             else:
                                 # get files from LRC 
-                                tmpOKFiles = _getOkFiles(tmp_chosen_ce,fileList,guidList,allLFNs,allGUIDs,allOkFilesMap,
-                                                         tmpLog,scopeList,allScopes)
+                                tmpOKFiles = _getOkFiles(tmp_chosen_ce, fileList, guidList, allLFNs, allGUIDs,
+                                                         allOkFilesMap, job.proSourceLabel, tmpLog, scopeList, allScopes)
                             nFiles = len(tmpOKFiles)
                             tmpLog.debug('site:%s - nFiles:%s/%s %s' % (site,nFiles,len(fileList),str(tmpOKFiles)))
                             # choose site holding max # of files

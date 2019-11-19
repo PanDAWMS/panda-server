@@ -932,6 +932,10 @@ class UserIF:
     def reportWorkerStats(self, harvesterID, siteName, paramsList):
         return self.taskBuffer.reportWorkerStats(harvesterID, siteName, paramsList)
 
+    # report stat of workers
+    def reportWorkerStats_jobtype(self, harvesterID, siteName, paramsList):
+        return self.taskBuffer.reportWorkerStats_jobtype(harvesterID, siteName, paramsList)
+
     # set num slots for workload provisioning
     def setNumSlotsForWP(self, pandaQueueName, numSlots, gshare, resourceType, validPeriod):
         retVal = self.taskBuffer.setNumSlotsForWP(pandaQueueName, numSlots, gshare, resourceType, validPeriod)
@@ -2359,6 +2363,14 @@ def reportWorkerStats(req, harvesterID, siteName, paramsList):
     ret = userIF.reportWorkerStats(harvesterID, siteName, paramsList)
     return json.dumps(ret)
 
+# report stat of workers
+def reportWorkerStats_jobtype(req, harvesterID, siteName, paramsList):
+    # check security
+    if not isSecure(req):
+        return json.dumps((False,"SSL is required"))
+    # update
+    ret = userIF.reportWorkerStats_jobtype(harvesterID, siteName, paramsList)
+    return json.dumps(ret)
 
 # set num slots for workload provisioning
 def setNumSlotsForWP(req, pandaQueueName, numSlots, gshare=None, resourceType=None, validPeriod=None):

@@ -45,7 +45,7 @@ class Finisher (threading.Thread):
                 if destinationSE is None:
                     # try to get computingSite/destinationSE from ARCH to delete sub
                     # even if no active jobs left 
-                    computingSite,destinationSE = self.taskBuffer.getDestSE(self.dataset.name,True)
+                    computingSite, destinationSE = self.taskBuffer.getDestSE(self.dataset.name,True)
                     if destinationSE is None:
                         _logger.error("cannot get source/destination for %s" % self.dataset.name)
                         _logger.debug("end: %s" % self.dataset.name)                
@@ -57,11 +57,12 @@ class Finisher (threading.Thread):
                 tmpDstSiteSpec = siteMapper.getSite(destinationSE)
                 _logger.debug(tmpDstSiteSpec.setokens_output)
                 destToken = None
-                for tmpToken in tmpDstSiteSpec.setokens_output:
-                    tmpDdmId = tmpDstSiteSpec.setokens_output[tmpToken]
-                    if self.site == tmpDdmId:
-                        destToken = tmpToken
-                        break
+                for scope in tmpDstSiteSpec.setokens_output:
+                    for setoken in tmpDstSiteSpec.setokens_output[scope]:
+                        for tmpDdmId in tmpDstSiteSpec.setokens_output[scope][setoken]:
+                            if self.site == tmpDdmId:
+                                destToken = setoken
+                                break
                 _logger.debug("use Token=%s" % destToken)
                 # get required tokens
                 reqTokens = self.taskBuffer.getDestTokens(self.dataset.name)
@@ -81,6 +82,7 @@ class Finisher (threading.Thread):
                 # completed bitmap
                 compBitMap = (1 << len(reqTokens.split(',')))-1
                 # ignore the lowest bit for T1, file on DISK is already there
+                # TODO: #prodanaly use the scope, but don't know job information
                 if tmpSrcSiteSpec.ddm_output == tmpDstSiteSpec.ddm_output:
                     compBitMap = compBitMap & 0xFFFE
                 # update bitmap in DB

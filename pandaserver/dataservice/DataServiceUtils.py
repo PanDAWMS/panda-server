@@ -2,7 +2,6 @@ import re
 import sys
 from OpenSSL import crypto
 
-
 # get prefix for DQ2
 def getDQ2Prefix(dq2SiteID):
     try:
@@ -32,8 +31,8 @@ def isCachedFile(datasetName,siteSpec):
 
 
 # get the list of sites where dataset is available
-def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=False,getDQ2ID=False,
-                        useOnlineSite=False,includeT1=False):
+def getSitesWithDataset(tmpDsName, siteMapper, replicaMap, cloudKey, prodSourceLabel, useHomeCloud=False, getDQ2ID=False,
+                        useOnlineSite=False, includeT1=False):
     retList = []
     retDQ2Map = {}
     # no replica map
@@ -48,13 +47,17 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
         return retList
     # check sites in the cloud
     for tmpSiteName in siteMapper.getCloud(cloudKey)['sites']:
+        tmpSiteSpec = siteMapper.getSite(tmpSiteName)
+        scopeSiteSpec_input, scopeSiteSpec_output = select_scope(tmpSiteSpec, prodSourceLabel)
         # skip T1
         if not includeT1:
             # T1
             if tmpSiteName == siteMapper.getCloud(cloudKey)['source']:
                 continue
             # hospital queue
-            if siteMapper.getSite(tmpSiteName).ddm_input == siteMapper.getSite(siteMapper.getCloud(cloudKey)['source']).ddm_input:
+            tmpSrcSpec = siteMapper.getSite(siteMapper.getCloud(cloudKey)['source'])
+            scopeSrcSpec_input, scopeSrcSpec_output = select_scope(tmpSrcSpec, prodSourceLabel)
+            if tmpSiteSpec.ddm_input.get(scopeSiteSpec_input) == tmpSrcSpec.ddm_input.get(scopeSrcSpec_input):
                 continue
         # use home cloud
         if useHomeCloud:
@@ -65,13 +68,12 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
             continue
         # check all associated DQ2 IDs
         tmpFoundFlag = False
-        tmpSiteSpec = siteMapper.getSite(tmpSiteName)
 
         # skip misconfigured sites
-        if not tmpSiteSpec.ddm_input and not tmpSiteSpec.setokens_input.values():
+        if not tmpSiteSpec.ddm_input.get(scopeSiteSpec_input) and not tmpSiteSpec.setokens_input.get(scopeSiteSpec_input).values():
             continue
 
-        for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input]+list(tmpSiteSpec.setokens_input.values()):
+        for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input[scopeSiteSpec_input]]+list(tmpSiteSpec.setokens_input[scopeSiteSpec_input].values()):
             # prefix of DQ2 ID
             tmpDQ2IDPrefix = getDQ2Prefix(tmpSiteDQ2ID)
             # ignore empty
@@ -108,105 +110,6 @@ def getSitesWithDataset(tmpDsName,siteMapper,replicaMap,cloudKey,useHomeCloud=Fa
         return retDQ2Map
     # retrun
     return retList
-
-
-# get the number of files available at the site
-def getNumAvailableFilesSite(siteName,siteMapper,replicaMap,badMetaMap,additionalSEs=[],
-                             noCheck=[],fileCounts=None):
-    try:
-        # get DQ2 endpoints 
-        tmpSiteSpec = siteMapper.getSite(siteName)
-        prefixList = []
-        for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input]+list(tmpSiteSpec.setokens_input.values()):
-            # prefix of DQ2 ID
-            tmpDQ2IDPrefix = getDQ2Prefix(tmpSiteDQ2ID)
-            # ignore empty
-            if tmpDQ2IDPrefix != '':
-                prefixList.append(tmpDQ2IDPrefix)
-        # loop over datasets
-        totalNum = 0
-        for tmpDsName in replicaMap:
-            tmpSitesData = replicaMap[tmpDsName]
-            # cached files
-            if isCachedFile(tmpDsName,tmpSiteSpec) and fileCounts is not None and \
-               tmpDsName in fileCounts:
-                # add with no check
-                totalNum += fileCounts[tmpDsName]
-                continue
-            # dataset type
-            datasetType = getDatasetType(tmpDsName)
-            # use total num to effectively skip file availability check
-            if datasetType in noCheck:
-                columnName = 'total'
-            else:
-                columnName = 'found'
-            # get num of files
-            maxNumFile = 0
-            # for T1 or T2
-            if additionalSEs != []:
-                # check T1 endpoints
-                for tmpSePat in additionalSEs:
-                    # ignore empty
-                    if tmpSePat == '':
-                        continue
-                    # make regexp pattern
-                    if '*' in tmpSePat:
-                        tmpSePat = tmpSePat.replace('*','.*')
-                    tmpSePat = '^' + tmpSePat +'$'
-                    # loop over all sites
-                    for tmpSE in tmpSitesData:
-                        # skip bad metadata
-                        if tmpDsName in badMetaMap and tmpSE in badMetaMap[tmpDsName]:
-                            continue
-                        # check match
-                        if re.search(tmpSePat,tmpSE) is None:
-                            continue
-                        # get max num of files
-                        tmpN = tmpSitesData[tmpSE][0][columnName]                            
-                        if tmpN is not None and tmpN > maxNumFile:
-                            maxNumFile = tmpN
-            else:
-                # check explicit endpoint name
-                for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input]+list(tmpSiteSpec.setokens_input.values()):
-                    # skip bad metadata
-                    if tmpDsName in badMetaMap and tmpSiteDQ2ID in badMetaMap[tmpDsName]:
-                        continue
-                    # ignore empty
-                    if tmpSiteDQ2ID == '':
-                        continue
-                    # get max num of files
-                    if tmpSiteDQ2ID in tmpSitesData:
-                        tmpN = tmpSitesData[tmpSiteDQ2ID][0][columnName]
-                        if tmpN is not None and tmpN > maxNumFile:
-                            maxNumFile = tmpN
-                # check prefix
-                for tmpDQ2IDPrefix in prefixList:
-                    for tmpDQ2ID in tmpSitesData:
-                        # skip bad metadata
-                        if tmpDsName in badMetaMap and tmpDQ2ID in badMetaMap[tmpDsName]:
-                            continue
-                        # ignore NG
-                        if     '_SCRATCHDISK'    in tmpDQ2ID or \
-                               '_USERDISK'       in tmpDQ2ID or \
-                               '_PRODDISK'       in tmpDQ2ID or \
-                               '_LOCALGROUPDISK' in tmpDQ2ID or \
-                               '_LOCALGROUPTAPE' in tmpDQ2ID or \
-                               '_DAQ'            in tmpDQ2ID or \
-                               '_TMPDISK'        in tmpDQ2ID or \
-                               '_TZERO'          in tmpDQ2ID:
-                            continue
-                        # check prefix
-                        if tmpDQ2ID.startswith(tmpDQ2IDPrefix):
-                            tmpN = tmpSitesData[tmpDQ2ID][0][columnName]
-                            if tmpN is not None and tmpN > maxNumFile:
-                                maxNumFile = tmpN
-            # sum
-            totalNum += maxNumFile
-        # return
-        return True,totalNum
-    except Exception:
-        errtype,errvalue = sys.exc_info()[:2]
-        return False,'%s:%s' % (errtype,errvalue) 
 
 
 # get the list of sites where dataset is available
@@ -260,33 +163,6 @@ def checkInvalidCharacters(datasetName):
     return False
 
 
-# get the list of sites in a cloud which cache a dataset
-def getSitesWithCacheDS(cloudKey,excludedSites,siteMapper,datasetName):
-    retList = []
-    # check sites in the cloud
-    for tmpSiteName in siteMapper.getCloud(cloudKey)['sites']:
-        # excluded
-        if tmpSiteName in excludedSites:
-            continue
-        # skip T1
-        if tmpSiteName == siteMapper.getCloud(cloudKey)['source']:
-            continue
-        # hospital queue
-        if siteMapper.getSite(tmpSiteName).ddm_input == siteMapper.getSite(siteMapper.getCloud(cloudKey)['source']).ddm_input:
-            continue
-        # not home cloud
-        if siteMapper.getSite(tmpSiteName).cloud != cloudKey:
-            continue
-        # online
-        if siteMapper.getSite(tmpSiteName).status != 'online':
-            continue
-        # check CVMFS
-        if isCachedFile(datasetName,siteMapper.getSite(tmpSiteName)):
-            retList.append(tmpSiteName)
-    # return
-    return retList
-
-
 # get dataset type
 def getDatasetType(dataset):
     datasetType = None
@@ -311,16 +187,19 @@ def checkCertificate(certName):
 
 
 # get sites which share DDM endpoint
-def getSitesShareDDM(siteMapper,siteName):
+def getSitesShareDDM(siteMapper, siteName, prodSourceLabel):
+
     # nonexistent site
     if not siteMapper.checkSite(siteName):
         return []
     # get siteSpec
     siteSpec = siteMapper.getSite(siteName)
+    scope_site_input, scope_site_output = select_scope(siteSpec, prodSourceLabel)
     # loop over all sites
     retSites = []
     for tmpSiteName in siteMapper.siteSpecList:
         tmpSiteSpec = siteMapper.siteSpecList[tmpSiteName]
+        scope_tmpSite_input, scope_tmpSite_output = select_scope(tmpSiteSpec, prodSourceLabel)
         # only same type
         if siteSpec.type != tmpSiteSpec.type:
             continue
@@ -329,8 +208,8 @@ def getSitesShareDDM(siteMapper,siteName):
             continue
         # same endpoint
         try:
-            if siteSpec.ddm_input != tmpSiteSpec.ddm_input and \
-                    siteSpec.ddm_output not in tmpSiteSpec.ddm_endpoints_input.all:
+            if siteSpec.ddm_input[scope_site_input] != tmpSiteSpec.ddm_input[scope_tmpSite_input] \
+                    and siteSpec.ddm_output[scope_site_output] not in tmpSiteSpec.ddm_endpoints_input[scope_tmpSite_input].all:
                 continue
         except Exception:
             continue
@@ -406,3 +285,21 @@ def cleanupDN(realDN):
     tmpRealDN = re.sub('/CN=limited proxy','',realDN)
     tmpRealDN = re.sub('/CN=proxy','',tmpRealDN)
     return tmpRealDN
+
+
+def select_scope(site_spec, prodsourcelabel):
+    """
+    Select the scopes of the activity for input and output. The scope was introduced for prod-analy queues where you might want
+    to associate different RSEs depending on production or analysis.
+    """
+    scope_input = 'default'
+    aux_scopes_input = site_spec.ddm_endpoints_input.keys()
+    if prodsourcelabel == 'user' and 'analysis' in aux_scopes_input:
+        scope_input = 'analysis'
+
+    scope_output = 'default'
+    aux_scopes_output = site_spec.ddm_endpoints_output.keys()
+    if prodsourcelabel == 'user' and 'analysis' in aux_scopes_output:
+        scope_output = 'analysis'
+
+    return scope_input, scope_output

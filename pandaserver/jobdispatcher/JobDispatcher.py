@@ -211,8 +211,15 @@ class JobDipatcher:
             responseList = []
             # append Jobs
             for tmpJob in jobs:
-                response=Protocol.Response(Protocol.SC_Success)
-                response.appendJob(tmpJob, self.siteMapperCache)
+                try:
+                    response=Protocol.Response(Protocol.SC_Success)
+                    response.appendJob(tmpJob, self.siteMapperCache)
+                except Exception:
+                    errtype, errvalue = sys.exc_info()[:2]
+                    tmpMsg = "getJob failed with {0} {1}".format(errtype.__name__, errvalue)
+                    _logger.error(tmpMsg + '\n' + traceback.format_exc())
+                    raise
+
                 # append nSent
                 response.appendNode('nSent', nSent)
                 # set proxy key
@@ -254,7 +261,7 @@ class JobDipatcher:
                     except Exception:
                         errtype,errvalue = sys.exc_info()[:2]
                         _logger.warning("getJob : %s %s failed to get user proxy with %s:%s" % (siteName,node,
-                                                                                                errtype.__name__,errvalue))
+                                                                                                errtype.__name__, errvalue))
                 # panda proxy
                 if 'pandaProxySites' in self.specialDispatchParams and siteName in self.specialDispatchParams['pandaProxySites'] \
                         and (EventServiceUtils.isEventServiceJob(tmpJob) or EventServiceUtils.isEventServiceMerge(tmpJob)):
@@ -272,11 +279,18 @@ class JobDipatcher:
                 responseList.append(response.data)
             # make response for bulk
             if nJobs is not None:
-                response = Protocol.Response(Protocol.SC_Success)
-                if not acceptJson:
-                    response.appendNode('jobs',json.dumps(responseList))
-                else:
-                    response.appendNode('jobs',responseList)
+                try:
+                    response = Protocol.Response(Protocol.SC_Success)
+                    if not acceptJson:
+                        response.appendNode('jobs',json.dumps(responseList))
+                    else:
+                        response.appendNode('jobs',responseList)
+                except:
+                    errtype, errvalue = sys.exc_info()[:2]
+                    tmpMsg = "getJob failed with {0} {1}".format(errtype.__name__, errvalue)
+                    _logger.error(tmpMsg + '\n' + traceback.format_exc())
+                    raise
+
         else:
             if tmpWrapper.result == Protocol.TimeOutToken:
                 # timeout
@@ -983,8 +997,9 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
         param['cpuConversion']=cpuConversionFactor
     if pilotTiming is not None:
         param['pilotTiming']=pilotTiming
-    if computingElement is not None:
-        param['computingElement']=computingElement
+    # disable pilot CE reporting. We will fill it from harvester table
+    #if computingElement is not None:
+    #    param['computingElement']=computingElement
     if nEvents is not None:
         param['nEvents']=nEvents
     if nInputFiles is not None:

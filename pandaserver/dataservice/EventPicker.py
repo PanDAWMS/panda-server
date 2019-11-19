@@ -17,6 +17,7 @@ from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.userinterface import Client
 
 from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.dataservice.DataServiceUtils import select_scope
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -266,7 +267,9 @@ class EventPicker:
                         if not tmpStatus:
                             raise RuntimeError('user info not found for {0} with {1}'.format(tmpDN,userInfo))
                         tmpDN = userInfo['nickname']
-                        tmpDQ2ID = self.siteMapper.getSite(tmpJob.computingSite).ddm_input
+                        tmpSiteSpec = self.siteMapper.getSite(tmpJob.computingSite)
+                        scope_input, scope_output = select_scope(tmpSiteSpec, 'user')
+                        tmpDQ2ID = tmpSiteSpec.ddm_input[scope_input]
                         tmpMsg = "%s ds=%s site=%s id=%s" % ('registerDatasetLocation for DaTRI ',
                                                              tmpUserDatasetName,
                                                              tmpDQ2ID,

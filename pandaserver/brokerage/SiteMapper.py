@@ -12,17 +12,21 @@ _logger = PandaLogger().getLogger('SiteMapper')
 from pandaserver.taskbuffer.SiteSpec import SiteSpec
 from pandaserver.taskbuffer.NucleusSpec import NucleusSpec
 
+from pandaserver.dataservice.DataServiceUtils import select_scope
+
 defSite = SiteSpec()
 defSite.sitename   = panda_config.def_sitename
 defSite.nickname   = panda_config.def_nickname
 defSite.dq2url     = panda_config.def_dq2url
-defSite.ddm_input  = panda_config.def_ddm
-defSite.ddm_output = panda_config.def_ddm
+defSite.ddm_input  = {'default': panda_config.def_ddm}
+defSite.ddm_output = {'default': panda_config.def_ddm}
 defSite.type       = panda_config.def_type
 defSite.gatekeeper = panda_config.def_gatekeeper
 defSite.status     = panda_config.def_status
 defSite.setokens_input   = {}
 defSite.setokens_output   = {}
+defSite.ddm_endpoints_input = {}
+defSite.ddm_endpoints_output = {}
 
 worldCloudName = 'WORLD'
 nucleusTag = 'nucleus:'
@@ -332,13 +336,14 @@ class SiteMapper:
 
 
     # get ddm point
-    def getDdmEndpoint(self,siteID,storageToken):
+    def getDdmEndpoint(self, siteID, storageToken, prodSourceLabel):
         if not self.checkSite(siteID):
             return None
         siteSpec =  self.getSite(siteID)
-        if storageToken in siteSpec.setokens_output:
-            return siteSpec.setokens_output[storageToken]
-        return siteSpec.ddm_output # TODO: confirm with Tadashi
+        scope_input, scope_output = select_scope(siteSpec, prodSourceLabel)
+        if storageToken in siteSpec.setokens_output[scope_output]:
+            return siteSpec.setokens_output[scope_output][storageToken]
+        return siteSpec.ddm_output[scope_output]
 
 
 

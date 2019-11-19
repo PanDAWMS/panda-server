@@ -19,8 +19,8 @@ from pandaserver.userinterface.Client import baseURLSSL
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
-
 from pandaserver.dataservice import DataServiceUtils
+from pandasever.dataservice.DataServiceUtils import select_scope
 
 # instantiate TB
 taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
@@ -55,6 +55,7 @@ if job.computingSite in ['',None,'NULL']:
     sys.exit(0)
 
 siteSpec = siteMapper.getSite(job.computingSite)
+scope_input, scope_output = select_scope(siteSpec, job.prodSourceLabel)
 
 with open('/cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_ddmendpoints.json') as f:
     rseDict = json.load(f)
@@ -84,14 +85,18 @@ for tmpFile in job.Files:
             if DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) is not None:
                 tmpSrcDDM = DataServiceUtils.getDistributedDestination(file.destinationDBlockToken)
             elif job.computingSite == file.destinationSE and \
-                    file.destinationDBlockToken in siteSpec.setokens_output:
-                tmpSrcDDM = siteSpec.setokens_output[file.destinationDBlockToken]
+                    file.destinationDBlockToken in siteSpec.setokens_output[scope_output]:
+                tmpSrcDDM = siteSpec.setokens_output[scope_output][file.destinationDBlockToken]
             elif file.lfn in outFileName:
                 tmpSrcDDM = DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
                 if tmpSrcDDM is None:
-                    tmpSrcDDM = siteMapper.getSite(file.destinationSE).ddm
+                    tmpSrcSite = siteMapper.getSite(file.destinationSE)
+                    tmp_scope_input, tmp_scope_output = select_scope(siteSpec, job.prodSourceLabel)
+                    tmpSrcDDM = tmpSrcSite.ddm_output[tmp_scope_output]
             else:
-                tmpSrcDDM = siteMapper.getSite(job.computingSite).ddm
+                tmpSrcSite = siteMapper.getSite(job.computingSite)
+                tmp_scope_input, tmp_scope_output = select_scope(siteSpec, job.prodSourceLabel)                 
+                tmpSrcDDM = tmpSrcSite.ddm_output[tmp_scope_output]
             srm,dummy,root = rseDict[tmpSrcDDM]['aprotocols']['w'][0]
             srm = re.sub('^token:[^:]+:','',srm)
             srm += root
@@ -122,7 +127,6 @@ for tmpFile in job.Files:
                                     'fsize':1234,
                                     'adler32':'0d2a9dc9',
                                     'surl':"%s/%s" % (srm,path)}
-
 
 xml += """
 </POOLFILECATALOG>
