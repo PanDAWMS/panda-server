@@ -3405,6 +3405,18 @@ class TaskBuffer:
         return res
 
 
+    # report stat of workers
+    def reportWorkerStats_jobtype(self, harvesterID, siteName, paramsList):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.reportWorkerStats_jobtype(harvesterID, siteName, paramsList)
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
     # get command locks
     def getCommandLocksHarvester(self, harvester_ID, command, lockedBy, 
                                  lockInterval, commandInterval):
@@ -3628,12 +3640,12 @@ class TaskBuffer:
         return ret
 
 
-    # load activated job stats
-    def ups_load_activated_job_stats(self, ups_queues):
+    # load harvester worker stats
+    def ups_load_worker_stats_legacy(self):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.ups_load_activated_job_stats(ups_queues)
+        ret = proxy.ups_load_worker_stats_legacy()
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -3646,6 +3658,18 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # exec
         ret = proxy.ups_new_worker_distribution(queue, worker_stats)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
+    # get the distribution of new workers to submit
+    def ups_new_worker_distribution_legacy(self, queue, worker_stats):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.ups_new_worker_distribution_legacy(queue, worker_stats)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -3795,6 +3819,17 @@ class TaskBuffer:
         # return
         return ret
 
+
+    # store json dump for a panda queue
+    def insert_pq_json(self, pq, json_data):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.insert_pq_json(pq, json_data)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
 
     # get user job metadata
     def getUserJobMetadata(self, jediTaskID):

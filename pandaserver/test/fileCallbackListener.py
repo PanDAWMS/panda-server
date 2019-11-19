@@ -113,6 +113,7 @@ class FileCallbackListener(stomp.ConnectionListener):
                 if not dsToken in ['',None] and ',' in dsToken:
                     _logger.debug('%s ignore ds=%s token=%s' % (lfn,dsName,dsToken))
                     continue
+
                 # check site
                 tmpSiteSpec = self.siteMapper.getSite(pandaSite)
                 if re.search('_dis\d+$',dsName) is not None:

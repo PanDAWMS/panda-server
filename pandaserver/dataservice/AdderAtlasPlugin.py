@@ -22,6 +22,7 @@ from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.taskbuffer import JobUtils
 from pandaserver.dataservice.MailUtils import MailUtils
 from pandaserver.dataservice import DataServiceUtils
+from pandaserver.dataservice.DataServiceUtils import select_scope
 
 try:
     long
@@ -65,20 +66,19 @@ class AdderAtlasPlugin (AdderPluginBase):
                 self.goToMerging = True
             # check if the job should go to transferring
             srcSiteSpec = self.siteMapper.getSite(self.job.computingSite)
-            tmpSrcDDM = srcSiteSpec.ddm_output
-            destSEwasSet = False
-            brokenSched = False
+            scopeSrcSiteSpec_input, scopeSrcSiteSpec_output = select_scope(srcSiteSpec, self.job.prodSourceLabel)
+            tmpSrcDDM = srcSiteSpec.ddm_output[scopeSrcSiteSpec_output]
             if self.job.prodSourceLabel == 'user' and self.job.destinationSE not in self.siteMapper.siteSpecList:
                 # DQ2 ID was set by using --destSE for analysis job to transfer output
-                destSEwasSet = True
                 tmpDstDDM = self.job.destinationSE
             else:
-                dstSiteSpec = self.siteMapper.getSite(self.job.destinationSE) # TODO: confirm with Tadashi
-                tmpDstDDM = dstSiteSpec.ddm_output
+                dstSiteSpec = self.siteMapper.getSite(self.job.destinationSE)
+                scopeDstSiteSpec_input, scopeDstSiteSpec_output = select_scope(dstSiteSpec, self.job.prodSourceLabel)
+                tmpDstDDM = dstSiteSpec.ddm_output[scopeDstSiteSpec_output]
                 # protection against disappearance of dest from schedconfig
                 if not self.siteMapper.checkSite(self.job.destinationSE) and self.job.destinationSE != 'local':
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
-                    self.job.ddmErrorDiag = "destinaitonSE %s is unknown in schedconfig" % self.job.destinationSE
+                    self.job.ddmErrorDiag = "destinationSE %s is unknown in schedconfig" % self.job.destinationSE
                     self.logger.error("%s" % self.job.ddmErrorDiag)
                     # set fatal error code and return
                     self.result.setFatal()
@@ -161,6 +161,9 @@ class AdderAtlasPlugin (AdderPluginBase):
         # return if non-DQ2
         if self.pandaDDM or self.job.destinationSE == 'local':
             return 0
+        # get the computingsite spec and scope
+        srcSiteSpec = self.siteMapper.getSite(self.job.computingSite)
+        scopeSrcSiteSpec_input, scopeSrcSiteSpec_output = select_scope(srcSiteSpec, self.job.prodSourceLabel)
         # zip file map
         zipFileMap = self.job.getZipFileMap()
         # get campaign
@@ -199,6 +202,11 @@ class AdderAtlasPlugin (AdderPluginBase):
         self.logger.debug('dsInJEDI=%s' % str(dsIdToDsMap))
         for file in self.job.Files:
             if file.type == 'output' or file.type == 'log':
+
+                # prepare the site spec and scope for the destinationSE site
+                dstSESiteSpec = self.siteMapper.getSite(file.destinationSE)
+                scopeDstSESiteSpec_input, scopeDstSESiteSpec_output = select_scope(dstSESiteSpec, self.job.prodSourceLabel)
+
                 # added to map
                 if file.datasetID in dsIdToDsMap:
                     subToDsMap[file.destinationDBlock] = dsIdToDsMap[file.datasetID]
@@ -295,17 +303,17 @@ class AdderAtlasPlugin (AdderPluginBase):
                                     # RSE is specified
                                     tmpDestList = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
                                 else:
-                                    if file.destinationDBlockToken in self.siteMapper.getSite(file.destinationSE).setokens_output:
+                                    if file.destinationDBlockToken in dstSESiteSpec.setokens_output[scopeDstSESiteSpec_output]:
                                         # get endpoint for token
-                                        tmpDestList = [self.siteMapper.getSite(file.destinationSE).setokens_output[file.destinationDBlockToken]]
+                                        tmpDestList = [dstSESiteSpec.setokens_output[scopeDstSESiteSpec_output][file.destinationDBlockToken]]
                                     else:
                                         # use defalt endpoint
-                                        tmpDestList = [self.siteMapper.getSite(file.destinationSE).ddm_output]
+                                        tmpDestList = [dstSESiteSpec.ddm_output[scopeDstSESiteSpec_output]]
                             elif file.destinationDBlockToken in ['',None,'NULL']:
                                 # use default endpoint
-                                tmpDestList = [self.siteMapper.getSite(self.job.computingSite).ddm_output]
+                                tmpDestList = [srcSiteSpec.ddm_output[scopeSrcSiteSpec_output]]
                             elif DataServiceUtils.getDestinationSE(file.destinationDBlockToken) is not None and \
-                                    self.siteMapper.getSite(self.job.computingSite).ddm_output == self.siteMapper.getSite(file.destinationSE).ddm_output:
+                                    srcSiteSpec.ddm_output[scopeSrcSiteSpec_output] == dstSESiteSpec.ddm_output[scopeDstSESiteSpec_output]:
                                 tmpDestList = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
                                 # RSE is specified
                                 toConvert = False
@@ -314,19 +322,19 @@ class AdderAtlasPlugin (AdderPluginBase):
                                 distDSs.add(fileDestinationDBlock)
                                 # RSE is specified for distributed datasets
                                 toConvert = False
-                            elif self.siteMapper.getSite(self.job.computingSite).cloud != self.job.cloud and \
-                                    (not self.siteMapper.getSite(self.job.computingSite).ddm_output.endswith('PRODDISK')) and  \
+                            elif srcSiteSpec.cloud != self.job.cloud and \
+                                    (not srcSiteSpec.ddm_output[scopeSrcSiteSpec_output].endswith('PRODDISK')) and  \
                                     (not self.job.prodSourceLabel in ['user','panda']):
                                 # T1 used as T2
-                                tmpDestList = [self.siteMapper.getSite(self.job.computingSite).ddm_output]
+                                tmpDestList = [srcSiteSpec.ddm_output[scopeSrcSiteSpec_output]]
                             else:
                                 tmpDestList = []
-                                tmpSeTokens = self.siteMapper.getSite(self.job.computingSite).setokens_output
+                                tmpSeTokens = srcSiteSpec.setokens_output[scopeSrcSiteSpec_output]
                                 for tmpDestToken in file.destinationDBlockToken.split(','):
                                     if tmpDestToken in tmpSeTokens:
                                         tmpDest = tmpSeTokens[tmpDestToken]
                                     else:
-                                        tmpDest = self.siteMapper.getSite(self.job.computingSite).ddm_output
+                                        tmpDest = srcSiteSpec.ddm_output[scopeSrcSiteSpec_output]
                                     if not tmpDest in tmpDestList:
                                         tmpDestList.append(tmpDest)
                             # add
@@ -399,8 +407,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                                                    fileDestinationDBlock))
                                 else:
                                     # get DQ2 IDs
-                                    srcSiteSpec = self.siteMapper.getSite(self.job.computingSite)
-                                    tmpSrcDDM = srcSiteSpec.ddm_output
+                                    tmpSrcDDM = srcSiteSpec.ddm_output[scopeSrcSiteSpec_output]
                                     if self.job.prodSourceLabel == 'user' and file.destinationSE not in self.siteMapper.siteSpecList:
                                         # DQ2 ID was set by using --destSE for analysis job to transfer output
                                         tmpDstDDM = file.destinationSE
@@ -408,7 +415,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                                         if DataServiceUtils.getDestinationSE(file.destinationDBlockToken) is not None:
                                             tmpDstDDM = DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
                                         else:
-                                            tmpDstDDM = self.siteMapper.getSite(file.destinationSE).ddm_output
+                                            tmpDstDDM = dstSESiteSpec.ddm_output[scopeDstSESiteSpec_output]
                                     # if src != dest or multi-token
                                     if (tmpSrcDDM != tmpDstDDM) or \
                                        (tmpSrcDDM == tmpDstDDM and file.destinationDBlockToken.count(',') != 0):
@@ -428,16 +435,16 @@ class AdderAtlasPlugin (AdderPluginBase):
                                                 dq2ID = tmpSrcDDM
                                                 # use the first token's location as source for T1D1
                                                 tmpSrcToken = file.destinationDBlockToken.split(',')[0]
-                                                if tmpSrcToken in self.siteMapper.getSite(self.job.computingSite).setokens_output:
-                                                    dq2ID = self.siteMapper.getSite(self.job.computingSite).setokens_output[tmpSrcToken]
+                                                if tmpSrcToken in srcSiteSpec.setokens_output[scopeSrcSiteSpec_output]:
+                                                    dq2ID = srcSiteSpec.setokens_output[scopeSrcSiteSpec_output][tmpSrcToken]
                                                 optSource[dq2ID] = {'policy' : 0}
                                             # T1 used as T2
-                                            if self.siteMapper.getSite(self.job.computingSite).cloud != self.job.cloud and \
+                                            if srcSiteSpec.cloud != self.job.cloud and \
                                                (not tmpSrcDDM.endswith('PRODDISK')) and  \
                                                (not self.job.prodSourceLabel in ['user','panda']):
                                                 # register both DATADISK and PRODDISK as source locations
-                                                if 'ATLASPRODDISK' in self.siteMapper.getSite(self.job.computingSite).setokens_output:
-                                                    dq2ID = self.siteMapper.getSite(self.job.computingSite).setokens_output['ATLASPRODDISK']
+                                                if 'ATLASPRODDISK' in srcSiteSpec.setokens_output[scopeSrcSiteSpec_output]:
+                                                    dq2ID = srcSiteSpec.setokens_output[scopeSrcSiteSpec_output]['ATLASPRODDISK']
                                                     optSource[dq2ID] = {'policy' : 0}
                                                 if tmpSrcDDM not in optSource:
                                                     optSource[tmpSrcDDM] = {'policy' : 0}
@@ -451,8 +458,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                                                 # loop over all tokens
                                                 for idxToken,tmpDstToken in enumerate(tmpDstTokens):
                                                     dq2ID = tmpDstDDM
-                                                    if tmpDstToken in self.siteMapper.getSite(file.destinationSE).setokens_output: # TODO: confirm with Tadashi
-                                                        dq2ID = self.siteMapper.getSite(file.destinationSE).setokens_output[tmpDstToken]
+                                                    if tmpDstToken in dstSESiteSpec.setokens_output[scopeDstSESiteSpec_output]:
+                                                        dq2ID = dstSESiteSpec.setokens_output[scopeDstSESiteSpec_output][tmpDstToken]
                                                     # keep the fist destination for multi-hop
                                                     if idxToken == 0:
                                                         firstDestDDM = dq2ID

@@ -9,6 +9,7 @@ from pandaserver.config import panda_config
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.configurator import db_interface as dbif
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+from pandaserver.taskbuffer.TaskBuffer.Utils import create_shards
 
 _logger = PandaLogger().getLogger('configurator')
 _session = dbif.get_session()
@@ -16,6 +17,7 @@ _session = dbif.get_session()
 # Definitions of roles
 WRITE_LAN = 'write_lan'
 READ_LAN = 'read_lan'
+DEFAULT = 'default'
 
 
 class Configurator(threading.Thread):
@@ -126,11 +128,7 @@ class Configurator(threading.Thread):
         ddm_endpoints_list = []
         panda_sites_list = []
 
-        # Old relationship information based on DDM field in AGIS.
-        # Used for atlas_panda.panda_site.default_ddm_endpoint and atlas_panda.panda_site.storage_site_name
-        relationship_dict = self.process_schedconfig_dump()
-
-        # New relationship information based on astorage0 field in AGIS.
+        # New relationship information based on astorages field in AGIS.
         # Used to fill atlas_panda.panda_ddm_relation table
         try:
             panda_ddm_relation_dict = self.get_panda_ddm_relation()
@@ -227,32 +225,46 @@ class Configurator(threading.Thread):
                     for panda_queue in site['presources'][panda_resource][panda_site]['pandaqueues']:
                         panda_queue_name = panda_queue['name']
 
-                    # Get information regarding relationship to storage
-                    try:
-                        relationship_info = relationship_dict[panda_site_name]
-                        default_ddm_endpoint = relationship_info['default_ddm_endpoint']
-                        storage_site_name = relationship_info['storage_site_name']
-                        is_local = relationship_info['is_local']
-                    except KeyError:
-                        _logger.warning('process_site_dumps: Investigate why panda_site_name {0} not in relationship_info dictionary'
-                                      .format(panda_site_name))
-                        default_ddm_endpoint = None
-                        storage_site_name = None
-                        is_local = None
-
                     panda_sites_list.append({'panda_site_name': panda_site_name,
                                              'panda_queue_name': panda_queue_name,
                                              'site_name': site_name,
-                                             'state': panda_site_state,
-                                             'default_ddm_endpoint': default_ddm_endpoint,
-                                             'storage_site_name': storage_site_name,
-                                             'is_local': is_local})
+                                             'state': panda_site_state})
         
         return sites_list, panda_sites_list, ddm_endpoints_list, panda_ddm_relation_dict
 
+    def parse_role(self, role):
+        """
+        Traditionally roles have been "read_lan" or "write_lan". We will consider them the default roles.
+        If you want to overwrite the role for specific jobs in AGIS, you can define e.g. "read_lan_analysis". Here we
+        want to strip the role to the "analysis" tag and return role "read_lan" and scope "analysis"
+
+        Examples:
+            "read_lan_analysis" --> "read_lan" and "analysis"
+            "read_lan" --> "read_lan" and "default"
+        """
+        # default roles: "read_lan" or "write_lan"
+        if role == READ_LAN or role == WRITE_LAN:
+            return role, DEFAULT
+
+        # special read_lan roles, e.g. "read_lan_analysis"
+        elif role.startswith(READ_LAN):
+            role_clean = READ_LAN
+            scope = role.replace("{0}_".format(READ_LAN), '')
+            return role_clean, scope
+
+        # special write_lan roles, e.g. "write_lan_analysis"
+        elif role.startswith(WRITE_LAN):
+            role_clean = WRITE_LAN
+            scope = role.replace("{0}_".format(WRITE_LAN), '')
+            return role_clean, scope
+
+        # roles we are currently not expecting
+        else:
+            return role, DEFAULT
+
     def get_panda_ddm_relation(self):
         """
-        Gets the DDM endpoints assigned to a panda queue, based on the AGIS astorage0 field of the panda queue definition
+        Gets the DDM endpoints assigned to a panda queue, based on the AGIS astorages field of the panda queue definition
         """
         relation_list = []
 
@@ -267,104 +279,82 @@ class Configurator(threading.Thread):
                 astorages = self.schedconfig_dump[long_panda_site_name]['astorages']
 
                 # iterate the storages to establish their roles and orders
-                order_read = 1
-                order_write = 1
+                order_read = {DEFAULT: 1}
+                order_write = {DEFAULT: 1}
                 for role in astorages:
-                    for ddm_endpoint_name in astorages[role]:
-                        # initialize DDM endpoint if it does not exist
-                        dict_ddm_endpoint.setdefault(ddm_endpoint_name, {'order_write': None,
-                                                                         'order_read': None,
-                                                                         'role': []})
-                        # set the read/write order and increment the respective counter
-                        if role == WRITE_LAN:
-                            dict_ddm_endpoint[ddm_endpoint_name]['order_write'] = order_write
-                            order_write += 1
-                        elif role == READ_LAN:
-                            dict_ddm_endpoint[ddm_endpoint_name]['order_read'] = order_read
-                            order_read += 1
-                        # append the roles
-                        dict_ddm_endpoint[ddm_endpoint_name]['role'].append(role)
 
-                for ddm_endpoint_name, ddm_endpoint_values in dict_ddm_endpoint.items():
-
-                    # unpack the values
-                    roles = ddm_endpoint_values['role']
-                    order_write = ddm_endpoint_values['order_write']
-                    order_read = ddm_endpoint_values['order_read']
-
-                    # figure out the ATLAS site the DDM endpoint belongs to
-                    try:
-                        storage_site_name = self.endpoint_token_dict[ddm_endpoint_name]['site_name']
-                    except KeyError:
-                        _logger.warning("Skipped {0}, because primary associated DDM endpoint {1} not found (e.g.DISABLED)"
-                                        .format(long_panda_site_name, ddm_endpoint_name))
+                    # ignore old roles (pr, pw) that we are not supposed to use
+                    if not role.startswith(READ_LAN) and not role.startswith(WRITE_LAN):
                         continue
 
-                    # figure out if the storage is local to the cpu
-                    if storage_site_name == cpu_site_name:
-                        is_local = 'Y'
-                    else:
-                        is_local = 'N'
+                    for ddm_endpoint_name in astorages[role]:
+                        # set the read/write order and increment the respective counter
+                        role_clean, scope = self.parse_role(role)
+                        order_read.setdefault(scope, 1)
+                        order_write.setdefault(scope, 1)
 
-                    # endpoints with order 1 will be considered default
-                    if order_read == 1:
-                        default_read = 'Y'
-                    else:
-                        default_read = 'N'
-                    if order_write == 1:
-                        default_write = 'Y'
-                    else:
-                        default_write = 'N'
+                        # initialize DDM endpoint and scope if it does not exist
+                        dict_ddm_endpoint.setdefault(ddm_endpoint_name, {})
+                        dict_ddm_endpoint[ddm_endpoint_name].setdefault(scope, {'order_write': None,
+                                                                                'order_read': None,
+                                                                                'role': []
+                                                                               })
 
-                    # add the values to the list of relations if the ddm endpoint is valid
-                    if ddm_endpoint_name in self.endpoint_token_dict:
-                        relation_list.append({'long_panda_site_name': long_panda_site_name,
-                                              'panda_site_name': panda_site_name,
-                                              'ddm_site': ddm_endpoint_name,
-                                              'roles': ','.join(roles),
-                                              'default_read': default_read,
-                                              'default_write': default_write,
-                                              'is_local': is_local,
-                                              'order_read': order_read,
-                                              'order_write': order_write
-                                              })
+                        if role.startswith(WRITE_LAN):
+                            dict_ddm_endpoint[ddm_endpoint_name][scope]['order_write'] = order_write[scope]
+                            order_write[scope] += 1
+                        elif role.startswith(READ_LAN):
+                            dict_ddm_endpoint[ddm_endpoint_name][scope]['order_read'] = order_read[scope]
+                            order_read[scope] += 1
+                        # append the roles
+                        dict_ddm_endpoint[ddm_endpoint_name][scope]['role'].append(role_clean)
+
+                for ddm_endpoint_name, ddm_endpoint_values in dict_ddm_endpoint.items():
+                    for scope, scope_values in ddm_endpoint_values.items():
+                        # unpack the values
+                        roles = scope_values['role']
+                        order_write = scope_values['order_write']
+                        order_read = scope_values['order_read']
+
+                        # figure out the ATLAS site the DDM endpoint belongs to
+                        try:
+                            storage_site_name = self.endpoint_token_dict[ddm_endpoint_name]['site_name']
+                        except KeyError:
+                            _logger.warning("Skipped {0}, because primary associated DDM endpoint {1} not found (e.g.DISABLED)"
+                                            .format(long_panda_site_name, ddm_endpoint_name))
+                            continue
+
+                        # figure out if the storage is local to the cpu
+                        if storage_site_name == cpu_site_name:
+                            is_local = 'Y'
+                        else:
+                            is_local = 'N'
+
+                        # endpoints with order 1 will be considered default
+                        if order_read == 1:
+                            default_read = 'Y'
+                        else:
+                            default_read = 'N'
+                        if order_write == 1:
+                            default_write = 'Y'
+                        else:
+                            default_write = 'N'
+
+                        # add the values to the list of relations if the ddm endpoint is valid
+                        if ddm_endpoint_name in self.endpoint_token_dict:
+                            relation_list.append({'long_panda_site_name': long_panda_site_name,
+                                                  'panda_site_name': panda_site_name,
+                                                  'ddm_site': ddm_endpoint_name,
+                                                  'roles': ','.join(roles),
+                                                  'default_read': default_read,
+                                                  'default_write': default_write,
+                                                  'is_local': is_local,
+                                                  'order_read': order_read,
+                                                  'order_write': order_write,
+                                                  'scope': scope,
+                                                  })
 
         return relation_list
-
-    def process_schedconfig_dump(self):
-        """
-        Gets PanDA site to DDM endpoint relationships from Schedconfig 
-        and prepares a format loadable to the DB
-        """
-
-        relationships_dict = {}  # data to be loaded to configurator DB
-        
-        for long_panda_site_name in self.schedconfig_dump:
-            
-            panda_site_name = self.schedconfig_dump[long_panda_site_name]['panda_resource']
-            
-            default_ddm_endpoint = [ddm_endpoint.strip() for ddm_endpoint in self.schedconfig_dump[long_panda_site_name]['ddm'].split(',')][0]
-            try:
-                storage_site_name = self.endpoint_token_dict[default_ddm_endpoint]['site_name']
-            except KeyError:
-                _logger.warning("Skipped {0}, because primary associated DDM endpoint {1} not found (e.g. DISABLED)"
-                                .format(long_panda_site_name, default_ddm_endpoint))
-                continue
-
-            # Check if the ddm_endpoint and the panda_site belong to the same site
-            cpu_site = self.schedconfig_dump[long_panda_site_name]['atlas_site']
-            if storage_site_name == cpu_site:
-                is_local = 'Y'
-            else:
-                is_local = 'N'
-            
-            _logger.debug("process_schedconfig_dump: long_panda_site_name {0}, panda_site_name {1}, default_ddm_endpoint {2}, storage_site_name {3}, is_local {4}"
-                          .format(long_panda_site_name, panda_site_name, default_ddm_endpoint, storage_site_name, is_local))
-            relationships_dict[panda_site_name] = {'default_ddm_endpoint': default_ddm_endpoint,
-                                                   'storage_site_name': storage_site_name,
-                                                   'is_local': is_local}
-
-        return relationships_dict
 
     def consistency_check(self):
         """
@@ -687,6 +677,7 @@ class JsonDumper(threading.Thread):
         """
         return taskBuffer.upsertQueuesInJSONSchedconfig(self.schedconfig_dump)
 
+
 if __name__ == "__main__":
 
     # If no argument, call the basic configurator
@@ -706,6 +697,7 @@ if __name__ == "__main__":
             _logger.critical("Configurator loop FAILED")
         t2 = time.time()
         _logger.debug(" run took {0}s".format(t2-t1))
+
     # If --json_dump
     elif len(sys.argv) == 2 and sys.argv[1].lower() == '--json_dump':
         t1 = time.time()

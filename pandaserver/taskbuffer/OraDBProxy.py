@@ -2502,6 +2502,21 @@ class DBProxy:
                         self.cur.execute(sqlJWU + comment, varMap)
                         nRow = self.cur.rowcount
                         _logger.debug("updateJobStatus : {0} workers updated for pandaID {1}".format(nRow, pandaID))
+
+                        try:
+                            # try to update the computing element from the harvester worker table
+                            sql_ce = """
+                                     UPDATE ATLAS_PANDA.jobsActive4  
+                                     SET computingelement = (SELECT computingelement FROM atlas_panda.harvester_workers hw, atlas_panda.Harvester_Rel_Jobs_Workers hrjw
+                                                             WHERE hw.workerid = hrjw.workerid AND hw.harvesterid = hrjw.harvesterid AND hrjw.pandaid = :PandaID)
+                                     where PandaID=:PandaID
+                                     """                                    
+                            varMap = {':PandaID': pandaID}
+                            self.cur.execute(sql_ce + comment, varMap)
+                            nRow = self.cur.rowcount
+                            _logger.debug("updateJobStatus : succeeded to update CE from harvester table for pandaID {0} (rowcount={1})".format(pandaID, nRow))
+                        except Exception:
+                            _logger.error("updateJobStatus : failed to update CE from harvester table with {0} for PanDAID {1}".format(traceback.format_exc(), pandaID))
                 else:
                     _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s notFound" % (pandaID,attemptNr))
                     # already deleted or bad attempt number
@@ -10025,27 +10040,47 @@ class DBProxy:
                     ret.wansinklimit = 0
                     if not wansinklimit in [None,'']:
                         ret.wansinklimit = wansinklimit
+
                     # DDM endpoints
+                    ret.ddm_endpoints_input = {}
+                    ret.ddm_endpoints_output = {}
                     if siteid in pandaEndpointMap:
-                        ret.ddm_endpoints_input = pandaEndpointMap[siteid]['input']
-                        ret.ddm_endpoints_output = pandaEndpointMap[siteid]['output']
+                        for scope in pandaEndpointMap[siteid]:
+                            if 'input' in pandaEndpointMap[siteid][scope]:
+                                ret.ddm_endpoints_input[scope] = pandaEndpointMap[siteid][scope]['input']
+                            if 'output' in pandaEndpointMap[siteid][scope]:
+                                ret.ddm_endpoints_output[scope] = pandaEndpointMap[siteid][scope]['output']
                     else:
                         # empty
-                        ret.ddm_endpoints_input = DdmSpec()
-                        ret.ddm_endpoints_output = DdmSpec()
-                    # mapping between token and endpoints
-                    ret.setokens_input = ret.ddm_endpoints_input.getTokenMap('input')
-                    ret.setokens_output = ret.ddm_endpoints_output.getTokenMap('output')
-                    # set DDM to the default endpoint
-                    ret.ddm_input = ret.ddm_endpoints_input.getDefaultRead()
-                    ret.ddm_output = ret.ddm_endpoints_output.getDefaultWrite()
+                        ret.ddm_endpoints_input['default'] = DdmSpec()
+                        ret.ddm_endpoints_output['default'] = DdmSpec()
+
+                    # initialize dictionary fields
+                    ret.setokens_input = {}
+                    ret.setokens_output = {}
+                    ret.ddm_input = {}                  
+                    for scope in ret.ddm_endpoints_input:
+                        # mapping between token and endpoints
+                        ret.setokens_input[scope] = ret.ddm_endpoints_input[scope].getTokenMap('input')
+                        # set DDM to the default endpoint
+                        ret.ddm_input[scope] = ret.ddm_endpoints_input[scope].getDefaultRead()
+
+                    ret.ddm_output = {}
+                    for scope in ret.ddm_endpoints_output:
+                        # mapping between token and endpoints
+                        ret.setokens_output[scope] = ret.ddm_endpoints_output[scope].getTokenMap('output')
+                        # set DDM to the default endpoint
+                        ret.ddm_output[scope] = ret.ddm_endpoints_output[scope].getDefaultWrite()
+
                     # object stores
                     try:
                         ret.objectstores = json.loads(objectstores)
                     except Exception:
                         ret.objectstores = []
+                    
                     # default unified flag
                     ret.is_unified = False
+                    
                     # num slots
                     ret.num_slots_map = dict()
                     varMap = dict()
@@ -10106,8 +10141,8 @@ class DBProxy:
         # get relationship between panda sites and ddm endpoints
         sql_panda_ddm = """
                SELECT pdr.panda_site_name, pdr.ddm_endpoint_name, pdr.is_local, de.ddm_spacetoken_name, 
-                      de.is_tape, pdr.default_read, pdr.default_write, pdr.roles, pdr.order_read, pdr.order_write,
-                      de.blacklisted 
+                      de.is_tape, pdr.default_read, pdr.default_write, pdr.roles, pdr.order_read, pdr.order_write, 
+                      nvl(pdr.scope, 'default') as scope, de.blacklisted 
                FROM ATLAS_PANDA.panda_ddm_relation pdr, ATLAS_PANDA.ddm_endpoint de
                WHERE pdr.ddm_endpoint_name = de.ddm_endpoint_name
                """
@@ -10127,12 +10162,18 @@ class DBProxy:
             
             # add the relations to the panda endpoint map
             panda_site_name = tmp_relation['panda_site_name']
+            scope = tmp_relation['scope']
+            panda_endpoint_map.setdefault(panda_site_name, {})
+            panda_endpoint_map[panda_site_name].setdefault(scope, {})
+
             if panda_site_name not in panda_endpoint_map:
                 panda_endpoint_map[panda_site_name] = {'input': DdmSpec(), 'output': DdmSpec()}
             if 'read_lan' in tmp_relation['roles'] and tmp_relation['blacklisted'] != 'Y':
-                panda_endpoint_map[panda_site_name]['input'].add(tmp_relation, endpoint_dict)
+                panda_endpoint_map[panda_site_name][scope].setdefault('input', DdmSpec())
+                panda_endpoint_map[panda_site_name][scope]['input'].add(tmp_relation, endpoint_dict)
             if 'write_lan' in tmp_relation['roles']:
-                panda_endpoint_map[panda_site_name]['output'].add(tmp_relation, endpoint_dict)
+                panda_endpoint_map[panda_site_name][scope].setdefault('output', DdmSpec())
+                panda_endpoint_map[panda_site_name][scope]['output'].add(tmp_relation, endpoint_dict)
         
         _logger.debug("{0} done".format(methodName))
         return panda_endpoint_map
@@ -15858,6 +15899,7 @@ class DBProxy:
             else:
                 sqlSN += "AND sc.status=:siteStatus "
             sqlSN += "AND dr.default_write ='Y' "
+            sqlSN += "AND (scope = 'default' OR scope IS NULL) " # skip endpoints with analysis roles
             sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
             varMap = {}
             varMap[':site'] = jobSpec.computingSite
@@ -15908,6 +15950,7 @@ class DBProxy:
                 sqlSN += "AND NOT sc.siteid LIKE 'ANALY_%' " 
                 sqlSN += "AND sc.status=:siteStatus "
                 sqlSN += "AND dr.default_write='Y' "
+                sqlSN += "AND (scope = 'default' OR scope IS NULL) "  # skip endpoints with analysis roles
                 sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
                 varMap = {}
                 varMap[':nucleus'] = tmpNucleus
@@ -15931,6 +15974,7 @@ class DBProxy:
             sqlSN += "AND NOT sc.siteid LIKE 'ANALY_%' " 
             sqlSN += "AND sc.status=:siteStatus "
             sqlSN += "AND dr.default_write='Y' "
+            sqlSN += "AND (scope = 'default' OR scope IS NULL) " # skip endpoints with analysis roles
             sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
             varMap = {}
             varMap[':siteStatus'] = 'online'
@@ -21163,8 +21207,6 @@ class DBProxy:
         tmp_log.debug('done. resource_type is Undefined')
         return 'Undefined'
 
-
-
     # update stat of workers
     def reportWorkerStats(self, harvesterID, siteName, paramsList):
         comment = ' /* DBProxy.reportWorkerStats */'
@@ -21185,8 +21227,8 @@ class DBProxy:
             varMap[':siteName'] = siteName
             self.cur.execute(sqlDel+comment, varMap)
             # insert new site data
-            sqlI = 'INSERT INTO ATLAS_PANDA.Harvester_Worker_Stats (harvester_ID,computingSite,resourceType,status,n_workers,lastUpdate) '
-            sqlI += 'VALUES (:harvester_ID,:siteName,:resourceType,:status,:n_workers,CURRENT_DATE) '
+            sqlI = 'INSERT INTO ATLAS_PANDA.Harvester_Worker_Stats (harvester_ID,computingSite,resourceType,jobType,status,n_workers,lastUpdate) '
+            sqlI += 'VALUES (:harvester_ID,:siteName,:resourceType,:jobType,:status,:n_workers,CURRENT_DATE) '
             for resourceType in paramsList:
                 params = paramsList[resourceType]
                 if resourceType == 'Undefined':
@@ -21199,6 +21241,7 @@ class DBProxy:
                     varMap[':status'] = status
                     varMap[':resourceType'] = resourceType
                     varMap[':n_workers'] = n_workers
+                    varMap[':jobType'] = 'DUMMY'
                     self.cur.execute(sqlI+comment, varMap)
             # commit
             if not self._commit():
@@ -21212,11 +21255,59 @@ class DBProxy:
             self.dumpErrorMessage(tmpLog,methodName)
             return False,'database error'
 
+    # update stat of workers with jobtype breakdown
+    def reportWorkerStats_jobtype(self, harvesterID, siteName, paramsList):
+        comment = ' /* DBProxy.reportWorkerStats_jobtype */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName+' < harvesterID={0} siteName={1} >'.format(harvesterID, siteName))
+        tmpLog.debug('start')
+        tmpLog.debug('params={0}'.format(str(paramsList)))
+        try:
+            # load new site data
+            paramsList = json.loads(paramsList)
+            # set autocommit on
+            self.conn.begin()
+            # delete old site data
+            sqlDel = "DELETE FROM ATLAS_PANDA.Harvester_Worker_Stats "
+            sqlDel += "WHERE harvester_ID=:harvesterID AND computingSite=:siteName "
+            varMap = dict()
+            varMap[':harvesterID'] = harvesterID
+            varMap[':siteName'] = siteName
+            self.cur.execute(sqlDel+comment, varMap)
+            # insert new site data
+            sqlI = 'INSERT INTO ATLAS_PANDA.Harvester_Worker_Stats (harvester_ID, computingSite, jobType, resourceType, status, n_workers, lastUpdate) '
+            sqlI += 'VALUES (:harvester_ID, :siteName, :jobType, :resourceType, :status, :n_workers, CURRENT_DATE) '
+            
+            for jobType, jt_params in paramsList.iteritems():
+                for resourceType, params in jt_params.iteritems():
+                    if resourceType == 'Undefined':
+                        continue
+                    for status, n_workers in params.iteritems():
+                        varMap = dict()
+                        varMap[':harvester_ID'] = harvesterID
+                        varMap[':siteName'] = siteName
+                        varMap[':status'] = status
+                        varMap[':jobType'] = jobType
+                        varMap[':resourceType'] = resourceType
+                        varMap[':n_workers'] = n_workers
+                        self.cur.execute(sqlI+comment, varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            # return
+            tmpLog.debug('done')
+            return True,'OK'
+        except:
+            # roll back
+            self._rollback()
+            self.dumpErrorMessage(tmpLog,methodName)
+            return False,'database error'
+
 
 
     # get stat of workers
     def getWorkerStats(self, siteName):
-        comment = ' /* DBProxy.getWorkerStat */'
+        comment = ' /* DBProxy.getWorkerStats */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger, methodName+' < siteName={0} >'.format(siteName))
         tmpLog.debug('start')
@@ -21237,7 +21328,7 @@ class DBProxy:
             else:
                 nPilot = 0
             # sql to get stat
-            sqlG = "SELECT SUM(n_workers),COUNT(harvester_ID),resourceType,status FROM ATLAS_PANDA.Harvester_Worker_Stats "
+            sqlG = "SELECT SUM(n_workers), COUNT(harvester_ID), jobType, resourceType, status FROM ATLAS_PANDA.Harvester_Worker_Stats "
             sqlG += "WHERE computingSite=:siteName "
             sqlG += "GROUP BY resourceType,status "
             varMap = dict()
@@ -21245,12 +21336,13 @@ class DBProxy:
             self.cur.execute(sqlG+comment, varMap)
             res = self.cur.fetchall()
             retMap = {}
-            for cnt, nInstances, resourceType, status in res:
-                if resourceType not in retMap:
-                    retMap[resourceType] = {'stats':dict(), 'nInstances':0}
-                retMap[resourceType]['stats'][status] = cnt
-                if nInstances > retMap[resourceType]['nInstances']:
-                    retMap[resourceType]['nInstances'] = nInstances
+            for cnt, nInstances, jobType, resourceType, status in res:
+                retMap.setdefault(jobType, {})
+                if resourceType not in retMap[jobType]:
+                    retMap[jobType][resourceType] = {'stats':dict(), 'nInstances':0}
+                retMap[jobType][resourceType]['stats'][status] = cnt
+                if nInstances > retMap[jobType][resourceType]['nInstances']:
+                    retMap[jobType][resourceType]['nInstances'] = nInstances
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
@@ -21639,7 +21731,7 @@ class DBProxy:
 
         # get current pilot distribution in harvester for the queue
         sql = """
-              SELECT computingsite, harvester_id, resourcetype, status, n_workers 
+              SELECT computingsite, harvester_id, jobType, resourceType, status, n_workers 
               FROM atlas_panda.harvester_worker_stats
               WHERE lastupdate > :time_limit 
               """
@@ -21649,11 +21741,12 @@ class DBProxy:
         self.cur.execute(sql + comment, var_map)
         worker_stats_rows = self.cur.fetchall()
         worker_stats_dict = {}
-        for computing_site, harvester_id, resource_type, status, n_workers in worker_stats_rows:
+        for computing_site, harvester_id, job_type, resource_type, status, n_workers in worker_stats_rows:
             worker_stats_dict.setdefault(computing_site, {})
             worker_stats_dict[computing_site].setdefault(harvester_id, {})
-            worker_stats_dict[computing_site][harvester_id].setdefault(resource_type, {})
-            worker_stats_dict[computing_site][harvester_id][resource_type][status] = n_workers
+            worker_stats_dict[computing_site][harvester_id].setdefault(job_type, {})
+            worker_stats_dict[computing_site][harvester_id][job_type].setdefault(resource_type, {})
+            worker_stats_dict[computing_site][harvester_id][job_type][resource_type][status] = n_workers
 
         tmpLog.debug('done')
         return worker_stats_dict
@@ -21695,25 +21788,208 @@ class DBProxy:
                 harvester_ids.append(harvester_id)
         
         for harvester_id in harvester_ids:
+            for job_type in worker_stats[harvester_id]:
+                workers_queued.setdefault(job_type, {})
+                for resource_type in worker_stats[harvester_id][job_type]:
+                    # TODO: this needs to be converted into cores, or we stay at worker level???
+                    # how do I know ncores from only the resource_type???
+                    try:
+                        n_workers_running = n_workers_running + worker_stats[harvester_id][job_type][resource_type]['running']
+                        if resource_type in resource_type_limits:
+                            resource_type_limits[resource_type] = resource_type_limits[resource_type] -  worker_stats[harvester_id][resource_type]['running']
+                    except KeyError:
+                        pass
+
+                    try: # submitted
+                        workers_queued[job_type].setdefault(resource_type, 0)
+                        workers_queued[job_type][resource_type] = workers_queued[job_type][resource_type] + worker_stats[harvester_id][job_type][resource_type]['submitted']
+                        n_workers_queued = n_workers_queued + worker_stats[harvester_id][job_type][resource_type]['submitted']
+                    except KeyError:
+                        pass
+
+                    try: # ready
+                        workers_queued[job_type].setdefault(resource_type, 0)
+                        workers_queued[job_type][resource_type] = workers_queued[job_type][resource_type] + worker_stats[harvester_id][job_type][resource_type]['ready']
+                        n_workers_queued = n_workers_queued + worker_stats[harvester_id][job_type][resource_type]['ready']
+                    except KeyError:
+                        pass
+
+        tmpLog.debug('Queue {0} queued worker overview: {1}'.format(queue, workers_queued))
+
+        # Temporary workaround. CERN needs more pressure to start running
+        if queue == 'CERN-PROD_UCORE':
+            n_workers_running = max(n_workers_running, 1000)
+        else:
+            n_workers_running = max(n_workers_running, 75)
+
+        n_workers_to_submit = max(n_workers_running - n_workers_queued, 5)
+        tmpLog.debug('nrunning {0}, nqueued {1}. We need to process {2} workers'
+                     .format(n_workers_running, n_workers_queued, n_workers_to_submit))
+
+        # Get the sorted global shares
+        sorted_shares = self.get_sorted_leaves()
+
+        # Run over the activated jobs by gshare&priority and substract them from the queued
+        # A negative value for queued will mean more pilots of that resource type are missing
+        for share in sorted_shares:
+            var_map = {':queue': queue, ':gshare': share.name}
+            sql = """
+                  SELECT gshare, prodsourcelabel, resource_type FROM atlas_panda.jobsactive4
+                  WHERE jobstatus = 'activated'
+                     AND computingsite=:queue 
+                     AND gshare=:gshare 
+                  ORDER BY currentpriority DESC
+                  """
+            self.cur.execute(sql + comment, var_map)
+            activated_jobs = self.cur.fetchall()
+            tmpLog.debug('Processing share: {0}. Got {1} activated jobs'.format(share.name, len(activated_jobs)))
+            for gshare, job_type, resource_type in activated_jobs:
+                # if we reached the limit for the resource type, skip the job
+                if resource_type in resource_type_limits and resource_type_limits[resource_type] <= 0:
+                    continue
+                workers_queued.setdefault(job_type, {})
+                workers_queued[job_type].setdefault(resource_type, 0)
+                workers_queued[job_type][resource_type] = workers_queued[job_type][resource_type] - 1
+                if workers_queued[job_type][resource_type] <= 0:
+                    # we've gone over the jobs that already have a queued worker, now we go for new workers
+                    n_workers_to_submit = n_workers_to_submit - 1
+
+                # We reached the number of workers needed
+                if n_workers_to_submit <= 0:
+                    tmpLog.debug('Reached workers needed (inner)')
+                    break
+
+            # We reached the number of workers needed
+            if n_workers_to_submit <= 0:
+                tmpLog.debug('Reached workers needed (outer)')
+                break
+
+        tmpLog.debug('workers_queued: {0}'.format(workers_queued))
+
+        new_workers = {}
+        for job_type in workers_queued:
+            new_workers.setdefault(job_type, {})
+            for resource_type in workers_queued[job_type]:
+                if workers_queued[job_type][resource_type] >= 0:
+                    # we have too many workers queued already, don't submit more
+                    new_workers[job_type][resource_type] = 0
+                elif workers_queued[job_type][resource_type] < 0:
+                    # we don't have enough workers for this resource type
+                    new_workers[job_type][resource_type] = - workers_queued[job_type][resource_type] + 1
+
+        # We should still submit a SCORE worker, even if there are no activated jobs to avoid queue deactivation
+        workers = False
+        for job_type in new_workers:
+            for resource_type in new_workers[job_type]:
+                if new_workers[job_type][resource_type] > 0:
+                    workers = True
+                    break
+        if not workers:
+            new_workers['managed'] = {'SCORE': 1}
+
+        # In case multiple harvester instances are serving a panda queue, split workers evenly between them
+        new_workers_per_harvester = {}
+        for harvester_id in harvester_ids:
+            new_workers_per_harvester.setdefault(harvester_id, {})
+            for job_type in new_workers:
+                new_workers_per_harvester[harvester_id].setdefault(job_type, {})
+                for resource_type in new_workers[job_type]:
+                    new_workers_per_harvester[harvester_id][job_type][resource_type] = int(math.ceil(new_workers[job_type][resource_type] * 1.0 / len(harvester_ids)))
+
+        tmpLog.debug('Workers to submit: {0}'.format(new_workers_per_harvester))
+        tmpLog.debug('done')
+        return new_workers_per_harvester
+
+    def ups_load_worker_stats_legacy(self):
+        """
+        Load the harvester worker stats
+        :return: dictionary with worker statistics
+        """
+        comment = ' /* DBProxy.ups_load_worker_stats_legacy */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, method_name)
+        tmpLog.debug('start')
+
+        # get current pilot distribution in harvester for the queue
+        sql = """
+              SELECT computingsite, harvester_id, resourcetype, status, n_workers 
+              FROM atlas_panda.harvester_worker_stats
+              WHERE lastupdate > :time_limit 
+              """
+        var_map = {}
+        var_map[':time_limit'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)
+
+        self.cur.execute(sql + comment, var_map)
+        worker_stats_rows = self.cur.fetchall()
+        worker_stats_dict = {}
+        for computing_site, harvester_id, resource_type, status, n_workers in worker_stats_rows:
+            worker_stats_dict.setdefault(computing_site, {})
+            worker_stats_dict[computing_site].setdefault(harvester_id, {})
+            worker_stats_dict[computing_site][harvester_id].setdefault(resource_type, {})
+            worker_stats_dict[computing_site][harvester_id][resource_type][status] = n_workers
+
+        tmpLog.debug('done')
+        return worker_stats_dict
+
+    def ups_new_worker_distribution_legacy(self, queue, worker_stats):
+        """
+        Assuming we want to have n_cores_queued >= n_cores_running, calculate how many pilots need to be submitted
+        and choose the number
+
+        :param queue: name of the queue
+        :param worker_stats: queue worker stats
+        :return:
+        """
+
+        comment = ' /* DBProxy.ups_new_worker_distribution_legacy */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, '{0}-{1}'.format(method_name, queue))
+        tmpLog.debug('start')
+        n_workers_running = 0
+        workers_queued = {}
+        n_workers_queued = 0
+        harvester_ids_temp = list(worker_stats)
+
+        # get the configuration for maximum workers of each type
+        pq_data_des = self.get_config_for_pq(queue)
+        resource_type_limits = {}
+        if not pq_data_des:
+            tmpLog.debug('Error retrieving queue configuration from DB, limits can not be applied')
+        else:
+            try:
+                resource_type_limits = pq_data_des['uconfig']['resource_type_limits']
+            except KeyError:
+                pass
+
+        # Filter central harvester instances that support UPS model
+        harvester_ids = []
+        for harvester_id in harvester_ids_temp:
+            if 'ACT' not in harvester_id and 'test_fbarreir' not in harvester_id and 'cern_cloud' not in harvester_id:
+                harvester_ids.append(harvester_id)
+
+        for harvester_id in harvester_ids:
             for resource_type in worker_stats[harvester_id]:
                 # TODO: this needs to be converted into cores, or we stay at worker level???
                 try:
                     n_workers_running = n_workers_running + worker_stats[harvester_id][resource_type]['running']
                     if resource_type in resource_type_limits:
-                        resource_type_limits[resource_type] = resource_type_limits[resource_type] -  worker_stats[harvester_id][resource_type]['running']
+                        resource_type_limits[resource_type] = resource_type_limits[resource_type] - \
+                                                              worker_stats[harvester_id][resource_type]['running']
                 except KeyError:
                     pass
 
                 try:
                     workers_queued.setdefault(resource_type, 0)
-                    workers_queued[resource_type] = workers_queued[resource_type] + worker_stats[harvester_id][resource_type]['submitted']
+                    workers_queued[resource_type] = workers_queued[resource_type] + \
+                                                    worker_stats[harvester_id][resource_type]['submitted']
                     n_workers_queued = n_workers_queued + worker_stats[harvester_id][resource_type]['submitted']
                 except KeyError:
                     pass
 
                 try:
                     workers_queued.setdefault(resource_type, 0)
-                    workers_queued[resource_type] = workers_queued[resource_type] + worker_stats[harvester_id][resource_type]['ready']
+                    workers_queued[resource_type] = workers_queued[resource_type] + \
+                                                    worker_stats[harvester_id][resource_type]['ready']
                     n_workers_queued = n_workers_queued + worker_stats[harvester_id][resource_type]['ready']
                 except KeyError:
                     pass
@@ -21778,8 +22054,7 @@ class DBProxy:
             elif workers_queued[resource_type] < 0:
                 # we don't have enough workers for this resource type
                 new_workers[resource_type] = - workers_queued[resource_type] + 1
-                
-                
+
         # We should still submit a SCORE worker, even if there are no activated jobs to avoid queue deactivation
         workers = False
         for resource_type in new_workers:
@@ -21794,7 +22069,8 @@ class DBProxy:
         for harvester_id in harvester_ids:
             new_workers_per_harvester.setdefault(harvester_id, {})
             for resource_type in new_workers:
-                new_workers_per_harvester[harvester_id][resource_type] = int(math.ceil(new_workers[resource_type] * 1.0 / len(harvester_ids)))
+                new_workers_per_harvester[harvester_id][resource_type] = int(
+                    math.ceil(new_workers[resource_type] * 1.0 / len(harvester_ids)))
 
         tmpLog.debug('Workers to submit: {0}'.format(new_workers_per_harvester))
         tmpLog.debug('done')
@@ -22685,7 +22961,35 @@ class DBProxy:
             self.dumpErrorMessage(_logger,methodName)
             return []
 
+    def insert_pq_json(self, pq, data):
+        """
+        Insert json for a panda queue
+        """
+        comment = ' /* DBProxy.insert_pq_json */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName)
+        try:
 
+            sql = """
+                  INSERT INTO atlas_panda.agis_dump (panda_site, update_time, json_data)
+                  VALUES (:panda_site, sysdate, :json_data)
+                  """
+
+            # generate the entries for the DB
+            var_maps = {':panda_site': queue,
+                        ':json_data': data}
+
+            # run the SQL
+            self.cur.execute(sql + comment, var_maps)
+            if not self._commit():
+                raise RuntimeError, 'Commit error'
+            tmpLog.debug('done')
+            return [True]
+        except:
+            # roll back
+            self._rollback()
+            self.dumpErrorMessage(tmpLog, methodName)
+            return None
 
     # get user job metadata
     def getUserJobMetadata(self, jediTaskID):
@@ -22828,8 +23132,6 @@ class DBProxy:
             self.dumpErrorMessage(_logger,methodName)
             return {}
 
-
-    # get output datasets
     def getQueuesInJSONSchedconfig(self):
         comment = ' /* DBProxy.getQueuesInJSONSchedconfig */'
         methodName = comment.split(' ')[-2].split('.')[-1]

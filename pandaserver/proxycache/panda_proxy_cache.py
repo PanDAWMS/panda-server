@@ -37,7 +37,7 @@ class MyProxyInterface(object):
         # check if empty dummy file
         if os.path.exists(proxy_path) and os.stat(proxy_path).st_size == 0:
             if datetime.datetime.utcnow() - datetime.datetime.utcfromtimestamp(os.path.getctime(proxy_path)) < datetime.timedelta(hours=1):
-                _logger.debug('skip too eary to try again')
+                _logger.debug('skip too early to try again')
                 return 2
         cmd = "myproxy-logon -s %s --no_passphrase --out %s -l '%s' -k %s -t 0" % (server_name, proxy_path, user_dn, cred_name)
         # if myproxy.cern.ch fails, try myproxy on bnl as well

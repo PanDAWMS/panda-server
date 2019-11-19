@@ -215,10 +215,11 @@ class AdderGen:
                         addResult = adderPlugin.result
                         self.logger.debug('plugin done with %s' % (addResult.statusCode))
                     except Exception:
-                        errtype,errvalue = sys.exc_info()[:2]
+                        errtype, errvalue = sys.exc_info()[:2]
                         self.logger.error("failed to execute AdderPlugin for VO={0} with {1}:{2}".format(self.job.VO,
                                                                                                          errtype,
-                                                                                                         errvalue)) 
+                                                                                                         errvalue))
+                        self.logger.error("failed to execute AdderPlugin for VO={0} with {1}".format(traceback.format_exc()))
                         addResult = None
                         self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
                         self.job.ddmErrorDiag = "AdderPlugin failure"

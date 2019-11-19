@@ -28,7 +28,7 @@ class PilotStreaming:
         self._logger.debug('UPS queues: {0}'.format(ups_queues))
 
         # get worker stats
-        worker_stats = taskBuffer.ups_load_worker_stats()
+        worker_stats = taskBuffer.ups_load_worker_stats_legacy()
 
         for ups_queue in ups_queues:
             # get the worker and job stats for the queue
@@ -41,11 +41,11 @@ class PilotStreaming:
                 self._logger.debug('No worker stats for queue {0}'.format(ups_queue))
                 continue
 
-            new_workers_per_harvester = taskBuffer.ups_new_worker_distribution(ups_queue, tmp_worker_stats)
+            new_workers_per_harvester = taskBuffer.ups_new_worker_distribution_legacy(ups_queue, tmp_worker_stats)
             self._logger.info('queue: {0}, results: {1}'.format(ups_queue, new_workers_per_harvester))
 
             # variables for the harvester command
-            command = '{0}:{1}'.format('SET_N_WORKERS_JOBTYPE', ups_queue)
+            command = '{0}:{1}'.format('SET_N_WORKERS', ups_queue)
             status = 'new'
             ack_requested = False
             lock_interval = None
