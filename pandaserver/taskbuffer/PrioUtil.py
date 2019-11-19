@@ -1,4 +1,5 @@
 import json
+import sys
 
 try:
     unicode
@@ -26,7 +27,7 @@ def unicodeConvert(input):
         for tmpItem in input:
             retList.append(unicodeConvert(tmpItem))
         return retList
-    elif isinstance(input, unicode):
+    elif isinstance(input, unicode) and sys.version_info[0] == 2:
         return input.encode('utf-8')
     return input
 
