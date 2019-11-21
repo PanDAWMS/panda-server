@@ -120,7 +120,9 @@ class SiteSpec(object):
         
 
     def is_grandly_unified(self):
-        return self.hasValueInCatchall('grandly_unified')
+        if self.hasValueInCatchall('grandly_unified') or self.type == 'unified':
+            return True
+        return False
 
 
     # get unified name
