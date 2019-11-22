@@ -173,7 +173,7 @@ class EventPicker:
             # get jediTaskID
             self.jediTaskID = self.taskBuffer.getTaskIDwithTaskNameJEDI(compactDN,self.userTaskName)
             # get prodSourceLabel
-            self.prodSourceLabel = self.taskBuffer.getTaskIDwithTaskNameJEDI(compactDN,self.userTaskName)
+            self.prodSourceLabel = self.taskBuffer.getProdSourceLabelwithTaskID(self.jediTaskID)
             # convert run/event list to dataset/file list
             tmpRet,locationMap,allFiles = self.pd2p.convertEvtRunToDatasets(runEvtList,
                                                                             eventPickDataType,
