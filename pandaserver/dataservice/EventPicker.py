@@ -49,7 +49,7 @@ class EventPicker:
         self.lineLimit       = 100
         # JEDI
         self.jediTaskID      = None
-
+        self.prodSourceLabel = None
 
     # main
     def run(self):
@@ -172,6 +172,8 @@ class EventPicker:
             compactDN = self.taskBuffer.cleanUserID(self.userDN)
             # get jediTaskID
             self.jediTaskID = self.taskBuffer.getTaskIDwithTaskNameJEDI(compactDN,self.userTaskName)
+            # get prodSourceLabel
+            self.prodSourceLabel = self.taskBuffer.getTaskIDwithTaskNameJEDI(compactDN,self.userTaskName)
             # convert run/event list to dataset/file list
             tmpRet,locationMap,allFiles = self.pd2p.convertEvtRunToDatasets(runEvtList,
                                                                             eventPickDataType,
@@ -214,8 +216,8 @@ class EventPicker:
                 self.taskBuffer.updateTaskModTimeJEDI(self.jediTaskID)
             else:
                 # get candidates
-                tmpRet,candidateMaps = self.pd2p.getCandidates(self.userDatasetName,checkUsedFile=False,
-                                                               useHidden=True)
+                tmpRet,candidateMaps = self.pd2p.getCandidates(self.userDatasetName, self.prodSourceLabel,
+                                                               checkUsedFile=False, useHidden=True)
                 if not tmpRet:
                     self.endWithError('Failed to find candidate for destination')
                     return False

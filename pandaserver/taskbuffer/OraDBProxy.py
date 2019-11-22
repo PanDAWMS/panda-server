@@ -17304,6 +17304,39 @@ class DBProxy:
             return None
 
 
+    # get prodSourceLabel from TaskID
+    def getProdSourceLabelwithTaskID(self, jediTaskID):
+        comment = ' /* DBProxy.getProdSourceLabelwithTaskID */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0}>".format(jediTaskID)
+        _logger.debug("{0} : start".format(methodName))
+        try:
+            # begin transaction
+            self.conn.begin()
+            # sql to get jediTaskID
+            sqlGF  = "SELECT prodSourceLabel FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sqlGF += "WHERE jediTaskID=:jediTaskID "
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            self.cur.execute(sqlGF+comment,varMap)
+            resFJ = self.cur.fetchone()
+            if resFJ is not None:
+                prodSourceLabel, = resFJ
+            else:
+                prodSourceLabel = None
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            _logger.debug("{0} : jediTaskID={1} prodSourceLabel={2}".format(methodName,jediTaskID, prodSourceLabel))
+            return prodSourceLabel
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return None
+
+
 
     # update error dialog for a jediTaskID
     def updateTaskErrorDialogJEDI(self,jediTaskID,msg):

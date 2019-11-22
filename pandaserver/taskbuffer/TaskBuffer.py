@@ -2834,6 +2834,16 @@ class TaskBuffer:
         return ret
 
 
+    # get prodSourceLabel from task ID
+    def getProdSourceLabelwithTaskID(self, taskID):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getProdSourceLabelwithTaskID(taskID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
 
     # update error dialog for a jediTaskID
     def updateTaskErrorDialogJEDI(self,jediTaskID,msg):
