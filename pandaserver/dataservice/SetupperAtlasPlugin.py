@@ -949,10 +949,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                                                                   comment=optComment)
                                     out = 'OK'
                                     break
-                                except Exception:
+                                except Exception as e:
                                     status = False
-                                    errType,errValue = sys.exc_info()[:2]
-                                    out = "%s %s ".format(errType, errValue) + traceback.format_exc()
+                                    out = "registerDatasetSubscription failed with {0} {1}".format(
+                                        str(e), traceback.format_exc())
                                     time.sleep(10)
                             if not status:
                                 self.logger.error(out)
@@ -1232,7 +1232,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 allSEs = srcSiteSpec.ddm_endpoints_input[scope_input].getAllEndPoints()
                 tapeSEs = srcSiteSpec.ddm_endpoints_input[scope_input].getTapeEndPoints()
             except KeyError:
-                self.logger.error('Queue {0} has ddm_endpoints_input {1}. No scope {} found'.
+                self.logger.error('Queue {0} has ddm_endpoints_input {1}. No scope {2} found'.
                                   format(srcSiteSpec.sitename, srcSiteSpec.ddm_endpoints_input, scope_input))
                 allSEs = []
                 tapeSEs = []
