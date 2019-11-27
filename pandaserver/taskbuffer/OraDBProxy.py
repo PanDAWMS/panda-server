@@ -21311,11 +21311,15 @@ class DBProxy:
             sqlI = 'INSERT INTO ATLAS_PANDA.Harvester_Worker_Stats (harvester_ID, computingSite, jobType, resourceType, status, n_workers, lastUpdate) '
             sqlI += 'VALUES (:harvester_ID, :siteName, :jobType, :resourceType, :status, :n_workers, CURRENT_DATE) '
             
-            for jobType, jt_params in paramsList.iteritems():
-                for resourceType, params in jt_params.iteritems():
+            for jobType in paramsList:
+                jt_params = paramsList[jobType]
+                for resourceType in jt_params:
+                    params = jt_params[resourceType]
                     if resourceType == 'Undefined':
                         continue
-                    for status, n_workers in params.iteritems():
+                    for status in params:
+                        n_workers = params[status]
+                        
                         varMap = dict()
                         varMap[':harvester_ID'] = harvesterID
                         varMap[':siteName'] = siteName
