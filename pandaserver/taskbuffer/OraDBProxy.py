@@ -21326,7 +21326,7 @@ class DBProxy:
                         self.cur.execute(sqlI+comment, varMap)
             # commit
             if not self._commit():
-                raise RuntimeError, 'Commit error'
+                raise RuntimeError('Commit error')
             # return
             tmpLog.debug('done')
             return True,'OK'
@@ -23015,7 +23015,7 @@ class DBProxy:
             # run the SQL
             self.cur.execute(sql + comment, var_maps)
             if not self._commit():
-                raise RuntimeError, 'Commit error'
+                raise RuntimeError('Commit error')
             tmpLog.debug('done')
             return [True]
         except:
