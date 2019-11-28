@@ -1,0 +1,41 @@
+Installation for ATLAS on CC7 + virtualenv + python3 + atlpan
+--------------------
+
+1. Preparation.
+   ```
+   yum install httpd, httpd-devel, mod_ssl, gridsite
+   mkdir /home/atlpan
+   chown atlpan:zp /home/atlpan
+   mkdir -p /var/log/panda
+   mkdir -p /var/log/panda/wsgisocks
+   mkdir -p /var/cache/pandaserver
+   chown atlpan:zp /var/log/panda
+   chown atlpan:zp /var/log/panda/wsgisocks
+   chown atlpan:zp /var/cache/pandaserver
+   ```
+1. Install panda-server and cx_Oracle.
+   ```
+   source /opt/pandaserver/bin/activate
+   pip install panda-server
+   pip install cx_Oracle
+   ``` 
+   
+1. Modify config files.
+   ```
+   cd /opt/pandaserver/etc/panda
+   mv panda_common.cfg.rpmnew panda_common.cfg
+   mv panda_server.cfg.rpmnew panda_server.cfg       
+   mv panda_server-httpd-FastCGI.conf.rpmnew panda_server-httpd.conf        
+   vi panda_server.cfg panda_server-httpd.conf
+   ```
+1. Make symlinks and add the service.
+   ```
+   ln -fs /opt/pandaserver/etc/panda/panda_server.sysconfig /etc/sysconfig/panda_server
+   ln -fs /opt/pandaserver/etc/rc.d/init.d/panda_server /etc/rc.d/init.d/httpd-pandasrv
+   chkconfig --add httpd-pandasrv
+   ```
+1. Add cron and logrotate.
+   ```
+   cp /opt/pandaserver/etc/panda/pandasrv.cron /etc/cron.d/
+   cp /opt/pandaserver/etc/panda/panda_server.logrotate /etc/logrotate.d/
+   ``` 
