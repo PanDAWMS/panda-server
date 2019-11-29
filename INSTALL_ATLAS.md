@@ -3,6 +3,7 @@ Installation for ATLAS on CC7 + virtualenv + python3 + atlpan
 
 1. Preparation.
    ```
+   setup virtualenv unser /opt/pandaserver and install host/user certificates
    yum install httpd, httpd-devel, mod_ssl, gridsite
    mkdir /home/atlpan
    chown atlpan:zp /home/atlpan
