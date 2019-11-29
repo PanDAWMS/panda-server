@@ -3,10 +3,14 @@ Installation for ATLAS on CC7 + virtualenv + python3 + atlpan
 
 1. Preparation.
    ```
-   setup virtualenv unser /opt/pandaserver and install host/user certificates
+   # setup virtualenv unser /opt/pandaserver, and install host/user certificates and voms-clients
+   ...
+   # install httpd stuff
    yum install httpd, httpd-devel, mod_ssl, gridsite
+   # make home dir for the service account
    mkdir /home/atlpan
    chown atlpan:zp /home/atlpan
+   # make log dirs
    mkdir -p /var/log/panda
    mkdir -p /var/log/panda/wsgisocks
    mkdir -p /var/cache/pandaserver
@@ -39,5 +43,6 @@ Installation for ATLAS on CC7 + virtualenv + python3 + atlpan
 1. Add cron and logrotate.
    ```
    cp /opt/pandaserver/etc/panda/pandasrv.cron /etc/cron.d/
+   vi /etc/cron.d/pandasrv.cron # (if needed)
    cp /opt/pandaserver/etc/panda/panda_server.logrotate /etc/logrotate.d/
    ``` 
