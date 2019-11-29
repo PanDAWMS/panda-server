@@ -27,7 +27,8 @@ Installation for ATLAS on CC7 + virtualenv + python3 + atlpan
    mv panda_common.cfg.rpmnew panda_common.cfg
    mv panda_server.cfg.rpmnew panda_server.cfg       
    mv panda_server-httpd-FastCGI.conf.rpmnew panda_server-httpd.conf        
-   vi panda_server.cfg panda_server-httpd.conf
+   vi panda_server.cfg
+   vi panda_common.cfg panda_server-httpd.conf # (if needed)
    ```
 1. Make symlinks and add the service.
    ```
