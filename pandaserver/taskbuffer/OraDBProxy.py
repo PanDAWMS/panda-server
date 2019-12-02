@@ -9800,11 +9800,13 @@ class DBProxy:
             pandaEndpointMap = self.getDdmEndpoints()
 
             # sql to get site spec
-            sql = "SELECT queue_name, data, b.site_name, c.role "
-            sql+= "FROM (ATLAS_PANDA.schedconfig_json a "
-            sql+= "LEFT JOIN ATLAS_PANDA.panda_site b ON a.panda_queue=b.panda_site_name) "
-            sql+= "LEFT JOIN ATLAS_PANDA.site c ON b.site_name=c.site_name "
-            sql+= "WHERE panda_queue IS NOT NULL "
+            sql = """
+                   SELECT panda_queue, data, b.site_name, c.role
+                   FROM (ATLAS_PANDA.schedconfig_json a
+                   LEFT JOIN ATLAS_PANDA.panda_site b ON a.panda_queue = b.panda_site_name)
+                   LEFT JOIN ATLAS_PANDA.site c ON b.site_name = c.site_name
+                   WHERE panda_queue IS NOT NULL
+                   """
 
             # sql to get num slots
             sqlSL = "SELECT gshare, resourcetype, numslots FROM ATLAS_PANDA.Harvester_Slots "
