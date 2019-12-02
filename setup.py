@@ -238,6 +238,10 @@ setup(
                       'stomp.py',
                       'pyyaml'
                       ],
+    extra_requires={
+        'oracle': ['cx_Oracle'],
+        'mysql': ['mysqlclient']
+    },
     packages=[ 'pandaserver',
                'pandaserver.brokerage',
                'pandaserver.config',
