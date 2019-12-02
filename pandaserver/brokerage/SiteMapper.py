@@ -110,7 +110,7 @@ class SiteMapper:
                         # append
                         if tmpID not in self.siteSpecList:
                             # don't use site for production when cloud is undefined
-                            if ret.type == 'production' and ret.cloud == '':
+                            if ret.type.runs_production() and ret.cloud == '':
                                 _logger.error('Empty cloud for %s:%s' % (tmpID,tmpNickname))
                             else:
                                 self.siteSpecList[tmpID] = ret
@@ -171,8 +171,8 @@ class SiteMapper:
                 _logger.error(traceback.format_exc())
             # make cloudSpec
             for siteSpec in self.siteSpecList.values():
-                # choose only prod sites
-                if siteSpec.type != 'production':
+                # choose only prod or grandly unified sites
+                if siteSpec.runs_production():
                     continue
                 # append prod site in cloud
                 for tmpCloud in siteSpec.cloudlist:
@@ -230,14 +230,14 @@ class SiteMapper:
     # collect nuclei and satellites
     def collectNS(self, ret):
         # collect nuclei
-        if ret.role == 'nucleus' and ret.type == 'production':
+        if ret.role == 'nucleus' and ret.runs_production():
             if not ret.pandasite in self.nuclei:
                 nucleus = NucleusSpec(ret.pandasite)
                 nucleus.state = ret.pandasite_state
                 self.nuclei[ret.pandasite] = nucleus
             self.nuclei[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output)
         # collect satellites
-        if ret.role == 'satellite' and ret.type == 'production':
+        if ret.role == 'satellite' and ret.type.runs_production():
             if not ret.pandasite in self.satellites:
                 satellite = NucleusSpec(ret.pandasite)
                 satellite.state = ret.pandasite_state
