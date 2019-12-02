@@ -17,8 +17,8 @@ LoadModule status_module modules/mod_status.so
 # WSGI
 LoadModule wsgi_module modules/mod_wsgi.so
 
-User  %%panda_user%%
-Group %%panda_group%%
+User  @@panda_user@@
+Group @@panda_group@@
 
 <IfModule prefork.c>
 StartServers         25
@@ -124,7 +124,7 @@ RewriteRule ^/cscache/(.*)$ /server/panda/getFile?fileName=$1 [PT,L]
    </Files>
 
    # enable CGI	for FastCGI/WSGI
-   Options FollowSymLinks +ExecCGI
+   Options +FollowSymLinks +ExecCGI
 
    # mod_gridsite
    GridSiteIndexes	on
@@ -156,7 +156,7 @@ SSLCertificateKeyFile   /etc/grid-security/hostkey.pem
 SSLCACertificatePath    /etc/grid-security/certificates
 SSLVerifyClient         optional
 SSLVerifyDepth          10
-SSLOptions              +ExportCertData +StdEnvVars
+SSLOptions              +ExportCertData +StdEnvVars +LegacyDNStringFormat
 
 <Directory "@@install_purelib@@/pandaserver/server">
 
@@ -167,7 +167,7 @@ SSLOptions              +ExportCertData +StdEnvVars
    </Files>
 
    # enable CGI	for FastCGI/WSGI
-   Options FollowSymLinks +ExecCGI
+   Options +FollowSymLinks +ExecCGI
 
    # mod_gridsite
    GridSiteIndexes       on

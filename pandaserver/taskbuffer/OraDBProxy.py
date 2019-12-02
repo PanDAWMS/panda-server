@@ -21319,7 +21319,6 @@ class DBProxy:
                         continue
                     for status in params:
                         n_workers = params[status]
-                        
                         varMap = dict()
                         varMap[':harvester_ID'] = harvesterID
                         varMap[':siteName'] = siteName

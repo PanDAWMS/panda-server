@@ -5,11 +5,7 @@
     missingok
     notifempty
     sharedscripts
-    daily       
-    prerotate
-        killall -u @@panda_user@@ python > /dev/null 2>/dev/null || true
-        killall -u @@panda_user@@ python@@python_exec_version@@ > /dev/null 2>/dev/null || true
-    endscript
+    daily
     postrotate
 	killall -u @@panda_user@@ python > /dev/null 2>/dev/null || true
         killall -u @@panda_user@@ python@@python_exec_version@@ > /dev/null 2>/dev/null || true
