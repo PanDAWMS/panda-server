@@ -9771,7 +9771,7 @@ class DBProxy:
         methodName = comment.split(' ')[-2].split('.')[-1]
         try:
             # set autocommit on
-            self.conn.begin()
+            # self.conn.begin()
             # get reliability info
             reliabilityMap = {}
             try:
@@ -9802,12 +9802,12 @@ class DBProxy:
             # sql to get site spec
             sql = "SELECT data, b.site_name, c.role "
             sql+= "FROM (ATLAS_PANDA.schedconfig_json a "
-            sql+= "LEFT JOIN ATLAS_PANDA.panda_site b ON a.siteid=b.panda_site_name) "
+            sql+= "LEFT JOIN ATLAS_PANDA.panda_site b ON a.panda_queue=b.panda_site_name) "
             sql+= "LEFT JOIN ATLAS_PANDA.site c ON b.site_name=c.site_name "
             sql+= "WHERE panda_queue IS NOT NULL "
 
             # sql to get num slots
-            sqlSL = "SELECT gshare,resourcetype,numslots FROM ATLAS_PANDA.Harvester_Slots "
+            sqlSL = "SELECT gshare, resourcetype, numslots FROM ATLAS_PANDA.Harvester_Slots "
             sqlSL += "WHERE pandaQueueName=:pandaQueueName "
             sqlSL += "AND (expirationTime IS NULL OR expirationTime>CURRENT_DATE) "
 
@@ -9815,8 +9815,8 @@ class DBProxy:
             # self.cur.execute(sql+comment)
             # resList = self.cur.fetchall()
             ret, resList = self.getClobObj(sql, {})
-            if not self._commit():
-                raise RuntimeError('Commit error')
+            # if not self._commit():
+            #    raise RuntimeError('Commit error')
             
             retList = {}
             if resList is not None:
@@ -9860,24 +9860,24 @@ class DBProxy:
                     ret.accesscontrol = queue_data['accesscontrol']
                     ret.copysetup     = queue_data['copysetup']
                     ret.maxinputsize  = queue_data['maxinputsize']
-                    ret.comment       = queue_data['sc_comment']
+                    ret.comment       = queue_data['comment_']
                     ret.statusmodtime = queue_data['lastmod']
                     ret.lfcregister   = queue_data['lfcregister']
-                    ret.pandasite     = queue_data['pandasite']
+                    ret.pandasite     = siteid
                     if queue_data['corepower'] is None:
                         corepower = 0
                     ret.corepower     = queue_data['corepower']
                     ret.catchall      = queue_data['catchall']
-                    ret.role          = queue_data['role']
+                    ret.role          = role
                     ret.tier          = queue_data['tier']
                     ret.jobseed       = queue_data['jobseed']
                     ret.capability    = queue_data['capability']
                     ret.workflow = queue_data['workflow']
-                    ret.maxDiskio = queue_data['maxDiskio']
+                    ret.maxDiskio = queue_data['maxdiskio']
                     ret.wnconnectivity = queue_data['wnconnectivity']
                     if ret.wnconnectivity == '':
                         ret.wnconnectivity = None
-                    ret.fairsharePolicy = queue_data['fairsharePolicy']
+                    ret.fairsharePolicy = queue_data['fairsharepolicy']
                     ret.pandasite_state = 'ACTIVE' #pandasite_state
                     ret.direct_access_lan = (queue_data['direct_access_lan'] == 'True')
                     ret.direct_access_wan = (queue_data['direct_access_wan'] == 'True')
@@ -9933,35 +9933,35 @@ class DBProxy:
                     else:
                         ret.reliabilityLevel = None
                     # contry groups
-                    if not queue_data['countryGroup'] in ['',None]:
-                        ret.countryGroup = queue_data['countryGroup'].split(',')
+                    if not queue_data['countrygroup'] in ['', None]:
+                        ret.countryGroup = queue_data['countrygroup'].split(',')
                     else:
                         ret.countryGroup = []
                     # available CPUs
                     ret.availableCPU = 0
-                    if not queue_data['availableCPU'] in ['',None]:
+                    if not queue_data['availablecpu'] in ['', None]:
                         try:
-                            ret.availableCPU = int(queue_data['availableCPU'])
+                            ret.availableCPU = int(queue_data['availablecpu'])
                         except Exception:
                             pass
                     # pledged CPUs
                     ret.pledgedCPU = 0
-                    if not queue_data['pledgedCPU'] in ['',None]:
+                    if not queue_data['pledgedcpu'] in ['', None]:
                         try:
-                            ret.pledgedCPU = int(queue_data['pledgedCPU'])
+                            ret.pledgedCPU = int(queue_data['pledgedcpu'])
                         except Exception:
                             pass
                     # core count
                     ret.coreCount = 0
-                    if not queue_data['coreCount'] in ['',None]:
+                    if not queue_data['corecount'] in ['', None]:
                         try:
-                            ret.coreCount = int(queue_data['coreCount'])
+                            ret.coreCount = int(queue_data['corecount'])
                         except Exception:
                             pass
                     # cloud list
                     if cloud != '':
                         ret.cloudlist = [queue_data['cloud'].split(',')[0]]
-                        if not queue_data['multicloud'] in ['',None,'None']:
+                        if not queue_data['multicloud'] in ['', None, 'None']:
                             ret.cloudlist += queue_data['multicloud'].split(',')
                     else:
                         ret.cloudlist = []
@@ -10094,7 +10094,7 @@ class DBProxy:
             _logger.error('getSiteInfo exception : {0}'.format(traceback.format_exc()))
             self.dumpErrorMessage(_logger,methodName)
             # roll back
-            self._rollback()
+            #self._rollback()
             return {}
 
 
