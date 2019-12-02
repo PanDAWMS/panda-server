@@ -9800,7 +9800,7 @@ class DBProxy:
             pandaEndpointMap = self.getDdmEndpoints()
 
             # sql to get site spec
-            sql = "SELECT data, b.site_name, c.role "
+            sql = "SELECT queue_name, data, b.site_name, c.role "
             sql+= "FROM (ATLAS_PANDA.schedconfig_json a "
             sql+= "LEFT JOIN ATLAS_PANDA.panda_site b ON a.panda_queue=b.panda_site_name) "
             sql+= "LEFT JOIN ATLAS_PANDA.site c ON b.site_name=c.site_name "
@@ -9829,7 +9829,7 @@ class DBProxy:
                             tmpItem = ''
                         resTmp.append(tmpItem)
 
-                    queue_data_json, siteid, role = resTmp
+                    siteid, queue_data_json, pandasite, role = resTmp
                     try:
                         queue_data = json.loads(queue_data_json)
                     except Exception:
@@ -9840,39 +9840,40 @@ class DBProxy:
                         continue
                     # instantiate SiteSpec
                     ret = SiteSpec.SiteSpec()
-                    ret.sitename   = siteid
+                    ret.sitename = siteid
                     ret.type = queue_data['type']
-                    ret.nickname   = queue_data['nickname']
-                    ret.dq2url     = queue_data['dq2url']
+                    ret.nickname = queue_data['nickname']
+                    ret.dq2url = queue_data['dq2url']
                     ret.ddm = queue_data['ddm'].split(',')[0]
-                    ret.cloud      = queue_data['cloud'].split(',')[0]
-                    ret.lfchost    = queue_data['lfchost']
+                    ret.cloud = queue_data['cloud'].split(',')[0]
+                    ret.lfchost = queue_data['lfchost']
                     ret.gatekeeper = queue_data['gatekeeper']
-                    ret.memory     = queue_data['memory']
-                    ret.maxrss     = queue_data['maxrss']
-                    ret.minrss     = queue_data['minrss']
-                    ret.maxtime    = queue_data['maxtime']
-                    ret.status     = queue_data['status']
-                    ret.space      = queue_data['space']
-                    ret.glexec     = queue_data['glexec']
-                    ret.queue      = queue_data['queue']
+                    ret.memory = queue_data['memory']
+                    ret.maxrss = queue_data['maxrss']
+                    ret.minrss = queue_data['minrss']
+                    ret.maxtime = queue_data['maxtime']
+                    ret.status = queue_data['status']
+                    ret.space = queue_data['space']
+                    ret.glexec = queue_data['glexec']
+                    ret.queue = queue_data['queue']
                     ret.localqueue = queue_data['localqueue']
-                    ret.cachedse   = queue_data['cachedse']
+                    ret.cachedse = queue_data['cachedse']
                     ret.accesscontrol = queue_data['accesscontrol']
-                    ret.copysetup     = queue_data['copysetup']
-                    ret.maxinputsize  = queue_data['maxinputsize']
-                    ret.comment       = queue_data['comment_']
+                    ret.copysetup = queue_data['copysetup']
+                    ret.maxinputsize = queue_data['maxinputsize']
+                    ret.comment = queue_data['comment_']
                     ret.statusmodtime = queue_data['lastmod']
-                    ret.lfcregister   = queue_data['lfcregister']
-                    ret.pandasite     = siteid
+                    ret.lfcregister = queue_data['lfcregister']
+                    ret.pandasite = pandasite
                     if queue_data['corepower'] is None:
-                        corepower = 0
-                    ret.corepower     = queue_data['corepower']
-                    ret.catchall      = queue_data['catchall']
-                    ret.role          = role
-                    ret.tier          = queue_data['tier']
-                    ret.jobseed       = queue_data['jobseed']
-                    ret.capability    = queue_data['capability']
+                        ret.corepower = 0
+                    else:
+                        ret.corepower = queue_data['corepower']
+                    ret.catchall = queue_data['catchall']
+                    ret.role = role
+                    ret.tier = queue_data['tier']
+                    ret.jobseed = queue_data['jobseed']
+                    ret.capability = queue_data['capability']
                     ret.workflow = queue_data['workflow']
                     ret.maxDiskio = queue_data['maxdiskio']
                     ret.wnconnectivity = queue_data['wnconnectivity']
