@@ -109,15 +109,6 @@ class SiteMapper:
                             del self.siteSpecList[tmpID]
                         # append
                         if tmpID not in self.siteSpecList:
-                            # determine type following a convention
-                            tmpType = 'production'
-                            if tmpID.startswith('ANALY_'):
-                                tmpType = 'analysis'
-                            elif re.search('test',tmpID,re.I):
-                                tmpType = 'test'
-                            # set type
-                            ret.sitename = tmpID
-                            ret.type     = tmpType
                             # don't use site for production when cloud is undefined
                             if ret.type == 'production' and ret.cloud == '':
                                 _logger.error('Empty cloud for %s:%s' % (tmpID,tmpNickname))

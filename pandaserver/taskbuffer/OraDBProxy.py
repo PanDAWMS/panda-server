@@ -9841,6 +9841,7 @@ class DBProxy:
                     # instantiate SiteSpec
                     ret = SiteSpec.SiteSpec()
                     ret.sitename   = siteid
+                    ret.type = queue_data['type']
                     ret.nickname   = queue_data['nickname']
                     ret.dq2url     = queue_data['dq2url']
                     ret.ddm = queue_data['ddm'].split(',')[0]
@@ -9959,7 +9960,7 @@ class DBProxy:
                         except Exception:
                             pass
                     # cloud list
-                    if cloud != '':
+                    if queue_data['cloud'] != '':
                         ret.cloudlist = [queue_data['cloud'].split(',')[0]]
                         if not queue_data['multicloud'] in ['', None, 'None']:
                             ret.cloudlist += queue_data['multicloud'].split(',')
@@ -9971,18 +9972,16 @@ class DBProxy:
                         ret.retry = False
                     # convert releases to list
                     ret.releases = []
-                    for tmpRel in queue_data['releases'].split('|'):
-                        # remove white space
-                        tmpRel = tmpRel.strip()
-                        if tmpRel != '':
-                            ret.releases.append(tmpRel)
+                    if queue_data['releases']:
+                        ret.releases = queue_data['releases']
                     # convert validatedreleases to list
                     ret.validatedreleases = []
-                    for tmpRel in queue_data['validatedreleases'].split('|'):
-                        # remove white space
-                        tmpRel = tmpRel.strip()
-                        if tmpRel != '':
-                            ret.validatedreleases.append(tmpRel)
+                    if queue_data['validatedreleases']:
+                        for tmpRel in queue_data['validatedreleases'].split('|'):
+                            # remove white space
+                            tmpRel = tmpRel.strip()
+                            if tmpRel != '':
+                                ret.validatedreleases.append(tmpRel)
                     # cmtconfig
                     if queue_data['cmtconfig'] in ['x86_64-slc5-gcc43']:
                         # set empty for slc5-gcc43 validation
@@ -9994,7 +9993,7 @@ class DBProxy:
                         # set slc3 if the column is empty
                         ret.cmtconfig = ['i686-slc3-gcc323-opt']
                     if queue_data['cmtconfig'] != '':
-                        ret.cmtconfig.append(cmtconfig)
+                        ret.cmtconfig.append(queue_data['cmtconfig'])
                     # VO related params
                     ret.priorityoffset = queue_data['priorityoffset']
                     ret.allowedgroups  = queue_data['allowedgroups']
@@ -10011,7 +10010,7 @@ class DBProxy:
                         ret.iscvmfs = False
                     # limit of the number of transferring jobs
                     ret.transferringlimit = 0
-                    if not queue_data['transferringlimit'] in ['',None]:
+                    if not queue_data['transferringlimit'] in ['', None]:
                         try:
                             ret.transferringlimit = int(queue_data['transferringlimit'])
                         except Exception:
