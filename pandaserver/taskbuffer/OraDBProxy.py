@@ -9847,8 +9847,8 @@ class DBProxy:
                     ret.role = role
                     
                     ret.type = queue_data.get('type', 'production')
-                    ret.nickname = queue_data('nickname')
-                    ret.dq2url = queue_data('dq2url')
+                    ret.nickname = queue_data.get('nickname')
+                    ret.dq2url = queue_data.get('dq2url')
                     ret.ddm = queue_data.get('ddm', '').split(',')[0]
                     ret.cloud = queue_data.get('cloud', '').split(',')[0]
                     ret.lfchost = queue_data.get('lfchost')
@@ -9875,21 +9875,21 @@ class DBProxy:
                     ret.capability = queue_data.get('capability')
                     ret.workflow = queue_data.get('workflow')
                     ret.maxDiskio = queue_data.get('maxdiskio')
-                    ret.pandasite_state = 'ACTIVE' #pandasite_state
+                    ret.pandasite_state = 'ACTIVE'
                     ret.fairsharePolicy = queue_data.get('fairsharepolicy')
                     ret.priorityoffset = queue_data.get('priorityoffset')
                     ret.allowedgroups  = queue_data.get('allowedgroups')
                     ret.defaulttoken   = queue_data.get('defaulttoken')
                     
-                    ret.direct_access_lan = (queue_data['direct_access_lan'] == 'True')
-                    ret.direct_access_wan = (queue_data['direct_access_wan'] == 'True')
+                    ret.direct_access_lan = (queue_data.get('direct_access_lan') == 'True')
+                    ret.direct_access_wan = (queue_data.get'direct_access_wan') == 'True')
 
                     if queue_data.get('corepower') is None:
                         ret.corepower = 0
                     else:
                         ret.corepower = queue_data.get('corepower')
 
-                    ret.wnconnectivity = queue_data['wnconnectivity']
+                    ret.wnconnectivity = queue_data.get('wnconnectivity')
                     if ret.wnconnectivity == '':
                         ret.wnconnectivity = None
 
