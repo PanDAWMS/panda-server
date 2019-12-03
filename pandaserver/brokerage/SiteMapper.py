@@ -81,7 +81,7 @@ class SiteMapper:
                     self.cloudSpec[tmpName] = cloudSpec
                     _logger.debug('Cloud->%s %s' % (tmpName,str(self.cloudSpec[tmpName])))
             # add WORLD cloud
-            self.worldCloudSpec['sites']  = []
+            self.worldCloudSpec['sites'] = []
             # get list of PandaIDs
             siteIDsList = taskBuffer.getSiteList()
             firstDefault = True
@@ -172,7 +172,7 @@ class SiteMapper:
             # make cloudSpec
             for siteSpec in self.siteSpecList.values():
                 # choose only prod or grandly unified sites
-                if siteSpec.runs_production():
+                if not siteSpec.runs_production():
                     continue
                 # append prod site in cloud
                 for tmpCloud in siteSpec.cloudlist:
