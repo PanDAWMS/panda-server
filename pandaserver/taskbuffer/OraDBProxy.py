@@ -9843,49 +9843,56 @@ class DBProxy:
                     # instantiate SiteSpec
                     ret = SiteSpec.SiteSpec()
                     ret.sitename = siteid
-                    ret.type = queue_data['type']
-                    ret.nickname = queue_data['nickname']
-                    ret.dq2url = queue_data['dq2url']
-                    ret.ddm = queue_data['ddm'].split(',')[0]
-                    ret.cloud = queue_data['cloud'].split(',')[0]
-                    ret.lfchost = queue_data['lfchost']
-                    ret.gatekeeper = queue_data['gatekeeper']
-                    ret.memory = queue_data['memory']
-                    ret.maxrss = queue_data['maxrss']
-                    ret.minrss = queue_data['minrss']
-                    ret.maxtime = queue_data['maxtime']
-                    ret.status = queue_data['status']
-                    ret.space = queue_data['space']
-                    ret.glexec = queue_data['glexec']
-                    ret.queue = queue_data['queue']
-                    ret.localqueue = queue_data['localqueue']
-                    ret.cachedse = queue_data['cachedse']
-                    ret.accesscontrol = queue_data['accesscontrol']
-                    ret.copysetup = queue_data['copysetup']
-                    ret.maxinputsize = queue_data['maxinputsize']
-                    ret.comment = queue_data['comment_']
-                    ret.statusmodtime = queue_data['lastmod']
-                    ret.lfcregister = queue_data['lfcregister']
                     ret.pandasite = pandasite
-                    if queue_data['corepower'] is None:
+                    ret.role = role
+                    
+                    ret.type = queue_data.get('type', 'production')
+                    ret.nickname = queue_data('nickname')
+                    ret.dq2url = queue_data('dq2url')
+                    ret.ddm = queue_data.get('ddm', '').split(',')[0]
+                    ret.cloud = queue_data.get('cloud', '').split(',')[0]
+                    ret.lfchost = queue_data.get('lfchost')
+                    ret.gatekeeper = queue_data.get('gatekeeper')
+                    ret.memory = queue_data.get('memory')
+                    ret.maxrss = queue_data.get('maxrss')
+                    ret.minrss = queue_data.get('minrss')
+                    ret.maxtime = queue_data.get('maxtime')
+                    ret.status = queue_data.get('status')
+                    ret.space = queue_data.get('space')
+                    ret.glexec = queue_data.get('glexec')
+                    ret.queue = queue_data.get('queue')
+                    ret.localqueue = queue_data.get('localqueue')
+                    ret.cachedse = queue_data.get('cachedse')
+                    ret.accesscontrol = queue_data.get('accesscontrol')
+                    ret.copysetup = queue_data.get('copysetup')
+                    ret.maxinputsize = queue_data.get('maxinputsize')
+                    ret.comment = queue_data.get('comment_')
+                    ret.statusmodtime = queue_data.get('lastmod')
+                    ret.lfcregister = queue_data.get('lfcregister')
+                    ret.catchall = queue_data.get('catchall')
+                    ret.tier = queue_data.get('tier')
+                    ret.jobseed = queue_data.get('jobseed')
+                    ret.capability = queue_data.get('capability')
+                    ret.workflow = queue_data.get('workflow')
+                    ret.maxDiskio = queue_data.get('maxdiskio')
+                    ret.pandasite_state = 'ACTIVE' #pandasite_state
+                    ret.fairsharePolicy = queue_data.get('fairsharepolicy')
+                    ret.priorityoffset = queue_data.get('priorityoffset')
+                    ret.allowedgroups  = queue_data.get('allowedgroups')
+                    ret.defaulttoken   = queue_data.get('defaulttoken')
+                    
+                    ret.direct_access_lan = (queue_data['direct_access_lan'] == 'True')
+                    ret.direct_access_wan = (queue_data['direct_access_wan'] == 'True')
+
+                    if queue_data.get('corepower') is None:
                         ret.corepower = 0
                     else:
-                        ret.corepower = queue_data['corepower']
-                    ret.catchall = queue_data['catchall']
-                    ret.role = role
-                    ret.tier = queue_data['tier']
-                    ret.jobseed = queue_data['jobseed']
-                    ret.capability = queue_data['capability']
-                    ret.workflow = queue_data['workflow']
-                    ret.maxDiskio = queue_data['maxdiskio']
+                        ret.corepower = queue_data.get('corepower')
+
                     ret.wnconnectivity = queue_data['wnconnectivity']
                     if ret.wnconnectivity == '':
                         ret.wnconnectivity = None
-                    ret.fairsharePolicy = queue_data['fairsharepolicy']
-                    ret.pandasite_state = 'ACTIVE' #pandasite_state
-                    ret.direct_access_lan = (queue_data['direct_access_lan'] == 'True')
-                    ret.direct_access_wan = (queue_data['direct_access_wan'] == 'True')
-                    # resource shares
+
                     ret.sitershare = None
                     """
                     try:
@@ -9904,134 +9911,147 @@ class DBProxy:
                     """    
                     # maxwdir
                     try:
-                        if queue_data['maxwdir'] == None:
+                        if queue_data.get('maxwdir') is None:
                             ret.maxwdir = 0
                         else:
                             ret.maxwdir = int(queue_data['maxwdir'])
                     except Exception:
-                        if ret.maxinputsize in [0,None]:
+                        if ret.maxinputsize in [0, None]:
                             ret.maxwdir = 0
                         else:
                             try:
                                 ret.maxwdir = ret.maxinputsize + 2000
                             except Exception:
                                 ret.maxwdir = 16336
+                    
                     # memory
-                    if queue_data['minmemory'] is not None:
+                    if queue_data.get('minmemory') is not None:
                         ret.minmemory = queue_data['minmemory']
                     else:
                         ret.minmemory = 0
-                    if queue_data['maxmemory'] is not None:
+                    if queue_data.get('maxmemory') is not None:
                         ret.maxmemory = queue_data['maxmemory']
                     else:
                         ret.maxmemory = 0
+                    
                     # mintime
-                    if queue_data['mintime'] is not None:
+                    if queue_data.get('mintime') is not None:
                         ret.mintime = queue_data['mintime']
                     else:
                         ret.mintime = 0
+                    
                     # reliability
                     tmpPrefix = re.sub('_[^_]+DISK$', '', ret.ddm)
                     if tmpPrefix in reliabilityMap:
                         ret.reliabilityLevel = reliabilityMap[tmpPrefix]
                     else:
                         ret.reliabilityLevel = None
+                    
                     # contry groups
-                    if not queue_data['countrygroup'] in ['', None]:
+                    if queue_data.get('countrygroup') not in ['', None]:
                         ret.countryGroup = queue_data['countrygroup'].split(',')
                     else:
                         ret.countryGroup = []
+                    
                     # available CPUs
                     ret.availableCPU = 0
-                    if not queue_data['availablecpu'] in ['', None]:
+                    if not queue_data.get('availablecpu') in ['', None]:
                         try:
                             ret.availableCPU = int(queue_data['availablecpu'])
                         except Exception:
                             pass
+                    
                     # pledged CPUs
                     ret.pledgedCPU = 0
-                    if not queue_data['pledgedcpu'] in ['', None]:
+                    if queue_data.get('pledgedcpu') not in ['', None]:
                         try:
                             ret.pledgedCPU = int(queue_data['pledgedcpu'])
                         except Exception:
                             pass
+                    
                     # core count
                     ret.coreCount = 0
-                    if not queue_data['corecount'] in ['', None]:
+                    if queue_data.get('corecount') not in ['', None]:
                         try:
                             ret.coreCount = int(queue_data['corecount'])
                         except Exception:
                             pass
+                    
                     # cloud list
-                    if queue_data['cloud'] != '':
+                    if queue_data.get('cloud') != '':
                         ret.cloudlist = [queue_data['cloud'].split(',')[0]]
-                        if not queue_data['multicloud'] in ['', None, 'None']:
+                        if not queue_data.get('multicloud') in ['', None, 'None']:
                             ret.cloudlist += queue_data['multicloud'].split(',')
                     else:
                         ret.cloudlist = []
+                    
                     # job recovery
                     ret.retry = True
-                    if queue_data['retry'] == 'FALSE':
+                    if queue_data.get('retry') == 'FALSE':
                         ret.retry = False
+                    
                     # convert releases to list
                     ret.releases = []
-                    if queue_data['releases']:
+                    if queue_data.get('releases'):
                         ret.releases = queue_data['releases']
+                    
                     # convert validatedreleases to list
                     ret.validatedreleases = []
-                    if queue_data['validatedreleases']:
+                    if queue_data.get('validatedreleases'):
                         for tmpRel in queue_data['validatedreleases'].split('|'):
                             # remove white space
                             tmpRel = tmpRel.strip()
                             if tmpRel != '':
                                 ret.validatedreleases.append(tmpRel)
+                    
                     # cmtconfig
-                    if queue_data['cmtconfig'] in ['x86_64-slc5-gcc43']:
+                    if queue_data.get('cmtconfig') in ['x86_64-slc5-gcc43']:
                         # set empty for slc5-gcc43 validation
                         ret.cmtconfig = [] # FIXME
-                    elif queue_data['cmtconfig'] in ['i686-slc5-gcc43-opt']:
+                    elif queue_data.get('cmtconfig') in ['i686-slc5-gcc43-opt']:
                         # set slc4 for slc5 to get slc4 jobs too
                         ret.cmtconfig = ['i686-slc4-gcc34-opt']
                     else:
                         # set slc3 if the column is empty
                         ret.cmtconfig = ['i686-slc3-gcc323-opt']
-                    if queue_data['cmtconfig'] != '':
+                    if queue_data.get('cmtconfig') != '':
                         ret.cmtconfig.append(queue_data['cmtconfig'])
-                    # VO related params
-                    ret.priorityoffset = queue_data['priorityoffset']
-                    ret.allowedgroups  = queue_data['allowedgroups']
-                    ret.defaulttoken   = queue_data['defaulttoken']
+                                        
                     # direct access
-                    if queue_data['allowdirectaccess'] == 'True':
+                    if queue_data.get('allowdirectaccess') == 'True':
                         ret.allowdirectaccess = True
                     else:
                         ret.allowdirectaccess = False
+                    
                     # CVMFS
                     if siteid in cvmfsSites:
                         ret.iscvmfs = True
                     else:
                         ret.iscvmfs = False
+                    
                     # limit of the number of transferring jobs
                     ret.transferringlimit = 0
-                    if not queue_data['transferringlimit'] in ['', None]:
+                    if not queue_data.get('transferringlimit') in ['', None]:
                         try:
                             ret.transferringlimit = int(queue_data['transferringlimit'])
                         except Exception:
                             pass
+                    
                     # FAX
                     ret.allowfax = False
                     try:
-                        if queue_data['catchall'] is not None and 'allowfax' in queue_data['catchall']:
+                        if queue_data.get('catchall') is not None and 'allowfax' in queue_data['catchall']:
                             ret.allowfax = True
-                        if queue_data['allowfax'] == 'True':
+                        if queue_data.get('allowfax') == 'True':
                             ret.allowfax = True
                     except Exception:
                         pass
+                    
                     ret.wansourcelimit = 0
-                    if not queue_data['wansourcelimit'] in [None,'']:
+                    if queue_data.get('wansourcelimit') not in [None,'']:
                         ret.wansourcelimit = queue_data['wansourcelimit']
                     ret.wansinklimit = 0
-                    if not queue_data['wansinklimit'] in [None,'']:
+                    if queue_data.get('wansinklimit') not in [None,'']:
                         ret.wansinklimit = queue_data['wansinklimit']
 
                     # DDM endpoints
@@ -10086,6 +10106,7 @@ class DBProxy:
                         ret.num_slots_map.setdefault(sl_gshare, dict())
                         ret.num_slots_map[sl_gshare].setdefault(sl_resourcetype, dict())
                         ret.num_slots_map[sl_gshare][sl_resourcetype] = sl_numslots
+                    
                     # append
                     retList[ret.nickname] = ret
             _logger.debug("getSiteInfo done")
