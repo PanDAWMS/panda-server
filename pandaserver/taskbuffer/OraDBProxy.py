@@ -21846,7 +21846,7 @@ class DBProxy:
                     try:
                         n_workers_running = n_workers_running + worker_stats[harvester_id][job_type][resource_type]['running']
                         if resource_type in resource_type_limits:
-                            resource_type_limits[resource_type] = resource_type_limits[resource_type] - worker_stats[harvester_id][resource_type]['running']
+                            resource_type_limits[resource_type] = resource_type_limits[resource_type] - worker_stats[harvester_id][job_type][resource_type]['running']
                             tmpLog.debug('Limit for rt {0} down to {1}'.format(resource_type, resource_type_limits[resource_type]))
                     except KeyError:
                         pass
