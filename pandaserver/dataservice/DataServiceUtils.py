@@ -294,12 +294,12 @@ def select_scope(site_spec, prodsourcelabel):
     """
     scope_input = 'default'
     aux_scopes_input = site_spec.ddm_endpoints_input.keys()
-    if prodsourcelabel == 'user' and 'analysis' in aux_scopes_input:
+    if prodsourcelabel in ('user', 'panda') and 'analysis' in aux_scopes_input:
         scope_input = 'analysis'
 
     scope_output = 'default'
     aux_scopes_output = site_spec.ddm_endpoints_output.keys()
-    if prodsourcelabel == 'user' and 'analysis' in aux_scopes_output:
+    if prodsourcelabel in ('user', 'panda') and 'analysis' in aux_scopes_output:
         scope_output = 'analysis'
 
     return scope_input, scope_output
