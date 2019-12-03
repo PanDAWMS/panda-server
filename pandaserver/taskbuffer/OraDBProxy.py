@@ -9882,7 +9882,7 @@ class DBProxy:
                     ret.defaulttoken   = queue_data.get('defaulttoken')
                     
                     ret.direct_access_lan = (queue_data.get('direct_access_lan') == 'True')
-                    ret.direct_access_wan = (queue_data.get'direct_access_wan') == 'True')
+                    ret.direct_access_wan = (queue_data.get('direct_access_wan') == 'True')
 
                     if queue_data.get('corepower') is None:
                         ret.corepower = 0
