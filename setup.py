@@ -234,7 +234,7 @@ setup(
     install_requires=['panda-common',
                       'pyOpenSSL',
                       'mod_wsgi',
-                      'rucio-clients',
+                      #'rucio-clients',
                       'stomp.py',
                       'pyyaml'
                       ],
