@@ -124,6 +124,15 @@ class SiteSpec(object):
             return True
         return False
 
+    def runs_production(self):
+        if self.type == 'production' or self.is_grandly_unified():
+            return True
+        return False
+
+    def runs_analysis(self):
+        if self.type == 'analysis' or self.is_grandly_unified():
+            return True
+        return False
 
     # get unified name
     def get_unified_name(self):

@@ -81,7 +81,7 @@ class SiteMapper:
                     self.cloudSpec[tmpName] = cloudSpec
                     _logger.debug('Cloud->%s %s' % (tmpName,str(self.cloudSpec[tmpName])))
             # add WORLD cloud
-            self.worldCloudSpec['sites']  = []
+            self.worldCloudSpec['sites'] = []
             # get list of PandaIDs
             siteIDsList = taskBuffer.getSiteList()
             firstDefault = True
@@ -109,17 +109,8 @@ class SiteMapper:
                             del self.siteSpecList[tmpID]
                         # append
                         if tmpID not in self.siteSpecList:
-                            # determine type following a convention
-                            tmpType = 'production'
-                            if tmpID.startswith('ANALY_'):
-                                tmpType = 'analysis'
-                            elif re.search('test',tmpID,re.I):
-                                tmpType = 'test'
-                            # set type
-                            ret.sitename = tmpID
-                            ret.type     = tmpType
                             # don't use site for production when cloud is undefined
-                            if ret.type == 'production' and ret.cloud == '':
+                            if ret.runs_production() and ret.cloud == '':
                                 _logger.error('Empty cloud for %s:%s' % (tmpID,tmpNickname))
                             else:
                                 self.siteSpecList[tmpID] = ret
@@ -180,8 +171,8 @@ class SiteMapper:
                 _logger.error(traceback.format_exc())
             # make cloudSpec
             for siteSpec in self.siteSpecList.values():
-                # choose only prod sites
-                if siteSpec.type != 'production':
+                # choose only prod or grandly unified sites
+                if not siteSpec.runs_production():
                     continue
                 # append prod site in cloud
                 for tmpCloud in siteSpec.cloudlist:
@@ -239,14 +230,14 @@ class SiteMapper:
     # collect nuclei and satellites
     def collectNS(self, ret):
         # collect nuclei
-        if ret.role == 'nucleus' and ret.type == 'production':
+        if ret.role == 'nucleus' and ret.runs_production():
             if not ret.pandasite in self.nuclei:
                 nucleus = NucleusSpec(ret.pandasite)
                 nucleus.state = ret.pandasite_state
                 self.nuclei[ret.pandasite] = nucleus
             self.nuclei[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output)
         # collect satellites
-        if ret.role == 'satellite' and ret.type == 'production':
+        if ret.role == 'satellite' and ret.runs_production():
             if not ret.pandasite in self.satellites:
                 satellite = NucleusSpec(ret.pandasite)
                 satellite.state = ret.pandasite_state

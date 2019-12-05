@@ -80,13 +80,13 @@ if 'def_sitename' not in tmpSelf.__dict__:
 if 'def_queue' not in tmpSelf.__dict__:
     tmpSelf.__dict__['def_queue'] = 'ANALY_BNL_ATLAS_1'
 if 'def_nickname' not in tmpSelf.__dict__:
-    tmpSelf.__dict__['def_nickname']= 'BNL_ATLAS_1-condor'
+    tmpSelf.__dict__['def_nickname'] = 'BNL_ATLAS_1-condor'
 if 'def_dq2url' not in tmpSelf.__dict__:
-    tmpSelf.__dict__['def_dq2url']= 'http://dms02.usatlas.bnl.gov:8000/dq2/'
+    tmpSelf.__dict__['def_dq2url'] = 'http://dms02.usatlas.bnl.gov:8000/dq2/'
 if 'def_ddm' not in tmpSelf.__dict__:
-    tmpSelf.__dict__['def_ddm']= 'PANDA_UNDEFINED2'
+    tmpSelf.__dict__['def_ddm'] = 'PANDA_UNDEFINED2'
 if 'def_type' not in tmpSelf.__dict__:
-    tmpSelf.__dict__['def_type']= 'production'
+    tmpSelf.__dict__['def_type'] = 'production'
 if 'def_gatekeeper' not in tmpSelf.__dict__:
     tmpSelf.__dict__['def_gatekeeper'] = 'gridgk01.racf.bnl.gov'
 if 'def_status' not in tmpSelf.__dict__:
