@@ -2313,13 +2313,18 @@ class DBProxy:
                         # set endTime if undefined for holding
                         if jobStatus == 'holding' and endTime==None and not presetEndTime:
                             sql1 += ',endTime=CURRENT_DATE '
+                        # update startTime
+                        if oldJobStatus in ['sent', 'starting'] and jobStatus == 'running' and \
+                                ':startTime' not in varMap:
+                            sql1 += ",startTime=CURRENT_DATE"
                         # update modification time
                         sql1 += ",modificationTime=CURRENT_DATE"
                         # update
                         varMap[':jobStatus'] = jobStatus
                         self.cur.execute (sql1+sql1W+comment,varMap)
                         nUp = self.cur.rowcount
-                        _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s nUp=%s" % (pandaID,attemptNr,nUp))
+                        _logger.debug("updateJobStatus : PandaID={0} attemptNr={1} nUp={2} old={3} new={4}".format(
+                            pandaID, attemptNr, nUp, oldJobStatus, jobStatus))
                         if nUp == 1:
                             updatedFlag = True
                         if nUp == 0 and jobStatus == 'transferring':
