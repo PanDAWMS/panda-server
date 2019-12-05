@@ -1,4 +1,5 @@
 import time
+import traceback
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
@@ -41,20 +42,23 @@ class PilotStreaming:
                 self._logger.debug('No worker stats for queue {0}'.format(ups_queue))
                 continue
 
-            new_workers_per_harvester = taskBuffer.ups_new_worker_distribution(ups_queue, tmp_worker_stats)
-            self._logger.info('queue: {0}, results: {1}'.format(ups_queue, new_workers_per_harvester))
+            try:
+                new_workers_per_harvester = taskBuffer.ups_new_worker_distribution(ups_queue, tmp_worker_stats)
+                self._logger.info('queue: {0}, results: {1}'.format(ups_queue, new_workers_per_harvester))
 
-            # variables for the harvester command
-            command = '{0}:{1}'.format('SET_N_WORKERS_JOBTYPE', ups_queue)
-            status = 'new'
-            ack_requested = False
-            lock_interval = None
-            com_interval = None
+                # variables for the harvester command
+                command = '{0}:{1}'.format('SET_N_WORKERS_JOBTYPE', ups_queue)
+                status = 'new'
+                ack_requested = False
+                lock_interval = None
+                com_interval = None
 
-            for harvester_id in new_workers_per_harvester:
-                params = new_workers_per_harvester[harvester_id]
-                taskBuffer.commandToHarvester(harvester_id, command, ack_requested, status,
-                                              lock_interval, com_interval, params)
+                for harvester_id in new_workers_per_harvester:
+                    params = new_workers_per_harvester[harvester_id]
+                    taskBuffer.commandToHarvester(harvester_id, command, ack_requested, status,
+                                                  lock_interval, com_interval, params)
+            except Exception:
+                self._logger.error(traceback.format_exc())
 
         # timing
         time_stop = time.time()
