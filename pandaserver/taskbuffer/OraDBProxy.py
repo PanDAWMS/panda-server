@@ -9789,12 +9789,12 @@ class DBProxy:
                     tmpPrefix = re.sub('_DATADISK','',tier2)
                     reliabilityMap[tmpPrefix] = t2group
             except Exception:
-                errType,errValue = sys.exc_info()[:2]
-                _logger.error("getSiteInfo %s:%s" % (errType.__class__.__name__,errValue))
+                errType, errValue = sys.exc_info()[:2]
+                _logger.error("getSiteInfo %s:%s" % (errType.__class__.__name__, errValue))
             
             # get CVMFS availability
             sqlCVMFS  = "SELECT distinct siteid FROM ATLAS_PANDAMETA.installedSW WHERE `release`=:release"
-            self.cur.execute(sqlCVMFS,{':release':'CVMFS'})
+            self.cur.execute(sqlCVMFS, {':release': 'CVMFS'})
             tmpList = self.cur.fetchall()
             cvmfsSites = []
             for tmpItem, in tmpList:
@@ -9824,7 +9824,10 @@ class DBProxy:
             ret, resList = self.getClobObj(sql, {})
             # if not self._commit():
             #    raise RuntimeError('Commit error')
-            
+
+            if not resList:
+                _logger.error('Empty site list!')
+
             retList = {}
             if resList is not None:
                 # loop over all results
@@ -9840,11 +9843,16 @@ class DBProxy:
                     try:
                         queue_data = json.loads(queue_data_json)
                     except Exception:
+                        _logger.error("loading json for queue {0} excepted. json was: {1}".format(siteid, queue_data_json))
                         continue
 
                     # skip invalid siteid
                     if siteid in [None,''] or not queue_data:
+                        _logger.error("siteid {0} had no queue_data {1}".format(siteid, queue_data))
                         continue
+
+                    _logger.debug("processing queue {0}".format(siteid))
+
                     # instantiate SiteSpec
                     ret = SiteSpec.SiteSpec()
                     ret.sitename = siteid
@@ -23230,6 +23238,10 @@ class DBProxy:
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")
+
+        if not schedconfig_dump:
+            tmp_log.error("empty schedconfig dump")
+            return 'ERROR'
         
         try:
             existing_queues = self.getQueuesInJSONSchedconfig()
@@ -23242,13 +23254,20 @@ class DBProxy:
             var_map_update = []
             utc_now = datetime.datetime.utcnow()
             for pq in schedconfig_dump:
+                data = json.dumps(schedconfig_dump[pq])
+                if not data:
+                    tmp_log.error("no data for {0}".format(pq))
+                    continue
+                
                 if pq in existing_queues:
+                    tmp_log.error("pq {0} present".format(pq))
                     var_map_update.append({':pq': pq,
-                                           ':data': json.dumps(schedconfig_dump[pq]),
+                                           ':data': data,
                                            ':last_update': utc_now})
                 else:
+                    tmp_log.error("pq {0} is new".format(pq))
                     var_map_insert.append({':pq': pq,
-                                           ':data': json.dumps(schedconfig_dump[pq]),
+                                           ':data': data,
                                            ':last_update': utc_now})
 
             # start transaction
