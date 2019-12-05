@@ -32,7 +32,7 @@ class MyProxyInterface(object):
             os.makedirs(self.__target_path)
 
     def store(self, user_dn, cred_name, production=False, server_name='myproxy.cern.ch', role=None, force=False):
-        _logger.debug('retrieve proxy for {0}'.format(user_dn))
+        _logger.debug('store proxy for {0} role={1}'.format(user_dn, role))
         """Retrieve proxy from myproxy."""
         proxy_path = os.path.join(self.__target_path, hashlib.sha1(user_dn + '.plain').hexdigest())
         # check if empty dummy file
@@ -110,7 +110,7 @@ class MyProxyInterface(object):
 
 
     def checkProxy(self, user_dn, production=False, role=None):
-        _logger.debug('check proxy for {0}'.format(user_dn))
+        _logger.debug('check proxy for {0} role={1}'.format(user_dn, role))
         """Check the validity of a proxy."""
         if role is not None:
             tmpExtension = self.getExtension(role)
