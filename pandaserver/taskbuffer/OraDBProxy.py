@@ -21809,12 +21809,19 @@ class DBProxy:
         # get the configuration for maximum workers of each type
         pq_data_des = self.get_config_for_pq(queue)
         resource_type_limits = {}
+        queue_type = 'production'
         if not pq_data_des:
             tmpLog.debug('Error retrieving queue configuration from DB, limits can not be applied')
         else:
             try:
                 resource_type_limits = pq_data_des['uconfig']['resource_type_limits']
             except KeyError:
+                tmpLog.debug('No resource type limits')
+                pass
+            try:
+                queue_type = pq_data_des['type']
+            except KeyError:
+                tmpLog.error('No queue type')
                 pass
 
         # Filter central harvester instances that support UPS model
@@ -21879,7 +21886,11 @@ class DBProxy:
             self.cur.execute(sql + comment, var_map)
             activated_jobs = self.cur.fetchall()
             tmpLog.debug('Processing share: {0}. Got {1} activated jobs'.format(share.name, len(activated_jobs)))
-            for gshare, job_type, resource_type in activated_jobs:
+            for gshare, prodsourcelabel, resource_type in activated_jobs:
+                
+                # translate prodsourcelabel to a subset of job types, typically 'user' and 'managed'
+                job_type = jobUtils.translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel)
+                
                 # if we reached the limit for the resource type, skip the job
                 if resource_type in resource_type_limits and resource_type_limits[resource_type] <= 0:
                     tmpLog.debug('Reached resource type limit for {0}'.format(resource_type))

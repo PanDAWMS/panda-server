@@ -8,9 +8,33 @@ except NameError:
 # list of prod source label for pilot tests
 list_ptest_prod_sources = ['ptest', 'rc_test', 'rc_test2', 'rc_alrb']
 
+# mapping with prodsourcelabels that belong to analysis and production
+analy_sources = ['user', 'panda']
+prod_sources = ['managed', 'prod_test']
+neutral_sources = ['install'] + list_ptest_prod_sources
+
+ANALY_PS = 'user'
+PROD_PS = 'managed'
+
 # priority of tasks to jumbo over others
 priorityTasksToJumpOver = 1500
 
+
+def translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel):
+    if prodsourcelabel in analy_sources:
+        return ANALY_PS
+
+    if prodsourcelabel in prod_sources:
+        return PROD_PS
+
+    if prodsourcelabel in neutral_sources:
+        if queue_type == 'unified' or queue_type == 'production':
+            return PROD_PS
+        if queue_type == 'analysis':
+            return ANALY_PS
+
+    # currently unmapped
+    return prodsourcelabel
 
 
 # get core count
