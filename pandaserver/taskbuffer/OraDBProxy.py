@@ -10091,7 +10091,7 @@ class DBProxy:
                         ret.ddm_output[scope] = ret.ddm_endpoints_output[scope].getDefaultWrite()
 
                     # object stores
-                    try:queue_data[
+                    try:
                         ret.objectstores = queue_data['objectstores']
                     except Exception:
                         ret.objectstores = []
