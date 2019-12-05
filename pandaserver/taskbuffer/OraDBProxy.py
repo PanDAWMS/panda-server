@@ -21909,7 +21909,7 @@ class DBProxy:
             for gshare, prodsourcelabel, resource_type in activated_jobs:
                 
                 # translate prodsourcelabel to a subset of job types, typically 'user' and 'managed'
-                job_type = jobUtils.translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel)
+                job_type = JobUtils.translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel)
                 
                 # if we reached the limit for the resource type, skip the job
                 if resource_type in resource_type_limits and resource_type_limits[resource_type] <= 0:
