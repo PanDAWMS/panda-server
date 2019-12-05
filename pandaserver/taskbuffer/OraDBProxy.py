@@ -21820,9 +21820,9 @@ class DBProxy:
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger, '{0}-{1}'.format(method_name, queue))
         tmpLog.debug('start')
-        n_workers_running = 0
+        n_cores_running = 0
         workers_queued = {}
-        n_workers_queued = 0
+        n_cores_queued = 0
         harvester_ids_temp = list(worker_stats)
 
         # get the configuration for maximum workers of each type
@@ -21842,6 +21842,13 @@ class DBProxy:
             except KeyError:
                 tmpLog.error('No queue type')
                 pass
+            try:
+                cores_queue = pq_data_des['corecount']
+                if not corecount:
+                    cores_queue = 1
+            except KeyError:
+                tmpLog.error('No corecount')
+                pass
 
         # Filter central harvester instances that support UPS model
         harvester_ids = []
@@ -21853,10 +21860,10 @@ class DBProxy:
             for job_type in worker_stats[harvester_id]:
                 workers_queued.setdefault(job_type, {})
                 for resource_type in worker_stats[harvester_id][job_type]:
-                    # TODO: this needs to be converted into cores, or we stay at worker level???
-                    # how do I know ncores from only the resource_type???
+                    core_factor = JobUtils(resource_type, cores_queue)                    
                     try:
-                        n_workers_running = n_workers_running + worker_stats[harvester_id][job_type][resource_type]['running']
+                        n_cores_running = n_cores_running + worker_stats[harvester_id][job_type][resource_type]['running'] * core_factor
+                        
                         if resource_type in resource_type_limits:
                             resource_type_limits[resource_type] = resource_type_limits[resource_type] - worker_stats[harvester_id][job_type][resource_type]['running']
                             tmpLog.debug('Limit for rt {0} down to {1}'.format(resource_type, resource_type_limits[resource_type]))
@@ -21866,14 +21873,14 @@ class DBProxy:
                     try: # submitted
                         workers_queued[job_type].setdefault(resource_type, 0)
                         workers_queued[job_type][resource_type] = workers_queued[job_type][resource_type] + worker_stats[harvester_id][job_type][resource_type]['submitted']
-                        n_workers_queued = n_workers_queued + worker_stats[harvester_id][job_type][resource_type]['submitted']
+                        n_cores_queued = n_cores_queued + worker_stats[harvester_id][job_type][resource_type]['submitted'] * core_factor
                     except KeyError:
                         pass
 
                     try: # ready
                         workers_queued[job_type].setdefault(resource_type, 0)
                         workers_queued[job_type][resource_type] = workers_queued[job_type][resource_type] + worker_stats[harvester_id][job_type][resource_type]['ready']
-                        n_workers_queued = n_workers_queued + worker_stats[harvester_id][job_type][resource_type]['ready']
+                        n_cores_queued = n_cores_queued + worker_stats[harvester_id][job_type][resource_type]['ready'] * core_factor
                     except KeyError:
                         pass
 
@@ -21883,11 +21890,10 @@ class DBProxy:
         #if queue == 'CERN-PROD_UCORE':
         #    n_workers_running = max(n_workers_running, 1000)
         #else:
-        n_workers_running = max(n_workers_running, 75)
-
-        n_workers_to_submit = max(n_workers_running - n_workers_queued, 5)
-        tmpLog.debug('nrunning {0}, nqueued {1}. We need to process {2} workers'
-                     .format(n_workers_running, n_workers_queued, n_workers_to_submit))
+        n_cores_running = max(n_cores_running, 75 * cores_queue)
+        n_cores_to_submit = max(n_cores_running - n_cores_queued, 5 * cores_queue)
+        tmpLog.debug('IN CORES: nrunning {0}, nqueued {1}. We need to process {2} cores'
+                     .format(n_cores_running, n_cores_queued, n_cores_to_submit))
 
         # Get the sorted global shares
         sorted_shares = self.get_sorted_leaves()
@@ -21907,6 +21913,7 @@ class DBProxy:
             activated_jobs = self.cur.fetchall()
             tmpLog.debug('Processing share: {0}. Got {1} activated jobs'.format(share.name, len(activated_jobs)))
             for gshare, prodsourcelabel, resource_type in activated_jobs:
+                core_factor = JobUtils.translate_resourcetype_to_cores(resource_type, cores_queue)
                 
                 # translate prodsourcelabel to a subset of job types, typically 'user' and 'managed'
                 job_type = JobUtils.translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel)
@@ -21920,16 +21927,16 @@ class DBProxy:
                 workers_queued[job_type][resource_type] = workers_queued[job_type][resource_type] - 1
                 if workers_queued[job_type][resource_type] <= 0:
                     # we've gone over the jobs that already have a queued worker, now we go for new workers
-                    n_workers_to_submit = n_workers_to_submit - 1
+                    n_cores_to_submit = n_cores_to_submit - core_factor
 
                 # We reached the number of workers needed
-                if n_workers_to_submit <= 0:
-                    tmpLog.debug('Reached workers needed (inner)')
+                if n_cores_to_submit <= 0:
+                    tmpLog.debug('Reached cores needed (inner)')
                     break
 
             # We reached the number of workers needed
-            if n_workers_to_submit <= 0:
-                tmpLog.debug('Reached workers needed (outer)')
+            if n_cores_to_submit <= 0:
+                tmpLog.debug('Reached cores needed (outer)')
                 break
 
         tmpLog.debug('workers_queued: {0}'.format(workers_queued))
