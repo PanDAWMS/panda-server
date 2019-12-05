@@ -234,10 +234,14 @@ setup(
     install_requires=['panda-common',
                       'pyOpenSSL',
                       'mod_wsgi',
-                      'rucio-clients',
+                      #'rucio-clients',
                       'stomp.py',
                       'pyyaml'
                       ],
+    extra_requires={
+        'oracle': ['cx_Oracle'],
+        'mysql': ['mysqlclient']
+    },
     packages=[ 'pandaserver',
                'pandaserver.brokerage',
                'pandaserver.config',

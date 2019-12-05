@@ -234,7 +234,7 @@ class DBProxy:
 
 
     # get CLOB
-    def getClobObj(self,sql,varMap,arraySize=10000):
+    def getClobObj(self, sql, varMap, arraySize=10000):
         comment = ' /* DBProxy.getClobObj */'            
         try:
             # begin transaction
@@ -2313,13 +2313,18 @@ class DBProxy:
                         # set endTime if undefined for holding
                         if jobStatus == 'holding' and endTime==None and not presetEndTime:
                             sql1 += ',endTime=CURRENT_DATE '
+                        # update startTime
+                        if oldJobStatus in ['sent', 'starting'] and jobStatus == 'running' and \
+                                ':startTime' not in varMap:
+                            sql1 += ",startTime=CURRENT_DATE"
                         # update modification time
                         sql1 += ",modificationTime=CURRENT_DATE"
                         # update
                         varMap[':jobStatus'] = jobStatus
                         self.cur.execute (sql1+sql1W+comment,varMap)
                         nUp = self.cur.rowcount
-                        _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s nUp=%s" % (pandaID,attemptNr,nUp))
+                        _logger.debug("updateJobStatus : PandaID={0} attemptNr={1} nUp={2} old={3} new={4}".format(
+                            pandaID, attemptNr, nUp, oldJobStatus, jobStatus))
                         if nUp == 1:
                             updatedFlag = True
                         if nUp == 0 and jobStatus == 'transferring':
@@ -9771,7 +9776,7 @@ class DBProxy:
         methodName = comment.split(' ')[-2].split('.')[-1]
         try:
             # set autocommit on
-            self.conn.begin()
+            # self.conn.begin()
             # get reliability info
             reliabilityMap = {}
             try:
@@ -9786,6 +9791,7 @@ class DBProxy:
             except Exception:
                 errType,errValue = sys.exc_info()[:2]
                 _logger.error("getSiteInfo %s:%s" % (errType.__class__.__name__,errValue))
+            
             # get CVMFS availability
             sqlCVMFS  = "SELECT distinct siteid FROM ATLAS_PANDAMETA.installedSW WHERE `release`=:release"
             self.cur.execute(sqlCVMFS,{':release':'CVMFS'})
@@ -9794,34 +9800,31 @@ class DBProxy:
             for tmpItem, in tmpList:
                 if not tmpItem in cvmfsSites:
                     cvmfsSites.append(tmpItem)
+
             # get DDM endpoints
             pandaEndpointMap = self.getDdmEndpoints()
+
             # sql to get site spec
-            sql = "SELECT nickname,dq2url,cloud,ddm,lfchost,gatekeeper,releases,memory,"
-            sql+= "maxtime,status,space,retry,cmtconfig,glexec,"
-            sql+= "priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,"
-            sql+= "validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse,"
-            sql+= "allowdirectaccess,comment_,lastmod,multicloud,lfcregister,"
-            sql+= "countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit,"
-            sql+= "maxwdir,fairsharePolicy,minmemory,maxmemory,mintime,"
-            sql+= "catchall,allowfax,wansourcelimit,wansinklimit,b.site_name,"
-            sql+= "sitershare,cloudrshare,corepower,wnconnectivity,catchall,"
-            sql+= "c.role,maxrss,minrss,direct_access_lan,direct_access_wan,tier, "
-            sql+= "objectstores,jobseed,capability, workflow, maxDiskio "
-            sql+= "FROM (ATLAS_PANDAMETA.schedconfig a "
-            sql+= "LEFT JOIN ATLAS_PANDA.panda_site b ON a.siteid=b.panda_site_name) "
-            sql+= "LEFT JOIN ATLAS_PANDA.site c ON b.site_name=c.site_name "
-            sql+= "WHERE siteid IS NOT NULL "
+            sql = """
+                   SELECT panda_queue, data, b.site_name, c.role
+                   FROM (ATLAS_PANDA.schedconfig_json a
+                   LEFT JOIN ATLAS_PANDA.panda_site b ON a.panda_queue = b.panda_site_name)
+                   LEFT JOIN ATLAS_PANDA.site c ON b.site_name = c.site_name
+                   WHERE panda_queue IS NOT NULL
+                   """
+
             # sql to get num slots
-            sqlSL = "SELECT gshare,resourcetype,numslots FROM ATLAS_PANDA.Harvester_Slots "
+            sqlSL = "SELECT gshare, resourcetype, numslots FROM ATLAS_PANDA.Harvester_Slots "
             sqlSL += "WHERE pandaQueueName=:pandaQueueName "
             sqlSL += "AND (expirationTime IS NULL OR expirationTime>CURRENT_DATE) "
-            self.cur.arraysize = 10000            
-            self.cur.execute(sql+comment)
-            resList = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError('Commit error')
+
+            self.cur.arraysize = 10000
+            # self.cur.execute(sql+comment)
+            # resList = self.cur.fetchall()
+            ret, resList = self.getClobObj(sql, {})
+            # if not self._commit():
+            #    raise RuntimeError('Commit error')
+            
             retList = {}
             if resList is not None:
                 # loop over all results
@@ -9832,65 +9835,69 @@ class DBProxy:
                         if tmpItem == None:
                             tmpItem = ''
                         resTmp.append(tmpItem)
-                    nickname,dq2url,cloud,ddm,lfchost,gatekeeper,releases,memory,\
-                       maxtime,status,space,retry,cmtconfig,glexec,\
-                       priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,\
-                       validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse,\
-                       allowdirectaccess,sc_comment,lastmod,multicloud,lfcregister, \
-                       countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit, \
-                       maxwdir,fairsharePolicy,minmemory,maxmemory,mintime, \
-                       catchall,allowfax,wansourcelimit,wansinklimit,pandasite, \
-                       sitershare,cloudrshare,corepower,wnconnectivity,catchall, \
-                       role,maxrss,minrss,direct_access_lan,direct_access_wan,tier, \
-                       objectstores,jobseed,capability,workflow, maxDiskio \
-                       = resTmp
+
+                    siteid, queue_data_json, pandasite, role = resTmp
+                    try:
+                        queue_data = json.loads(queue_data_json)
+                    except Exception:
+                        continue
+
                     # skip invalid siteid
-                    if siteid in [None,'']:
+                    if siteid in [None,''] or not queue_data:
                         continue
                     # instantiate SiteSpec
                     ret = SiteSpec.SiteSpec()
-                    ret.sitename   = siteid
-                    ret.nickname   = nickname
-                    ret.dq2url     = dq2url
-                    ret.ddm = ddm.split(',')[0]
-                    ret.cloud      = cloud.split(',')[0]
-                    ret.lfchost    = lfchost
-                    ret.gatekeeper = gatekeeper
-                    ret.memory     = memory
-                    ret.maxrss     = maxrss
-                    ret.minrss     = minrss
-                    ret.maxtime    = maxtime
-                    ret.status     = status
-                    ret.space      = space
-                    ret.glexec     = glexec
-                    ret.queue      = queue
-                    ret.localqueue = localqueue
-                    ret.cachedse   = cachedse
-                    ret.accesscontrol = accesscontrol
-                    ret.copysetup     = copysetup
-                    ret.maxinputsize  = maxinputsize
-                    ret.comment       = sc_comment
-                    ret.statusmodtime = lastmod
-                    ret.lfcregister   = lfcregister
-                    ret.pandasite     = pandasite
-                    if corepower is None:
-                        corepower = 0
-                    ret.corepower     = corepower
-                    ret.catchall      = catchall
-                    ret.role          = role
-                    ret.tier          = tier
-                    ret.jobseed       = jobseed
-                    ret.capability    = capability
-                    ret.workflow = workflow
-                    ret.maxDiskio = maxDiskio
-                    ret.wnconnectivity = wnconnectivity
+                    ret.sitename = siteid
+                    ret.pandasite = pandasite
+                    ret.role = role
+                    
+                    ret.type = queue_data.get('type', 'production')
+                    ret.nickname = queue_data.get('nickname')
+                    ret.dq2url = queue_data.get('dq2url')
+                    ret.ddm = queue_data.get('ddm', '').split(',')[0]
+                    ret.cloud = queue_data.get('cloud', '').split(',')[0]
+                    ret.lfchost = queue_data.get('lfchost')
+                    ret.gatekeeper = queue_data.get('gatekeeper')
+                    ret.memory = queue_data.get('memory')
+                    ret.maxrss = queue_data.get('maxrss')
+                    ret.minrss = queue_data.get('minrss')
+                    ret.maxtime = queue_data.get('maxtime')
+                    ret.status = queue_data.get('status')
+                    ret.space = queue_data.get('space')
+                    ret.glexec = queue_data.get('glexec')
+                    ret.queue = queue_data.get('queue')
+                    ret.localqueue = queue_data.get('localqueue')
+                    ret.cachedse = queue_data.get('cachedse')
+                    ret.accesscontrol = queue_data.get('accesscontrol')
+                    ret.copysetup = queue_data.get('copysetup')
+                    ret.maxinputsize = queue_data.get('maxinputsize')
+                    ret.comment = queue_data.get('comment_')
+                    ret.statusmodtime = queue_data.get('lastmod')
+                    ret.lfcregister = queue_data.get('lfcregister')
+                    ret.catchall = queue_data.get('catchall')
+                    ret.tier = queue_data.get('tier')
+                    ret.jobseed = queue_data.get('jobseed')
+                    ret.capability = queue_data.get('capability')
+                    ret.workflow = queue_data.get('workflow')
+                    ret.maxDiskio = queue_data.get('maxdiskio')
+                    ret.pandasite_state = 'ACTIVE'
+                    ret.fairsharePolicy = queue_data.get('fairsharepolicy')
+                    ret.priorityoffset = queue_data.get('priorityoffset')
+                    ret.allowedgroups  = queue_data.get('allowedgroups')
+                    ret.defaulttoken   = queue_data.get('defaulttoken')
+                    
+                    ret.direct_access_lan = (queue_data.get('direct_access_lan') == 'True')
+                    ret.direct_access_wan = (queue_data.get('direct_access_wan') == 'True')
+
+                    if queue_data.get('corepower') is None:
+                        ret.corepower = 0
+                    else:
+                        ret.corepower = queue_data.get('corepower')
+
+                    ret.wnconnectivity = queue_data.get('wnconnectivity')
                     if ret.wnconnectivity == '':
                         ret.wnconnectivity = None
-                    ret.fairsharePolicy = fairsharePolicy
-                    ret.pandasite_state = 'ACTIVE' #pandasite_state
-                    ret.direct_access_lan = (direct_access_lan == 'True')
-                    ret.direct_access_wan = (direct_access_wan == 'True')
-                    # resource shares
+
                     ret.sitershare = None
                     """
                     try:
@@ -9909,137 +9916,148 @@ class DBProxy:
                     """    
                     # maxwdir
                     try:
-                        if maxwdir == None:
+                        if queue_data.get('maxwdir') is None:
                             ret.maxwdir = 0
                         else:
-                            ret.maxwdir = int(maxwdir)
+                            ret.maxwdir = int(queue_data['maxwdir'])
                     except Exception:
-                        if ret.maxinputsize in [0,None]:
+                        if ret.maxinputsize in [0, None]:
                             ret.maxwdir = 0
                         else:
                             try:
                                 ret.maxwdir = ret.maxinputsize + 2000
                             except Exception:
                                 ret.maxwdir = 16336
+                    
                     # memory
-                    if minmemory is not None:
-                        ret.minmemory = minmemory
+                    if queue_data.get('minmemory') is not None:
+                        ret.minmemory = queue_data['minmemory']
                     else:
                         ret.minmemory = 0
-                    if maxmemory is not None:
-                        ret.maxmemory = maxmemory
+                    if queue_data.get('maxmemory') is not None:
+                        ret.maxmemory = queue_data['maxmemory']
                     else:
                         ret.maxmemory = 0
+                    
                     # mintime
-                    if mintime is not None:
-                        ret.mintime = mintime
+                    if queue_data.get('mintime') is not None:
+                        ret.mintime = queue_data['mintime']
                     else:
                         ret.mintime = 0
+                    
                     # reliability
-                    tmpPrefix = re.sub('_[^_]+DISK$','',ret.ddm) # TODO: ask Tadashi what is the reliability map
+                    tmpPrefix = re.sub('_[^_]+DISK$', '', ret.ddm)
                     if tmpPrefix in reliabilityMap:
                         ret.reliabilityLevel = reliabilityMap[tmpPrefix]
                     else:
                         ret.reliabilityLevel = None
+                    
                     # contry groups
-                    if not countryGroup in ['',None]:
-                        ret.countryGroup = countryGroup.split(',')
+                    if queue_data.get('countrygroup') not in ['', None]:
+                        ret.countryGroup = queue_data['countrygroup'].split(',')
                     else:
                         ret.countryGroup = []
+                    
                     # available CPUs
                     ret.availableCPU = 0
-                    if not availableCPU in ['',None]:
+                    if not queue_data.get('availablecpu') in ['', None]:
                         try:
-                            ret.availableCPU = int(availableCPU)
+                            ret.availableCPU = int(queue_data['availablecpu'])
                         except Exception:
                             pass
+                    
                     # pledged CPUs
                     ret.pledgedCPU = 0
-                    if not pledgedCPU in ['',None]:
+                    if queue_data.get('pledgedcpu') not in ['', None]:
                         try:
-                            ret.pledgedCPU = int(pledgedCPU)
+                            ret.pledgedCPU = int(queue_data['pledgedcpu'])
                         except Exception:
                             pass
+                    
                     # core count
                     ret.coreCount = 0
-                    if not coreCount in ['',None]:
+                    if queue_data.get('corecount') not in ['', None]:
                         try:
-                            ret.coreCount = int(coreCount)
+                            ret.coreCount = int(queue_data['corecount'])
                         except Exception:
                             pass
+                    
                     # cloud list
-                    if cloud != '':
-                        ret.cloudlist = [cloud.split(',')[0]]
-                        if not multicloud in ['',None,'None']:
-                            ret.cloudlist += multicloud.split(',')
+                    if queue_data.get('cloud') != '':
+                        ret.cloudlist = [queue_data['cloud'].split(',')[0]]
+                        if not queue_data.get('multicloud') in ['', None, 'None']:
+                            ret.cloudlist += queue_data['multicloud'].split(',')
                     else:
                         ret.cloudlist = []
-                    # job recoverty
+                    
+                    # job recovery
                     ret.retry = True
-                    if retry == 'FALSE':
+                    if queue_data.get('retry') == 'FALSE':
                         ret.retry = False
+                    
                     # convert releases to list
                     ret.releases = []
-                    for tmpRel in releases.split('|'):
-                        # remove white space
-                        tmpRel = tmpRel.strip()
-                        if tmpRel != '':
-                            ret.releases.append(tmpRel)
+                    if queue_data.get('releases'):
+                        ret.releases = queue_data['releases']
+                    
                     # convert validatedreleases to list
                     ret.validatedreleases = []
-                    for tmpRel in validatedreleases.split('|'):
-                        # remove white space
-                        tmpRel = tmpRel.strip()
-                        if tmpRel != '':
-                            ret.validatedreleases.append(tmpRel)
+                    if queue_data.get('validatedreleases'):
+                        for tmpRel in queue_data['validatedreleases'].split('|'):
+                            # remove white space
+                            tmpRel = tmpRel.strip()
+                            if tmpRel != '':
+                                ret.validatedreleases.append(tmpRel)
+                    
                     # cmtconfig
-                    if cmtconfig in ['x86_64-slc5-gcc43']:
+                    if queue_data.get('cmtconfig') in ['x86_64-slc5-gcc43']:
                         # set empty for slc5-gcc43 validation
                         ret.cmtconfig = [] # FIXME
-                    elif cmtconfig in ['i686-slc5-gcc43-opt']:
+                    elif queue_data.get('cmtconfig') in ['i686-slc5-gcc43-opt']:
                         # set slc4 for slc5 to get slc4 jobs too
                         ret.cmtconfig = ['i686-slc4-gcc34-opt']
                     else:
                         # set slc3 if the column is empty
                         ret.cmtconfig = ['i686-slc3-gcc323-opt']
-                    if cmtconfig != '':
-                        ret.cmtconfig.append(cmtconfig)
-                    # VO related params
-                    ret.priorityoffset = priorityoffset
-                    ret.allowedgroups  = allowedgroups
-                    ret.defaulttoken   = defaulttoken
+                    if queue_data.get('cmtconfig') != '':
+                        ret.cmtconfig.append(queue_data['cmtconfig'])
+                                        
                     # direct access
-                    if allowdirectaccess == 'True':
+                    if queue_data.get('allowdirectaccess') == 'True':
                         ret.allowdirectaccess = True
                     else:
                         ret.allowdirectaccess = False
+                    
                     # CVMFS
                     if siteid in cvmfsSites:
                         ret.iscvmfs = True
                     else:
                         ret.iscvmfs = False
+                    
                     # limit of the number of transferring jobs
                     ret.transferringlimit = 0
-                    if not transferringlimit in ['',None]:
+                    if not queue_data.get('transferringlimit') in ['', None]:
                         try:
-                            ret.transferringlimit = int(transferringlimit)
+                            ret.transferringlimit = int(queue_data['transferringlimit'])
                         except Exception:
                             pass
+                    
                     # FAX
                     ret.allowfax = False
                     try:
-                        if catchall is not None and 'allowfax' in catchall:
+                        if queue_data.get('catchall') is not None and 'allowfax' in queue_data['catchall']:
                             ret.allowfax = True
-                        if allowfax == 'True':
+                        if queue_data.get('allowfax') == 'True':
                             ret.allowfax = True
                     except Exception:
                         pass
+                    
                     ret.wansourcelimit = 0
-                    if not wansourcelimit in [None,'']:
-                        ret.wansourcelimit = wansourcelimit
+                    if queue_data.get('wansourcelimit') not in [None,'']:
+                        ret.wansourcelimit = queue_data['wansourcelimit']
                     ret.wansinklimit = 0
-                    if not wansinklimit in [None,'']:
-                        ret.wansinklimit = wansinklimit
+                    if queue_data.get('wansinklimit') not in [None,'']:
+                        ret.wansinklimit = queue_data['wansinklimit']
 
                     # DDM endpoints
                     ret.ddm_endpoints_input = {}
@@ -10093,6 +10111,7 @@ class DBProxy:
                         ret.num_slots_map.setdefault(sl_gshare, dict())
                         ret.num_slots_map[sl_gshare].setdefault(sl_resourcetype, dict())
                         ret.num_slots_map[sl_gshare][sl_resourcetype] = sl_numslots
+                    
                     # append
                     retList[ret.nickname] = ret
             _logger.debug("getSiteInfo done")
@@ -10103,7 +10122,7 @@ class DBProxy:
             _logger.error('getSiteInfo exception : {0}'.format(traceback.format_exc()))
             self.dumpErrorMessage(_logger,methodName)
             # roll back
-            self._rollback()
+            #self._rollback()
             return {}
 
 
@@ -21839,7 +21858,8 @@ class DBProxy:
                     try:
                         n_workers_running = n_workers_running + worker_stats[harvester_id][job_type][resource_type]['running']
                         if resource_type in resource_type_limits:
-                            resource_type_limits[resource_type] = resource_type_limits[resource_type] - worker_stats[harvester_id][resource_type]['running']
+                            resource_type_limits[resource_type] = resource_type_limits[resource_type] - worker_stats[harvester_id][job_type][resource_type]['running']
+                            tmpLog.debug('Limit for rt {0} down to {1}'.format(resource_type, resource_type_limits[resource_type]))
                     except KeyError:
                         pass
 

@@ -130,6 +130,8 @@ try:
         if useLogTgz:
             today = datetime.date.today()
             dispLogNameList.append('{0}-{1}.gz'.format(dispLogName, today.strftime('%Y%m%d')))
+        # delete tmp
+        commands_get_status_output('rm -f %s.tmp-*' % dispLogName)
         # tmp name
         tmpLogName = '%s.tmp-%s' % (dispLogName,datetime.datetime.utcnow().strftime('%Y-%m-%d-%H-%M-%S'))
         # loop over all files

@@ -1222,10 +1222,12 @@ def getKeyPair(req,publicKeyName,privateKeyName):
 
 
 # get proxy
-def getProxy(req,role=None):
+def getProxy(req, role=None):
     # get DN
     realDN = _getDN(req)
-    return jobDispatcher.getProxy(realDN,role)
+    if role == '':
+        role = None
+    return jobDispatcher.getProxy(realDN, role)
 
 
 # check pilot permission
