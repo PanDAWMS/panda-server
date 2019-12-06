@@ -23260,12 +23260,12 @@ class DBProxy:
                     continue
                 
                 if pq in existing_queues:
-                    tmp_log.error("pq {0} present".format(pq))
+                    tmp_log.debug("pq {0} present".format(pq))
                     var_map_update.append({':pq': pq,
                                            ':data': data,
                                            ':last_update': utc_now})
                 else:
-                    tmp_log.error("pq {0} is new".format(pq))
+                    tmp_log.debug("pq {0} is new".format(pq))
                     var_map_insert.append({':pq': pq,
                                            ':data': data,
                                            ':last_update': utc_now})
