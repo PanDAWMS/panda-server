@@ -93,18 +93,22 @@ class AdderAtlasPlugin (AdderPluginBase):
                 return
             # check if the job has something to transfer
             self.logger.debug('alt stage-out:{0}'.format(str(self.job.altStgOutFileList())))
-            somethingToTranfer = False
+            somethingToTransfer = False
             for file in self.job.Files:
                 if file.type == 'output' or file.type == 'log':
                     if file.status == 'nooutput':
                         continue
                     if DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) is None \
                             and not file.lfn in self.job.altStgOutFileList():
-                        somethingToTranfer = True
+                        somethingToTransfer = True
                         break
             self.logger.debug('DDM src:%s dst:%s' % (tmpSrcDDM,tmpDstDDM))
-            if re.search('^ANALY_',self.job.computingSite) is not None:
-                # analysis site
+            job_type = JobUtils.translate_prodsourcelabel_to_jobtype(srcSiteSpec.type, self.job.prodSourceLabel)
+            if re.search('^ANALY_', self.job.computingSite) is not None:
+                # analysis site. Should be obsoleted by the next check
+                pass
+            elif job_type == JobUtils.ANALY_PS:
+                # analysis job
                 pass
             elif self.job.computingSite == self.job.destinationSE:
                 # same site ID for computingSite and destinationSE
@@ -127,12 +131,12 @@ class AdderAtlasPlugin (AdderPluginBase):
                     not EventServiceUtils.isJobCloningJob(self.job):
                 # transfer only log file for normal ES jobs 
                 self.logTransferring = True
-            elif not somethingToTranfer:
+            elif not somethingToTransfer:
                 # nothing to transfer
                 pass
             else:
                 self.goToTransferring = True
-            self.logger.debug('somethingToTranfer={0}'.format(somethingToTranfer))
+            self.logger.debug('somethingToTransfer={0}'.format(somethingToTransfer))
             self.logger.debug('goToTransferring=%s' % self.goToTransferring)
             self.logger.debug('logTransferring=%s' % self.logTransferring)
             self.logger.debug('goToMerging=%s' % self.goToMerging)
@@ -573,7 +577,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                 if not self.useCentralLFC():
                     regMsgStr = "DQ2 registraion for %s files " % regNumFiles                    
                 else:
-                    regMsgStr = "LFC+DQ2 registraion with backend={0} for {1} files ".format(self.ddmBackEnd,
+                    regMsgStr = "LFC+DQ2 registration with backend={0} for {1} files ".format(self.ddmBackEnd,
                                                                                              regNumFiles)
                 if len(zipFiles) > 0:
                     self.logger.debug('{0} {1}'.format('registerZipFiles',str(zipFiles)))
