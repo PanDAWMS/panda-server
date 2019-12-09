@@ -21928,7 +21928,7 @@ class DBProxy:
                 
                 # if we reached the limit for the resource type, skip the job
                 if resource_type in resource_type_limits and resource_type_limits[resource_type] <= 0:
-                    tmpLog.debug('Reached resource type limit for {0}'.format(resource_type))
+                    # tmpLog.debug('Reached resource type limit for {0}'.format(resource_type))
                     continue
                 workers_queued.setdefault(job_type, {})
                 workers_queued[job_type].setdefault(resource_type, 0)
