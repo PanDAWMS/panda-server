@@ -21868,7 +21868,7 @@ class DBProxy:
             for job_type in worker_stats[harvester_id]:
                 workers_queued.setdefault(job_type, {})
                 for resource_type in worker_stats[harvester_id][job_type]:
-                    core_factor = JobUtils(resource_type, cores_queue)                    
+                    core_factor = JobUtils.translate_resourcetype_to_cores(resource_type, cores_queue)
                     try:
                         n_cores_running = n_cores_running + worker_stats[harvester_id][job_type][resource_type]['running'] * core_factor
                         
@@ -21878,7 +21878,7 @@ class DBProxy:
                     except KeyError:
                         pass
 
-                    try: # submitted
+                    try:  # submitted
                         workers_queued[job_type].setdefault(resource_type, 0)
                         workers_queued[job_type][resource_type] = workers_queued[job_type][resource_type] + worker_stats[harvester_id][job_type][resource_type]['submitted']
                         n_cores_queued = n_cores_queued + worker_stats[harvester_id][job_type][resource_type]['submitted'] * core_factor
