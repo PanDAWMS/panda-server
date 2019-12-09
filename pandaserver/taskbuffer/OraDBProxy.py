@@ -21844,7 +21844,7 @@ class DBProxy:
                 pass
             try:
                 cores_queue = pq_data_des['corecount']
-                if not corecount:
+                if not cores_queue:
                     cores_queue = 1
             except KeyError:
                 tmpLog.error('No corecount')
