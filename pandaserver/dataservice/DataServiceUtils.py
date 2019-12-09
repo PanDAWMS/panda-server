@@ -70,7 +70,7 @@ def getSitesWithDataset(tmpDsName, siteMapper, replicaMap, cloudKey, prodSourceL
         tmpFoundFlag = False
 
         # skip misconfigured sites
-        if not tmpSiteSpec.ddm_input.get(scopeSiteSpec_input) and not tmpSiteSpec.setokens_input.get(scopeSiteSpec_input).values():
+        if not tmpSiteSpec.ddm_input.get(scopeSiteSpec_input) and not tmpSiteSpec.setokens_input.get(scopeSiteSpec_input):
             continue
 
         for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input[scopeSiteSpec_input]]+list(tmpSiteSpec.setokens_input[scopeSiteSpec_input].values()):
