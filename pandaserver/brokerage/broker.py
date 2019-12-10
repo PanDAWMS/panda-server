@@ -32,11 +32,7 @@ _disableLRCcheck = []
 _lockGetUU   = open(panda_config.lockfile_getUU, 'w')
 
 # short-long mapping
-shortLongMap = {'ANALY_BNL_ATLAS_1':'ANALY_LONG_BNL_ATLAS',
-                'ANALY_LYON-T2'    :'ANALY_LONG_LYON-T2',
-                'ANALY_LYON_DCACHE':'ANALY_LONG_LYON_DCACHE',
-                'ANALY_BNL_SHORT'  :'ANALY_BNL_LONG',
-                }
+shortLongMap = {'ANALY_BNL_SHORT': 'ANALY_BNL_LONG'}
 
 # processingType to skip brokerage
 skipBrokerageProTypes = ['prod_test']
@@ -438,11 +434,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             tmpLog.debug('finished : no jobs')        
             return
         allOkFilesMap = {}
-        # use ANALY_CERN_XROOTD and not ANALY_CERN for EOS migration
-        if forAnalysis:
-            if 'ANALY_CERN_XROOTD' in setScanSiteList and 'ANALY_CERN' in setScanSiteList:
-                setScanSiteList.remove('ANALY_CERN')
-                tmpLog.debug('remove ANALY_CERN since ANALY_CERN_XROOTD is also a candidate')
+
         nJob  = 20
         iJob  = 0
         nFile = 20
@@ -773,18 +765,18 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 foundRelease = True
                                 winv = 1
                             else:
-                                # ignore test sites
-                                if (prevManualPreset == False) and (site.endswith('test') or \
-                                                                    site.endswith('Test') or site.startswith('Test')):
-                                    continue
-                                # ignore analysis queues
-                                if (not forAnalysis) and site.startswith('ANALY'):
-                                    continue
                                 # get SiteSpec
                                 if siteMapper.checkSite(site):
                                     tmpSiteSpec = siteMapper.getSite(site)
                                 else:
                                     tmpLog.debug(" skip: %s doesn't exist in DB" % site)
+                                    continue
+                                # ignore test sites
+                                if (prevManualPreset == False) and (site.endswith('test') or \
+                                                                    site.endswith('Test') or site.startswith('Test')):
+                                    continue
+                                # ignore analysis queues
+                                if (not forAnalysis) and (not tmpSiteSpec.runs_production()):
                                     continue
                                 # check status
                                 if tmpSiteSpec.status in ['offline','brokeroff'] and computingSite in ['NULL',None,'']:
