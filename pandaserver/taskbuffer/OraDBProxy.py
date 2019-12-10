@@ -2850,7 +2850,7 @@ class DBProxy:
                 if (((job.prodSourceLabel == 'user' or job.prodSourceLabel == 'panda') \
                      and not job.processingType.startswith('gangarobot') \
                      and not job.processingType.startswith('hammercloud') \
-                     and job.computingSite.startswith('ANALY_') and 'pilotErrorCode' in param \
+                     and 'pilotErrorCode' in param \
                      and param['pilotErrorCode'] in ['1200','1201','1213'] and (not job.computingSite.startswith('ANALY_LONG_')) \
                      and job.attemptNr < 2) or (job.prodSourceLabel == 'ddm' and job.cloud == 'CA' and job.attemptNr <= 10) \
                      or failedInActive or usePilotRetry) \
