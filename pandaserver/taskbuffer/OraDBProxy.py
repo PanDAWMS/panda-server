@@ -2207,6 +2207,7 @@ class DBProxy:
                 except Exception:
                     pass
             if key == 'jobMetrics':
+                # extract the memory leak from the pilot jobMetrics
                 try:
                     tmpM = re.search('leak=(-?\d+\.*\d+)', param[key])
                     if tmpM is not None:
@@ -2214,6 +2215,18 @@ class DBProxy:
                         tmpKey = 'memory_leak'
                         sql1 += ',{0}=:{0}'.format(tmpKey)
                         varMap[':{0}'.format(tmpKey)] = memoryLeak
+                except Exception:
+                    pass
+
+                # extract the chi2 measurement for the memory leak fitting
+                try:
+                    tmpM = re.search('chi2=(-?\d+\.*\d+)', param[key])
+                    if tmpM is not None:
+                        # keep measurement under 11 digits because of DB declaration
+                        memory_leak_x2 = min(long(float(tmpM.group(1))), long(10**11-1))
+                        tmpKey = 'memory_leak_x2'
+                        sql1 += ',{0}=:{0}'.format(tmpKey)
+                        varMap[':{0}'.format(tmpKey)] = memory_leak_x2
                 except Exception:
                     pass
         sql1W = " WHERE PandaID=:PandaID "
