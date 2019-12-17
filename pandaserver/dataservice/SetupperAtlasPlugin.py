@@ -63,6 +63,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         self.lfnDatasetMap = {}
         # missing files at T1
         self.missingFilesInT1 = {}
+        # source label
+        self.prodSourceLabel = None
         
         
     # main
@@ -71,14 +73,19 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             self.logger.debug('start run()')
             self._memoryCheck()
             bunchTag = ''
+            tagJob = None
             timeStart = datetime.datetime.utcnow()
             if self.jobs is not None and len(self.jobs) > 0:
-                bunchTag = 'PandaID:%s type:%s taskID:%s pType=%s' % (self.jobs[0].PandaID,
-                                                                      self.jobs[0].prodSourceLabel,
-                                                                      self.jobs[0].taskID,
-                                                                      self.jobs[0].processingType)
+                tagJob = self.jobs[0]
+            elif len(self.jumboJobs) > 0:
+                tagJob = self.jumboJobs[0]
+            if tagJob is not None:
+                bunchTag = 'PandaID:%s type:%s taskID:%s pType=%s' % (tagJob.PandaID,
+                                                                      tagJob.prodSourceLabel,
+                                                                      tagJob.taskID,
+                                                                      tagJob.processingType)
                 self.logger.debug(bunchTag)
-            self.prodSourceLabel = self.jobs[0].prodSourceLabel
+                self.prodSourceLabel = tagJob.prodSourceLabel
             # instantiate site mapper
             self.siteMapper = SiteMapper(self.taskBuffer)
             # correctLFN
