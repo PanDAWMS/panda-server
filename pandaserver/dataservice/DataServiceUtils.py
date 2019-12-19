@@ -70,9 +70,9 @@ def getSitesWithDataset(tmpDsName, siteMapper, replicaMap, cloudKey, prodSourceL
         tmpFoundFlag = False
 
         ddm_endpoints = []
-        if scopeSiteSpec_input in tmpSiteSpec.ddm_input:
+        if scopeSiteSpec_input in tmpSiteSpec.ddm_input and tmpSiteSpec.ddm_input[scopeSiteSpec_input]:
             ddm_endpoints.append(tmpSiteSpec.ddm_input[scopeSiteSpec_input])
-        if scopeSiteSpec_input in tmpSiteSpec.setokens_input:
+        if scopeSiteSpec_input in tmpSiteSpec.setokens_input and tmpSiteSpec.setokens_input[scopeSiteSpec_input].values():
             ddm_endpoints = ddm_endpoints + list(tmpSiteSpec.setokens_input[scopeSiteSpec_input].values())
 
         if not ddm_endpoints:
