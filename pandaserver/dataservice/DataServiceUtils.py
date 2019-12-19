@@ -69,11 +69,17 @@ def getSitesWithDataset(tmpDsName, siteMapper, replicaMap, cloudKey, prodSourceL
         # check all associated DQ2 IDs
         tmpFoundFlag = False
 
-        # skip misconfigured sites
-        if not tmpSiteSpec.ddm_input.get(scopeSiteSpec_input) and not tmpSiteSpec.setokens_input.get(scopeSiteSpec_input):
+        ddm_endpoints = []
+        if scopeSiteSpec_input in tmpSiteSpec.ddm_input:
+            ddm_endpoints.append(tmpSiteSpec.ddm_input[scopeSiteSpec_input])
+        if scopeSiteSpec_input in tmpSiteSpec.setokens_input:
+            ddm_endpoints = ddm_endpoints + list(tmpSiteSpec.setokens_input[scopeSiteSpec_input].values())
+
+        if not ddm_endpoints:
+            # skip misconfigured sites
             continue
 
-        for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input[scopeSiteSpec_input]]+list(tmpSiteSpec.setokens_input[scopeSiteSpec_input].values()):
+        for tmpSiteDQ2ID in ddm_endpoints:
             # prefix of DQ2 ID
             tmpDQ2IDPrefix = getDQ2Prefix(tmpSiteDQ2ID)
             # ignore empty
