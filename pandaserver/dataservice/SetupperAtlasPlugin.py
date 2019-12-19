@@ -561,7 +561,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                             (not tmpSite.ddm_output[scope_output].endswith('PRODDISK')):
                                         # T1 used as T2. Use both DATADISK and PRODDISK as locations while T1 PRODDISK is phasing out
                                         dq2IDList = [tmpSite.ddm_output[scope_output]]
-                                        if 'ATLASPRODDISK' in tmpSite.setokens_output[scope_output]:
+                                        if 'ATLASPRODDISK' in tmpSite.setokens_output.get(scope_output, ''):
                                             dq2IDList += [tmpSite.setokens_output[scope_output]['ATLASPRODDISK']]
                                         usingT1asT2 = True
                                     else:
