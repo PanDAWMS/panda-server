@@ -19131,14 +19131,21 @@ class DBProxy:
                     raise RuntimeError('Commit error')
                 # make map
                 for prodUserName,dispatchDBlock,jediTaskID,dsSize in resJ:
-                    if not prodUserName in userDispMap:
-                        userDispMap[prodUserName] = {'datasets':set(),
-                                                     'size':0,
-                                                     'tasks':set()}
-                    if dispatchDBlock not in userDispMap[prodUserName]['datasets']:
-                        userDispMap[prodUserName]['datasets'].add(dispatchDBlock)
-                        userDispMap[prodUserName]['tasks'].add(jediTaskID)
-                        userDispMap[prodUserName]['size'] += dsSize
+                    transferType = 'transfer'
+                    try:
+                        if dispatchDBlock.split('.')[4] == 'prestaging':
+                            transferType = 'prestaging'
+                    except Exception:
+                        pass
+                    userDispMap.setdefault(prodUserName, {})
+                    userDispMap[prodUserName].setdefault(transferType,
+                                                         {'datasets':set(),
+                                                         'size':0,
+                                                         'tasks':set()})
+                    if dispatchDBlock not in userDispMap[prodUserName][transferType]['datasets']:
+                        userDispMap[prodUserName][transferType]['datasets'].add(dispatchDBlock)
+                        userDispMap[prodUserName][transferType]['tasks'].add(jediTaskID)
+                        userDispMap[prodUserName][transferType]['size'] += dsSize
             tmpLog.debug("done")
             return userDispMap
         except Exception:

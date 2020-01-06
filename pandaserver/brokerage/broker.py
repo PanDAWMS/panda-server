@@ -1409,8 +1409,12 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     if len(tmpDataType) > 20:
                         # avoid too long name
                         tmpDataType = 'GEN'
-                    dispatchDBlock = "panda.%s.%s.%s.%s_dis%s" % (job.taskID,time.strftime('%m.%d'),tmpDataType,
-                                                                  str(uuid.uuid4()), job.PandaID)
+                    transferType = 'transfer'
+                    if job.useInputPrestaging():
+                        transferType = 'prestaging'
+                    dispatchDBlock = "panda.%s.%s.%s.%s.%s_dis%s" % (job.taskID, time.strftime('%m.%d'),
+                                                                     tmpDataType, transferType,
+                                                                     str(uuid.uuid4()), job.PandaID)
                     tmpLog.debug('New dispatchDBlock: %s' % dispatchDBlock)                    
                 prodDBlock = job.prodDBlock
                 # already define computingSite
