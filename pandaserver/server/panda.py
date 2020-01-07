@@ -73,7 +73,7 @@ from pandaserver.userinterface.UserIF import submitJobs, getJobStatus, queryPand
      reassignShare, listTasksInShare, getTaskParamsMap, updateWorkers, harvesterIsAlive,\
      reportWorkerStats, reportWorkerStats_jobtype, addHarvesterDialogs, getJobStatisticsPerSiteResource, setNumSlotsForWP,\
      reloadInput, enableJumboJobs, updateServiceMetrics, getUserJobMetadata, getJumboJobDatasets, getGShareStatus,\
-     sweepPQ
+     sweepPQ,get_job_statistics_per_site_label_resource
 
 allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
                    'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
@@ -94,7 +94,7 @@ allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reass
                    'reassignShare', 'listTasksInShare', 'getTaskParamsMap', 'updateWorkers', 'harvesterIsAlive',
                    'reportWorkerStats', 'reportWorkerStats_jobtype', 'addHarvesterDialogs', 'getJobStatisticsPerSiteResource', 'setNumSlotsForWP',
                    'reloadInput', 'enableJumboJobs', 'updateServiceMetrics', 'getUserJobMetadata', 'getJumboJobDatasets',
-                   'getGShareStatus', 'sweepPQ']
+                   'getGShareStatus', 'sweepPQ', 'get_job_statistics_per_site_label_resource']
 
 # import error
 import pandaserver.taskbuffer.ErrorCode

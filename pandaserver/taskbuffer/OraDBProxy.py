@@ -22529,6 +22529,84 @@ class DBProxy:
             self.dumpErrorMessage(_logger, method_name)
             return dict()
 
+    # get job statistics per site, source label, and resource type
+    def get_job_statistics_per_site_label_resource(self, time_window):
+        comment = ' /* DBProxy.get_job_statistics_per_site_label_resource */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        sql0  = "SELECT computingSite,jobStatus,gshare,resource_type,COUNT(*) FROM %s "
+        sql0 += "GROUP BY computingSite,jobStatus,gshare,resource_type "
+        sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ "
+        sqlA += "computingSite,jobStatus,gshare,resource_type,COUNT(*) "
+        sqlA += "FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime>:modificationTime "
+        sqlA += "GROUP BY computingSite,jobStatus,gshare,resource_type "
+        tables = ['ATLAS_PANDA.jobsActive4', 'ATLAS_PANDA.jobsDefined4', 'ATLAS_PANDA.jobsArchived4']
+        # sql for materialized view
+        sqlMV = re.sub('COUNT\(\*\)', 'SUM(njobs)', sql0)
+        sqlMV = re.sub('SELECT ', 'SELECT /*+ RESULT_CACHE */ ', sqlMV)
+        ret = dict()
+        try:
+            if time_window is None:
+                timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
+            else:
+                timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=int(time_window))
+            for table in tables:
+                # start transaction
+                self.conn.begin()
+                self.cur.arraysize = 10000
+                # select
+                varMap = {}
+                if table == 'ATLAS_PANDA.jobsArchived4':
+                    varMap[':modificationTime'] = timeLimit
+                    sqlExe = sqlA + comment
+                elif table == 'ATLAS_PANDA.jobsActive4':
+                    sqlExe = (sqlMV + comment) % 'ATLAS_PANDA.JOBS_SHARE_STATS'
+                else:
+                    sqlExe = (sql0 + comment) % table
+                self.cur.execute(sqlExe, varMap)
+                res = self.cur.fetchall()
+                # commit
+                if not self._commit():
+                    raise RuntimeError('Commit error')
+                self.__reload_shares()
+                # create map
+                shareLabelMap = dict()
+                for computingSite, jobStatus, gshare, resource_type, nJobs in res:
+                    if gshare not in shareLabelMap:
+                        for share in self.leave_shares:
+                            if gshare == share.name:
+                                prodSourceLabel = share.prodsourcelabel
+                                if '|' in prodSourceLabel:
+                                    prodSourceLabel = prodSourceLabel.split('|')[0]
+                                    prodSourceLabel = prodSourceLabel.replace('.*', '')
+                                shareLabelMap[gshare] = prodSourceLabel
+                                break
+                        if gshare not in shareLabelMap:
+                            shareLabelMap[gshare] = 'unknown'
+                    prodSourceLabel = shareLabelMap[gshare]
+                    ret.setdefault(computingSite, dict())
+                    ret[computingSite].setdefault(prodSourceLabel, dict())
+                    ret[computingSite][prodSourceLabel].setdefault(resource_type, dict())
+                    ret[computingSite][prodSourceLabel][resource_type].setdefault(jobStatus, 0)
+                    ret[computingSite][prodSourceLabel][resource_type][jobStatus] += nJobs
+            # for zero
+            stateList = ['assigned', 'activated', 'running', 'finished', 'failed']
+            for computingSite in ret:
+                for prodSourceLabel in ret[computingSite]:
+                    for resource_type in ret[computingSite][prodSourceLabel]:
+                        for jobStatus in stateList:
+                            ret[computingSite][prodSourceLabel][resource_type].setdefault(jobStatus, 0)
+            # return
+            tmp_log.debug("%s" % str(ret))
+            return ret
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return dict()
+
 
 
     # set num slots for workload provisioning
