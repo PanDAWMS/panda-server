@@ -21836,7 +21836,7 @@ class DBProxy:
 
     def ups_new_worker_distribution(self, queue, worker_stats):
         """
-        Assuming we want to have n_cores_queued >= n_cores_running, calculate how many pilots need to be submitted
+        Assuming we want to have n_cores_queued >= n_cores_running * .5, calculate how many pilots need to be submitted
         and choose the number  
 
         :param queue: name of the queue
@@ -21918,10 +21918,10 @@ class DBProxy:
         #if queue == 'CERN-PROD_UCORE':
         #    n_workers_running = max(n_workers_running, 1000)
         #else:
-        n_cores_running = max(n_cores_running, 75 * cores_queue)
-        n_cores_to_submit = max(n_cores_running - n_cores_queued, 5 * cores_queue)
-        tmpLog.debug('IN CORES: nrunning {0}, nqueued {1}. We need to process {2} cores'
-                     .format(n_cores_running, n_cores_queued, n_cores_to_submit))
+        n_cores_target = max(int(n_cores_running * 0.5), 75 * cores_queue)
+        n_cores_to_submit = max(n_cores_target - n_cores_queued, 5 * cores_queue)
+        tmpLog.debug('IN CORES: nrunning {0}, ntarget {1}, nqueued {2}. We need to process {3} cores'
+                     .format(n_cores_running, n_cores_target, n_cores_queued, n_cores_to_submit))
 
         # Get the sorted global shares
         sorted_shares = self.get_sorted_leaves()
