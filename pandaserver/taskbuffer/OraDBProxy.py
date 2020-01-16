@@ -3315,6 +3315,8 @@ class DBProxy:
             getValMap[':prodSourceLabel1']  = 'test'
             getValMap[':prodSourceLabel2']  = 'prod_test'
             getValMap[':prodSourceLabel3'] = 'install'
+        elif prodSourceLabel == 'unified':
+            pass
         else:
             sql1+= "AND prodSourceLabel=:prodSourceLabel "
             getValMap[':prodSourceLabel'] = prodSourceLabel
