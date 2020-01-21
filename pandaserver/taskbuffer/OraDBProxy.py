@@ -9907,8 +9907,8 @@ class DBProxy:
                     ret.allowedgroups  = queue_data.get('allowedgroups')
                     ret.defaulttoken   = queue_data.get('defaulttoken')
                     
-                    ret.direct_access_lan = (queue_data.get('direct_access_lan') == 'True')
-                    ret.direct_access_wan = (queue_data.get('direct_access_wan') == 'True')
+                    ret.direct_access_lan = (queue_data.get('direct_access_lan') is True)
+                    ret.direct_access_wan = (queue_data.get('direct_access_wan') is True)
 
                     if queue_data.get('corepower') is None:
                         ret.corepower = 0
@@ -10013,7 +10013,7 @@ class DBProxy:
                     
                     # job recovery
                     ret.retry = True
-                    if queue_data.get('retry') == 'FALSE':
+                    if queue_data.get('retry') is False:
                         ret.retry = False
                     
                     # convert releases to list
@@ -10044,7 +10044,7 @@ class DBProxy:
                         ret.cmtconfig.append(queue_data['cmtconfig'])
                                         
                     # direct access
-                    if queue_data.get('allowdirectaccess') == 'True':
+                    if queue_data.get('allowdirectaccess') is True:
                         ret.allowdirectaccess = True
                     else:
                         ret.allowdirectaccess = False
@@ -10068,7 +10068,7 @@ class DBProxy:
                     try:
                         if queue_data.get('catchall') is not None and 'allowfax' in queue_data['catchall']:
                             ret.allowfax = True
-                        if queue_data.get('allowfax') == 'True':
+                        if queue_data.get('allowfax') is True:
                             ret.allowfax = True
                     except Exception:
                         pass
