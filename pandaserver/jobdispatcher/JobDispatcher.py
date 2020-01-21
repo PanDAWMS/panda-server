@@ -674,8 +674,11 @@ class JobDipatcher:
         return response.encode(accept_json)
 
     # get proxy
-    def getProxy(self,realDN,role):
-        tmpMsg = "getProxy DN={0} role={1} : ".format(realDN,role)
+    def getProxy(self, realDN, role, targetDN):
+        if targetDN is None:
+            targetDN = realDN
+        tmpMsg = "getProxy DN={0} role={1} target={2} ".format(realDN, role, targetDN)
+        _logger.debug(tmpMsg)
         if realDN is None:
             # cannot extract DN
             tmpMsg += "failed since DN cannot be extracted"
@@ -700,7 +703,7 @@ class JobDipatcher:
             else:
                 # get proxy
                 response = Protocol.Response(Protocol.SC_Success,'')
-                tmpStat,tmpMsg = self.setUserProxy(response,realDN,role)
+                tmpStat,tmpMsg = self.setUserProxy(response, targetDN, role)
                 if not tmpStat: 
                     _logger.debug(tmpMsg)
                     response.appendNode('StatusCode',Protocol.SC_ProxyError)
@@ -1222,12 +1225,12 @@ def getKeyPair(req,publicKeyName,privateKeyName):
 
 
 # get proxy
-def getProxy(req, role=None):
+def getProxy(req, role=None, dn=None):
     # get DN
     realDN = _getDN(req)
     if role == '':
         role = None
-    return jobDispatcher.getProxy(realDN, role)
+    return jobDispatcher.getProxy(realDN, role, dn)
 
 
 # check pilot permission
