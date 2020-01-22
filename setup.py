@@ -235,6 +235,7 @@ setup(
                       'pyOpenSSL',
                       'mod_wsgi',
                       'six',
+                      'sqlalchemy',
                       'stomp.py',
                       'pyyaml'
                       ],
