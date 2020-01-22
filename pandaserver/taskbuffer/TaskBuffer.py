@@ -2834,6 +2834,16 @@ class TaskBuffer:
         return ret
 
 
+    # get prodSourceLabel from task ID
+    def getProdSourceLabelwithTaskID(self, taskID):
+        # get proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.getProdSourceLabelwithTaskID(taskID)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
 
     # update error dialog for a jediTaskID
     def updateTaskErrorDialogJEDI(self,jediTaskID,msg):
@@ -3747,6 +3757,16 @@ class TaskBuffer:
         # return
         return ret
 
+    # get job statistics per site, source label, and resource type
+    def get_job_statistics_per_site_label_resource(self, time_window=None):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.get_job_statistics_per_site_label_resource(time_window)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
 
     # set num slots for workload provisioning
     def setNumSlotsForWP(self, pandaQueueName, numSlots, gshare, resourceType, validPeriod):

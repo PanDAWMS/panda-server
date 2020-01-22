@@ -9,7 +9,6 @@ from pandaserver.config import panda_config
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.configurator import db_interface as dbif
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-from pandaserver.taskbuffer.TaskBuffer.Utils import create_shards
 
 _logger = PandaLogger().getLogger('configurator')
 _session = dbif.get_session()

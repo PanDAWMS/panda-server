@@ -392,7 +392,7 @@ class DynDataDistributer:
             if 'test' in tmpSiteName.lower():
                 continue
             # analysis only
-            if not tmpSiteName.startswith('ANALY'):
+            if not tmpSiteSpec.runs_analysis():
                 continue
             # online
             if not tmpSiteSpec.status in ['online']:

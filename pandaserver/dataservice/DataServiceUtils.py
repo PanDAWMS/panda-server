@@ -69,11 +69,17 @@ def getSitesWithDataset(tmpDsName, siteMapper, replicaMap, cloudKey, prodSourceL
         # check all associated DQ2 IDs
         tmpFoundFlag = False
 
-        # skip misconfigured sites
-        if not tmpSiteSpec.ddm_input.get(scopeSiteSpec_input) and not tmpSiteSpec.setokens_input.get(scopeSiteSpec_input).values():
+        ddm_endpoints = []
+        if scopeSiteSpec_input in tmpSiteSpec.ddm_input and tmpSiteSpec.ddm_input[scopeSiteSpec_input]:
+            ddm_endpoints.append(tmpSiteSpec.ddm_input[scopeSiteSpec_input])
+        if scopeSiteSpec_input in tmpSiteSpec.setokens_input and tmpSiteSpec.setokens_input[scopeSiteSpec_input].values():
+            ddm_endpoints = ddm_endpoints + list(tmpSiteSpec.setokens_input[scopeSiteSpec_input].values())
+
+        if not ddm_endpoints:
+            # skip misconfigured sites
             continue
 
-        for tmpSiteDQ2ID in [tmpSiteSpec.ddm_input[scopeSiteSpec_input]]+list(tmpSiteSpec.setokens_input[scopeSiteSpec_input].values()):
+        for tmpSiteDQ2ID in ddm_endpoints:
             # prefix of DQ2 ID
             tmpDQ2IDPrefix = getDQ2Prefix(tmpSiteDQ2ID)
             # ignore empty
@@ -294,12 +300,12 @@ def select_scope(site_spec, prodsourcelabel):
     """
     scope_input = 'default'
     aux_scopes_input = site_spec.ddm_endpoints_input.keys()
-    if prodsourcelabel == 'user' and 'analysis' in aux_scopes_input:
+    if prodsourcelabel in ('user', 'panda') and 'analysis' in aux_scopes_input:
         scope_input = 'analysis'
 
     scope_output = 'default'
     aux_scopes_output = site_spec.ddm_endpoints_output.keys()
-    if prodsourcelabel == 'user' and 'analysis' in aux_scopes_output:
+    if prodsourcelabel in ('user', 'panda') and 'analysis' in aux_scopes_output:
         scope_output = 'analysis'
 
     return scope_input, scope_output

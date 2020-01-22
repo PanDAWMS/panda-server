@@ -327,6 +327,12 @@ class UserIF:
         # serialize 
         return json.dumps(ret)
 
+    # get job statistics per site, source label, and resource type
+    def get_job_statistics_per_site_label_resource(self, time_window):
+        # get job statistics
+        ret = self.taskBuffer.get_job_statistics_per_site_label_resource(time_window)
+        # serialize
+        return json.dumps(ret)
 
     # get the number of waiting jobs per site and use
     def getJobStatisticsPerUserSite(self):
@@ -1266,6 +1272,11 @@ def getJobStatisticsPerUserSite(req):
 # get job statistics per site and resource
 def getJobStatisticsPerSiteResource(req, timeWindow=None):
     return userIF.getJobStatisticsPerSiteResource(timeWindow)
+
+
+# get job statistics per site and resource
+def get_job_statistics_per_site_label_resource(req, time_window=None):
+    return userIF.get_job_statistics_per_site_label_resource(time_window)
 
 
 # get job statistics per site

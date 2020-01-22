@@ -33,7 +33,7 @@ class JobSpec(object):
                    'avgRSS','avgVMEM','avgSWAP','avgPSS','maxWalltime','nucleus','eventService',
                    'failedAttempt','hs06sec', 'gshare', 'hs06','totRCHAR','totWCHAR','totRBYTES',
                    'totWBYTES','rateRCHAR','rateWCHAR','rateRBYTES','rateWBYTES','resource_type',
-                   'diskIO', 'memory_leak'
+                   'diskIO', 'memory_leak', 'memory_leak_x2'
                    )
     # slots
     __slots__ = _attributes+('Files','_changedAttrs')
@@ -65,6 +65,7 @@ class JobSpec(object):
                  'fakeJobToIgnore'    : 'fake',
                  'homeCloud'          : 'hc',
                  'inFilePosEvtNum'    : 'if',
+                 'inputPrestaging'    : 'ip',
                  'lumiBlock'          : 'lb',
                  'mergeAtOs'          : 'mo',
                  'noExecStrCnv'       : 'nc',
@@ -773,3 +774,19 @@ class JobSpec(object):
             return self.metadata[2][key]
         except Exception:
             return None
+
+    # set input prestaging
+    def setInputPrestaging(self):
+        if self.specialHandling is not None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if self._tagForSH['inputPrestaging'] not in items:
+            items.append(self._tagForSH['inputPrestaging'])
+        self.specialHandling = ','.join(items)
+
+    # use input prestaging
+    def useInputPrestaging(self):
+        if self.specialHandling is not None:
+            return self._tagForSH['inputPrestaging'] in self.specialHandling.split(',')
+        return False

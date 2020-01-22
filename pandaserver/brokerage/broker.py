@@ -32,11 +32,7 @@ _disableLRCcheck = []
 _lockGetUU   = open(panda_config.lockfile_getUU, 'w')
 
 # short-long mapping
-shortLongMap = {'ANALY_BNL_ATLAS_1':'ANALY_LONG_BNL_ATLAS',
-                'ANALY_LYON-T2'    :'ANALY_LONG_LYON-T2',
-                'ANALY_LYON_DCACHE':'ANALY_LONG_LYON_DCACHE',
-                'ANALY_BNL_SHORT'  :'ANALY_BNL_LONG',
-                }
+shortLongMap = {'ANALY_BNL_SHORT': 'ANALY_BNL_LONG'}
 
 # processingType to skip brokerage
 skipBrokerageProTypes = ['prod_test']
@@ -276,59 +272,7 @@ def getT2CandList(tmpJob,siteMapper,t2FilesMap):
         return []
     # return
     tmpCandT2s.sort() 
-    return tmpCandT2s 
-
-
-# get hospital queues
-def getHospitalQueues(siteMapper, forAnalysis):
-    retMap = {}
-    # hospital words
-    goodWordList = ['CORE$','VL$','MEM$','MP\d+$','LONG$','_HIMEM','_\d+$']
-
-    # the prodSourceLabel is needed to know the def-vs-anal scope of the PQ-RSE association
-    prodSourceLabel = 'managed'
-    if forAnalysis:
-        prodSourceLabel = 'user'
-
-    # loop over all clouds
-    for tmpCloudName in siteMapper.getCloudList():
-        # get cloud
-        tmpCloudSpec = siteMapper.getCloud(tmpCloudName)
-        # get T1
-        tmpT1Name = tmpCloudSpec['source']
-        tmpT1Spec = siteMapper.getSite(tmpT1Name)
-        scope_association_t1_input, scope_association_t1_output = select_scope(tmpT1Spec, prodSourceLabel)
-        # skip if DDM is undefined
-        if not tmpT1Spec.ddm_input[scope_association_t1_input]:
-            continue
-        # loop over all sites
-        for tmpSiteName in tmpCloudSpec['sites']:
-            # skip T1 defined in cloudconfig
-            if tmpSiteName == tmpT1Name:
-                continue
-            # check hospital words
-            checkHospWord = False
-            for tmpGoodWord in goodWordList:
-                if re.search(tmpGoodWord,tmpSiteName) is not None:
-                    checkHospWord = True
-                    break
-            if not checkHospWord:
-                continue
-            # check site
-            if not siteMapper.checkSite(tmpSiteName):
-                continue
-            tmpSiteSpec = siteMapper.getSite(tmpSiteName)
-            scope_association_site_input, scope_association_site_output = select_scope(tmpSiteSpec, prodSourceLabel)
-            # check DDM
-            if tmpT1Spec.ddm_input[scope_association_t1_input] == tmpSiteSpec.ddm_input[scope_association_site_input]:
-                # append
-                if tmpCloudName not in retMap:
-                    retMap[tmpCloudName] = []
-                if not tmpSiteName in retMap[tmpCloudName]:
-                    retMap[tmpCloudName].append(tmpSiteName)
-    _log.debug('hospital queues : %s' % str(retMap))
-    # return
-    return retMap
+    return tmpCandT2s
 
 
 # make compact dialog message
@@ -438,11 +382,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             tmpLog.debug('finished : no jobs')        
             return
         allOkFilesMap = {}
-        # use ANALY_CERN_XROOTD and not ANALY_CERN for EOS migration
-        if forAnalysis:
-            if 'ANALY_CERN_XROOTD' in setScanSiteList and 'ANALY_CERN' in setScanSiteList:
-                setScanSiteList.remove('ANALY_CERN')
-                tmpLog.debug('remove ANALY_CERN since ANALY_CERN_XROOTD is also a candidate')
+
         nJob  = 20
         iJob  = 0
         nFile = 20
@@ -500,6 +440,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         newJobStatWithPrio = {}
         jobStatBrokerClouds = {}
         jobStatBrokerCloudsWithPrio = {}
+        hospitalQueueMap = {}
         if len(jobs) > 0 and (jobs[0].processingType.startswith('gangarobot') or \
                               jobs[0].processingType.startswith('hammercloud') or \
                               jobs[0].processingType in ['pandamover','usermerge'] or \
@@ -509,7 +450,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             jobStatBroker = {}
             jobStatBrokerClouds = {}
             nRunningMap = {}
-            hospitalQueueMap = {}
+
         else:
             jobStatistics = taskBuffer.getJobStatistics(forAnal=forAnalysis)
             if not forAnalysis:
@@ -522,7 +463,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 else:
                     jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage(minPriority=minPriority)                    
                 nRunningMap   = taskBuffer.getnRunningInSiteData()
-            hospitalQueueMap = getHospitalQueues(siteMapper, forAnalysis)
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs.sort(_compFunc)
         # brokerage for analysis 
@@ -773,18 +713,18 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 foundRelease = True
                                 winv = 1
                             else:
-                                # ignore test sites
-                                if (prevManualPreset == False) and (site.endswith('test') or \
-                                                                    site.endswith('Test') or site.startswith('Test')):
-                                    continue
-                                # ignore analysis queues
-                                if (not forAnalysis) and site.startswith('ANALY'):
-                                    continue
                                 # get SiteSpec
                                 if siteMapper.checkSite(site):
                                     tmpSiteSpec = siteMapper.getSite(site)
                                 else:
                                     tmpLog.debug(" skip: %s doesn't exist in DB" % site)
+                                    continue
+                                # ignore test sites
+                                if (prevManualPreset == False) and (site.endswith('test') or \
+                                                                    site.endswith('Test') or site.startswith('Test')):
+                                    continue
+                                # ignore analysis queues
+                                if (not forAnalysis) and (not tmpSiteSpec.runs_production()):
                                     continue
                                 # check status
                                 if tmpSiteSpec.status in ['offline','brokeroff'] and computingSite in ['NULL',None,'']:
@@ -1469,8 +1409,12 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     if len(tmpDataType) > 20:
                         # avoid too long name
                         tmpDataType = 'GEN'
-                    dispatchDBlock = "panda.%s.%s.%s.%s_dis%s" % (job.taskID,time.strftime('%m.%d'),tmpDataType,
-                                                                  str(uuid.uuid4()), job.PandaID)
+                    transferType = 'transfer'
+                    if job.useInputPrestaging():
+                        transferType = 'prestaging'
+                    dispatchDBlock = "panda.%s.%s.%s.%s.%s_dis%s" % (job.taskID, time.strftime('%m.%d'),
+                                                                     tmpDataType, transferType,
+                                                                     str(uuid.uuid4()), job.PandaID)
                     tmpLog.debug('New dispatchDBlock: %s' % dispatchDBlock)                    
                 prodDBlock = job.prodDBlock
                 # already define computingSite

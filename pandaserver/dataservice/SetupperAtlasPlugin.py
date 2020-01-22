@@ -63,6 +63,8 @@ class SetupperAtlasPlugin (SetupperPluginBase):
         self.lfnDatasetMap = {}
         # missing files at T1
         self.missingFilesInT1 = {}
+        # source label
+        self.prodSourceLabel = None
         
         
     # main
@@ -71,14 +73,19 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             self.logger.debug('start run()')
             self._memoryCheck()
             bunchTag = ''
+            tagJob = None
             timeStart = datetime.datetime.utcnow()
             if self.jobs is not None and len(self.jobs) > 0:
-                bunchTag = 'PandaID:%s type:%s taskID:%s pType=%s' % (self.jobs[0].PandaID,
-                                                                      self.jobs[0].prodSourceLabel,
-                                                                      self.jobs[0].taskID,
-                                                                      self.jobs[0].processingType)
+                tagJob = self.jobs[0]
+            elif len(self.jumboJobs) > 0:
+                tagJob = self.jumboJobs[0]
+            if tagJob is not None:
+                bunchTag = 'PandaID:%s type:%s taskID:%s pType=%s' % (tagJob.PandaID,
+                                                                      tagJob.prodSourceLabel,
+                                                                      tagJob.taskID,
+                                                                      tagJob.processingType)
                 self.logger.debug(bunchTag)
-            self.prodSourceLabel = self.jobs[0].prodSourceLabel
+                self.prodSourceLabel = tagJob.prodSourceLabel
             # instantiate site mapper
             self.siteMapper = SiteMapper(self.taskBuffer)
             # correctLFN
@@ -554,7 +561,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                             (not tmpSite.ddm_output[scope_output].endswith('PRODDISK')):
                                         # T1 used as T2. Use both DATADISK and PRODDISK as locations while T1 PRODDISK is phasing out
                                         dq2IDList = [tmpSite.ddm_output[scope_output]]
-                                        if 'ATLASPRODDISK' in tmpSite.setokens_output[scope_output]:
+                                        if scope_output in tmpSite.setokens_output and 'ATLASPRODDISK' in tmpSite.setokens_output[scope_output]:
                                             dq2IDList += [tmpSite.setokens_output[scope_output]['ATLASPRODDISK']]
                                         usingT1asT2 = True
                                     else:
@@ -949,10 +956,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                                                                   comment=optComment)
                                     out = 'OK'
                                     break
-                                except Exception:
+                                except Exception as e:
                                     status = False
-                                    errType,errValue = sys.exc_info()[:2]
-                                    out = "%s %s ".format(errType, errValue) + traceback.format_exc()
+                                    out = "registerDatasetSubscription failed with {0} {1}".format(
+                                        str(e), traceback.format_exc())
                                     time.sleep(10)
                             if not status:
                                 self.logger.error(out)
@@ -1232,7 +1239,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                 allSEs = srcSiteSpec.ddm_endpoints_input[scope_input].getAllEndPoints()
                 tapeSEs = srcSiteSpec.ddm_endpoints_input[scope_input].getTapeEndPoints()
             except KeyError:
-                self.logger.error('Queue {0} has ddm_endpoints_input {1}. No scope {} found'.
+                self.logger.error('Queue {0} has ddm_endpoints_input {1}. No scope {2} found'.
                                   format(srcSiteSpec.sitename, srcSiteSpec.ddm_endpoints_input, scope_input))
                 allSEs = []
                 tapeSEs = []

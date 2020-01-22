@@ -92,7 +92,10 @@ class install_data_panda (install_data_org):
     def finalize_options (self):
         # set install_purelib
         self.set_undefined_options('install',
-                                   ('install_purelib','install_purelib'))
+                                   ('install_purelib', 'install_purelib'))
+        # set prefix for pip
+        if not hasattr(self, 'prefix'):
+            self.prefix = site.PREFIXES[0]
         # set reaming params
         install_data_org.finalize_options(self)
         # set hostname
@@ -230,8 +233,15 @@ setup(
     zip_safe=False,
     install_requires=['panda-common',
                       'pyOpenSSL',
-                      #'rucio-clients'
+                      'mod_wsgi',
+                      #'rucio-clients',
+                      'stomp.py',
+                      'pyyaml'
                       ],
+    extra_requires={
+        'oracle': ['cx_Oracle'],
+        'mysql': ['mysqlclient']
+    },
     packages=[ 'pandaserver',
                'pandaserver.brokerage',
                'pandaserver.config',

@@ -21,7 +21,8 @@ class NucleusSpec(object):
         if not siteName in self.allPandaSites:
             self.allPandaSites.append(siteName)
             # add local endpoints
-            for scope, ddmSpec in ddmSpecDict.items():
+            for scope in ddmSpecDict:
+                ddmSpec = ddmSpecDict[scope]
                 for localEndPoint in ddmSpec.getLocalEndPoints():
                     if not localEndPoint in self.allDdmEndPoints:
                         self.allDdmEndPoints[localEndPoint] = ddmSpec.getEndPoint(localEndPoint)

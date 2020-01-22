@@ -998,6 +998,35 @@ def getJobStatisticsPerSiteResource(timeWindow=None):
         return EC_Failed,output+'\n'+errStr
 
 
+# get job statistics per site, label, and resource
+def get_job_statistics_per_site_label_resource(time_window=None):
+    """Get job statistics per site, label, and resource
+
+       args:
+          timeWindow: to count number of jobs that finish/failed/cancelled for last N minutes. 12*60 by default
+       returns:
+           status code
+                 0: communication succeeded to the panda server
+                 255: communication failure
+           map of the number jobs per job status in each site and resource
+
+    """
+    # instantiate curl
+    curl = _Curl()
+    # execute
+    url = baseURL + '/get_job_statistics_per_site_label_resource'
+    data = {}
+    if time_window is not None:
+        data['time_window'] = time_window
+    status,output = curl.get(url,data)
+    try:
+        return status,json.loads(output)
+    except Exception as e:
+        print(output)
+        errStr = "ERROR get_job_statistics_per_site_label_resource : %s" % str(e)
+        print(errStr)
+        return EC_Failed,output+'\n'+errStr
+
 
 # query last files in datasets
 def queryLastFilesInDataset(datasets):

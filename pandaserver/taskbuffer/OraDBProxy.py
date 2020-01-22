@@ -234,7 +234,7 @@ class DBProxy:
 
 
     # get CLOB
-    def getClobObj(self,sql,varMap,arraySize=10000):
+    def getClobObj(self, sql, varMap, arraySize=10000):
         comment = ' /* DBProxy.getClobObj */'
         try:
             # begin transaction
@@ -2207,6 +2207,7 @@ class DBProxy:
                 except Exception:
                     pass
             if key == 'jobMetrics':
+                # extract the memory leak from the pilot jobMetrics
                 try:
                     tmpM = re.search('leak=(-?\d+\.*\d+)', param[key])
                     if tmpM is not None:
@@ -2214,6 +2215,18 @@ class DBProxy:
                         tmpKey = 'memory_leak'
                         sql1 += ',{0}=:{0}'.format(tmpKey)
                         varMap[':{0}'.format(tmpKey)] = memoryLeak
+                except Exception:
+                    pass
+
+                # extract the chi2 measurement for the memory leak fitting
+                try:
+                    tmpM = re.search('chi2=(-?\d+\.*\d+)', param[key])
+                    if tmpM is not None:
+                        # keep measurement under 11 digits because of DB declaration
+                        memory_leak_x2 = min(long(float(tmpM.group(1))), long(10**11-1))
+                        tmpKey = 'memory_leak_x2'
+                        sql1 += ',{0}=:{0}'.format(tmpKey)
+                        varMap[':{0}'.format(tmpKey)] = memory_leak_x2
                 except Exception:
                     pass
         sql1W = " WHERE PandaID=:PandaID "
@@ -2313,13 +2326,18 @@ class DBProxy:
                         # set endTime if undefined for holding
                         if jobStatus == 'holding' and endTime==None and not presetEndTime:
                             sql1 += ',endTime=CURRENT_DATE '
+                        # update startTime
+                        if oldJobStatus in ['sent', 'starting'] and jobStatus == 'running' and \
+                                ':startTime' not in varMap:
+                            sql1 += ",startTime=CURRENT_DATE"
                         # update modification time
                         sql1 += ",modificationTime=CURRENT_DATE"
                         # update
                         varMap[':jobStatus'] = jobStatus
                         self.cur.execute (sql1+sql1W+comment,varMap)
                         nUp = self.cur.rowcount
-                        _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s nUp=%s" % (pandaID,attemptNr,nUp))
+                        _logger.debug("updateJobStatus : PandaID={0} attemptNr={1} nUp={2} old={3} new={4}".format(
+                            pandaID, attemptNr, nUp, oldJobStatus, jobStatus))
                         if nUp == 1:
                             updatedFlag = True
                         if nUp == 0 and jobStatus == 'transferring':
@@ -2845,7 +2863,7 @@ class DBProxy:
                 if (((job.prodSourceLabel == 'user' or job.prodSourceLabel == 'panda') \
                      and not job.processingType.startswith('gangarobot') \
                      and not job.processingType.startswith('hammercloud') \
-                     and job.computingSite.startswith('ANALY_') and 'pilotErrorCode' in param \
+                     and 'pilotErrorCode' in param \
                      and param['pilotErrorCode'] in ['1200','1201','1213'] and (not job.computingSite.startswith('ANALY_LONG_')) \
                      and job.attemptNr < 2) or (job.prodSourceLabel == 'ddm' and job.cloud == 'CA' and job.attemptNr <= 10) \
                      or failedInActive or usePilotRetry) \
@@ -3297,6 +3315,8 @@ class DBProxy:
             getValMap[':prodSourceLabel1']  = 'test'
             getValMap[':prodSourceLabel2']  = 'prod_test'
             getValMap[':prodSourceLabel3'] = 'install'
+        elif prodSourceLabel == 'unified':
+            pass
         else:
             sql1+= "AND prodSourceLabel=:prodSourceLabel "
             getValMap[':prodSourceLabel'] = prodSourceLabel
@@ -9771,7 +9791,7 @@ class DBProxy:
         methodName = comment.split(' ')[-2].split('.')[-1]
         try:
             # set autocommit on
-            self.conn.begin()
+            # self.conn.begin()
             # get reliability info
             reliabilityMap = {}
             try:
@@ -9784,44 +9804,45 @@ class DBProxy:
                     tmpPrefix = re.sub('_DATADISK','',tier2)
                     reliabilityMap[tmpPrefix] = t2group
             except Exception:
-                errType,errValue = sys.exc_info()[:2]
-                _logger.error("getSiteInfo %s:%s" % (errType.__class__.__name__,errValue))
+                errType, errValue = sys.exc_info()[:2]
+                _logger.error("getSiteInfo %s:%s" % (errType.__class__.__name__, errValue))
+
             # get CVMFS availability
             sqlCVMFS  = "SELECT distinct siteid FROM ATLAS_PANDAMETA.installedSW WHERE `release`=:release"
-            self.cur.execute(sqlCVMFS,{':release':'CVMFS'})
+            self.cur.execute(sqlCVMFS, {':release': 'CVMFS'})
             tmpList = self.cur.fetchall()
             cvmfsSites = []
             for tmpItem, in tmpList:
                 if not tmpItem in cvmfsSites:
                     cvmfsSites.append(tmpItem)
+
             # get DDM endpoints
             pandaEndpointMap = self.getDdmEndpoints()
+
             # sql to get site spec
-            sql = "SELECT nickname,dq2url,cloud,ddm,lfchost,gatekeeper,releases,memory,"
-            sql+= "maxtime,status,space,retry,cmtconfig,glexec,"
-            sql+= "priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,"
-            sql+= "validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse,"
-            sql+= "allowdirectaccess,comment_,lastmod,multicloud,lfcregister,"
-            sql+= "countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit,"
-            sql+= "maxwdir,fairsharePolicy,minmemory,maxmemory,mintime,"
-            sql+= "catchall,allowfax,wansourcelimit,wansinklimit,b.site_name,"
-            sql+= "sitershare,cloudrshare,corepower,wnconnectivity,catchall,"
-            sql+= "c.role,maxrss,minrss,direct_access_lan,direct_access_wan,tier, "
-            sql+= "objectstores,jobseed,capability, workflow, maxDiskio "
-            sql+= "FROM (ATLAS_PANDAMETA.schedconfig a "
-            sql+= "LEFT JOIN ATLAS_PANDA.panda_site b ON a.siteid=b.panda_site_name) "
-            sql+= "LEFT JOIN ATLAS_PANDA.site c ON b.site_name=c.site_name "
-            sql+= "WHERE siteid IS NOT NULL "
+            sql = """
+                   SELECT panda_queue, data, b.site_name, c.role
+                   FROM (ATLAS_PANDA.schedconfig_json a
+                   LEFT JOIN ATLAS_PANDA.panda_site b ON a.panda_queue = b.panda_site_name)
+                   LEFT JOIN ATLAS_PANDA.site c ON b.site_name = c.site_name
+                   WHERE panda_queue IS NOT NULL
+                   """
+
             # sql to get num slots
-            sqlSL = "SELECT gshare,resourcetype,numslots FROM ATLAS_PANDA.Harvester_Slots "
+            sqlSL = "SELECT gshare, resourcetype, numslots FROM ATLAS_PANDA.Harvester_Slots "
             sqlSL += "WHERE pandaQueueName=:pandaQueueName "
             sqlSL += "AND (expirationTime IS NULL OR expirationTime>CURRENT_DATE) "
+
             self.cur.arraysize = 10000
-            self.cur.execute(sql+comment)
-            resList = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError('Commit error')
+            # self.cur.execute(sql+comment)
+            # resList = self.cur.fetchall()
+            ret, resList = self.getClobObj(sql, {})
+            # if not self._commit():
+            #    raise RuntimeError('Commit error')
+
+            if not resList:
+                _logger.error('Empty site list!')
+
             retList = {}
             if resList is not None:
                 # loop over all results
@@ -9832,65 +9853,74 @@ class DBProxy:
                         if tmpItem == None:
                             tmpItem = ''
                         resTmp.append(tmpItem)
-                    nickname,dq2url,cloud,ddm,lfchost,gatekeeper,releases,memory,\
-                       maxtime,status,space,retry,cmtconfig,glexec,\
-                       priorityoffset,allowedgroups,defaulttoken,siteid,queue,localqueue,\
-                       validatedreleases,accesscontrol,copysetup,maxinputsize,cachedse,\
-                       allowdirectaccess,sc_comment,lastmod,multicloud,lfcregister, \
-                       countryGroup,availableCPU,pledgedCPU,coreCount,transferringlimit, \
-                       maxwdir,fairsharePolicy,minmemory,maxmemory,mintime, \
-                       catchall,allowfax,wansourcelimit,wansinklimit,pandasite, \
-                       sitershare,cloudrshare,corepower,wnconnectivity,catchall, \
-                       role,maxrss,minrss,direct_access_lan,direct_access_wan,tier, \
-                       objectstores,jobseed,capability,workflow, maxDiskio \
-                       = resTmp
-                    # skip invalid siteid
-                    if siteid in [None,'']:
+
+                    siteid, queue_data_json, pandasite, role = resTmp
+                    try:
+                        queue_data = json.loads(queue_data_json)
+                    except Exception:
+                        _logger.error("loading json for queue {0} excepted. json was: {1}".format(siteid, queue_data_json))
                         continue
+
+                    # skip invalid siteid
+                    if siteid in [None,''] or not queue_data:
+                        _logger.error("siteid {0} had no queue_data {1}".format(siteid, queue_data))
+                        continue
+
+                    _logger.debug("processing queue {0}".format(siteid))
+
                     # instantiate SiteSpec
                     ret = SiteSpec.SiteSpec()
-                    ret.sitename   = siteid
-                    ret.nickname   = nickname
-                    ret.dq2url     = dq2url
-                    ret.ddm = ddm.split(',')[0]
-                    ret.cloud      = cloud.split(',')[0]
-                    ret.lfchost    = lfchost
-                    ret.gatekeeper = gatekeeper
-                    ret.memory     = memory
-                    ret.maxrss     = maxrss
-                    ret.minrss     = minrss
-                    ret.maxtime    = maxtime
-                    ret.status     = status
-                    ret.space      = space
-                    ret.glexec     = glexec
-                    ret.queue      = queue
-                    ret.localqueue = localqueue
-                    ret.cachedse   = cachedse
-                    ret.accesscontrol = accesscontrol
-                    ret.copysetup     = copysetup
-                    ret.maxinputsize  = maxinputsize
-                    ret.comment       = sc_comment
-                    ret.statusmodtime = lastmod
-                    ret.lfcregister   = lfcregister
-                    ret.pandasite     = pandasite
-                    if corepower is None:
-                        corepower = 0
-                    ret.corepower     = corepower
-                    ret.catchall      = catchall
-                    ret.role          = role
-                    ret.tier          = tier
-                    ret.jobseed       = jobseed
-                    ret.capability    = capability
-                    ret.workflow = workflow
-                    ret.maxDiskio = maxDiskio
-                    ret.wnconnectivity = wnconnectivity
+                    ret.sitename = siteid
+                    ret.pandasite = pandasite
+                    ret.role = role
+
+                    ret.type = queue_data.get('type', 'production')
+                    ret.nickname = queue_data.get('nickname')
+                    ret.dq2url = queue_data.get('dq2url')
+                    ret.ddm = queue_data.get('ddm', '').split(',')[0]
+                    ret.cloud = queue_data.get('cloud', '').split(',')[0]
+                    ret.lfchost = queue_data.get('lfchost')
+                    ret.gatekeeper = queue_data.get('gatekeeper')
+                    ret.memory = queue_data.get('memory')
+                    ret.maxrss = queue_data.get('maxrss')
+                    ret.minrss = queue_data.get('minrss')
+                    ret.maxtime = queue_data.get('maxtime')
+                    ret.status = queue_data.get('status')
+                    ret.space = queue_data.get('space')
+                    ret.glexec = queue_data.get('glexec')
+                    ret.queue = queue_data.get('queue')
+                    ret.localqueue = queue_data.get('localqueue')
+                    ret.cachedse = queue_data.get('cachedse')
+                    ret.accesscontrol = queue_data.get('accesscontrol')
+                    ret.copysetup = queue_data.get('copysetup')
+                    ret.maxinputsize = queue_data.get('maxinputsize')
+                    ret.comment = queue_data.get('comment_')
+                    ret.statusmodtime = queue_data.get('lastmod')
+                    ret.lfcregister = queue_data.get('lfcregister')
+                    ret.catchall = queue_data.get('catchall')
+                    ret.tier = queue_data.get('tier')
+                    ret.jobseed = queue_data.get('jobseed')
+                    ret.capability = queue_data.get('capability')
+                    ret.workflow = queue_data.get('workflow')
+                    ret.maxDiskio = queue_data.get('maxdiskio')
+                    ret.pandasite_state = 'ACTIVE'
+                    ret.fairsharePolicy = queue_data.get('fairsharepolicy')
+                    ret.priorityoffset = queue_data.get('priorityoffset')
+                    ret.allowedgroups  = queue_data.get('allowedgroups')
+                    ret.defaulttoken   = queue_data.get('defaulttoken')
+
+                    ret.direct_access_lan = (queue_data.get('direct_access_lan') is True)
+                    ret.direct_access_wan = (queue_data.get('direct_access_wan') is True)
+
+                    if queue_data.get('corepower') is None:
+                        ret.corepower = 0
+                    else:
+                        ret.corepower = queue_data.get('corepower')
+
+                    ret.wnconnectivity = queue_data.get('wnconnectivity')
                     if ret.wnconnectivity == '':
                         ret.wnconnectivity = None
-                    ret.fairsharePolicy = fairsharePolicy
-                    ret.pandasite_state = 'ACTIVE' #pandasite_state
-                    ret.direct_access_lan = (direct_access_lan == 'True')
-                    ret.direct_access_wan = (direct_access_wan == 'True')
-                    # resource shares
+
                     ret.sitershare = None
                     """
                     try:
@@ -9909,137 +9939,148 @@ class DBProxy:
                     """
                     # maxwdir
                     try:
-                        if maxwdir == None:
+                        if queue_data.get('maxwdir') is None:
                             ret.maxwdir = 0
                         else:
-                            ret.maxwdir = int(maxwdir)
+                            ret.maxwdir = int(queue_data['maxwdir'])
                     except Exception:
-                        if ret.maxinputsize in [0,None]:
+                        if ret.maxinputsize in [0, None]:
                             ret.maxwdir = 0
                         else:
                             try:
                                 ret.maxwdir = ret.maxinputsize + 2000
                             except Exception:
                                 ret.maxwdir = 16336
+
                     # memory
-                    if minmemory is not None:
-                        ret.minmemory = minmemory
+                    if queue_data.get('minmemory') is not None:
+                        ret.minmemory = queue_data['minmemory']
                     else:
                         ret.minmemory = 0
-                    if maxmemory is not None:
-                        ret.maxmemory = maxmemory
+                    if queue_data.get('maxmemory') is not None:
+                        ret.maxmemory = queue_data['maxmemory']
                     else:
                         ret.maxmemory = 0
+
                     # mintime
-                    if mintime is not None:
-                        ret.mintime = mintime
+                    if queue_data.get('mintime') is not None:
+                        ret.mintime = queue_data['mintime']
                     else:
                         ret.mintime = 0
+
                     # reliability
-                    tmpPrefix = re.sub('_[^_]+DISK$','',ret.ddm) # TODO: ask Tadashi what is the reliability map
+                    tmpPrefix = re.sub('_[^_]+DISK$', '', ret.ddm)
                     if tmpPrefix in reliabilityMap:
                         ret.reliabilityLevel = reliabilityMap[tmpPrefix]
                     else:
                         ret.reliabilityLevel = None
+
                     # contry groups
-                    if not countryGroup in ['',None]:
-                        ret.countryGroup = countryGroup.split(',')
+                    if queue_data.get('countrygroup') not in ['', None]:
+                        ret.countryGroup = queue_data['countrygroup'].split(',')
                     else:
                         ret.countryGroup = []
+
                     # available CPUs
                     ret.availableCPU = 0
-                    if not availableCPU in ['',None]:
+                    if not queue_data.get('availablecpu') in ['', None]:
                         try:
-                            ret.availableCPU = int(availableCPU)
+                            ret.availableCPU = int(queue_data['availablecpu'])
                         except Exception:
                             pass
+
                     # pledged CPUs
                     ret.pledgedCPU = 0
-                    if not pledgedCPU in ['',None]:
+                    if queue_data.get('pledgedcpu') not in ['', None]:
                         try:
-                            ret.pledgedCPU = int(pledgedCPU)
+                            ret.pledgedCPU = int(queue_data['pledgedcpu'])
                         except Exception:
                             pass
+
                     # core count
                     ret.coreCount = 0
-                    if not coreCount in ['',None]:
+                    if queue_data.get('corecount') not in ['', None]:
                         try:
-                            ret.coreCount = int(coreCount)
+                            ret.coreCount = int(queue_data['corecount'])
                         except Exception:
                             pass
+
                     # cloud list
-                    if cloud != '':
-                        ret.cloudlist = [cloud.split(',')[0]]
-                        if not multicloud in ['',None,'None']:
-                            ret.cloudlist += multicloud.split(',')
+                    if queue_data.get('cloud') != '':
+                        ret.cloudlist = [queue_data['cloud'].split(',')[0]]
+                        if not queue_data.get('multicloud') in ['', None, 'None']:
+                            ret.cloudlist += queue_data['multicloud'].split(',')
                     else:
                         ret.cloudlist = []
-                    # job recoverty
+
+                    # job recovery
                     ret.retry = True
-                    if retry == 'FALSE':
+                    if queue_data.get('retry') is False:
                         ret.retry = False
+
                     # convert releases to list
                     ret.releases = []
-                    for tmpRel in releases.split('|'):
-                        # remove white space
-                        tmpRel = tmpRel.strip()
-                        if tmpRel != '':
-                            ret.releases.append(tmpRel)
+                    if queue_data.get('releases'):
+                        ret.releases = queue_data['releases']
+
                     # convert validatedreleases to list
                     ret.validatedreleases = []
-                    for tmpRel in validatedreleases.split('|'):
-                        # remove white space
-                        tmpRel = tmpRel.strip()
-                        if tmpRel != '':
-                            ret.validatedreleases.append(tmpRel)
+                    if queue_data.get('validatedreleases'):
+                        for tmpRel in queue_data['validatedreleases'].split('|'):
+                            # remove white space
+                            tmpRel = tmpRel.strip()
+                            if tmpRel != '':
+                                ret.validatedreleases.append(tmpRel)
+
                     # cmtconfig
-                    if cmtconfig in ['x86_64-slc5-gcc43']:
+                    if queue_data.get('cmtconfig') in ['x86_64-slc5-gcc43']:
                         # set empty for slc5-gcc43 validation
                         ret.cmtconfig = [] # FIXME
-                    elif cmtconfig in ['i686-slc5-gcc43-opt']:
+                    elif queue_data.get('cmtconfig') in ['i686-slc5-gcc43-opt']:
                         # set slc4 for slc5 to get slc4 jobs too
                         ret.cmtconfig = ['i686-slc4-gcc34-opt']
                     else:
                         # set slc3 if the column is empty
                         ret.cmtconfig = ['i686-slc3-gcc323-opt']
-                    if cmtconfig != '':
-                        ret.cmtconfig.append(cmtconfig)
-                    # VO related params
-                    ret.priorityoffset = priorityoffset
-                    ret.allowedgroups  = allowedgroups
-                    ret.defaulttoken   = defaulttoken
+                    if queue_data.get('cmtconfig') != '':
+                        ret.cmtconfig.append(queue_data['cmtconfig'])
+
                     # direct access
-                    if allowdirectaccess == 'True':
+                    if queue_data.get('allowdirectaccess') is True:
                         ret.allowdirectaccess = True
                     else:
                         ret.allowdirectaccess = False
+
                     # CVMFS
                     if siteid in cvmfsSites:
                         ret.iscvmfs = True
                     else:
                         ret.iscvmfs = False
+
                     # limit of the number of transferring jobs
                     ret.transferringlimit = 0
-                    if not transferringlimit in ['',None]:
+                    if not queue_data.get('transferringlimit') in ['', None]:
                         try:
-                            ret.transferringlimit = int(transferringlimit)
+                            ret.transferringlimit = int(queue_data['transferringlimit'])
                         except Exception:
                             pass
+
                     # FAX
                     ret.allowfax = False
                     try:
-                        if catchall is not None and 'allowfax' in catchall:
+                        if queue_data.get('catchall') is not None and 'allowfax' in queue_data['catchall']:
                             ret.allowfax = True
-                        if allowfax == 'True':
+                        if queue_data.get('allowfax') is True:
                             ret.allowfax = True
                     except Exception:
                         pass
+
                     ret.wansourcelimit = 0
-                    if not wansourcelimit in [None,'']:
-                        ret.wansourcelimit = wansourcelimit
+                    if queue_data.get('wansourcelimit') not in [None,'']:
+                        ret.wansourcelimit = queue_data['wansourcelimit']
                     ret.wansinklimit = 0
-                    if not wansinklimit in [None,'']:
-                        ret.wansinklimit = wansinklimit
+                    if queue_data.get('wansinklimit') not in [None,'']:
+                        ret.wansinklimit = queue_data['wansinklimit']
 
                     # DDM endpoints
                     ret.ddm_endpoints_input = {}
@@ -10074,7 +10115,7 @@ class DBProxy:
 
                     # object stores
                     try:
-                        ret.objectstores = json.loads(objectstores)
+                        ret.objectstores = queue_data['objectstores']
                     except Exception:
                         ret.objectstores = []
 
@@ -10093,6 +10134,7 @@ class DBProxy:
                         ret.num_slots_map.setdefault(sl_gshare, dict())
                         ret.num_slots_map[sl_gshare].setdefault(sl_resourcetype, dict())
                         ret.num_slots_map[sl_gshare][sl_resourcetype] = sl_numslots
+
                     # append
                     retList[ret.nickname] = ret
             _logger.debug("getSiteInfo done")
@@ -10103,7 +10145,7 @@ class DBProxy:
             _logger.error('getSiteInfo exception : {0}'.format(traceback.format_exc()))
             self.dumpErrorMessage(_logger,methodName)
             # roll back
-            self._rollback()
+            #self._rollback()
             return {}
 
 
@@ -17304,6 +17346,39 @@ class DBProxy:
             return None
 
 
+    # get prodSourceLabel from TaskID
+    def getProdSourceLabelwithTaskID(self, jediTaskID):
+        comment = ' /* DBProxy.getProdSourceLabelwithTaskID */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0}>".format(jediTaskID)
+        _logger.debug("{0} : start".format(methodName))
+        try:
+            # begin transaction
+            self.conn.begin()
+            # sql to get jediTaskID
+            sqlGF  = "SELECT prodSourceLabel FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sqlGF += "WHERE jediTaskID=:jediTaskID "
+            varMap = {}
+            varMap[':jediTaskID'] = jediTaskID
+            self.cur.execute(sqlGF+comment,varMap)
+            resFJ = self.cur.fetchone()
+            if resFJ is not None:
+                prodSourceLabel, = resFJ
+            else:
+                prodSourceLabel = None
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            _logger.debug("{0} : jediTaskID={1} prodSourceLabel={2}".format(methodName,jediTaskID, prodSourceLabel))
+            return prodSourceLabel
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger,methodName)
+            return None
+
+
 
     # update error dialog for a jediTaskID
     def updateTaskErrorDialogJEDI(self,jediTaskID,msg):
@@ -19058,14 +19133,21 @@ class DBProxy:
                     raise RuntimeError('Commit error')
                 # make map
                 for prodUserName,dispatchDBlock,jediTaskID,dsSize in resJ:
-                    if not prodUserName in userDispMap:
-                        userDispMap[prodUserName] = {'datasets':set(),
-                                                     'size':0,
-                                                     'tasks':set()}
-                    if dispatchDBlock not in userDispMap[prodUserName]['datasets']:
-                        userDispMap[prodUserName]['datasets'].add(dispatchDBlock)
-                        userDispMap[prodUserName]['tasks'].add(jediTaskID)
-                        userDispMap[prodUserName]['size'] += dsSize
+                    transferType = 'transfer'
+                    try:
+                        if dispatchDBlock.split('.')[4] == 'prestaging':
+                            transferType = 'prestaging'
+                    except Exception:
+                        pass
+                    userDispMap.setdefault(prodUserName, {})
+                    userDispMap[prodUserName].setdefault(transferType,
+                                                         {'datasets':set(),
+                                                         'size':0,
+                                                         'tasks':set()})
+                    if dispatchDBlock not in userDispMap[prodUserName][transferType]['datasets']:
+                        userDispMap[prodUserName][transferType]['datasets'].add(dispatchDBlock)
+                        userDispMap[prodUserName][transferType]['tasks'].add(jediTaskID)
+                        userDispMap[prodUserName][transferType]['size'] += dsSize
             tmpLog.debug("done")
             return userDispMap
         except Exception:
@@ -21278,11 +21360,14 @@ class DBProxy:
             sqlI = 'INSERT INTO ATLAS_PANDA.Harvester_Worker_Stats (harvester_ID, computingSite, jobType, resourceType, status, n_workers, lastUpdate) '
             sqlI += 'VALUES (:harvester_ID, :siteName, :jobType, :resourceType, :status, :n_workers, CURRENT_DATE) '
 
-            for jobType, jt_params in paramsList.items():
-                for resourceType, params in jt_params.items():
+            for jobType in paramsList:
+                jt_params = paramsList[jobType]
+                for resourceType in jt_params:
+                    params = jt_params[resourceType]
                     if resourceType == 'Undefined':
                         continue
-                    for status, n_workers in params.items():
+                    for status in params:
+                        n_workers = params[status]
                         varMap = dict()
                         varMap[':harvester_ID'] = harvesterID
                         varMap[':siteName'] = siteName
@@ -21753,7 +21838,7 @@ class DBProxy:
 
     def ups_new_worker_distribution(self, queue, worker_stats):
         """
-        Assuming we want to have n_cores_queued >= n_cores_running, calculate how many pilots need to be submitted
+        Assuming we want to have n_cores_queued >= n_cores_running * .5, calculate how many pilots need to be submitted
         and choose the number
 
         :param queue: name of the queue
@@ -21765,20 +21850,34 @@ class DBProxy:
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger, '{0}-{1}'.format(method_name, queue))
         tmpLog.debug('start')
-        n_workers_running = 0
+        n_cores_running = 0
         workers_queued = {}
-        n_workers_queued = 0
+        n_cores_queued = 0
         harvester_ids_temp = list(worker_stats)
 
         # get the configuration for maximum workers of each type
         pq_data_des = self.get_config_for_pq(queue)
         resource_type_limits = {}
+        queue_type = 'production'
         if not pq_data_des:
             tmpLog.debug('Error retrieving queue configuration from DB, limits can not be applied')
         else:
             try:
                 resource_type_limits = pq_data_des['uconfig']['resource_type_limits']
             except KeyError:
+                tmpLog.debug('No resource type limits')
+                pass
+            try:
+                queue_type = pq_data_des['type']
+            except KeyError:
+                tmpLog.error('No queue type')
+                pass
+            try:
+                cores_queue = pq_data_des['corecount']
+                if not cores_queue:
+                    cores_queue = 1
+            except KeyError:
+                tmpLog.error('No corecount')
                 pass
 
         # Filter central harvester instances that support UPS model
@@ -21791,40 +21890,40 @@ class DBProxy:
             for job_type in worker_stats[harvester_id]:
                 workers_queued.setdefault(job_type, {})
                 for resource_type in worker_stats[harvester_id][job_type]:
-                    # TODO: this needs to be converted into cores, or we stay at worker level???
-                    # how do I know ncores from only the resource_type???
+                    core_factor = JobUtils.translate_resourcetype_to_cores(resource_type, cores_queue)
                     try:
-                        n_workers_running = n_workers_running + worker_stats[harvester_id][job_type][resource_type]['running']
+                        n_cores_running = n_cores_running + worker_stats[harvester_id][job_type][resource_type]['running'] * core_factor
+
                         if resource_type in resource_type_limits:
-                            resource_type_limits[resource_type] = resource_type_limits[resource_type] -  worker_stats[harvester_id][resource_type]['running']
+                            resource_type_limits[resource_type] = resource_type_limits[resource_type] - worker_stats[harvester_id][job_type][resource_type]['running']
+                            tmpLog.debug('Limit for rt {0} down to {1}'.format(resource_type, resource_type_limits[resource_type]))
                     except KeyError:
                         pass
 
-                    try: # submitted
+                    try:  # submitted
                         workers_queued[job_type].setdefault(resource_type, 0)
                         workers_queued[job_type][resource_type] = workers_queued[job_type][resource_type] + worker_stats[harvester_id][job_type][resource_type]['submitted']
-                        n_workers_queued = n_workers_queued + worker_stats[harvester_id][job_type][resource_type]['submitted']
+                        n_cores_queued = n_cores_queued + worker_stats[harvester_id][job_type][resource_type]['submitted'] * core_factor
                     except KeyError:
                         pass
 
                     try: # ready
                         workers_queued[job_type].setdefault(resource_type, 0)
                         workers_queued[job_type][resource_type] = workers_queued[job_type][resource_type] + worker_stats[harvester_id][job_type][resource_type]['ready']
-                        n_workers_queued = n_workers_queued + worker_stats[harvester_id][job_type][resource_type]['ready']
+                        n_cores_queued = n_cores_queued + worker_stats[harvester_id][job_type][resource_type]['ready'] * core_factor
                     except KeyError:
                         pass
 
         tmpLog.debug('Queue {0} queued worker overview: {1}'.format(queue, workers_queued))
 
         # Temporary workaround. CERN needs more pressure to start running
-        if queue == 'CERN-PROD_UCORE':
-            n_workers_running = max(n_workers_running, 1000)
-        else:
-            n_workers_running = max(n_workers_running, 75)
-
-        n_workers_to_submit = max(n_workers_running - n_workers_queued, 5)
-        tmpLog.debug('nrunning {0}, nqueued {1}. We need to process {2} workers'
-                     .format(n_workers_running, n_workers_queued, n_workers_to_submit))
+        #if queue == 'CERN-PROD_UCORE':
+        #    n_workers_running = max(n_workers_running, 1000)
+        #else:
+        n_cores_target = max(int(n_cores_running * 0.5), 75 * cores_queue)
+        n_cores_to_submit = max(n_cores_target - n_cores_queued, 5 * cores_queue)
+        tmpLog.debug('IN CORES: nrunning {0}, ntarget {1}, nqueued {2}. We need to process {3} cores'
+                     .format(n_cores_running, n_cores_target, n_cores_queued, n_cores_to_submit))
 
         # Get the sorted global shares
         sorted_shares = self.get_sorted_leaves()
@@ -21843,25 +21942,31 @@ class DBProxy:
             self.cur.execute(sql + comment, var_map)
             activated_jobs = self.cur.fetchall()
             tmpLog.debug('Processing share: {0}. Got {1} activated jobs'.format(share.name, len(activated_jobs)))
-            for gshare, job_type, resource_type in activated_jobs:
+            for gshare, prodsourcelabel, resource_type in activated_jobs:
+                core_factor = JobUtils.translate_resourcetype_to_cores(resource_type, cores_queue)
+
+                # translate prodsourcelabel to a subset of job types, typically 'user' and 'managed'
+                job_type = JobUtils.translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel)
+
                 # if we reached the limit for the resource type, skip the job
                 if resource_type in resource_type_limits and resource_type_limits[resource_type] <= 0:
+                    # tmpLog.debug('Reached resource type limit for {0}'.format(resource_type))
                     continue
                 workers_queued.setdefault(job_type, {})
                 workers_queued[job_type].setdefault(resource_type, 0)
                 workers_queued[job_type][resource_type] = workers_queued[job_type][resource_type] - 1
                 if workers_queued[job_type][resource_type] <= 0:
                     # we've gone over the jobs that already have a queued worker, now we go for new workers
-                    n_workers_to_submit = n_workers_to_submit - 1
+                    n_cores_to_submit = n_cores_to_submit - core_factor
 
                 # We reached the number of workers needed
-                if n_workers_to_submit <= 0:
-                    tmpLog.debug('Reached workers needed (inner)')
+                if n_cores_to_submit <= 0:
+                    tmpLog.debug('Reached cores needed (inner)')
                     break
 
             # We reached the number of workers needed
-            if n_workers_to_submit <= 0:
-                tmpLog.debug('Reached workers needed (outer)')
+            if n_cores_to_submit <= 0:
+                tmpLog.debug('Reached cores needed (outer)')
                 break
 
         tmpLog.debug('workers_queued: {0}'.format(workers_queued))
@@ -22416,6 +22521,84 @@ class DBProxy:
                 for resource_type in ret[computingSite]:
                     for jobStatus in stateList:
                         ret[computingSite][resource_type].setdefault(jobStatus, 0)
+            # return
+            tmp_log.debug("%s" % str(ret))
+            return ret
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return dict()
+
+    # get job statistics per site, source label, and resource type
+    def get_job_statistics_per_site_label_resource(self, time_window):
+        comment = ' /* DBProxy.get_job_statistics_per_site_label_resource */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        sql0  = "SELECT computingSite,jobStatus,gshare,resource_type,COUNT(*) FROM %s "
+        sql0 += "GROUP BY computingSite,jobStatus,gshare,resource_type "
+        sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ "
+        sqlA += "computingSite,jobStatus,gshare,resource_type,COUNT(*) "
+        sqlA += "FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime>:modificationTime "
+        sqlA += "GROUP BY computingSite,jobStatus,gshare,resource_type "
+        tables = ['ATLAS_PANDA.jobsActive4', 'ATLAS_PANDA.jobsDefined4', 'ATLAS_PANDA.jobsArchived4']
+        # sql for materialized view
+        sqlMV = re.sub('COUNT\(\*\)', 'SUM(njobs)', sql0)
+        sqlMV = re.sub('SELECT ', 'SELECT /*+ RESULT_CACHE */ ', sqlMV)
+        ret = dict()
+        try:
+            if time_window is None:
+                timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
+            else:
+                timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=int(time_window))
+            for table in tables:
+                # start transaction
+                self.conn.begin()
+                self.cur.arraysize = 10000
+                # select
+                varMap = {}
+                if table == 'ATLAS_PANDA.jobsArchived4':
+                    varMap[':modificationTime'] = timeLimit
+                    sqlExe = sqlA + comment
+                elif table == 'ATLAS_PANDA.jobsActive4':
+                    sqlExe = (sqlMV + comment) % 'ATLAS_PANDA.JOBS_SHARE_STATS'
+                else:
+                    sqlExe = (sql0 + comment) % table
+                self.cur.execute(sqlExe, varMap)
+                res = self.cur.fetchall()
+                # commit
+                if not self._commit():
+                    raise RuntimeError('Commit error')
+                self.__reload_shares()
+                # create map
+                shareLabelMap = dict()
+                for computingSite, jobStatus, gshare, resource_type, nJobs in res:
+                    if gshare not in shareLabelMap:
+                        for share in self.leave_shares:
+                            if gshare == share.name:
+                                prodSourceLabel = share.prodsourcelabel
+                                if '|' in prodSourceLabel:
+                                    prodSourceLabel = prodSourceLabel.split('|')[0]
+                                    prodSourceLabel = prodSourceLabel.replace('.*', '')
+                                shareLabelMap[gshare] = prodSourceLabel
+                                break
+                        if gshare not in shareLabelMap:
+                            shareLabelMap[gshare] = 'unknown'
+                    prodSourceLabel = shareLabelMap[gshare]
+                    ret.setdefault(computingSite, dict())
+                    ret[computingSite].setdefault(prodSourceLabel, dict())
+                    ret[computingSite][prodSourceLabel].setdefault(resource_type, dict())
+                    ret[computingSite][prodSourceLabel][resource_type].setdefault(jobStatus, 0)
+                    ret[computingSite][prodSourceLabel][resource_type][jobStatus] += nJobs
+            # for zero
+            stateList = ['assigned', 'activated', 'running', 'finished', 'failed']
+            for computingSite in ret:
+                for prodSourceLabel in ret[computingSite]:
+                    for resource_type in ret[computingSite][prodSourceLabel]:
+                        for jobStatus in stateList:
+                            ret[computingSite][prodSourceLabel][resource_type].setdefault(jobStatus, 0)
             # return
             tmp_log.debug("%s" % str(ret))
             return ret
@@ -23163,6 +23346,10 @@ class DBProxy:
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")
 
+        if not schedconfig_dump:
+            tmp_log.error("empty schedconfig dump")
+            return 'ERROR'
+
         try:
             existing_queues = self.getQueuesInJSONSchedconfig()
             if existing_queues is None:
@@ -23174,13 +23361,20 @@ class DBProxy:
             var_map_update = []
             utc_now = datetime.datetime.utcnow()
             for pq in schedconfig_dump:
+                data = json.dumps(schedconfig_dump[pq])
+                if not data:
+                    tmp_log.error("no data for {0}".format(pq))
+                    continue
+
                 if pq in existing_queues:
+                    tmp_log.debug("pq {0} present".format(pq))
                     var_map_update.append({':pq': pq,
-                                           ':data': json.dumps(schedconfig_dump[pq]),
+                                           ':data': data,
                                            ':last_update': utc_now})
                 else:
+                    tmp_log.debug("pq {0} is new".format(pq))
                     var_map_insert.append({':pq': pq,
-                                           ':data': json.dumps(schedconfig_dump[pq]),
+                                           ':data': data,
                                            ':last_update': utc_now})
 
             # start transaction

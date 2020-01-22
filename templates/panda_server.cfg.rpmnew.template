@@ -61,10 +61,10 @@ dq2_dir = /opt/dq2
 globus_dir = /opt/globus
 
 # path to native python 
-native_python = @@virtual_env@@/usr/bin
+native_python = @@virtual_env@@/bin
 
 # path to python for lfc client (/data/atlpan/bin/python cannot be used due to lack of libpythonX.Y.so)
-native_python32 = @@virtual_env@@/usr/bin
+native_python32 = @@virtual_env@@/bin
 
 # location for Panda common
 pandaCommon_dir = @@install_purelib@@/pandacommon
