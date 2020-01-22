@@ -239,7 +239,7 @@ setup(
                       'stomp.py',
                       'pyyaml'
                       ],
-    extra_requires={
+    extras_require={
         'oracle': ['cx_Oracle'],
         'mysql': ['mysqlclient'],
         'rucio': ['rucio-clients'],
