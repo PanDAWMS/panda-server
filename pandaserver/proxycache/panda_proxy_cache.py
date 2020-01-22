@@ -3,7 +3,10 @@ import hashlib
 import os
 import datetime
 
+import six
+
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+
 # logger
 _logger = PandaLogger().getLogger('ProxyCache')
 
@@ -34,7 +37,7 @@ class MyProxyInterface(object):
     def store(self, user_dn, cred_name, production=False, server_name='myproxy.cern.ch', role=None, force=False):
         _logger.debug('store proxy for {0} role={1}'.format(user_dn, role))
         """Retrieve proxy from myproxy."""
-        proxy_path = os.path.join(self.__target_path, hashlib.sha1(user_dn + '.plain').hexdigest())
+        proxy_path = os.path.join(self.__target_path, hashlib.sha1(six.b(user_dn + '.plain')).hexdigest())
         # check if empty dummy file
         if os.path.exists(proxy_path) and os.stat(proxy_path).st_size == 0:
             if datetime.datetime.utcnow() - datetime.datetime.utcfromtimestamp(os.path.getctime(proxy_path)) < datetime.timedelta(hours=1):
@@ -56,7 +59,7 @@ class MyProxyInterface(object):
         if role is not None:
             _logger.debug('proxy needs {0} - need to add voms attributes and store it in the cache'.format(role))
             tmpExtension = self.getExtension(role)
-            prodproxy_path = os.path.join(self.__target_path, str(hashlib.sha1(user_dn + tmpExtension).hexdigest()))
+            prodproxy_path = os.path.join(self.__target_path, str(hashlib.sha1(six.b(user_dn + tmpExtension)).hexdigest()))
             _logger.debug(prodproxy_path)
             prodcmd = "voms-proxy-init -valid 96:00 -rfc -cert %s -key %s -out %s -voms %s" % (proxy_path,proxy_path,
                                                                                                prodproxy_path,role)
@@ -68,7 +71,7 @@ class MyProxyInterface(object):
             _logger.debug('test the status of production... %s' %status)
         elif production:
             _logger.debug('production proxy needed - need to add voms attributes and store it in the cache')
-            prodproxy_path = os.path.join(self.__target_path, str(hashlib.sha1(user_dn + '.prod').hexdigest()))
+            prodproxy_path = os.path.join(self.__target_path, str(hashlib.sha1(six.b(user_dn + '.prod')).hexdigest()))
             _logger.debug(prodproxy_path)
             prodcmd = "voms-proxy-init -valid 96:00 -rfc -cert %s -key %s -out %s -voms atlas:/atlas/Role=production" % (proxy_path, proxy_path, prodproxy_path)
             stdout, stderr, status = execute(prodcmd)
@@ -79,7 +82,7 @@ class MyProxyInterface(object):
             _logger.debug('test the status of production... %s' %status)
         else:
             # Now we need to add atlas roles and store it
-            atlasproxy_path = os.path.join(self.__target_path, hashlib.sha1(user_dn).hexdigest())
+            atlasproxy_path = os.path.join(self.__target_path, hashlib.sha1(six.b(user_dn)).hexdigest())
             atlasrolescmd = "voms-proxy-init -valid 96:00 -rfc -cert %s -key %s -out %s -voms atlas" % (proxy_path, proxy_path, atlasproxy_path)
             stdout, stderr, status = execute(atlasrolescmd)
             if stdout:
@@ -98,11 +101,11 @@ class MyProxyInterface(object):
         """Retrieve proxy from proxy cache."""
         if role is not None:
             tmpExtension = self.getExtension(role)
-            proxy_path = os.path.join(self.__target_path, str(hashlib.sha1(user_dn + tmpExtension).hexdigest()))
+            proxy_path = os.path.join(self.__target_path, str(hashlib.sha1(six.b(user_dn + tmpExtension)).hexdigest()))
         elif production:
-            proxy_path = os.path.join(self.__target_path, str(hashlib.sha1(user_dn + '.prod').hexdigest()))
+            proxy_path = os.path.join(self.__target_path, str(hashlib.sha1(six.b(user_dn + '.prod')).hexdigest()))
         else:
-            proxy_path = os.path.join(self.__target_path, hashlib.sha1(user_dn).hexdigest())
+            proxy_path = os.path.join(self.__target_path, hashlib.sha1(six.b(user_dn)).hexdigest())
         if os.path.isfile(proxy_path):
             return cat(proxy_path)
         else:
@@ -114,11 +117,11 @@ class MyProxyInterface(object):
         """Check the validity of a proxy."""
         if role is not None:
             tmpExtension = self.getExtension(role)
-            proxy_path = os.path.join(self.__target_path, str(hashlib.sha1(user_dn + tmpExtension).hexdigest()))
+            proxy_path = os.path.join(self.__target_path, str(hashlib.sha1(six.b(user_dn + tmpExtension)).hexdigest()))
         elif production:
-            proxy_path = os.path.join(self.__target_path, str(hashlib.sha1(user_dn + '.prod').hexdigest()))
+            proxy_path = os.path.join(self.__target_path, str(hashlib.sha1(six.b(user_dn + '.prod')).hexdigest()))
         else:
-            proxy_path = os.path.join(self.__target_path, hashlib.sha1(user_dn).hexdigest())
+            proxy_path = os.path.join(self.__target_path, hashlib.sha1(six.b(user_dn)).hexdigest())
         if os.path.isfile(proxy_path):
             _logger.info('Proxy is there. Need to check validity')
             cmd = "voms-proxy-info -exists -hours 72 -file %s" % proxy_path
@@ -142,7 +145,7 @@ class MyProxyInterface(object):
                 _logger.info('proxy stored successfully')
             else:
                 _logger.info('proxy retrieval failed')
-        plain_path = os.path.join(self.__target_path, hashlib.sha1(user_dn + '.plain').hexdigest())
+        plain_path = os.path.join(self.__target_path, hashlib.sha1(six.b(user_dn + '.plain')).hexdigest())
         if os.path.isfile(plain_path):
             return self.checkValidity(plain_path)
         else:
