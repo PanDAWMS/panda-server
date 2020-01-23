@@ -16,7 +16,7 @@ class NucleusSpec(object):
 
 
 
-    # add 
+    # add
     def add(self,siteName,ddmSpecDict):
         if not siteName in self.allPandaSites:
             self.allPandaSites.append(siteName)
@@ -77,4 +77,3 @@ class NucleusSpec(object):
         if len(self.allPandaSites) > 0:
             return self.allPandaSites[0]
         return None
-

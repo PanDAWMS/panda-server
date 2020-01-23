@@ -41,7 +41,7 @@ while idx < len(sys.argv):
     tmpArg = sys.argv[idx]
     if tmpArg.startswith('--panda_'):
         # panda params
-        idx += 1            
+        idx += 1
         if len(tmpArg.split('=')) == 2:
             # split to par and val if = is contained
             tmpVal = tmpArg.split('=')[-1]
@@ -51,7 +51,7 @@ while idx < len(sys.argv):
             idx += 1
         else:
             raise RuntimeError("invalid panda option : %s" % tmpArg)
-        # get key             
+        # get key
         tmpKey = re.sub('--panda_','',tmpArg)
         # set params
         optPanda[tmpKey] = tmpVal
@@ -88,7 +88,7 @@ class install_data_panda (install_data_org):
         else:
             self.virtual_env = ''
             self.virtual_env_setup = ''
-        
+
     def finalize_options (self):
         # set install_purelib
         self.set_undefined_options('install',
@@ -112,8 +112,8 @@ class install_data_panda (install_data_org):
             self.usergroup = optPanda['usergroup']
         else:
             self.usergroup = grp.getgrgid(os.getgid()).gr_name
-        
-    
+
+
     def run (self):
         # setup.py install sets install_dir to /usr
         if self.install_dir == '/usr':
@@ -178,7 +178,7 @@ class install_data_panda (install_data_org):
                     # remove build/*/dump for bdist
                     patt = re.sub('build/[^/]+/dumb','',patt)
                     # remove /var/tmp/*-buildroot for bdist_rpm
-                    patt = re.sub('/var/tmp/.*-buildroot','',patt)                    
+                    patt = re.sub('/var/tmp/.*-buildroot','',patt)
                     # replace
                     filedata = filedata.replace('@@%s@@' % item, patt)
                 # write to dest
@@ -200,7 +200,7 @@ class install_data_panda (install_data_org):
         # install
         self.data_files = new_data_files
         install_data_org.run(self)
-        
+
         # post install
         uid = pwd.getpwnam(panda_user).pw_uid
         gid = grp.getgrnam(panda_group).gr_gid
@@ -219,7 +219,7 @@ class install_data_panda (install_data_org):
                            target)
 
 
-        
+
 # setup for distutils
 setup(
     name="panda-server",
@@ -234,13 +234,15 @@ setup(
     install_requires=['panda-common',
                       'pyOpenSSL',
                       'mod_wsgi',
-                      #'rucio-clients',
+                      'six',
+                      'sqlalchemy',
                       'stomp.py',
                       'pyyaml'
                       ],
-    extra_requires={
+    extras_require={
         'oracle': ['cx_Oracle'],
-        'mysql': ['mysqlclient']
+        'mysql': ['mysqlclient'],
+        'rucio': ['rucio-clients'],
     },
     packages=[ 'pandaserver',
                'pandaserver.brokerage',
@@ -259,7 +261,7 @@ setup(
               ],
     package_data = {'pandaserver.server': ['.gacl']},
     data_files=[
-                # config files 
+                # config files
                 ('etc/panda', ['templates/panda_server-httpd.conf.rpmnew.template',
                                'templates/panda_server-httpd-FastCGI.conf.rpmnew.template',
                                'templates/panda_server.cfg.rpmnew.template',
@@ -297,7 +299,7 @@ setup(
 
                 # var dirs
                 #('var/log/panda', []),
-                #('var/cache/pandaserver', []),                
+                #('var/cache/pandaserver', []),
                 ],
     cmdclass={'install': install_panda,
               'install_data': install_data_panda}
