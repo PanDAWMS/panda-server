@@ -1,4 +1,4 @@
-from AdderResult import AdderResult
+from .AdderResult import AdderResult
 
 class AdderPluginBase(object):
     def __init__(self,job,params):

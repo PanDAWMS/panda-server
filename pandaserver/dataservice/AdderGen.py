@@ -33,7 +33,7 @@ _logger = PandaLogger().getLogger('Adder')
 
 panda_config.setupPlugin()
 
-   
+
 class AdderGen:
     # constructor
     def __init__(self,taskBuffer,jobID,jobStatus,xmlFile,ignoreTmpError=True,siteMapper=None):
@@ -145,11 +145,11 @@ class AdderGen:
                 if not self.job.isCancelled() and not self.job.taskBufferErrorCode in \
                                                       [pandaserver.taskbuffer.ErrorCode.EC_PilotRetried]:
                     fileCheckInJEDI = self.taskBuffer.checkInputFileStatusInJEDI(self.job)
-                    self.logger.debug("check file status in JEDI : {0}".format(fileCheckInJEDI))                
+                    self.logger.debug("check file status in JEDI : {0}".format(fileCheckInJEDI))
                     if fileCheckInJEDI is None:
                         raise RuntimeError('failed to check file status in JEDI')
                     if fileCheckInJEDI == False:
-                        # set job status to failed since some file status is wrong in JEDI 
+                        # set job status to failed since some file status is wrong in JEDI
                         self.jobStatus = 'failed'
                         self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
                         errStr = "inconsistent file status between Panda and JEDI. "
@@ -219,11 +219,11 @@ class AdderGen:
                         self.logger.error("failed to execute AdderPlugin for VO={0} with {1}:{2}".format(self.job.VO,
                                                                                                          errtype,
                                                                                                          errvalue))
-                        self.logger.error("failed to execute AdderPlugin for VO={0} with {1}".format(traceback.format_exc()))
+                        self.logger.error("failed to execute AdderPlugin for VO={0} with {1}".format(self.job.VO, traceback.format_exc()))
                         addResult = None
                         self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
                         self.job.ddmErrorDiag = "AdderPlugin failure"
-                        
+
                     # ignore temporary errors
                     if self.ignoreTmpError and addResult is not None and addResult.isTemporary():
                         self.logger.debug(': ignore %s ' % self.job.ddmErrorDiag)
@@ -261,9 +261,9 @@ class AdderGen:
                         source = 'transExitCode'
                         error_code = self.job.transExitCode
                         error_diag = ''
-            
+
                     # _logger.info("updatejob has source %s, error_code %s and error_diag %s"%(source, error_code, error_diag))
-                    
+
                     if source and error_code:
                         try:
                             self.logger.debug("AdderGen.run will call apply_retrial_rules")
@@ -271,7 +271,7 @@ class AdderGen:
                             self.logger.debug("apply_retrial_rules is back")
                         except Exception as e:
                             self.logger.error("apply_retrial_rules excepted and needs to be investigated (%s): %s"%(e, traceback.format_exc()))
-                    
+
                     self.job.jobStatus = 'failed'
                     for file in self.job.Files:
                         if file.type in ['output','log']:
@@ -285,7 +285,7 @@ class AdderGen:
                     self.job.jobDispatcherErrorDiag = 'NULL'
                     # set status
                     if addResult is not None and addResult.mergingFiles != []:
-                        # set status for merging:                        
+                        # set status for merging:
                         for file in self.job.Files:
                             if file.lfn in addResult.mergingFiles:
                                 file.status = 'merging'
@@ -337,7 +337,7 @@ class AdderGen:
                         # unlock XML
                         try:
                             fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
-                            self.lockXML.close()                            
+                            self.lockXML.close()
                         except Exception:
                             type, value, traceBack = sys.exc_info()
                             self.logger.debug(": %s %s" % (type,value))
@@ -427,7 +427,7 @@ class AdderGen:
             # unlock XML
             if self.lockXML is not None:
                 fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
-                self.lockXML.close()            
+                self.lockXML.close()
         except Exception:
             type, value, traceBack = sys.exc_info()
             errStr = ": %s %s " % (type,value)
@@ -694,7 +694,7 @@ class AdderGen:
                         file.lfn = fullLfnMap[file.lfn]
                     # add SURL to extraInfo
                     self.extraInfo['surl'][file.lfn] = surl
-                    # add nevents 
+                    # add nevents
                     if file.lfn in nEventsMap:
                         self.extraInfo['nevents'][file.lfn] = nEventsMap[file.lfn]
                 except Exception:
@@ -704,7 +704,7 @@ class AdderGen:
                     self.logger.error(": %s %s" % (type,value))
                 # set lumi block number
                 if lumiBlockNr is not None and file.status != 'failed':
-                    self.extraInfo['lbnr'][file.lfn] = lumiBlockNr 
+                    self.extraInfo['lbnr'][file.lfn] = lumiBlockNr
         self.extraInfo['guid'] = guidMap
         # check consistency between XML and filesTable
         for lfn in lfns:
