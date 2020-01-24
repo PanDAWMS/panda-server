@@ -142,13 +142,13 @@ class AdderGen:
                 adderPlugin.registerEventServiceFiles()
             else:
                 # check file status in JEDI
-                if not self.job.isCancelled() and not self.job.taskBufferErrorCode in \
+                if not self.job.isCancelled() and self.job.taskBufferErrorCode not in \
                                                       [pandaserver.taskbuffer.ErrorCode.EC_PilotRetried]:
                     fileCheckInJEDI = self.taskBuffer.checkInputFileStatusInJEDI(self.job)
                     self.logger.debug("check file status in JEDI : {0}".format(fileCheckInJEDI))
                     if fileCheckInJEDI is None:
                         raise RuntimeError('failed to check file status in JEDI')
-                    if fileCheckInJEDI == False:
+                    if fileCheckInJEDI is False:
                         # set job status to failed since some file status is wrong in JEDI
                         self.jobStatus = 'failed'
                         self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
@@ -160,7 +160,7 @@ class AdderGen:
                         # terminated by the pilot
                         self.logger.debug("going to closed since terminated by the pilot")
                         retClosed = self.taskBuffer.killJobs([self.jobID],'pilot','60',True)
-                        if retClosed[0] == True:
+                        if retClosed[0] is True:
                             self.logger.debug("end")
                             try:
                                 # remove Catalog
@@ -178,7 +178,7 @@ class AdderGen:
                         if checkJC is None:
                             raise RuntimeError('failed to check the cloned job')
                         # failed to lock semaphore
-                        if checkJC['lock'] == False:
+                        if checkJC['lock'] is False:
                             self.jobStatus = 'failed'
                             self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
                             self.job.ddmErrorDiag = "failed to lock semaphore for job cloning"
@@ -193,7 +193,7 @@ class AdderGen:
                 # keep old status
                 oldJobStatus = self.job.jobStatus
                 # set job status
-                if not self.job.jobStatus in ['transferring']:
+                if self.job.jobStatus not in ['transferring']:
                     self.job.jobStatus = self.jobStatus
                 addResult = None
                 adderPlugin = None
@@ -377,7 +377,7 @@ class AdderGen:
                             if file.destinationDBlock in ['',None,'NULL']:
                                 continue
                             # start closer for output/log datasets
-                            if not file.destinationDBlock in destDBList:
+                            if file.destinationDBlock not in destDBList:
                                 destDBList.append(file.destinationDBlock)
                             # collect GUIDs
                             if (self.job.prodSourceLabel=='panda' or (self.job.prodSourceLabel in ['rucio_test'] + JobUtils.list_ptest_prod_sources and \
@@ -507,7 +507,7 @@ class AdderGen:
                 for epNode in file.getElementsByTagName('endpoint'):
                     self.extraInfo['endpoint'][lfn].append(str(epNode.firstChild.data))
                 # error check
-                if (not lfn in inputLFNs) and (fsize is None or (md5sum is None and adler32 is None)):
+                if (lfn not in inputLFNs) and (fsize is None or (md5sum is None and adler32 is None)):
                     if EventServiceUtils.isEventServiceMerge(self.job):
                         continue
                     else:
@@ -558,7 +558,7 @@ class AdderGen:
                         if 'endpoint' in fileData:
                             self.extraInfo['endpoint'][lfn] = fileData['endpoint']
                         # error check
-                        if (not lfn in inputLFNs) and (fsize is None or (md5sum is None and adler32 is None)):
+                        if (lfn not in inputLFNs) and (fsize is None or (md5sum is None and adler32 is None)):
                             if EventServiceUtils.isEventServiceMerge(self.job):
                                 continue
                             else:
@@ -663,7 +663,7 @@ class AdderGen:
                     file.status = 'failed'
                     continue
                 # set failed if it is missing in XML
-                if not file.lfn in lfns:
+                if file.lfn not in lfns:
                     if self.job.jobStatus == 'finished' and \
                             (EventServiceUtils.isEventServiceJob(self.job) or EventServiceUtils.isJumboJob(self.job)):
                         # unset file status for ES jobs
@@ -708,7 +708,7 @@ class AdderGen:
         self.extraInfo['guid'] = guidMap
         # check consistency between XML and filesTable
         for lfn in lfns:
-            if not lfn in fileList:
+            if lfn not in fileList:
                 self.logger.error("%s is not found in filesTable" % lfn)
                 self.job.jobStatus = 'failed'
                 for tmpFile in self.job.Files:
@@ -739,7 +739,7 @@ class AdderGen:
         # look for unkown files
         addedNewFiles = False
         for newLFN in lfns:
-            if not newLFN in origOutputs:
+            if newLFN not in origOutputs:
                 # look for corresponding original output
                 for origLFN in origOutputs:
                     tmpPatt = '^{0}\.*_\d+$'.format(origLFN)

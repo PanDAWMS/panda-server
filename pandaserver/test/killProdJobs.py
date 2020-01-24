@@ -11,16 +11,16 @@ else:
         print('%d is less than %d' % (endID,startID))
         sys.exit(1)
     jobDefIDs = range(startID,endID+1)
-    
+
 # quesry PandaID
 status, ids = Client.queryPandaIDs(jobDefIDs)
 
 if status != 0:
     sys.exit(0)
-    
+
 # remove None
 while True:
-    if not None in ids:
+    if None not in ids:
         break
     ids.remove(None)
 

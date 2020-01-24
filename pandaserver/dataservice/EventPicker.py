@@ -33,7 +33,7 @@ class EventPicker:
         self.siteMapper      = siteMapper
         self.ignoreError     = ignoreError
         self.evpFileName     = evpFileName
-        self.token           = datetime.datetime.utcnow().isoformat(' ')        
+        self.token           = datetime.datetime.utcnow().isoformat(' ')
         # logger
         self.logger = LogWrapper(_logger,self.token)
         self.pd2p            = DynDataDistributer.DynDataDistributer([],self.taskBuffer,self.siteMapper,
@@ -54,7 +54,7 @@ class EventPicker:
     # main
     def run(self):
         try:
-            self.putLog('start %s' % self.evpFileName)            
+            self.putLog('start %s' % self.evpFileName)
             # lock evp file
             self.evpFile = open(self.evpFileName)
             try:
@@ -185,7 +185,7 @@ class EventPicker:
                                                                             ei_api
                                                                             )
             if not tmpRet:
-                if 'isFatal' in locationMap and locationMap['isFatal'] == True:
+                if 'isFatal' in locationMap and locationMap['isFatal'] is True:
                     self.ignoreError = False
                 self.endWithError('Failed to convert the run/event list to a dataset/file list')
                 return False
@@ -195,7 +195,7 @@ class EventPicker:
                 for tmpFile in allFiles:
                     if tmpFile['lfn'] in inputFileList:
                         tmpAllFiles.append(tmpFile)
-                allFiles = tmpAllFiles        
+                allFiles = tmpAllFiles
             # remove redundant CN from DN
             tmpDN = self.userDN
             tmpDN = re.sub('/CN=limited proxy','',tmpDN)
@@ -222,13 +222,13 @@ class EventPicker:
                     self.endWithError('Failed to find candidate for destination')
                     return False
                 # collect all candidates
-                allCandidates = [] 
+                allCandidates = []
                 for tmpDS in candidateMaps:
                     tmpDsVal = candidateMaps[tmpDS]
                     for tmpCloud in tmpDsVal:
                         tmpCloudVal = tmpDsVal[tmpCloud]
                         for tmpSiteName in tmpCloudVal[0]:
-                            if not tmpSiteName in allCandidates:
+                            if tmpSiteName not in allCandidates:
                                 allCandidates.append(tmpSiteName)
                 if allCandidates == []:
                     self.endWithError('No candidate for destination')
@@ -236,7 +236,7 @@ class EventPicker:
                 # get list of dataset (container) names
                 if eventPickNumSites > 1:
                     # decompose container to transfer datasets separately
-                    tmpRet,tmpOut = self.pd2p.getListDatasetReplicasInContainer(self.userDatasetName) 
+                    tmpRet,tmpOut = self.pd2p.getListDatasetReplicasInContainer(self.userDatasetName)
                     if not tmpRet:
                         self.endWithError('Failed to get replicas in %s' % self.userDatasetName)
                         return False
@@ -341,7 +341,7 @@ class EventPicker:
                 self.taskBuffer.updateTaskModTimeJEDI(self.jediTaskID,'tobroken')
             self.putLog(outLog)
         self.putLog('end %s' % self.evpFileName)
-        
+
 
     # put log
     def putLog(self,msg,type='debug'):
@@ -370,7 +370,7 @@ class EventPicker:
         mailBody +=     "Created : %s\n" % self.creationTime
         mailBody +=     "Ended   : %s\n" % datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         mailBody +=     "Dataset : %s\n" % self.userDatasetName
-        mailBody +=     "\n"        
+        mailBody +=     "\n"
         mailBody +=     "Parameters : %s %s\n" % (self.lockedBy,self.params)
         mailBody +=     "\n"
         mailBody +=     "%s\n" % message
@@ -379,7 +379,7 @@ class EventPicker:
         # return
         return
 
-    
+
     # upload log
     def uploadLog(self):
         if self.jediTaskID is None:

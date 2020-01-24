@@ -34,8 +34,8 @@ class _TimedMethod:
         self.method  = method
         self.timeout = timeout
         self.result  = Protocol.TimeOutToken
-        
-    # method emulation    
+
+    # method emulation
     def __call__(self,*var):
         self.result = self.method(*var)
 
@@ -76,7 +76,7 @@ class CachedObject:
         # release
         self.lock.release()
         # return
-        return 
+        return
 
     # contains
     def __contains__(self,item):
@@ -90,7 +90,7 @@ class CachedObject:
     # get item
     def __getitem__(self,name):
         return self.cachedObj[name]
-    
+
     # get object
     def getObj(self):
         self.lock.acquire()
@@ -124,7 +124,7 @@ class JobDipatcher:
         # lock
         self.lock = Lock()
 
-    
+
     # set task buffer
     def init(self,taskBuffer):
         # lock
@@ -149,7 +149,7 @@ class JobDipatcher:
             self.siteMapperCache = CachedObject(60*30,self.getSiteMapper)
         # release
         self.lock.release()
-        
+
 
     # set user proxy
     def setUserProxy(self,response,realDN=None,role=None):
@@ -175,7 +175,7 @@ class JobDipatcher:
             tmpMsg = "proxy retrieval failed with {0} {1}".format(errtype.__name__,errvalue)
             response.appendNode('errorDialog',tmpMsg)
             return False,tmpMsg
-        
+
 
     # get job
     def getJob(self,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
@@ -226,9 +226,9 @@ class JobDipatcher:
                 if getProxyKey:
                     response.setProxyKey(proxyKey)
                 # check if proxy cache is used
-                if hasattr(panda_config,'useProxyCache') and panda_config.useProxyCache == True:
+                if hasattr(panda_config,'useProxyCache') and panda_config.useProxyCache is True:
                     self.specialDispatchParams.update()
-                    if not 'proxyCacheSites' in self.specialDispatchParams:
+                    if 'proxyCacheSites' not in self.specialDispatchParams:
                         proxyCacheSites = {}
                     else:
                         proxyCacheSites = self.specialDispatchParams['proxyCacheSites']
@@ -241,11 +241,11 @@ class JobDipatcher:
                         compactDN = self.taskBuffer.cleanUserID(realDN)
                         # check permission
                         self.specialDispatchParams.update()
-                        if not 'allowProxy' in self.specialDispatchParams:
+                        if 'allowProxy' not in self.specialDispatchParams:
                             allowProxy = []
                         else:
                             allowProxy = self.specialDispatchParams['allowProxy']
-                        if not compactDN in allowProxy:
+                        if compactDN not in allowProxy:
                             _logger.warning("getJob : %s %s '%s' no permission to retrive user proxy" % (siteName,node,
                                                                                                          compactDN))
                         else:
@@ -285,7 +285,7 @@ class JobDipatcher:
                         response.appendNode('jobs',json.dumps(responseList))
                     else:
                         response.appendNode('jobs',responseList)
-                except:
+                except Exception:
                     errtype, errvalue = sys.exc_info()[:2]
                     tmpMsg = "getJob failed with {0} {1}".format(errtype.__name__, errvalue)
                     _logger.error(tmpMsg + '\n' + traceback.format_exc())
@@ -350,7 +350,7 @@ class JobDipatcher:
         if tmpStatus == 'holding':
             tmpWrapper = _TimedMethod(self.taskBuffer.updateJobStatus,None)
         else:
-            tmpWrapper = _TimedMethod(self.taskBuffer.updateJobStatus,timeout)            
+            tmpWrapper = _TimedMethod(self.taskBuffer.updateJobStatus,timeout)
         tmpWrapper.run(jobID,tmpStatus,param,updateStateChange,attemptNr)
         # make response
         if tmpWrapper.result == Protocol.TimeOutToken:
@@ -366,13 +366,13 @@ class JobDipatcher:
                 else:
                     response.appendNode('command','NULL')
                 # add output to dataset
-                if not tmpWrapper.result in ["badattemptnr","alreadydone"] and (jobStatus == 'failed' or jobStatus == 'finished'):
+                if tmpWrapper.result not in ["badattemptnr","alreadydone"] and (jobStatus == 'failed' or jobStatus == 'finished'):
                     adder = AdderGen(self.taskBuffer,jobID,jobStatus,'')
                     adder.dumpFileReport(xml,attemptNr)
             else:
                 # failed
                 response=Protocol.Response(Protocol.SC_Failed)
-        _logger.debug("updateJob : %s ret -> %s" % (jobID,response.encode(acceptJson)))                
+        _logger.debug("updateJob : %s ret -> %s" % (jobID,response.encode(acceptJson)))
         return response.encode(acceptJson)
 
 
@@ -381,7 +381,7 @@ class JobDipatcher:
         # convert str to list
         ids = strIDs.split()
         # peek jobs
-        tmpWrapper = _TimedMethod(self.taskBuffer.peekJobs,timeout)            
+        tmpWrapper = _TimedMethod(self.taskBuffer.peekJobs,timeout)
         tmpWrapper.run(ids,False,True,True,False)
         # make response
         if tmpWrapper.result == Protocol.TimeOutToken:
@@ -464,7 +464,7 @@ class JobDipatcher:
             # timeout
             response=Protocol.Response(Protocol.SC_TimeOut)
         else:
-            if tmpWrapper.result[0] == True:
+            if tmpWrapper.result[0] is True:
                 # succeed
                 response=Protocol.Response(Protocol.SC_Success)
                 response.appendNode('Command',tmpWrapper.result[1])
@@ -522,7 +522,7 @@ class JobDipatcher:
         current = datetime.datetime.utcnow()
         # lock
         self.lock.acquire()
-        # update DN map if old 
+        # update DN map if old
         if current-self.lastUpdated > self.timeInterval:
             # get new map
             self.tokenDN = self.taskBuffer.getListSchedUsers()
@@ -556,11 +556,11 @@ class JobDipatcher:
             compactDN = self.taskBuffer.cleanUserID(realDN)
             # check permission
             self.specialDispatchParams.update()
-            if not 'allowKey' in self.specialDispatchParams:
+            if 'allowKey' not in self.specialDispatchParams:
                 allowKey = []
             else:
                 allowKey = self.specialDispatchParams['allowKey']
-            if not compactDN in allowKey:
+            if compactDN not in allowKey:
                 # permission denied
                 tmpMsg += "failed since '{0}' not in the authorized user list who have 'k' in {1}.USERS.GRIDPREF".format(compactDN,
                                                                                                                         panda_config.schemaMETA)
@@ -568,16 +568,16 @@ class JobDipatcher:
                 response = Protocol.Response(Protocol.SC_Perms,tmpMsg)
             else:
                 # look for key pair
-                if not 'keyPair' in self.specialDispatchParams:
+                if 'keyPair' not in self.specialDispatchParams:
                     keyPair = {}
                 else:
                     keyPair = self.specialDispatchParams['keyPair']
                 notFound = False
-                if not publicKeyName in keyPair:
+                if publicKeyName not in keyPair:
                     # public key is missing
                     notFound = True
                     tmpMsg += "failed for '{2}' since {0} is missing on {1}".format(publicKeyName,socket.getfqdn(),compactDN)
-                elif not privateKeyName in keyPair: 
+                elif privateKeyName not in keyPair:
                     # private key is missing
                     notFound = True
                     tmpMsg += "failed for '{2}' since {0} is missing on {1}".format(privateKeyName,socket.getfqdn(),compactDN)
@@ -600,7 +600,7 @@ class JobDipatcher:
     def getDNsForS3(self):
         # check permission
         self.specialDispatchParams.update()
-        if not 'allowKey' in self.specialDispatchParams:
+        if 'allowKey' not in self.specialDispatchParams:
             allowKey = []
         else:
             allowKey = self.specialDispatchParams['allowKey']
@@ -689,11 +689,11 @@ class JobDipatcher:
             compactDN = self.taskBuffer.cleanUserID(realDN)
             # check permission
             self.specialDispatchParams.update()
-            if not 'allowProxy' in self.specialDispatchParams:
+            if 'allowProxy' not in self.specialDispatchParams:
                 allowProxy = []
             else:
                 allowProxy = self.specialDispatchParams['allowProxy']
-            if not compactDN in allowProxy:
+            if compactDN not in allowProxy:
                 # permission denied
                 tmpMsg += "failed since '{0}' not in the authorized user list who have 'p' in {1}.USERS.GRIDPREF ".format(compactDN,
                                                                                                                           panda_config.schemaMETA)
@@ -704,7 +704,7 @@ class JobDipatcher:
                 # get proxy
                 response = Protocol.Response(Protocol.SC_Success,'')
                 tmpStat,tmpMsg = self.setUserProxy(response, targetDN, role)
-                if not tmpStat: 
+                if not tmpStat:
                     _logger.debug(tmpMsg)
                     response.appendNode('StatusCode',Protocol.SC_ProxyError)
                 else:
@@ -716,8 +716,8 @@ class JobDipatcher:
     # get active job attribute
     def getActiveJobAttributes(self, pandaID, attrs):
         return self.taskBuffer.getActiveJobAttributes(pandaID, attrs)
-    
-        
+
+
 # Singleton
 jobDispatcher = JobDipatcher()
 del JobDipatcher
@@ -736,7 +736,7 @@ def _getFQAN(req):
                 fqan = tmpVal.split()[-1]
                 # append
                 fqans.append(fqan)
-        # old style         
+        # old style
         elif tmpKey.startswith('GRST_CONN_'):
             tmpItems = tmpVal.split(':')
             # FQAN
@@ -764,7 +764,7 @@ def _checkRole(fqans,dn,jdCore,withVomsPatch=True,site='',hostname=''):
             # FIXEME once http://savannah.cern.ch/bugs/?47136 is solved
             prodAttrs += ['/atlas/']
             prodAttrs += ['/osg/','/cms/','/ams/']
-            prodAttrs += ['/Engage/LBNE/']            
+            prodAttrs += ['/Engage/LBNE/']
         for fqan in fqans:
             # check atlas/usatlas production role
             for rolePat in prodAttrs:
@@ -789,7 +789,7 @@ def _checkRole(fqans,dn,jdCore,withVomsPatch=True,site='',hostname=''):
                         prodManager = True
                         break
         # check DN with pilotOwners
-        if (not prodManager) and (not dn in [None]):
+        if (not prodManager) and (dn not in [None]):
             if site in jdCore.pilotOwners:
                 tmpPilotOwners = jdCore.pilotOwners[None].union(jdCore.pilotOwners[site])
             else:
@@ -826,7 +826,7 @@ def _checkToken(token,jdCore):
     tokenDN = jdCore.getDnTokenMap()
     # return
     return token in tokenDN
-    
+
 
 """
 web service interface
@@ -866,7 +866,7 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
         if mem < 0:
             mem = 0
     except Exception:
-        mem = 0        
+        mem = 0
     try:
         diskSpace = int(float(diskSpace))
         if diskSpace < 0:
@@ -889,11 +889,11 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
         dummyNumSlots = 1
     if dummyNumSlots > 1:
         for iSlots in range(dummyNumSlots):
-            _pilotReqLogger.info('method=getJob,site=%s,node=%s_%s,type=%s' % (siteName, node, iSlots, prodSourceLabel))            
+            _pilotReqLogger.info('method=getJob,site=%s,node=%s_%s,type=%s' % (siteName, node, iSlots, prodSourceLabel))
     else:
-        _pilotReqLogger.info('method=getJob,site=%s,node=%s,type=%s' % (siteName,node,prodSourceLabel))    
+        _pilotReqLogger.info('method=getJob,site=%s,node=%s,type=%s' % (siteName,node,prodSourceLabel))
     # invalid role
-    if (not prodManager) and (not prodSourceLabel in ['user']):
+    if (not prodManager) and (prodSourceLabel not in ['user']):
         _logger.warning("getJob(%s) : invalid role" % siteName)
         if req.acceptJson():
             tmpMsg = 'no production/pilot role in VOMS FQANs or non pilot owner'
@@ -902,14 +902,14 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
         return Protocol.Response(Protocol.SC_Role, tmpMsg).encode(req.acceptJson())
     # invalid token
     if not validToken:
-        _logger.warning("getJob(%s) : invalid token" % siteName)    
+        _logger.warning("getJob(%s) : invalid token" % siteName)
         return Protocol.Response(Protocol.SC_Invalid).encode(req.acceptJson())
     # invoke JD
     return jobDispatcher.getJob(siteName,prodSourceLabel,cpu,mem,diskSpace,node,int(timeout),
                                 computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,
                                 workingGroup,allowOtherCountry,realDN,taskID,nJobs,req.acceptJson(),
                                 background,resourceType,harvester_id,worker_id,schedulerID)
-    
+
 
 # update job status
 def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,pilotErrorDiag=None,timestamp=None,timeout=60,
@@ -950,18 +950,18 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
             tmpMsg = 'no production/pilot role in VOMS FQANs or non pilot owner'
         else:
             tmpMsg = None
-        return Protocol.Response(Protocol.SC_Role, tmpMsg).encode(acceptJson)        
+        return Protocol.Response(Protocol.SC_Role, tmpMsg).encode(acceptJson)
     # invalid token
     if not validToken:
         _logger.warning("updateJob(%s) : invalid token" % jobId)
-        return Protocol.Response(Protocol.SC_Invalid).encode(acceptJson)        
+        return Protocol.Response(Protocol.SC_Invalid).encode(acceptJson)
     # aborting message
     if jobId=='NULL':
         return Protocol.Response(Protocol.SC_Success).encode(acceptJson)
     # check status
-    if not state in ['running','failed','finished','holding','starting','transferring']:
+    if state not in ['running','failed','finished','holding','starting','transferring']:
         _logger.warning("invalid state=%s for updateJob" % state)
-        return Protocol.Response(Protocol.SC_Success).encode(acceptJson)        
+        return Protocol.Response(Protocol.SC_Success).encode(acceptJson)
     # create parameter map
     param = {}
     if cpuConsumptionTime not in [None, '']:
@@ -1007,9 +1007,9 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
         param['nEvents']=nEvents
     if nInputFiles is not None:
         param['nInputFiles']=nInputFiles
-    if not jobSubStatus in [None,'']:
+    if jobSubStatus not in [None,'']:
         param['jobSubStatus']=jobSubStatus
-    if not coreCount in [None,'']:
+    if coreCount not in [None,'']:
         param['actualCoreCount']=coreCount
     if maxRSS is not None:
         param['maxRSS'] = maxRSS
@@ -1103,7 +1103,7 @@ def updateJobsInBulk(req, jobList, harvester_id=None):
         tmpMsg = "updateJobsInBulk {0} failed with {1} {2}".format(harvester_id, errtype.__name__, errvalue)
         retList = tmpMsg
         _logger.error(tmpMsg + '\n' + traceback.format_exc())
-    tDelta = datetime.datetime.utcnow() - tStart 
+    tDelta = datetime.datetime.utcnow() - tStart
     _logger.debug("updateJobsInBulk %s took %s.%03d sec" % (harvester_id, tDelta.seconds, tDelta.microseconds/1000))
     return json.dumps((retVal, retList))
 
@@ -1251,7 +1251,7 @@ def checkPilotPermission(req, site=''):
 # get DNs authorized for S3
 def getDNsForS3(req):
     return jobDispatcher.getDNsForS3()
-        
+
 
 def getCommands(req, harvester_id, n_commands, timeout=30):
     """

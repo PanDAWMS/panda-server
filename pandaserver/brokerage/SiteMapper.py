@@ -4,15 +4,16 @@ import copy
 import traceback
 from pandaserver.config import panda_config
 
-# logger
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-_logger = PandaLogger().getLogger('SiteMapper')
 
 # default site
 from pandaserver.taskbuffer.SiteSpec import SiteSpec
 from pandaserver.taskbuffer.NucleusSpec import NucleusSpec
 
 from pandaserver.dataservice.DataServiceUtils import select_scope
+
+# logger
+_logger = PandaLogger().getLogger('SiteMapper')
 
 defSite = SiteSpec()
 defSite.sitename   = panda_config.def_sitename
@@ -35,7 +36,7 @@ nucleusTag = 'nucleus:'
 ########################################################################
 
 class SiteMapper:
-    
+
     # constructor
     def __init__(self,taskBuffer,verbose=False):
         _logger.debug('__init__ SiteMapper')
@@ -48,7 +49,7 @@ class SiteMapper:
 
             # cloud specification
             self.cloudSpec = {}
-            
+
             # spec for WORLD cloud
             self.worldCloudSpec = {}
 
@@ -60,7 +61,7 @@ class SiteMapper:
 
             # get resource types
             resourceTypes = taskBuffer.load_resource_types()
-            # create CloudSpec list 
+            # create CloudSpec list
             tmpCloudListDB = taskBuffer.getCloudList()
             for tmpName in tmpCloudListDB:
                 tmpCloudSpec = tmpCloudListDB[tmpName]
@@ -101,7 +102,7 @@ class SiteMapper:
                         _logger.error('Could not read site info for %s:%s' % (tmpID,tmpNickname))
                     elif (firstDefault and tmpID == defSite.sitename) or (tmpID not in self.siteSpecList) \
                              or (tmpID in self.siteSpecList and self.siteSpecList[tmpID].status in ['offline','']):
-                        # overwrite default or remove existing offline 
+                        # overwrite default or remove existing offline
                         if firstDefault and tmpID == defSite.sitename:
                             del self.siteSpecList[tmpID]
                             firstDefault = False
@@ -116,7 +117,7 @@ class SiteMapper:
                                 self.siteSpecList[tmpID] = ret
                     else:
                         # overwrite status
-                        if not ret.status in ['offline','']:
+                        if ret.status not in ['offline','']:
                             if self.siteSpecList[tmpID].status != 'online':
                                 self.siteSpecList[tmpID].status = ret.status
                             # use larger maxinputsize and memory
@@ -132,7 +133,7 @@ class SiteMapper:
                                 errtype, errvalue = sys.exc_info()[:2]
                                 _logger.error("%s memory/inputsize failure : %s %s" % (tmpID,errtype,errvalue))
                     # collect nuclei and satellites
-                    self.collectNS(ret) 
+                    self.collectNS(ret)
             # make virtual queues from unified queues
             try:
                 for siteName in list(self.siteSpecList):
@@ -177,16 +178,16 @@ class SiteMapper:
                 # append prod site in cloud
                 for tmpCloud in siteSpec.cloudlist:
                     if tmpCloud in self.cloudSpec:
-                        if not siteSpec.sitename in self.cloudSpec[tmpCloud]['sites']:
+                        if siteSpec.sitename not in self.cloudSpec[tmpCloud]['sites']:
                             # append
                             self.cloudSpec[tmpCloud]['sites'].append(siteSpec.sitename)
                     else:
                         # append to the default cloud
-                        if not siteSpec.sitename in self.defCloudSites:
+                        if siteSpec.sitename not in self.defCloudSites:
                             # append
                             self.defCloudSites.append(siteSpec.sitename)
                 # add to WORLD cloud
-                if not siteSpec.sitename in self.worldCloudSpec['sites']:
+                if siteSpec.sitename not in self.worldCloudSpec['sites']:
                     self.worldCloudSpec['sites'].append(siteSpec.sitename)
             # set defCloudSites for backward compatibility
             if 'US' in self.cloudSpec:
@@ -225,20 +226,20 @@ class SiteMapper:
             _logger.error("__init__ SiteMapper : %s %s" % (type,value))
             _logger.error(traceback.format_exc())
         _logger.debug('__init__ SiteMapper done')
-        
+
 
     # collect nuclei and satellites
     def collectNS(self, ret):
         # collect nuclei
         if ret.role == 'nucleus' and ret.runs_production():
-            if not ret.pandasite in self.nuclei:
+            if ret.pandasite not in self.nuclei:
                 nucleus = NucleusSpec(ret.pandasite)
                 nucleus.state = ret.pandasite_state
                 self.nuclei[ret.pandasite] = nucleus
             self.nuclei[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output)
         # collect satellites
         if ret.role == 'satellite' and ret.runs_production():
-            if not ret.pandasite in self.satellites:
+            if ret.pandasite not in self.satellites:
                 satellite = NucleusSpec(ret.pandasite)
                 satellite.state = ret.pandasite_state
                 self.satellites[ret.pandasite] = satellite
@@ -319,7 +320,7 @@ class SiteMapper:
         else:
             return False
 
-        
+
     # accessor for cloud list
     def getCloudList(self):
         return list(self.cloudSpec)

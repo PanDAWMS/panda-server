@@ -6,7 +6,7 @@
 
 # set PYTHONPATH to use the current directory first
 import sys
-sys.path.insert(0,'.')
+sys.path.insert(0,'.')  # noqa: E402
 
 import os
 import pwd
@@ -21,6 +21,10 @@ from setuptools import setup
 from setuptools.command.install import install as install_org
 from distutils.command.install_data import install_data as install_data_org
 
+# package version
+import PandaPkgInfo
+release_version = PandaPkgInfo.release_version
+
 # user
 if os.getgid() == 0:
     panda_user = 'atlpan'
@@ -28,10 +32,6 @@ if os.getgid() == 0:
 else:
     panda_user = getpass.getuser()
     panda_group = grp.getgrgid(os.getgid()).gr_name
-
-# package version
-import PandaPkgInfo
-release_version = PandaPkgInfo.release_version
 
 # get panda specific params
 optPanda = {}
@@ -243,6 +243,7 @@ setup(
         'oracle': ['cx_Oracle'],
         'mysql': ['mysqlclient'],
         'rucio': ['rucio-clients'],
+        'atlasprod': ['cx_Oracle', 'rucio-clients'],
     },
     packages=[ 'pandaserver',
                'pandaserver.brokerage',

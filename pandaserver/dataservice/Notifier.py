@@ -43,7 +43,7 @@ def initLogger(pLogger):
     _logger = pLogger
 
 
-# wrapper to patch smtplib.stderr to send debug info to logger 
+# wrapper to patch smtplib.stderr to send debug info to logger
 class StderrLogger(object):
     def __init__(self,token):
         self.token  = token
@@ -52,7 +52,7 @@ class StderrLogger(object):
         if message != '':
             _logger.debug('%s %s' % (self.token,message))
 
-        
+
 class Notifier:
     # constructor
     def __init__(self,taskBuffer,job,datasets,summary={},mailFile=None,mailFileName=''):
@@ -85,7 +85,7 @@ class Notifier:
                     _logger.error("could not find email address for %s" % self.job.prodUserID)
                     _logger.debug("%s end" % self.job.PandaID)
                     return
-                # not send 
+                # not send
                 if mailAddr in ['notsend','',None] or (mailAddr is not None and mailAddr.startswith('notsend')):
                     _logger.debug("not send to %s" % self.job.prodUserID)
                     _logger.debug("%s end" % self.job.PandaID)
@@ -110,7 +110,7 @@ class Notifier:
                 # from active tables
                 tmpIDs = self.taskBuffer.queryPandaIDwithDataset(self.datasets)
                 for tmpID in tmpIDs:
-                    if not tmpID in ids:
+                    if tmpID not in ids:
                         ids.append(tmpID)
                 # from archived table
                 if self.job.jobsetID in [0,'NULL',None]:
@@ -118,7 +118,7 @@ class Notifier:
                 else:
                     tmpIDs = self.taskBuffer.getPandIDsWithIdInArch(self.job.prodUserName,self.job.jobsetID,True)
                 for tmpID in tmpIDs:
-                    if not tmpID in ids:
+                    if tmpID not in ids:
                         ids.append(tmpID)
                 _logger.debug("%s IDs: %s" % (self.job.PandaID,ids))
                 if len(ids) != 0:
@@ -140,21 +140,21 @@ class Notifier:
                     iDSList = []
                     oDSList = []
                     siteMap = {}
-                    logDS = None 
+                    logDS = None
                     for tmpJob in jobs:
                         if tmpJob.jobDefinitionID not in siteMap:
                             siteMap[tmpJob.jobDefinitionID] = tmpJob.computingSite
                         for file in tmpJob.Files:
                             if file.type == 'input':
-                                if not file.dataset in iDSList:
+                                if file.dataset not in iDSList:
                                     iDSList.append(file.dataset)
                             else:
-                                if not file.dataset in oDSList:
+                                if file.dataset not in oDSList:
                                     oDSList.append(file.dataset)
                                 if file.type == 'log':
                                     logDS = file.dataset
                     # job/jobset IDs and site
-                    if self.summary == {}:                
+                    if self.summary == {}:
                         jobIDsite = "%s/%s" % (self.job.jobDefinitionID,self.job.computingSite)
                         jobsetID = self.job.jobDefinitionID
                         jobDefIDList = [self.job.jobDefinitionID]
@@ -218,7 +218,7 @@ Summary of JobsetID : %s
 
 JobID/Site : %s""" % (jobsetID,finalStatInSub,fromadd,mailAddr,jobsetID,jobIDsite)
                     message += \
-"""                    
+"""
 
 Created : %s (UTC)
 Ended   : %s (UTC)
@@ -229,24 +229,24 @@ Total Number of Jobs : %s
            Failed    : %s
            Cancelled : %s
 """ % (creationTime,endTime,nTotal,nSucceeded,nPartial,nFailed,nCancel)
-                    # input datasets 
+                    # input datasets
                     for iDS in iDSList:
                         message += \
 """
 In  : %s""" % iDS
-                    # output datasets                     
+                    # output datasets
                     for oDS in oDSList:
                         message += \
 """
 Out : %s""" % oDS
                     # command
-                    if not self.job.metadata in ['','NULL',None]:
+                    if self.job.metadata not in ['','NULL',None]:
                         message += \
 """
 
 Parameters : %s""" % self.job.metadata
                     # URLs to PandaMon
-                    if self.job.jobsetID in [0,'NULL',None]:                
+                    if self.job.jobsetID in [0,'NULL',None]:
                         for tmpIdx,tmpJobID in enumerate(jobDefIDList):
                             urlData = {}
                             urlData['job'] = '*'
@@ -284,8 +284,8 @@ TaskMonitorURL : https://dashb-atlas-task.cern.ch/templates/task-analysis/#task=
                         message += \
 """
 NewPandaMonURL : https://pandamon.cern.ch/jobinfo?%s""" % urllib.urlencode(newUrlData)
-                    
-                    # tailer            
+
+                    # tailer
                     message += \
 """
 
@@ -300,14 +300,14 @@ Report Panda problems of any sort to
 """
 
                     # send mail
-                    self.sendMail(self.job.PandaID,fromadd,mailAddr,message,1,True)                                                
+                    self.sendMail(self.job.PandaID,fromadd,mailAddr,message,1,True)
             except Exception:
-                errType,errValue = sys.exc_info()[:2]            
+                errType,errValue = sys.exc_info()[:2]
                 _logger.error("%s %s %s" % (self.job.PandaID,errType,errValue))
             _logger.debug("%s end" % self.job.PandaID)
         else:
             try:
-                _logger.debug("start recovery for %s" % self.mailFileName)                
+                _logger.debug("start recovery for %s" % self.mailFileName)
                 # read from file
                 pandaID  = self.mailFile.readline()[:-1]
                 fromadd  = self.mailFile.readline()[:-1]
@@ -317,10 +317,10 @@ Report Panda problems of any sort to
                 if message != '':
                     self.sendMail(pandaID,fromadd,mailAddr,message,5,False)
             except Exception:
-                errType,errValue = sys.exc_info()[:2]            
+                errType,errValue = sys.exc_info()[:2]
                 _logger.error("%s %s %s" % (self.mailFileName,errType,errValue))
             _logger.debug("end recovery for %s" % self.mailFileName)
-            
+
 
     # send mail
     def sendMail(self,pandaID,fromadd,mailAddr,message,nTry,fileBackUp):
@@ -357,7 +357,7 @@ Report Panda problems of any sort to
             smtplib.stderr = org_smtpstderr
         except Exception:
             pass
-        
+
 
 
     # get email
@@ -374,7 +374,7 @@ Report Panda problems of any sort to
         mailAddrInDB,dbUptime = self.taskBuffer.getEmailAddr(distinguishedName,withUpTime=True)
         _logger.debug("email in MetaDB : '%s'" % mailAddrInDB)
         notSendMail = False
-        if not mailAddrInDB in [None,'']:
+        if mailAddrInDB not in [None,'']:
             # email mortification is suppressed
             if mailAddrInDB.split(':')[0] == 'notsend':
                 notSendMail = True

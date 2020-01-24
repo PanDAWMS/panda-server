@@ -33,7 +33,7 @@ class DBProxyPool:
             if dbProxyClass is not None:
                 proxy = dbProxyClass()
             elif useTimeout and hasattr(panda_config,'usedbtimeout') and \
-                   panda_config.usedbtimeout == True:
+                   panda_config.usedbtimeout is True:
                 proxy = ConBridge()
             else:
                 proxy = DBProxy.DBProxy()

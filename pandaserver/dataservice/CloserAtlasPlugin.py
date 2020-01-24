@@ -14,15 +14,15 @@ class CloserAtlasPlugin:
         self.tmpLog = LogWrapper(log,"{0} CloserAtlasPlugin".format(self.jobSpec.PandaID))
 
 
-        
+
     # execute
     def execute(self):
         try:
             # only for production
-            if not self.jobSpec.prodSourceLabel in ['managed','test']:
+            if self.jobSpec.prodSourceLabel not in ['managed','test']:
                 return True
             # only for urgent or high prio
-            if not self.jobSpec.processingType in ['urgent'] and self.jobSpec.currentPriority <= 1000:
+            if self.jobSpec.processingType not in ['urgent'] and self.jobSpec.currentPriority <= 1000:
                 return True
             # close datasets
             for datasetSpec in self.datasets:

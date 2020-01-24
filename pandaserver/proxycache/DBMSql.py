@@ -3,13 +3,14 @@ import cx_Oracle
 import sys
 from types import TupleType
 
+from pandaserver.config import panda_config
+
 # Common items
 ORAC_CON = None
 
 
 OracleList = ['oracle']
 
-from pandaserver.config import panda_config
 
 #
 # Connection initializers

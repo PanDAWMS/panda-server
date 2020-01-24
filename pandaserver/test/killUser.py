@@ -5,6 +5,9 @@ from pandaserver.taskbuffer.OraDBProxy import DBProxy
 # password
 from pandaserver.config import panda_config
 
+import pandaserver.userinterface.Client as Client
+
+
 optP = optparse.OptionParser(conflict_handler="resolve")
 optP.add_option('--user', action='store',dest='user', default=None,help='prodUserName')
 optP.add_option('--jobID',action='store',dest='jobID',default=None,help='jobDefinitionID')
@@ -26,7 +29,6 @@ proxyS = DBProxy()
 proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,panda_config.dbname)
 
 prodUserName = sys.argv[1]
-import pandaserver.userinterface.Client as Client
 
 varMap = {}
 varMap[':src1'] = 'user'
@@ -35,7 +37,7 @@ varMap[':prodUserName'] = options.user
 srcSQL = '(:src1,:src2'
 if options.jobID is not None:
     varMap[':jobDefinitionID'] = options.jobID
-if not options.jobsetID in (None,'all'):
+if options.jobsetID not in (None,'all'):
     varMap[':jobsetID'] = options.jobsetID
 if options.prodSourceLabel is not None:
     varMap[':src3'] = options.prodSourceLabel
@@ -48,13 +50,13 @@ for table in tables:
     sql = "SELECT PandaID FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel IN %s " % (table,srcSQL)
     if options.jobID is not None:
         sql += "AND jobDefinitionID=:jobDefinitionID "
-    if not options.jobsetID in (None,'all'):
+    if options.jobsetID not in (None,'all'):
         sql += "AND jobsetID=:jobsetID "
     sql += "ORDER BY PandaID "
     status,res = proxyS.querySQLS(sql,varMap)
     if res is not None:
         for id, in res:
-            if not id in jobs:
+            if id not in jobs:
                 jobs.append(id)
 if len(jobs):
     iJob = 0
@@ -63,6 +65,6 @@ if len(jobs):
         subJobs = jobs[iJob:iJob+nJob]
         print("kill %s %s/%s" % (str(subJobs),iJob,len(jobs)))
         Client.killJobs(subJobs,code=9)
-        iJob += nJob 
+        iJob += nJob
 else:
     print("no job was killed")

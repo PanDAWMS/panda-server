@@ -17,9 +17,9 @@ parser.add_option( "-u", "--use", dest="use", type="string",
 parser.add_option( "--host", dest="host", type="string",
 	help="Hostname of server to check, default is current machine hostname" )
 parser.add_option( "-d", "--dir", dest="dir", type="string",
-	help="Filename of the xml file output.  Default is " + 
+	help="Filename of the xml file output.  Default is " +
 	"/data/atlpan/oracle/panda/monitoring" )
-parser.add_option( "--debug", action="store_true", dest="debug", 
+parser.add_option( "--debug", action="store_true", dest="debug",
 	default=False, help="Print out debug statements." )
 
 ( options, args ) = parser.parse_args()
@@ -31,7 +31,7 @@ def __main__() :
 	else :
 		host = socket.gethostname()
 		host = re.sub( r'^(\w+).*', r'\1', host )
-	
+
 	if( options.use == 'mon' ) :
 		tmp_xml = make_monitor( host )
 		file_part = 'PandaMon'
@@ -44,12 +44,12 @@ def __main__() :
 	else :
 		print("Err: please choose a use, 'mon', 'server' or 'bamboo'.")
 		return
-	
+
 	if( options.dir ) :
 		file_dir = options.dir
 	else :
 		file_dir = '/data/atlpan/oracle/panda/monitoring'
-	
+
 	file_name = '%s/%s_%s.xml' % ( file_dir, file_part, host )
 	tmp_file = open( file_name, 'w' )
 	tmp_file.write( tmp_xml )
@@ -59,7 +59,7 @@ def __main__() :
 def make_server( host ) :
 
 	if( options.debug ) : print("Creating the server monitoring xml")
-	
+
 	server_avail = server_availability( host )
 	add_processes = count_add_processes()
 	num_holdings  = count_holdings()
@@ -100,7 +100,7 @@ def make_server( host ) :
 def make_bamboo( host ) :
 
 	if( options.debug ) : print("Creating the server monitoring xml")
-	
+
 	server_avail = bamboo_availability( host )
 
 	sls_xml = SLSxml.xml_doc()
@@ -113,27 +113,27 @@ def make_bamboo( host ) :
 def make_monitor( host ) :
 
 	if( options.debug ) : print("Creating the monitor monitoring xml")
-	
+
 	errormes = False
 	messagetext = ''
-	
+
 	http_avail = httpd_availability( host )
 	if( http_avail == 0 ) :
 		errormes = True
 		messagetext += "Error: web server on %s not working\n" % ( host )
-	
+
 	squid_avail = squid_availability()
 	if( squid_avail == 0 ) :
 		errormes = True
 		messagetext += "Error: squid server on %s not working\n" % ( host )
-	
+
 	panda_avail = panda_availability( host )
 	if( panda_avail == 0 ) :
 		errormes = True
 		messagetext += "Error: panda monitor on %s not working\n" % ( host )
-	
+
 	http_processes = count_processes()
-	
+
 	data_used = volume_use( 'data' )
 	var_used = volume_use( 'var' )
 
@@ -149,11 +149,11 @@ def make_monitor( host ) :
 	sls_xml.set_shortname( 'PandaMonitor monitoring service at %s' % ( host ) )
 	sls_xml.set_fullname( 'PandaMonitor monitoring service at %s' % ( host ) )
 	sls_xml.set_availability( str( panda_avail ) )
-	
+
 	#adding intervention by hand here
-	#sls_xml.add_intervention( "2011-01-16T20:00:00", "PT36H", 
+	#sls_xml.add_intervention( "2011-01-16T20:00:00", "PT36H",
 	#	"Panda services with be out for over a day due to database server changes." )
-	
+
 	sls_xml.add_data( "HttpdAvailability", "Availability of the httpd server",
 		str( http_avail ) )
 	sls_xml.add_data( "SquidAvailability", "Availability of the squid server",
@@ -175,65 +175,65 @@ def httpd_availability( host ) :
 def squid_availability() :
 	command = '/usr/bin/squidclient -p 25980 cache_object://localhost/info'
 	return check_command( command, 'OK' )
-	
+
 def panda_availability( host ) :
-	
+
 	port = '25980'
 	baseurl = 'http://' + host + ':' + port + '/server/pandamon/query?'
-	
+
 	reply = check_url( baseurl + 'isAlive', 'yes' )
 	if( reply != '100' ) : return '0'
-	
+
 	return '100'
-	
+
 	#The above is a simpler test of the python code, for now, until the
 	#panda monitor migration is more stable, and all network tweaks are
-	#in quator, so things are stable on reboot/upgrade.  Once that is 
+	#in quator, so things are stable on reboot/upgrade.  Once that is
 	#true the below tests should be put back.
 
 	reply = check_url( baseurl + 'dash=prod', 'CERN:OK' )
 	if( reply != '100' ) : return '0'
-	
+
 	reply = check_url( baseurl + 'dash=clouds', 'Cloud status' )
 	if( reply != '100' ) : return '0'
-		
+
 	reply = check_url( baseurl + 'overview=incidents', 'Recorded incidents' )
 	if( reply != '100' ) : return '0'
-	
+
 	reply = check_url( baseurl + 'dash=ddm', 'Space available' )
 	if( reply != '100' ) : return '0'
-	
+
 	return '100'
-	
+
 def server_availability( host ) :
-	
+
 	tmp_url = '--no-check-certificate https://%s:25443/server/panda/isAlive' % ( host )
 	reply = check_url( tmp_url, 'alive=yes' )
 	if( reply != '100' ) : return '0'
-	
-	return '100'	
+
+	return '100'
 
 def bamboo_availability( host ) :
-	
+
 	tmp_url = 'http://%s:25070/bamboo/bamboo/isAlive' % ( host )
 	reply = check_url( tmp_url, 'alive=yes' )
 	if( reply != '100' ) : return '0'
-	
-	return '100'	
+
+	return '100'
 
 def check_url( url, check_string ) :
 	command = "wget -q -O - " + url
 	return check_command( command, check_string )
-	
+
 def check_command( command, check_string ) :
-	
+
 	if( options.debug ) :
 		print("Checking command : %s" % ( command ))
 		print("For string : %s" % ( check_string ))
-	
+
 	tmp_array = command.split()
 	output = subprocess.Popen( tmp_array, stdout=subprocess.PIPE ).communicate()[0]
-		
+
 	if( re.search( check_string, output ) ) :
 		if( options.debug ) : print("Found the string, return 100")
 		return '100'
@@ -295,7 +295,7 @@ def registration_time(timeSlice=False,onlyDQ2=False) :
 			except Exception:
 				pass
 		timestamps = list(regtimeMap)
-		if timeSlice:	
+		if timeSlice:
 			timestamps.sort()
 			for timestamp in timestamps:
 				print("%s %4.1fsec" % (timestamp,regtimeMap[timestamp]['totalTime']/float(regtimeMap[timestamp]['totalReg'])))
@@ -305,8 +305,8 @@ def registration_time(timeSlice=False,onlyDQ2=False) :
 			for timestamp in timestamps:
 				totalTime += regtimeMap[timestamp]['totalTime']
 				totalReg  += regtimeMap[timestamp]['totalReg']
-			if totalReg > 0:	
-				aveRegTime = '%4.1f' % (totalTime/float(totalReg))	
+			if totalReg > 0:
+				aveRegTime = '%4.1f' % (totalTime/float(totalReg))
 	except Exception:
 		errtype,ervalue = sys.exc_info()[:2]
 		print("ERROR : %s:%s in registration_time" % (errtype,ervalue))
@@ -340,7 +340,7 @@ def filelookup_time(timeSlice=False) :
 			except Exception:
 				pass
 		timestamps = list(regtimeMap)
-		if timeSlice:	
+		if timeSlice:
 			timestamps.sort()
 			for timestamp in timestamps:
 				print("%s %4.1fsec" % (timestamp,100*regtimeMap[timestamp]['totalTime']/float(regtimeMap[timestamp]['totalReg'])))
@@ -350,8 +350,8 @@ def filelookup_time(timeSlice=False) :
 			for timestamp in timestamps:
 				totalTime += regtimeMap[timestamp]['totalTime']
 				totalReg  += regtimeMap[timestamp]['totalReg']
-			if totalReg > 0:	
-				aveRegTime = '%4.1f' % (100*totalTime/float(totalReg))	
+			if totalReg > 0:
+				aveRegTime = '%4.1f' % (100*totalTime/float(totalReg))
 	except Exception:
 		errtype,ervalue = sys.exc_info()[:2]
 		print("ERROR : %s:%s in filelookup_time" % (errtype,ervalue))
@@ -367,11 +367,11 @@ def volume_use( volume_name ) :
 	for line in output.split( '\n' ) :
 		if( re.search( volume_name, line ) ) :
 			used_amount = re.search( r"(\d+)\%", line ).group(1)
-			
+
 	return used_amount
 
 def error_mail( host, message ) :
-	
+
 	mail_cmd = []
 	mail_cmd.append( 'mail' )
 	mail_cmd.append( '-s' )
@@ -402,7 +402,7 @@ def count_finished_callback() :
 				if timeDelta > datetime.timedelta(minutes=60):
 					continue
 				pandaID = line.split()[-4]
-				if not pandaID in pandaIDs:
+				if pandaID not in pandaIDs:
 					pandaIDs.append(pandaID)
 			except Exception:
 				pass
@@ -429,7 +429,7 @@ def count_finished_catalogcheck() :
 				if timeDelta > datetime.timedelta(minutes=60):
 					continue
 				pandaID = line.split()[-4]
-				if not pandaID in pandaIDs:
+				if pandaID not in pandaIDs:
 					pandaIDs.append(pandaID)
 			except Exception:
 				pass

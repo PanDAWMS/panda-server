@@ -7,6 +7,8 @@ import sys
 from pandaserver.taskbuffer.WrappedPickle import WrappedPickle
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
+from pandaserver.dataservice.DDMHandler import DDMHandler
+
 # logger
 _logger = PandaLogger().getLogger('DataService')
 
@@ -30,16 +32,13 @@ web interface
 
 '''
 
-from pandaserver.dataservice.DDMHandler import DDMHandler
-
-
 # callback for dataset verification
 def datasetCompleted(req,vuid,site=None):
     thr = DDMHandler(dataService.taskBuffer,vuid,site)
     thr.start()
     thr.join()
     return True
-    
+
 
 # get FQANs
 def _getFQAN(req):
@@ -54,7 +53,7 @@ def _getFQAN(req):
                 fqan = tmpVal.split()[-1]
                 # append
                 fqans.append(fqan)
-        # old style         
+        # old style
         elif tmpKey.startswith('GRST_CONN_'):
             tmpItems = tmpVal.split(':')
             # FQAN

@@ -24,10 +24,10 @@ class MailUtils:
             listToAddr = []
             newToAddr = ''
             for tmpToAddr in toAddr.split(','):
-                if not tmpToAddr in listToAddr:
+                if tmpToAddr not in listToAddr:
                     listToAddr.append(tmpToAddr)
                     newToAddr += '%s,' % tmpToAddr
-            toAddr = newToAddr[:-1]        
+            toAddr = newToAddr[:-1]
             # make message
             fromAdd = panda_config.emailSender
             message = \
@@ -55,7 +55,7 @@ To: %s
             retVal = False
         _logger.debug("end SEND session")
         return retVal
-            
+
 
     # send update notification to user
     def sendSiteAccessUpdate(self,toAddr,newStatus,pandaSite):

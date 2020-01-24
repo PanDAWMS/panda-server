@@ -58,7 +58,7 @@ def getCoreCount(actualCoreCount, defCoreCount, jobMetrics):
                 coreCount = long(tmpMatch.group(1))
             else:
                 # use jobdef
-                if not defCoreCount in [None, 0]:
+                if defCoreCount not in [None, 0]:
                     coreCount = defCoreCount
     except Exception:
         pass

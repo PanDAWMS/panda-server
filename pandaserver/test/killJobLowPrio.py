@@ -3,11 +3,12 @@ import optparse
 
 import pandaserver.userinterface.Client as Client
 
-aSrvID = None
-
 from pandaserver.taskbuffer.OraDBProxy import DBProxy
 # password
 from pandaserver.config import panda_config
+
+
+aSrvID = None
 
 usageStr = """%prog [options] <priority>
 
@@ -24,7 +25,7 @@ options,args = optP.parse_args()
 
 if options.cloud is None and options.site is None:
     optP.error("--site=<computingSite> and/or --cloud=<cloud> is required")
-        
+
 proxyS = DBProxy()
 proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,panda_config.dbname)
 
@@ -52,7 +53,7 @@ for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.
         for id,prio in res:
             if prio not in jobsMap:
                 jobsMap[prio] = []
-            if not id in jobsMap[prio]:
+            if id not in jobsMap[prio]:
                 jobsMap[prio].append(id)
 
 # order by PandaID and currentPriority
@@ -68,7 +69,7 @@ for prio in prioList:
 
 if options.maxJobs is not None:
     jobs = jobs[:int(options.maxJobs)]
-                
+
 print('The number of jobs with priorities below %s : %s' % (args[0],len(jobs)))
 if len(jobs):
     nJob = 100
@@ -81,5 +82,3 @@ if len(jobs):
             Client.killJobs(jobs[iJob:iJob+nJob])
         iJob += nJob
         time.sleep(1)
-                        
-

@@ -39,7 +39,7 @@ for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']:
 		# with time range for archived table
 		varMap[':modificationTime'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)
 		sql = "SELECT COUNT(*),prodUserName,jobStatus,workingGroup,computingSite FROM %s WHERE prodSourceLabel=:prodSourceLabel AND processingType<>:pmerge AND modificationTime>:modificationTime GROUP BY prodUserName,jobStatus,workingGroup,computingSite" % table
-	# exec 	
+	# exec
 	status,res = taskBuffer.querySQLS(sql,varMap,arraySize=10000)
 	if res is None:
 		tmpLog.debug("total %s " % res)
@@ -67,7 +67,7 @@ for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']:
 				if jobStatus in ['running','starting','sent']:
 					usageBreakDownPerUser[prodUserName][workingGroup][computingSite]['running'] += cnt
 				usageBreakDownPerUser[prodUserName][workingGroup][computingSite]['rundone'] += cnt
-				usageBreakDownPerSite[computingSite][prodUserName][workingGroup]['rundone'] += cnt				
+				usageBreakDownPerSite[computingSite][prodUserName][workingGroup]['rundone'] += cnt
 
 # get total number of users and running/done jobs
 totalUsers = 0
@@ -133,9 +133,9 @@ except Exception as e:
 	errStr.strip()
 	errStr += traceback.format_exc()
 	tmpLog.error(errStr)
-	
 
-# global average 
+
+# global average
 tmpLog.debug("=== boost jobs")
 globalAverageRunDone = float(totalRunDone)/float(totalUsers)
 
@@ -162,25 +162,25 @@ siteAverageRunDone = {}
 for computingSite in siteRunDone:
 	nRunDone = siteRunDone[computingSite]
 	siteAverageRunDone[computingSite] = float(nRunDone)/float(siteUsers[computingSite])
-	tmpLog.debug(" %-25s : %s" % (computingSite,siteAverageRunDone[computingSite]))	
-	
-# check if the number of user's jobs is lower than the average 
+	tmpLog.debug(" %-25s : %s" % (computingSite,siteAverageRunDone[computingSite]))
+
+# check if the number of user's jobs is lower than the average
 for prodUserName in usageBreakDownPerUser:
 	wgValMap = usageBreakDownPerUser[prodUserName]
 	for workingGroup in wgValMap:
 		tmpLog.debug("---> %s group=%s" % (prodUserName, workingGroup))
-		# count the number of running/done jobs 
+		# count the number of running/done jobs
 		userTotalRunDone = 0
 		for computingSite in wgValMap[workingGroup]:
 			statValMap = wgValMap[workingGroup][computingSite]
 			userTotalRunDone += statValMap['rundone']
-		# no priority boost when the number of jobs is higher than the average			
+		# no priority boost when the number of jobs is higher than the average
 		if userTotalRunDone >= globalAverageRunDone:
 			tmpLog.debug("enough running %s > %s (global average)" % (userTotalRunDone,globalAverageRunDone))
 			continue
 		tmpLog.debug("user total:%s global average:%s" % (userTotalRunDone,globalAverageRunDone))
 		# check with site average
-		toBeBoostedSites = [] 
+		toBeBoostedSites = []
 		for computingSite in wgValMap[workingGroup]:
 			statValMap = wgValMap[workingGroup][computingSite]
 			# the number of running/done jobs is lower than the average and activated jobs are waiting
@@ -195,7 +195,7 @@ for prodUserName in usageBreakDownPerUser:
 		if toBeBoostedSites == []:
 			tmpLog.debug("no sites to be boosted")
 			continue
-		# check special prioritized site 
+		# check special prioritized site
 		siteAccessForUser = {}
 		varMap = {}
 		varMap[':dn'] = prodUserName
@@ -204,7 +204,7 @@ for prodUserName in usageBreakDownPerUser:
 		if res is not None:
 			for pandaSite,pOffset,pStatus,workingGroups in res:
 				# ignore special working group for now
-				if not workingGroups in ['',None]:
+				if workingGroups not in ['',None]:
 					continue
 				# only approved sites
 				if pStatus != 'approved':
@@ -221,12 +221,12 @@ for prodUserName in usageBreakDownPerUser:
 			totalW += defaultW
 			if computingSite in siteAccessForUser:
 				totalW += siteAccessForUser[computingSite]
-		totalW = float(totalW)		
+		totalW = float(totalW)
 		# the total number of jobs to be boosted
 		numBoostedJobs = globalAverageRunDone - float(userTotalRunDone)
 		# get quota
 		quotaFactor = 1.0 + taskBuffer.checkQuota(prodUserName)
-		tmpLog.debug("quota factor:%s" % quotaFactor)	
+		tmpLog.debug("quota factor:%s" % quotaFactor)
 		# make priority boost
 		nJobsPerPrioUnit = 5
 		highestPrio = 1000
@@ -294,7 +294,7 @@ for prodUserName in usageBreakDownPerUser:
 			sql += "AND jobStatus=:jobStatus AND computingSite=:computingSite AND currentPriority>:minPrio "
 			sql += "AND currentPriority<=:maxPrio AND rownum<=:rlimit"
 			tmpLog.debug("boost %s" % str(varMap))
-			status,res = taskBuffer.querySQLS(sql,varMap,arraySize=10)	
+			status,res = taskBuffer.querySQLS(sql,varMap,arraySize=10)
 			tmpLog.debug("   database return : %s" % res)
 
 
@@ -379,7 +379,7 @@ try:
 				#taskBuffer.deleteStalledJobs(libLFN)
 			else:
 				# activate
-				if useLib and libStatus == 'ready' and (not libGUID in [None,'']) and (not libDSName in [None,'']):
+				if useLib and libStatus == 'ready' and (libGUID not in [None,'']) and (libDSName not in [None,'']):
 					# update GUID
 					tmpLog.debug("  set GUID:%s for %s" % (libGUID,libLFN))
 					#retG = taskBuffer.setGUIDs([{'lfn':libLFN,'guid':libGUID}])
@@ -430,7 +430,7 @@ try:
 	tmpLog.debug(" >>> checking limits")
 	for sinkSite in wanMX:
 		sinkMap = wanMX[sinkSite]
-		totalFlowToSink = 0 
+		totalFlowToSink = 0
 		# loop over all sinks
 		for sourceSite in sinkMap:
 			sourceMap = sinkMap[sourceSite]
@@ -494,7 +494,7 @@ try:
 								tmpStat = taskBuffer.throttleJob(pandaID)
 								if tmpStat == 1:
 									iJobs += 1
-					tmpLog.debug(" throttled {0} jobs from {1} to {2}".format(iJobs,sourceSite,sinkSite)) 
+					tmpLog.debug(" throttled {0} jobs from {1} to {2}".format(iJobs,sourceSite,sinkSite))
 				else:
 					# unthrottled
 					iJobs = 0
@@ -518,11 +518,11 @@ try:
 										iJobs += 1
 									if nActivated > maxActivated:
 										break
-					tmpLog.debug(" activated {0} jobs from {1} to {2}".format(iJobs,sourceSite,sinkSite)) 
+					tmpLog.debug(" activated {0} jobs from {1} to {2}".format(iJobs,sourceSite,sinkSite))
 except Exception:
 	errtype,errvalue = sys.exc_info()[:2]
 	tmpLog.error("failed to throttle WAN data access with %s %s" % (errtype,errvalue))
 
 
-			    
+
 tmpLog.debug("-------------- end")

@@ -3,6 +3,10 @@ import datetime
 
 import optparse
 
+from pandaserver.taskbuffer.OraDBProxy import DBProxy
+from pandaserver.config import panda_config
+import pandaserver.userinterface.Client as Client
+
 usage = "%prog [options] siteName"
 optP = optparse.OptionParser(usage=usage,conflict_handler="resolve")
 optP.add_option('--assigned',action='store_const',const=True,dest='assigned',
@@ -10,15 +14,12 @@ optP.add_option('--assigned',action='store_const',const=True,dest='assigned',
 optP.add_option('--olderThan',action='store',dest='olderThan',default=1,help="reassign jobs with modificationTime older than N hours (1 by default)")
 options,args = optP.parse_args()
 
-from pandaserver.taskbuffer.OraDBProxy import DBProxy
 # password
-from pandaserver.config import panda_config
 
 proxyS = DBProxy()
 proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,panda_config.dbname)
 
 site = args[0]
-import pandaserver.userinterface.Client as Client
 
 try:
     options.olderThan = int(options.olderThan)

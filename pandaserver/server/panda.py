@@ -11,49 +11,17 @@ import types
 # config file
 from pandaserver.config import panda_config
 
-# initialize cx_Oracle using dummy connection
 from pandaserver.taskbuffer.Initializer import initializer
-initializer.init()
-
-# initialzie TaskBuffer
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,panda_config.nDBConnection,True)
-
-# initialize JobDispatcher
 from pandaserver.jobdispatcher.JobDispatcher import jobDispatcher
-if panda_config.nDBConnection != 0:
-    jobDispatcher.init(taskBuffer)
-
-# initialize DataService
 from pandaserver.dataservice.DataService import dataService
-if panda_config.nDBConnection != 0:
-    dataService.init(taskBuffer)
-
-# initialize UserIF
 from pandaserver.userinterface.UserIF import userIF
-if panda_config.nDBConnection != 0:
-    userIF.init(taskBuffer)
-
-# import web I/F
-allowedMethods = []
-
 from pandaserver.taskbuffer.Utils import isAlive, putFile, deleteFile, getServer, updateLog, fetchLog,\
      touchFile, getVomsAttr, putEventPickingRequest, getAttr, getFile, uploadLog
-allowedMethods += ['isAlive','putFile','deleteFile','getServer','updateLog','fetchLog',
-                   'touchFile','getVomsAttr','putEventPickingRequest','getAttr','getFile',
-                   'uploadLog']
-
 from pandaserver.dataservice.DataService import datasetCompleted, updateFileStatusInDisp
-allowedMethods += ['datasetCompleted', 'updateFileStatusInDisp']
-
 from pandaserver.jobdispatcher.JobDispatcher import getJob, updateJob, getStatus, genPilotToken,\
     getEventRanges, updateEventRange, getKeyPair, updateEventRanges, getDNsForS3, getProxy, getCommands, ackCommands,\
     checkJobStatus, checkEventsAvailability, updateJobsInBulk, getResourceTypes
-allowedMethods += ['getJob', 'updateJob', 'getStatus', 'genPilotToken',
-                   'getEventRanges', 'updateEventRange', 'getKeyPair',
-                   'updateEventRanges', 'getDNsForS3', 'getProxy', 'getCommands', 'ackCommands',
-                   'checkJobStatus', 'checkEventsAvailability', 'updateJobsInBulk', 'getResourceTypes']
-
 from pandaserver.userinterface.UserIF import submitJobs, getJobStatus, queryPandaIDs, killJobs, reassignJobs,\
      getJobStatistics, getJobStatisticsPerSite, resubmitJobs, queryLastFilesInDataset, getPandaIDsSite,\
      getJobsToBeUpdated, updateProdDBUpdateTimes, runTaskAssignment, getAssigningTask, getSiteSpecs,\
@@ -75,6 +43,42 @@ from pandaserver.userinterface.UserIF import submitJobs, getJobStatus, queryPand
      reloadInput, enableJumboJobs, updateServiceMetrics, getUserJobMetadata, getJumboJobDatasets, getGShareStatus,\
      sweepPQ,get_job_statistics_per_site_label_resource
 
+# import error
+import pandaserver.taskbuffer.ErrorCode
+
+
+# initialize cx_Oracle using dummy connection
+initializer.init()
+
+# initialzie TaskBuffer
+taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,panda_config.nDBConnection,True)
+
+# initialize JobDispatcher
+if panda_config.nDBConnection != 0:
+    jobDispatcher.init(taskBuffer)
+
+# initialize DataService
+if panda_config.nDBConnection != 0:
+    dataService.init(taskBuffer)
+
+# initialize UserIF
+if panda_config.nDBConnection != 0:
+    userIF.init(taskBuffer)
+
+# import web I/F
+allowedMethods = []
+
+allowedMethods += ['isAlive','putFile','deleteFile','getServer','updateLog','fetchLog',
+                   'touchFile','getVomsAttr','putEventPickingRequest','getAttr','getFile',
+                   'uploadLog']
+
+allowedMethods += ['datasetCompleted', 'updateFileStatusInDisp']
+
+allowedMethods += ['getJob', 'updateJob', 'getStatus', 'genPilotToken',
+                   'getEventRanges', 'updateEventRange', 'getKeyPair',
+                   'updateEventRanges', 'getDNsForS3', 'getProxy', 'getCommands', 'ackCommands',
+                   'checkJobStatus', 'checkEventsAvailability', 'updateJobsInBulk', 'getResourceTypes']
+
 allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
                    'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
                    'getJobsToBeUpdated','updateProdDBUpdateTimes','runTaskAssignment','getAssigningTask','getSiteSpecs',
@@ -95,9 +99,6 @@ allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reass
                    'reportWorkerStats', 'reportWorkerStats_jobtype', 'addHarvesterDialogs', 'getJobStatisticsPerSiteResource', 'setNumSlotsForWP',
                    'reloadInput', 'enableJumboJobs', 'updateServiceMetrics', 'getUserJobMetadata', 'getJumboJobDatasets',
                    'getGShareStatus', 'sweepPQ', 'get_job_statistics_per_site_label_resource']
-
-# import error
-import pandaserver.taskbuffer.ErrorCode
 
 
 # FastCGI/WSGI entry
@@ -149,7 +150,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
             except Exception as e:
                 tmpLog.error('invalid token: {0}'.format(str(e)))
 
-        # get remote host    
+        # get remote host
         def get_remote_host(self):
             if 'REMOTE_HOST' in self.subprocess_env:
                 return self.subprocess_env['REMOTE_HOST']
@@ -163,7 +164,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
             except Exception:
                 pass
             return False
-        
+
 
     # application
     def application(environ, start_response):
@@ -175,8 +176,8 @@ if panda_config.useFastCGI or panda_config.useWSGI:
         tmpLog.debug("start")
         regStart = datetime.datetime.utcnow()
         retType = None
-        # check method name    
-        if not methodName in allowedMethods:
+        # check method name
+        if methodName not in allowedMethods:
             tmpLog.error("is forbidden")
             exeRes = "False : %s is forbidden" % methodName
         else:
@@ -192,7 +193,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                 exeRes = "False"
             else:
                 try:
-                    # get params 
+                    # get params
                     tmpPars = cgi.FieldStorage(environ['wsgi.input'], environ=environ,
                                                keep_blank_values=1)
                     # convert to map
@@ -226,7 +227,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         errStr += "%s : %s\n" % (tmpKey,str(tmpVal))
                     tmpLog.error(errStr)
                     # return internal server error
-                    start_response('500 INTERNAL SERVER ERROR', [('Content-Type', 'text/plain')]) 
+                    start_response('500 INTERNAL SERVER ERROR', [('Content-Type', 'text/plain')])
                     return [str(e)]
         if panda_config.entryVerbose:
             tmpLog.debug("done")
@@ -241,7 +242,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
         elif isinstance(exeRes, pandaserver.taskbuffer.ErrorCode.EC_Redirect):
             start_response('302 Redirect', [('Location', exeRes.url)])
             return ['redirect']
-        else:                
+        else:
             if retType == 'json':
                 start_response('200 OK', [('Content-Type', 'application/json')])
             else:

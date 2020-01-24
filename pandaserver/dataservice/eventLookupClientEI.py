@@ -24,9 +24,9 @@ class eventLookupClientEI:
             tmpStr = '{0:08d} {1:09d}\n'.format(long(runEvt[0]),long(runEvt[1]))
             tempEvtFile.write(tmpStr)
         tempEvtFile.flush()
-        if not stream in [None,'']:
+        if stream not in [None,'']:
             command += "-s {0} ".format(stream)
-        if not amitag in [None,'']:
+        if amitag not in [None,'']:
             command += "-p {0} ".format(amitag)
         if user is not None:
             command += '-info "{0}" '.format(user)
@@ -49,7 +49,7 @@ class eventLookupClientEI:
                 if setRunEvent:
                     tmpItems = tmpLine.split('-')
                     runEvent = (long(tmpItems[0]),long(tmpItems[1]))
-                    if not runEvent in guids:
+                    if runEvent not in guids:
                         guids[runEvent] = set()
                     setRunEvent = False
                     continue
@@ -67,4 +67,3 @@ class eventLookupClientEI:
         except Exception:
             pass
         return guids,command,tmpOut,tmpErr
-

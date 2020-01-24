@@ -19,7 +19,7 @@ def initLogger(pLogger):
     global _logger
     _logger = pLogger
     Notifier.initLogger(_logger)
-    
+
 
 class Closer:
     # constructor
@@ -32,7 +32,7 @@ class Closer:
         self.siteMapper = None
         self.datasetMap = datasetMap
         self.allSubFinished = None
-        
+
     # to keep backward compatibility
     def start(self):
         self.run()
@@ -45,7 +45,7 @@ class Closer:
             _logger.debug('%s Start %s' % (self.pandaID,self.job.jobStatus))
             flagComplete    = True
             topUserDsList   = []
-            usingMerger     = False        
+            usingMerger     = False
             disableNotifier = False
             firstIndvDS     = True
             finalStatusDS   = []
@@ -54,12 +54,12 @@ class Closer:
                 _logger.debug('%s start %s' % (self.pandaID,destinationDBlock))
                 # ignore tid datasets
                 if re.search('_tid[\d_]+$',destinationDBlock):
-                    _logger.debug('%s skip %s' % (self.pandaID,destinationDBlock))                
+                    _logger.debug('%s skip %s' % (self.pandaID,destinationDBlock))
                     continue
                 # ignore HC datasets
                 if re.search('^hc_test\.',destinationDBlock) is not None or re.search('^user\.gangarbt\.',destinationDBlock) is not None:
                     if re.search('_sub\d+$',destinationDBlock) is None and re.search('\.lib$',destinationDBlock) is None:
-                        _logger.debug('%s skip HC %s' % (self.pandaID,destinationDBlock))                
+                        _logger.debug('%s skip HC %s' % (self.pandaID,destinationDBlock))
                         continue
                 # query dataset
                 if destinationDBlock in self.datasetMap:
@@ -70,7 +70,7 @@ class Closer:
                     _logger.error('%s Not found : %s' % (self.pandaID,destinationDBlock))
                     flagComplete = False
                     continue
-                # skip tobedeleted/tobeclosed 
+                # skip tobedeleted/tobeclosed
                 if dataset.status in ['cleanup','tobeclosed','completed','deleted']:
                     _logger.debug('%s skip %s due to %s' % (self.pandaID,destinationDBlock,dataset.status))
                     continue
@@ -82,7 +82,7 @@ class Closer:
                                                                'status':'unknown'})
                 if notFinish < 0:
                     _logger.error('%s Invalid DB return : %s' % (self.pandaID,notFinish))
-                    flagComplete = False                
+                    flagComplete = False
                     continue
                 # check if completed
                 _logger.debug('%s notFinish:%s' % (self.pandaID,notFinish))
@@ -114,7 +114,7 @@ class Closer:
                     allInJobsetFinished = self.checkSubDatasetsInJobset()
                 else:
                     allInJobsetFinished = True
-                if notFinish == 0 and allInJobsetFinished: 
+                if notFinish == 0 and allInJobsetFinished:
                     _logger.debug('%s set %s to dataset : %s' % (self.pandaID,finalStatus,destinationDBlock))
                     # set status
                     dataset.status = finalStatus
@@ -126,10 +126,10 @@ class Closer:
                         # close user datasets
                         if self.job.prodSourceLabel in ['user'] and self.job.destinationDBlock.endswith('/') \
                                and (dataset.name.startswith('user') or dataset.name.startswith('group')):
-                            # get top-level user dataset 
+                            # get top-level user dataset
                             topUserDsName = re.sub('_sub\d+$','',dataset.name)
                             # update if it is the first attempt
-                            if topUserDsName != dataset.name and not topUserDsName in topUserDsList and self.job.lockedby != 'jedi':
+                            if topUserDsName != dataset.name and topUserDsName not in topUserDsList and self.job.lockedby != 'jedi':
                                 topUserDs = self.taskBuffer.queryDatasetWithMap({'name':topUserDsName})
                                 if topUserDs is not None:
                                     # check status
@@ -163,7 +163,7 @@ class Closer:
                                 else:
                                     unmergedDsName = tmpMatch.group(1)
                                     # update if it is the first attempt
-                                    if not unmergedDsName in topUserDsList:
+                                    if unmergedDsName not in topUserDsList:
                                         unmergedDs = self.taskBuffer.queryDatasetWithMap({'name':unmergedDsName})
                                         if unmergedDs is None:
                                             _logger.error('%s failed to get parentDS=%s from DB' % (self.pandaID,unmergedDsName))
@@ -194,7 +194,7 @@ class Closer:
                                     aThr.start()
                                     aThr.join()
                     else:
-                        # unset flag since another thread already updated 
+                        # unset flag since another thread already updated
                         #flagComplete = False
                         pass
                 else:
@@ -232,11 +232,11 @@ class Closer:
                (self.job.jobStatus=='failed' and self.job.prodSourceLabel=='panda')) and \
                self.job.lockedby != 'jedi':
                 # don't send email for merge jobs
-                if (not disableNotifier) and not self.job.processingType in ['merge','unmerge']:
+                if (not disableNotifier) and self.job.processingType not in ['merge','unmerge']:
                     useNotifier = True
                     summaryInfo = {}
                     # check all jobDefIDs in jobsetID
-                    if not self.job.jobsetID in [0,None,'NULL']:
+                    if self.job.jobsetID not in [0,None,'NULL']:
                         useNotifier,summaryInfo = self.taskBuffer.checkDatasetStatusForNotifier(self.job.jobsetID,self.job.jobDefinitionID,
                                                                                                 self.job.prodUserName)
                         _logger.debug('%s useNotifier:%s' % (self.pandaID,useNotifier))
@@ -244,12 +244,12 @@ class Closer:
                         _logger.debug('%s start Notifier' % self.pandaID)
                         nThr = Notifier.Notifier(self.taskBuffer,self.job,self.destinationDBlocks,summaryInfo)
                         nThr.run()
-                        _logger.debug('%s end Notifier' % self.pandaID)                    
+                        _logger.debug('%s end Notifier' % self.pandaID)
             _logger.debug('%s End' % self.pandaID)
         except Exception:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("%s %s" % (errType,errValue))
-            
+
 
 
     # check if top dataset

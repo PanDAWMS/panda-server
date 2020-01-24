@@ -51,11 +51,11 @@ class EiDBProxy(OraDBProxy.DBProxy):
         tmpLog = LogWrapper(_logger,methodName+" <streamName={0} amiTags={1} dataType={2}>".format(streamName,amiTags,dataType))
         try:
             # change to list
-            if not amiTags in [None,'']:
+            if amiTags not in [None,'']:
                 amiTags = amiTags.replace('*','.*').split(',')
             tmpLog.debug("start for {0} events".format(len(runEventList)))
             # check data type
-            if not dataType in ['RAW','ESD','AOD']:
+            if dataType not in ['RAW','ESD','AOD']:
                 return False,'dataType={0} is unsupported'.format(dataType)
             # sql to insert runs and events
             sqlRE  = "INSERT INTO {0}.TMP_RUN_EVENT_PAIRS (runNumber,eventNumber) ".format(panda_config.schemaEI)
@@ -79,7 +79,7 @@ class EiDBProxy(OraDBProxy.DBProxy):
             else:
                 sqlRG  = "SELECT runNumber,eventNumber,guid_{0},amiTag ".format(dataType)
                 sqlRG += "FROM {0}.V_PANDA_EVPICK_AMITAG_MANY ".format(panda_config.schemaEI)
-            if not streamName in [None,'']:
+            if streamName not in [None,'']:
                 sqlRG += "WHERE streamName=:streamName "
                 varMap[':streamName'] = streamName
             self.cur.execute(sqlRG+comment, varMap)
@@ -115,4 +115,3 @@ class EiDBProxy(OraDBProxy.DBProxy):
             # error
             self.dumpErrorMessage(_logger,methodName)
             return False,None
-        

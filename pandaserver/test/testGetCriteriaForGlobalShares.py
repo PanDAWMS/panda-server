@@ -8,8 +8,11 @@ except ImportError:
     from urllib.parse import parse_qs
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-_logger = PandaLogger().getLogger('testGetCriteriaGlobalShares')
 from testutils import sendCommand
+
+
+_logger = PandaLogger().getLogger('testGetCriteriaGlobalShares')
+
 
 def retrieveJob(site):
     function = "getJob"

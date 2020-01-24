@@ -45,13 +45,13 @@ class HarvesterMetricsSpec(object):
     def resetChangedList(self):
         self._oldPandaID = self.PandaID
         object.__setattr__(self,'_changedAttrs',{})
-        
-    
+
+
     # return map of values
     def valuesMap(self,onlyChanged=False):
         ret = {}
         for attr in self._attributes:
-            if onlyChanged and not attr in self._changedAttrs:
+            if onlyChanged and attr not in self._changedAttrs:
                 continue
             val = getattr(self,attr)
             if val is None:
@@ -69,7 +69,7 @@ class HarvesterMetricsSpec(object):
             object.__setattr__(self,attr,val)
 
 
-        
+
     # return column names for INSERT
     def columnNames(cls):
         ret = ""
@@ -87,7 +87,7 @@ class HarvesterMetricsSpec(object):
         for attr in cls._attributes:
             ret += ":%s," % attr
         ret = ret[:-1]
-        ret += ")"            
+        ret += ")"
         return ret
     bindValuesExpression = classmethod(bindValuesExpression)
 
@@ -96,7 +96,7 @@ class HarvesterMetricsSpec(object):
     def bindUpdateChangesExpression(self):
         ret = ""
         for attr in self._attributes:
-            if not attr in self._changedAttrs:
+            if attr not in self._changedAttrs:
                 continue
             ret += '{0}=:{0},'.format(attr)
         ret  = ret[:-1]

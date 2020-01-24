@@ -12,6 +12,8 @@ try:
 except ImportError:
     import pickle
 
+import logging
+
 import stomp
 
 from pandaserver.config import panda_config
@@ -20,11 +22,11 @@ from pandaserver.dataservice.Finisher import Finisher
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
-import logging
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+
 logging.basicConfig(level = logging.DEBUG)
 
 # logger
-from pandacommon.pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger('fileCallbackListener')
 
 # keep PID
@@ -48,7 +50,7 @@ def catch_sig(sig, frame):
     commands_get_status_output('kill -9 -- -%s' % os.getpgrp())
     # exit
     sys.exit(0)
-                                        
+
 
 # callback listener
 class FileCallbackListener(stomp.ConnectionListener):
@@ -63,14 +65,14 @@ class FileCallbackListener(stomp.ConnectionListener):
         # subscription ID
         self.subscription_id = subscription_id
 
-        
+
     def on_error(self,headers,body):
         _logger.error("on_error : %s" % headers['message'])
 
 
     def on_disconnected(self,headers,body):
         _logger.error("on_disconnected : %s" % headers['message'])
-                        
+
 
     def on_message(self, headers, message):
         try:
@@ -80,10 +82,10 @@ class FileCallbackListener(stomp.ConnectionListener):
             self.conn.ack(id,self.subscription_id)
             # check message type
             messageType = headers['cbtype']
-            if not messageType in ['FileDoneMessage']:
+            if messageType not in ['FileDoneMessage']:
                 _logger.debug('%s skip' % messageType)
                 return
-            _logger.debug('%s start' % messageType)            
+            _logger.debug('%s start' % messageType)
             # re-construct message
             messageObj = pickle.loads(message)
             evtTime = datetime.datetime.utcfromtimestamp(messageObj.getItem('eventTime'))
@@ -99,7 +101,7 @@ class FileCallbackListener(stomp.ConnectionListener):
                     flagNgPrefix = True
                     break
             if flagNgPrefix:
-                _logger.debug('%s skip' % lfn)                
+                _logger.debug('%s skip' % lfn)
                 return
             # get datasets associated with the file only for high priority jobs
             dsNameMap = self.taskBuffer.getDatasetWithFile(lfn,800)
@@ -110,7 +112,7 @@ class FileCallbackListener(stomp.ConnectionListener):
                 pandaSite,dsToken = dsData
                 # skip multiple destination since each file doesn't have
                 # transferStatus
-                if not dsToken in ['',None] and ',' in dsToken:
+                if dsToken not in ['',None] and ',' in dsToken:
                     _logger.debug('%s ignore ds=%s token=%s' % (lfn,dsName,dsToken))
                     continue
 
@@ -175,7 +177,7 @@ class FileCallbackListener(stomp.ConnectionListener):
                             self.taskBuffer.activateJobs(targetJobs)
                         else:
                             # finish
-                            _logger.debug('%s finish %s' % (lfn,str(targetIDs)))                        
+                            _logger.debug('%s finish %s' % (lfn,str(targetIDs)))
                             for tmpJob in targetJobs:
                                 fThr = Finisher(self.taskBuffer,None,tmpJob)
                                 fThr.start()
@@ -184,10 +186,10 @@ class FileCallbackListener(stomp.ConnectionListener):
         except Exception:
             errtype,errvalue = sys.exc_info()[:2]
             _logger.error("on_message : %s %s %s" % (lfn,errtype,errvalue))
-        
+
 
 # main
-def main(backGround=False): 
+def main(backGround=False):
     _logger.debug('starting ...')
     # register signal handler
     signal.signal(signal.SIGINT, catch_sig)
@@ -195,13 +197,13 @@ def main(backGround=False):
     signal.signal(signal.SIGTERM,catch_sig)
     signal.signal(signal.SIGALRM,catch_sig)
     signal.alarm(overallTimeout)
-    # forking    
+    # forking
     pid = os.fork()
     if pid != 0:
         # watch child process
         os.wait()
         time.sleep(1)
-    else:    
+    else:
         # main loop
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer
         # check certificate
@@ -270,7 +272,7 @@ if __name__ == "__main__":
         for line in out.split('\n'):
             items = line.split()
             # owned process
-            if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
+            if items[0] not in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
                 continue
             # look for python
             if re.search('python',line) is None:
@@ -283,10 +285,10 @@ if __name__ == "__main__":
             # kill old process
             if startTime < timeLimit:
                 _logger.debug("old process : %s %s" % (pid,startTime))
-                _logger.debug(line)            
+                _logger.debug(line)
                 commands_get_status_output('kill -9 %s' % pid)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         _logger.error("kill process : %s %s" % (errtype,errvalue))
-    # main loop    
+    # main loop
     main()

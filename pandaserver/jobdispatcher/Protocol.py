@@ -9,7 +9,7 @@ from pandaserver.dataservice import DataServiceUtils
 
 # constants
 TimeOutToken = "TimeOut"
-NoJobsToken  = "NoJobs"       
+NoJobsToken  = "NoJobs"
 
 ########### status codes
 # succeeded
@@ -55,8 +55,8 @@ class Response:
     # append Node
     def appendNode(self,name,value):
         self.data[name]=value
-            
-                   
+
+
     # append job
     def appendJob(self,job,siteMapperCache=None):
         # event service merge
@@ -85,7 +85,7 @@ class Response:
         strOFiles = ''
         strDispatch = ''
         strDisToken = ''
-        strDisTokenForOutput = ''                
+        strDisTokenForOutput = ''
         strDestination = ''
         strRealDataset = ''
         strRealDatasetIn = ''
@@ -99,9 +99,9 @@ class Response:
         strFileDestinationSE = ''
         strScopeIn  = ''
         strScopeOut = ''
-        strScopeLog = ''        
+        strScopeLog = ''
         logFile = ''
-        logGUID = ''        
+        logGUID = ''
         ddmEndPointIn = []
         ddmEndPointOut = []
         noOutput = []
@@ -134,7 +134,7 @@ class Response:
                     if strDisToken != '':
                         strDisToken += ','
                     strDisToken += file.dispatchDBlockToken
-                    strProdDBlock += '%s,' % file.prodDBlock 
+                    strProdDBlock += '%s,' % file.prodDBlock
                     if not isEventServiceMerge:
                         strProdToken += '%s,' % file.prodDBlockToken
                     else:
@@ -144,14 +144,14 @@ class Response:
                     strGUID += file.GUID
                     strRealDatasetIn += '%s,' % file.dataset
                     strFSize += '%s,' % file.fsize
-                    if not file.checksum in ['','NULL',None]:
+                    if file.checksum not in ['','NULL',None]:
                         strCheckSum += '%s,' % file.checksum
                     else:
                         strCheckSum += '%s,' % file.md5sum
                     strScopeIn += '%s,' % file.scope
                     ddmEndPointIn.append(self.getDdmEndpoint(siteSpec, file.dispatchDBlockToken, 'input',
                                                              job.prodSourceLabel))
-                    if not file.dataset in inDsLfnMap:
+                    if file.dataset not in inDsLfnMap:
                         inDsLfnMap[file.dataset] = []
                     inDsLfnMap[file.dataset].append(file.lfn)
             if file.type == 'output' or file.type == 'log':
@@ -170,7 +170,7 @@ class Response:
                     logGUID = file.GUID
                     strScopeLog = file.scope
                 else:
-                    strScopeOut += '%s,' % file.scope                        
+                    strScopeOut += '%s,' % file.scope
                 if strDestToken != '':
                     strDestToken += ','
                 strDestToken += re.sub('^ddd:','dst:',file.destinationDBlockToken.split(',')[0])
@@ -392,7 +392,7 @@ class Response:
             ddm = ''
 
         return ddm
-                
+
 
 # check if secure connection
 def isSecure(req):

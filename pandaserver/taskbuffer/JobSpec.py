@@ -3,11 +3,11 @@ job specification
 
 """
 
-reserveChangedState = False
-
 import re
 import types
 import datetime
+
+reserveChangedState = False
 
 
 class JobSpec(object):
@@ -91,7 +91,7 @@ class JobSpec(object):
         object.__setattr__(self,'Files',[])
         # map of changed attributes
         object.__setattr__(self,'_changedAttrs',{})
-        
+
 
     # override __getattribute__ for SQL
     def __getattribute__(self,name):
@@ -110,23 +110,23 @@ class JobSpec(object):
             if oldVal != newVal:
                 self.stateChangeTime = datetime.datetime.utcnow()
         # collect changed attributes
-        if oldVal != newVal and not name in self._suppAttrs:
+        if oldVal != newVal and name not in self._suppAttrs:
             self._changedAttrs[name] = value
 
-            
+
     # reset changed attribute list
     def resetChangedList(self):
         object.__setattr__(self,'_changedAttrs',{})
 
-        
+
     # add File to files list
     def addFile(self,file):
         # set owner
         file.setOwner(self)
         # append
         self.Files.append(file)
-        
-    
+
+
     # pack tuple into JobSpec
     def pack(self,values):
         for i in range(len(self._attributes)):
@@ -190,14 +190,14 @@ class JobSpec(object):
             if i+1 < len(state):
                 object.__setattr__(self,self._attributes[i],state[i])
             else:
-                object.__setattr__(self,self._attributes[i],'NULL')                
+                object.__setattr__(self,self._attributes[i],'NULL')
         object.__setattr__(self,'Files',state[-1])
         if reserveChangedState:
             object.__setattr__(self,'_changedAttrs',state[-2])
         else:
             object.__setattr__(self,'_changedAttrs',{})
 
-        
+
     # return column names for INSERT or full SELECT
     def columnNames(cls):
         ret = ""
@@ -216,7 +216,7 @@ class JobSpec(object):
             ret += "%s"
             if attr != cls._attributes[len(cls._attributes)-1]:
                 ret += ","
-        ret += ")"            
+        ret += ")"
         return ret
     valuesExpression = classmethod(valuesExpression)
 
@@ -258,7 +258,7 @@ class JobSpec(object):
         for attr in cls._attributes:
             ret += '%s=:%s,' % (attr,attr)
         ret = ret[:-1]
-        ret += ' '        
+        ret += ' '
         return ret
     bindUpdateExpression = classmethod(bindUpdateExpression)
 
@@ -324,7 +324,7 @@ class JobSpec(object):
                 self.specialHandling = self.specialHandling+','+ \
                     'ddm:'+backEnd
 
-            
+
     # set LB number
     def setLumiBlockNr(self,lumiBlockNr):
         if self.specialHandling in ['',None,'NULL']:
@@ -361,7 +361,7 @@ class JobSpec(object):
         if self.specialHandling in [None,'']:
             self.specialHandling = token
         else:
-            if not token in self.specialHandling.split(','):
+            if token not in self.specialHandling.split(','):
                 self.specialHandling = self.specialHandling+','+token
 
 
@@ -453,7 +453,7 @@ class JobSpec(object):
             items = self.specialHandling.split(',')
         else:
             items = []
-        if not self._tagForSH['putLogToOS'] in items:
+        if self._tagForSH['putLogToOS'] not in items:
             items.append(self._tagForSH['putLogToOS'])
         self.specialHandling = ','.join(items)
 
@@ -473,7 +473,7 @@ class JobSpec(object):
             items = self.specialHandling.split(',')
         else:
             items = []
-        if not self._tagForSH['writeInputToFile'] in items:
+        if self._tagForSH['writeInputToFile'] not in items:
             items.append(self._tagForSH['writeInputToFile'])
         self.specialHandling = ','.join(items)
 
@@ -500,7 +500,7 @@ class JobSpec(object):
         try:
             lfnMap = {}
             for tmpFile in self.Files:
-                if not tmpFile.lfn in lfnMap:
+                if tmpFile.lfn not in lfnMap:
                     lfnMap[tmpFile.lfn] = []
                 lfnMap[tmpFile.lfn].append(tmpFile)
             lfns = list(lfnMap)
@@ -546,7 +546,7 @@ class JobSpec(object):
             items = self.specialHandling.split(',')
         else:
             items = []
-        if not self._tagForSH['noExecStrCnv'] in items:
+        if self._tagForSH['noExecStrCnv'] not in items:
             items.append(self._tagForSH['noExecStrCnv'])
         self.specialHandling = ','.join(items)
 
@@ -566,7 +566,7 @@ class JobSpec(object):
             items = self.specialHandling.split(',')
         else:
             items = []
-        if not self._tagForSH['inFilePosEvtNum'] in items:
+        if self._tagForSH['inFilePosEvtNum'] not in items:
             items.append(self._tagForSH['inFilePosEvtNum'])
         self.specialHandling = ','.join(items)
 
@@ -586,7 +586,7 @@ class JobSpec(object):
             items = self.specialHandling.split(',')
         else:
             items = []
-        if not self._tagForSH['registerEsFiles'] in items:
+        if self._tagForSH['registerEsFiles'] not in items:
             items.append(self._tagForSH['registerEsFiles'])
         self.specialHandling = ','.join(items)
 
@@ -627,7 +627,7 @@ class JobSpec(object):
             items = self.specialHandling.split(',')
         else:
             items = []
-        if not self._tagForSH['usePrefetcher'] in items:
+        if self._tagForSH['usePrefetcher'] not in items:
             items.append(self._tagForSH['usePrefetcher'])
         self.specialHandling = ','.join(items)
 
@@ -647,7 +647,7 @@ class JobSpec(object):
             items = self.specialHandling.split(',')
         else:
             items = []
-        if not self._tagForSH['useZipToPin'] in items:
+        if self._tagForSH['useZipToPin'] not in items:
             items.append(self._tagForSH['useZipToPin'])
         self.specialHandling = ','.join(items)
 
@@ -667,7 +667,7 @@ class JobSpec(object):
             items = self.specialHandling.split(',')
         else:
             items = []
-        if not self._tagForSH['notDiscardEvents'] in items:
+        if self._tagForSH['notDiscardEvents'] not in items:
             items.append(self._tagForSH['notDiscardEvents'])
         self.specialHandling = ','.join(items)
 
@@ -687,7 +687,7 @@ class JobSpec(object):
             items = self.specialHandling.split(',')
         else:
             items = []
-        if not self._tagForSH['allOkEvents'] in items:
+        if self._tagForSH['allOkEvents'] not in items:
             items.append(self._tagForSH['allOkEvents'])
         self.specialHandling = ','.join(items)
 
