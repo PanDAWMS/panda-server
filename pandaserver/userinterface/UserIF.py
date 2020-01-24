@@ -28,12 +28,12 @@ except NameError:
 _logger = PandaLogger().getLogger('UserIF')
 
 
-# main class     
+# main class
 class UserIF:
     # constructor
     def __init__(self):
         self.taskBuffer = None
-        
+
 
     # initialize
     def init(self,taskBuffer):
@@ -80,7 +80,7 @@ class UserIF:
         userVO = 'atlas'
         try:
             job0 = jobs[0]
-            if not job0.VO in [None,'','NULL']:
+            if job0.VO not in [None,'','NULL']:
                 userVO = job0.VO
         except (IndexError, AttributeError) as e:
             _logger.error("submitJobs : checking userVO. userVO not found, defaulting to %s. (Exception %s)" %(userVO, e))
@@ -99,7 +99,7 @@ class UserIF:
         ret = self.taskBuffer.storeJobs(jobs,user,forkSetupper=True,fqans=userFQANs,
                                         hostname=host, toPending=toPending, userVO=userVO)
         _logger.debug("submitJobs %s ->:%s" % (user,len(ret)))
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -114,7 +114,7 @@ class UserIF:
             jobs = []
         # run
         ret = self.taskBuffer.runTaskAssignment(jobs)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -122,7 +122,7 @@ class UserIF:
     def getSerialNumberForGroupJob(self,name):
         # get
         ret = self.taskBuffer.getSerialNumberForGroupJob(name)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -140,8 +140,8 @@ class UserIF:
         except Exception:
             errType,errValue = sys.exc_info()[:2]
             _logger.error("changeJobPriorities : %s %s" % (errType,errValue))
-            return False,'internal server error' 
-        # serialize 
+            return False,'internal server error'
+        # serialize
         return ret
 
 
@@ -150,7 +150,7 @@ class UserIF:
         returnVal = False
         try:
             _logger.debug("retryFailedJobsInActive %s JobID:%s" % (dn,jobID))
-            cUID = self.taskBuffer.cleanUserID(dn)            
+            cUID = self.taskBuffer.cleanUserID(dn)
             tmpRet = self.taskBuffer.finalizePendingJobs(cUID,jobID)
             returnVal = True
         except Exception:
@@ -196,11 +196,11 @@ class UserIF:
             type, value, traceBack = sys.exc_info()
             _logger.error("getJobStatus : %s %s" % (type,value))
             ids = []
-        _logger.debug("getJobStatus start : %s" % ids)       
+        _logger.debug("getJobStatus start : %s" % ids)
         # peek jobs
         ret = self.taskBuffer.peekJobs(ids)
         _logger.debug("getJobStatus end")
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -218,11 +218,11 @@ class UserIF:
             errtype,errvalue = sys.exc_info()[:2]
             _logger.error("getPandaIDwithJobExeID : %s %s" % (errtype,errvalue))
             ids = []
-        _logger.debug("getPandaIDwithJobExeID start : %s" % ids)       
+        _logger.debug("getPandaIDwithJobExeID start : %s" % ids)
         # peek jobs
         ret = self.taskBuffer.getPandaIDwithJobExeID(ids)
         _logger.debug("getPandaIDwithJobExeID end")
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -231,7 +231,7 @@ class UserIF:
     def getPandaIDsWithTaskID(self,jediTaskID):
         # get PandaIDs
         ret = self.taskBuffer.getPandaIDsWithTaskID(jediTaskID)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -244,14 +244,14 @@ class UserIF:
             type, value, traceBack = sys.exc_info()
             _logger.error("seeCloudTask : %s %s" % (type,value))
             ids = []
-        _logger.debug("seeCloudTask start : %s" % ids)       
+        _logger.debug("seeCloudTask start : %s" % ids)
         # peek jobs
         ret = {}
         for id in ids:
             tmpRet = self.taskBuffer.seeCloudTask(id)
             ret[id] = tmpRet
         _logger.debug("seeCloudTask end")
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -267,7 +267,7 @@ class UserIF:
     def getAssigningTask(self):
         # run
         ret = self.taskBuffer.getAssigningTask()
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -277,12 +277,12 @@ class UserIF:
         ret = self.taskBuffer.setCloudTaskByUser(user,tid,cloud,status)
         return ret
 
-    
+
     # get job statistics
     def getJobStatistics(self,sourcetype=None):
         # get job statistics
         ret = self.taskBuffer.getJobStatisticsForExtIF(sourcetype)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -290,7 +290,7 @@ class UserIF:
     def getHighestPrioJobStat(self,perPG=False,useMorePG=False):
         # get job statistics
         ret = self.taskBuffer.getHighestPrioJobStat(perPG,useMorePG)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -298,7 +298,7 @@ class UserIF:
     def getQueuedAnalJobs(self,site,dn):
         # get job statistics
         ret = self.taskBuffer.getQueuedAnalJobs(site,dn)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -306,9 +306,9 @@ class UserIF:
     def getJobStatisticsForBamboo(self,useMorePG=False):
         # get job statistics
         ret = self.taskBuffer.getJobStatisticsForBamboo(useMorePG)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
-        
+
 
     # get job statistics per site
     def getJobStatisticsPerSite(self,predefined=False,workingGroup='',countryGroup='',jobType='',
@@ -316,7 +316,7 @@ class UserIF:
         # get job statistics
         ret = self.taskBuffer.getJobStatistics(readArchived,predefined,workingGroup,countryGroup,jobType,
                                                minPriority=minPriority)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -324,7 +324,7 @@ class UserIF:
     def getJobStatisticsPerSiteResource(self, timeWindow):
         # get job statistics
         ret = self.taskBuffer.getJobStatisticsPerSiteResource(timeWindow)
-        # serialize 
+        # serialize
         return json.dumps(ret)
 
     # get job statistics per site, source label, and resource type
@@ -338,7 +338,7 @@ class UserIF:
     def getJobStatisticsPerUserSite(self):
         # get job statistics
         ret = self.taskBuffer.getJobStatisticsPerUserSite()
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -346,7 +346,7 @@ class UserIF:
     def getJobStatisticsWithLabel(self,site):
         # get job statistics
         ret = self.taskBuffer.getJobStatisticsWithLabel(site)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -354,41 +354,41 @@ class UserIF:
     def queryPandaIDs(self,idsStr):
         # deserialize IDs
         ids = WrappedPickle.loads(idsStr)
-        # query PandaIDs 
+        # query PandaIDs
         ret = self.taskBuffer.queryPandaIDs(ids)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
-    # get number of analysis jobs per user  
+    # get number of analysis jobs per user
     def getNUserJobs(self,siteName):
-        # get 
+        # get
         ret = self.taskBuffer.getNUserJobs(siteName)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
     # query job info per cloud
     def queryJobInfoPerCloud(self,cloud,schedulerID):
-        # query PandaIDs 
+        # query PandaIDs
         ret = self.taskBuffer.queryJobInfoPerCloud(cloud,schedulerID)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
-    
+
     # query PandaIDs at site
     def getPandaIDsSite(self,site,status,limit):
-        # query PandaIDs 
+        # query PandaIDs
         ret = self.taskBuffer.getPandaIDsSite(site,status,limit)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
     # get PandaIDs to be updated in prodDB
     def getJobsToBeUpdated(self,limit,lockedby):
-        # query PandaIDs 
+        # query PandaIDs
         ret = self.taskBuffer.getPandaIDsForProdDB(limit,lockedby)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -398,7 +398,7 @@ class UserIF:
         params = WrappedPickle.loads(paramsStr)
         # get jobs
         ret = self.taskBuffer.updateProdDBUpdateTimes(params)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(True)
 
 
@@ -408,7 +408,7 @@ class UserIF:
         datasets = WrappedPickle.loads(datasetStr)
         # get files
         ret = self.taskBuffer.queryLastFilesInDataset(datasets)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -416,7 +416,7 @@ class UserIF:
     def getFilesInUseForAnal(self,outDataset):
         # get files
         ret = self.taskBuffer.getFilesInUseForAnal(outDataset)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -424,7 +424,7 @@ class UserIF:
     def getDisInUseForAnal(self,outDataset):
         # get files
         ret = self.taskBuffer.getDisInUseForAnal(outDataset)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -434,7 +434,7 @@ class UserIF:
         inputDisList = WrappedPickle.loads(inputDisListStr)
         # get files
         ret = self.taskBuffer.getLFNsInUseForAnal(inputDisList)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -467,14 +467,14 @@ class UserIF:
             tmpMatch = re.search('/atlas/([^/]+)/Role=production',fqan)
             if tmpMatch is not None:
                 # ignore usatlas since it is used as atlas prod role
-                tmpWG = tmpMatch.group(1) 
-                if not tmpWG in ['','usatlas']+wgProdRole:
+                tmpWG = tmpMatch.group(1)
+                if tmpWG not in ['','usatlas']+wgProdRole:
                     wgProdRole.append(tmpWG)
                     # group production
                     wgProdRole.append('gr_%s' % tmpWG)
         # kill jobs
         ret = self.taskBuffer.killJobs(ids,user,code,prodManager,wgProdRole,killOpts)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -485,9 +485,9 @@ class UserIF:
         # reassign jobs
         ret = self.taskBuffer.reassignJobs(ids,forkSetupper=True,forPending=forPending,
                                            firstSubmission=firstSubmission)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
-        
+
 
     # resubmit jobs
     def resubmitJobs(self,idsStr):
@@ -495,7 +495,7 @@ class UserIF:
         ids = WrappedPickle.loads(idsStr)
         # kill jobs
         ret = self.taskBuffer.resubmitJobs(ids)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -531,7 +531,7 @@ class UserIF:
     def getCachePrefixes(self):
         # get
         ret = self.taskBuffer.getCachePrefixes()
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -539,7 +539,7 @@ class UserIF:
     def getCmtConfigList(self,relaseVer):
         # get
         ret = self.taskBuffer.getCmtConfigList(relaseVer)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -577,7 +577,7 @@ class UserIF:
         # return
         return ret
 
-    
+
     # get client version
     def getPandaClientVer(self):
         # get
@@ -590,7 +590,7 @@ class UserIF:
     def getProxyKey(self,dn):
         # get files
         ret = self.taskBuffer.getProxyKey(dn)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -605,12 +605,12 @@ class UserIF:
                 _logger.error("getSlimmedFileInfoPandaIDs: too long ID list more than %s" % maxIDs)
                 pandaIDs = pandaIDs[:maxIDs]
             # get
-            _logger.debug("getSlimmedFileInfoPandaIDs start : %s %s" % (dn,len(pandaIDs)))            
+            _logger.debug("getSlimmedFileInfoPandaIDs start : %s %s" % (dn,len(pandaIDs)))
             ret = self.taskBuffer.getSlimmedFileInfoPandaIDs(pandaIDs)
-            _logger.debug("getSlimmedFileInfoPandaIDs end")            
+            _logger.debug("getSlimmedFileInfoPandaIDs end")
         except Exception:
             ret = {}
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -618,7 +618,7 @@ class UserIF:
     def getJobIDsInTimeRange(self,dn,timeRange):
         # get IDs
         ret = self.taskBuffer.getJobIDsInTimeRange(dn,timeRange)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -626,7 +626,7 @@ class UserIF:
     def getJediTasksInTimeRange(self, dn, timeRange, fullFlag, minTaskID):
         # get IDs
         ret = self.taskBuffer.getJediTasksInTimeRange(dn, timeRange, fullFlag, minTaskID)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -634,7 +634,7 @@ class UserIF:
     def getJediTaskDetails(self,jediTaskID,fullFlag,withTaskInfo):
         # get IDs
         ret = self.taskBuffer.getJediTaskDetails(jediTaskID,fullFlag,withTaskInfo)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -642,7 +642,7 @@ class UserIF:
     def getPandIDsWithJobID(self,dn,jobID,nJobs):
         # get IDs
         ret = self.taskBuffer.getPandIDsWithJobID(dn,jobID,nJobs)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -650,7 +650,7 @@ class UserIF:
     def checkMergeGenerationStatus(self,dn,jobID):
         # check
         ret = self.taskBuffer.checkMergeGenerationStatus(dn,jobID)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -672,7 +672,7 @@ class UserIF:
         # peek jobs
         ret = self.taskBuffer.getFullJobStatus(ids)
         _logger.debug("getFullJobStatus end")
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -680,7 +680,7 @@ class UserIF:
     def addSiteAccess(self,siteID,dn):
         # add
         ret = self.taskBuffer.addSiteAccess(siteID,dn)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -688,7 +688,7 @@ class UserIF:
     def listSiteAccess(self,siteID,dn,longFormat=False):
         # list
         ret = self.taskBuffer.listSiteAccess(siteID,dn,longFormat)
-        # serialize 
+        # serialize
         return WrappedPickle.dumps(ret)
 
 
@@ -696,7 +696,7 @@ class UserIF:
     def updateSiteAccess(self,method,siteid,requesterDN,userName,attrValue):
         # list
         ret = self.taskBuffer.updateSiteAccess(method,siteid,requesterDN,userName,attrValue)
-        # serialize 
+        # serialize
         return str(ret)
 
 
@@ -768,7 +768,7 @@ class UserIF:
             # normal retry
             ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'retry',properErrorCode=properErrorCode,
                                                        comQualifier=comQualifier)
-        if properErrorCode == True and ret[0] == 5:
+        if properErrorCode is True and ret[0] == 5:
             # retry failed analysis jobs
             jobdefList = self.taskBuffer.getJobdefIDsForFailedJob(jediTaskID)
             cUID = self.taskBuffer.cleanUserID(user)
@@ -828,7 +828,7 @@ class UserIF:
         return ret
 
 
-    # change task priority 
+    # change task priority
     def changeTaskPriority(self,jediTaskID,newPriority):
         # kill
         ret = self.taskBuffer.changeTaskPriorityPanda(jediTaskID,newPriority)
@@ -900,7 +900,7 @@ class UserIF:
             retVal = (False,'database error in the panda server')
         else:
             retVal = (True,ret)
-        # serialize 
+        # serialize
         return json.dumps(retVal)
 
     # update workers
@@ -920,7 +920,7 @@ class UserIF:
             retVal = (False,'database error in the panda server')
         else:
             retVal = (True,'')
-        # serialize 
+        # serialize
         return json.dumps(retVal)
 
 
@@ -931,7 +931,7 @@ class UserIF:
             retVal = (False,'database error')
         else:
             retVal = (True,ret)
-        # serialize 
+        # serialize
         return json.dumps(retVal)
 
     # report stat of workers
@@ -945,7 +945,7 @@ class UserIF:
     # set num slots for workload provisioning
     def setNumSlotsForWP(self, pandaQueueName, numSlots, gshare, resourceType, validPeriod):
         retVal = self.taskBuffer.setNumSlotsForWP(pandaQueueName, numSlots, gshare, resourceType, validPeriod)
-        # serialize 
+        # serialize
         return json.dumps(retVal)
 
     # enable jumbo jobs
@@ -953,19 +953,19 @@ class UserIF:
         retVal = self.taskBuffer.enableJumboJobs(jediTaskID, totalJumboJobs, nJumboPerSite)
         if totalJumboJobs > 0 and retVal[0] == 0:
             self.avalancheTask(jediTaskID, 'panda', True)
-        # serialize 
+        # serialize
         return json.dumps(retVal)
 
     # get user job metadata
     def getUserJobMetadata(self, jediTaskID):
         retVal = self.taskBuffer.getUserJobMetadata(jediTaskID)
-        # serialize 
+        # serialize
         return json.dumps(retVal)
 
     # get jumbo job datasets
     def getJumboJobDatasets(self, n_days, grace_period):
         retVal = self.taskBuffer.getJumboJobDatasets(n_days, grace_period)
-        # serialize 
+        # serialize
         return json.dumps(retVal)
 
     # sweep panda queue
@@ -1003,7 +1003,7 @@ def _getFQAN(req):
                 fqan = tmpVal.split()[-1]
                 # append
                 fqans.append(fqan)
-        # old style         
+        # old style
         elif tmpKey.startswith('GRST_CONN_'):
             tmpItems = tmpVal.split(':')
             # FQAN
@@ -1022,7 +1022,7 @@ def _getDN(req):
         realDN = re.sub('/CN=limited proxy','',realDN)
         realDN = re.sub('/CN=proxy(/CN=proxy)+','/CN=proxy',realDN)
     return realDN
-                                        
+
 
 # check role
 def _isProdRoleATLAS(req):
@@ -1048,14 +1048,14 @@ def _getWGwithPR(req):
             if tmpMatch is not None:
                 # ignore usatlas since it is used as atlas prod role
                 tmpWG = tmpMatch.group(1)
-                if not tmpWG in ['','usatlas']:
+                if tmpWG not in ['','usatlas']:
                     return tmpWG.split('-')[-1].lower()
     except Exception:
         pass
     return None
 
 
-    
+
 """
 web service interface
 
@@ -1168,7 +1168,7 @@ def setDebugMode(req,pandaID,modeOn):
         modeOn = False
     # get the primary working group with prod role
     workingGroup = _getWGwithPR(req)
-    # exec    
+    # exec
     return userIF.setDebugMode(user,pandaID,prodManager,modeOn,workingGroup)
 
 
@@ -1184,7 +1184,7 @@ def insertSandboxFileInfo(req,userName,fileName,fileSize,checkSum):
         return "ERROR: missing role"
     # hostname
     hostName = req.get_remote_host()
-    # exec    
+    # exec
     return userIF.insertSandboxFileInfo(userName,hostName,fileName,fileSize,checkSum)
 
 
@@ -1194,7 +1194,7 @@ def checkSandboxFile(req,fileSize,checkSum):
     if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
         return "ERROR: SSL connection is required"
     user = _getDN(req)
-    # exec    
+    # exec
     return userIF.checkSandboxFile(user,fileSize,checkSum)
 
 
@@ -1339,7 +1339,7 @@ def killJobs(req,ids,code=None,useMailAsID=None,killOpts=None):
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
-        user = _getDN(req)        
+        user = _getDN(req)
     # check role
     prodManager = False
     # get FQANs
@@ -1409,7 +1409,7 @@ def changeJobPriorities(req,newPrioMap=None):
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
-        user = _getDN(req)        
+        user = _getDN(req)
     # check role
     prodRole = _isProdRoleATLAS(req)
     ret = userIF.changeJobPriorities(user,prodRole,newPrioMap)
@@ -1438,7 +1438,7 @@ def getCmtConfigList(self,relaseVer):
 # get client version
 def getPandaClientVer(req):
     return userIF.getPandaClientVer()
-    
+
 # get nPilots
 def getNumPilots(req):
     return userIF.getNumPilots()
@@ -1655,7 +1655,7 @@ def getNUserJobs(req,siteName):
         # check production role
         for rolePat in ['/atlas/usatlas/Role=production',
                         '/atlas/Role=production',
-                        '/atlas/usatlas/Role=pilot',                        
+                        '/atlas/usatlas/Role=pilot',
                         '/atlas/Role=pilot',
                         ]:
             if fqan.startswith(rolePat):
@@ -1675,10 +1675,10 @@ def getNUserJobs(req,siteName):
 def addSiteAccess(req,siteID):
     # check security
     if not isSecure(req):
-        return "False"        
+        return "False"
     # get DN
     if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
-        return "False"        
+        return "False"
     dn = req.subprocess_env['SSL_CLIENT_S_DN']
     return userIF.addSiteAccess(siteID,dn)
 
@@ -1693,7 +1693,7 @@ def listSiteAccess(req,siteID=None,longFormat=False):
         return "False"
     # set DN if siteID is none
     dn = None
-    if siteID==None:
+    if siteID is None:
         dn = req.subprocess_env['SSL_CLIENT_S_DN']
     # convert longFormat option
     if longFormat == 'True':
@@ -1729,12 +1729,12 @@ def insertTaskParams(req,taskParams=None,properErrorCode=None):
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
-        user = _getDN(req)        
+        user = _getDN(req)
     # check format
     try:
         json.loads(taskParams)
     except Exception:
-        return WrappedPickle.dumps((False,'failed to decode json'))        
+        return WrappedPickle.dumps((False,'failed to decode json'))
     # check role
     prodRole = _isProdRoleATLAS(req)
     # get FQANs
@@ -1759,7 +1759,7 @@ def killTask(req,jediTaskID=None,properErrorCode=None):
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
-        user = _getDN(req)        
+        user = _getDN(req)
     # check role
     prodRole = _isProdRoleATLAS(req)
     # check jediTaskID
@@ -1767,7 +1767,7 @@ def killTask(req,jediTaskID=None,properErrorCode=None):
         jediTaskID = long(jediTaskID)
     except Exception:
         if properErrorCode:
-            return WrappedPickle.dumps((101,'jediTaskID must be an integer'))        
+            return WrappedPickle.dumps((101,'jediTaskID must be an integer'))
         else:
             return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
     ret = userIF.killTask(jediTaskID,user,prodRole,properErrorCode)
@@ -1799,7 +1799,7 @@ def retryTask(req,jediTaskID,properErrorCode=None,newParams=None,noChildRetry=No
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
-        user = _getDN(req)        
+        user = _getDN(req)
     # check role
     prodRole = _isProdRoleATLAS(req)
     # check jediTaskID
@@ -1807,7 +1807,7 @@ def retryTask(req,jediTaskID,properErrorCode=None,newParams=None,noChildRetry=No
         jediTaskID = long(jediTaskID)
     except Exception:
         if properErrorCode:
-            return WrappedPickle.dumps((101,'jediTaskID must be an integer'))        
+            return WrappedPickle.dumps((101,'jediTaskID must be an integer'))
         else:
             return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
     ret = userIF.retryTask(jediTaskID,user,prodRole,properErrorCode,newParams,noChildRetry,
@@ -1824,14 +1824,14 @@ def reassignTask(req,jediTaskID,site=None,cloud=None,nucleus=None,soft=None,mode
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
-        user = _getDN(req)        
+        user = _getDN(req)
     # check role
     prodRole = _isProdRoleATLAS(req)
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return WrappedPickle.dumps((101,'jediTaskID must be an integer'))        
+        return WrappedPickle.dumps((101,'jediTaskID must be an integer'))
     # site or cloud
     if site is not None:
         # set 'y' to go back to oldStatus immediately
@@ -1867,7 +1867,7 @@ def finishTask(req,jediTaskID=None,properErrorCode=None,soft=None):
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
-        user = _getDN(req)        
+        user = _getDN(req)
     # check role
     prodRole = _isProdRoleATLAS(req)
     # check jediTaskID
@@ -1875,7 +1875,7 @@ def finishTask(req,jediTaskID=None,properErrorCode=None,soft=None):
         jediTaskID = long(jediTaskID)
     except Exception:
         if properErrorCode:
-            return WrappedPickle.dumps((101,'jediTaskID must be an integer'))        
+            return WrappedPickle.dumps((101,'jediTaskID must be an integer'))
         else:
             return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
     ret = userIF.finishTask(jediTaskID,user,prodRole,properErrorCode,
@@ -1898,7 +1898,7 @@ def reloadInput(req, jediTaskID, properErrorCode=None):
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
-        user = _getDN(req)        
+        user = _getDN(req)
     # check role
     prodRole = _isProdRoleATLAS(req)
     # check jediTaskID
@@ -1906,7 +1906,7 @@ def reloadInput(req, jediTaskID, properErrorCode=None):
         jediTaskID = long(jediTaskID)
     except Exception:
         if properErrorCode:
-            return WrappedPickle.dumps((101,'jediTaskID must be an integer'))        
+            return WrappedPickle.dumps((101,'jediTaskID must be an integer'))
         else:
             return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
     ret = userIF.reloadInput(jediTaskID,user,prodRole)
@@ -1922,11 +1922,11 @@ def getRetryHistory(req,jediTaskID=None):
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
-        user = _getDN(req)        
+        user = _getDN(req)
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))        
+        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
     ret = userIF.getRetryHistory(jediTaskID,user)
     return WrappedPickle.dumps(ret)
 
@@ -1940,7 +1940,7 @@ def changeTaskPriority(req,jediTaskID=None,newPriority=None):
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
-        user = _getDN(req)        
+        user = _getDN(req)
     # check role
     prodRole = _isProdRoleATLAS(req)
     # only prod managers can use this method
@@ -1950,12 +1950,12 @@ def changeTaskPriority(req,jediTaskID=None,newPriority=None):
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))        
+        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
     # check priority
     try:
         newPriority = long(newPriority)
     except Exception:
-        return WrappedPickle.dumps((False,'newPriority must be an integer'))        
+        return WrappedPickle.dumps((False,'newPriority must be an integer'))
     ret = userIF.changeTaskPriority(jediTaskID,newPriority)
     return WrappedPickle.dumps(ret)
 
@@ -1969,7 +1969,7 @@ def increaseAttemptNrPanda(req,jediTaskID,increasedNr):
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
-        user = _getDN(req)        
+        user = _getDN(req)
     # check role
     prodRole = _isProdRoleATLAS(req)
     # only prod managers can use this method
@@ -2006,7 +2006,7 @@ def changeTaskAttributePanda(req,jediTaskID,attrName,attrValue):
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
-        user = _getDN(req)        
+        user = _getDN(req)
     # check role
     prodRole = _isProdRoleATLAS(req)
     # only prod managers can use this method
@@ -2016,9 +2016,9 @@ def changeTaskAttributePanda(req,jediTaskID,attrName,attrValue):
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))        
+        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
     # check attribute
-    if not attrName in ['ramCount','wallTime','cpuTime','coreCount']:
+    if attrName not in ['ramCount','wallTime','cpuTime','coreCount']:
         return WrappedPickle.dumps((2,"disallowed to update {0}".format(attrName)))
     ret = userIF.changeTaskAttributePanda(jediTaskID,attrName,attrValue)
     return WrappedPickle.dumps((ret,None))
@@ -2033,7 +2033,7 @@ def changeTaskSplitRulePanda(req,jediTaskID,attrName,attrValue):
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
-        user = _getDN(req)        
+        user = _getDN(req)
     # check role
     prodRole = _isProdRoleATLAS(req)
     # only prod managers can use this method
@@ -2043,9 +2043,9 @@ def changeTaskSplitRulePanda(req,jediTaskID,attrName,attrValue):
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))        
+        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
     # check attribute
-    if not attrName in ['TW','EC','ES','MF','NG','NI','NF','NJ']:
+    if attrName not in ['TW','EC','ES','MF','NG','NI','NF','NJ']:
         return WrappedPickle.dumps((2,"disallowed to update {0}".format(attrName)))
     ret = userIF.changeTaskSplitRulePanda(jediTaskID,attrName,attrValue)
     return WrappedPickle.dumps((ret,None))
@@ -2060,7 +2060,7 @@ def pauseTask(req,jediTaskID):
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
-        user = _getDN(req)        
+        user = _getDN(req)
     # check role
     prodRole = _isProdRoleATLAS(req)
     # check jediTaskID
@@ -2080,7 +2080,7 @@ def resumeTask(req,jediTaskID):
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
-        user = _getDN(req)        
+        user = _getDN(req)
     # check role
     prodRole = _isProdRoleATLAS(req)
     # check jediTaskID
@@ -2100,7 +2100,7 @@ def avalancheTask(req,jediTaskID):
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
-        user = _getDN(req)        
+        user = _getDN(req)
     # check role
     prodRole = _isProdRoleATLAS(req)
     # check jediTaskID
@@ -2121,7 +2121,7 @@ def killUnfinishedJobs(req,jediTaskID,code=None,useMailAsID=None):
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
-        user = _getDN(req)        
+        user = _getDN(req)
     # check role
     prodManager = False
     # get FQANs
@@ -2158,7 +2158,7 @@ def changeTaskModTimePanda(req,jediTaskID,diffValue):
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
-        user = _getDN(req)        
+        user = _getDN(req)
     # check role
     prodRole = _isProdRoleATLAS(req)
     # only prod managers can use this method
@@ -2283,7 +2283,7 @@ def updateWorkers(req,harvesterID,workers):
     if not isSecure(req):
         return json.dumps((False,"SSL is required"))
     # get DN
-    user = _getDN(req)        
+    user = _getDN(req)
     # hostname
     host = req.get_remote_host()
     retVal = None
@@ -2334,7 +2334,7 @@ def addHarvesterDialogs(req, harvesterID, dialogs):
     if not isSecure(req):
         return json.dumps((False,"SSL is required"))
     # get DN
-    user = _getDN(req)        
+    user = _getDN(req)
     # convert
     try:
         data = json.loads(dialogs)
@@ -2350,7 +2350,7 @@ def harvesterIsAlive(req,harvesterID,data=None):
     if not isSecure(req):
         return json.dumps((False,"SSL is required"))
     # get DN
-    user = _getDN(req)        
+    user = _getDN(req)
     # hostname
     host = req.get_remote_host()
     # convert

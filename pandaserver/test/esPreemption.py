@@ -37,7 +37,7 @@ varMap[':label2'] = 'test'
 varMap[':es'] = 1
 varMap[':prio'] = 200
 varMap[':jobStat'] = 'running'
-# exec 	
+# exec
 status,res = taskBuffer.querySQLS(sqlEsJobs,varMap,arraySize=100000)
 if res is None:
     tmpLog.debug("total %s " % res)
@@ -46,7 +46,7 @@ else:
     # get number of jobs per site
     siteJobsMap = {}
     for pandaID,siteName,commandToPilot,startTime in res:
-        if not siteName in siteJobsMap:
+        if siteName not in siteJobsMap:
             siteJobsMap[siteName] = {'running':[],
                                      'killing':[]}
         if commandToPilot == 'tobekilled':

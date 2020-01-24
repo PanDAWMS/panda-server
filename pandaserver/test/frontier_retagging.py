@@ -8,17 +8,20 @@ will not be reassigned are:
  - analysis tasks, since there has not been any unification yet
 """
 
+import json
 import datetime
 from elasticsearch import Elasticsearch
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-_logger = PandaLogger().getLogger('frontier_retagging')
 
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+
+
+_logger = PandaLogger().getLogger('frontier_retagging')
+
 taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
 
-import json
 with open('/etc/panda/es_config.json') as json_data:
     config = json.load(json_data,)
 
@@ -84,7 +87,7 @@ def get_task_attribute_map(task_id_list):
     task_id_bindings = ','.join(':task_id{0}'.format(i) for i in range(len(task_id_list)))
 
     sql = """
-          SELECT jeditaskid, prodsourcelabel, gshare FROM ATLAS_PANDA.jedi_tasks 
+          SELECT jeditaskid, prodsourcelabel, gshare FROM ATLAS_PANDA.jedi_tasks
           WHERE jeditaskid IN({0})
           """.format(task_id_bindings)
 

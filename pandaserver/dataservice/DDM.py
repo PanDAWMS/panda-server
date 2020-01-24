@@ -100,7 +100,7 @@ class RucioAPI:
         presetScope = scope
         if lifetime is not None:
             lifetime = lifetime*24*60*60
-        scope,dsn = self.extract_scope(dsn)    
+        scope,dsn = self.extract_scope(dsn)
         if presetScope is not None:
             scope = presetScope
         dids = []
@@ -130,8 +130,8 @@ class RucioAPI:
 
     # get user
     def getUser(self, client, dn):
-        l = [i for i in client.list_accounts('user', dn)]
-        if l != []:
+        tmp_list = [i for i in client.list_accounts('user', dn)]
+        if tmp_list != []:
             owner = l[0]['account']
             return owner
         return client.account
@@ -356,7 +356,7 @@ class RucioAPI:
                 # add /
                 if datasetName.endswith('/') and not name.endswith('/'):
                     name += '/'
-                if old or not ':' in datasetName:
+                if old or ':' not in datasetName:
                     keyName = name
                 else:
                     keyName = str('%s:%s' % (scope, name))
@@ -551,7 +551,7 @@ class RucioAPI:
             return False, '%s %s' % (errType,errVale)
 
 
-    
+
     # list files in dataset
     def listFilesInDataset(self,datasetName,long=False,fileList=None):
         # extract scope from dataset
@@ -564,7 +564,7 @@ class RucioAPI:
             tmpLFN = str(x['name'])
             if fileList is not None:
                 genLFN = re.sub('\.\d+$','',tmpLFN)
-                if not tmpLFN in fileList and not genLFN in fileList:
+                if tmpLFN not in fileList and genLFN not in fileList:
                     continue
             dq2attrs = {}
             dq2attrs['chksum'] = "ad:" + str(x['adler32'])
@@ -745,7 +745,7 @@ class RucioAPI:
         return True
 
 
-    
+
     # get a parsed certificate DN
     def parse_dn(self,tmpDN):
         if tmpDN is not None:
@@ -753,7 +753,7 @@ class RucioAPI:
             tmpDN = re.sub('(/CN=proxy)+$', '', tmpDN)
             #tmpDN = re.sub('(/CN=\d+)+$', '', tmpDN)
         return tmpDN
-        
+
 
 # instantiate
 rucioAPI = RucioAPI()

@@ -1,13 +1,14 @@
 import sys
 from pandaserver.config import panda_config
 
-# initialize cx_Oracle using dummy connection
 from pandaserver.taskbuffer.Initializer import initializer
-initializer.init()
 
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
+
+# initialize cx_Oracle using dummy connection
+initializer.init()
 
 # logger
 _logger = PandaLogger().getLogger('boostUser')

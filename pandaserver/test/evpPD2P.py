@@ -34,7 +34,7 @@ try:
     for line in out.split('\n'):
         items = line.split()
         # owned process
-        if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
+        if items[0] not in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
             continue
         # look for python
         if re.search('python',line) is None:
@@ -47,7 +47,7 @@ try:
         # kill old process
         if startTime < timeLimit:
             _logger.debug("old process : %s %s" % (pid,startTime))
-            _logger.debug(line)            
+            _logger.debug(line)
             commands_get_status_output('kill -9 %s' % pid)
 except Exception:
     type, value, traceBack = sys.exc_info()
@@ -91,7 +91,7 @@ class EvpThr (threading.Thread):
         self.fileName   = fileName
         self.evp        = EventPicker(aTaskBuffer,aSiteMapper,fileName,ignoreError)
         self.pool.add(self)
-                                        
+
     def run(self):
         self.lock.acquire()
         retRun = self.evp.run()
@@ -105,7 +105,7 @@ _logger.debug("EVP session")
 timeNow = datetime.datetime.utcnow()
 timeInt = datetime.datetime.utcnow()
 fileList = glob.glob(evpFilePatt)
-fileList.sort() 
+fileList.sort()
 
 # create thread pool and semaphore
 adderLock = threading.Semaphore(1)
@@ -124,7 +124,7 @@ while len(fileList) != 0:
         timeInt = datetime.datetime.utcnow()
         # get file
         fileList = glob.glob(evpFilePatt)
-        fileList.sort() 
+        fileList.sort()
     # choose a file
     fileName = fileList.pop(0)
     # release lock
@@ -140,7 +140,7 @@ while len(fileList) != 0:
             thr.start()
         elif (timeInt - modTime) > datetime.timedelta(minutes=1):
             # try
-            _logger.debug("event picking : %s" % fileName)            
+            _logger.debug("event picking : %s" % fileName)
             thr = EvpThr(adderLock,adderThreadPool,taskBuffer,siteMapper,fileName,True)
             thr.start()
         else:

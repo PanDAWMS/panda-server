@@ -73,7 +73,7 @@ try:
             continue
         items = line.split()
         # owned process
-        if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
+        if items[0] not in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
             continue
         # look for python
         if re.search('python',line) is None:
@@ -86,7 +86,7 @@ try:
         # kill old process
         if startTime < timeLimit:
             _logger.debug("old dq2 process : %s %s" % (pid,startTime))
-            _logger.debug(line)            
+            _logger.debug(line)
             commands_get_status_output('kill -9 %s' % pid)
 except Exception:
     type, value, traceBack = sys.exc_info()
@@ -103,7 +103,7 @@ try:
     for line in out.split('\n'):
         items = line.split()
         # owned process
-        if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
+        if items[0] not in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
             continue
         # look for python
         if re.search('python',line) is None:
@@ -116,12 +116,12 @@ try:
         # kill old process
         if startTime < timeLimit:
             _logger.debug("old process : %s %s" % (pid,startTime))
-            _logger.debug(line)            
+            _logger.debug(line)
             commands_get_status_output('kill -9 %s' % pid)
 except Exception:
     type, value, traceBack = sys.exc_info()
     _logger.error("kill process : %s %s" % (type,value))
-    
+
 
 # instantiate TB
 taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
@@ -145,23 +145,23 @@ class ListWithLock:
     def append(self,item):
         appended = False
         self.lock.acquire()
-        if not item in self.list:
+        if item not in self.list:
             self.list.append(item)
             appended = True
         self.lock.release()
         return appended
-    
+
 
 # list of dis datasets to be deleted
 deletedDisList = ListWithLock()
 
 
-# set tobedeleted to dis dataset 
+# set tobedeleted to dis dataset
 def setTobeDeletedToDis(subDsName):
     try:
         # only production sub datasets
         if subDsName.startswith('user') or subDsName.startswith('group') or \
-               subDsName.startswith('pandaddm_') or re.search('_sub\d+$',subDsName)==None:
+               subDsName.startswith('pandaddm_') or re.search('_sub\d+$',subDsName) is None:
             return
         # get _dis names with _sub
         disNameList = taskBuffer.getAssociatedDisDatasets(subDsName)
@@ -176,7 +176,7 @@ def setTobeDeletedToDis(subDsName):
             if re.search('_dis\d+$',tmpDisName) is None:
                 continue
             # get dataset
-            _logger.debug("setTobeDeletedToDis : try to get %s in DB" % tmpDisName)            
+            _logger.debug("setTobeDeletedToDis : try to get %s in DB" % tmpDisName)
             tmpDS = taskBuffer.queryDatasetWithMap({'name':tmpDisName})
             if tmpDS is None:
                 _logger.error("setTobeDeletedToDis : cannot get %s in DB" % tmpDisName)
@@ -191,7 +191,7 @@ def setTobeDeletedToDis(subDsName):
                 tmpDS.status = 'deleting'
                 excStatus    = 'deleted'
             else:
-                # some failed, to reduce the lifetime 
+                # some failed, to reduce the lifetime
                 tmpDS.status = 'shortening'
                 excStatus    = 'shortened'
             # update dataset
@@ -201,7 +201,7 @@ def setTobeDeletedToDis(subDsName):
     except Exception:
         errType,errValue = sys.exc_info()[:2]
         _logger.error("setTobeDeletedToDis : %s %s %s" % (subDsName,errType,errValue))
-            
+
 
 # thread pool
 class ThreadPool:
@@ -236,7 +236,7 @@ class CloserThr (threading.Thread):
         self.proxyLock  = proxyLock
         self.pool       = pool
         self.pool.add(self)
-                                        
+
     def run(self):
         self.lock.acquire()
         try:
@@ -250,7 +250,7 @@ class CloserThr (threading.Thread):
                 if dsExists:
                     # check if dataset exists
                     status,out = rucioAPI.getMetaData(name)
-                    if status == True:
+                    if status is True:
                         if out is not None:
                             try:
                                 rucioAPI.closeDataset(name)
@@ -275,7 +275,7 @@ class CloserThr (threading.Thread):
                     varMap[':oldstatus'] = 'tobeclosed'
                     taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:newstatus,modificationdate=CURRENT_DATE WHERE vuid=:vuid AND status=:oldstatus",
                                      varMap)
-                    self.proxyLock.release()                    
+                    self.proxyLock.release()
                     # set tobedeleted to dis
                     setTobeDeletedToDis(name)
                     # skip if dataset is not real
@@ -287,7 +287,7 @@ class CloserThr (threading.Thread):
                         if status is False:
                             _logger.error(out)
                     else:
-                        _logger.debug(out)                                            
+                        _logger.debug(out)
                         try:
                             nFile = int(out)
                             if nFile == 0:
@@ -317,10 +317,10 @@ while True:
     closeProxyLock.acquire()
     varMap = {}
     varMap[':modificationdateU'] = timeLimitU
-    varMap[':modificationdateL'] = timeLimitL    
+    varMap[':modificationdateL'] = timeLimitL
     varMap[':type']   = 'output'
     varMap[':status'] = 'tobeclosed'
-    sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= %s" % maxRows   
+    sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= %s" % maxRows
     proxyS = taskBuffer.proxyPool.getProxy()
     res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
     taskBuffer.proxyPool.putProxy(proxyS)
@@ -328,7 +328,7 @@ while True:
         _logger.debug("# of datasets to be closed: %s" % res)
     else:
         _logger.debug("# of datasets to be closed: %s" % len(res))
-    if res==None or len(res)==0:
+    if res is None or len(res)==0:
         closeProxyLock.release()
         closeLock.release()
         break
@@ -338,7 +338,7 @@ while True:
     # run thread
     iRows = 0
     nRows = 500
-    while iRows < len(res):    
+    while iRows < len(res):
         closerThr = CloserThr(closeLock,closeProxyLock,res[iRows:iRows+nRows],closeThreadPool)
         closerThr.start()
         iRows += nRows
@@ -356,7 +356,7 @@ class Freezer (threading.Thread):
         self.proxyLock  = proxyLock
         self.pool       = pool
         self.pool.add(self)
-                                        
+
     def run(self):
         self.lock.acquire()
         try:
@@ -373,7 +373,7 @@ class Freezer (threading.Thread):
                     onePandaID = None
                     for tmpPandaID,tmpFileStatus in resF:
                         onePandaID = tmpPandaID
-                        if not tmpFileStatus in ['ready', 'failed', 'skipped', 'merging', 'finished']:
+                        if tmpFileStatus not in ['ready', 'failed', 'skipped', 'merging', 'finished']:
                             allFinished = False
                             break
                     # check sub datasets in the jobset for event service job
@@ -407,14 +407,14 @@ class Freezer (threading.Thread):
                                 # get merging jobs
                                 self.proxyLock.acquire()
                                 mergingJobs = taskBuffer.peekJobs([mergeID],fromDefined=False,fromArchived=False,fromWaiting=False)
-                                self.proxyLock.release()    
+                                self.proxyLock.release()
                                 mergeJob = mergingJobs[0]
                                 if mergeJob is not None:
                                     tmpDestDBlocks = []
                                     # get destDBlock
                                     for tmpFile in mergeJob.Files:
                                         if tmpFile.type in ['output','log']:
-                                            if not tmpFile.destinationDBlock in tmpDestDBlocks:
+                                            if tmpFile.destinationDBlock not in tmpDestDBlocks:
                                                 tmpDestDBlocks.append(tmpFile.destinationDBlock)
                                     # run
                                     _logger.debug("start JEDI closer for %s " % name)
@@ -433,7 +433,7 @@ class Freezer (threading.Thread):
                         elif dsExists:
                             # check if dataset exists
                             status,out = rucioAPI.getMetaData(name)
-                            if status == True:
+                            if status is True:
                                 if out is not None:
                                     try:
                                         rucioAPI.closeDataset(name)
@@ -454,10 +454,10 @@ class Freezer (threading.Thread):
                             self.proxyLock.acquire()
                             varMap = {}
                             varMap[':vuid'] = vuid
-                            varMap[':status'] = 'completed' 
+                            varMap[':status'] = 'completed'
                             taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:status,modificationdate=CURRENT_DATE WHERE vuid=:vuid",
                                              varMap)
-                            self.proxyLock.release()                            
+                            self.proxyLock.release()
                             if name.startswith('pandaddm_') or name.startswith('panda.um.') or not dsExists:
                                 continue
                             # set tobedeleted to dis
@@ -468,29 +468,29 @@ class Freezer (threading.Thread):
                                 if status is False:
                                     _logger.error(out)
                             else:
-                                _logger.debug(out)                                            
+                                _logger.debug(out)
                                 try:
                                     nFile = int(out)
                                     _logger.debug(nFile)
                                     if nFile == 0:
                                         # erase dataset
-                                        _logger.debug('erase %s' % name)                                
+                                        _logger.debug('erase %s' % name)
                                         status,out = rucioAPI.eraseDataset(name)
                                         _logger.debug('OK with %s' % name)
                                 except Exception:
                                     pass
                     else:
                         _logger.debug("wait %s " % name)
-                        self.proxyLock.acquire()                        
+                        self.proxyLock.acquire()
                         taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid", {':vuid':vuid})
-                        self.proxyLock.release()                                                    
+                        self.proxyLock.release()
                 _logger.debug("end %s " % name)
         except Exception:
             errStr = traceback.format_exc()
             _logger.error(errStr)
         self.pool.remove(self)
         self.lock.release()
-                            
+
 # freeze dataset
 _logger.debug("==== freeze datasets ====")
 timeLimitRU = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
@@ -530,12 +530,12 @@ while True:
                "AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND subType=:subType AND rownum <= %s" % maxRows
     varMap = {}
     varMap[':modificationdateU'] = timeLimitU
-    varMap[':modificationdateL'] = timeLimitL    
+    varMap[':modificationdateL'] = timeLimitL
     varMap[':type'] = 'output'
     varMap[':status1'] = 'running'
     varMap[':status2'] = 'created'
     varMap[':status3'] = 'defined'
-    varMap[':status4'] = 'locked'    
+    varMap[':status4'] = 'locked'
     varMap[':status5'] = 'doing'
     varMap[':subType'] = 'sub'
     freezeProxyLock.acquire()
@@ -546,17 +546,17 @@ while True:
         _logger.debug("# of datasets to be frozen: %s" % res)
     else:
         _logger.debug("# of datasets to be frozen: %s" % len(res))
-    if res==None or len(res)==0:
+    if res is None or len(res)==0:
         freezeProxyLock.release()
         freezeLock.release()
         break
-    freezeProxyLock.release()            
+    freezeProxyLock.release()
     # release
     freezeLock.release()
     # run freezer
     iRows = 0
     nRows = 500
-    while iRows < len(res):    
+    while iRows < len(res):
         freezer = Freezer(freezeLock,freezeProxyLock,res[iRows:iRows+nRows],freezeThreadPool)
         freezer.start()
         iRows += nRows
@@ -574,7 +574,7 @@ class EraserThr (threading.Thread):
         self.pool       = pool
         self.pool.add(self)
         self.operationType = operationType
-                                        
+
     def run(self):
         self.lock.acquire()
         try:
@@ -623,10 +623,10 @@ for targetStatus in ['deleting','shortening']:
         # get datasets
         varMap = {}
         varMap[':modificationdateU'] = timeLimitU
-        varMap[':modificationdateL'] = timeLimitL    
+        varMap[':modificationdateL'] = timeLimitL
         varMap[':type']   = 'dispatch'
         varMap[':status'] = targetStatus
-        sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= %s" % maxRows     
+        sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= %s" % maxRows
         disEraseProxyLock.acquire()
         proxyS = taskBuffer.proxyPool.getProxy()
         res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
@@ -635,17 +635,17 @@ for targetStatus in ['deleting','shortening']:
             _logger.debug("# of dis datasets for %s: None" % targetStatus)
         else:
             _logger.debug("# of dis datasets for %s: %s" % (targetStatus,len(res)))
-        if res==None or len(res)==0:
+        if res is None or len(res)==0:
             disEraseProxyLock.release()
             disEraseLock.release()
             break
-        disEraseProxyLock.release()            
+        disEraseProxyLock.release()
         # release
         disEraseLock.release()
         # run disEraser
         iRows = 0
         nRows = 500
-        while iRows < len(res):        
+        while iRows < len(res):
             disEraser = EraserThr(disEraseLock,disEraseProxyLock,res[iRows:iRows+nRows],
                                   disEraseThreadPool,targetStatus)
             disEraser.start()
@@ -667,7 +667,7 @@ class FinisherThr (threading.Thread):
         self.pool       = pool
         self.timeNow    = timeNow
         self.pool.add(self)
-                                        
+
     def run(self):
         self.lock.acquire()
         try:
@@ -725,7 +725,7 @@ class FinisherThr (threading.Thread):
                 for okLFN in okFiles:
                     okSEs = okFiles[okLFN]
                     nOkTokens += len(okSEs)
-                # check all files are ready    
+                # check all files are ready
                 _logger.debug("%s nToken:%s nOkToken:%s" % (job.PandaID,nTokens,nOkTokens))
                 if nTokens <= nOkTokens:
                     _logger.debug("%s Finisher : Finish" % job.PandaID)
@@ -734,14 +734,14 @@ class FinisherThr (threading.Thread):
                             if file.status != 'nooutput':
                                 file.status = 'ready'
                     # append to run Finisher
-                    finJobs.append(job)                        
+                    finJobs.append(job)
                 else:
                     endTime = job.endTime
                     if endTime == 'NULL':
                         endTime = job.startTime
                     # priority-dependent timeout
                     tmpCloudSpec = siteMapper.getCloud(job.cloud)
-                    if job.currentPriority >= 800 and (not job.prodSourceLabel in ['user']):
+                    if job.currentPriority >= 800 and (job.prodSourceLabel not in ['user']):
                         if 'transtimehi' in tmpCloudSpec:
                             timeOutValue = tmpCloudSpec['transtimehi']
                         else:
@@ -750,7 +750,7 @@ class FinisherThr (threading.Thread):
                         if 'transtimelo' in tmpCloudSpec:
                             timeOutValue = tmpCloudSpec['transtimelo']
                         else:
-                            timeOutValue = 2                        
+                            timeOutValue = 2
                     # protection
                     if timeOutValue < 1:
                         timeOutValue  = 1
@@ -761,7 +761,7 @@ class FinisherThr (threading.Thread):
                         _logger.debug("%s Finisher : Kill" % job.PandaID)
                         strMiss = ''
                         for lfn in lfns:
-                            if not lfn in okFiles:
+                            if lfn not in okFiles:
                                 strMiss += ' %s' % lfn
                         job.jobStatus = 'failed'
                         job.taskBufferErrorCode = pandaserver.taskbuffer.ErrorCode.EC_Transfer
@@ -780,7 +780,7 @@ class FinisherThr (threading.Thread):
                         # wait
                         _logger.debug("%s Finisher : Wait" % job.PandaID)
                         for lfn in lfns:
-                            if not lfn in okFiles:
+                            if lfn not in okFiles:
                                 _logger.debug("%s    -> %s" % (job.PandaID,lfn))
                 upJobs.append(job)
             # update
@@ -948,7 +948,7 @@ class ActivatorWithRuleThr (threading.Thread):
         self.proxyLock  = proxyLock
         self.pool       = pool
         self.pool.add(self)
-                                        
+
     def run(self):
         self.lock.acquire()
         try:
@@ -1045,7 +1045,7 @@ class SubDeleter (threading.Thread):
         self.proxyLock  = proxyLock
         self.pool       = pool
         self.pool.add(self)
-                                        
+
     def run(self):
         self.lock.acquire()
         try:
@@ -1104,12 +1104,12 @@ class SubDeleter (threading.Thread):
                 self.proxyLock.acquire()
                 varMap = {}
                 varMap[':vuid'] = vuid
-                varMap[':ost1'] = 'completed' 
-                varMap[':ost2'] = 'cleanup' 
-                varMap[':newStatus'] = 'deleted' 
+                varMap[':ost1'] = 'completed'
+                varMap[':ost2'] = 'cleanup'
+                varMap[':newStatus'] = 'deleted'
                 taskBuffer.querySQLS("UPDATE ATLAS_PANDA.Datasets SET status=:newStatus,modificationdate=CURRENT_DATE WHERE vuid=:vuid AND status IN (:ost1,:ost2) ",
                                      varMap)
-                self.proxyLock.release()                            
+                self.proxyLock.release()
                 _logger.debug("end %s " % name)
         except Exception:
             errStr = traceback.format_exc()
@@ -1117,7 +1117,7 @@ class SubDeleter (threading.Thread):
         self.pool.remove(self)
         self.lock.release()
 
-                            
+
 # delete sub datasets
 _logger.debug("==== delete sub datasets ====")
 timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
@@ -1132,12 +1132,12 @@ while True:
     # get datasets
     varMap = {}
     varMap[':limitU'] = timeLimitU
-    varMap[':limitL'] = timeLimitL    
+    varMap[':limitL'] = timeLimitL
     varMap[':type']    = 'output'
     varMap[':subtype'] = 'sub'
     varMap[':st1']  = 'completed'
     varMap[':st2']  = 'cleanup'
-    sqlQuery = "type=:type AND subType=:subtype AND status IN (:st1,:st2) AND (creationdate BETWEEN :limitL AND :limitU) AND (modificationdate BETWEEN :limitL AND :limitU) AND rownum <= %s" % maxRows   
+    sqlQuery = "type=:type AND subType=:subtype AND status IN (:st1,:st2) AND (creationdate BETWEEN :limitL AND :limitU) AND (modificationdate BETWEEN :limitL AND :limitU) AND rownum <= %s" % maxRows
     subdeleteProxyLock.acquire()
     proxyS = taskBuffer.proxyPool.getProxy()
     res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
@@ -1146,11 +1146,11 @@ while True:
         _logger.debug("# of sub datasets to be deleted %s" % res)
     else:
         _logger.debug("# of sub datasets to be deleted %s" % len(res))
-    if res==None or len(res)==0:
+    if res is None or len(res)==0:
         subdeleteProxyLock.release()
         subdeleteLock.release()
         break
-    subdeleteProxyLock.release()            
+    subdeleteProxyLock.release()
     # release
     subdeleteLock.release()
     # run subdeleter

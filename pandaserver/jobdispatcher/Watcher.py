@@ -47,7 +47,7 @@ class Watcher (threading.Thread):
                 if job is None:
                     _logger.debug('%s escape : not found' % self.pandaID)
                     return
-                if not job.jobStatus in ['running','sent','starting','holding',
+                if job.jobStatus not in ['running','sent','starting','holding',
                                          'stagein','stageout']:
                     if job.jobStatus == 'transferring' and (job.prodSourceLabel in ['user','panda'] or job.jobSubStatus not in [None, 'NULL', '']):
                         pass
@@ -100,7 +100,7 @@ class Watcher (threading.Thread):
                     for file in job.Files:
                         if file.type == 'output' or file.type == 'log':
                             file.status = 'failed'
-                            if not file.destinationDBlock in destDBList:
+                            if file.destinationDBlock not in destDBList:
                                 destDBList.append(file.destinationDBlock)
                     # event service
                     if EventServiceUtils.isEventServiceJob(job) and not EventServiceUtils.isJobCloningJob(job):
@@ -146,7 +146,7 @@ class Watcher (threading.Thread):
                         cThr = Closer(self.taskBuffer,destDBList,job)
                         cThr.start()
                         cThr.join()
-                    _logger.debug('%s end' % job.PandaID)                        
+                    _logger.debug('%s end' % job.PandaID)
                     return
                 # single action
                 if self.single:

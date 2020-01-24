@@ -19,6 +19,8 @@ from pandacommon.pandautils import PandaUtils
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
+from pandaserver.taskbuffer.TaskBufferInterface import TaskBufferInterface
+
 try:
     long
 except NameError:
@@ -56,7 +58,7 @@ try:
     for line in out.split('\n'):
         items = line.split()
         # owned process
-        if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
+        if items[0] not in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
             continue
         # look for python
         if re.search('python',line) is None:
@@ -69,13 +71,13 @@ try:
         # kill old process
         if startTime < timeLimit:
             tmpLog.debug("old process : %s %s" % (pid,startTime))
-            tmpLog.debug(line)            
+            tmpLog.debug(line)
             commands_get_status_output('kill -9 %s' % pid)
 except Exception:
     type, value, traceBack = sys.exc_info()
     tmpLog.error("kill process : %s %s" % (type,value))
 
-    
+
 # instantiate TB
 taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
 
@@ -95,7 +97,7 @@ if retSel is not None:
             varMap[':jobStatus1'] = 'activated'
             varMap[':jobStatus2'] = 'waiting'
             varMap[':jobStatus3'] = 'failed'
-            varMap[':jobStatus4'] = 'cancelled'            
+            varMap[':jobStatus4'] = 'cancelled'
             status,retDel = taskBuffer.querySQLS("DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID<:maxID AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4)",varMap)
     except Exception:
         pass
@@ -142,14 +144,14 @@ try:
             if tmpDispLogName.endswith('.gz'):
                 com = 'gunzip -c %s > %s' % (tmpDispLogName,tmpLogName)
             else:
-                com = 'cp %s %s' % (tmpDispLogName,tmpLogName)            
+                com = 'cp %s %s' % (tmpDispLogName,tmpLogName)
             lostat,loout = commands_get_status_output(com)
             if lostat != 0:
                 errMsg = 'failed to expand/copy %s with : %s' % (tmpDispLogName,loout)
                 raise RuntimeError(errMsg)
             # search string
             sStr  = '^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*'
-            sStr += 'method=(.+),site=(.+),node=(.+),type=(.+)'        
+            sStr += 'method=(.+),site=(.+),node=(.+),type=(.+)'
             # read
             logFH = open(tmpLogName)
             for line in logFH:
@@ -183,13 +185,13 @@ try:
                         if tmpNode not in pilotCountsS[tmpSite][tmpMethod]:
                             pilotCountsS[tmpSite][tmpMethod][tmpNode] = 0
                         pilotCountsS[tmpSite][tmpMethod][tmpNode] += 1
-            # close            
+            # close
             logFH.close()
         # delete tmp
         commands_get_status_output('rm %s' % tmpLogName)
         # update
         hostID = panda_config.pserverhost.split('.')[0]
-        tmpLog.debug("pilotCounts session")    
+        tmpLog.debug("pilotCounts session")
         retPC = taskBuffer.updateSiteData(hostID,pilotCounts,interval=3)
         tmpLog.debug(retPC)
         retPC = taskBuffer.updateSiteData(hostID,pilotCountsS,interval=1)
@@ -246,7 +248,7 @@ class MailSender (threading.Thread):
                 mailFile.close()
             except Exception:
                 pass
-            
+
 # start sender
 mailSender =  MailSender()
 mailSender.start()
@@ -322,8 +324,8 @@ class ForkThr (threading.Thread):
         runStr += self.fileName
         if self.fileName.split('/')[-1].startswith('set.NULL.'):
             runStr += ' -t'
-        comStr = setupStr + runStr    
-        tmpLog.debug(comStr)    
+        comStr = setupStr + runStr
+        tmpLog.debug(comStr)
         commands_get_status_output(comStr)
 
 # get set.* files
@@ -347,7 +349,7 @@ for tmpName in fileList:
                 (timeNow - modTime) < datetime.timedelta(hours=1):
             cSt,cOut = commands_get_status_output('ps aux | grep fork | grep -v PYTH')
             # if no process is running for the file
-            if cSt == 0 and not tmpName in cOut:
+            if cSt == 0 and tmpName not in cOut:
                 nThr += 1
                 thr = ForkThr(tmpName)
                 thr.start()
@@ -357,8 +359,8 @@ for tmpName in fileList:
     except Exception:
         errType,errValue = sys.exc_info()[:2]
         tmpLog.error("%s %s" % (errType,errValue))
-            
-    
+
+
 # thread pool
 class ThreadPool:
     def __init__(self):
@@ -386,10 +388,10 @@ class ThreadPool:
 class AdderProcess:
     def __init__(self):
         pass
-            
+
     # main loop
     def run(self,taskBuffer,aSiteMapper,holdingAna):
-        # import 
+        # import
         from pandaserver.dataservice.AdderGen import AdderGen
         # get logger
         _logger = PandaLogger().getLogger('add_process')
@@ -398,7 +400,7 @@ class AdderProcess:
         timeInt = datetime.datetime.utcnow()
         dirName = panda_config.logdir
         fileList = os.listdir(dirName)
-        fileList.sort() 
+        fileList.sort()
         # remove duplicated files
         tmpList = []
         uMap = {}
@@ -436,7 +438,7 @@ class AdderProcess:
                 timeInt = datetime.datetime.utcnow()
                 # get file
                 fileList = os.listdir(dirName)
-                fileList.sort() 
+                fileList.sort()
                 # remove duplicated files
                 tmpList = []
                 uMap = {}
@@ -460,8 +462,8 @@ class AdderProcess:
                             else:
                                 tmpList.append(file)
                 fileList = tmpList
-            # check if 
-            if PandaUtils.isLogRotating(5,5):    
+            # check if
+            if PandaUtils.isLogRotating(5,5):
                 tmpLog.debug("terminate since close to log-rotate time")
                 break
             # choose a file
@@ -516,12 +518,11 @@ if res is not None:
     for id, in res:
         holdingAna.append(id)
 tmpLog.debug("holding Ana %s " % holdingAna)
-    
+
 # add files
 tmpLog.debug("Adder session")
 
 # make TaskBuffer IF
-from pandaserver.taskbuffer.TaskBufferInterface import TaskBufferInterface
 taskBufferIF = TaskBufferInterface()
 taskBufferIF.launch(taskBuffer)
 

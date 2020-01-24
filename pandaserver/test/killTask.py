@@ -3,11 +3,12 @@ import optparse
 
 import pandaserver.userinterface.Client as Client
 
-aSrvID = None
-
 from pandaserver.taskbuffer.OraDBProxy import DBProxy
 # password
 from pandaserver.config import panda_config
+
+
+aSrvID = None
 
 optP = optparse.OptionParser(conflict_handler="resolve")
 optP.add_option('-9',action='store_const',const=True,dest='forceKill',
@@ -40,7 +41,7 @@ for table in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.
     status,res = proxyS.querySQLS(sql % table,varMap)
     if res is not None:
         for id, in res:
-            if not id in jobs:
+            if id not in jobs:
                 jobs.append(id)
 
 print('The number of jobs to be killed for prodSourceLabel={0} taskID={1}: {2}'.format(options.prodSourceLabel,

@@ -7,7 +7,7 @@ def getDQ2Prefix(dq2SiteID):
     try:
         # prefix of DQ2 ID
         tmpDQ2IDPrefix = re.sub('_[A-Z,0-9]+DISK$','',dq2SiteID)
-        # remove whitespace 
+        # remove whitespace
         tmpDQ2IDPrefix = tmpDQ2IDPrefix.strip()
         # patchfor MWT2
         if tmpDQ2IDPrefix == 'MWT2_UC':
@@ -19,7 +19,7 @@ def getDQ2Prefix(dq2SiteID):
 # check if the file is cached
 def isCachedFile(datasetName,siteSpec):
     # using CVMFS
-    if siteSpec.iscvmfs != True:
+    if siteSpec.iscvmfs is not True:
         return False
     # look for DBR
     if not datasetName.startswith('ddo'):
@@ -85,9 +85,9 @@ def getSitesWithDataset(tmpDsName, siteMapper, replicaMap, cloudKey, prodSourceL
             # ignore empty
             if tmpDQ2IDPrefix == '':
                 continue
-            # loop over all replica DQ2 IDs 
+            # loop over all replica DQ2 IDs
             for tmpDQ2ID in replicaMap[tmpDsName]:
-                # use DATADISK or GROUPDISK 
+                # use DATADISK or GROUPDISK
                 if '_SCRATCHDISK'        in tmpDQ2ID or \
                        '_USERDISK'       in tmpDQ2ID or \
                        '_PRODDISK'       in tmpDQ2ID or \
@@ -106,8 +106,8 @@ def getSitesWithDataset(tmpDsName, siteMapper, replicaMap, cloudKey, prodSourceL
                     # append map
                     if tmpSiteName not in retDQ2Map:
                         retDQ2Map[tmpSiteName] = []
-                    if not tmpDQ2ID in retDQ2Map[tmpSiteName]:
-                        retDQ2Map[tmpSiteName].append(tmpDQ2ID)    
+                    if tmpDQ2ID not in retDQ2Map[tmpSiteName]:
+                        retDQ2Map[tmpSiteName].append(tmpDQ2ID)
         # append
         if tmpFoundFlag:
             retList.append(tmpSiteName)
@@ -139,7 +139,7 @@ def getEndpointsAtT1(tmpRepMap,siteMapper,cloudName):
             if re.search(tmpSePat,tmpSE) is None:
                 continue
             # append
-            if not tmpSE in retList:
+            if tmpSE not in retList:
                 retList.append(tmpSE)
     # return
     return retList
@@ -223,7 +223,7 @@ def getSitesShareDDM(siteMapper, siteName, prodSourceLabel):
         if siteName == tmpSiteSpec.sitename:
             continue
         # append
-        if not tmpSiteSpec.sitename in retSites:
+        if tmpSiteSpec.sitename not in retSites:
             retSites.append(tmpSiteSpec.sitename)
     # return
     return retSites
@@ -282,7 +282,7 @@ def getActivityForOut(prodSourceLabel):
     elif prodSourceLabel in ['user','panda']:
         activity = "User Subscriptions"
     else:
-        activity = "Functional Test" 
+        activity = "Functional Test"
     return activity
 
 

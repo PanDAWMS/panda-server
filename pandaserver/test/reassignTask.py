@@ -6,10 +6,12 @@ from pandaserver.taskbuffer.OraDBProxy import DBProxy
 # password
 from pandaserver.config import panda_config
 
+import pandaserver.userinterface.Client as Client
+
+
 proxyS = DBProxy()
 proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,panda_config.dbname)
 
-import pandaserver.userinterface.Client as Client
 
 optP = argparse.ArgumentParser(conflict_handler="resolve",description='Reassign jobs in a task')
 optP.add_argument('taskid',action='store',
@@ -48,7 +50,7 @@ if res is not None:
             jediJobs.append(id)
         else:
             jobs.append(id)
-            
+
 
 varMap = {}
 varMap[':js1']        = 'activated'

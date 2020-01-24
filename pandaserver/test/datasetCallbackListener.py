@@ -17,10 +17,13 @@ from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
 import yaml
 import logging
+
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+
+
 logging.basicConfig(level = logging.DEBUG)
 
 # logger
-from pandacommon.pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger('datasetCallbackListener')
 
 # keep PID
@@ -44,7 +47,7 @@ def catch_sig(sig, frame):
     commands_get_status_output('kill -9 -- -%s' % os.getpgrp())
     # exit
     sys.exit(0)
-                                        
+
 
 # callback listener
 class DatasetCallbackListener(stomp.ConnectionListener):
@@ -59,14 +62,14 @@ class DatasetCallbackListener(stomp.ConnectionListener):
         # subscription ID
         self.subscription_id = subscription_id
 
-        
+
     def on_error(self,headers,body):
         _logger.error("on_error : %s" % headers['message'])
 
 
     def on_disconnected(self,headers,body):
         _logger.error("on_disconnected : %s" % headers['message'])
-                        
+
 
     def on_message(self, headers, message):
         try:
@@ -77,7 +80,7 @@ class DatasetCallbackListener(stomp.ConnectionListener):
             # convert message form str to dict
             messageDict = yaml.load(message)
             # check event type
-            if not messageDict['event_type'] in ['datasetlock_ok']:
+            if messageDict['event_type'] not in ['datasetlock_ok']:
                 _logger.debug('%s skip' % messageDict['event_type'])
                 return
             _logger.debug('%s start' % messageDict['event_type'])
@@ -98,10 +101,10 @@ class DatasetCallbackListener(stomp.ConnectionListener):
         except Exception:
             errtype,errvalue = sys.exc_info()[:2]
             _logger.error("on_message : %s %s" % (errtype,errvalue))
-        
+
 
 # main
-def main(backGround=False): 
+def main(backGround=False):
     _logger.debug('starting ...')
     # register signal handler
     signal.signal(signal.SIGINT, catch_sig)
@@ -109,13 +112,13 @@ def main(backGround=False):
     signal.signal(signal.SIGTERM,catch_sig)
     signal.signal(signal.SIGALRM,catch_sig)
     signal.alarm(overallTimeout)
-    # forking    
+    # forking
     pid = os.fork()
     if pid != 0:
         # watch child process
         os.wait()
         time.sleep(1)
-    else:    
+    else:
         # main loop
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer
         # check certificate
@@ -168,7 +171,7 @@ def main(backGround=False):
                     _logger.error("failed to set listener on %s : %s %s" % (tmpBroker,errtype,errvalue))
                     catch_sig(None,None)
             time.sleep(5)
-            
+
 # entry
 if __name__ == "__main__":
     optP = optparse.OptionParser(conflict_handler="resolve")
@@ -182,7 +185,7 @@ if __name__ == "__main__":
         for line in out.split('\n'):
             items = line.split()
             # owned process
-            if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
+            if items[0] not in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
                 continue
             # look for python
             if re.search('python',line) is None:
@@ -195,10 +198,10 @@ if __name__ == "__main__":
             # kill old process
             if startTime < timeLimit:
                 _logger.debug("old process : %s %s" % (pid,startTime))
-                _logger.debug(line)            
+                _logger.debug(line)
                 commands_get_status_output('kill -9 %s' % pid)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         _logger.error("kill process : %s %s" % (errtype,errvalue))
-    # main loop    
+    # main loop
     main()

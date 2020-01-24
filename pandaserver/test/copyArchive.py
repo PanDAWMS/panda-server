@@ -68,7 +68,7 @@ try:
             continue
         items = line.split()
         # owned process
-        if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
+        if items[0] not in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
             continue
         # look for python
         if re.search('python',line) is None:
@@ -81,7 +81,7 @@ try:
         # kill old process
         if startTime < timeLimit:
             _logger.debug("old dq2 process : %s %s" % (pid,startTime))
-            _logger.debug(line)            
+            _logger.debug(line)
             commands_get_status_output('kill -9 %s' % pid)
 except Exception:
     type, value, traceBack = sys.exc_info()
@@ -98,7 +98,7 @@ try:
     for line in out.split('\n'):
         items = line.split()
         # owned process
-        if not items[0] in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
+        if items[0] not in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
             continue
         # look for python
         if re.search('python',line) is None:
@@ -111,12 +111,12 @@ try:
         # kill old process
         if startTime < timeLimit:
             _logger.debug("old process : %s %s" % (pid,startTime))
-            _logger.debug(line)            
+            _logger.debug(line)
             commands_get_status_output('kill -9 %s' % pid)
 except Exception:
     type, value, traceBack = sys.exc_info()
     _logger.error("kill process : %s %s" % (type,value))
-    
+
 
 # instantiate TB
 taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
@@ -136,9 +136,9 @@ try:
     status,res = taskBuffer.querySQLS(sql,{})
     for cloudName,cloudEmail in res:
         contactAddr[cloudName] = cloudEmail
-    # get requests 
+    # get requests
     sql  = "SELECT pandaSite,status,dn FROM ATLAS_PANDAMETA.siteaccess WHERE status IN (:status1,:status2,:status3) "
-    sql += "ORDER BY pandaSite,status " 
+    sql += "ORDER BY pandaSite,status "
     varMap = {}
     varMap[':status1'] = 'requested'
     varMap[':status2'] = 'tobeapproved'
@@ -168,7 +168,7 @@ try:
             else:
                 userMailAddr = resUM[0][0]
             # send
-            if not userMailAddr in ['',None,'None','notsend']:
+            if userMailAddr not in ['',None,'None','notsend']:
                 _logger.debug("send update to %s" % userMailAddr)
                 retMail = mailUtils.sendSiteAccessUpdate(userMailAddr,newStatus,pandaSite)
                 _logger.debug(retMail)
@@ -177,7 +177,7 @@ try:
             sqlUp += "WHERE pandaSite=:pandaSite AND dn=:userName"
             varMap = {}
             varMap[':userName']  = userName
-            varMap[':newStatus'] = newStatus            
+            varMap[':newStatus'] = newStatus
             varMap[':pandaSite'] = pandaSite
             stUp,resUp = taskBuffer.querySQLS(sqlUp,varMap)
         else:
@@ -203,9 +203,9 @@ try:
                     status,res = taskBuffer.querySQLS(sqlSite,varMap)
                     siteContactAddr[pandaSite] = res[0][0]
                     # append
-                    if not siteContactAddr[pandaSite] in ['',None,'None']:
+                    if siteContactAddr[pandaSite] not in ['',None,'None']:
                         contactAddr[cloud] += ',%s' % siteContactAddr[pandaSite]
-            # send            
+            # send
             _logger.debug("send request to %s" % contactAddr[cloud])
             retMail = mailUtils.sendSiteAccessRequest(contactAddr[cloud],requestsMap,cloud)
             _logger.debug(retMail)
@@ -226,7 +226,7 @@ try:
 except Exception:
     type, value, traceBack = sys.exc_info()
     _logger.error("Failed with %s %s" % (type,value))
-_logger.debug("Site Access : done")    
+_logger.debug("Site Access : done")
 
 
 # finalize failed jobs
@@ -277,7 +277,7 @@ try:
                     if jobSpec is None:
                         _logger.debug("skip PandaID={0} not found in jobsActive".format(pandaID))
                         continue
-                    _logger.debug("finalize %s %s" % (prodUserName,jobDefinitionID)) 
+                    _logger.debug("finalize %s %s" % (prodUserName,jobDefinitionID))
                     finalizedFlag = taskBuffer.finalizePendingJobs(prodUserName,jobDefinitionID)
                     _logger.debug("finalized with %s" % finalizedFlag)
                     if finalizedFlag and jobSpec.produceUnMerge():
@@ -365,7 +365,7 @@ for siteid, in res:
     sitesToSkipTO.add(siteid)
 
 _logger.debug("PQs to skip timeout : {0}".format(','.join(sitesToSkipTO)))
-    
+
 _memoryCheck("watcher")
 
 _logger.debug("Watcher session")
@@ -397,9 +397,9 @@ status,res = taskBuffer.querySQLS(sql,varMap)
 if res is None:
     _logger.debug("# of Anal Watcher : %s" % res)
 else:
-    _logger.debug("# of Anal Watcher : %s" % len(res))    
+    _logger.debug("# of Anal Watcher : %s" % len(res))
     for (id,) in res:
-        _logger.debug("Anal Watcher %s" % id)    
+        _logger.debug("Anal Watcher %s" % id)
         thr = Watcher(taskBuffer,id,single=True,sleepTime=60,sitemapper=siteMapper)
         thr.start()
         thr.join()
@@ -417,9 +417,9 @@ status,res = taskBuffer.querySQLS(sql,varMap)
 if res is None:
     _logger.debug("# of Transferring Anal Watcher : %s" % res)
 else:
-    _logger.debug("# of Transferring Anal Watcher : %s" % len(res))    
+    _logger.debug("# of Transferring Anal Watcher : %s" % len(res))
     for (id,) in res:
-        _logger.debug("Trans Anal Watcher %s" % id)    
+        _logger.debug("Trans Anal Watcher %s" % id)
         thr = Watcher(taskBuffer,id,single=True,sleepTime=60,sitemapper=siteMapper)
         thr.start()
         thr.join()
@@ -436,7 +436,7 @@ if res is None:
 else:
     _logger.debug("# of Sent Watcher : %s" % len(res))
     for (id,) in res:
-        _logger.debug("Sent Watcher %s" % id)        
+        _logger.debug("Sent Watcher %s" % id)
         thr = Watcher(taskBuffer,id,single=True,sleepTime=30,sitemapper=siteMapper)
         thr.start()
         thr.join()
@@ -488,7 +488,7 @@ status,res = taskBuffer.querySQLS(sql,varMap)
 if res is None:
     _logger.debug("# of High prio Holding Watcher : %s" % res)
 else:
-    _logger.debug("# of High prio Holding Watcher : %s" % len(res))    
+    _logger.debug("# of High prio Holding Watcher : %s" % len(res))
     for (id,) in res:
         _logger.debug("High prio Holding Watcher %s" % id)
         thr = Watcher(taskBuffer,id,single=True,sleepTime=60*timeOutVal,sitemapper=siteMapper)
@@ -507,7 +507,7 @@ status,res = taskBuffer.querySQLS(sql,varMap)
 if res is None:
     _logger.debug("# of Holding Watcher : %s" % res)
 else:
-    _logger.debug("# of Holding Watcher : %s" % len(res))    
+    _logger.debug("# of Holding Watcher : %s" % len(res))
     for (id,) in res:
         _logger.debug("Holding Watcher %s" % id)
         thr = Watcher(taskBuffer,id,single=True,sleepTime=60*timeOutVal,sitemapper=siteMapper)
@@ -674,7 +674,7 @@ if res is not None:
             if resP is not None:
                 for pandaID, in resP:
                     jobs.append(pandaID)
-# kill movers                    
+# kill movers
 if len(movers):
     _logger.debug("kill hangup DDM Jobs (%s)" % str(movers))
     Client.killJobs(movers,2)
@@ -992,7 +992,7 @@ if len(jediJobs) != 0:
         _logger.debug('reassignJobs for long stating JEDI in active table (%s)' % jediJobs[iJob:iJob+nJob])
         Client.killJobs(jediJobs[iJob:iJob+nJob],51,keepUnmerged=True)
         iJob += nJob
-        
+
 
 # kill too long-standing analysis jobs in active table
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=7)
@@ -1253,7 +1253,7 @@ _logger.debug('check {0} pmerge'.format(len(res)))
 for pandaID,jediTaskID in res:
     nPmerge += 1
     isValid,tmpMsg = taskBuffer.isValidMergeJob(pandaID,jediTaskID)
-    if isValid == False:
+    if isValid is False:
         _logger.debug("kill pmerge {0} since {1} gone".format(pandaID,tmpMsg))
         taskBuffer.killJobs([pandaID],'killed since pre-merge job {0} gone'.format(tmpMsg),
                             '52',True)
@@ -1301,8 +1301,8 @@ for file in os.listdir(dirName):
         except Exception:
             pass
 
-                    
-# update email DB        
+
+# update email DB
 _memoryCheck("email")
 _logger.debug("Update emails")
 
@@ -1332,7 +1332,7 @@ for name in mailMap:
         _logger.error("%s not found in user DB" % name)
         continue
     # already set
-    if not res[0][0] in ['','None',None]:
+    if res[0][0] not in ['','None',None]:
         continue
     # update email
     _logger.debug("set '%s' to %s" % (name,addr))

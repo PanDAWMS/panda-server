@@ -199,7 +199,7 @@ def putFile(req,file):
     else:
         _logger.debug("putFile : inserted sandbox to DB with %s" % outClient)
     # store to cassandra
-    if hasattr(panda_config,'cacheUseCassandra') and panda_config.cacheUseCassandra == True:
+    if hasattr(panda_config,'cacheUseCassandra') and panda_config.cacheUseCassandra is True:
         try:
             # time-stamp
             timeNow = datetime.datetime.utcnow()

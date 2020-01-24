@@ -685,7 +685,7 @@ def getJobStatisticsForBamboo(useMorePG=False):
     for srvID in getPandas():
         url = _getURL('URL',srvID) + '/getJobStatisticsForBamboo'
         data = {}
-        if useMorePG != False:
+        if useMorePG is not False:
             data['useMorePG'] = useMorePG
         status,output = curl.get(url,data)
         try:
@@ -740,7 +740,7 @@ def getHighestPrioJobStat(perPG=False,useMorePG=False):
     ret = {}
     url = baseURL + '/getHighestPrioJobStat'
     data = {'perPG':perPG}
-    if useMorePG != False:
+    if useMorePG is not False:
         data['useMorePG'] = useMorePG
     status,output = curl.get(url,data)
     try:
@@ -879,15 +879,15 @@ def getJobStatisticsPerSite(predefined=False,workingGroup='',countryGroup='',job
     for srvID in getPandas():
         url = _getURL('URL',srvID) + '/getJobStatisticsPerSite'
         data = {'predefined':predefined}
-        if not workingGroup in ['',None]:
+        if workingGroup not in ['',None]:
             data['workingGroup'] = workingGroup
-        if not countryGroup in ['',None]:
+        if countryGroup not in ['',None]:
             data['countryGroup'] = countryGroup
-        if not jobType in ['',None]:
+        if jobType not in ['',None]:
             data['jobType'] = jobType
-        if not minPriority in ['',None]:
+        if minPriority not in ['',None]:
             data['minPriority'] = minPriority
-        if not readArchived in ['',None]:
+        if readArchived not in ['',None]:
             data['readArchived'] = readArchived
         status,output = curl.get(url,data)
         try:
@@ -935,7 +935,7 @@ def getJobStatisticsWithLabel(site=''):
     # execute
     url = baseURL + '/getJobStatisticsWithLabel'
     data = {}
-    if not site in ['',None]:
+    if site not in ['',None]:
         data['site'] = site
     status,output = curl.get(url,data)
     try:

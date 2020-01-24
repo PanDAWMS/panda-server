@@ -55,7 +55,7 @@ class FileSpec(object):
         # collect changed attributes
         if oldVal != newVal:
             self._changedAttrs[name] = value
-        
+
 
     # set owner
     def setOwner(self,owner):
@@ -67,8 +67,8 @@ class FileSpec(object):
     def resetChangedList(self):
         self._oldPandaID = self.PandaID
         object.__setattr__(self,'_changedAttrs',{})
-        
-    
+
+
     # return a tuple of values
     def values(self):
         ret = []
@@ -138,7 +138,7 @@ class FileSpec(object):
         else:
             object.__setattr__(self,'_changedAttrs',{})
 
-        
+
     # return column names for INSERT
     def columnNames(cls,withMod=False):
         ret = ""
@@ -160,7 +160,7 @@ class FileSpec(object):
             ret += "%s"
             if attr != cls._attributes[len(cls._attributes)-1]:
                 ret += ","
-        ret += ")"            
+        ret += ")"
         return ret
     valuesExpression = classmethod(valuesExpression)
 
@@ -183,11 +183,11 @@ class FileSpec(object):
         # add modificationTime
         if withMod:
             ret += ",:modificationTime"
-        ret += ")"            
+        ret += ")"
         return ret
     bindValuesExpression = classmethod(bindValuesExpression)
 
-    
+
     # return an expression for UPDATE
     def updateExpression(cls):
         ret = ""
@@ -242,7 +242,7 @@ class FileSpec(object):
             items = []
         else:
             items = self.dispatchDBlockToken.split(',')
-        if not 'an' in items:
+        if 'an' not in items:
             items.append('an')
             self.dispatchDBlockToken = ','.join(items)
 
@@ -255,5 +255,3 @@ class FileSpec(object):
         except Exception:
             pass
         return False
-
-        
