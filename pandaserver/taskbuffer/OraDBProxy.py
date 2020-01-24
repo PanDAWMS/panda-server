@@ -2281,7 +2281,7 @@ class DBProxy:
                         _logger.debug("updateJobStatus : PandaID=%s skip to set holding since it is alredy in transferring" \
                                           % pandaID)
                         ret = 'alreadydone'
-                    elif oldJobStatus == 'holding' and jobStatus == 'holding' and ('jobDispatcherErrorDiag' not in param or not param['jobDispatcherErrorDiag'] in [None,'']):
+                    elif oldJobStatus == 'holding' and jobStatus == 'holding' and ('jobDispatcherErrorDiag' not in param or param['jobDispatcherErrorDiag'] not in [None,'']):
                         # just ignore hearbeats for job recovery
                         _logger.debug("updateJobStatus : PandaID=%s skip to reset holding" % pandaID)
                     elif oldJobStatus == 'holding' and jobStatus == 'holding' and jobDispatcherErrorDiag in [None,''] \
