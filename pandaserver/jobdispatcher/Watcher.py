@@ -67,16 +67,20 @@ class Watcher (threading.Thread):
                         job.jobDispatcherErrorDiag = "Sent job didn't receive reply from pilot within 30 min"
                     elif job.exeErrorDiag == 'NULL' and job.pilotErrorDiag == 'NULL':
                         # lost heartbeat
-                        job.jobDispatcherErrorCode = ErrorCode.EC_Watcher
                         if job.jobDispatcherErrorDiag == 'NULL':
                             if job.endTime == 'NULL':
                                 # normal lost heartbeat
+                                job.jobDispatcherErrorCode = ErrorCode.EC_Watcher
                                 job.jobDispatcherErrorDiag = 'lost heartbeat : %s' % str(job.modificationTime)
                             else:
-                                # job recovery failed
-                                job.jobDispatcherErrorDiag = 'lost heartbeat : %s' % str(job.endTime)
-                                if job.jobStatus == 'transferring':
-                                    job.jobDispatcherErrorDiag += ' in transferring'
+                                if job.jobStatus == 'holding':
+                                    job.jobDispatcherErrorCode = ErrorCode.EC_Holding
+                                elif job.jobStatus == 'transferring':
+                                    job.jobDispatcherErrorCode = ErrorCode.EC_Transferring
+                                else:
+                                    job.jobDispatcherErrorCode = ErrorCode.EC_Timeout
+                                job.jobDispatcherErrorDiag = 'timeout in {0} : last heartbeat at {1}'.format(
+                                    job.jobStatus, str(job.endTime))
                             # get worker
                             workerSpecs = self.taskBuffer.getWorkersForJob(job.PandaID)
                             if len(workerSpecs) > 0:
