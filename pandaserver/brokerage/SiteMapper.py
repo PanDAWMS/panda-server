@@ -158,6 +158,8 @@ class SiteMapper:
                             if resourceSpec.maxrampercore is not None:
                                 childSiteSpec.maxrss = min(childSiteSpec.coreCount*resourceSpec.maxrampercore,
                                                            siteSpec.maxrss)
+                                childSiteSpec.maxrss = min(childSiteSpec.coreCount * resourceSpec.maxrampercore,
+                                                           siteSpec.maxrss * childSiteSpec.coreCount / coreCount)
                             else:
                                 childSiteSpec.maxrss = min(siteSpec.maxrss * childSiteSpec.coreCount / coreCount,
                                                            siteSpec.maxrss)
