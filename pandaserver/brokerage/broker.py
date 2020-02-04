@@ -465,7 +465,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage(minPriority=minPriority)
                 nRunningMap   = taskBuffer.getnRunningInSiteData()
         # sort jobs by siteID. Some jobs may already define computingSite
-        sorted(jobs, key=functools.cmp_to_key(_compFunc))
+        jobs = sorted(jobs, key=functools.cmp_to_key(_compFunc))
         # brokerage for analysis
         candidateForAnal = True
         relCloudMap      = {}

@@ -366,7 +366,7 @@ class Freezer (threading.Thread):
                 retF,resF = taskBuffer.querySQLS("SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID,status FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock ",
                                              {':destinationDBlock':name})
                 self.proxyLock.release()
-                if retF < 0:
+                if isinstance(retF, int) and retF < 0:
                     _logger.error("SQL error")
                 else:
                     allFinished = True
