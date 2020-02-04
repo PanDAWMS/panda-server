@@ -162,7 +162,6 @@ def main(backGround=False):
                     if not conn.is_connected():
                         conn.set_listener('DatasetCallbackListener', DatasetCallbackListener(conn,taskBuffer,siteMapper,
                                                                                              subscription_id))
-                        conn.start()
                         conn.connect(headers = {'client-id': clientid})
                         conn.subscribe(destination=queue, id=subscription_id, ack='auto')
                         _logger.debug('listener %s is up and running' % clientid)

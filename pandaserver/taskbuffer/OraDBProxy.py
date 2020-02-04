@@ -17671,7 +17671,7 @@ class DBProxy:
                 for input_type in input_types:
                     varMap[':type{0}'.format(i)] = input_type
                     i += 1
-                input_type_bindings = ','.join(':type{0}'.format(i) for i in xrange(len(input_types)))
+                input_type_bindings = ','.join(':type{0}'.format(i) for i in range(len(input_types)))
 
                 sqlMS  = """
                          SELECT ramCount, count(*)
@@ -18321,14 +18321,14 @@ class DBProxy:
                 for fileID in input_fileIDs:
                     varMap[':file{0}'.format(f)] = fileID
                     f+=1
-                file_bindings = ','.join(':file{0}'.format(i) for i in xrange(len(input_fileIDs)))
+                file_bindings = ','.join(':file{0}'.format(i) for i in range(len(input_fileIDs)))
 
                 #Bind the datasets
                 d = 0
                 for datasetID in input_datasetIDs:
                     varMap[':dataset{0}'.format(d)] = datasetID
                     d+=1
-                dataset_bindings = ','.join(':dataset{0}'.format(i) for i in xrange(len(input_fileIDs)))
+                dataset_bindings = ','.join(':dataset{0}'.format(i) for i in range(len(input_fileIDs)))
 
                 #Get the minimum maxAttempt value of the files
                 sql_select = """
@@ -18405,7 +18405,7 @@ class DBProxy:
                     for fileID in input_fileIDs:
                         varMap[':file{0}'.format(f)] = fileID
                         f += 1
-                    file_bindings = ','.join(':file{0}'.format(i) for i in xrange(len(input_fileIDs)))
+                    file_bindings = ','.join(':file{0}'.format(i) for i in range(len(input_fileIDs)))
 
                     sql_update = """
                     UPDATE ATLAS_PANDA.JEDI_Dataset_Contents
@@ -18532,14 +18532,14 @@ class DBProxy:
             for fileID in input_fileIDs:
                 varMap[':file{0}'.format(f)] = fileID
                 f+=1
-            file_bindings = ','.join(':file{0}'.format(i) for i in xrange(len(input_fileIDs)))
+            file_bindings = ','.join(':file{0}'.format(i) for i in range(len(input_fileIDs)))
 
             #Bind the datasets
             d = 0
             for datasetID in input_datasetIDs:
                 varMap[':dataset{0}'.format(d)] = datasetID
                 d+=1
-            dataset_bindings = ','.join(':dataset{0}'.format(i) for i in xrange(len(input_fileIDs)))
+            dataset_bindings = ','.join(':dataset{0}'.format(i) for i in range(len(input_fileIDs)))
 
             sql_select = """
             SELECT jdc.fileid, jdc.nevents, jdc.startevent, jdc.endevent
@@ -20301,7 +20301,7 @@ class DBProxy:
                 var_map[key] = parent
                 i += 1
 
-            parentBindings = ','.join(':parent{0}'.format(i) for i in xrange(len(parents)))
+            parentBindings = ','.join(':parent{0}'.format(i) for i in range(len(parents)))
             sql += "WHERE parent IN ({0})".format(parentBindings)
 
         self.cur.execute(sql + comment, var_map)
@@ -20622,7 +20622,7 @@ class DBProxy:
                 for jedi_task_id in shard:
                     var_map[':jtid{0}'.format(i)] = jedi_task_id
                     i += 1
-                jtid_bindings = ','.join(':jtid{0}'.format(i) for i in xrange(len(shard)))
+                jtid_bindings = ','.join(':jtid{0}'.format(i) for i in range(len(shard)))
 
                 # update the task
                 sql_task = """
@@ -20769,7 +20769,7 @@ class DBProxy:
                 var_map = {':retrieved': 'retrieved'}
                 for i, command_id in enumerate(command_ids):
                     var_map[':command_id{0}'.format(i)] = command_id
-                command_id_bindings = ','.join(':command_id{0}'.format(i) for i in xrange(len(command_ids)))
+                command_id_bindings = ','.join(':command_id{0}'.format(i) for i in range(len(command_ids)))
 
                 sql = """
                       UPDATE ATLAS_PANDA.HARVESTER_COMMANDS
@@ -20806,7 +20806,7 @@ class DBProxy:
             var_map = {':acknowledged': 'acknowledged'}
             for i, command_id in enumerate(command_ids):
                 var_map[':command_id{0}'.format(i)] = command_id
-            command_id_bindings = ','.join(':command_id{0}'.format(i) for i in xrange(len(command_ids)))
+            command_id_bindings = ','.join(':command_id{0}'.format(i) for i in range(len(command_ids)))
 
             sql = """
                   UPDATE ATLAS_PANDA.HARVESTER_COMMANDS

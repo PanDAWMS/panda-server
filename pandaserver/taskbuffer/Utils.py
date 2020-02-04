@@ -70,7 +70,7 @@ def cleanUserID(id):
 # insert with rety
 def insertWithRetryCassa(familyName,keyName,valMap,msgStr,nTry=3):
     for iTry in range(nTry):
-        try:    
+        try:
             familyName.insert(keyName,valMap)
         except pycassa.MaximumRetryException(tmpE):
             if iTry+1 < nTry:
@@ -80,7 +80,7 @@ def insertWithRetryCassa(familyName,keyName,valMap,msgStr,nTry=3):
                 raise pycassa.MaximumRetryException(tmpE.value)
         else:
             break
-    
+
 
 # touch in Cassandra
 def touchFileCassa(filefamily,fileKeyName,timeNow):
@@ -108,12 +108,12 @@ def touchFileCassa(filefamily,fileKeyName,timeNow):
         return True
     except Exception:
         errType,errValue = sys.exc_info()[:2]
-        errStr = "cannot touch %s due to %s %s" % (fileKeyName,errType,errValue) 
+        errStr = "cannot touch %s due to %s %s" % (fileKeyName,errType,errValue)
         _logger.error(errStr)
         return False
-    
 
-# upload file 
+
+# upload file
 def putFile(req,file):
     if not Protocol.isSecure(req):
         return False
@@ -145,7 +145,7 @@ def putFile(req,file):
         else:
             errStr += " Please remove redundant files from your workarea"
         _logger.error(errStr)
-        _logger.debug("putFile : end")            
+        _logger.debug("putFile : end")
         return errStr
     try:
         fileFullPath = '%s/%s' % (panda_config.cache_dir,file.filename.split('/')[-1])
@@ -155,7 +155,7 @@ def putFile(req,file):
             os.utime(fileFullPath,None)
             # send error message
             errStr = "ERROR : Cannot overwrite file"
-            _logger.debug('putFile : cannot overwrite file %s' % file.filename)  
+            _logger.debug('putFile : cannot overwrite file %s' % file.filename)
             _logger.debug("putFile : end")
             return errStr
         # write
@@ -186,7 +186,7 @@ def putFile(req,file):
     # file size
     fileSize = len(fileContent)
     # user name
-    username = cleanUserID(req.subprocess_env['SSL_CLIENT_S_DN'])    
+    username = cleanUserID(req.subprocess_env['SSL_CLIENT_S_DN'])
     _logger.debug("putFile : written dn=%s file=%s size=%s crc=%s" % \
                   (username,file.filename,fileSize,checkSum))
     # put file info to DB
@@ -250,7 +250,7 @@ def putFile(req,file):
                                                   'creationTime':creationTime,
                                                   'nSplit':0,
                                                   },
-                                                 'putFile : make alias for %s' % file.filename 
+                                                 'putFile : make alias for %s' % file.filename
                                                  )
                             # set time
                             touchFileCassa(filefamily,fileKeyName,timeNow)
@@ -271,8 +271,8 @@ def putFile(req,file):
                 nSplit,tmpMod = divmod(len(fileContent),splitSize)
                 if tmpMod != 0:
                     nSplit += 1
-                _logger.debug('Inserting %s with %s blocks' % (fileKeyName,nSplit))                    
-                for splitIdx in range(nSplit): 
+                _logger.debug('Inserting %s with %s blocks' % (fileKeyName,nSplit))
+                for splitIdx in range(nSplit):
                     # split to small chunks since cassandra is not good at large files
                     tmpFileContent = fileContent[splitSize*splitIdx:splitSize*(splitIdx+1)]
                     tmpFileKeyName = fileKeyName
@@ -331,7 +331,7 @@ def getFile(req,fileName):
                 fileFullPath = '%s%s' % (panda_config.cache_dir,fileInfo[hostKey])
                 # touch
                 os.utime(fileFullPath,None)
-                _logger.debug("getFile : %s end" % fileName)                
+                _logger.debug("getFile : %s end" % fileName)
                 # return
                 return ErrorCode.EC_Redirect('/cache%s' % fileInfo[hostKey])
             except Exception:
@@ -401,7 +401,7 @@ def putEventPickingRequest(req,runEventList='',eventPickDataType='',eventPickStr
         evpFileName = '%s/evp.%s' % (panda_config.cache_dir,str(uuid.uuid4()))
         _logger.debug("putEventPickingRequest : %s -> %s" % (userName,evpFileName))
         # write
-        fo = open(evpFileName,'wb')
+        fo = open(evpFileName,'w')
         fo.write("userName=%s\n" % userName)
         fo.write("creationTime=%s\n" % creationTime)
         fo.write("eventPickDataType=%s\n" % eventPickDataType)
@@ -428,26 +428,26 @@ def putEventPickingRequest(req,runEventList='',eventPickDataType='',eventPickStr
         fo.close()
     except Exception:
         errType,errValue = sys.exc_info()[:2]
-        errStr = "cannot put request due to %s %s" % (errType,errValue) 
+        errStr = "cannot put request due to %s %s" % (errType,errValue)
         _logger.error("putEventPickingRequest : " + errStr + " " + userName)
         return "ERROR : " + errStr
     _logger.debug("putEventPickingRequest : %s end" % userName)
     return True
 
 
-# delete file 
+# delete file
 def deleteFile(req,file):
     if not Protocol.isSecure(req):
         return 'False'
     try:
-        # may be reused for rebrokreage 
+        # may be reused for rebrokreage
         #os.remove('%s/%s' % (panda_config.cache_dir,file.split('/')[-1]))
         return 'True'
     except Exception:
-        return 'False'        
+        return 'False'
 
 
-# touch file 
+# touch file
 def touchFile(req,filename):
     if not Protocol.isSecure(req):
         return 'False'
@@ -457,8 +457,8 @@ def touchFile(req,filename):
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         _logger.error("touchFile : %s %s" % (errtype,errvalue))
-        return 'False'        
-                        
+        return 'False'
+
 
 # get server name:port for SSL
 def getServer(req):
@@ -468,7 +468,7 @@ def getServer(req):
 def getServerHTTP(req):
     return "%s:%s" % (panda_config.pserverhosthttp,panda_config.pserverporthttp)
 
- 
+
 # update stdout
 def updateLog(req,file):
     _logger.debug("updateLog : %s start" % file.filename)
@@ -560,14 +560,14 @@ def uploadLog(req,file):
     if contentLength > sizeLimit:
         errStr = "failed to upload log due to size limit"
         tmpLog.error(errStr)
-        tmpLog.debug("end")            
+        tmpLog.debug("end")
         return errStr
     jediLogDir = '/jedilog'
     retStr = ''
     try:
         fileBaseName = file.filename.split('/')[-1]
         fileFullPath = '{0}{1}/{2}'.format(panda_config.cache_dir,jediLogDir,fileBaseName)
-        # delete old file 
+        # delete old file
         if os.path.exists(fileFullPath):
             os.remove(fileFullPath)
         # write
@@ -576,7 +576,7 @@ def uploadLog(req,file):
         fo.write(fileContent)
         fo.close()
         tmpLog.debug("written to {0}".format(fileFullPath))
-        retStr = 'http://{0}/cache{1}/{2}'.format(getServerHTTP(None),jediLogDir,fileBaseName) 
+        retStr = 'http://{0}/cache{1}/{2}'.format(getServerHTTP(None),jediLogDir,fileBaseName)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "failed to write log with {0}:{1}".format(errtype.__name__,errvalue)
