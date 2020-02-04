@@ -6,6 +6,7 @@ import fcntl
 import random
 import datetime
 import uuid
+import functools
 from pandaserver.brokerage import ErrorCode
 from pandaserver.taskbuffer import ProcessGroups
 from pandaserver.dataservice import DataServiceUtils
@@ -464,7 +465,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage(minPriority=minPriority)
                 nRunningMap   = taskBuffer.getnRunningInSiteData()
         # sort jobs by siteID. Some jobs may already define computingSite
-        jobs.sort(key=_compFunc)
+        sorted(jobs, key=functools.cmp_to_key(_compFunc))
         # brokerage for analysis
         candidateForAnal = True
         relCloudMap      = {}
