@@ -128,8 +128,6 @@ class AdderGen:
             elif self.attemptNr is not None and self.job.jobStatus == 'transferring':
                 errMsg = 'XML with attemptNr for {0}'.format(self.job.jobStatus)
                 self.logger.error(errMsg)
-                # FIXME
-                raise RuntimeError(errMsg)
             elif self.jobStatus == EventServiceUtils.esRegStatus:
                 # instantiate concrete plugin
                 adderPluginClass = self.getPluginClass(self.job.VO)
