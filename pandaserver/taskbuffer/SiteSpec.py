@@ -198,3 +198,7 @@ class SiteSpec(object):
         except Exception:
             pass
         return None
+
+    # use local data only
+    def use_only_local_data(self):
+        return self.hasValueInCatchall('use_only_local_data')
