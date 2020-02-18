@@ -1,5 +1,8 @@
 Release Notes
 
+* 2/18/2020
+  * added use_only_local_data
+
 * 11/12/2019
   * 0.0.23
   * fixed for wheel
