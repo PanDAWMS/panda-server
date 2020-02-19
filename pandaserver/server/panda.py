@@ -6,7 +6,7 @@ entry point
 """
 
 import datetime
-import types
+import traceback
 
 # config file
 from pandaserver.config import panda_config
@@ -220,7 +220,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                     if exeRes in [True,False]:
                         exeRes = str(exeRes)
                 except Exception as e:
-                    tmpLog.error("execution failure : {0}".format(str(e)))
+                    tmpLog.error("execution failure : {0}\n {1}".format(str(e), traceback.format_exc()))
                     errStr = ""
                     for tmpKey in environ:
                         tmpVal = environ[tmpKey]
