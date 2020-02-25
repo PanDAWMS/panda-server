@@ -143,16 +143,16 @@ class JobDipatcher:
             self.allowedNodes = self.taskBuffer.getAllowedNodes()
         # special dipatcher parameters
         if self.specialDispatchParams is None:
-            self.specialDispatchParams = CachedObject(60*30,self.taskBuffer.getSpecialDispatchParams)
+            self.specialDispatchParams = CachedObject(60*30, self.taskBuffer.getSpecialDispatchParams)
         # site mapper cache
         if self.siteMapperCache is None:
-            self.siteMapperCache = CachedObject(60*30,self.getSiteMapper)
+            self.siteMapperCache = CachedObject(60*30, self.getSiteMapper)
         # release
         self.lock.release()
 
 
     # set user proxy
-    def setUserProxy(self,response,realDN=None,role=None):
+    def setUserProxy(self, response, realDN=None, role=None):
         try:
             if realDN is None:
                 realDN = response.data['prodUserID']
@@ -178,9 +178,9 @@ class JobDipatcher:
 
 
     # get job
-    def getJob(self,siteName,prodSourceLabel,cpu,mem,diskSpace,node,timeout,computingElement,
-               atlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,allowOtherCountry,
-               realDN,taskID,nJobs,acceptJson,background,resourceType,harvester_id,worker_id,
+    def getJob(self, siteName, prodSourceLabel, cpu, mem, diskSpace, node, timeout, computingElement,
+               atlasRelease, prodUserID, getProxyKey, countryGroup, workingGroup, allowOtherCountry,
+               realDN, taskID, nJobs, acceptJson, background, resourceType, harvester_id, worker_id,
                schedulerID):
 
         t_getJob_start = time.time()
@@ -432,7 +432,7 @@ class JobDipatcher:
 
 
     # get a list of event ranges for a PandaID
-    def getEventRanges(self,pandaID,jobsetID,jediTaskID,nRanges,timeout,acceptJson,scattered):
+    def getEventRanges(self, pandaID, jobsetID, jediTaskID, nRanges, timeout, acceptJson, scattered):
         # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.getEventRanges,timeout)
         tmpWrapper.run(pandaID,jobsetID,jediTaskID,nRanges,acceptJson,scattered)
@@ -454,7 +454,7 @@ class JobDipatcher:
 
 
     # update an event range
-    def updateEventRange(self,eventRangeID,eventStatus,coreCount,cpuConsumptionTime,objstoreID,timeout):
+    def updateEventRange(self, eventRangeID, eventStatus, coreCount, cpuConsumptionTime, objstoreID, timeout):
         # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.updateEventRange,timeout)
         tmpWrapper.run(eventRangeID,eventStatus,coreCount,cpuConsumptionTime,objstoreID)
@@ -476,7 +476,7 @@ class JobDipatcher:
 
 
     # update event ranges
-    def updateEventRanges(self,eventRanges,timeout,acceptJson,version):
+    def updateEventRanges(self, eventRanges, timeout, acceptJson, version):
         # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.updateEventRanges,timeout)
         tmpWrapper.run(eventRanges,version)
@@ -535,8 +535,8 @@ class JobDipatcher:
 
 
     # generate pilot token
-    def genPilotToken(self,schedulerhost,scheduleruser,schedulerid):
-        retVal = self.taskBuffer.genPilotToken(schedulerhost,scheduleruser,schedulerid)
+    def genPilotToken(self, schedulerhost, scheduleruser, schedulerid):
+        retVal = self.taskBuffer.genPilotToken(schedulerhost, scheduleruser, schedulerid)
         # failed
         if retVal is None:
             return "ERROR : failed to generate token"
@@ -834,9 +834,9 @@ web service interface
 """
 
 # get job
-def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,prodSourceLabel=None,node=None,
-           computingElement=None,AtlasRelease=None,prodUserID=None,getProxyKey=None,countryGroup=None,
-           workingGroup=None,allowOtherCountry=None,taskID=None,nJobs=None,background=None,resourceType=None,
+def getJob(req, siteName, token=None, timeout=60, cpu=None, mem=None, diskSpace=None, prodSourceLabel=None, node=None,
+           computingElement=None, AtlasRelease=None, prodUserID=None, getProxyKey=None, countryGroup=None,
+           workingGroup=None, allowOtherCountry=None, taskID=None, nJobs=None, background=None, resourceType=None,
            harvester_id=None, worker_id=None, schedulerID=None):
     _logger.debug("getJob(%s)" % siteName)
     # get DN
@@ -879,10 +879,10 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
         background = False
     _logger.debug("getJob(%s,nJobs=%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,taskID=%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s,json:%s,bg=%s,rt=%s," \
                       "harvester_id=%s,worker_id=%s,schedulerID=%s" \
-                  % (siteName,nJobs,cpu,mem,diskSpace,prodSourceLabel,node,
-                     computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,workingGroup,
-                     allowOtherCountry,taskID,realDN,prodManager,token,validToken,str(fqans),req.acceptJson(),
-                     background,resourceType,harvester_id,worker_id,schedulerID))
+                  % (siteName, nJobs, cpu, mem, diskSpace, prodSourceLabel, node,
+                     computingElement, AtlasRelease, prodUserID, getProxyKey, countryGroup, workingGroup,
+                     allowOtherCountry, taskID, realDN, prodManager, token, validToken, str(fqans), req.acceptJson(),
+                     background, resourceType, harvester_id, worker_id, schedulerID))
     try:
         dummyNumSlots = int(nJobs)
     except Exception:
@@ -905,22 +905,22 @@ def getJob(req,siteName,token=None,timeout=60,cpu=None,mem=None,diskSpace=None,p
         _logger.warning("getJob(%s) : invalid token" % siteName)
         return Protocol.Response(Protocol.SC_Invalid).encode(req.acceptJson())
     # invoke JD
-    return jobDispatcher.getJob(siteName,prodSourceLabel,cpu,mem,diskSpace,node,int(timeout),
-                                computingElement,AtlasRelease,prodUserID,getProxyKey,countryGroup,
-                                workingGroup,allowOtherCountry,realDN,taskID,nJobs,req.acceptJson(),
-                                background,resourceType,harvester_id,worker_id,schedulerID)
+    return jobDispatcher.getJob(siteName, prodSourceLabel, cpu, mem, diskSpace, node, int(timeout),
+                                computingElement, AtlasRelease, prodUserID, getProxyKey, countryGroup,
+                                workingGroup, allowOtherCountry, realDN, taskID, nJobs, req.acceptJson(),
+                                background, resourceType, harvester_id, worker_id, schedulerID)
 
 
 # update job status
-def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,pilotErrorDiag=None,timestamp=None,timeout=60,
-              xml='',node=None,workdir=None,cpuConsumptionTime=None,cpuConsumptionUnit=None,remainingSpace=None,
-              schedulerID=None,pilotID=None,siteName=None,messageLevel=None,pilotLog='',metaData='',
-              cpuConversionFactor=None,exeErrorCode=None,exeErrorDiag=None,pilotTiming=None,computingElement=None,
-              startTime=None,endTime=None,nEvents=None,nInputFiles=None,batchID=None,attemptNr=None,jobMetrics=None,
-              stdout='',jobSubStatus=None,coreCount=None,maxRSS=None,maxVMEM=None,maxSWAP=None,maxPSS=None,
-              avgRSS=None,avgVMEM=None,avgSWAP=None,avgPSS=None,totRCHAR=None,totWCHAR=None,totRBYTES=None,
-              totWBYTES=None,rateRCHAR=None,rateWCHAR=None,rateRBYTES=None,rateWBYTES=None,
-              corruptedFiles=None):
+def updateJob(req, jobId, state, token=None, transExitCode=None, pilotErrorCode=None, pilotErrorDiag=None,
+              timestamp=None, timeout=60, xml='', node=None, workdir=None, cpuConsumptionTime=None,
+              cpuConsumptionUnit=None, remainingSpace=None, schedulerID=None, pilotID=None, siteName=None,
+              messageLevel=None, pilotLog='', metaData='', cpuConversionFactor=None, exeErrorCode=None,
+              exeErrorDiag=None, pilotTiming=None, computingElement=None, startTime=None, endTime=None, nEvents=None,
+              nInputFiles=None, batchID=None, attemptNr=None, jobMetrics=None, stdout='', jobSubStatus=None,
+              coreCount=None, maxRSS=None, maxVMEM=None, maxSWAP=None, maxPSS=None, avgRSS=None, avgVMEM=None,
+              avgSWAP=None, avgPSS=None, totRCHAR=None, totWCHAR=None, totRBYTES=None, totWBYTES=None, rateRCHAR=None,
+              rateWCHAR=None, rateRBYTES=None, rateWBYTES=None, corruptedFiles=None):
     tmpLog = LogWrapper(_logger,'updateJob PandaID={0} PID={1}'.format(jobId,os.getpid()))
     tmpLog.debug('start')
     # get DN
@@ -934,14 +934,13 @@ def updateJob(req,jobId,state,token=None,transExitCode=None,pilotErrorCode=None,
     # accept json
     acceptJson = req.acceptJson()
     _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,cpuConsumptionTime=%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,attemptNr:%s,jobSubStatus:%s,core:%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s,maxRSS=%s,maxVMEM=%s,maxSWAP=%s,maxPSS=%s,avgRSS=%s,avgVMEM=%s,avgSWAP=%s,avgPSS=%s,totRCHAR=%s,totWCHAR=%s,totRBYTES=%s,totWBYTES=%s,rateRCHAR=%s,rateWCHAR=%s,rateRBYTES=%s,rateWBYTES=%s,corruptedFiles=%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s\n==Metrics==\n%s\n==stdout==\n%s)" %
-                  (jobId,state,transExitCode,pilotErrorCode,pilotErrorDiag,node,workdir,cpuConsumptionTime,
-                   cpuConsumptionUnit,remainingSpace,schedulerID,pilotID,siteName,messageLevel,nEvents,nInputFiles,
-                   cpuConversionFactor,exeErrorCode,exeErrorDiag,pilotTiming,computingElement,startTime,endTime,
-                   batchID,attemptNr,jobSubStatus,coreCount,realDN,prodManager,token,validToken,str(fqans),
-                   maxRSS,maxVMEM,maxSWAP,maxPSS,avgRSS,avgVMEM,avgSWAP,avgPSS,
-                   totRCHAR,totWCHAR,totRBYTES,totWBYTES,rateRCHAR,rateWCHAR,rateRBYTES,rateWBYTES,
-                   corruptedFiles,
-                   xml,pilotLog[:1024],metaData[:1024],jobMetrics,stdout))
+                  (jobId, state, transExitCode, pilotErrorCode, pilotErrorDiag, node, workdir, cpuConsumptionTime,
+                   cpuConsumptionUnit, remainingSpace, schedulerID, pilotID, siteName, messageLevel, nEvents,
+                   nInputFiles, cpuConversionFactor, exeErrorCode, exeErrorDiag, pilotTiming, computingElement,
+                   startTime, endTime, batchID, attemptNr, jobSubStatus, coreCount, realDN, prodManager, token,
+                   validToken, str(fqans), maxRSS, maxVMEM, maxSWAP, maxPSS, avgRSS, avgVMEM, avgSWAP, avgPSS,
+                   totRCHAR, totWCHAR, totRBYTES, totWBYTES, rateRCHAR, rateWCHAR, rateRBYTES, rateWBYTES,
+                   corruptedFiles, xml, pilotLog[:1024], metaData[:1024], jobMetrics, stdout))
     _pilotReqLogger.debug('method=updateJob,site=%s,node=%s,type=None' % (siteName,node))
     # invalid role
     if not prodManager:
@@ -1142,10 +1141,10 @@ def getEventRanges(req,pandaID,jobsetID,taskID=None,nRanges=10,timeout=60,scatte
 
 
 # update an event range
-def updateEventRange(req,eventRangeID,eventStatus,coreCount=None,cpuConsumptionTime=None,
-                     objstoreID=None,timeout=60,pandaID=None):
+def updateEventRange(req, eventRangeID, eventStatus, coreCount=None, cpuConsumptionTime=None,
+                     objstoreID=None, timeout=60, pandaID=None):
     tmpStr = "updateEventRange(%s status=%s coreCount=%s cpuConsumptionTime=%s osID=%s)" % \
-        (eventRangeID,eventStatus,coreCount,cpuConsumptionTime,objstoreID)
+        (eventRangeID, eventStatus, coreCount, cpuConsumptionTime, objstoreID)
     _logger.debug(tmpStr+' start')
     # get site
     site = ''
@@ -1157,13 +1156,13 @@ def updateEventRange(req,eventRangeID,eventStatus,coreCount=None,cpuConsumptionT
     if not tmpStat:
         _logger.error(tmpStr+'failed with '+tmpOut)
         return tmpOut
-    return jobDispatcher.updateEventRange(eventRangeID,eventStatus,coreCount,cpuConsumptionTime,
-                                          objstoreID,int(timeout))
+    return jobDispatcher.updateEventRange(eventRangeID, eventStatus, coreCount, cpuConsumptionTime,
+                                          objstoreID, int(timeout))
 
 
 
 # update an event ranges
-def updateEventRanges(req,eventRanges,timeout=120,version=0,pandaID=None):
+def updateEventRanges(req, eventRanges, timeout=120, version=0, pandaID=None):
     tmpStr = "updateEventRanges(%s)" % eventRanges
     _logger.debug(tmpStr+' start')
     # get site
@@ -1197,7 +1196,7 @@ def checkEventsAvailability(req, pandaID, jobsetID, taskID, timeout=60):
 
 
 # generate pilot token
-def genPilotToken(req,schedulerid,host=None):
+def genPilotToken(req, schedulerid, host=None):
     # get DN
     realDN = _getDN(req)
     # get FQANs
@@ -1217,7 +1216,7 @@ def genPilotToken(req,schedulerid,host=None):
 
 
 # get key pair
-def getKeyPair(req,publicKeyName,privateKeyName):
+def getKeyPair(req, publicKeyName, privateKeyName):
     # get DN
     realDN = _getDN(req)
     return jobDispatcher.getKeyPair(realDN,publicKeyName,privateKeyName,req.acceptJson())

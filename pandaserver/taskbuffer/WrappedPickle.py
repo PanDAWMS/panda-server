@@ -68,7 +68,9 @@ class WrappedPickle(object):
     # loads
     @classmethod
     def loads(cls,pickle_string):
-        pickle_obj = Common_Unpickler(BytesIO(pickle_string.encode()))
+        if isinstance(pickle_string, str):
+            pickle_string = pickle_string.encode()
+        pickle_obj = Common_Unpickler(BytesIO(pickle_string))
         pickle_obj.find_global = cls.find_class
         return pickle_obj.load()
 

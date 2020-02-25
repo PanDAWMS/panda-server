@@ -7,7 +7,6 @@ import re
 import sys
 import time
 import json
-import types
 import datetime
 import traceback
 
