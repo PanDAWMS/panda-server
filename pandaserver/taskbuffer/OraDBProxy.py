@@ -21197,7 +21197,7 @@ class DBProxy:
             if resource_spec.match_task(task_spec):
                 tmp_log.debug('done. resource_type is {0}'.format(resource_spec.resource_name))
                 return resource_spec.resource_name
-
+        
         tmp_log.debug('done. resource_type is Undefined')
         return 'Undefined'
 
@@ -21920,7 +21920,7 @@ class DBProxy:
         #if queue == 'CERN-PROD_UCORE':
         #    n_workers_running = max(n_workers_running, 1000)
         #else:
-        n_cores_target = max(int(n_cores_running * 0.5), 75 * cores_queue)
+        n_cores_target = max(int(n_cores_running * 0.4), 75 * cores_queue)
         n_cores_to_submit = max(n_cores_target - n_cores_queued, 5 * cores_queue)
         tmpLog.debug('IN CORES: nrunning {0}, ntarget {1}, nqueued {2}. We need to process {3} cores'
                      .format(n_cores_running, n_cores_target, n_cores_queued, n_cores_to_submit))
