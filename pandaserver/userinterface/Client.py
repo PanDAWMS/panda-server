@@ -126,6 +126,8 @@ class _Curl:
         self.sslKey  = ''
         # verbose
         self.verbose = False
+        # use json
+        self.use_json = False
 
 
     # GET method
@@ -147,6 +149,9 @@ class _Curl:
             com += ' --key %s' % self.sslKey
         # timeout
         com += ' -m 600'
+        # json
+        if self.use_json:
+            com += ' -H "Accept: application/json"'
         # data
         strData = ''
         for key in data:
@@ -195,6 +200,9 @@ class _Curl:
             com += ' --key %s' % self.sslKey
         # timeout
         com += ' -m 600'
+        # json
+        if self.use_json:
+            com += ' -H "Accept: application/json"'
         # data
         strData = ''
         for key in data:
@@ -363,11 +371,12 @@ def runTaskAssignment(jobs):
 
 
 # get job status
-def getJobStatus(ids,srvID=None):
+def getJobStatus(ids, use_json=False):
     """Get job status
 
        args:
            ids: the list of PandaIDs
+           use_json: using json instead of pickle
        returns:
            status code
                  0: communication succeeded to the panda server
@@ -375,18 +384,23 @@ def getJobStatus(ids,srvID=None):
            the list of JobSpecs (or Nones for non-existing PandaIDs)
     """
     # serialize
-    strIDs = pickle_dumps(ids)
+    if use_json:
+        strIDs = json.dumps(ids)
+    else:
+        strIDs = pickle_dumps(ids)
     # instantiate curl
     curl = _Curl()
+    curl.use_json = use_json
     # execute
-    url = _getURL('URL',srvID) + '/getJobStatus'
+    url = _getURL('URL') + '/getJobStatus'
     data = {'ids':strIDs}
     status,output = curl.post(url,data)
     try:
+        if use_json:
+            return status, json.loads(output)
         return status,pickle_loads(output)
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = "ERROR getJobStatus : %s %s" % (type,value)
+    except Exception as e:
+        errStr = "ERROR getJobStatus : %s" % str(e)
         print(errStr)
         return EC_Failed,output+'\n'+errStr
 

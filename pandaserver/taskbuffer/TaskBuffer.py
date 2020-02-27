@@ -905,15 +905,19 @@ class TaskBuffer:
 
 
     # peek at jobs
-    def peekJobs(self,jobIDs,fromDefined=True,fromActive=True,fromArchived=True,fromWaiting=True,forAnal=False):
-        # get DBproxy
+    def peekJobs(self,jobIDs,fromDefined=True,fromActive=True,fromArchived=True,fromWaiting=True,forAnal=False,
+                 use_json=False):
+        # get proxy
         proxy = self.proxyPool.getProxy()
         retJobs = []
         # peek at job
         for jobID in jobIDs:
             res = proxy.peekJob(jobID,fromDefined,fromActive,fromArchived,fromWaiting,forAnal)
             if res:
-                retJobs.append(res)
+                if use_json:
+                    retJobs.append(res.to_dict())
+                else:
+                    retJobs.append(res)
             else:
                 retJobs.append(None)
         # release proxy
