@@ -592,7 +592,7 @@ class RucioAPI:
         client = RucioClient()
         nFiles = 0
         try:
-            for x in client.list_files(scope, dsn, long=True):
+            for x in client.list_files(scope, dsn):
                 nFiles += 1
             return True,nFiles
         except DataIdentifierNotFound:
@@ -613,7 +613,7 @@ class RucioAPI:
         client = RucioClient()
         tSize = 0
         try:
-            for x in client.list_files(scope, dsn, long=True):
+            for x in client.list_files(scope, dsn):
                 tSize += x['bytes']
             return True,tSize
         except DataIdentifierNotFound:
