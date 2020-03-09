@@ -193,7 +193,7 @@ class JobDipatcher:
             tmpNumJobs = 1
 
         self.siteMapperCache.update()
-        is_gu = self.siteMapperCache.getSite(siteName).is_grandly_unified()
+        is_gu = self.siteMapperCache.cachedObj.getSite(siteName).is_grandly_unified()
 
         # wrapper function for timeout
         tmpWrapper = _TimedMethod(self.taskBuffer.getJobs, timeout)
