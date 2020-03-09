@@ -1008,7 +1008,7 @@ class DynDataDistributer:
                 self.putLog("Empty list for run and events was provided",type='error')
                 return failedRet
             # Hadoop EI
-            from eventLookupClientEI import eventLookupClientEI
+            from .eventLookupClientEI import eventLookupClientEI
             elssiIF = eventLookupClientEI()
             # Oracle EI
             from pandaserver.taskbuffer.EiTaskBuffer import eiTaskBuffer
