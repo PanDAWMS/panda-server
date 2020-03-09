@@ -5,6 +5,7 @@ import time
 import fcntl
 import shelve
 import datetime
+import traceback
 import pandaserver.userinterface.Client as Client
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 from pandaserver.taskbuffer import EventServiceUtils
@@ -1149,35 +1150,146 @@ if len(jobs):
     _logger.debug("killJobs in jobsWaiting (%s)" % str(jobs))
 
 
-# reassign long waiting jobs
-"""
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
-status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsWaiting4",timeLimit,['waiting'],['managed'],[],[],[],True)
-jobs = []
-jediJobs = []
-if res is not None:
-    for (id,lockedby) in res:
-        if lockedby == 'jedi':
-            jediJobs.append(id)
-        else:
-            jobs.append(id)
-_logger.debug('reassignJobs for Waiting -> #%s' % len(jobs))
-if len(jobs):
-    nJob = 100
-    iJob = 0
-    while iJob < len(jobs):
-        _logger.debug('reassignJobs for Waiting (%s)' % jobs[iJob:iJob+nJob])
-        taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
-        iJob += nJob
-_logger.debug('reassignJobs for JEDI Waiting -> #%s' % len(jediJobs))
-if len(jediJobs) != 0:
-    nJob = 100
-    iJob = 0
-    while iJob < len(jediJobs):
-        _logger.debug('reassignJobs for JEDI Waiting (%s)' % jediJobs[iJob:iJob+nJob])
-        Client.killJobs(jediJobs[iJob:iJob+nJob],51,keepUnmerged=True)
-        iJob += nJob
-"""
+# rebrokerage
+_logger.debug("Rebrokerage start")
+
+# get timeout value
+timeoutVal = taskBuffer.getConfigValue('rebroker','ANALY_TIMEOUT')
+if timeoutVal is None:
+    timeoutVal = 12
+_logger.debug("timeout value : {0}h".format(timeoutVal))
+try:
+    normalTimeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeoutVal)
+    sortTimeLimit   = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
+    sql  = "SELECT jobDefinitionID,prodUserName,prodUserID,computingSite,MAX(modificationTime),jediTaskID,processingType "
+    sql += "FROM ATLAS_PANDA.jobsActive4 "
+    sql += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
+    sql += "AND ((jobStatus IN (:jobStatus1,:jobStatus2) AND modificationTime<:modificationTime) "
+    sql += "OR (jobStatus IN (:jobStatus3) AND stateChangeTime<:modificationTime)) "
+    sql += "AND jobsetID IS NOT NULL "
+    sql += "AND lockedBy=:lockedBy "
+    sql += "GROUP BY jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType "
+    varMap = {}
+    varMap[':prodSourceLabel1'] = 'user'
+    varMap[':prodSourceLabel2'] = 'panda'
+    varMap[':modificationTime'] = sortTimeLimit
+    varMap[':lockedBy']         = 'jedi'
+    varMap[':jobStatus1']       = 'activated'
+    varMap[':jobStatus2']       = 'dummy'
+    varMap[':jobStatus3']       = 'starting'
+    # get jobs older than threshold
+    ret,res = taskBuffer.querySQLS(sql, varMap)
+    resList = []
+    keyList = set()
+    if res != None:
+        for tmpItem in res:
+            jobDefinitionID,prodUserName,prodUserID,computingSite,maxTime,jediTaskID,processingType = tmpItem
+            tmpKey = (jediTaskID,jobDefinitionID)
+            keyList.add(tmpKey)
+            resList.append(tmpItem)
+    # get stalled assigned job
+    sqlA  = "SELECT jobDefinitionID,prodUserName,prodUserID,computingSite,MAX(creationTime),jediTaskID,processingType "
+    sqlA += "FROM ATLAS_PANDA.jobsDefined4 "
+    sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus IN (:jobStatus1,:jobStatus2) "
+    sqlA += "AND creationTime<:modificationTime AND lockedBy=:lockedBy "
+    sqlA += "GROUP BY jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType "
+    varMap = {}
+    varMap[':prodSourceLabel1'] = 'user'
+    varMap[':prodSourceLabel2'] = 'panda'
+    varMap[':modificationTime'] = sortTimeLimit
+    varMap[':lockedBy']         = 'jedi'
+    varMap[':jobStatus1']       = 'assigned'
+    varMap[':jobStatus2']       = 'defined'
+    retA,resA = taskBuffer.querySQLS(sqlA, varMap)
+    if resA != None:
+        for tmpItem in resA:
+            jobDefinitionID,prodUserName,prodUserID,computingSite,maxTime,jediTaskID,processingType = tmpItem
+            tmpKey = (jediTaskID,jobDefinitionID)
+            if not tmpKey in keyList:
+                keyList.add(tmpKey)
+                resList.append(tmpItem)
+    # sql to check recent activity
+    sql  = "SELECT PandaID,modificationTime FROM %s "
+    sql += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
+    sql += "AND computingSite=:computingSite AND jediTaskID=:jediTaskID "
+    sql += "AND modificationTime>:modificationTime AND NOT jobStatus IN (:jobStatus1) "
+    sql += "AND rownum <= 1"
+    # sql to get associated jobs with jediTaskID
+    sqlJJ  = "SELECT PandaID FROM %s "
+    sqlJJ += "WHERE jediTaskID=:jediTaskID AND jobStatus IN (:jobS1,:jobS2,:jobS3,:jobS4,:jobS5) "
+    sqlJJ += "AND jobDefinitionID=:jobDefID AND computingSite=:computingSite "
+    if resList != []:
+        recentRuntimeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
+        # loop over all user/jobID combinations
+        iComb = 0
+        nComb = len(resList)
+        _logger.debug("total combinations = %s" % nComb)
+        for jobDefinitionID,prodUserName,prodUserID,computingSite,maxModificationTime,jediTaskID,processingType in resList:
+            # check if jobs with the jobID have run recently
+            varMap = {}
+            varMap[':jediTaskID']       = jediTaskID
+            varMap[':computingSite']    = computingSite
+            varMap[':prodUserName']     = prodUserName
+            varMap[':jobDefinitionID']  = jobDefinitionID
+            varMap[':modificationTime'] = recentRuntimeLimit
+            varMap[':jobStatus1']       = 'starting'
+            _logger.debug(" rebro:%s/%s:ID=%s:%s jediTaskID=%s site=%s" % (iComb,nComb,jobDefinitionID,
+                                                                           prodUserName,jediTaskID,
+                                                                           computingSite))
+            iComb += 1
+            hasRecentJobs = False
+            # check site
+            if not siteMapper.checkSite(computingSite):
+                _logger.debug("    -> skip unknown site=%s" % computingSite)
+                continue
+            # check site status
+            tmpSiteStatus = siteMapper.getSite(computingSite).status
+            if not tmpSiteStatus in ['offline','test']:
+                # use normal time limit for nornal site status
+                if maxModificationTime > normalTimeLimit:
+                    _logger.debug("    -> skip wait for normal timelimit=%s<maxModTime=%s" % (normalTimeLimit,maxModificationTime))
+                    continue
+                for tableName in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']:
+                    retU,resU = taskBuffer.querySQLS(sql % tableName, varMap)
+                    if resU == None:
+                        # database error
+                        raise RuntimeError("failed to check modTime")
+                    if resU != []:
+                        # found recent jobs
+                        hasRecentJobs = True
+                        _logger.debug("    -> skip %s ran recently at %s" % (resU[0][0],resU[0][1]))
+                        break
+            else:
+                _logger.debug("    -> immidiate rebro due to site status=%s" % tmpSiteStatus)
+            if hasRecentJobs:
+                # skip since some jobs have run recently
+                continue
+            else:
+                if jediTaskID == None:
+                    _logger.debug("    -> rebro for normal task : no action")
+                else:
+                    _logger.debug("    -> rebro for JEDI task")
+                    killJobs = []
+                    varMap = {}
+                    varMap[':jediTaskID'] = jediTaskID
+                    varMap[':jobDefID'] = jobDefinitionID
+                    varMap[':computingSite'] = computingSite
+                    varMap[':jobS1'] = 'defined'
+                    varMap[':jobS2'] = 'assigned'
+                    varMap[':jobS3'] = 'activated'
+                    varMap[':jobS4'] = 'dummy'
+                    varMap[':jobS5'] = 'starting'
+                    for tableName in ['ATLAS_PANDA.jobsDefined4','ATLAS_PANDA.jobsActive4']:
+                        retJJ,resJJ = taskBuffer.querySQLS(sqlJJ % tableName, varMap)
+                        for tmpPandaID, in resJJ:
+                            killJobs.append(tmpPandaID)
+                    # reverse sort to kill buildJob in the end
+                    killJobs.sort()
+                    killJobs.reverse()
+                    # kill to reassign
+                    taskBuffer.killJobs(killJobs,'JEDI','51',True)
+except Exception as e:
+    _logger.error("rebrokerage failed with {0} : {1}".format(str(e), traceback.format_exc()))
 
 # kill too long running jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=21)

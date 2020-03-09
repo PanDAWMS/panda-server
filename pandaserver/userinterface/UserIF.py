@@ -182,10 +182,13 @@ class UserIF:
 
 
     # get job status
-    def getJobStatus(self,idsStr):
+    def getJobStatus(self, idsStr, use_json):
         try:
-            # deserialize jobspecs
-            ids = WrappedPickle.loads(idsStr)
+            # deserialize IDs
+            if use_json:
+                ids = json.loads(idsStr)
+            else:
+                ids = WrappedPickle.loads(idsStr)
             _logger.debug("getJobStatus len   : %s" % len(ids))
             maxIDs = 5500
             if len(ids) > maxIDs:
@@ -195,11 +198,13 @@ class UserIF:
             type, value, traceBack = sys.exc_info()
             _logger.error("getJobStatus : %s %s" % (type,value))
             ids = []
-        _logger.debug("getJobStatus start : %s" % ids)
+        _logger.debug("getJobStatus start : {0} json={1}".format(str(ids), use_json))
         # peek jobs
-        ret = self.taskBuffer.peekJobs(ids)
+        ret = self.taskBuffer.peekJobs(ids, use_json=use_json)
         _logger.debug("getJobStatus end")
         # serialize
+        if use_json:
+            return json.dumps(ret)
         return WrappedPickle.dumps(ret)
 
 
@@ -1105,7 +1110,7 @@ def runTaskAssignment(req,jobs):
 
 # get job status
 def getJobStatus(req,ids):
-    return userIF.getJobStatus(ids)
+    return userIF.getJobStatus(ids, req.acceptJson())
 
 
 # get PandaID with jobexeID

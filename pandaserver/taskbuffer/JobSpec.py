@@ -790,3 +790,15 @@ class JobSpec(object):
         if self.specialHandling is not None:
             return self._tagForSH['inputPrestaging'] in self.specialHandling.split(',')
         return False
+
+    # to a dictionary
+    def to_dict(self):
+        ret = {}
+        for a in self._attributes:
+            v = getattr(self, a)
+            if isinstance(v, datetime.datetime):
+                v = str(v)
+            elif v == 'NULL':
+                v = None
+            ret[a] = v
+        return ret
