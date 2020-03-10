@@ -1024,7 +1024,7 @@ class DynDataDistributer:
                                                                       amitag=amiTag,user=user,ei_api=ei_api)
                 regTime = datetime.datetime.utcnow()-regStart
                 self.putLog("Hadoop EI command: {0}".format(tmpCom))
-                self.putLog("Hadoop EI took {0}.{1:03d} sec for {2} events" .format(regTime.seconds,
+                self.putLog("Hadoop EI took {0}.{1:03f} sec for {2} events" .format(regTime.seconds,
                                                                                     regTime.microseconds/1000,
                                                                                     len(tmpRunEvtList)))
                 regStart = datetime.datetime.utcnow()
