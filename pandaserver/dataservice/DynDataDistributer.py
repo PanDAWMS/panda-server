@@ -411,7 +411,10 @@ class DynDataDistributer:
             tmpT1SiteID = self.siteMapper.getCloud(cloud)['source']
             tmpT1SiteSpec = self.siteMapper.getSite(tmpT1SiteID)
             tmp_scope_input, tmp_scope_output = select_scope(tmpT1SiteSpec, prodsourcelabel)
-            tmpT1DQ2ID  = tmpT1SiteSpec.ddm_input[tmp_scope_input]
+            if tmp_scope_input in tmpT1SiteSpec.ddm_input:
+                tmpT1DQ2ID = tmpT1SiteSpec.ddm_input[tmp_scope_input]
+            else:
+                tmpT1DQ2ID = 'DUMMY'
             prefixDQ2T1 = re.sub('[^_]+DISK$','',tmpT1DQ2ID)
             # loop over all datasets
             for tmpDS in tmpRepMaps:
@@ -1040,7 +1043,7 @@ class DynDataDistributer:
                     self.putLog(tmpCom)
                     self.putLog(tmpOut)
                     self.putLog(tmpErr)
-                    self.putLog("invalid retrun from EventIndex",type='error')
+                    self.putLog("invalid return from EventIndex",type='error')
                     return failedRet
                 # check events
                 for runNr,evtNr in tmpRunEvtList:
