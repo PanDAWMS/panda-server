@@ -18,7 +18,7 @@ class eventLookupClientEI:
         command = 'java -jar ' + \
             os.getenv('EIDIR', '/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase/x86_64/EIClient/1.24.0') + \
             '/lib/EIHadoopEL.exe.jar '
-        tempEvtFile = tempfile.NamedTemporaryFile()
+        tempEvtFile = tempfile.NamedTemporaryFile(mode='w+t')
         command += "-f {0} ".format(tempEvtFile.name)
         for runEvt in runEvtList:
             tmpStr = '{0:08d} {1:09d}\n'.format(long(runEvt[0]),long(runEvt[1]))
