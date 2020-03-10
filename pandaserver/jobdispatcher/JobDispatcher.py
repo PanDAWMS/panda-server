@@ -7,7 +7,6 @@ import re
 import os
 import sys
 import json
-import types
 import threading
 from pandaserver.jobdispatcher import Protocol
 import time
@@ -181,7 +180,7 @@ class JobDipatcher:
     def getJob(self, siteName, prodSourceLabel, cpu, mem, diskSpace, node, timeout, computingElement,
                atlasRelease, prodUserID, getProxyKey, countryGroup, workingGroup, allowOtherCountry,
                realDN, taskID, nJobs, acceptJson, background, resourceType, harvester_id, worker_id,
-               schedulerID):
+               schedulerID, jobType):
 
         t_getJob_start = time.time()
         jobs = []
@@ -192,11 +191,15 @@ class JobDipatcher:
             tmpNumJobs = None
         if tmpNumJobs is None:
             tmpNumJobs = 1
+
+        self.siteMapperCache.update()
+        is_gu = self.siteMapperCache.cachedObj.getSite(siteName).is_grandly_unified()
+
         # wrapper function for timeout
         tmpWrapper = _TimedMethod(self.taskBuffer.getJobs, timeout)
         tmpWrapper.run(tmpNumJobs, siteName, prodSourceLabel, cpu, mem, diskSpace, node, timeout, computingElement,
                        atlasRelease, prodUserID, getProxyKey, countryGroup, workingGroup, allowOtherCountry,
-                       taskID, background, resourceType, harvester_id, worker_id, schedulerID)
+                       taskID, background, resourceType, harvester_id, worker_id, schedulerID, jobType, is_gu)
 
         if isinstance(tmpWrapper.result, list):
             jobs = jobs + tmpWrapper.result
@@ -207,7 +210,6 @@ class JobDipatcher:
             jobs = jobs[:-2]
         if len(jobs) != 0:
             # succeed
-            self.siteMapperCache.update()
             responseList = []
             # append Jobs
             for tmpJob in jobs:
@@ -837,7 +839,7 @@ web service interface
 def getJob(req, siteName, token=None, timeout=60, cpu=None, mem=None, diskSpace=None, prodSourceLabel=None, node=None,
            computingElement=None, AtlasRelease=None, prodUserID=None, getProxyKey=None, countryGroup=None,
            workingGroup=None, allowOtherCountry=None, taskID=None, nJobs=None, background=None, resourceType=None,
-           harvester_id=None, worker_id=None, schedulerID=None):
+           harvester_id=None, worker_id=None, schedulerID=None, jobType=None):
     _logger.debug("getJob(%s)" % siteName)
     # get DN
     realDN = _getDN(req)
@@ -878,11 +880,11 @@ def getJob(req, siteName, token=None, timeout=60, cpu=None, mem=None, diskSpace=
     else:
         background = False
     _logger.debug("getJob(%s,nJobs=%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,taskID=%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s,json:%s,bg=%s,rt=%s," \
-                      "harvester_id=%s,worker_id=%s,schedulerID=%s" \
+                      "harvester_id=%s,worker_id=%s,schedulerID=%s,jobType=%s" \
                   % (siteName, nJobs, cpu, mem, diskSpace, prodSourceLabel, node,
                      computingElement, AtlasRelease, prodUserID, getProxyKey, countryGroup, workingGroup,
                      allowOtherCountry, taskID, realDN, prodManager, token, validToken, str(fqans), req.acceptJson(),
-                     background, resourceType, harvester_id, worker_id, schedulerID))
+                     background, resourceType, harvester_id, worker_id, schedulerID, jobType))
     try:
         dummyNumSlots = int(nJobs)
     except Exception:
@@ -908,7 +910,7 @@ def getJob(req, siteName, token=None, timeout=60, cpu=None, mem=None, diskSpace=
     return jobDispatcher.getJob(siteName, prodSourceLabel, cpu, mem, diskSpace, node, int(timeout),
                                 computingElement, AtlasRelease, prodUserID, getProxyKey, countryGroup,
                                 workingGroup, allowOtherCountry, realDN, taskID, nJobs, req.acceptJson(),
-                                background, resourceType, harvester_id, worker_id, schedulerID)
+                                background, resourceType, harvester_id, worker_id, schedulerID, jobType)
 
 
 # update job status

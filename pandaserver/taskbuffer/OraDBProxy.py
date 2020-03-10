@@ -3255,7 +3255,7 @@ class DBProxy:
     # get jobs
     def getJobs(self, nJobs, siteName, prodSourceLabel, cpu, mem, diskSpace, node, timeout, computingElement,
                 atlasRelease, prodUserID, countryGroup, workingGroup, allowOtherCountry, taskID, background,
-                resourceType, harvester_id, worker_id, schedulerID):
+                resourceType, harvester_id, worker_id, schedulerID, jobType, is_gu):
         """
         1. Construct where clause (sql1) based on applicable filters for request
         2. Select n jobs with the highest priorities and the lowest pandaids
@@ -3268,7 +3268,6 @@ class DBProxy:
         maxAttemptIDx = 10
 
         # construct where clause
-        dynamicBrokering = False
         getValMap = {}
         getValMap[':oldJobStatus'] = 'activated'
         getValMap[':computingSite'] = siteName
@@ -3293,7 +3292,6 @@ class DBProxy:
             getValMap[':prodSourceLabel2'] = 'panda'
             getValMap[':prodSourceLabel3'] = 'install'
         elif prodSourceLabel == 'ddm':
-            dynamicBrokering = True
             sql1+= "AND prodSourceLabel=:prodSourceLabel "
             getValMap[':prodSourceLabel'] = 'ddm'
         elif prodSourceLabel in [None,'managed']:
@@ -3306,15 +3304,15 @@ class DBProxy:
             sql1+= "AND prodSourceLabel=:prodSourceLabel "
             getValMap[':prodSourceLabel'] = 'software'
         elif prodSourceLabel == 'test' and computingElement is not None:
-            dynamicBrokering = True
-            sql1+= "AND (processingType IN (:processingType1,:processingType2,:processingType3) "
-            sql1+= "OR prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3)) "
-            getValMap[':processingType1']   = 'gangarobot'
-            getValMap[':processingType2']   = 'analy_test'
-            getValMap[':processingType3']   = 'prod_test'
-            getValMap[':prodSourceLabel1']  = 'test'
-            getValMap[':prodSourceLabel2']  = 'prod_test'
-            getValMap[':prodSourceLabel3'] = 'install'
+            if is_gu and jobType == 'user':
+                    sql1+= "AND processingType=:processingType1 "
+                    getValMap[':processingType1'] = 'gangarobot'
+            else:
+                sql1+= "AND (processingType=:processingType1 "
+                sql1+= "OR prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2)) "
+                getValMap[':processingType1'] = 'gangarobot'  # analysis HC jobs
+                getValMap[':prodSourceLabel1'] = 'prod_test'  # production HC jobs
+                getValMap[':prodSourceLabel2'] = 'install'
         elif prodSourceLabel == 'unified':
             pass
         else:
