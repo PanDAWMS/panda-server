@@ -504,7 +504,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     tmpLog.debug('PandaID:%s -> set SiteList=%s to use T2 for missing files at T1' % (job.PandaID,specialBrokergageSiteList))
                     brokerageNote = 'useT2'
             # set computingSite to T1 for high priority jobs
-            if job is not None and job.currentPriority >= 950 and job.computingSite == 'NULL' \
+            if job is not None and job.currentPriority not in [None,'NULL'] and job.currentPriority >= 950 and job.computingSite == 'NULL' \
                    and job.prodSourceLabel in ('test','managed') and specialBrokergageSiteList == []:
                 specialBrokergageSiteList = [siteMapper.getCloud(job.getCloud())['source']]
                 # set site list to use T1 and T1_VL
