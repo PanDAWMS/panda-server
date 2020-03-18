@@ -9825,12 +9825,6 @@ class DBProxy:
                    LEFT JOIN ATLAS_PANDA.site c ON b.site_name = c.site_name
                    WHERE panda_queue IS NOT NULL
                    """
-
-            # sql to get num slots
-            sqlSL = "SELECT gshare, resourcetype, numslots FROM ATLAS_PANDA.Harvester_Slots "
-            sqlSL += "WHERE pandaQueueName=:pandaQueueName "
-            sqlSL += "AND (expirationTime IS NULL OR expirationTime>CURRENT_DATE) "
-
             self.cur.arraysize = 10000
             # self.cur.execute(sql+comment)
             # resList = self.cur.fetchall()
@@ -9840,6 +9834,22 @@ class DBProxy:
 
             if not resList:
                 _logger.error('Empty site list!')
+
+            # sql to get num slots
+            sqlSL = "SELECT pandaQueueName, gshare, resourcetype, numslots FROM ATLAS_PANDA.Harvester_Slots "
+            sqlSL += "WHERE (expirationTime IS NULL OR expirationTime>CURRENT_DATE) "
+
+            num_slots_by_site = {}
+            self.cur.execute(sqlSL + comment)
+            resSL = self.cur.fetchall()
+
+            for sl_queuename, sl_gshare, sl_resourcetype, sl_numslots in resSL:
+                if sl_numslots < 0:
+                    continue
+                num_slots_by_site.setdefault(sl_queuename, {})
+                num_slots_by_site[sl_queuename].setdefault(sl_gshare, {})
+                num_slots_by_site[sl_queuename][sl_gshare][sl_resourcetype] = sl_numslots
+
 
             retList = {}
             if resList is not None:
@@ -10119,19 +10129,9 @@ class DBProxy:
 
                     # default unified flag
                     ret.is_unified = False
-
+                    
                     # num slots
-                    ret.num_slots_map = dict()
-                    varMap = dict()
-                    varMap[':pandaQueueName'] = siteid
-                    self.cur.execute(sqlSL+comment, varMap)
-                    resSL = self.cur.fetchall()
-                    for sl_gshare, sl_resourcetype, sl_numslots in resSL:
-                        if sl_numslots < 0:
-                            continue
-                        ret.num_slots_map.setdefault(sl_gshare, dict())
-                        ret.num_slots_map[sl_gshare].setdefault(sl_resourcetype, dict())
-                        ret.num_slots_map[sl_gshare][sl_resourcetype] = sl_numslots
+                    ret.num_slots_map = num_slots_by_site.get(siteid, {})
 
                     # append
                     retList[ret.nickname] = ret
