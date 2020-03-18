@@ -339,6 +339,9 @@ class Response:
         # use prefetcher
         if job.usePrefetcher():
             self.data['usePrefetcher'] = 'True'
+        # image name
+        if job.container_name not in ['NULL', None]:
+            self.data['container_name'] = job.container_name
         # IO
         self.data['ioIntensity'] = job.get_task_attribute('ioIntensity')
         self.data['ioIntensityUnit'] = job.get_task_attribute('ioIntensityUnit')
