@@ -1742,7 +1742,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             # increment the number of jobs per key
             if mapKeyJob not in nJobsMap:
                 nJobsMap[mapKeyJob] = 0
-            mapKey = (destDQ2ID,logSubDsName,nJobsMap[mapKeyJob]/nMaxJobs,ddmBackEnd)
+            mapKey = (destDQ2ID, logSubDsName, nJobsMap[mapKeyJob] // nMaxJobs, ddmBackEnd)
             nJobsMap[mapKeyJob] += 1
             if mapKey not in dsFileMap:
                 dsFileMap[mapKey] = {}
