@@ -269,7 +269,7 @@ setup(
                                'templates/panda_server.cfg.rpmnew.template',
                                'templates/pandasrv.cron.template',
                                'templates/logrotate.d/panda_server.logrotate.template',
-                               'templates/sysconfig/panda_server.sysconfig.template'
+                               'templates/sysconfig/panda_server.sysconfig.rpmnew.template'
                                ]
                  ),
 

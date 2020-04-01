@@ -9788,23 +9788,6 @@ class DBProxy:
         _logger.debug("getSiteInfo start")
         methodName = comment.split(' ')[-2].split('.')[-1]
         try:
-            # set autocommit on
-            # self.conn.begin()
-            # get reliability info
-            reliabilityMap = {}
-            try:
-                sqlRel = "SELECT tier2,t2group FROM ATLAS_GRISLI.t_m4regions_replication"
-                self.cur.arraysize = 10000
-                self.cur.execute(sqlRel+comment)
-                tmpList = self.cur.fetchall()
-                for tier2,t2group in tmpList:
-                    # get prefix
-                    tmpPrefix = re.sub('_DATADISK','',tier2)
-                    reliabilityMap[tmpPrefix] = t2group
-            except Exception:
-                errType, errValue = sys.exc_info()[:2]
-                _logger.error("getSiteInfo %s:%s" % (errType.__class__.__name__, errValue))
-
             # get CVMFS availability
             sqlCVMFS  = "SELECT distinct siteid FROM ATLAS_PANDAMETA.installedSW WHERE `release`=:release"
             self.cur.execute(sqlCVMFS, {':release': 'CVMFS'})
@@ -9977,11 +9960,7 @@ class DBProxy:
                         ret.mintime = 0
 
                     # reliability
-                    tmpPrefix = re.sub('_[^_]+DISK$', '', ret.ddm)
-                    if tmpPrefix in reliabilityMap:
-                        ret.reliabilityLevel = reliabilityMap[tmpPrefix]
-                    else:
-                        ret.reliabilityLevel = None
+                    ret.reliabilityLevel = None
 
                     # contry groups
                     if queue_data.get('countrygroup') not in ['', None]:
@@ -21152,10 +21131,8 @@ class DBProxy:
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug('start')
         try:
-            sql = """
-            SELECT {0} FROM atlas_panda.resource_types
-            """.format(ResourceSpec.column_names())
-
+            sql = "SELECT {0} FROM {1}.resource_types ".format(
+                ResourceSpec.column_names(), panda_config.schemaJEDI)
             self.cur.execute(sql + comment)
             resource_list = self.cur.fetchall()
             resource_spec_list = []
@@ -21211,10 +21188,8 @@ class DBProxy:
 
         # 1. Get the task parameters
         var_map = {':jedi_task_id': jedi_task_id}
-        sql = """
-        SELECT corecount, ramcount, baseramcount, ramunit FROM atlas_panda.jedi_tasks
-        WHERE jeditaskid = :jedi_task_id
-        """
+        sql = ("SELECT corecount, ramcount, baseramcount, ramunit FROM {0}.jedi_tasks "
+               "WHERE jeditaskid = :jedi_task_id ").format(panda_config.schemaJEDI)
         self.cur.execute(sql + comment, var_map)
         corecount, ramcount, baseramcount, ramunit = self.cur.fetchone()
         tmp_log.debug('retrieved following values for jediTaskid {0}: corecount {1}, ramcount {2}, baseramcount {3}, ramunit {4}'.
@@ -21234,11 +21209,9 @@ class DBProxy:
         try:
             var_map = {':jedi_task_id': jedi_task_id,
                        ':resource_type': resource_name}
-            sql = """
-                   UPDATE atlas_panda.jedi_tasks
-                   SET resource_type = :resource_type
-                   WHERE jeditaskid = :jedi_task_id
-                   """
+            sql = ("UPDATE {0}.JEDI_Tasks " 
+                   "SET resource_type = :resource_type "
+                   "WHERE jeditaskid = :jedi_task_id ").format(panda_config.schemaJEDI)
             tmp_log.debug('conn begin...')
             if use_commit:
                 self.conn.begin()
