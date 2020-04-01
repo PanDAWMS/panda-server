@@ -214,9 +214,11 @@ class install_data_panda (install_data_org):
             if not os.path.exists(target_dir):
                 os.makedirs(target_dir)
             target = os.path.join(target_dir,'panda_server')
-            if not os.path.exists(target):
+            try:
                 os.symlink(os.path.join(self.virtual_env, 'etc/panda/panda_server.sysconfig'),
                            target)
+            except Exception:
+                pass
 
 
 
