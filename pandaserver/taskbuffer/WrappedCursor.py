@@ -261,6 +261,7 @@ class WrappedCursor(object):
     def executemany(self, sql, params):
         if sql is None:
             sql = self.statement
+        sql = self.change_schema(sql)
         if self.backend == 'oracle':
             self.cur.executemany(sql,params)
         else: 
@@ -286,6 +287,18 @@ class WrappedCursor(object):
     def arraysize(self,val):
         self.cur.arraysize = val
 
-
-
-
+    # change schema
+    def change_schema(self, sql):
+        if panda_config.schemaPANDA != 'ATLAS_PANDA':
+            sql = re.sub('ATLAS_PANDA\.',
+                         panda_config.schemaPANDA + '.', sql)
+        if panda_config.schemaMETA != 'ATLAS_PANDAMETA':
+            sql = re.sub('ATLAS_PANDAMETA\.',
+                         panda_config.schemaMETA + '.', sql)
+        if panda_config.schemaGRISLI != 'ATLAS_GRISLI':
+            sql = re.sub('ATLAS_GRISLI\.',
+                         panda_config.schemaGRISLI + '.', sql)
+        if panda_config.schemaPANDAARCH != 'ATLAS_PANDAARCH':
+            sql = re.sub('ATLAS_PANDAARCH\.',
+                         panda_config.schemaPANDAARCH + '.', sql)
+        return sql
