@@ -132,7 +132,6 @@ class Schedconfig(Base):
     seopt = Column(String(400))
     sein = Column(String(400))
     seinopt = Column(String(400))
-    lfchost = Column(String(80))
     cloud = Column(String(60))
     siteid = Column(String(60))
     proxy = Column(String(80))

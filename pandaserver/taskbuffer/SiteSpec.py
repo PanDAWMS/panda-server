@@ -7,7 +7,7 @@ import re
 
 class SiteSpec(object):
     # attributes
-    _attributes = ('sitename','nickname','dq2url','cloud','ddm','ddm_input','ddm_output','lfchost','type',
+    _attributes = ('sitename','nickname','dq2url','cloud','ddm','ddm_input','ddm_output','type',
                    'releases','memory','maxtime','status','space','retry','setokens_input','setokens_output',
                    'glexec','priorityoffset','allowedgroups','defaulttoken','queue',
                    'localqueue','validatedreleases','accesscontrol','copysetup','maxinputsize',
