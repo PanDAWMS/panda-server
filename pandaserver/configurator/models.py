@@ -150,7 +150,6 @@ class Schedconfig(Base):
     maxtime = Column(Numeric(10, 0, asdecimal=False), nullable=False)
     space = Column(Numeric(10, 0, asdecimal=False), nullable=False)
     tspace = Column(DateTime, nullable=False)
-    cmtconfig = Column(String(250))
     setokens = Column(String(80))
     glexec = Column(String(10))
     priorityoffset = Column(String(60))

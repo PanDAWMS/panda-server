@@ -8,7 +8,7 @@ import re
 class SiteSpec(object):
     # attributes
     _attributes = ('sitename','nickname','dq2url','cloud','ddm','ddm_input','ddm_output','lfchost','type','gatekeeper',
-                   'releases','memory','maxtime','status','space','retry','cmtconfig','setokens_input','setokens_output',
+                   'releases','memory','maxtime','status','space','retry','setokens_input','setokens_output',
                    'glexec','priorityoffset','allowedgroups','defaulttoken','queue',
                    'localqueue','validatedreleases','accesscontrol','copysetup','maxinputsize',
                    'cachedse','allowdirectaccess','comment','cloudlist','statusmodtime','lfcregister',
