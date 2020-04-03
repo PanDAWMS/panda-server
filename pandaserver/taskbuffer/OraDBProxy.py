@@ -9881,11 +9881,9 @@ class DBProxy:
                     ret.localqueue = queue_data.get('localqueue')
                     ret.cachedse = queue_data.get('cachedse')
                     ret.accesscontrol = queue_data.get('accesscontrol')
-                    ret.copysetup = queue_data.get('copysetup')
                     ret.maxinputsize = queue_data.get('maxinputsize')
                     ret.comment = queue_data.get('comment_')
                     ret.statusmodtime = queue_data.get('lastmod')
-                    ret.lfcregister = queue_data.get('lfcregister')
                     ret.catchall = queue_data.get('catchall')
                     ret.tier = queue_data.get('tier')
                     ret.jobseed = queue_data.get('jobseed')
@@ -9940,16 +9938,6 @@ class DBProxy:
                                 ret.maxwdir = ret.maxinputsize + 2000
                             except Exception:
                                 ret.maxwdir = 16336
-
-                    # memory
-                    if queue_data.get('minmemory') is not None:
-                        ret.minmemory = queue_data['minmemory']
-                    else:
-                        ret.minmemory = 0
-                    if queue_data.get('maxmemory') is not None:
-                        ret.maxmemory = queue_data['maxmemory']
-                    else:
-                        ret.maxmemory = 0
 
                     # mintime
                     if queue_data.get('mintime') is not None:
@@ -10029,12 +10017,6 @@ class DBProxy:
                         ret.cmtconfig = ['i686-slc3-gcc323-opt']
                     if queue_data.get('cmtconfig') != '':
                         ret.cmtconfig.append(queue_data['cmtconfig'])
-
-                    # direct access
-                    if queue_data.get('allowdirectaccess') is True:
-                        ret.allowdirectaccess = True
-                    else:
-                        ret.allowdirectaccess = False
 
                     # CVMFS
                     if siteid in cvmfsSites:

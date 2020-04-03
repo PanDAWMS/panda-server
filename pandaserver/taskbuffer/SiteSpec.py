@@ -7,18 +7,16 @@ import re
 
 class SiteSpec(object):
     # attributes
-    _attributes = ('sitename','nickname','dq2url','cloud','ddm','ddm_input','ddm_output','type',
-                   'releases','memory','maxtime','status','space','retry','setokens_input','setokens_output',
-                   'glexec','priorityoffset','allowedgroups','defaulttoken','queue',
-                   'localqueue','validatedreleases','accesscontrol','copysetup','maxinputsize',
-                   'cachedse','allowdirectaccess','comment','cloudlist','statusmodtime','lfcregister',
-                   'countryGroup','availableCPU','pledgedCPU','coreCount','reliabilityLevel',
-                   'iscvmfs','transferringlimit','maxwdir','fairsharePolicy','minmemory','maxmemory',
-                   'mintime','allowfax','wansourcelimit','wansinklimit','pandasite',
-                   'sitershare','cloudrshare','corepower','wnconnectivity','catchall',
-                   'role','pandasite_state','ddm_endpoints_input','ddm_endpoints_output','maxrss','minrss',
-                   'direct_access_lan','direct_access_wan','tier','objectstores','is_unified',
-                   'unified_name','jobseed','capability','num_slots_map', 'workflow', 'maxDiskio')
+    _attributes = ('sitename', 'nickname', 'dq2url', 'cloud', 'ddm', 'ddm_input', 'ddm_output', 'type',
+                   'releases', 'memory', 'maxtime', 'status', 'space', 'retry', 'setokens_input', 'setokens_output',
+                   'glexec', 'priorityoffset', 'allowedgroups', 'defaulttoken', 'localqueue', 'validatedreleases',
+                   'accesscontrol', 'maxinputsize', 'cachedse', 'comment', 'cloudlist', 'statusmodtime', 'countryGroup',
+                   'availableCPU', 'pledgedCPU', 'coreCount', 'reliabilityLevel', 'iscvmfs', 'transferringlimit',
+                   'maxwdir', 'fairsharePolicy', 'mintime', 'allowfax', 'wansourcelimit', 'wansinklimit', 'pandasite',
+                   'sitershare', 'cloudrshare', 'corepower', 'wnconnectivity', 'catchall', 'role', 'pandasite_state',
+                   'ddm_endpoints_input', 'ddm_endpoints_output', 'maxrss', 'minrss',
+                   'direct_access_lan', 'direct_access_wan', 'tier', 'objectstores', 'is_unified', 'unified_name',
+                   'jobseed', 'capability', 'num_slots_map', 'workflow', 'maxDiskio')
 
     # constructor
     def __init__(self):
@@ -45,8 +43,6 @@ class SiteSpec(object):
     def getResourceType(self):
         if self.type == 'analysis':
             return "ANALY"
-        if self.minmemory > 0:
-            return "HIMEM"
         if self.coreCount > 1:
             return "MCORE"
         return "SCORE"

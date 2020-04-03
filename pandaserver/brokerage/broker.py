@@ -772,16 +772,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     except Exception:
                                         errtype,errvalue = sys.exc_info()[:2]
                                         tmpLog.error("max memory check : %s %s" % (errtype,errvalue))
-                                # check min memory
-                                if tmpSiteSpec.minmemory != 0 and prevMemory not in [None,0,'NULL']:
-                                    try:
-                                        if int(tmpSiteSpec.minmemory) > int(prevMemory):
-                                            tmpLog.debug('  skip: job memory shortage %s>%s' % (tmpSiteSpec.memory,prevMemory))
-                                            resultsForAnal['memory'].append(site)
-                                            continue
-                                    except Exception:
-                                        errtype,errvalue = sys.exc_info()[:2]
-                                        tmpLog.error("min memory check : %s %s" % (errtype,errvalue))
                                 # check maxcpucount
                                 if tmpSiteSpec.maxtime != 0 and prevMaxCpuCount not in [None,0,'NULL']:
                                     try:
@@ -878,10 +868,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 elif not foundRelease:
                                     # found at least one site has the release
                                     foundRelease = True
-                                # direct access
-                                if prevDirectAcc == 'direct' and not tmpSiteSpec.allowdirectaccess:
-                                    tmpLog.debug(' skip: no direct access support')
-                                    continue
                                 # get pilot statistics
                                 nPilotsGet = 0
                                 nPilotsUpdate = 0
