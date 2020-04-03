@@ -9871,7 +9871,6 @@ class DBProxy:
                     ret.ddm = queue_data.get('ddm', '').split(',')[0]
                     ret.cloud = queue_data.get('cloud', '').split(',')[0]
                     ret.lfchost = queue_data.get('lfchost')
-                    ret.gatekeeper = queue_data.get('gatekeeper')
                     ret.memory = queue_data.get('memory')
                     ret.maxrss = queue_data.get('maxrss')
                     ret.minrss = queue_data.get('minrss')

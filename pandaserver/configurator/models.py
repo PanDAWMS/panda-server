@@ -96,7 +96,6 @@ class Schedconfig(Base):
     system = Column(String(60), nullable=False)
     sysconfig = Column(String(20))
     environ = Column(String(250))
-    gatekeeper = Column(String(120))
     jobmanager = Column(String(80))
     se = Column(String(400))
     ddm = Column(String(120))
