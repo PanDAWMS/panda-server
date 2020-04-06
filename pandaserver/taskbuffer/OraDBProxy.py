@@ -10005,19 +10005,6 @@ class DBProxy:
                             if tmpRel != '':
                                 ret.validatedreleases.append(tmpRel)
 
-                    # cmtconfig
-                    if queue_data.get('cmtconfig') in ['x86_64-slc5-gcc43']:
-                        # set empty for slc5-gcc43 validation
-                        ret.cmtconfig = [] # FIXME
-                    elif queue_data.get('cmtconfig') in ['i686-slc5-gcc43-opt']:
-                        # set slc4 for slc5 to get slc4 jobs too
-                        ret.cmtconfig = ['i686-slc4-gcc34-opt']
-                    else:
-                        # set slc3 if the column is empty
-                        ret.cmtconfig = ['i686-slc3-gcc323-opt']
-                    if queue_data.get('cmtconfig') != '':
-                        ret.cmtconfig.append(queue_data['cmtconfig'])
-
                     # CVMFS
                     if siteid in cvmfsSites:
                         ret.iscvmfs = True
@@ -10671,8 +10658,8 @@ class DBProxy:
 
 
     # check sites with release/cache
-    def checkSitesWithRelease(self,sites,releases,caches,cmtConfig=None,onlyCmtConfig=False,
-                              cmtConfigPattern=False):
+    def checkSitesWithRelease(self, sites, releases,caches,
+                              cmtConfig=None, onlyCmtConfig=False, cmtConfigPattern=False):
         comment = ' /* DBProxy.checkSitesWithRelease */'
         try:
             relStr = releases
@@ -10882,7 +10869,7 @@ class DBProxy:
 
 
     # get list of cmtConfig
-    def getCmtConfigList(self,relaseVer):
+    def getCmtConfigList(self, relaseVer):
         comment = ' /* DBProxy.getCmtConfigList */'
         try:
             methodName = "getCmtConfigList"
