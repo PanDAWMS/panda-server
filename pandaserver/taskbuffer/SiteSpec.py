@@ -13,7 +13,7 @@ class SiteSpec(object):
                    'accesscontrol', 'maxinputsize', 'cachedse', 'comment', 'cloudlist', 'statusmodtime', 'countryGroup',
                    'availableCPU', 'pledgedCPU', 'coreCount', 'reliabilityLevel', 'iscvmfs', 'transferringlimit',
                    'maxwdir', 'fairsharePolicy', 'mintime', 'allowfax', 'wansourcelimit', 'wansinklimit', 'pandasite',
-                   'sitershare', 'cloudrshare', 'corepower', 'wnconnectivity', 'catchall', 'role', 'pandasite_state',
+                   'corepower', 'wnconnectivity', 'catchall', 'role', 'pandasite_state',
                    'ddm_endpoints_input', 'ddm_endpoints_output', 'maxrss', 'minrss',
                    'direct_access_lan', 'direct_access_wan', 'tier', 'objectstores', 'is_unified', 'unified_name',
                    'jobseed', 'capability', 'num_slots_map', 'workflow', 'maxDiskio')
@@ -47,22 +47,6 @@ class SiteSpec(object):
             return "MCORE"
         return "SCORE"
                        
-
-
-    # check if resource fair share is used
-    def useResourceFairShare(self):
-        if self.cloudrshare is None and self.sitershare is None:
-            return False
-        return True
-
-
-
-    # check if resource fair share is used at site level
-    def useSiteResourceFairShare(self):
-        if self.sitershare is None:
-            return False
-        return True
-
 
 
     # check what type of jobs are allowed

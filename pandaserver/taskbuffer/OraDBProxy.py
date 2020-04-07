@@ -1108,7 +1108,6 @@ class DBProxy:
         sql0 = "SELECT row_ID FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type AND NOT status IN (:status1,:status2) "
         sql1 = "DELETE FROM ATLAS_PANDA.jobsDefined4 "
         sql1+= "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2) AND commandToPilot IS NULL"
-        sqlS = "SELECT sitershare,cloudrshare FROM ATLAS_PANDAMETA.schedconfig WHERE siteID=:siteID "
         sql2 = "INSERT INTO ATLAS_PANDA.jobsActive4 (%s) " % JobSpec.columnNames()
         sql2+= JobSpec.bindValuesExpression()
         # host and time information
@@ -1139,17 +1138,7 @@ class DBProxy:
                 if len(res) == 0 or allOK:
                     # check resource share
                     job.jobStatus = "activated"
-                    if job.lockedby == 'jedi':
-                        varMap = {}
-                        varMap[':siteID'] = job.computingSite
-                        self.cur.execute(sqlS+comment, varMap)
-                        resSite = self.cur.fetchone()
-                        # change status
-                        """
-                        if resSite is not None and (not resSite[0] in [None,''] or not resSite[1] in [None,'']):
-                            job.jobStatus = "throttled"
-                            _logger.debug("activateJob : {0} to {1}".format(job.PandaID,job.jobStatus))
-                        """
+
                     # delete
                     varMap = {}
                     varMap[':PandaID']       = job.PandaID
@@ -9877,7 +9866,6 @@ class DBProxy:
                     ret.status = queue_data.get('status')
                     ret.space = queue_data.get('space')
                     ret.glexec = queue_data.get('glexec')
-                    ret.queue = queue_data.get('queue')
                     ret.localqueue = queue_data.get('localqueue')
                     ret.cachedse = queue_data.get('cachedse')
                     ret.accesscontrol = queue_data.get('accesscontrol')
@@ -9908,22 +9896,6 @@ class DBProxy:
                     if ret.wnconnectivity == '':
                         ret.wnconnectivity = None
 
-                    ret.sitershare = None
-                    """
-                    try:
-                        if sitershare not in [None,'']:
-                            ret.sitershare = int(sitershare)
-                    except Exception:
-                        pass
-                    """
-                    ret.cloudrshare = None
-                    """
-                    try:
-                        if cloudrshare not in [None,'']:
-                            ret.cloudrshare = int(cloudrshare)
-                    except Exception:
-                        pass
-                    """
                     # maxwdir
                     try:
                         if queue_data.get('maxwdir') is None:

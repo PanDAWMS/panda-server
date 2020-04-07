@@ -175,8 +175,6 @@ class Schedconfig(Base):
     multicloud_append = Column(String(64))
     corepower = Column(Numeric(asdecimal=False))
     wnconnectivity = Column(String(256))
-    cloudrshare = Column(String(256))
-    sitershare = Column(String(256))
     autosetup_post = Column(String(512))
     autosetup_pre = Column(String(512))
     direct_access_lan = Column(String(32), server_default=text("'False' "))
