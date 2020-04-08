@@ -1108,7 +1108,6 @@ class DBProxy:
         sql0 = "SELECT row_ID FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type AND NOT status IN (:status1,:status2) "
         sql1 = "DELETE FROM ATLAS_PANDA.jobsDefined4 "
         sql1+= "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2) AND commandToPilot IS NULL"
-        sqlS = "SELECT sitershare,cloudrshare FROM ATLAS_PANDAMETA.schedconfig WHERE siteID=:siteID "
         sql2 = "INSERT INTO ATLAS_PANDA.jobsActive4 (%s) " % JobSpec.columnNames()
         sql2+= JobSpec.bindValuesExpression()
         # host and time information
@@ -1139,17 +1138,7 @@ class DBProxy:
                 if len(res) == 0 or allOK:
                     # check resource share
                     job.jobStatus = "activated"
-                    if job.lockedby == 'jedi':
-                        varMap = {}
-                        varMap[':siteID'] = job.computingSite
-                        self.cur.execute(sqlS+comment, varMap)
-                        resSite = self.cur.fetchone()
-                        # change status
-                        """
-                        if resSite is not None and (not resSite[0] in [None,''] or not resSite[1] in [None,'']):
-                            job.jobStatus = "throttled"
-                            _logger.debug("activateJob : {0} to {1}".format(job.PandaID,job.jobStatus))
-                        """
+
                     # delete
                     varMap = {}
                     varMap[':PandaID']       = job.PandaID
@@ -9870,8 +9859,6 @@ class DBProxy:
                     ret.dq2url = queue_data.get('dq2url')
                     ret.ddm = queue_data.get('ddm', '').split(',')[0]
                     ret.cloud = queue_data.get('cloud', '').split(',')[0]
-                    ret.lfchost = queue_data.get('lfchost')
-                    ret.gatekeeper = queue_data.get('gatekeeper')
                     ret.memory = queue_data.get('memory')
                     ret.maxrss = queue_data.get('maxrss')
                     ret.minrss = queue_data.get('minrss')
@@ -9879,15 +9866,12 @@ class DBProxy:
                     ret.status = queue_data.get('status')
                     ret.space = queue_data.get('space')
                     ret.glexec = queue_data.get('glexec')
-                    ret.queue = queue_data.get('queue')
                     ret.localqueue = queue_data.get('localqueue')
                     ret.cachedse = queue_data.get('cachedse')
                     ret.accesscontrol = queue_data.get('accesscontrol')
-                    ret.copysetup = queue_data.get('copysetup')
                     ret.maxinputsize = queue_data.get('maxinputsize')
                     ret.comment = queue_data.get('comment_')
                     ret.statusmodtime = queue_data.get('lastmod')
-                    ret.lfcregister = queue_data.get('lfcregister')
                     ret.catchall = queue_data.get('catchall')
                     ret.tier = queue_data.get('tier')
                     ret.jobseed = queue_data.get('jobseed')
@@ -9912,22 +9896,6 @@ class DBProxy:
                     if ret.wnconnectivity == '':
                         ret.wnconnectivity = None
 
-                    ret.sitershare = None
-                    """
-                    try:
-                        if sitershare not in [None,'']:
-                            ret.sitershare = int(sitershare)
-                    except Exception:
-                        pass
-                    """
-                    ret.cloudrshare = None
-                    """
-                    try:
-                        if cloudrshare not in [None,'']:
-                            ret.cloudrshare = int(cloudrshare)
-                    except Exception:
-                        pass
-                    """
                     # maxwdir
                     try:
                         if queue_data.get('maxwdir') is None:
@@ -9942,16 +9910,6 @@ class DBProxy:
                                 ret.maxwdir = ret.maxinputsize + 2000
                             except Exception:
                                 ret.maxwdir = 16336
-
-                    # memory
-                    if queue_data.get('minmemory') is not None:
-                        ret.minmemory = queue_data['minmemory']
-                    else:
-                        ret.minmemory = 0
-                    if queue_data.get('maxmemory') is not None:
-                        ret.maxmemory = queue_data['maxmemory']
-                    else:
-                        ret.maxmemory = 0
 
                     # mintime
                     if queue_data.get('mintime') is not None:
@@ -10018,25 +9976,6 @@ class DBProxy:
                             tmpRel = tmpRel.strip()
                             if tmpRel != '':
                                 ret.validatedreleases.append(tmpRel)
-
-                    # cmtconfig
-                    if queue_data.get('cmtconfig') in ['x86_64-slc5-gcc43']:
-                        # set empty for slc5-gcc43 validation
-                        ret.cmtconfig = [] # FIXME
-                    elif queue_data.get('cmtconfig') in ['i686-slc5-gcc43-opt']:
-                        # set slc4 for slc5 to get slc4 jobs too
-                        ret.cmtconfig = ['i686-slc4-gcc34-opt']
-                    else:
-                        # set slc3 if the column is empty
-                        ret.cmtconfig = ['i686-slc3-gcc323-opt']
-                    if queue_data.get('cmtconfig') != '':
-                        ret.cmtconfig.append(queue_data['cmtconfig'])
-
-                    # direct access
-                    if queue_data.get('allowdirectaccess') is True:
-                        ret.allowdirectaccess = True
-                    else:
-                        ret.allowdirectaccess = False
 
                     # CVMFS
                     if siteid in cvmfsSites:
@@ -10691,8 +10630,8 @@ class DBProxy:
 
 
     # check sites with release/cache
-    def checkSitesWithRelease(self,sites,releases,caches,cmtConfig=None,onlyCmtConfig=False,
-                              cmtConfigPattern=False):
+    def checkSitesWithRelease(self, sites, releases,caches,
+                              cmtConfig=None, onlyCmtConfig=False, cmtConfigPattern=False):
         comment = ' /* DBProxy.checkSitesWithRelease */'
         try:
             relStr = releases
@@ -10902,7 +10841,7 @@ class DBProxy:
 
 
     # get list of cmtConfig
-    def getCmtConfigList(self,relaseVer):
+    def getCmtConfigList(self, relaseVer):
         comment = ' /* DBProxy.getCmtConfigList */'
         try:
             methodName = "getCmtConfigList"

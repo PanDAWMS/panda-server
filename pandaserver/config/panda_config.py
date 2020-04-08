@@ -87,8 +87,6 @@ if 'def_ddm' not in tmpSelf.__dict__:
     tmpSelf.__dict__['def_ddm'] = 'PANDA_UNDEFINED2'
 if 'def_type' not in tmpSelf.__dict__:
     tmpSelf.__dict__['def_type'] = 'production'
-if 'def_gatekeeper' not in tmpSelf.__dict__:
-    tmpSelf.__dict__['def_gatekeeper'] = 'gridgk01.racf.bnl.gov'
 if 'def_status' not in tmpSelf.__dict__:
     tmpSelf.__dict__['def_status'] = 'online'
 if 'token_authType' not in tmpSelf.__dict__:

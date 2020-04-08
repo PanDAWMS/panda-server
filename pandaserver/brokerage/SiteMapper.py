@@ -22,7 +22,6 @@ defSite.dq2url     = panda_config.def_dq2url
 defSite.ddm_input  = {'default': panda_config.def_ddm}
 defSite.ddm_output = {'default': panda_config.def_ddm}
 defSite.type       = panda_config.def_type
-defSite.gatekeeper = panda_config.def_gatekeeper
 defSite.status     = panda_config.def_status
 defSite.setokens_input   = {}
 defSite.setokens_output   = {}

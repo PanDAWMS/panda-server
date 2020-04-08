@@ -772,16 +772,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     except Exception:
                                         errtype,errvalue = sys.exc_info()[:2]
                                         tmpLog.error("max memory check : %s %s" % (errtype,errvalue))
-                                # check min memory
-                                if tmpSiteSpec.minmemory != 0 and prevMemory not in [None,0,'NULL']:
-                                    try:
-                                        if int(tmpSiteSpec.minmemory) > int(prevMemory):
-                                            tmpLog.debug('  skip: job memory shortage %s>%s' % (tmpSiteSpec.memory,prevMemory))
-                                            resultsForAnal['memory'].append(site)
-                                            continue
-                                    except Exception:
-                                        errtype,errvalue = sys.exc_info()[:2]
-                                        tmpLog.error("min memory check : %s %s" % (errtype,errvalue))
                                 # check maxcpucount
                                 if tmpSiteSpec.maxtime != 0 and prevMaxCpuCount not in [None,0,'NULL']:
                                     try:
@@ -878,10 +868,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 elif not foundRelease:
                                     # found at least one site has the release
                                     foundRelease = True
-                                # direct access
-                                if prevDirectAcc == 'direct' and not tmpSiteSpec.allowdirectaccess:
-                                    tmpLog.debug(' skip: no direct access support')
-                                    continue
                                 # get pilot statistics
                                 nPilotsGet = 0
                                 nPilotsUpdate = 0
@@ -1300,12 +1286,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         else:
                             tmpJob.computingSite = chosenCE.sitename
                         tmpLog.debug('PandaID:%s -> site:%s' % (tmpJob.PandaID,tmpJob.computingSite))
-                        if tmpJob.computingElement == 'NULL':
-                            if tmpJob.prodSourceLabel == 'ddm':
-                                # use nickname for ddm jobs
-                                tmpJob.computingElement = chosenCE.nickname
-                            else:
-                                tmpJob.computingElement = chosenCE.gatekeeper
+
                         # fail jobs if no sites have the release
                         if (not foundRelease or (tmpJob.relocationFlag != 1 and not foundOneCandidate)) and (tmpJob.prodSourceLabel in ['managed','test']):
                             # reset
@@ -1467,8 +1448,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     if job.prodSourceLabel == 'ddm':
                         # use nickname for ddm jobs
                         job.computingElement = chosen_ce.nickname
-                    else:
-                        job.computingElement = chosen_ce.gatekeeper
+
                 # update statistics
                 jobStatistics.setdefault(job.computingSite, {'assigned':0,'activated':0,'running':0})
                 jobStatistics[job.computingSite]['assigned'] += 1

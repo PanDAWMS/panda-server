@@ -833,8 +833,7 @@ class AdderAtlasPlugin (AdderPluginBase):
 
     # use cerntral LFC
     def useCentralLFC(self):
-        tmpSiteSpec = self.siteMapper.getSite(self.job.computingSite)
-        if not self.addToTopOnly and tmpSiteSpec.lfcregister in ['server']:
+        if not self.addToTopOnly:
             return True
         return False
 
