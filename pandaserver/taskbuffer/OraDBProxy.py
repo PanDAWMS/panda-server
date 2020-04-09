@@ -22447,35 +22447,35 @@ class DBProxy:
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")
-        sql0  = "SELECT computingSite,jobStatus,gshare,resource_type,COUNT(*) FROM %s "
-        sql0 += "GROUP BY computingSite,jobStatus,gshare,resource_type "
+        sqlD  = ("SELECT computingSite,jobStatus,gshare,resource_type,COUNT(*) FROM ATLAS_PANDA.jobsDefined4 "
+                 "GROUP BY computingSite,jobStatus,gshare,resource_type ")
+        sqlF  = ("SELECT computingSite,jobStatus,gshare,resource_type,COUNT(*) FROM ATLAS_PANDA.jobsActive4 "
+                 "WHERE jobStatus=:jobStatus AND modificationTime>:modificationTime "
+                 "GROUP BY computingSite,jobStatus,gshare,resource_type ")
+        sqlM  = ("SELECT /*+ RESULT_CACHE */ computingSite,jobStatus,gshare,resource_type,SUM(njobs) "
+                 "FROM ATLAS_PANDA.JOBS_SHARE_STATS "
+                 "WHERE jobStatus<>:jobStatus "
+                 "GROUP BY computingSite,jobStatus,gshare,resource_type ")
         sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ "
         sqlA += "computingSite,jobStatus,gshare,resource_type,COUNT(*) "
         sqlA += "FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime>:modificationTime "
         sqlA += "GROUP BY computingSite,jobStatus,gshare,resource_type "
-        tables = ['ATLAS_PANDA.jobsActive4', 'ATLAS_PANDA.jobsDefined4', 'ATLAS_PANDA.jobsArchived4']
-        # sql for materialized view
-        sqlMV = re.sub('COUNT\(\*\)', 'SUM(njobs)', sql0)
-        sqlMV = re.sub('SELECT ', 'SELECT /*+ RESULT_CACHE */ ', sqlMV)
         ret = dict()
         try:
             if time_window is None:
                 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
             else:
                 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=int(time_window))
-            for table in tables:
+            sqlVarList = [(sqlD, {}),
+                          (sqlF, {':jobStatus': 'failed', ':modificationTime': timeLimit}),
+                          (sqlM, {':jobStatus': 'failed'}),
+                          (sqlA, {':modificationTime': timeLimit})]
+            for sqlExe, varMap in sqlVarList:
                 # start transaction
                 self.conn.begin()
                 self.cur.arraysize = 10000
                 # select
-                varMap = {}
-                if table == 'ATLAS_PANDA.jobsArchived4':
-                    varMap[':modificationTime'] = timeLimit
-                    sqlExe = sqlA + comment
-                elif table == 'ATLAS_PANDA.jobsActive4':
-                    sqlExe = (sqlMV + comment) % 'ATLAS_PANDA.JOBS_SHARE_STATS'
-                else:
-                    sqlExe = (sql0 + comment) % table
+                sqlExe = sqlExe + comment
                 self.cur.execute(sqlExe, varMap)
                 res = self.cur.fetchall()
                 # commit
