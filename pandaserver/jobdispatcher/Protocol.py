@@ -58,7 +58,7 @@ class Response:
 
 
     # append job
-    def appendJob(self,job,siteMapperCache=None):
+    def appendJob(self, job, siteMapperCache=None):
         # event service merge
         if EventServiceUtils.isEventServiceMerge(job):
             isEventServiceMerge = True
@@ -150,7 +150,7 @@ class Response:
                         strCheckSum += '%s,' % file.md5sum
                     strScopeIn += '%s,' % file.scope
                     ddmEndPointIn.append(self.getDdmEndpoint(siteSpec, file.dispatchDBlockToken, 'input',
-                                                             job.prodSourceLabel))
+                                                             job.prodSourceLabel, job.job_label))
                     if file.dataset not in inDsLfnMap:
                         inDsLfnMap[file.dataset] = []
                     inDsLfnMap[file.dataset].append(file.lfn)
@@ -177,7 +177,7 @@ class Response:
                 strDisTokenForOutput += '%s,' % file.dispatchDBlockToken
                 strProdTokenForOutput += '%s,' % file.prodDBlockToken
                 ddmEndPointOut.append(self.getDdmEndpoint(siteSpec, file.destinationDBlockToken.split(',')[0], 'output',
-                                                          job.prodSourceLabel))
+                                                          job.prodSourceLabel, job.job_label))
                 if file.isAllowedNoOutput():
                     noOutput.append(file.lfn)
         # inFiles
@@ -363,8 +363,9 @@ class Response:
 
 
     # get ddm endpoint
-    def getDdmEndpoint(self, siteSpec, spaceToken, mode, prodSourceLabel):
-        scope_input, scope_output = DataServiceUtils.select_scope(siteSpec, prodSourceLabel)
+    def getDdmEndpoint(self, siteSpec, spaceToken, mode, prodSourceLabel, job_label):
+
+        scope_input, scope_output = DataServiceUtils.select_scope(siteSpec, prodSourceLabel, job_label)
         if siteSpec is None or mode not in ['input', 'output']:
             return ''
 

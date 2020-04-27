@@ -51,7 +51,7 @@ import pandaserver.taskbuffer.ErrorCode
 initializer.init()
 
 # initialzie TaskBuffer
-taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,panda_config.nDBConnection,True)
+taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, panda_config.nDBConnection, True)
 
 # initialize JobDispatcher
 if panda_config.nDBConnection != 0:
@@ -68,8 +68,8 @@ if panda_config.nDBConnection != 0:
 # import web I/F
 allowedMethods = []
 
-allowedMethods += ['isAlive','putFile','deleteFile','getServer','updateLog','fetchLog',
-                   'touchFile','getVomsAttr','putEventPickingRequest','getAttr','getFile',
+allowedMethods += ['isAlive', 'putFile', 'deleteFile', 'getServer', 'updateLog', 'fetchLog',
+                   'touchFile', 'getVomsAttr', 'putEventPickingRequest', 'getAttr', 'getFile',
                    'uploadLog']
 
 allowedMethods += ['datasetCompleted', 'updateFileStatusInDisp']
@@ -79,25 +79,27 @@ allowedMethods += ['getJob', 'updateJob', 'getStatus', 'genPilotToken',
                    'updateEventRanges', 'getDNsForS3', 'getProxy', 'getCommands', 'ackCommands',
                    'checkJobStatus', 'checkEventsAvailability', 'updateJobsInBulk', 'getResourceTypes']
 
-allowedMethods += ['submitJobs','getJobStatus','queryPandaIDs','killJobs','reassignJobs',
-                   'getJobStatistics','getJobStatisticsPerSite','resubmitJobs','queryLastFilesInDataset','getPandaIDsSite',
-                   'getJobsToBeUpdated','updateProdDBUpdateTimes','runTaskAssignment','getAssigningTask','getSiteSpecs',
-                   'getCloudSpecs','seeCloudTask','queryJobInfoPerCloud','registerProxyKey','getProxyKey',
-                   'getJobIDsInTimeRange','getPandIDsWithJobID','getFullJobStatus','getJobStatisticsForBamboo',
-                   'getNUserJobs','addSiteAccess','listSiteAccess','getFilesInUseForAnal','updateSiteAccess',
-                   'getPandaClientVer','getSlimmedFileInfoPandaIDs','getQueuedAnalJobs','getHighestPrioJobStat',
-                   'getActiveDatasets','setCloudTaskByUser','getSerialNumberForGroupJob','getCachePrefixes',
-                   'checkMergeGenerationStatus','getNumPilots','retryFailedJobsInActive',
-                   'getJobStatisticsWithLabel','getPandaIDwithJobExeID','getJobStatisticsPerUserSite',
-                   'getDisInUseForAnal','getLFNsInUseForAnal','getScriptOfflineRunning','setDebugMode',
-                   'insertSandboxFileInfo','checkSandboxFile','changeJobPriorities','insertTaskParams',
-                   'killTask','finishTask','getCmtConfigList','getJediTasksInTimeRange','getJediTaskDetails',
-                   'retryTask','getRetryHistory','changeTaskPriority','reassignTask','changeTaskAttributePanda',
-                   'pauseTask','resumeTask','increaseAttemptNrPanda','killUnfinishedJobs','changeTaskSplitRulePanda',
-                   'changeTaskModTimePanda','avalancheTask','getPandaIDsWithTaskID', 'reactivateTask', 'getTaskStatus',
+allowedMethods += ['submitJobs', 'getJobStatus', 'queryPandaIDs', 'killJobs', 'reassignJobs', 'getJobStatistics',
+                   'getJobStatisticsPerSite', 'resubmitJobs', 'queryLastFilesInDataset', 'getPandaIDsSite',
+                   'getJobsToBeUpdated', 'updateProdDBUpdateTimes', 'runTaskAssignment', 'getAssigningTask',
+                   'getSiteSpecs', 'getCloudSpecs', 'seeCloudTask', 'queryJobInfoPerCloud', 'registerProxyKey',
+                   'getProxyKey', 'getJobIDsInTimeRange', 'getPandIDsWithJobID', 'getFullJobStatus',
+                   'getJobStatisticsForBamboo', 'getNUserJobs', 'addSiteAccess', 'listSiteAccess',
+                   'getFilesInUseForAnal', 'updateSiteAccess', 'getPandaClientVer', 'getSlimmedFileInfoPandaIDs',
+                   'getQueuedAnalJobs', 'getHighestPrioJobStat', 'getActiveDatasets', 'setCloudTaskByUser',
+                   'getSerialNumberForGroupJob', 'getCachePrefixes', 'checkMergeGenerationStatus', 'getNumPilots',
+                   'retryFailedJobsInActive', 'getJobStatisticsWithLabel', 'getPandaIDwithJobExeID',
+                   'getJobStatisticsPerUserSite', 'getDisInUseForAnal', 'getLFNsInUseForAnal', 'getScriptOfflineRunning',
+                   'setDebugMode', 'insertSandboxFileInfo', 'checkSandboxFile', 'changeJobPriorities',
+                   'insertTaskParams', 'killTask', 'finishTask', 'getCmtConfigList', 'getJediTasksInTimeRange',
+                   'getJediTaskDetails', 'retryTask', 'getRetryHistory', 'changeTaskPriority', 'reassignTask',
+                   'changeTaskAttributePanda', 'pauseTask', 'resumeTask', 'increaseAttemptNrPanda',
+                   'killUnfinishedJobs', 'changeTaskSplitRulePanda', 'changeTaskModTimePanda', 'avalancheTask',
+                   'getPandaIDsWithTaskID', 'reactivateTask', 'getTaskStatus',
                    'reassignShare', 'listTasksInShare', 'getTaskParamsMap', 'updateWorkers', 'harvesterIsAlive',
-                   'reportWorkerStats', 'reportWorkerStats_jobtype', 'addHarvesterDialogs', 'getJobStatisticsPerSiteResource', 'setNumSlotsForWP',
-                   'reloadInput', 'enableJumboJobs', 'updateServiceMetrics', 'getUserJobMetadata', 'getJumboJobDatasets',
+                   'reportWorkerStats', 'reportWorkerStats_jobtype', 'addHarvesterDialogs',
+                   'getJobStatisticsPerSiteResource', 'setNumSlotsForWP', 'reloadInput', 'enableJumboJobs',
+                   'updateServiceMetrics', 'getUserJobMetadata', 'getJumboJobDatasets',
                    'getGShareStatus', 'sweepPQ', 'get_job_statistics_per_site_label_resource']
 
 

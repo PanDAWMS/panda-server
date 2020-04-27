@@ -1,6 +1,7 @@
 import re
 import sys
 from OpenSSL import crypto
+from pandaserver.taskbuffer import JobUtils
 
 # get prefix for DQ2
 def getDQ2Prefix(dq2SiteID):
@@ -31,8 +32,8 @@ def isCachedFile(datasetName,siteSpec):
 
 
 # get the list of sites where dataset is available
-def getSitesWithDataset(tmpDsName, siteMapper, replicaMap, cloudKey, prodSourceLabel, useHomeCloud=False, getDQ2ID=False,
-                        useOnlineSite=False, includeT1=False):
+def getSitesWithDataset(tmpDsName, siteMapper, replicaMap, cloudKey, prodSourceLabel, job_label, useHomeCloud=False,
+                        getDQ2ID=False, useOnlineSite=False, includeT1=False):
     retList = []
     retDQ2Map = {}
     # no replica map
@@ -48,7 +49,7 @@ def getSitesWithDataset(tmpDsName, siteMapper, replicaMap, cloudKey, prodSourceL
     # check sites in the cloud
     for tmpSiteName in siteMapper.getCloud(cloudKey)['sites']:
         tmpSiteSpec = siteMapper.getSite(tmpSiteName)
-        scopeSiteSpec_input, scopeSiteSpec_output = select_scope(tmpSiteSpec, prodSourceLabel)
+        scopeSiteSpec_input, scopeSiteSpec_output = select_scope(tmpSiteSpec, prodSourceLabel, job_label)
         # skip T1
         if not includeT1:
             # T1
@@ -56,7 +57,7 @@ def getSitesWithDataset(tmpDsName, siteMapper, replicaMap, cloudKey, prodSourceL
                 continue
             # hospital queue
             tmpSrcSpec = siteMapper.getSite(siteMapper.getCloud(cloudKey)['source'])
-            scopeSrcSpec_input, scopeSrcSpec_output = select_scope(tmpSrcSpec, prodSourceLabel)
+            scopeSrcSpec_input, scopeSrcSpec_output = select_scope(tmpSrcSpec, prodSourceLabel, job_label)
             if tmpSiteSpec.ddm_input.get(scopeSiteSpec_input) == tmpSrcSpec.ddm_input.get(scopeSrcSpec_input):
                 continue
         # use home cloud
@@ -193,19 +194,19 @@ def checkCertificate(certName):
 
 
 # get sites which share DDM endpoint
-def getSitesShareDDM(siteMapper, siteName, prodSourceLabel):
+def getSitesShareDDM(siteMapper, siteName, prodSourceLabel, job_label):
 
     # nonexistent site
     if not siteMapper.checkSite(siteName):
         return []
     # get siteSpec
     siteSpec = siteMapper.getSite(siteName)
-    scope_site_input, scope_site_output = select_scope(siteSpec, prodSourceLabel)
+    scope_site_input, scope_site_output = select_scope(siteSpec, prodSourceLabel, job_label)
     # loop over all sites
     retSites = []
     for tmpSiteName in siteMapper.siteSpecList:
         tmpSiteSpec = siteMapper.siteSpecList[tmpSiteName]
-        scope_tmpSite_input, scope_tmpSite_output = select_scope(tmpSiteSpec, prodSourceLabel)
+        scope_tmpSite_input, scope_tmpSite_output = select_scope(tmpSiteSpec, prodSourceLabel, job_label)
         # only same type
         if siteSpec.type != tmpSiteSpec.type:
             continue
@@ -262,7 +263,7 @@ def getDistributedDestination(destinationDBlockToken):
 def extractImportantError(out):
     retStr = ''
     try:
-        strList = ['InvalidRSEExpression','Details:']
+        strList = ['InvalidRSEExpression', 'Details:']
         for line in out.split('\n'):
             for tmpStr in strList:
                 if tmpStr in line:
@@ -293,19 +294,19 @@ def cleanupDN(realDN):
     return tmpRealDN
 
 
-def select_scope(site_spec, prodsourcelabel):
+def select_scope(site_spec, prodsourcelabel, job_label):
     """
     Select the scopes of the activity for input and output. The scope was introduced for prod-analy queues where you might want
     to associate different RSEs depending on production or analysis.
     """
     scope_input = 'default'
     aux_scopes_input = site_spec.ddm_endpoints_input.keys()
-    if prodsourcelabel in ('user', 'panda') and 'analysis' in aux_scopes_input:
+    if (job_label == JobUtils.ANALY_PS or prodsourcelabel in JobUtils.analy_sources) and 'analysis' in aux_scopes_input:
         scope_input = 'analysis'
 
     scope_output = 'default'
     aux_scopes_output = site_spec.ddm_endpoints_output.keys()
-    if prodsourcelabel in ('user', 'panda') and 'analysis' in aux_scopes_output:
+    if (job_label == JobUtils.ANALY_PS or prodsourcelabel in JobUtils.analy_sources) and 'analysis' in aux_scopes_output:
         scope_output = 'analysis'
 
     return scope_input, scope_output
