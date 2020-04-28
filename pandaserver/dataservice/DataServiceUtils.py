@@ -275,7 +275,6 @@ def extractImportantError(out):
     return retStr
 
 
-
 # get activity for output
 def getActivityForOut(prodSourceLabel):
     if prodSourceLabel in ['managed']:
@@ -289,15 +288,15 @@ def getActivityForOut(prodSourceLabel):
 
 # cleanup DN
 def cleanupDN(realDN):
-    tmpRealDN = re.sub('/CN=limited proxy','',realDN)
-    tmpRealDN = re.sub('/CN=proxy','',tmpRealDN)
+    tmpRealDN = re.sub('/CN=limited proxy', '', realDN)
+    tmpRealDN = re.sub('/CN=proxy', '', tmpRealDN)
     return tmpRealDN
 
 
 def select_scope(site_spec, prodsourcelabel, job_label):
     """
-    Select the scopes of the activity for input and output. The scope was introduced for prod-analy queues where you might want
-    to associate different RSEs depending on production or analysis.
+    Select the scopes of the activity for input and output. The scope was introduced for prod-analy queues
+    where you might want to associate different RSEs depending on production or analysis.
     """
     scope_input = 'default'
     aux_scopes_input = site_spec.ddm_endpoints_input.keys()
