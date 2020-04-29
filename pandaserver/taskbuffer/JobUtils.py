@@ -16,6 +16,9 @@ neutral_sources = ['install'] + list_ptest_prod_sources
 ANALY_PS = 'user'
 PROD_PS = 'managed'
 
+ANALY_TASKTYPE = 'anal'
+PROD_TASKTYPE = 'proc'
+
 job_labels = [ANALY_PS, PROD_PS]
 
 # priority of tasks to jumbo over others
@@ -45,6 +48,14 @@ def translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel):
 
     # currently unmapped
     return prodsourcelabel
+
+
+def translate_tasktype_to_jobtype(task_type):
+    # any unrecognized tasktype will be defaulted to production
+    if task_type == ANALY_TASKTYPE:
+        return ANALY_PS
+    else:
+        return PROD_PS
 
 
 # get core count
