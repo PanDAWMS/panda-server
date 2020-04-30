@@ -16227,9 +16227,9 @@ class DBProxy:
             sqlT += 'AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag '
             sqlT += 'AND maxCpuCount>:maxTime '
             if workingGroup is not None:
-                'AND workingGroup=:workingGroup '
+                sqlT += 'AND workingGroup=:workingGroup '
             else:
-                'AND workingGroup IS NULL '
+                sqlT += 'AND workingGroup IS NULL '
             # start transaction
             self.conn.begin()
             # select
@@ -16314,9 +16314,9 @@ class DBProxy:
             sqlT += 'WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName '
             sqlT += 'AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag '
             if workingGroup is not None:
-                'AND workingGroup=:workingGroup '
+                sqlT += 'AND workingGroup=:workingGroup '
             else:
-                'AND workingGroup IS NULL '
+                sqlT += 'AND workingGroup IS NULL '
             # start transaction
             self.conn.begin()
             # select
