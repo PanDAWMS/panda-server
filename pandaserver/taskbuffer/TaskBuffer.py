@@ -388,7 +388,7 @@ class TaskBuffer:
                     job.creationHost = hostname
 
                 # process and set the job_label
-                if not job.job_label or job_label not in (JobUtils.PROD_PS, JobUtils.ANALY_PS):
+                if not job.job_label or job.job_label not in (JobUtils.PROD_PS, JobUtils.ANALY_PS):
                     tmpSiteSpec = siteMapper.getSite(job.computingSite)
                     queue_type = tmpSiteSpec.type
                     if queue_type == 'analysis':
