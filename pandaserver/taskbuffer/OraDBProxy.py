@@ -316,8 +316,8 @@ class DBProxy:
 
 
     # insert job to jobsDefined
-    def insertNewJob(self,job,user,serNum,weight=0.0,priorityOffset=0,userVO=None,groupJobSN=0,toPending=False,
-                     origEsJob=False,eventServiceInfo=None,oldPandaIDs=None,relationType=None,fileIDPool=[],
+    def insertNewJob(self, job, user, serNum, weight=0.0, priorityOffset=0, userVO=None, groupJobSN=0, toPending=False,
+                     origEsJob=False, eventServiceInfo=None, oldPandaIDs=None, relationType=None, fileIDPool=[],
                      origSpecialHandling=None, unprocessedMap=None):
         comment = ' /* DBProxy.insertNewJob */'
         methodName = comment.split(' ')[-2].split('.')[-1]

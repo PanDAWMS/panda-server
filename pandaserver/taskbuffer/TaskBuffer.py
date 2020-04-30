@@ -388,7 +388,7 @@ class TaskBuffer:
                     job.creationHost = hostname
 
                 # process and set the job_label
-                if not job.job_label:
+                if not job.job_label or job_label not in (JobUtils.PROD_PS, JobUtils.ANALY_PS):
                     tmpSiteSpec = siteMapper.getSite(job.computingSite)
                     queue_type = tmpSiteSpec.type
                     if queue_type == 'analysis':
@@ -402,7 +402,7 @@ class TaskBuffer:
 
                 # extract file info, change specialHandling for event service
                 origSH = job.specialHandling
-                eventServiceInfo,job.specialHandling,esIndex = EventServiceUtils.decodeFileInfo(job.specialHandling)
+                eventServiceInfo, job.specialHandling, esIndex = EventServiceUtils.decodeFileInfo(job.specialHandling)
                 origEsJob = False
                 if eventServiceInfo != {}:
                     # set jobsetID
@@ -426,9 +426,9 @@ class TaskBuffer:
                 if not isOK:
                     # skip since there is no ready event
                     job.PandaID = None
-                tmpRetI = proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO,groupJobSerialNum,
-                                             toPending,origEsJob,eventServiceInfo,oldPandaIDs=jobOldPandaIDs,
-                                             relationType=relationType,fileIDPool=fileIDPool,
+                tmpRetI = proxy.insertNewJob(job, user, serNum, weight, priorityOffset, userVO, groupJobSerialNum,
+                                             toPending, origEsJob, eventServiceInfo, oldPandaIDs=jobOldPandaIDs,
+                                             relationType=relationType, fileIDPool=fileIDPool,
                                              origSpecialHandling=origSH, unprocessedMap=unprocessedMap)
                 if unprocessedMap is not None:
                     tmpRetI, unprocessedMap = tmpRetI
