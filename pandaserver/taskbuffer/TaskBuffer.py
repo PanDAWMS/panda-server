@@ -173,7 +173,7 @@ class TaskBuffer:
                 siteMapper  = SiteMapper(self)
                 tmpSiteSpec = siteMapper.getSite(jobs[0].computingSite)
                 # check allowed groups
-                if userStatus and hasattr(tmpSiteSpec,'allowedgroups') and (tmpSiteSpec.allowedgroups not in ['',None]):
+                if userStatus and hasattr(tmpSiteSpec, 'allowedgroups') and (tmpSiteSpec.allowedgroups not in ['', None]):
                     # set status to False when allowedgroups is defined
                     userStatus = False
                     # loop over all groups
@@ -315,7 +315,7 @@ class TaskBuffer:
                 _logger.debug("storeJobs : jediTaskID={0} len(esJobsetMap)={1} nJobs={2}".format(jobs[0].jediTaskID, len(esJobsetMap), len(jobs)))
             except Exception:
                 pass
-            for idxJob,job in enumerate(jobs):
+            for idxJob, job in enumerate(jobs):
                 # set JobID. keep original JobID when retry
                 if userJobID != -1 and job.prodSourceLabel in JobUtils.analy_sources \
                         and (job.attemptNr in [0,'0','NULL'] or \
@@ -388,15 +388,17 @@ class TaskBuffer:
                     job.creationHost = hostname
 
                 # process and set the job_label
-                queue_type = tmpSiteSpec.type
-                if queue_type == 'analysis':
-                    job.job_label = JobUtils.ANALY_PS
-                elif queue_type == 'production':
-                    job.job_label = JobUtils.PROD_PS
-                elif queue_type == 'unified' and not job.job_label:
-                    # set production as default if not specified
-                    # if the job_label was specified, we will trust the submitter's decision
-                    job.job_label = JobUtils.PROD_PS
+                if not job.job_label:
+                    tmpSiteSpec = siteMapper.getSite(job.computingSite)
+                    queue_type = tmpSiteSpec.type
+                    if queue_type == 'analysis':
+                        job.job_label = JobUtils.ANALY_PS
+                    elif queue_type == 'production':
+                        job.job_label = JobUtils.PROD_PS
+                    elif queue_type == 'unified':
+                        # set production as default if not specified
+                        # if the job_label was specified, we will trust the submitter's decision
+                        job.job_label = JobUtils.PROD_PS
 
                 # extract file info, change specialHandling for event service
                 origSH = job.specialHandling
