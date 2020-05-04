@@ -70,7 +70,7 @@ class UserIF:
                     break
 
                 # check the job_label is valid
-                if tmpJob.job_label and tmpJob.job_label not in JobUtils.job_labels:
+                if tmpJob.job_label not in [None, '', 'NULL'] and tmpJob.job_label not in JobUtils.job_labels:
                     good_labels = False
                     good_labels_message = "submitJobs %s wrong job_label=%s" % (user, tmpJob.job_label)
                     break
