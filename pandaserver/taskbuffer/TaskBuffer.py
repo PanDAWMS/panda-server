@@ -129,6 +129,7 @@ class TaskBuffer:
             useExpress = False
             nExpressJobs = 0
             useDebugMode = False
+            siteMapper = SiteMapper(self)
 
             # check ban user except internally generated jobs
             if len(jobs) > 0 and not jobs[0].prodSourceLabel in ProcessGroups.internalSourceLabels:
@@ -170,7 +171,6 @@ class TaskBuffer:
                 self.proxyPool.putProxy(proxy)
 
                 # get site spec
-                siteMapper  = SiteMapper(self)
                 tmpSiteSpec = siteMapper.getSite(jobs[0].computingSite)
                 # check allowed groups
                 if userStatus and hasattr(tmpSiteSpec, 'allowedgroups') and (tmpSiteSpec.allowedgroups not in ['', None]):
