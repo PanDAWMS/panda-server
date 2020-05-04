@@ -396,9 +396,11 @@ class TaskBuffer:
                     elif queue_type == 'production':
                         job.job_label = JobUtils.PROD_PS
                     elif queue_type == 'unified':
-                        # set production as default if not specified
-                        # if the job_label was specified, we will trust the submitter's decision
-                        job.job_label = JobUtils.PROD_PS
+                        if job.prodSourceLabel in JobUtils.analy_sources:
+                            job.job_label = JobUtils.ANALY_PS
+                        else:
+                            # set production as default if not specified and neutral prodsourcelabel
+                            job.job_label = JobUtils.PROD_PS
 
                 # extract file info, change specialHandling for event service
                 origSH = job.specialHandling
