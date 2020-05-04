@@ -12,10 +12,9 @@ import traceback
 
 import pandaserver.jobdispatcher.Protocol as Protocol
 import pandaserver.taskbuffer.ProcessGroups
-import pandaserver.taskbuffer.JobUtils
 from pandaserver.taskbuffer.WrappedPickle import WrappedPickle
 from pandaserver.brokerage.SiteMapper import SiteMapper
-from pandaserver.taskbuffer import PrioUtil
+from pandaserver.taskbuffer import PrioUtil, JobUtils
 from pandaserver.dataservice.DDM import rucioAPI
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
