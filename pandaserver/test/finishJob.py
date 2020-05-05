@@ -20,7 +20,7 @@ from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils
-from pandasever.dataservice.DataServiceUtils import select_scope
+from pandaserver.dataservice.DataServiceUtils import select_scope
 
 # instantiate TB
 taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
@@ -28,13 +28,7 @@ taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
 siteMapper = SiteMapper(taskBuffer)
 
 id = sys.argv[1]
-s,o = Client.getJobStatus([id])
-
-if s != 0:
-    print("failed to get job with:%s" % s)
-    sys.exit(0)
-
-job = o[0]
+job = taskBuffer.peekJobs([id])[0]
 
 if job is None:
     print("got None")
@@ -103,7 +97,8 @@ for tmpFile in job.Files:
             srm = re.sub('/$','',srm)
             #srm = srm.replace('proddisk','datadisk')
             hash = hashlib.md5()
-            hash.update('%s:%s' % (file.scope,file.lfn))
+            sl = '%s:%s' % (file.scope,file.lfn)
+            hash.update(sl.encode())
             hash_hex = hash.hexdigest()
             correctedscope = "/".join(file.scope.split('.'))
             path = '%s/%s/%s/%s' % (correctedscope, hash_hex[0:2], hash_hex[2:4], file.lfn)

@@ -64,6 +64,7 @@ class JobSpec(object):
                  'dynamicNumEvents'   : 'dy',
                  'fakeJobToIgnore'    : 'fake',
                  'homeCloud'          : 'hc',
+                 'hpoWorkflow'        : 'ho',
                  'inFilePosEvtNum'    : 'if',
                  'inputPrestaging'    : 'ip',
                  'lumiBlock'          : 'lb',
@@ -802,3 +803,19 @@ class JobSpec(object):
                 v = None
             ret[a] = v
         return ret
+
+    # check if HPO workflow flag
+    def is_hpo_workflow(self):
+        if self.specialHandling is not None:
+            return self._tagForSH['hpoWorkflow'] in self.specialHandling.split(',')
+        return False
+
+    # set HPO workflow flag
+    def set_hpo_workflow(self):
+        if self.specialHandling is not None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if self._tagForSH['hpoWorkflow'] not in items:
+            items.append(self._tagForSH['hpoWorkflow'])
+        self.specialHandling = ','.join(items)

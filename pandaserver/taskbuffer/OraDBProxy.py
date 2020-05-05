@@ -1807,6 +1807,9 @@ class DBProxy:
                                 job.taskBufferErrorDiag = 'closed since another clone PandaID={0} got semaphore'.format(retJC['win'])
                             else:
                                 job.taskBufferErrorDiag = 'closed since failed to lock semaphore'
+                # release unprocessed samples for HPO
+                if job.is_hpo_workflow():
+                    self.release_unprocessed_events(job.jediTaskID, job.PandaID)
                 # delete from jobsDefined/Active
                 varMap = {}
                 varMap[':PandaID'] = job.PandaID
@@ -12646,7 +12649,7 @@ class DBProxy:
             if fileSpec.type in ['input','pseudo_input']:
                 hasInput = True
                 updateAttemptNr = True
-                if jobSpec.jobStatus == 'finished':
+                if jobSpec.jobStatus == 'finished' and not jobSpec.is_hpo_workflow():
                     varMap[':status'] = 'finished'
                     if fileSpec.type in ['input','pseudo_input']:
                          updateNumEvents = True
@@ -12678,7 +12681,10 @@ class DBProxy:
             # attempt number
             if updateAttemptNr is True:
                 # increment attemptNr for next attempt
-                sqlFile += ",attemptNr=attemptNr+1"
+                if not jobSpec.is_hpo_workflow():
+                    sqlFile += ",attemptNr=attemptNr+1"
+                else:
+                    sqlFile += ",attemptNr=MOD(attemptNr+1,maxAttempt)"
             # failed attempts
             if updateFailedAttempt is True:
                 sqlFile += ",failedAttempt=failedAttempt+1"
@@ -14648,13 +14654,11 @@ class DBProxy:
                         resF = self.cur.fetchone()
                         # not found
                         if resF is None:
-                            resF = (None,None)
+                            resF = (None, None, None)
                             tmpLog.warning("file info is not found for fileID={0}".format(fileID))
                         fileInfo[fileID] = resF
                     # get LFN and GUID
                     tmpLFN,tmpGUID,tmpScope = fileInfo[fileID]
-                    if tmpLFN is None:
-                        continue
                     # make dict
                     tmpDict = {'eventRangeID':self.makeEventRangeID(tmpJediTaskID,pandaID,
                                                                     fileID,job_processID,
@@ -16732,7 +16736,26 @@ class DBProxy:
         nRowsCan = self.cur.rowcount
         tmpLog.debug("cancelled {0} events".format(nRowsCan))
 
-
+    # release unprocessed events 
+    def release_unprocessed_events(self, jedi_task_id, panda_id):
+        comment = ' /* DBProxy.release_unprocessed_events */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " <jediTaskID={0} PandaID={1}>".format(jedi_task_id, panda_id)
+        tmpLog = LogWrapper(_logger, methodName)
+        # sql to kill event ranges
+        varMap = {}
+        varMap[':jediTaskID'] = jedi_task_id
+        varMap[':PandaID']    = panda_id
+        varMap[':esReady']    = EventServiceUtils.ST_ready
+        varMap[':esFinished'] = EventServiceUtils.ST_finished
+        varMap[':esFailed']   = EventServiceUtils.ST_failed
+        sqlCE  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+        sqlCE += "SET status=:esReady,pandaID=0 "
+        sqlCE += "WHERE jediTaskID=:jediTaskID AND pandaID=:PandaID "
+        sqlCE += "AND status NOT IN (:esReady,:esFinished,:esFailed) "
+        self.cur.execute(sqlCE, varMap)
+        nRowsCan = self.cur.rowcount
+        tmpLog.debug("released {0} events".format(nRowsCan))
 
     # kill used event ranges
     def killUsedEventRanges(self, jediTaskID, pandaID, notDiscardEvents=False):
@@ -18000,7 +18023,7 @@ class DBProxy:
                 toSkip = True
             if not toSkip:
                 # get input datasets
-                sqlID  = 'SELECT datasetID,datasetName,masterID FROM {0}.JEDI_Datasets '.format(jedi_config.db.schemaJEDI)
+                sqlID  = 'SELECT datasetID,datasetName,masterID FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
                 sqlID += 'WHERE jediTaskID=:jediTaskID AND type=:type '
                 varMap = {}
                 varMap[':jediTaskID'] = jediTaskID
@@ -21685,7 +21708,7 @@ class DBProxy:
         except Exception:
             # roll back
             self._rollback()
-            self.dumpErrorMessage(tmpLog,methodName)
+            self.dumpErrorMessage(tmpLog, method_name)
             return None
 
     def ups_get_queues(self):
@@ -23069,7 +23092,7 @@ class DBProxy:
                   """
 
             # generate the entries for the DB
-            var_maps = {':panda_site': queue,
+            var_maps = {':panda_site': pq,
                         ':json_data': data}
 
             # run the SQL
