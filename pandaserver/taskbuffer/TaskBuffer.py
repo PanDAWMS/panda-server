@@ -114,27 +114,29 @@ class TaskBuffer:
 
 
     # store Jobs into DB
-    def storeJobs(self,jobs,user,joinThr=False,forkSetupper=False,fqans=[],hostname='',resetLocInSetupper=False,
-                  checkSpecialHandling=True,toPending=False,oldPandaIDs=None,relationType=None, userVO='atlas',
+    def storeJobs(self, jobs, user, joinThr=False, forkSetupper=False, fqans=[], hostname='', resetLocInSetupper=False,
+                  checkSpecialHandling=True, toPending=False, oldPandaIDs=None, relationType=None, userVO='atlas',
                   esJobsetMap=None, getEsJobsetMap=False, unprocessedMap=None):
         try:
-            _logger.debug("storeJobs : start for %s nJobs=%s" % (user,len(jobs)))
+            _logger.debug("storeJobs : start for %s nJobs=%s" % (user, len(jobs)))
             # check quota for priority calculation
-            weight         = 0.0
-            userJobID      = -1
-            userJobsetID   = -1
-            userStatus     = True
+            weight = 0.0
+            userJobID = -1
+            userJobsetID = -1
+            userStatus = True
             priorityOffset = 0
-            userCountry    = None
-            useExpress     = False
-            nExpressJobs   = 0
-            useDebugMode   = False
+            userCountry = None
+            useExpress = False
+            nExpressJobs = 0
+            useDebugMode = False
+            siteMapper = SiteMapper(self)
+
             # check ban user except internally generated jobs
             if len(jobs) > 0 and not jobs[0].prodSourceLabel in ProcessGroups.internalSourceLabels:
                 # get DB proxy
                 proxy = self.proxyPool.getProxy()
                 # check user status
-                tmpStatus = proxy.checkBanUser(user,jobs[0].prodSourceLabel)
+                tmpStatus = proxy.checkBanUser(user, jobs[0].prodSourceLabel)
                 # release proxy
                 self.proxyPool.putProxy(proxy)
                 # return if DN is blocked
@@ -143,13 +145,14 @@ class TaskBuffer:
                     if getEsJobsetMap:
                         return ([], None, unprocessedMap)
                     return []
+
             # set parameters for user jobs
-            if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda'] + JobUtils.list_ptest_prod_sources) \
-                   and (not jobs[0].processingType in ['merge','unmerge']):
+            if len(jobs) > 0 and (jobs[0].prodSourceLabel in JobUtils.analy_sources + JobUtils.list_ptest_prod_sources) \
+                   and (not jobs[0].processingType in ['merge', 'unmerge']):
                 # get DB proxy
                 proxy = self.proxyPool.getProxy()
                 # get JobID and status
-                userJobID,userJobsetID,userStatus = proxy.getUserParameter(user,jobs[0].jobDefinitionID,jobs[0].jobsetID)
+                userJobID, userJobsetID, userStatus = proxy.getUserParameter(user,jobs[0].jobDefinitionID,jobs[0].jobsetID)
                 # get site access
                 userSiteAccess = proxy.checkSiteAccess(jobs[0].computingSite,user)
                 # check quota for express jobs
@@ -166,11 +169,11 @@ class TaskBuffer:
                         useDebugMode = True
                 # release proxy
                 self.proxyPool.putProxy(proxy)
+
                 # get site spec
-                siteMapper  = SiteMapper(self)
                 tmpSiteSpec = siteMapper.getSite(jobs[0].computingSite)
                 # check allowed groups
-                if userStatus and hasattr(tmpSiteSpec,'allowedgroups') and (tmpSiteSpec.allowedgroups not in ['',None]):
+                if userStatus and hasattr(tmpSiteSpec, 'allowedgroups') and (tmpSiteSpec.allowedgroups not in ['', None]):
                     # set status to False when allowedgroups is defined
                     userStatus = False
                     # loop over all groups
@@ -185,6 +188,7 @@ class TaskBuffer:
                         # escape
                         if userStatus:
                             break
+
                 # get priority offset
                 if hasattr(tmpSiteSpec,'priorityoffset') and (tmpSiteSpec.priorityoffset not in ['',None]):
                     # loop over all groups
@@ -206,15 +210,18 @@ class TaskBuffer:
                                 if tmpOffset > priorityOffset:
                                     priorityOffset = tmpOffset
                                 break
+
                 # check site access
                 if hasattr(tmpSiteSpec,'accesscontrol') and tmpSiteSpec.accesscontrol == 'grouplist':
                     if userSiteAccess == {} or userSiteAccess['status'] != 'approved':
                         # user is not allowed
                         userStatus = False
+
                 # set priority offset
                 if userStatus:
                     if 'poffset' in userSiteAccess and userSiteAccess['poffset'] > priorityOffset:
                         priorityOffset = userSiteAccess['poffset']
+
                 # extract country group
                 for tmpFQAN in fqans:
                     match = re.search('^/atlas/([^/]+)/',tmpFQAN)
@@ -228,6 +235,7 @@ class TaskBuffer:
                         if tmpCountry in ['usatlas']:
                             userCountry = 'us'
                             break
+
             # return if DN is blocked
             if not userStatus:
                 _logger.debug("storeJobs : end for %s DN is blocked 2" % user)
@@ -240,6 +248,7 @@ class TaskBuffer:
                 if match is not None:
                     userVO = match.group(1)
                     break
+
             # get number of jobs currently in PandaDB
             serNum = 0
             userDefinedWG = False
@@ -247,7 +256,7 @@ class TaskBuffer:
             usingBuild = False
             withProdRole = False
             workingGroup = None
-            if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda']) \
+            if len(jobs) > 0 and (jobs[0].prodSourceLabel in JobUtils.analy_sources) \
                    and (not jobs[0].processingType in ['merge','unmerge']):
                 # extract user's working group from FQANs
                 userWorkingGroupList = []
@@ -277,7 +286,7 @@ class TaskBuffer:
             proxy = self.proxyPool.getProxy()
             # get group job serial number
             groupJobSerialNum = 0
-            if len(jobs) > 0 and (jobs[0].prodSourceLabel in ['user','panda']) \
+            if len(jobs) > 0 and (jobs[0].prodSourceLabel in JobUtils.analy_sources) \
                    and (not jobs[0].processingType in ['merge','unmerge']):
                 for tmpFile in jobs[-1].Files:
                     if tmpFile.type in ['output','log'] and '$GROUPJOBSN' in tmpFile.lfn:
@@ -306,19 +315,19 @@ class TaskBuffer:
                 _logger.debug("storeJobs : jediTaskID={0} len(esJobsetMap)={1} nJobs={2}".format(jobs[0].jediTaskID, len(esJobsetMap), len(jobs)))
             except Exception:
                 pass
-            for idxJob,job in enumerate(jobs):
+            for idxJob, job in enumerate(jobs):
                 # set JobID. keep original JobID when retry
-                if userJobID != -1 and job.prodSourceLabel in ['user','panda'] \
+                if userJobID != -1 and job.prodSourceLabel in JobUtils.analy_sources \
                         and (job.attemptNr in [0,'0','NULL'] or \
                                  (job.jobExecutionID not in [0,'0','NULL']) or \
                                  job.lockedby == 'jedi') \
                         and (not jobs[0].processingType in ['merge','unmerge']):
                     job.jobDefinitionID = userJobID
                 # set jobsetID
-                if job.prodSourceLabel in ['user','panda'] + JobUtils.list_ptest_prod_sources:
+                if job.prodSourceLabel in JobUtils.analy_sources + JobUtils.list_ptest_prod_sources:
                     job.jobsetID = userJobsetID
                 # set specialHandling
-                if job.prodSourceLabel in ['user','panda']:
+                if job.prodSourceLabel in JobUtils.analy_sources:
                     if checkSpecialHandling:
                         specialHandling = ''
                         # debug mode
@@ -348,7 +357,7 @@ class TaskBuffer:
                 if job.jobParameters in ['',None,'NULL']:
                     job.jobParameters = ' '
                 # set country group and nJobs (=taskID)
-                if job.prodSourceLabel in ['user','panda']:
+                if job.prodSourceLabel in JobUtils.analy_sources:
                     if job.lockedby != 'jedi':
                         job.countryGroup = userCountry
                     # set workingGroup
@@ -377,9 +386,25 @@ class TaskBuffer:
                 # set hostname
                 if hostname != '':
                     job.creationHost = hostname
+
+                # process and set the job_label
+                if not job.job_label or job.job_label not in (JobUtils.PROD_PS, JobUtils.ANALY_PS):
+                    tmpSiteSpec = siteMapper.getSite(job.computingSite)
+                    queue_type = tmpSiteSpec.type
+                    if queue_type == 'analysis':
+                        job.job_label = JobUtils.ANALY_PS
+                    elif queue_type == 'production':
+                        job.job_label = JobUtils.PROD_PS
+                    elif queue_type == 'unified':
+                        if job.prodSourceLabel in JobUtils.analy_sources:
+                            job.job_label = JobUtils.ANALY_PS
+                        else:
+                            # set production as default if not specified and neutral prodsourcelabel
+                            job.job_label = JobUtils.PROD_PS
+
                 # extract file info, change specialHandling for event service
                 origSH = job.specialHandling
-                eventServiceInfo,job.specialHandling,esIndex = EventServiceUtils.decodeFileInfo(job.specialHandling)
+                eventServiceInfo, job.specialHandling, esIndex = EventServiceUtils.decodeFileInfo(job.specialHandling)
                 origEsJob = False
                 if eventServiceInfo != {}:
                     # set jobsetID
@@ -403,9 +428,9 @@ class TaskBuffer:
                 if not isOK:
                     # skip since there is no ready event
                     job.PandaID = None
-                tmpRetI = proxy.insertNewJob(job,user,serNum,weight,priorityOffset,userVO,groupJobSerialNum,
-                                             toPending,origEsJob,eventServiceInfo,oldPandaIDs=jobOldPandaIDs,
-                                             relationType=relationType,fileIDPool=fileIDPool,
+                tmpRetI = proxy.insertNewJob(job, user, serNum, weight, priorityOffset, userVO, groupJobSerialNum,
+                                             toPending, origEsJob, eventServiceInfo, oldPandaIDs=jobOldPandaIDs,
+                                             relationType=relationType, fileIDPool=fileIDPool,
                                              origSpecialHandling=origSH, unprocessedMap=unprocessedMap)
                 if unprocessedMap is not None:
                     tmpRetI, unprocessedMap = tmpRetI
@@ -414,7 +439,7 @@ class TaskBuffer:
                     job.PandaID = None
                 else:
                     # live log
-                    if job.prodSourceLabel in ['user','panda']:
+                    if job.prodSourceLabel in JobUtils.analy_sources:
                         if ' --liveLog ' in job.jobParameters:
                             # enable liveLog only for the first one
                             if firstLiveLog:
@@ -430,7 +455,7 @@ class TaskBuffer:
                     # mapping of jobsetID for event service
                     if origEsJob:
                         esJobsetMap[esIndex] = job.jobsetID
-                if job.prodSourceLabel in ['user','panda'] + JobUtils.list_ptest_prod_sources:
+                if job.prodSourceLabel in JobUtils.analy_sources + JobUtils.list_ptest_prod_sources:
                     ret.append((job.PandaID,job.jobDefinitionID,{'jobsetID':job.jobsetID}))
                 else:
                     ret.append((job.PandaID,job.jobDefinitionID,job.jobName))

@@ -329,11 +329,11 @@ class SiteMapper:
 
 
     # get ddm point
-    def getDdmEndpoint(self, siteID, storageToken, prodSourceLabel):
+    def getDdmEndpoint(self, siteID, storageToken, prodSourceLabel, job_label):
         if not self.checkSite(siteID):
             return None
         siteSpec =  self.getSite(siteID)
-        scope_input, scope_output = select_scope(siteSpec, prodSourceLabel)
+        scope_input, scope_output = select_scope(siteSpec, prodSourceLabel, job_label)
         if storageToken in siteSpec.setokens_output[scope_output]:
             return siteSpec.setokens_output[scope_output][storageToken]
         return siteSpec.ddm_output[scope_output]

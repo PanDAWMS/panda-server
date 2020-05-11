@@ -16,6 +16,11 @@ neutral_sources = ['install'] + list_ptest_prod_sources
 ANALY_PS = 'user'
 PROD_PS = 'managed'
 
+ANALY_TASKTYPE = 'anal'
+PROD_TASKTYPE = 'proc'
+
+job_labels = [ANALY_PS, PROD_PS]
+
 # priority of tasks to jumbo over others
 priorityTasksToJumpOver = 1500
 
@@ -26,6 +31,7 @@ def translate_resourcetype_to_cores(resource_type, cores_queue):
         return cores_queue
     else:
         return 1
+
 
 def translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel):
     if prodsourcelabel in analy_sources:
@@ -42,6 +48,15 @@ def translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel):
 
     # currently unmapped
     return prodsourcelabel
+
+
+def translate_tasktype_to_jobtype(task_type):
+    # any unrecognized tasktype will be defaulted to production
+    if task_type == ANALY_TASKTYPE:
+        return ANALY_PS
+    else:
+        return PROD_PS
+
 
 # get core count
 def getCoreCount(actualCoreCount, defCoreCount, jobMetrics):
@@ -64,6 +79,7 @@ def getCoreCount(actualCoreCount, defCoreCount, jobMetrics):
         pass
     return coreCount
 
+
 # get HS06sec
 def getHS06sec(startTime, endTime, corePower, coreCount, baseWalltime=0, cpuEfficiency=100):
     try:
@@ -79,6 +95,7 @@ def getHS06sec(startTime, endTime, corePower, coreCount, baseWalltime=0, cpuEffi
         return hs06sec
     except Exception:
         return None
+
 
 # parse string for number of standby jobs
 def parseNumStandby(catchall):

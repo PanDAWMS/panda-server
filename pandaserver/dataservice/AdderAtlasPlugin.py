@@ -66,14 +66,16 @@ class AdderAtlasPlugin (AdderPluginBase):
                 self.goToMerging = True
             # check if the job should go to transferring
             srcSiteSpec = self.siteMapper.getSite(self.job.computingSite)
-            scopeSrcSiteSpec_input, scopeSrcSiteSpec_output = select_scope(srcSiteSpec, self.job.prodSourceLabel)
+            scopeSrcSiteSpec_input, scopeSrcSiteSpec_output = select_scope(srcSiteSpec, self.job.prodSourceLabel,
+                                                                           self.job.job_label)
             tmpSrcDDM = srcSiteSpec.ddm_output[scopeSrcSiteSpec_output]
             if self.job.prodSourceLabel == 'user' and self.job.destinationSE not in self.siteMapper.siteSpecList:
                 # DQ2 ID was set by using --destSE for analysis job to transfer output
                 tmpDstDDM = self.job.destinationSE
             else:
                 dstSiteSpec = self.siteMapper.getSite(self.job.destinationSE)
-                scopeDstSiteSpec_input, scopeDstSiteSpec_output = select_scope(dstSiteSpec, self.job.prodSourceLabel)
+                scopeDstSiteSpec_input, scopeDstSiteSpec_output = select_scope(dstSiteSpec, self.job.prodSourceLabel,
+                                                                               self.job.job_label)
                 tmpDstDDM = dstSiteSpec.ddm_output[scopeDstSiteSpec_output]
                 # protection against disappearance of dest from schedconfig
                 if not self.siteMapper.checkSite(self.job.destinationSE) and self.job.destinationSE != 'local':
@@ -167,7 +169,8 @@ class AdderAtlasPlugin (AdderPluginBase):
             return 0
         # get the computingsite spec and scope
         srcSiteSpec = self.siteMapper.getSite(self.job.computingSite)
-        scopeSrcSiteSpec_input, scopeSrcSiteSpec_output = select_scope(srcSiteSpec, self.job.prodSourceLabel)
+        scopeSrcSiteSpec_input, scopeSrcSiteSpec_output = select_scope(srcSiteSpec, self.job.prodSourceLabel,
+                                                                       self.job.job_label)
         # zip file map
         zipFileMap = self.job.getZipFileMap()
         # get campaign
@@ -209,7 +212,9 @@ class AdderAtlasPlugin (AdderPluginBase):
 
                 # prepare the site spec and scope for the destinationSE site
                 dstSESiteSpec = self.siteMapper.getSite(file.destinationSE)
-                scopeDstSESiteSpec_input, scopeDstSESiteSpec_output = select_scope(dstSESiteSpec, self.job.prodSourceLabel)
+                scopeDstSESiteSpec_input, scopeDstSESiteSpec_output = select_scope(dstSESiteSpec,
+                                                                                   self.job.prodSourceLabel,
+                                                                                   self.job.job_label)
 
                 # added to map
                 if file.datasetID in dsIdToDsMap:

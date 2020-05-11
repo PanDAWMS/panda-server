@@ -14,6 +14,7 @@ from pandaserver.dataservice import DynDataDistributer
 from pandaserver.dataservice.MailUtils import MailUtils
 from pandaserver.dataservice.Notifier import Notifier
 from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.taskbuffer import JobUtils
 from pandaserver.userinterface import Client
 
 from pandaserver.dataservice.DDM import rucioAPI
@@ -50,6 +51,7 @@ class EventPicker:
         # JEDI
         self.jediTaskID      = None
         self.prodSourceLabel = None
+        self.job_label = None
 
     # main
     def run(self):
@@ -173,7 +175,7 @@ class EventPicker:
             # get jediTaskID
             self.jediTaskID = self.taskBuffer.getTaskIDwithTaskNameJEDI(compactDN,self.userTaskName)
             # get prodSourceLabel
-            self.prodSourceLabel = self.taskBuffer.getProdSourceLabelwithTaskID(self.jediTaskID)
+            self.prodSourceLabel, self.job_label = self.taskBuffer.getProdSourceLabelwithTaskID(self.jediTaskID)
             # convert run/event list to dataset/file list
             tmpRet,locationMap,allFiles = self.pd2p.convertEvtRunToDatasets(runEvtList,
                                                                             eventPickDataType,
@@ -216,8 +218,8 @@ class EventPicker:
                 self.taskBuffer.updateTaskModTimeJEDI(self.jediTaskID)
             else:
                 # get candidates
-                tmpRet,candidateMaps = self.pd2p.getCandidates(self.userDatasetName, self.prodSourceLabel,
-                                                               checkUsedFile=False, useHidden=True)
+                tmpRet, candidateMaps = self.pd2p.getCandidates(self.userDatasetName, self.prodSourceLabel,
+                                                                self.job_label, checkUsedFile=False, useHidden=True)
                 if not tmpRet:
                     self.endWithError('Failed to find candidate for destination')
                     return False
@@ -270,7 +272,7 @@ class EventPicker:
                             raise RuntimeError('user info not found for {0} with {1}'.format(tmpDN,userInfo))
                         tmpDN = userInfo['nickname']
                         tmpSiteSpec = self.siteMapper.getSite(tmpJob.computingSite)
-                        scope_input, scope_output = select_scope(tmpSiteSpec, 'user')
+                        scope_input, scope_output = select_scope(tmpSiteSpec, JobUtils.ANALY_PS, JobUtils.ANALY_PS)
                         tmpDQ2ID = tmpSiteSpec.ddm_input[scope_input]
                         tmpMsg = "%s ds=%s site=%s id=%s" % ('registerDatasetLocation for DaTRI ',
                                                              tmpUserDatasetName,

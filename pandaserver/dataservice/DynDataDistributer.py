@@ -100,6 +100,7 @@ class DynDataDistributer:
             # get input datasets
             inputDatasets = []
             prodsourcelabels = []
+            job_labels = []
             for tmpJob in self.jobs:
                 if tmpJob.prodSourceLabel == 'user':
                     for tmpFile in tmpJob.Files:
@@ -107,8 +108,9 @@ class DynDataDistributer:
                             if tmpFile.dataset not in inputDatasets:
                                 inputDatasets.append(tmpFile.dataset)
                                 prodsourcelabels.append(tmpJob.prodSourceLabel)
+                                job_labels.append(tmpJob.job_label)
             # loop over all input datasets
-            for inputDS, prodsourcelabel in zip(inputDatasets, prodsourcelabels):
+            for inputDS, prodsourcelabel, job_label in zip(inputDatasets, prodsourcelabels, job_labels):
                 # only mc/data datasets
                 moveFlag = False
                 for projectName in ['mc','data']:
@@ -130,7 +132,7 @@ class DynDataDistributer:
                     continue
                 # get candidate sites
                 self.putLog("get candidates for %s" % inputDS)
-                status,sitesMaps = self.getCandidates(inputDS, prodsourcelabel, useCloseSites=True)
+                status, sitesMaps = self.getCandidates(inputDS, prodsourcelabel, job_label, useCloseSites=True)
                 if not status:
                     self.putLog("failed to get candidates")
                     continue
@@ -234,14 +236,15 @@ class DynDataDistributer:
                                           nT1Sub == 0 and allT1Candidates != []):
                             self.putLog("making T1-T1",sendLog=True)
                             # make subscription
-                            retT1Sub,useSmallT1 = self.makeT1Subscription(allT1Candidates,tmpDS,dsSize,prodsourcelabel,nUsed)
+                            retT1Sub,useSmallT1 = self.makeT1Subscription(allT1Candidates, tmpDS, dsSize,
+                                                                          prodsourcelabel, job_label, nUsed)
                             self.putLog("done for T1-T1")
                             triggeredT1PD2P = True
                     # make a T2 copy when T1 PD2P was triggered
                     if triggeredT1PD2P:
                         # TODO
                         retT2MoU, selectedSite = self.makeT2SubscriptionMoU(allCandidatesMoU, tmpDS, dsSize,' T1MOU',
-                                                                           prodsourcelabel, nUsed)
+                                                                           prodsourcelabel, job_label, nUsed)
                         if retT2MoU and selectedSite is not None:
                             # remove from candidate list
                             if selectedSite in allCandidates:
@@ -293,11 +296,11 @@ class DynDataDistributer:
                         self.putLog("skip since no candidates",sendLog=True,actionTag='SKIPPED',tagsMap={'reason':'NO_T2_CANDIDATE','dataset':tmpDS})
                         continue
                     # get inverse weight for brokerage
-                    weightForBrokerage = self.getWeightForBrokerage(allCandidates, tmpDS, nReplicasInCloud, prodsourcelabel)
+                    weightForBrokerage = self.getWeightForBrokerage(allCandidates, tmpDS, nReplicasInCloud, prodsourcelabel, job_label)
                     self.putLog("inverse weight %s" % str(weightForBrokerage))
                     # get free disk size
                     self.putLog("getting free disk size for T2 PD2P")
-                    retFreeSizeMap,freeSizeMap = self.getFreeDiskSize(tmpDS,allCandidates, prodsourcelabel)
+                    retFreeSizeMap,freeSizeMap = self.getFreeDiskSize(tmpDS, allCandidates, prodsourcelabel, job_label)
                     if not retFreeSizeMap:
                         self.putLog("failed to get free disk size",type='error',sendLog=True)
                         continue
@@ -305,9 +308,11 @@ class DynDataDistributer:
                     tmpJob = JobSpec()
                     tmpJob.AtlasRelease = ''
                     self.putLog("run brokerage for %s" % tmpDS)
-                    usedWeight = pandaserver.brokerage.broker.schedule([tmpJob],self.taskBuffer,self.siteMapper,True,allCandidates,
-                                                           True,specialWeight=weightForBrokerage,getWeight=True,
-                                                           sizeMapForCheck=freeSizeMap,datasetSize=dsSize)
+                    usedWeight = pandaserver.brokerage.broker.schedule([tmpJob], self.taskBuffer, self.siteMapper, True,
+                                                                       allCandidates, True,
+                                                                       specialWeight=weightForBrokerage,
+                                                                       getWeight=True, sizeMapForCheck=freeSizeMap,
+                                                                       datasetSize=dsSize)
                     selectedSite = tmpJob.computingSite
                     for tmpWeightSite in usedWeight:
                         tmpWeightStr = usedWeight[tmpWeightSite]
@@ -319,10 +324,10 @@ class DynDataDistributer:
                                 tmpActionTag = 'SELECTEDT2_NOREP'
                             else:
                                 tmpActionTag = 'SELECTEDT2_WAIT'
-                            tmpTagsMap['nused']           = nUsed
-                            tmpTagsMap['nwaitingjobs']    = nWaitingJobsAll
+                            tmpTagsMap['nused'] = nUsed
+                            tmpTagsMap['nwaitingjobs'] = nWaitingJobsAll
                             tmpTagsMap['nwaitingjobsets'] = nWaitingJobsets
-                            tmpTagsMap['nsiteshaveds']    = len(allCompPd2pSites)
+                            tmpTagsMap['nsiteshaveds'] = len(allCompPd2pSites)
                         else:
                             tmpActionTag = 'UNSELECTEDT2'
                         self.putLog("weight %s %s" % (tmpWeightSite,tmpWeightStr),sendLog=True,
@@ -336,7 +341,7 @@ class DynDataDistributer:
                     # make subscription
                     if not self.simul:
                         selectedSiteSpec = self.siteMapper.getSite(selectedSite)
-                        scope_input, scope_output = select_scope(selectedSiteSpec, prodsourcelabel)
+                        scope_input, scope_output = select_scope(selectedSiteSpec, prodsourcelabel, job_label)
                         subRet,dq2ID = self.makeSubscription(tmpDS,selectedSite, scope_input, ddmShare='secondary')
                         self.putLog("made subscription to %s:%s" % (selectedSite,dq2ID),sendLog=True)
                         usedSites.append(selectedSite)
@@ -346,7 +351,7 @@ class DynDataDistributer:
                     # additional T2 copy with MoU share when it is the second submission
                     if nUsed == 1 or self.simul:
                         retT2MoU,selectedSite = self.makeT2SubscriptionMoU(allCandidatesMoU, tmpDS, dsSize, 'T2MOU',
-                                                                           prodsourcelabel, nUsed)
+                                                                           prodsourcelabel, job_label, nUsed)
             self.putLog("end for %s" % self.jobs[0].PandaID)
         except Exception:
             errType,errValue = sys.exc_info()[:2]
@@ -354,7 +359,8 @@ class DynDataDistributer:
 
 
     # get candidate sites for subscription
-    def getCandidates(self, inputDS, prodsourcelabel, checkUsedFile=True, useHidden=False, useCloseSites=False):
+    def getCandidates(self, inputDS, prodsourcelabel, job_label, checkUsedFile=True,
+                      useHidden=False, useCloseSites=False):
         # return for failure
         failedRet = False,{'':{'':([],[],[],0,False,False,0,0,[])}}
         # get replica locations
@@ -410,7 +416,7 @@ class DynDataDistributer:
             # DQ2 prefix of T1
             tmpT1SiteID = self.siteMapper.getCloud(cloud)['source']
             tmpT1SiteSpec = self.siteMapper.getSite(tmpT1SiteID)
-            tmp_scope_input, tmp_scope_output = select_scope(tmpT1SiteSpec, prodsourcelabel)
+            tmp_scope_input, tmp_scope_output = select_scope(tmpT1SiteSpec, prodsourcelabel, job_label)
             if tmp_scope_input in tmpT1SiteSpec.ddm_input:
                 tmpT1DQ2ID = tmpT1SiteSpec.ddm_input[tmp_scope_input]
             else:
@@ -458,7 +464,7 @@ class DynDataDistributer:
                 # check sites
                 nUserSub = 0
                 for tmpSiteSpec in allSiteMap[cloud]:
-                    tmp_scope_input, tmp_scope_output = select_scope(tmpSiteSpec, prodsourcelabel)
+                    tmp_scope_input, tmp_scope_output = select_scope(tmpSiteSpec, prodsourcelabel, job_label)
 
                     # check cloud
                     if tmpSiteSpec.cloud != cloud:
@@ -575,7 +581,7 @@ class DynDataDistributer:
 
 
     # get weight for brokerage
-    def getWeightForBrokerage(self, sitenames, dataset, nReplicasInCloud, prodsourcelabel):
+    def getWeightForBrokerage(self, sitenames, dataset, nReplicasInCloud, prodsourcelabel, job_label):
         # return for failuer
         retFailed = False,{}
         retMap = {}
@@ -585,10 +591,10 @@ class DynDataDistributer:
         for sitename in sitenames:
             # get DQ2 ID
             siteSpec = self.siteMapper.getSite(sitename)
-            scope_input, scope_output = select_scope(siteSpec, prodsourcelabel)
+            scope_input, scope_output = select_scope(siteSpec, prodsourcelabel, job_label)
             dq2ID = self.getDQ2ID(sitename,dataset, scope_input)
             if dq2ID == '':
-                self.putLog("cannot find DQ2 ID for %s:%s" % (sitename,dataset))
+                self.putLog("cannot find DQ2 ID for %s:%s" % (sitename, dataset))
                 return retFailed
             # append
             if dq2ID in numUserSubs:
@@ -603,9 +609,9 @@ class DynDataDistributer:
 
 
     # get free disk size
-    def getFreeDiskSize(self, dataset, siteList, prodsourcelabel):
-        # return for failuer
-        retFailed = False,{}
+    def getFreeDiskSize(self, dataset, siteList, prodsourcelabel, job_label):
+        # return for failure
+        retFailed = False, {}
         # loop over all sites
         sizeMap = {}
         for sitename in siteList:
@@ -615,10 +621,10 @@ class DynDataDistributer:
                 continue
             # get DQ2 IDs
             siteSpec = self.siteMapper.getSite(sitename)
-            scope_input, scope_output = select_scope(siteSpec, prodsourcelabel)
+            scope_input, scope_output = select_scope(siteSpec, prodsourcelabel, job_label)
             dq2ID = self.getDQ2ID(sitename, dataset, scope_input)
             if dq2ID == '':
-                self.putLog("cannot find DQ2 ID for %s:%s" % (sitename,dataset))
+                self.putLog("cannot find DQ2 ID for %s:%s" % (sitename, dataset))
                 return retFailed
             tmpMap = rucioAPI.getRseUsage(dq2ID)
             if tmpMap == {}:
@@ -1169,12 +1175,12 @@ class DynDataDistributer:
 
 
     # make T1 subscription
-    def makeT1Subscription(self, allCloudCandidates, tmpDS, dsSize, prodsourcelabel,
+    def makeT1Subscription(self, allCloudCandidates, tmpDS, dsSize, prodsourcelabel, job_label,
                            nUsed=None, nWaitingJobs=None, nWaitingJobsets=None):
         useSmallT1 = None
         # no candidate
         if allCloudCandidates == []:
-            return True,useSmallT1
+            return True, useSmallT1
 
         # convert to siteIDs
         t1Candidates = []
@@ -1190,9 +1196,9 @@ class DynDataDistributer:
             siteToCloud[tmpT1SiteID] = tmpCloud
         # get free disk size
         self.putLog("getting free disk size for T1 PD2P")
-        retFreeSizeMap,freeSizeMap = self.getFreeDiskSize(tmpDS, t1Candidates, prodsourcelabel)
+        retFreeSizeMap,freeSizeMap = self.getFreeDiskSize(tmpDS, t1Candidates, prodsourcelabel, job_label)
         if not retFreeSizeMap:
-            self.putLog("failed to get free disk size",type='error',sendLog=True)
+            self.putLog("failed to get free disk size", type='error', sendLog=True)
             return False,useSmallT1
         # run brokerage
         tmpJob = JobSpec()
@@ -1210,7 +1216,7 @@ class DynDataDistributer:
         # make subscription
         tmpJob.computingSite = selectedSite
         tmpSiteSpec = self.siteMapper.getSite(tmpJob.computingSite)
-        scope_input, scope_output = select_scope(tmpSiteSpec, prodsourcelabel)
+        scope_input, scope_output = select_scope(tmpSiteSpec, prodsourcelabel, job_label)
         subRet,dq2ID = self.makeSubscription(tmpDS, tmpJob.computingSite, scope_input)
         tmpTagsMap = {'site':tmpJob.computingSite,'dataset':tmpDS}
         if nUsed is not None:
@@ -1233,7 +1239,7 @@ class DynDataDistributer:
 
 
     # make T2 subscription with MoU share
-    def makeT2SubscriptionMoU(self, allCandidates, tmpDS, dsSize, pd2pType, prodsourcelabel,
+    def makeT2SubscriptionMoU(self, allCandidates, tmpDS, dsSize, pd2pType, prodsourcelabel, job_label,
                               nUsed=None, nWaitingJobs=None, nWaitingJobsets=None):
         # no candidate
         if allCandidates == []:
@@ -1247,7 +1253,7 @@ class DynDataDistributer:
         dq2List = []
         for tmpCandidate in allCandidates:
             tmpCandidateSpec = self.siteMapper.getSite(tmpCandidate)
-            scope_input, scope_output = select_scope(tmpCandidateSpec, prodsourcelabel)
+            scope_input, scope_output = select_scope(tmpCandidateSpec, prodsourcelabel, job_label)
             tmpDQ2ID = self.getDQ2ID(tmpCandidate, tmpDS, scope_input)
             if tmpDQ2ID not in dq2List:
                 # append
@@ -1273,9 +1279,9 @@ class DynDataDistributer:
         t2Candidates.sort()
         # get free disk size
         self.putLog("getting free disk size for T2 %s PD2P" % pd2pType)
-        retFreeSizeMap,freeSizeMap = self.getFreeDiskSize(tmpDS, t2Candidates, prodsourcelabel)
+        retFreeSizeMap, freeSizeMap = self.getFreeDiskSize(tmpDS, t2Candidates, prodsourcelabel, job_label)
         if not retFreeSizeMap:
-            self.putLog("failed to get free disk size",type='error',sendLog=True)
+            self.putLog("failed to get free disk size", type='error', sendLog=True)
             return False,None
         # run brokerage
         tmpJob = JobSpec()
@@ -1292,7 +1298,7 @@ class DynDataDistributer:
             return False,None
         # make subscription
         selectedSiteSpec = self.siteMapper.getSite(selectedSite)
-        scope_input, scope_output = select_scope(selectedSiteSpec, prodsourcelabel)
+        scope_input, scope_output = select_scope(selectedSiteSpec, prodsourcelabel, job_label)
         subRet,dq2ID = self.makeSubscription(tmpDS, selectedSite, scope_input)
         tmpTagsMap = {'site':selectedSite,'dataset':tmpDS}
         if nUsed is not None:

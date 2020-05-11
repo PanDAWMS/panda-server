@@ -14,9 +14,10 @@ import pandaserver.jobdispatcher.Protocol as Protocol
 import pandaserver.taskbuffer.ProcessGroups
 from pandaserver.taskbuffer.WrappedPickle import WrappedPickle
 from pandaserver.brokerage.SiteMapper import SiteMapper
-from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandaserver.taskbuffer import PrioUtil
+from pandaserver.taskbuffer import PrioUtil, JobUtils
 from pandaserver.dataservice.DDM import rucioAPI
+
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 try:
     long()
@@ -38,13 +39,12 @@ class UserIF:
     def init(self,taskBuffer):
         self.taskBuffer = taskBuffer
 
-
     # submit jobs
-    def submitJobs(self,jobsStr,user,host,userFQANs,prodRole=False,toPending=False):
+    def submitJobs(self, jobsStr, user, host, userFQANs, prodRole=False, toPending=False):
         try:
             # deserialize jobspecs
             jobs = WrappedPickle.loads(jobsStr)
-            _logger.debug("submitJobs %s len:%s prodRole=%s FQAN:%s" % (user,len(jobs),prodRole,str(userFQANs)))
+            _logger.debug("submitJobs %s len:%s prodRole=%s FQAN:%s" % (user, len(jobs), prodRole, str(userFQANs)))
             maxJobs = 5000
             if len(jobs) > maxJobs:
                 _logger.error("submitJobs: too many jobs more than %s" % maxJobs)
@@ -54,50 +54,67 @@ class UserIF:
             jobs = []
         # check prodSourceLabel
         try:
-            goodProdSourceLabel = True
+            good_labels = True
             for tmpJob in jobs:
                 # prevent internal jobs from being submitted from outside
                 if tmpJob.prodSourceLabel in pandaserver.taskbuffer.ProcessGroups.internalSourceLabels:
-                    _logger.error("submitJobs %s wrong prodSourceLabel=%s" % (user,tmpJob.prodSourceLabel))
-                    goodProdSourceLabel = False
+                    good_labels = False
+                    good_labels_message = "submitJobs {0} wrong prodSourceLabel={1}".format(user, tmpJob.prodSourceLabel)
                     break
+
                 # check production role
-                if tmpJob.prodSourceLabel in ['managed']:
-                    if not prodRole:
-                        _logger.error("submitJobs %s missing prod-role for prodSourceLabel=%s" % (user,tmpJob.prodSourceLabel))
-                        goodProdSourceLabel = False
-                        break
+                if tmpJob.prodSourceLabel in ['managed'] and not prodRole:
+                    good_labels = False
+                    good_labels_message = "submitJobs {0} missing prod-role for prodSourceLabel={1}".format(user,
+                                                                                                            tmpJob.prodSourceLabel)
+                    break
+
+                # check the job_label is valid
+                if tmpJob.job_label not in [None, '', 'NULL'] and tmpJob.job_label not in JobUtils.job_labels:
+                    good_labels = False
+                    good_labels_message = "submitJobs %s wrong job_label=%s" % (user, tmpJob.job_label)
+                    break
         except Exception:
-            errType,errValue = sys.exc_info()[:2]
-            _logger.error("submitJobs : checking goodProdSourceLabel %s %s" % (errType,errValue))
-            goodProdSourceLabel = False
-        # reject injection for bad prodSourceLabel
-        if not goodProdSourceLabel:
-            return "ERROR: production role is required for production jobs"
+            errType, errValue = sys.exc_info()[:2]
+            _logger.error("submitJobs : checking good_labels %s %s" % (errType, errValue))
+            good_labels = False
+
+        # reject injection for error with the labels
+        if not good_labels:
+            _logger.error(good_labels_message)
+            return "ERROR: {0}".format(good_labels_message)
+
         job0 = None
+
         # get user VO
         userVO = 'atlas'
         try:
             job0 = jobs[0]
-            if job0.VO not in [None,'','NULL']:
+            if job0.VO not in [None, '', 'NULL']:
                 userVO = job0.VO
         except (IndexError, AttributeError) as e:
-            _logger.error("submitJobs : checking userVO. userVO not found, defaulting to %s. (Exception %s)" %(userVO, e))
+            _logger.error(
+                "submitJobs : checking userVO. userVO not found, defaulting to %s. (Exception %s)" % (userVO, e))
+
         # atlas jobs require FQANs
         if userVO == 'atlas' and userFQANs == []:
             _logger.error("submitJobs : VOMS FQANs are missing in your proxy. They are required for {0}".format(userVO))
-            #return "ERROR: VOMS FQANs are missing. They are required for {0}".format(userVO)
+            # return "ERROR: VOMS FQANs are missing. They are required for {0}".format(userVO)
+
         # get LSST pipeline username
         if userVO.lower() == 'lsst':
             try:
                 if job0.prodUserName and job0.prodUserName.lower() != 'none':
                     user = job0.prodUserName
             except AttributeError:
-                _logger.error("submitJobs : checking username for userVO[%s]: username not found, defaulting to %s. %s %s" % (userVO, user))
+                _logger.error("submitJobs : checking username for userVO[%s]: username not found, defaulting to %s. %s %s"
+                              % (userVO, user))
+
         # store jobs
-        ret = self.taskBuffer.storeJobs(jobs,user,forkSetupper=True,fqans=userFQANs,
+        ret = self.taskBuffer.storeJobs(jobs, user, forkSetupper=True, fqans=userFQANs,
                                         hostname=host, toPending=toPending, userVO=userVO)
-        _logger.debug("submitJobs %s ->:%s" % (user,len(ret)))
+        _logger.debug("submitJobs %s ->:%s" % (user, len(ret)))
+
         # serialize
         return WrappedPickle.dumps(ret)
 

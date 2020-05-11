@@ -316,8 +316,8 @@ class DBProxy:
 
 
     # insert job to jobsDefined
-    def insertNewJob(self,job,user,serNum,weight=0.0,priorityOffset=0,userVO=None,groupJobSN=0,toPending=False,
-                     origEsJob=False,eventServiceInfo=None,oldPandaIDs=None,relationType=None,fileIDPool=[],
+    def insertNewJob(self, job, user, serNum, weight=0.0, priorityOffset=0, userVO=None, groupJobSN=0, toPending=False,
+                     origEsJob=False, eventServiceInfo=None, oldPandaIDs=None, relationType=None, fileIDPool=[],
                      origSpecialHandling=None, unprocessedMap=None):
         comment = ' /* DBProxy.insertNewJob */'
         methodName = comment.split(' ')[-2].split('.')[-1]
@@ -3298,7 +3298,7 @@ class DBProxy:
         elif prodSourceLabel == 'test' and computingElement is not None:
             if is_gu and jobType == 'user':
                     sql1+= "AND processingType=:processingType1 "
-                    getValMap[':processingType1'] = 'gangarobot'
+                    getValMap[':processingType1'] = 'gangarobot'  # analysis HC jobs
             else:
                 sql1+= "AND (processingType=:processingType1 "
                 sql1+= "OR prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2)) "
@@ -17295,27 +17295,27 @@ class DBProxy:
             # begin transaction
             self.conn.begin()
             # sql to get jediTaskID
-            sqlGF  = "SELECT prodSourceLabel FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sqlGF  = "SELECT prodSourceLabel, job_label FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
             sqlGF += "WHERE jediTaskID=:jediTaskID "
             varMap = {}
             varMap[':jediTaskID'] = jediTaskID
             self.cur.execute(sqlGF+comment,varMap)
             resFJ = self.cur.fetchone()
             if resFJ is not None:
-                prodSourceLabel, = resFJ
+                prodSourceLabel, job_label = resFJ
             else:
-                prodSourceLabel = None
+                prodSourceLabel, job_label = None, None
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
             _logger.debug("{0} : jediTaskID={1} prodSourceLabel={2}".format(methodName,jediTaskID, prodSourceLabel))
-            return prodSourceLabel
+            return prodSourceLabel, job_label
         except Exception:
             # roll back
             self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
-            return None
+            return None, None
 
 
 

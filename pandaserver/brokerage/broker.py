@@ -73,10 +73,9 @@ def _checkRelease(jobRels,siteRels):
 
 
 # get list of files which already exist at the site
-def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,prodsourcelabel,tmpLog=None,
-                scopeList=None,allScopeList=None):
+def _getOkFiles(v_ce, v_files, allLFNs, allOkFilesMap, prodsourcelabel, job_label, tmpLog=None, allScopeList=None):
 
-    scope_association_input, scope_association_output  = select_scope(v_ce, prodsourcelabel)
+    scope_association_input, scope_association_output = select_scope(v_ce, prodsourcelabel, job_label)
     dq2IDs = v_ce.setokens_input[scope_association_input].values()
     try:
         dq2IDs.remove('')
@@ -101,7 +100,7 @@ def _getOkFiles(v_ce,v_files,v_guids,allLFNs,allGUIDs,allOkFilesMap,prodsourcela
         # get all replicas
         if dq2URL not in allOkFilesMap:
             allOkFilesMap[dq2URL] = {}
-            tmpStat,tmpAvaFiles = rucioAPI.listFileReplicas(allScopeList,allLFNs,tmpSE)
+            tmpStat,tmpAvaFiles = rucioAPI.listFileReplicas(allScopeList, allLFNs, tmpSE)
             if not tmpStat and tmpLog is not None:
                 tmpLog.debug('getOkFile failed to get file replicas')
                 tmpAvaFiles = {}
@@ -139,8 +138,10 @@ def _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog):
     allOK = True
     tmpSiteSpec = siteMapper.getSite(tmpJob.computingSite)
     tmpSrcSpec  = siteMapper.getSite(siteMapper.getCloud(tmpJob.getCloud())['source'])
-    scope_association_site_input, scope_association_site_output = select_scope(tmpSiteSpec, tmpJob.prodSourceLabel)
-    scope_association_src_input, scope_association_src_output = select_scope(tmpSrcSpec, tmpJob.prodSourceLabel)
+    scope_association_site_input, scope_association_site_output = select_scope(tmpSiteSpec, tmpJob.prodSourceLabel,
+                                                                               tmpJob.job_label)
+    scope_association_src_input, scope_association_src_output = select_scope(tmpSrcSpec, tmpJob.prodSourceLabel,
+                                                                             tmpJob.job_label)
     tmpTapeEndPoints = tmpSiteSpec.ddm_endpoints_input[scope_association_site_input].getTapeEndPoints()
     # direct usage of remote SE
     if tmpSiteSpec.ddm_input[scope_association_site_input] != tmpSrcSpec.ddm_input[scope_association_src_input] \
@@ -388,7 +389,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         iJob  = 0
         nFile = 20
         fileList  = []
-        guidList  = []
         scopeList = []
         okFiles   = {}
         prioInterval = 50
@@ -594,8 +594,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                          # get site spec
                          tmp_chosen_ce = siteMapper.getSite(computingSite)
                          # get files from LRC
-                         okFiles = _getOkFiles(tmp_chosen_ce, fileList, guidList, allLFNs, allGUIDs, allOkFilesMap,
-                                               jobsInBunch[0].prodSourceLabel, tmpLog, scopeList, allScopes)
+                         okFiles = _getOkFiles(tmp_chosen_ce, fileList, allLFNs, allOkFilesMap,
+                                               jobsInBunch[0].prodSourceLabel, jobsInBunch[0].job_label,
+                                               tmpLog, allScopes)
 
                          nOkFiles = len(okFiles)
                          tmpLog.debug('site:%s - nFiles:%s/%s %s %s' % (computingSite,nOkFiles,len(fileList),str(fileList),str(okFiles)))
@@ -1242,8 +1243,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 tmpOKFiles = {}
                             else:
                                 # get files from LRC
-                                tmpOKFiles = _getOkFiles(tmp_chosen_ce, fileList, guidList, allLFNs, allGUIDs,
-                                                         allOkFilesMap, job.proSourceLabel, tmpLog, scopeList, allScopes)
+                                tmpOKFiles = _getOkFiles(tmp_chosen_ce, fileList, allLFNs, allOkFilesMap,
+                                                         job.proSourceLabel, job.job_label, tmpLog, allScopes)
                             nFiles = len(tmpOKFiles)
                             tmpLog.debug('site:%s - nFiles:%s/%s %s' % (site,nFiles,len(fileList),str(tmpOKFiles)))
                             # choose site holding max # of files
@@ -1375,7 +1376,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 iJob = 0
                 # reset file list
                 fileList  = []
-                guidList  = []
                 scopeList = []
                 okFiles   = {}
                 totalNumInputs = 0
@@ -1419,21 +1419,21 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             # increment iJob
             iJob += 1
             # reserve computingSite and cloud
-            computingSite   = job.computingSite
-            previousCloud   = job.getCloud()
-            prevRelease     = job.AtlasRelease
-            prevMemory      = job.minRamCount
-            prevCmtConfig   = job.cmtConfig
-            prevProType     = job.processingType
+            computingSite = job.computingSite
+            previousCloud = job.getCloud()
+            prevRelease = job.AtlasRelease
+            prevMemory = job.minRamCount
+            prevCmtConfig = job.cmtConfig
+            prevProType = job.processingType
             prevSourceLabel = job.prodSourceLabel
-            prevDiskCount   = job.maxDiskCount
-            prevHomePkg     = job.homepackage
-            prevDirectAcc   = job.transferType
-            prevCoreCount   = job.coreCount
+            prevDiskCount = job.maxDiskCount
+            prevHomePkg = job.homepackage
+            prevDirectAcc = job.transferType
+            prevCoreCount = job.coreCount
             prevMaxCpuCount = job.maxCpuCount
             prevBrokergageSiteList = specialBrokergageSiteList
             prevManualPreset = manualPreset
-            prevGoToT2Flag   = goToT2Flag
+            prevGoToT2Flag = goToT2Flag
             prevWorkingGroup = job.workingGroup
             prevBrokerageNote = brokerageNote
             prevIsJEDI = isJEDI
@@ -1479,7 +1479,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             for file in job.Files:
                 # dispatchDBlock. Set dispDB for prestaging jobs too
                 if file.type == 'input' and file.dispatchDBlock == 'NULL' and \
-                   ((file.status not in ['ready','missing','cached']) or job.computingSite in prestageSites):
+                   ((file.status not in ['ready', 'missing', 'cached']) or job.computingSite in prestageSites):
                     if first:
                         first = False
                         job.dispatchDBlock = dispatchDBlock
@@ -1487,12 +1487,11 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     file.status = 'pending'
                     if file.lfn not in fileList:
                         fileList.append(file.lfn)
-                        guidList.append(file.GUID)
                         scopeList.append(file.scope)
                         try:
                             # get total number/size of inputs except DBRelease
                             # tgz inputs for evgen may be negligible
-                            if re.search('\.tar\.gz',file.lfn) is None:
+                            if re.search('\.tar\.gz', file.lfn) is None:
                                 totalNumInputs += 1
                                 totalInputSize += file.fsize
                         except Exception:
