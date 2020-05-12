@@ -401,6 +401,8 @@ class TaskBuffer:
                         else:
                             # set production as default if not specified and neutral prodsourcelabel
                             job.job_label = JobUtils.PROD_PS
+                    else:  # e.g. type = special
+                        job.job_label = JobUtils.PROD_PS
 
                 # extract file info, change specialHandling for event service
                 origSH = job.specialHandling
