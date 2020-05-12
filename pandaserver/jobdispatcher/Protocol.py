@@ -209,7 +209,9 @@ class Response:
         # log GUID
         self.data['logGUID'] = logGUID
         # jobPars
-        self.data['jobPars'] = job.jobParameters
+        self.data['jobPars'], ppSteps = job.extractMultiStepExec()
+        if ppSteps is not None:
+            self.data.update(ppSteps)
         # attempt number
         self.data['attemptNr'] = job.attemptNr
         # GUIDs

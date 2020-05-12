@@ -4,7 +4,7 @@ job specification
 """
 
 import re
-import types
+import json
 import datetime
 
 reserveChangedState = False
@@ -515,7 +515,6 @@ class JobSpec(object):
             pass
 
 
-
     # get zip file map
     def getZipFileMap(self):
         zipMap = dict()
@@ -532,6 +531,21 @@ class JobSpec(object):
         return zipMap
 
 
+    # add multi step exec
+    def addMultiStepExec(self, steps):
+        if not self.jobParameters:
+            self.jobParameters = ''
+        self.jobParameters += ('<MULTI_STEP_EXEC>' + json.dumps(steps) + '</MULTI_STEP_EXEC>')
+
+    # extract multi step exec
+    def extractMultiStepExec(self):
+        try:
+            ppStr = re.search('(.*)<MULTI_STEP_EXEC>(.+)</MULTI_STEP_EXEC>', self.jobParameters)
+            if ppStr is not None:
+                return ppStr.group(1), json.loads(ppStr.group(2))
+        except Exception:
+            pass
+        return self.jobParameters, None
 
     # suppress execute string conversion
     def noExecStrCnv(self):
