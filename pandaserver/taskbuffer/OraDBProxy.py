@@ -21857,7 +21857,7 @@ class DBProxy:
         if queue == 'FZK-LCG2':
             n_cores_running = max(n_cores_running, 16000)
 
-        n_cores_target = max(int(n_cores_running * factor), 75 * cores_queue)
+        n_cores_target = max(int(n_cores_running * 0.4), 75 * cores_queue)
         n_cores_to_submit = max(n_cores_target - n_cores_queued, 5 * cores_queue)
         tmpLog.debug('IN CORES: nrunning {0}, ntarget {1}, nqueued {2}. We need to process {3} cores'
                      .format(n_cores_running, n_cores_target, n_cores_queued, n_cores_to_submit))
