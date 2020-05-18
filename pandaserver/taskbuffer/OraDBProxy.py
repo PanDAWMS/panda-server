@@ -18242,7 +18242,7 @@ class DBProxy:
 
         #Update the file entries to avoid JEDI generating new jobs
         input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log','trn_output')
-        input_files = filter(lambda pandafile: pandafile.type in input_types and re.search('DBRelease', pandafile.lfn) is None, files)
+        input_files = list(filter(lambda pandafile: pandafile.type in input_types and re.search('DBRelease', pandafile.lfn) is None, files))
         input_fileIDs = [input_file.fileID for input_file in input_files]
         input_datasetIDs = [input_file.datasetID for input_file in input_files]
 
@@ -18323,7 +18323,7 @@ class DBProxy:
 
         # Update the file entries to avoid JEDI generating new jobs
         input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log', 'trn_output')
-        input_files = filter(lambda pandafile: pandafile.type in input_types and re.search('DBRelease', pandafile.lfn) is None, files)
+        input_files = list(filter(lambda pandafile: pandafile.type in input_types and re.search('DBRelease', pandafile.lfn) is None, files))
         input_fileIDs = [input_file.fileID for input_file in input_files]
         input_datasetIDs = [input_file.datasetID for input_file in input_files]
 
@@ -18456,8 +18456,8 @@ class DBProxy:
 
         #2. Get the file information
         input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log','trn_output')
-        input_files = filter(lambda pandafile: pandafile.type in input_types
-                                               and re.search('DBRelease', pandafile.lfn) is None, files)
+        input_files = list(filter(lambda pandafile: pandafile.type in input_types
+                                               and re.search('DBRelease', pandafile.lfn) is None, files))
         input_fileIDs = [input_file.fileID for input_file in input_files]
         input_datasetIDs = [input_file.datasetID for input_file in input_files]
 
@@ -21853,7 +21853,11 @@ class DBProxy:
         #if queue == 'CERN-PROD_UCORE':
         #    n_workers_running = max(n_workers_running, 1000)
         #else:
-        n_cores_target = max(int(n_cores_running * 0.4), 75 * cores_queue)
+        # Temporary workaround. CERN needs more pressure to start running
+        if queue == 'FZK-LCG2':
+            n_cores_running = max(n_cores_running, 16000)
+
+        n_cores_target = max(int(n_cores_running * factor), 75 * cores_queue)
         n_cores_to_submit = max(n_cores_target - n_cores_queued, 5 * cores_queue)
         tmpLog.debug('IN CORES: nrunning {0}, ntarget {1}, nqueued {2}. We need to process {3} cores'
                      .format(n_cores_running, n_cores_target, n_cores_queued, n_cores_to_submit))
