@@ -601,7 +601,7 @@ class DBProxy:
                         varMap[':newRowID'] = self.cur.var(varNUMBER)
                         self.cur.execute(sqlFile+comment, varMap)
                         # get rowID
-                        val = self.getvalue_correct(self.cur.getvalue(varMap[':newRowID']))
+                        val = self.getvalue_corrector(self.cur.getvalue(varMap[':newRowID']))
                         file.row_ID = long(val)
                     dynLfnIdMap[file.lfn] = file.row_ID
                     # reset changed attribute list
@@ -22712,7 +22712,7 @@ class DBProxy:
                 varMap = fileSpec.valuesMap(useSeq=True)
                 varMap[':newRowID'] = self.cur.var(varNUMBER)
                 self.cur.execute(sqlFile+comment, varMap)
-                val = self.getvalue_correct(self.cur.getvalue(varMap[':newRowID']))
+                val = self.getvalue_corrector(self.cur.getvalue(varMap[':newRowID']))
                 fileSpec.row_ID = long(val)
             # insert job parameters
             sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param) "
