@@ -15,7 +15,6 @@ HOME=/home/@@panda_user@@
 */10 * * * * @@panda_user@@ @@virtual_env@@/usr/bin/panda_server-proxyCache > /dev/null 2>&1
 */30 * * * * @@panda_user@@ @@virtual_env@@/usr/bin/panda_server-configurator > /dev/null 2>&1
 #*/5 * * * * @@panda_user@@ @@virtual_env@@/usr/bin/panda_server-pilot_streaming > /dev/null 2>&1
-#*/5 * * * * @@panda_user@@ @@virtual_env@@/usr/bin/panda_server-pilot_streaming_legacy > /dev/null 2>&1
 #15 * * * * @@panda_user@@ @@virtual_env@@/usr/bin/panda_server-frontier_retagging > /dev/null 2>&1
 15,45 * * * * @@panda_user@@ @@virtual_env@@/usr/bin/panda_server-network_configurator > /dev/null 2>&1
 15,45 * * * * @@panda_user@@ @@virtual_env@@/usr/bin/panda_server-schedconfig_json > /dev/null 2>&1
