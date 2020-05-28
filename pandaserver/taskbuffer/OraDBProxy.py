@@ -21849,13 +21849,15 @@ class DBProxy:
 
         tmpLog.debug('Queue {0} queued worker overview: {1}'.format(queue, workers_queued))
 
-        # Temporary workaround. CERN needs more pressure to start running
-        #if queue == 'CERN-PROD_UCORE':
-        #    n_workers_running = max(n_workers_running, 1000)
-        #else:
-        # Temporary workaround. CERN needs more pressure to start running
-        if queue == 'FZK-LCG2':
-            n_cores_running = max(n_cores_running, 16000)
+        # For queues that need more pressure towards reaching a target
+        n_cores_running_fake = 0
+        try:
+            if pq_data_des['status'] == 'online':  # don't flood test/brokeroff sites with workers
+                n_cores_running_fake = pq_data_des['uconfig']['ups_core_target']
+        except KeyError:  # no value defined in AGIS
+            pass
+        
+        n_cores_running = max(n_cores_running, n_cores_running_fake)
 
         n_cores_target = max(int(n_cores_running * 0.4), 75 * cores_queue)
         n_cores_to_submit = max(n_cores_target - n_cores_queued, 5 * cores_queue)
