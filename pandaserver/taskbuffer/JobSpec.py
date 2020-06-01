@@ -826,7 +826,7 @@ class JobSpec(object):
 
     # set HPO workflow flag
     def set_hpo_workflow(self):
-        if self.specialHandling is not None:
+        if self.specialHandling:
             items = self.specialHandling.split(',')
         else:
             items = []
