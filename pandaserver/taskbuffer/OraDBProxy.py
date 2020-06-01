@@ -12656,7 +12656,7 @@ class DBProxy:
                 else:
                     # set ready for next attempt
                     varMap[':status'] = 'ready'
-                    if jobSpec.jobStatus == 'failed':
+                    if jobSpec.jobStatus == 'failed' and not jobSpec.is_hpo_workflow():
                         updateFailedAttempt = True
             else:
                 if jobSpec.isCancelled():
