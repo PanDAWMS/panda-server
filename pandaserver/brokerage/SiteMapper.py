@@ -152,11 +152,12 @@ class SiteMapper:
                             else:
                                 childSiteSpec.coreCount = max(min(coreCount,resourceSpec.maxcore),resourceSpec.mincore)
                             if resourceSpec.minrampercore is not None:
-                                childSiteSpec.minrss = max(childSiteSpec.coreCount*resourceSpec.minrampercore,
+                                childSiteSpec.minrss = max(childSiteSpec.coreCount * resourceSpec.minrampercore,
+                                                           siteSpec.minrss * childSiteSpec.coreCount / coreCount)
+                            else:
+                                childSiteSpec.minrss = max(siteSpec.minrss * childSiteSpec.coreCount / coreCount,
                                                            siteSpec.minrss)
                             if resourceSpec.maxrampercore is not None:
-                                childSiteSpec.maxrss = min(childSiteSpec.coreCount*resourceSpec.maxrampercore,
-                                                           siteSpec.maxrss)
                                 childSiteSpec.maxrss = min(childSiteSpec.coreCount * resourceSpec.maxrampercore,
                                                            siteSpec.maxrss * childSiteSpec.coreCount / coreCount)
                             else:
@@ -164,6 +165,7 @@ class SiteMapper:
                                                            siteSpec.maxrss)
                             # set unified name
                             childSiteSpec.unified_name = siteSpec.sitename
+
                             # append
                             self.siteSpecList[childSiteSpec.sitename] = childSiteSpec
                             self.collectNS(childSiteSpec)
