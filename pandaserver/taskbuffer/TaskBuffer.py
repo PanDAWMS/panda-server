@@ -336,15 +336,17 @@ class TaskBuffer:
                         # express mode
                         if useExpress and (nRunJob < nExpressJobs or job.prodSourceLabel == 'panda'):
                             specialHandling += 'express,'
-                        # get DDM backend
+                        # keep original attributes
                         ddmBackEnd = job.getDdmBackEnd()
+                        isHPO = job.is_hpo_workflow()
+                        isScout = job.isScoutJob()
                         # reset specialHandling
                         specialHandling = specialHandling[:-1]
-                        # scouts
-                        isScout = job.isScoutJob()
                         job.specialHandling = specialHandling
                         if isScout:
                             job.setScoutJobFlag()
+                        if isHPO:
+                            job.set_hpo_workflow()
                         # set DDM backend
                         if ddmBackEnd is not None:
                             job.setDdmBackEnd(ddmBackEnd)
@@ -603,7 +605,8 @@ class TaskBuffer:
                         if job.taskBufferErrorDiag in ['', 'NULL', None]:
                             job.taskBufferErrorDiag = 'set failed since no successfull events'
                             job.taskBufferErrorCode = ErrorCode.EC_EventServiceNoEvent
-            if job.jobStatus == 'failed' and job.prodSourceLabel == 'user' and not inJobsDefined:
+            if job.jobStatus == 'failed' and job.prodSourceLabel == 'user' and not inJobsDefined\
+                    and not job.is_hpo_workflow():
                 # keep failed analy jobs in Active4
                 ret = proxy.updateJob(job,inJobsDefined,oldJobStatus=oldJobStatus)
             elif job.jobStatus in ['finished','failed','cancelled']:
