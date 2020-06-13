@@ -43,6 +43,13 @@ from pandaserver.config import panda_config
 from pandaserver.taskbuffer.SupErrors import SupErrors
 
 try:
+    from idds.client.client import Client as iDDS_Client
+    import idds.common.constants
+    import idds.common.utils
+except ImportError:
+    pass
+
+try:
     long
 except NameError:
     long = int
@@ -14483,7 +14490,7 @@ class DBProxy:
             try:
                 jediTaskID = long(jediTaskID)
             except Exception:
-                pass
+                jediTaskID = None
             iRanges = 0
             # sql to get job
             sqlJ  = "SELECT jobStatus,commandToPilot,eventService,jediTaskID FROM {0}.jobsActive4 ".format(panda_config.schemaPANDA)
@@ -16742,17 +16749,32 @@ class DBProxy:
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <jediTaskID={0} PandaID={1}>".format(jedi_task_id, panda_id)
         tmpLog = LogWrapper(_logger, methodName)
-        # sql to kill event ranges
+        # look for hopeless events
         varMap = {}
         varMap[':jediTaskID'] = jedi_task_id
         varMap[':PandaID']    = panda_id
         varMap[':esReady']    = EventServiceUtils.ST_ready
         varMap[':esFinished'] = EventServiceUtils.ST_finished
         varMap[':esFailed']   = EventServiceUtils.ST_failed
+        sqlBE = ("SELECT job_processID FROM {0}.JEDI_Events "
+                 "WHERE jediTaskID=:jediTaskID AND pandaID=:PandaID "
+                 "AND status NOT IN (:esReady,:esFinished,:esFailed) "
+                 "AND attemptNr=1 ").format(panda_config.schemaJEDI)
+        self.cur.execute(sqlBE, varMap)
+        resBD = self.cur.fetchall()
+        if len(resBD) > 0:
+            # report very large loss
+            c = iDDS_Client(idds.common.utils.get_rest_host())
+            for sample_id, in resBD:
+                tmpLog.debug('reporting large loss for id={0}'.format(sample_id))
+                c.update_hyperparameter(workload_id=jedi_task_id, request_id=None, id=sample_id, loss=1e5)
+        # release
         sqlCE  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-        sqlCE += "SET status=:esReady,pandaID=0 "
-        sqlCE += "WHERE jediTaskID=:jediTaskID AND pandaID=:PandaID "
-        sqlCE += "AND status NOT IN (:esReady,:esFinished,:esFailed) "
+        sqlCE += "SET status=(CASE WHEN attemptNr>1 THEN :esReady ELSE :esFailed END),"\
+                 "pandaID=(CASE WHEN attemptNr>1 THEN 0 ELSE pandaID END),"\
+                 "attemptNr=attemptNr-1 "\
+                 "WHERE jediTaskID=:jediTaskID AND pandaID=:PandaID "\
+                 "AND status NOT IN (:esReady,:esFinished,:esFailed) "
         self.cur.execute(sqlCE, varMap)
         nRowsCan = self.cur.rowcount
         tmpLog.debug("released {0} events".format(nRowsCan))

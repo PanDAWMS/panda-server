@@ -239,7 +239,9 @@ setup(
                       'six',
                       'sqlalchemy',
                       'stomp.py',
-                      'pyyaml'
+                      'pyyaml',
+                      'idds-common',
+                      'idds-client'
                       ],
     extras_require={
         'oracle': ['cx_Oracle'],
