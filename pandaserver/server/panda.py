@@ -17,7 +17,7 @@ from pandaserver.jobdispatcher.JobDispatcher import jobDispatcher
 from pandaserver.dataservice.DataService import dataService
 from pandaserver.userinterface.UserIF import userIF
 from pandaserver.taskbuffer.Utils import isAlive, putFile, deleteFile, getServer, updateLog, fetchLog,\
-     touchFile, getVomsAttr, putEventPickingRequest, getAttr, getFile, uploadLog
+     touchFile, getVomsAttr, putEventPickingRequest, getAttr, getFile, uploadLog, put_checkpoint, delete_checkpoint
 from pandaserver.dataservice.DataService import datasetCompleted, updateFileStatusInDisp
 from pandaserver.jobdispatcher.JobDispatcher import getJob, updateJob, getStatus, genPilotToken,\
     getEventRanges, updateEventRange, getKeyPair, updateEventRanges, getDNsForS3, getProxy, getCommands, ackCommands,\
@@ -70,7 +70,7 @@ allowedMethods = []
 
 allowedMethods += ['isAlive', 'putFile', 'deleteFile', 'getServer', 'updateLog', 'fetchLog',
                    'touchFile', 'getVomsAttr', 'putEventPickingRequest', 'getAttr', 'getFile',
-                   'uploadLog']
+                   'uploadLog', 'put_checkpoint', 'delete_checkpoint']
 
 allowedMethods += ['datasetCompleted', 'updateFileStatusInDisp']
 

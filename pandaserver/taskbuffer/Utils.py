@@ -603,3 +603,67 @@ def create_shards(input_list, size):
 
     if i > 0:
         yield shard
+
+
+# checkpoint filename
+def get_checkpoint_filename(task_id, sub_id):
+    return 'hpo_cp_{0}_{1}'.format(task_id, sub_id)
+
+
+# upload checkpoint file
+def put_checkpoint(req, file):
+    tmpLog = LogWrapper(_logger, 'put_checkpoint <jediTaskID_subID={0}>'.format(file.filename))
+    if not Protocol.isSecure(req):
+        errStr = 'insecure request'
+        tmpLog.error(errStr)
+        return errStr
+    tmpLog.debug("start %s" % req.subprocess_env['SSL_CLIENT_S_DN'])
+    # extract taskID and subID
+    try:
+        task_id, sub_id = file.filename.split('/')[-1].split('_')
+    except Exception:
+        errStr = 'failed to extract ID'
+        tmpLog.error(errStr)
+        return errStr
+    # size check
+    sizeLimit = 500 * 1024 * 1024
+    # get file size
+    try:
+        contentLength = long(req.headers_in["content-length"])
+    except Exception as e:
+        errStr = "cannot get int(content-length) due to {0}".format(str(e))
+        tmpLog.error(errStr)
+        return errStr
+    tmpLog.debug("size %s" % contentLength)
+    if contentLength > sizeLimit:
+        errStr = "exceeded size limit %s>%s" % (contentLength, sizeLimit)
+        tmpLog.error(errStr)
+        return errStr
+    try:
+        fileFullPath = os.path.join(panda_config.cache_dir, get_checkpoint_filename(task_id, sub_id))
+        # write
+        with open(fileFullPath,'wb') as fo:
+            fo.write(file.file.read())
+    except Exception as e:
+        errStr = "cannot write file due to {0}".format(str(e))
+        tmpLog.error(errStr)
+    tmpMsg = "successfully placed at {0}".format(fileFullPath)
+    tmpLog.debug(tmpMsg)
+    return tmpMsg
+
+
+# delete checkpoint file
+def delete_checkpoint(req, task_id, sub_id):
+    tmpLog = LogWrapper(_logger, 'delete_checkpoint <jediTaskID={0} ID={1}>'.format(task_id, sub_id))
+    if not Protocol.isSecure(req):
+        tmpLog.error('insecure request')
+        return False
+    tmpLog.debug("start %s" % req.subprocess_env['SSL_CLIENT_S_DN'])
+    try:
+        fileFullPath = os.path.join(panda_config.cache_dir, get_checkpoint_filename(task_id, sub_id))
+        os.remove(fileFullPath)
+    except Exception as e:
+        errStr = "failed to delete file due to {0}".format(str(e))
+        tmpLog.error(errStr)
+    tmpLog.debug('done')
+    return True
