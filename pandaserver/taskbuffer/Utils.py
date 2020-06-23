@@ -11,6 +11,7 @@ import time
 import socket
 import struct
 import datetime
+import json
 import pandaserver.jobdispatcher.Protocol as Protocol
 from pandaserver.taskbuffer import ErrorCode
 from pandaserver.userinterface import Client
@@ -613,10 +614,11 @@ def get_checkpoint_filename(task_id, sub_id):
 # upload checkpoint file
 def put_checkpoint(req, file):
     tmpLog = LogWrapper(_logger, 'put_checkpoint <jediTaskID_subID={0}>'.format(file.filename))
+    status = False
     if not Protocol.isSecure(req):
         errStr = 'insecure request'
         tmpLog.error(errStr)
-        return errStr
+        return json.dumps({'status': status, 'message': errStr})
     tmpLog.debug("start %s" % req.subprocess_env['SSL_CLIENT_S_DN'])
     # extract taskID and subID
     try:
@@ -624,7 +626,7 @@ def put_checkpoint(req, file):
     except Exception:
         errStr = 'failed to extract ID'
         tmpLog.error(errStr)
-        return errStr
+        return json.dumps({'status': status, 'message': errStr})
     # size check
     sizeLimit = 500 * 1024 * 1024
     # get file size
@@ -633,12 +635,12 @@ def put_checkpoint(req, file):
     except Exception as e:
         errStr = "cannot get int(content-length) due to {0}".format(str(e))
         tmpLog.error(errStr)
-        return errStr
+        return json.dumps({'status': status, 'message': errStr})
     tmpLog.debug("size %s" % contentLength)
     if contentLength > sizeLimit:
         errStr = "exceeded size limit %s>%s" % (contentLength, sizeLimit)
         tmpLog.error(errStr)
-        return errStr
+        return json.dumps({'status': status, 'message': errStr})
     try:
         fileFullPath = os.path.join(panda_config.cache_dir, get_checkpoint_filename(task_id, sub_id))
         # write
@@ -647,23 +649,30 @@ def put_checkpoint(req, file):
     except Exception as e:
         errStr = "cannot write file due to {0}".format(str(e))
         tmpLog.error(errStr)
+        return json.dumps({'status': status, 'message': errStr})
+    status = True
     tmpMsg = "successfully placed at {0}".format(fileFullPath)
     tmpLog.debug(tmpMsg)
-    return tmpMsg
+    return json.dumps({'status': status, 'message': tmpMsg})
 
 
 # delete checkpoint file
 def delete_checkpoint(req, task_id, sub_id):
     tmpLog = LogWrapper(_logger, 'delete_checkpoint <jediTaskID={0} ID={1}>'.format(task_id, sub_id))
+    status = True
     if not Protocol.isSecure(req):
-        tmpLog.error('insecure request')
-        return False
-    tmpLog.debug("start %s" % req.subprocess_env['SSL_CLIENT_S_DN'])
-    try:
-        fileFullPath = os.path.join(panda_config.cache_dir, get_checkpoint_filename(task_id, sub_id))
-        os.remove(fileFullPath)
-    except Exception as e:
-        errStr = "failed to delete file due to {0}".format(str(e))
-        tmpLog.error(errStr)
-    tmpLog.debug('done')
-    return True
+        msg = 'insecure request'
+        tmpLog.error(msg)
+        status = False
+    else:
+        tmpLog.debug("start %s" % req.subprocess_env['SSL_CLIENT_S_DN'])
+        try:
+            fileFullPath = os.path.join(panda_config.cache_dir, get_checkpoint_filename(task_id, sub_id))
+            os.remove(fileFullPath)
+            msg = 'done'
+            tmpLog.debug(msg)
+        except Exception as e:
+            msg = "failed to delete file due to {0}".format(str(e))
+            tmpLog.error(msg)
+            status = False
+    return json.dumps({'status': status, 'message': msg})
