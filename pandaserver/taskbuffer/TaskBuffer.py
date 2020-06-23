@@ -1283,7 +1283,11 @@ class TaskBuffer:
                     atlTags.remove('')
                 if atlRel != '' and atlRel not in atlTags and (re.search('^\d+\.\d+\.\d+$', atlRel) is None or isUser):
                     atlTags.append(atlRel)
-                scrStr += 'source ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh -c %s\n' % tmpJob.cmtConfig.split('@')[0]
+                try:
+                    cmtConfig = [s for s in tmpJob.cmtConfig.split('@') if s][-1]
+                except Exception:
+                    cmtConfig = ''
+                scrStr += 'source ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh -c %s\n' % cmtConfig
                 scrStr += "asetup --platform=%s %s\n" % (tmpJob.cmtConfig.split('@')[0], ','.join(atlTags))
                 # athenaMP
                 if tmpJob.coreCount not in ['NULL',None] and tmpJob.coreCount > 1:
