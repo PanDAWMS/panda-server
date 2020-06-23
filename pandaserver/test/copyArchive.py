@@ -375,15 +375,17 @@ _logger.debug("Watcher session")
 sql = "SELECT DISTINCT workflow FROM ATLAS_PANDAMETA.schedconfig WHERE status='online' "
 status, res = taskBuffer.querySQLS(sql, {})
 workflow_timeout_map = {}
-for workflow, in res:
+for workflow, in res + [('production',), ('analysis',)]:
     timeout = taskBuffer.getConfigValue('watcher', 'HEARTBEAT_TIMEOUT_{0}'.format(workflow), 'pandaserver', 'atlas')
     if timeout is not None:
         workflow_timeout_map[workflow] = timeout
+    elif workflow in ['production', 'analysis']:
+        workflow_timeout_map[workflow] = 2
+
 workflows = list(workflow_timeout_map)
-workflows.append(None)
 
 # check heartbeat for analysis jobs
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=workflow_timeout_map['analysis'])
 varMap = {}
 varMap[':modificationTime'] = timeLimit
 varMap[':prodSourceLabel1'] = 'panda'
@@ -406,7 +408,7 @@ else:
         thr.join()
 
 # check heartbeat for analysis jobs in transferring
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=workflow_timeout_map['analysis'])
 varMap = {}
 varMap[':modificationTime'] = timeLimit
 varMap[':prodSourceLabel1'] = 'panda'
@@ -516,19 +518,22 @@ else:
         thr.join()
 
 # check heartbeat for production jobs with internal stage-out
-default_timeOutVal = 4
 sql = "SELECT PandaID,jobStatus,jobSubStatus FROM ATLAS_PANDA.jobsActive4 j,ATLAS_PANDAMETA.schedconfig s "
 sql += "WHERE j.computingSite=s.siteid AND jobStatus=:jobStatus1 AND jobSubStatus IS NOT NULL AND modificationTime<:modificationTime "
 for workflow in workflows:
+    if workflow == 'analysis':
+        continue
     varMap = {}
     varMap[':modificationTime'] = timeLimit
     varMap[':jobStatus1'] = 'transferring'
     sqlX = sql
-    if workflow is None:
-        timeOutVal = default_timeOutVal
-        if len(workflows) > 1:
+    if workflow == 'production':
+        timeOutVal = workflow_timeout_map[workflow]
+        if len(workflows) > 2:
             sqlX += "AND (s.workflow IS NULL OR s.workflow NOT IN ("
-            for ng_workflow in workflows[:-1]:
+            for ng_workflow in workflows:
+                if ng_workflow in ['production', 'analysis']:
+                    continue
                 tmp_key = ':w_{0}'.format(ng_workflow)
                 varMap[tmp_key] = ng_workflow
                 sqlX += '{0},'.format(tmp_key)
@@ -553,21 +558,23 @@ for workflow in workflows:
             thr.join()
 
 # check heartbeat for production jobs
-default_timeOutVal = 2
 sql = "SELECT PandaID,jobStatus,j.computingSite FROM ATLAS_PANDA.jobsActive4 j, ATLAS_PANDAMETA.schedconfig s "
 sql += "WHERE j.computingSite=s.siteid AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4) AND modificationTime<:modificationTime "
 for workflow in workflows:
+    if workflow == 'analysis':
+        continue
     varMap = {}
     varMap[':jobStatus1'] = 'running'
     varMap[':jobStatus2'] = 'starting'
     varMap[':jobStatus3'] = 'stagein'
     varMap[':jobStatus4'] = 'stageout'
     sqlX = sql
-    if workflow is None:
-        timeOutVal = default_timeOutVal
-        if len(workflows) > 1:
+    if workflow == 'production':
+        if len(workflows) > 2:
             sqlX += "AND (s.workflow IS NULL OR s.workflow NOT IN ("
-            for ng_workflow in workflows[:-1]:
+            for ng_workflow in workflows:
+                if ng_workflow in ['production', 'analysis']:
+                    continue
                 tmp_key = ':w_{0}'.format(ng_workflow)
                 varMap[tmp_key] = ng_workflow
                 sqlX += '{0},'.format(tmp_key)
