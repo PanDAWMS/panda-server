@@ -74,8 +74,6 @@ class Configurator(threading.Thread):
         """
         Gets the relevant information from a site
         """
-        
-        name = site['name']
         state = site['state']
         tier_level = site['tier_level']
         
@@ -84,7 +82,7 @@ class Configurator(threading.Thread):
         else:
             role = 'satellite'
         
-        return name, role, state, tier_level
+        return role, state, tier_level
 
     def parse_endpoints(self):
         """
@@ -138,9 +136,9 @@ class Configurator(threading.Thread):
             panda_ddm_relation_dict = {}
 
         # Iterate the site dump
-        for site in self.site_dump:
+        for site_name, site_config in self.site_dump.items():
             # Add the site info to a list
-            (site_name, site_role, site_state, tier_level) = self.get_site_info(site)
+            (site_role, site_state, tier_level) = self.get_site_info(site_config)
             if site_state == 'ACTIVE' and site_name not in included_sites:
                 sites_list.append({'site_name': site_name,
                                    'role': site_role,
