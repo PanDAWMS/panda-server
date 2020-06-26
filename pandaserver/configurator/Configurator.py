@@ -91,7 +91,7 @@ class Configurator(threading.Thread):
         Puts the relevant information from endpoint_dump into a more usable format
         """
         endpoint_token_dict = {}
-        for endpoint, endpoint_config in self.items():
+        for endpoint, endpoint_config in self.endpoint_dump.items():
             # Filter out testing and inactive endpoints
             if endpoint_config['state'] == 'ACTIVE': # and endpoint['type'] != 'TEST'
                 endpoint_token_dict[endpoint] = {}
