@@ -1,9 +1,6 @@
-try:
-    from urllib2 import urlopen
-except ImportError:
-    from urllib.request import urlopen
-import json
+import requests
 import time
+import os
 
 GB = 1024**3
 PROD_INPUT = 'Production Input'
@@ -23,22 +20,19 @@ D1 = '1d'
 W1 = '1w'
 TIMESTAMP = 'timestamp'
 
-
 def get_dump(url):
     """
     Retrieves a json file from the given URL and loads it into memory
     """
-    for i in range(1, 4): # 3 retries
+    key_file = os.environ['X509_USER_PROXY']
+    cert_file = os.environ['X509_USER_PROXY']
+    ca_certs = os.environ['X509_CERT_DIR']
+
+    for i in range(1, 4):  # 3 retries
         try:
-            response = urlopen(url)
-            json_str = response.read()
-            dump = json.loads(json_str)
-            return dump
-        except ValueError:
+            r = requests.get(url, cert=(cert_file, key_file), verify=ca_certs)
+            if r.status_code == requests.codes.ok:
+                return r.json()
+        except Exception:
             time.sleep(1)
-
-    return {}
-
-
-
 
