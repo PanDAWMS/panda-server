@@ -190,7 +190,7 @@ class Configurator(threading.Thread):
                     _logger.warning('process_site_dumps: no rse EXPIRED usage information for {0}'
                                   .format(ddm_endpoint_name))
 
-                ddm_spacetoken_state = site['ddmendpoints'][ddm_endpoint_name]['state']
+                ddm_spacetoken_state = site_config['ddmendpoints'][ddm_endpoint_name]['state']
                 if ddm_spacetoken_state == 'ACTIVE':
                     ddm_endpoints_list.append({'ddm_endpoint_name': ddm_endpoint_name, 
                                                'site_name': site_name, 
