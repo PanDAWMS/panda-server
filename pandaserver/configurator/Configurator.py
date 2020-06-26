@@ -149,7 +149,7 @@ class Configurator(threading.Thread):
                 _logger.debug('process_site_dumps: skipped site {0} (state: {1})'.format(site_name, site_state))
 
             # Get the DDM endpoints for the site we are inspecting
-            for ddm_endpoint_name in site['ddmendpoints']:
+            for ddm_endpoint_name in site_config['ddmendpoints']:
                 
                 try:
                     ddm_spacetoken_name = self.endpoint_token_dict[ddm_endpoint_name]['token']
@@ -211,16 +211,16 @@ class Configurator(threading.Thread):
                                   .format(ddm_endpoint_name, ddm_spacetoken_state))
 
             # Get the PanDA resources
-            for panda_resource in site['presources']:
-                for panda_site in site['presources'][panda_resource]:
-                    panda_site_state = site['presources'][panda_resource][panda_site]['state']
+            for panda_resource in site_config['presources']:
+                for panda_site in site_config['presources'][panda_resource]:
+                    panda_site_state = site_config['presources'][panda_resource][panda_site]['state']
                     if panda_site_state != 'ACTIVE':
                         _logger.debug('process_site_dumps: skipped PanDA site {0} (state: {1})'
                                       .format(panda_site, panda_site_state))
                         continue
                     panda_site_name = panda_site
                     panda_queue_name = None
-                    for panda_queue in site['presources'][panda_resource][panda_site]['pandaqueues']:
+                    for panda_queue in site_config['presources'][panda_resource][panda_site]['pandaqueues']:
                         panda_queue_name = panda_queue['name']
 
                     panda_sites_list.append({'panda_site_name': panda_site_name,
