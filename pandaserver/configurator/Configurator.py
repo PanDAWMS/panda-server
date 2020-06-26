@@ -219,9 +219,7 @@ class Configurator(threading.Thread):
                                       .format(panda_site, panda_site_state))
                         continue
                     panda_site_name = panda_site
-                    panda_queue_name = None
-                    for panda_queue in site_config['presources'][panda_resource][panda_site]['pandaqueues']:
-                        panda_queue_name = panda_queue['name']
+                    panda_queue_name = site_config['presources'][panda_resource][panda_site]['pandaqueue']
 
                     panda_sites_list.append({'panda_site_name': panda_site_name,
                                              'panda_queue_name': panda_queue_name,
