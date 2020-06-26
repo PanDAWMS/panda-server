@@ -357,7 +357,7 @@ class Configurator(threading.Thread):
         Point out sites, panda sites and DDM endpoints that are missing in one of the sources 
         """
         # Check for site inconsistencies
-        agis_sites = set([site['name'] for site in self.site_dump if site['state'] == 'ACTIVE'])
+        agis_sites = set([site_name for site_name, site_config in self.site_dump.items() if site_config['state'] == 'ACTIVE'])
         _logger.debug("Sites in AGIS {0}".format(agis_sites))
         configurator_sites = dbif.read_configurator_sites(_session)
         _logger.debug("Sites in Configurator {0}".format(configurator_sites))
