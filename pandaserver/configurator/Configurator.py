@@ -27,7 +27,8 @@ class Configurator(threading.Thread):
         if hasattr(panda_config, 'AGIS_URL_SITES'):
             self.AGIS_URL_SITES = panda_config.AGIS_URL_SITES
         else:
-            self.AGIS_URL_SITES = 'http://atlas-agis-api.cern.ch/request/site/query/?json&vo_name=atlas&state=ACTIVE'
+            self.AGIS_URL_SITES = ' https://atlas-cric.cern.ch/api/atlas/site/query/?json'\
+
         _logger.debug('Getting site dump...')
         self.site_dump = aux.get_dump(self.AGIS_URL_SITES)
         _logger.debug('Done')
@@ -36,7 +37,7 @@ class Configurator(threading.Thread):
         if hasattr(panda_config, 'AGIS_URL_DDMENDPOINTS'):
             self.AGIS_URL_DDMENDPOINTS = panda_config.AGIS_URL_DDMENDPOINTS
         else:
-            self.AGIS_URL_DDMENDPOINTS = 'http://atlas-agis-api.cern.ch/request/ddmendpoint/query/list/?json&state=ACTIVE'
+            self.AGIS_URL_DDMENDPOINTS = 'https://atlas-cric.cern.ch/api/atlas/ddmendpoint/query/?json'
         _logger.debug('Getting DDM endpoints dump...')
         self.endpoint_dump = aux.get_dump(self.AGIS_URL_DDMENDPOINTS)
         _logger.debug('Done')
@@ -47,7 +48,7 @@ class Configurator(threading.Thread):
         if hasattr(panda_config, 'AGIS_URL_SCHEDCONFIG'):
             self.AGIS_URL_SCHEDCONFIG = panda_config.AGIS_URL_SCHEDCONFIG
         else:
-            self.AGIS_URL_SCHEDCONFIG = 'http://atlas-agis-api.cern.ch/request/pandaqueue/query/list/?json&preset=schedconf.all&vo_name=atlas&state=ACTIVE'
+            self.AGIS_URL_SCHEDCONFIG = 'https://atlas-cric.cern.ch/api/atlas/pandaqueue/query/?json'
         _logger.debug('Getting schedconfig dump...')
         self.schedconfig_dump = aux.get_dump(self.AGIS_URL_SCHEDCONFIG)
         _logger.debug('Done')
@@ -55,7 +56,7 @@ class Configurator(threading.Thread):
         if hasattr(panda_config, 'AGIS_URL_DDMBLACKLIST'):
             self.AGIS_URL_DDMBLACKLIST = panda_config.AGIS_URL_DDMBLACKLIST
         else:
-            self.AGIS_URL_DDMBLACKLIST = 'http://atlas-agis-api.cern.ch/request/ddmendpointstatus/query/list/?json&fstate=OFF&activity=w'
+            self.AGIS_URL_DDMBLACKLIST = 'https://atlas-cric.cern.ch/api/atlas/ddmendpointstatus/query/?json&activity=write_wan&fstate=OFF'
         _logger.debug('Getting schedconfig dump...')
         self.blacklisted_endpoints = list(aux.get_dump(self.AGIS_URL_DDMBLACKLIST))
         _logger.debug('Blacklisted endpoints {0}'.format(self.blacklisted_endpoints))
