@@ -32,7 +32,7 @@ class Configurator(threading.Thread):
         _logger.debug('Getting site dump...')
         self.site_dump = aux.get_dump(self.AGIS_URL_SITES)
         _logger.debug('Done')
-        self.site_endpoint_dict = self.()
+        self.site_endpoint_dict = self.get_site_endpoint_dictionary()
 
         if hasattr(panda_config, 'AGIS_URL_DDMENDPOINTS'):
             self.AGIS_URL_DDMENDPOINTS = panda_config.AGIS_URL_DDMENDPOINTS
@@ -91,29 +91,29 @@ class Configurator(threading.Thread):
         Puts the relevant information from endpoint_dump into a more usable format
         """
         endpoint_token_dict = {}
-        for endpoint in self.endpoint_dump:
+        for endpoint, endpoint_config in self.items():
             # Filter out testing and inactive endpoints
-            if endpoint['state'] == 'ACTIVE': # and endpoint['type'] != 'TEST'
-                endpoint_token_dict[endpoint['name']] = {}
-                endpoint_token_dict[endpoint['name']]['token'] = endpoint['token']
-                endpoint_token_dict[endpoint['name']]['site_name'] = endpoint['site']
-                endpoint_token_dict[endpoint['name']]['type'] = endpoint['type']
-                if endpoint['is_tape']:
-                    endpoint_token_dict[endpoint['name']]['is_tape'] = 'Y'
+            if endpoint_config['state'] == 'ACTIVE': # and endpoint['type'] != 'TEST'
+                endpoint_token_dict[endpoint] = {}
+                endpoint_token_dict[endpoint]['token'] = endpoint_config['token']
+                endpoint_token_dict[endpoint]['site_name'] = endpoint_config['site']
+                endpoint_token_dict[endpoint]['type'] = endpoint_config['type']
+                if endpoint_config['is_tape']:
+                    endpoint_token_dict[endpoint]['is_tape'] = 'Y'
                 else:
-                    endpoint_token_dict[endpoint['name']]['is_tape'] = 'N'
+                    endpoint_token_dict[endpoint]['is_tape'] = 'N'
             else:
                 _logger.debug('parse_endpoints: skipped endpoint {0} (type: {1}, state: {2})'
-                              .format(endpoint['name'], endpoint['type'], endpoint['state']))
+                              .format(endpoint, endpoint_config['type'], endpoint_config['state']))
 
         return endpoint_token_dict
 
-    def get_site_endpoint_dictionary(self):get_site_endpoint_dictionary
+    def get_site_endpoint_dictionary(self):
         """
         Converts the AGIS site dump into a site dictionary containing the list of DDM endpoints for each site
         """
         site_to_endpoints_dict = {} 
-        for site, site_config in self.site_dump.items:
+        for site, site_config in self.site_dump.items():
             site_to_endpoints_dict[site] = list(site_config['ddmendpoints'])
         
         return site_to_endpoints_dict
