@@ -32,7 +32,7 @@ class Configurator(threading.Thread):
         _logger.debug('Getting site dump...')
         self.site_dump = aux.get_dump(self.AGIS_URL_SITES)
         _logger.debug('Done')
-        self.site_endpoint_dict = self.get_site_endpoint_dictionary()
+        self.site_endpoint_dict = self.()
 
         if hasattr(panda_config, 'AGIS_URL_DDMENDPOINTS'):
             self.AGIS_URL_DDMENDPOINTS = panda_config.AGIS_URL_DDMENDPOINTS
@@ -108,13 +108,13 @@ class Configurator(threading.Thread):
 
         return endpoint_token_dict
 
-    def get_site_endpoint_dictionary(self):
+    def get_site_endpoint_dictionary(self):get_site_endpoint_dictionary
         """
         Converts the AGIS site dump into a site dictionary containing the list of DDM endpoints for each site
         """
         site_to_endpoints_dict = {} 
-        for site in self.site_dump:
-            site_to_endpoints_dict[site['name']] = list(site['ddmendpoints'])
+        for site, site_config in self.site_dump.items:
+            site_to_endpoints_dict[site] = list(site_config['ddmendpoints'])
         
         return site_to_endpoints_dict
 
