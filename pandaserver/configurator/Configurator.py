@@ -661,7 +661,7 @@ class JsonDumper(threading.Thread):
         if hasattr(panda_config, 'CRIC_URL_SCHEDCONFIG'):
             self.CRIC_URL_SCHEDCONFIG = panda_config.CRIC_URL_SCHEDCONFIG
         else:
-            self.CRIC_URL_SCHEDCONFIG = 'http://atlas-agis-api.cern.ch/request/pandaqueue/query/list/?json&preset=schedconf.all&vo_name=atlas&state=ACTIVE'
+            self.CRIC_URL_SCHEDCONFIG = 'https://atlas-cric.cern.ch/api/atlas/pandaqueue/query/?json'
 
         _logger.debug('Getting schedconfig dump...')
         self.schedconfig_dump = aux.get_dump(self.CRIC_URL_SCHEDCONFIG)
