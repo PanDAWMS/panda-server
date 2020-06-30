@@ -1168,11 +1168,10 @@ _logger.debug("timeout value : {0}h".format(timeoutVal))
 try:
     normalTimeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeoutVal)
     sortTimeLimit   = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
-    sql  = "SELECT jobDefinitionID,prodUserName,prodUserID,computingSite,MAX(modificationTime),jediTaskID,processingType "
+    sql  = "SELECT jobDefinitionID,prodUserName,prodUserID,computingSite,MAX(stateChangeTime),jediTaskID,processingType "
     sql += "FROM ATLAS_PANDA.jobsActive4 "
     sql += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
-    sql += "AND ((jobStatus IN (:jobStatus1,:jobStatus2) AND modificationTime<:modificationTime) "
-    sql += "OR (jobStatus IN (:jobStatus3) AND stateChangeTime<:modificationTime)) "
+    sql += "AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3) AND stateChangeTime<:modificationTime "
     sql += "AND jobsetID IS NOT NULL "
     sql += "AND lockedBy=:lockedBy "
     sql += "GROUP BY jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType "
@@ -1216,10 +1215,11 @@ try:
                 keyList.add(tmpKey)
                 resList.append(tmpItem)
     # sql to check recent activity
-    sql  = "SELECT PandaID,modificationTime FROM %s "
+    sql  = "SELECT PandaID,stateChangeTime,jobStatus FROM %s "
     sql += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
     sql += "AND computingSite=:computingSite AND jediTaskID=:jediTaskID "
-    sql += "AND modificationTime>:modificationTime AND NOT jobStatus IN (:jobStatus1) "
+    sql += "AND jobStatus NOT IN (:jobStatus1,:jobStatus2,:jobStatus3) "
+    sql += "AND stateChangeTime>:modificationTime "
     sql += "AND rownum <= 1"
     # sql to get associated jobs with jediTaskID
     sqlJJ  = "SELECT PandaID FROM %s "
@@ -1239,7 +1239,9 @@ try:
             varMap[':prodUserName']     = prodUserName
             varMap[':jobDefinitionID']  = jobDefinitionID
             varMap[':modificationTime'] = recentRuntimeLimit
-            varMap[':jobStatus1']       = 'starting'
+            varMap[':jobStatus1'] = 'closed'
+            varMap[':jobStatus2'] = 'failed'
+            varMap[':jobStatus3'] = 'starting'
             _logger.debug(" rebro:%s/%s:ID=%s:%s jediTaskID=%s site=%s" % (iComb,nComb,jobDefinitionID,
                                                                            prodUserName,jediTaskID,
                                                                            computingSite))
@@ -1252,7 +1254,7 @@ try:
             # check site status
             tmpSiteStatus = siteMapper.getSite(computingSite).status
             if not tmpSiteStatus in ['offline','test']:
-                # use normal time limit for nornal site status
+                # use normal time limit for normal site status
                 if maxModificationTime > normalTimeLimit:
                     _logger.debug("    -> skip wait for normal timelimit=%s<maxModTime=%s" % (normalTimeLimit,maxModificationTime))
                     continue
@@ -1264,10 +1266,12 @@ try:
                     if resU != []:
                         # found recent jobs
                         hasRecentJobs = True
-                        _logger.debug("    -> skip %s ran recently at %s" % (resU[0][0],resU[0][1]))
+                        _logger.debug("    -> skip due to recent activity %s to %s at %s" % (resU[0][0],
+                                                                                             resU[0][2],
+                                                                                             resU[0][1]))
                         break
             else:
-                _logger.debug("    -> immidiate rebro due to site status=%s" % tmpSiteStatus)
+                _logger.debug("    -> immediate rebro due to site status=%s" % tmpSiteStatus)
             if hasRecentJobs:
                 # skip since some jobs have run recently
                 continue
