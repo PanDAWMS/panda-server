@@ -24,40 +24,41 @@ class Configurator(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
 
-        if hasattr(panda_config, 'AGIS_URL_SITES'):
-            self.AGIS_URL_SITES = panda_config.AGIS_URL_SITES
+        if hasattr(panda_config, 'CRIC_URL_SITES'):
+            self.CRIC_URL_SITES = panda_config.CRIC_URL_SITES
         else:
-            self.AGIS_URL_SITES = 'http://atlas-agis-api.cern.ch/request/site/query/?json&vo_name=atlas&state=ACTIVE'
+            self.CRIC_URL_SITES = ' https://atlas-cric.cern.ch/api/atlas/site/query/?json'
+
         _logger.debug('Getting site dump...')
-        self.site_dump = aux.get_dump(self.AGIS_URL_SITES)
+        self.site_dump = aux.get_dump(self.CRIC_URL_SITES)
         _logger.debug('Done')
         self.site_endpoint_dict = self.get_site_endpoint_dictionary()
 
-        if hasattr(panda_config, 'AGIS_URL_DDMENDPOINTS'):
-            self.AGIS_URL_DDMENDPOINTS = panda_config.AGIS_URL_DDMENDPOINTS
+        if hasattr(panda_config, 'CRIC_URL_DDMENDPOINTS'):
+            self.CRIC_URL_DDMENDPOINTS = panda_config.CRIC_URL_DDMENDPOINTS
         else:
-            self.AGIS_URL_DDMENDPOINTS = 'http://atlas-agis-api.cern.ch/request/ddmendpoint/query/list/?json&state=ACTIVE'
+            self.CRIC_URL_DDMENDPOINTS = 'https://atlas-cric.cern.ch/api/atlas/ddmendpoint/query/?json'
         _logger.debug('Getting DDM endpoints dump...')
-        self.endpoint_dump = aux.get_dump(self.AGIS_URL_DDMENDPOINTS)
+        self.endpoint_dump = aux.get_dump(self.CRIC_URL_DDMENDPOINTS)
         _logger.debug('Done')
         _logger.debug('Parsing endpoints...')
         self.endpoint_token_dict = self.parse_endpoints()
         _logger.debug('Done')
 
-        if hasattr(panda_config, 'AGIS_URL_SCHEDCONFIG'):
-            self.AGIS_URL_SCHEDCONFIG = panda_config.AGIS_URL_SCHEDCONFIG
+        if hasattr(panda_config, 'CRIC_URL_SCHEDCONFIG'):
+            self.CRIC_URL_SCHEDCONFIG = panda_config.CRIC_URL_SCHEDCONFIG
         else:
-            self.AGIS_URL_SCHEDCONFIG = 'http://atlas-agis-api.cern.ch/request/pandaqueue/query/list/?json&preset=schedconf.all&vo_name=atlas&state=ACTIVE'
+            self.CRIC_URL_SCHEDCONFIG = 'https://atlas-cric.cern.ch/api/atlas/pandaqueue/query/?json'
         _logger.debug('Getting schedconfig dump...')
-        self.schedconfig_dump = aux.get_dump(self.AGIS_URL_SCHEDCONFIG)
+        self.schedconfig_dump = aux.get_dump(self.CRIC_URL_SCHEDCONFIG)
         _logger.debug('Done')
 
-        if hasattr(panda_config, 'AGIS_URL_DDMBLACKLIST'):
-            self.AGIS_URL_DDMBLACKLIST = panda_config.AGIS_URL_DDMBLACKLIST
+        if hasattr(panda_config, 'CRIC_URL_DDMBLACKLIST'):
+            self.CRIC_URL_DDMBLACKLIST = panda_config.CRIC_URL_DDMBLACKLIST
         else:
-            self.AGIS_URL_DDMBLACKLIST = 'http://atlas-agis-api.cern.ch/request/ddmendpointstatus/query/list/?json&fstate=OFF&activity=w'
+            self.CRIC_URL_DDMBLACKLIST = 'https://atlas-cric.cern.ch/api/atlas/ddmendpointstatus/query/?json&activity=write_wan&fstate=OFF'
         _logger.debug('Getting schedconfig dump...')
-        self.blacklisted_endpoints = list(aux.get_dump(self.AGIS_URL_DDMBLACKLIST))
+        self.blacklisted_endpoints = list(aux.get_dump(self.CRIC_URL_DDMBLACKLIST))
         _logger.debug('Blacklisted endpoints {0}'.format(self.blacklisted_endpoints))
         _logger.debug('Done')
         
@@ -73,8 +74,6 @@ class Configurator(threading.Thread):
         """
         Gets the relevant information from a site
         """
-        
-        name = site['name']
         state = site['state']
         tier_level = site['tier_level']
         
@@ -83,43 +82,43 @@ class Configurator(threading.Thread):
         else:
             role = 'satellite'
         
-        return name, role, state, tier_level
+        return role, state, tier_level
 
     def parse_endpoints(self):
         """
         Puts the relevant information from endpoint_dump into a more usable format
         """
         endpoint_token_dict = {}
-        for endpoint in self.endpoint_dump:
+        for endpoint, endpoint_config in self.endpoint_dump.items():
             # Filter out testing and inactive endpoints
-            if endpoint['state'] == 'ACTIVE': # and endpoint['type'] != 'TEST'
-                endpoint_token_dict[endpoint['name']] = {}
-                endpoint_token_dict[endpoint['name']]['token'] = endpoint['token']
-                endpoint_token_dict[endpoint['name']]['site_name'] = endpoint['site']
-                endpoint_token_dict[endpoint['name']]['type'] = endpoint['type']
-                if endpoint['is_tape']:
-                    endpoint_token_dict[endpoint['name']]['is_tape'] = 'Y'
+            if endpoint_config['state'] == 'ACTIVE': # and endpoint['type'] != 'TEST'
+                endpoint_token_dict[endpoint] = {}
+                endpoint_token_dict[endpoint]['token'] = endpoint_config['token']
+                endpoint_token_dict[endpoint]['site_name'] = endpoint_config['site']
+                endpoint_token_dict[endpoint]['type'] = endpoint_config['type']
+                if endpoint_config['is_tape']:
+                    endpoint_token_dict[endpoint]['is_tape'] = 'Y'
                 else:
-                    endpoint_token_dict[endpoint['name']]['is_tape'] = 'N'
+                    endpoint_token_dict[endpoint]['is_tape'] = 'N'
             else:
                 _logger.debug('parse_endpoints: skipped endpoint {0} (type: {1}, state: {2})'
-                              .format(endpoint['name'], endpoint['type'], endpoint['state']))
+                              .format(endpoint, endpoint_config['type'], endpoint_config['state']))
 
         return endpoint_token_dict
 
     def get_site_endpoint_dictionary(self):
         """
-        Converts the AGIS site dump into a site dictionary containing the list of DDM endpoints for each site
+        Converts the CRIC site dump into a site dictionary containing the list of DDM endpoints for each site
         """
         site_to_endpoints_dict = {} 
-        for site in self.site_dump:
-            site_to_endpoints_dict[site['name']] = list(site['ddmendpoints'])
+        for site, site_config in self.site_dump.items():
+            site_to_endpoints_dict[site] = list(site_config['ddmendpoints'])
         
         return site_to_endpoints_dict
 
     def process_site_dumps(self):
         """
-        Parses the AGIS site and endpoint dumps and prepares a format loadable to the DB
+        Parses the CRIC site and endpoint dumps and prepares a format loadable to the DB
         """
         # Variables that will contain only the relevant information
         sites_list = []
@@ -127,7 +126,7 @@ class Configurator(threading.Thread):
         ddm_endpoints_list = []
         panda_sites_list = []
 
-        # New relationship information based on astorages field in AGIS.
+        # New relationship information based on astorages field in CRIC.
         # Used to fill atlas_panda.panda_ddm_relation table
         try:
             panda_ddm_relation_dict = self.get_panda_ddm_relation()
@@ -137,9 +136,9 @@ class Configurator(threading.Thread):
             panda_ddm_relation_dict = {}
 
         # Iterate the site dump
-        for site in self.site_dump:
+        for site_name, site_config in self.site_dump.items():
             # Add the site info to a list
-            (site_name, site_role, site_state, tier_level) = self.get_site_info(site)
+            (site_role, site_state, tier_level) = self.get_site_info(site_config)
             if site_state == 'ACTIVE' and site_name not in included_sites:
                 sites_list.append({'site_name': site_name,
                                    'role': site_role,
@@ -150,7 +149,7 @@ class Configurator(threading.Thread):
                 _logger.debug('process_site_dumps: skipped site {0} (state: {1})'.format(site_name, site_state))
 
             # Get the DDM endpoints for the site we are inspecting
-            for ddm_endpoint_name in site['ddmendpoints']:
+            for ddm_endpoint_name in site_config['ddmendpoints']:
                 
                 try:
                     ddm_spacetoken_name = self.endpoint_token_dict[ddm_endpoint_name]['token']
@@ -191,7 +190,7 @@ class Configurator(threading.Thread):
                     _logger.warning('process_site_dumps: no rse EXPIRED usage information for {0}'
                                   .format(ddm_endpoint_name))
 
-                ddm_spacetoken_state = site['ddmendpoints'][ddm_endpoint_name]['state']
+                ddm_spacetoken_state = site_config['ddmendpoints'][ddm_endpoint_name]['state']
                 if ddm_spacetoken_state == 'ACTIVE':
                     ddm_endpoints_list.append({'ddm_endpoint_name': ddm_endpoint_name, 
                                                'site_name': site_name, 
@@ -212,17 +211,15 @@ class Configurator(threading.Thread):
                                   .format(ddm_endpoint_name, ddm_spacetoken_state))
 
             # Get the PanDA resources
-            for panda_resource in site['presources']:
-                for panda_site in site['presources'][panda_resource]:
-                    panda_site_state = site['presources'][panda_resource][panda_site]['state']
+            for panda_resource in site_config['presources']:
+                for panda_site in site_config['presources'][panda_resource]:
+                    panda_site_state = site_config['presources'][panda_resource][panda_site]['state']
                     if panda_site_state != 'ACTIVE':
                         _logger.debug('process_site_dumps: skipped PanDA site {0} (state: {1})'
                                       .format(panda_site, panda_site_state))
                         continue
                     panda_site_name = panda_site
-                    panda_queue_name = None
-                    for panda_queue in site['presources'][panda_resource][panda_site]['pandaqueues']:
-                        panda_queue_name = panda_queue['name']
+                    panda_queue_name = site_config['presources'][panda_resource][panda_site]['pandaqueue']
 
                     panda_sites_list.append({'panda_site_name': panda_site_name,
                                              'panda_queue_name': panda_queue_name,
@@ -234,7 +231,7 @@ class Configurator(threading.Thread):
     def parse_role(self, role):
         """
         Traditionally roles have been "read_lan" or "write_lan". We will consider them the default roles.
-        If you want to overwrite the role for specific jobs in AGIS, you can define e.g. "read_lan_analysis". Here we
+        If you want to overwrite the role for specific jobs in CRIC, you can define e.g. "read_lan_analysis". Here we
         want to strip the role to the "analysis" tag and return role "read_lan" and scope "analysis"
 
         Examples:
@@ -263,7 +260,7 @@ class Configurator(threading.Thread):
 
     def get_panda_ddm_relation(self):
         """
-        Gets the DDM endpoints assigned to a panda queue, based on the AGIS astorages field of the panda queue definition
+        Gets the DDM endpoints assigned to a panda queue, based on the CRIC astorages field of the panda queue definition
         """
         relation_list = []
 
@@ -360,20 +357,20 @@ class Configurator(threading.Thread):
         Point out sites, panda sites and DDM endpoints that are missing in one of the sources 
         """
         # Check for site inconsistencies
-        agis_sites = set([site['name'] for site in self.site_dump if site['state'] == 'ACTIVE'])
-        _logger.debug("Sites in AGIS {0}".format(agis_sites))
+        CRIC_sites = set([site_name for site_name, site_config in self.site_dump.items() if site_config['state'] == 'ACTIVE'])
+        _logger.debug("Sites in CRIC {0}".format(CRIC_sites))
         configurator_sites = dbif.read_configurator_sites(_session)
         _logger.debug("Sites in Configurator {0}".format(configurator_sites))
         schedconfig_sites = dbif.read_schedconfig_sites(_session)
         _logger.debug("Sites in Schedconfig {0}".format(schedconfig_sites))
         
-        all_sites = list(agis_sites | configurator_sites | schedconfig_sites)
+        all_sites = list(CRIC_sites | configurator_sites | schedconfig_sites)
         all_sites.sort()
         
         for site in all_sites:
             missing = []
-            if site not in agis_sites:
-                missing.append('AGIS')
+            if site not in CRIC_sites:
+                missing.append('CRIC')
             if site not in configurator_sites:
                 missing.append('Configurator')
             if site not in schedconfig_sites:
@@ -382,21 +379,21 @@ class Configurator(threading.Thread):
                 _logger.warning("SITE inconsistency: {0} was not found in {1}".format(site, missing))
 
         # Check for panda-site inconsistencies
-        agis_panda_sites = set([self.schedconfig_dump[long_panda_site_name]['panda_resource']
+        CRIC_panda_sites = set([self.schedconfig_dump[long_panda_site_name]['panda_resource']
                                 for long_panda_site_name in self.schedconfig_dump])
-        _logger.debug("PanDA sites in AGIS {0}".format(agis_panda_sites))
+        _logger.debug("PanDA sites in CRIC {0}".format(CRIC_panda_sites))
         configurator_panda_sites = dbif.read_configurator_panda_sites(_session)
         _logger.debug("PanDA sites in Configurator {0}".format(configurator_panda_sites))
         schedconfig_panda_sites = dbif.read_schedconfig_panda_sites(_session)
         _logger.debug("PanDA sites in Schedconfig {0}".format(schedconfig_panda_sites))
 
-        all_panda_sites = list(agis_panda_sites | configurator_panda_sites | schedconfig_panda_sites)
+        all_panda_sites = list(CRIC_panda_sites | configurator_panda_sites | schedconfig_panda_sites)
         all_panda_sites.sort()
         
         for site in all_panda_sites:
             missing = []
-            if site not in agis_panda_sites:
-                missing.append('AGIS')
+            if site not in CRIC_panda_sites:
+                missing.append('CRIC')
             if site not in configurator_panda_sites:
                 missing.append('Configurator')
             if site not in schedconfig_panda_sites:
@@ -405,51 +402,51 @@ class Configurator(threading.Thread):
                 _logger.warning("PanDA SITE inconsistency: {0} was not found in {1}".format(site, missing))
 
         # Check for DDM endpoint inconsistencies
-        agis_ddm_endpoints = set([ddm_endpoint_name for ddm_endpoint_name in self.endpoint_token_dict])
-        _logger.debug("DDM endpoints in AGIS {0}".format(agis_ddm_endpoints))
+        CRIC_ddm_endpoints = set([ddm_endpoint_name for ddm_endpoint_name in self.endpoint_token_dict])
+        _logger.debug("DDM endpoints in CRIC {0}".format(CRIC_ddm_endpoints))
         configurator_ddm_endpoints = dbif.read_configurator_ddm_endpoints(_session)
         _logger.debug("DDM endpoints in Configurator {0}".format(configurator_ddm_endpoints))
 
-        all_ddm_endpoints = list(agis_ddm_endpoints | configurator_ddm_endpoints)
+        all_ddm_endpoints = list(CRIC_ddm_endpoints | configurator_ddm_endpoints)
         all_ddm_endpoints.sort()
 
         for site in all_ddm_endpoints:
             missing = []
-            if site not in agis_ddm_endpoints:
-                missing.append('AGIS')
+            if site not in CRIC_ddm_endpoints:
+                missing.append('CRIC')
             if site not in configurator_ddm_endpoints:
                 missing.append('Configurator')
             if missing:
                 _logger.warning("DDM ENDPOINT inconsistency: {0} was not found in {1}".format(site, missing))
 
-        self.cleanup_configurator(agis_sites, agis_panda_sites, agis_ddm_endpoints, configurator_sites,
+        self.cleanup_configurator(CRIC_sites, CRIC_panda_sites, CRIC_ddm_endpoints, configurator_sites,
                                   configurator_panda_sites, configurator_ddm_endpoints)
 
-    def cleanup_configurator(self, agis_sites, agis_panda_sites, agis_ddm_endpoints, configurator_sites,
+    def cleanup_configurator(self, CRIC_sites, CRIC_panda_sites, CRIC_ddm_endpoints, configurator_sites,
                              configurator_panda_sites, configurator_ddm_endpoints):
         """
-        Cleans up information from configurator that is not in AGIS
+        Cleans up information from configurator that is not in CRIC
         """
-        if not agis_sites or not agis_panda_sites or not agis_ddm_endpoints:
-            _logger.warning("Exiting cleanup because one of AGIS sets was empty")
+        if not CRIC_sites or not CRIC_panda_sites or not CRIC_ddm_endpoints:
+            _logger.warning("Exiting cleanup because one of CRIC sets was empty")
         
         # Clean up sites
-        sites_to_delete = configurator_sites - agis_sites
+        sites_to_delete = configurator_sites - CRIC_sites
         dbif.delete_sites(_session, sites_to_delete)
         
         # Clean up panda sites
-        panda_sites_to_delete = configurator_panda_sites - agis_panda_sites
+        panda_sites_to_delete = configurator_panda_sites - CRIC_panda_sites
         dbif.delete_panda_sites(_session, panda_sites_to_delete)
         
         # Clean up DDM endpoints
-        ddm_endpoints_to_delete = configurator_ddm_endpoints - agis_ddm_endpoints
+        ddm_endpoints_to_delete = configurator_ddm_endpoints - CRIC_ddm_endpoints
         dbif.delete_ddm_endpoints(_session, ddm_endpoints_to_delete)
 
     def run(self):
         """
         Principal function
         """
-        # Get pre-processed AGIS dumps
+        # Get pre-processed CRIC dumps
         sites_list, panda_sites_list, ddm_endpoints_list, panda_ddm_relation_dict = self.process_site_dumps()
 
         # Persist the information to the PanDA DB
@@ -479,12 +476,12 @@ class NetworkConfigurator(threading.Thread):
         self.nws_dump = aux.get_dump(self.NWS_URL)
         _logger.debug('Done')
 
-        if hasattr(panda_config, 'AGIS_URL_CM'):
-            self.AGIS_URL_CM = panda_config.AGIS_URL_CM
+        if hasattr(panda_config, 'CRIC_URL_CM'):
+            self.CRIC_URL_CM = panda_config.CRIC_URL_CM
         else:
-            self.AGIS_URL_CM = 'http://atlas-agis-api.cern.ch/request/site/query/list_links/?json'
-        _logger.debug('Getting AGIS cost matrix dump...')
-        self.agis_cm_dump = aux.get_dump(self.AGIS_URL_CM)
+            self.CRIC_URL_CM = 'http://atlas-agis-api.cern.ch/request/site/query/list_links/?json'
+        _logger.debug('Getting CRIC cost matrix dump...')
+        self.CRIC_cm_dump = aux.get_dump(self.CRIC_URL_CM)
         _logger.debug('Done')
 
     def process_nws_dump(self):
@@ -594,16 +591,16 @@ class NetworkConfigurator(threading.Thread):
 
         return data
 
-    def process_agis_cm_dump(self):
+    def process_CRIC_cm_dump(self):
         """
-        Gets the AGIS CM information dump, filters out irrelevant information
+        Gets the CRIC CM information dump, filters out irrelevant information
         and prepares it for insertion into the PanDA DB
         """
         data = []
 
-        for entry in self.agis_cm_dump:
+        for entry in self.CRIC_cm_dump:
 
-            _logger.debug('Processing AGIS CM entry {0}'.format(entry))
+            _logger.debug('Processing CRIC CM entry {0}'.format(entry))
 
             try:
                 src = entry['src']
@@ -611,15 +608,15 @@ class NetworkConfigurator(threading.Thread):
                 closeness = entry['closeness']
                 ts = datetime.now()
 
-                # Skip broken entries (protection against errors in AGIS)
+                # Skip broken entries (protection against errors in CRIC)
                 if not src or not dst:
                     continue
 
                 # Prepare data for bulk upserts
-                data.append((src, dst, 'AGIS_closeness', closeness, ts))
+                data.append((src, dst, 'CRIC_closeness', closeness, ts))
 
             except KeyError:
-                _logger.warning("AGIS CM entry {0} does not contain one or more of the keys src/dst/closeness".format(entry))
+                _logger.warning("CRIC CM entry {0} does not contain one or more of the keys src/dst/closeness".format(entry))
                 continue
 
         return data
@@ -634,12 +631,12 @@ class NetworkConfigurator(threading.Thread):
         if not data_nws:
             _logger.critical("Could not retrieve any data from the NWS!")
 
-        # Process and store the AGIS connectivity information
-        data_agis_cm = self.process_agis_cm_dump()
-        if not data_agis_cm:
-            _logger.critical("Could not retrieve any data from the AGIS Cost Matrix!")
+        # Process and store the CRIC connectivity information
+        data_CRIC_cm = self.process_CRIC_cm_dump()
+        if not data_CRIC_cm:
+            _logger.critical("Could not retrieve any data from the CRIC Cost Matrix!")
 
-        data_combined = data_nws + data_agis_cm
+        data_combined = data_nws + data_CRIC_cm
         if data_combined:
             # Insert the new data
             taskBuffer.insertNetworkMatrixData(data_combined)
@@ -652,7 +649,7 @@ class NetworkConfigurator(threading.Thread):
 
 class JsonDumper(threading.Thread):
     """
-    Downloads the AGIS schedconfig dump and stores it in the DB, one row per queue
+    Downloads the CRIC schedconfig dump and stores it in the DB, one row per queue
     """
     def __init__(self):
         """
@@ -661,13 +658,13 @@ class JsonDumper(threading.Thread):
         threading.Thread.__init__(self)
         taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
 
-        if hasattr(panda_config, 'AGIS_URL_SCHEDCONFIG'):
-            self.AGIS_URL_SCHEDCONFIG = panda_config.AGIS_URL_SCHEDCONFIG
+        if hasattr(panda_config, 'CRIC_URL_SCHEDCONFIG'):
+            self.CRIC_URL_SCHEDCONFIG = panda_config.CRIC_URL_SCHEDCONFIG
         else:
-            self.AGIS_URL_SCHEDCONFIG = 'http://atlas-agis-api.cern.ch/request/pandaqueue/query/list/?json&preset=schedconf.all&vo_name=atlas&state=ACTIVE'
+            self.CRIC_URL_SCHEDCONFIG = 'https://atlas-cric.cern.ch/api/atlas/pandaqueue/query/?json'
 
         _logger.debug('Getting schedconfig dump...')
-        self.schedconfig_dump = aux.get_dump(self.AGIS_URL_SCHEDCONFIG)
+        self.schedconfig_dump = aux.get_dump(self.CRIC_URL_SCHEDCONFIG)
         _logger.debug('Done')
 
     def run(self):
