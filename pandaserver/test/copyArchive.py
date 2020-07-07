@@ -1168,13 +1168,18 @@ _logger.debug("timeout value : {0}h".format(timeoutVal))
 try:
     normalTimeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeoutVal)
     sortTimeLimit   = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
-    sql  = "SELECT jobDefinitionID,prodUserName,prodUserID,computingSite,MAX(stateChangeTime),jediTaskID,processingType "
-    sql += "FROM ATLAS_PANDA.jobsActive4 "
-    sql += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
-    sql += "AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3) AND stateChangeTime<:modificationTime "
-    sql += "AND jobsetID IS NOT NULL "
-    sql += "AND lockedBy=:lockedBy "
-    sql += "GROUP BY jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType "
+    sql = "WITH p AS ("\
+          "SELECT MIN(PandaID) PandaID,jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType "\
+          "FROM ATLAS_PANDA.jobsActive4 "\
+          "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "\
+          "AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3) "\
+          "AND jobsetID IS NOT NULL AND lockedBy=:lockedBy "\
+          "GROUP BY jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType "\
+          ") "\
+          "SELECT /*+ INDEX (s JOBS_STATUSLOG_PANDAID_IDX) */ "\
+          "p.jobDefinitionID,p.prodUserName,p.prodUserID,p.computingSite,s.modificationTime,p.jediTaskID,p.processingType " \
+          "FROM p, ATLAS_PANDA.jobs_statuslog s "\
+          "WHERE s.PandaID=p.PandaID AND s.jobStatus=:s_jobStatus AND s.modificationTime<:modificationTime "
     varMap = {}
     varMap[':prodSourceLabel1'] = 'user'
     varMap[':prodSourceLabel2'] = 'panda'
@@ -1183,6 +1188,7 @@ try:
     varMap[':jobStatus1']       = 'activated'
     varMap[':jobStatus2']       = 'dummy'
     varMap[':jobStatus3']       = 'starting'
+    varMap[':s_jobStatus'] = 'activated'
     # get jobs older than threshold
     ret,res = taskBuffer.querySQLS(sql, varMap)
     resList = []
