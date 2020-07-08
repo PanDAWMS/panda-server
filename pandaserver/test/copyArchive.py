@@ -384,6 +384,8 @@ for workflow, in res + [('production',), ('analysis',)]:
 
 workflows = list(workflow_timeout_map)
 
+_logger.debug("timeout : {0}".format(str(workflow_timeout_map)))
+
 # check heartbeat for analysis jobs
 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=workflow_timeout_map['analysis'])
 varMap = {}
@@ -528,7 +530,6 @@ for workflow in workflows:
     varMap[':jobStatus1'] = 'transferring'
     sqlX = sql
     if workflow == 'production':
-        timeOutVal = workflow_timeout_map[workflow]
         if len(workflows) > 2:
             sqlX += "AND (s.workflow IS NULL OR s.workflow NOT IN ("
             for ng_workflow in workflows:
@@ -540,10 +541,10 @@ for workflow in workflows:
             sqlX = sqlX[:-1]
             sqlX += ")) "
     else:
-        timeOutVal = workflow_timeout_map[workflow]
         tmp_key = ':w_{0}'.format(workflow)
         sqlX += "AND s.workflow={0} ".format(tmp_key)
         varMap[tmp_key] = workflow
+    timeOutVal = workflow_timeout_map[workflow]
     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeOutVal)
     varMap[':modificationTime'] = timeLimit
     status,res = taskBuffer.querySQLS(sqlX, varMap)
@@ -581,10 +582,10 @@ for workflow in workflows:
             sqlX = sqlX[:-1]
             sqlX += ")) "
     else:
-        timeOutVal = workflow_timeout_map[workflow]
         tmp_key = ':w_{0}'.format(workflow)
         sqlX += "AND s.workflow={0} ".format(tmp_key)
         varMap[tmp_key] = workflow
+    timeOutVal = workflow_timeout_map[workflow]
     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeOutVal)
     varMap[':modificationTime'] = timeLimit
     status,res = taskBuffer.querySQLS(sqlX, varMap)
