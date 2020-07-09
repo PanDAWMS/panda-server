@@ -597,6 +597,7 @@ class NetworkConfigurator(threading.Thread):
         and prepares it for insertion into the PanDA DB
         """
         data = []
+        sites_list = dbif.read_configurator_sites(_session)
 
         for entry in self.CRIC_cm_dump:
 
@@ -607,6 +608,16 @@ class NetworkConfigurator(threading.Thread):
                 dst = entry['dst']
                 closeness = entry['closeness']
                 ts = datetime.now()
+
+                # filter out sites that are not in CRIC
+                skip_sites = []
+                if src not in sites_list:
+                    skip_sites.append(src)
+                if dst not in sites_list:
+                    skip_sites.append(dst)
+                if skip_sites:
+                    _logger.warning("Could not find site(s) {0} in configurator sites".format(skip_sites))
+                    continue
 
                 # Skip broken entries (protection against errors in CRIC)
                 if not src or not dst:
