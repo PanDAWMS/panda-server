@@ -624,7 +624,7 @@ class NetworkConfigurator(threading.Thread):
                     continue
 
                 # Prepare data for bulk upserts
-                data.append((src, dst, 'CRIC_closeness', closeness, ts))
+                data.append((src, dst, 'AGIS_closeness', closeness, ts))
 
             except KeyError:
                 _logger.warning("CRIC CM entry {0} does not contain one or more of the keys src/dst/closeness".format(entry))
