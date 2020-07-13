@@ -479,7 +479,7 @@ class NetworkConfigurator(threading.Thread):
         if hasattr(panda_config, 'CRIC_URL_CM'):
             self.CRIC_URL_CM = panda_config.CRIC_URL_CM
         else:
-            self.CRIC_URL_CM = 'http://atlas-agis-api.cern.ch/request/site/query/list_links/?json'
+            self.CRIC_URL_CM = 'https://atlas-cric.cern.ch/api/core/sitematrix/query/?json&json_pretty=0'
         _logger.debug('Getting CRIC cost matrix dump...')
         self.CRIC_cm_dump = aux.get_dump(self.CRIC_URL_CM)
         _logger.debug('Done')
