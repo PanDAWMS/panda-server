@@ -13540,7 +13540,8 @@ class DBProxy:
             retVal = None
             errorCode = 0
             if taskParamsJson['taskType'] == 'anal' and \
-                    ('uniqueTaskName' in taskParamsJson and taskParamsJson['uniqueTaskName'] is True):
+                    (('uniqueTaskName' in taskParamsJson and taskParamsJson['uniqueTaskName'] is True) or
+                     allowActiveTask):
                 if 'official' in taskParamsJson and taskParamsJson['official'] is True:
                     isOfficial = True
                 else:
