@@ -244,7 +244,10 @@ class Response:
         # disk count
         self.data['maxDiskCount'] = job.maxDiskCount
         # cmtconfig
-        self.data['cmtConfig'] = job.cmtConfig
+        if ppSteps is None:
+            self.data['cmtConfig'] = job.cmtConfig
+        else:
+            self.data['cmtConfig'] = ''
         # processingType
         self.data['processingType'] = job.processingType
         # transferType
