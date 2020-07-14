@@ -350,6 +350,9 @@ class Response:
         # IO
         self.data['ioIntensity'] = job.get_task_attribute('ioIntensity')
         self.data['ioIntensityUnit'] = job.get_task_attribute('ioIntensityUnit')
+        # HPO
+        if job.is_hpo_workflow():
+            self.data['isHPO'] = 'True'
 
 
     # set proxy key
