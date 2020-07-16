@@ -636,6 +636,9 @@ class AdderGen:
             pass
         self.logger.debug('nEventsMap=%s' % str(nEventsMap))
         self.logger.debug('guidMap=%s' % str(guidMap))
+        self.logger.debug('self.job.jobStatus=%s in parseXML' % self.job.jobStatus)
+        self.logger.debug('isES=%s isJumbo=%s' % (EventServiceUtils.isEventServiceJob(self.job),
+                                                  EventServiceUtils.isJumboJob(self.job)))
         # get lumi block number
         lumiBlockNr = self.job.getLumiBlockNr()
         # copy files for variable number of outputs
@@ -662,8 +665,8 @@ class AdderGen:
                     continue
                 # set failed if it is missing in XML
                 if file.lfn not in lfns:
-                    if self.job.jobStatus == 'finished' and \
-                            (EventServiceUtils.isEventServiceJob(self.job) or EventServiceUtils.isJumboJob(self.job)):
+                    if (self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job)) \
+                            or EventServiceUtils.isJumboJob(self.job):
                         # unset file status for ES jobs
                         pass
                     elif file.isAllowedNoOutput():
