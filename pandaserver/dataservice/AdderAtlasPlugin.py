@@ -614,7 +614,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                 out += traceback.format_exc()
                 if 'value too large for column' in out or \
                         'unique constraint (ATLAS_RUCIO.DIDS_GUID_IDX) violate' in out or \
-                        'unique constraint (ATLAS_RUCIO.DIDS_PK) violated' in out:
+                        'unique constraint (ATLAS_RUCIO.DIDS_PK) violated' in out or \
+                        'unique constraint (ATLAS_RUCIO.ARCH_CONTENTS_PK) violated' in out:
                     isFatal = True
                 else:
                     isFatal = False
