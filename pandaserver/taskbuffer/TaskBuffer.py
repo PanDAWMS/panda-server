@@ -601,11 +601,14 @@ class TaskBuffer:
                     if hasDone:
                         job.jobStatus = 'finished'
                     else:
-                        job.jobStatus = 'failed'
+                        if job.pilotErrorCode in [1144, '1144']:
+                            job.jobStatus = 'cancelled'
+                        else:
+                            job.jobStatus = 'failed'
                         if job.taskBufferErrorDiag in ['', 'NULL', None]:
-                            job.taskBufferErrorDiag = 'set failed since no successfull events'
+                            job.taskBufferErrorDiag = 'set {0} since no successful events'.format(job.jobStatus)
                             job.taskBufferErrorCode = ErrorCode.EC_EventServiceNoEvent
-            if job.jobStatus == 'failed' and job.prodSourceLabel == 'user' and not inJobsDefined\
+            if job.jobStatus == 'failed' and job.prodSourceLabel == 'user' and not inJobsDefined \
                     and not job.is_hpo_workflow():
                 # keep failed analy jobs in Active4
                 ret = proxy.updateJob(job,inJobsDefined,oldJobStatus=oldJobStatus)

@@ -228,8 +228,11 @@ class AdderAtlasPlugin (AdderPluginBase):
                     continue
                 # add only log file for successful ES jobs
                 if self.job.jobStatus == 'finished' and \
-                        (EventServiceUtils.isEventServiceJob(self.job) or EventServiceUtils.isJumboJob(self.job)) and \
+                        EventServiceUtils.isEventServiceJob(self.job) and \
                         not EventServiceUtils.isJobCloningJob(self.job) and file.type != 'log':
+                    continue
+                # add only log for jumbo jobs
+                if EventServiceUtils.isJumboJob(self.job) and file.type != 'log':
                     continue
                 # skip no output or failed
                 if file.status in ['nooutput','failed']:
