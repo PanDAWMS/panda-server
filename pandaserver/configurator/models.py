@@ -9,14 +9,16 @@ from sqlalchemy import Column, DateTime, ForeignKey, ForeignKeyConstraint, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 
+from pandaserver.config import panda_config
+schema = panda_config.schemaPANDA
+schema_meta = panda_config.schemaMETA
 
 Base = declarative_base()
 metadata = Base.metadata
 
-
 class Site(Base):
     __tablename__ = 'site'
-    __table_args__ = {u'schema': 'atlas_panda'}
+    __table_args__ = {u'schema': schema}
 
     site_name = Column(String(52), primary_key=True)
     role = Column(String(256))
@@ -25,12 +27,12 @@ class Site(Base):
 
 class PandaSite(Base):
     __tablename__ = 'panda_site'
-    __table_args__ = {u'schema': 'atlas_panda'}
+    __table_args__ = {u'schema': schema}
 
     panda_site_name = Column(String(52), primary_key=True)
-    site_name = Column(ForeignKey(u'atlas_panda.site.site_name', ondelete='CASCADE'))
-    storage_site_name = Column(ForeignKey(u'atlas_panda.site.site_name'))
-    default_ddm_endpoint = Column(ForeignKey(u'atlas_panda.ddm_endpoint.ddm_endpoint_name'))
+    site_name = Column(ForeignKey(u'{0}.site.site_name'.format(schema), ondelete='CASCADE'))
+    storage_site_name = Column(ForeignKey(u'{0}.site.site_name'.format(schema)))
+    default_ddm_endpoint = Column(ForeignKey(u'{0}.ddm_endpoint.ddm_endpoint_name'.format(schema)))
     is_local = Column(String(1))
 
     site = relationship('Site', foreign_keys=site_name)
@@ -39,10 +41,10 @@ class PandaSite(Base):
 
 class DdmEndpoint(Base):
     __tablename__ = 'ddm_endpoint'
-    __table_args__ = {u'schema': 'atlas_panda'}
+    __table_args__ = {u'schema': schema}
 
     ddm_endpoint_name = Column(String(52), primary_key=True)
-    site_name = Column(ForeignKey(u'atlas_panda.site.site_name', ondelete='CASCADE'))
+    site_name = Column(ForeignKey(u'{0}.site.site_name'.format(schema), ondelete='CASCADE'))
     ddm_spacetoken_name = Column(String(52))
     space_total = Column(Numeric(10, 0, asdecimal=False))
     space_free = Column(Numeric(10, 0, asdecimal=False))
@@ -58,9 +60,9 @@ class DdmEndpoint(Base):
 
 class SiteStats(Base):
     __tablename__ = 'site_stats'
-    __table_args__ = {u'schema': 'atlas_panda'}
+    __table_args__ = {u'schema': schema}
 
-    site_name = Column(ForeignKey(u'atlas_panda.site.site_name'), primary_key=True)
+    site_name = Column(ForeignKey(u'{0}.site.site_name'.format(schema)), primary_key=True)
     ts = Column(DateTime, primary_key=True)
     key = Column(String(52), primary_key=True)
     value = Column(Numeric(10, 0, asdecimal=False))
@@ -70,11 +72,11 @@ class SiteStats(Base):
 
 class PandaDdmRelation(Base):
     __tablename__ = 'panda_ddm_relation'
-    __table_args__ = {u'schema': 'atlas_panda'}
+    __table_args__ = {u'schema': schema}
 
-    panda_site_name = Column(String(52), ForeignKey(u'atlas_panda.panda_site.panda_site_name', ondelete='CASCADE'),
+    panda_site_name = Column(String(52), ForeignKey(u'{0}.panda_site.panda_site_name'.format(schema), ondelete='CASCADE'),
                              primary_key=True, nullable=False)
-    ddm_endpoint_name = Column(String(52), ForeignKey(u'atlas_panda.ddm_endpoint.ddm_endpoint_name',  ondelete='CASCADE'),
+    ddm_endpoint_name = Column(String(52), ForeignKey(u'{0}.ddm_endpoint.ddm_endpoint_name'.format(schema),  ondelete='CASCADE'),
                                primary_key=True, nullable=False)
     scope = Column(String(60), primary_key=True, nullable=False)
     roles = Column(String(60))
@@ -87,7 +89,7 @@ class PandaDdmRelation(Base):
 
 class Schedconfig(Base):
     __tablename__ = 'schedconfig'
-    __table_args__ = {u'schema': 'atlas_pandameta'}
+    __table_args__ = {u'schema': schema_meta}
 
     name = Column(String(60), nullable=False)
     nickname = Column(String(60), primary_key=True)
@@ -191,7 +193,7 @@ class Jobsactive4(Base):
         Index('jobsactive4_prior_idx', 'currentpriority', 'pandaid'),
         Index('jobsactive4_proddblock_st_idx', 'proddblock', 'jobstatus'),
         Index('jobsactive4_workqueue_idx', 'workqueue_id', 'cloud', 'jobstatus', 'prodsourcelabel', 'currentpriority'),
-        {u'schema': 'ATLAS_PANDA'}
+        {u'schema': schema}
     )
 
     pandaid = Column(Numeric(11, 0, asdecimal=False), primary_key=True, server_default=text("'0' "))
@@ -282,8 +284,8 @@ class Jobsactive4(Base):
     noutputdatafiles = Column(Numeric(5, 0, asdecimal=False))
     outputfilebytes = Column(Numeric(11, 0, asdecimal=False))
     jobmetrics = Column(String(500))
-    workqueue_id = Column(ForeignKey(u'atlas_panda.jedi_work_queue.queue_id'))
-    jeditaskid = Column(ForeignKey(u'atlas_panda.jedi_tasks.jeditaskid'))
+    workqueue_id = Column(ForeignKey(u'{0}.jedi_work_queue.queue_id'.format(schema)))
+    jeditaskid = Column(ForeignKey(u'{0}.jedi_tasks.jeditaskid'.format(schema)))
     jobsubstatus = Column(String(80))
     actualcorecount = Column(Numeric(6, 0, asdecimal=False))
     reqid = Column(Numeric(9, 0, asdecimal=False), index=True)
