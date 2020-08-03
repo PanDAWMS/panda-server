@@ -76,7 +76,7 @@ def _checkRelease(jobRels,siteRels):
 def _getOkFiles(v_ce, v_files, allLFNs, allOkFilesMap, prodsourcelabel, job_label, tmpLog=None, allScopeList=None):
 
     scope_association_input, scope_association_output = select_scope(v_ce, prodsourcelabel, job_label)
-    dq2IDs = v_ce.setokens_input[scope_association_input].values()
+    dq2IDs = list(v_ce.setokens_input[scope_association_input].values())
     try:
         dq2IDs.remove('')
     except Exception:
@@ -918,7 +918,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                                 weightUsedByBrokerage[site] = "NA : disk shortage"
                                             continue
                                 else:
-                                    if tmpSiteSpec.space != 0:
+                                    if tmpSiteSpec.space:
                                         # production
                                         if not forAnalysis:
                                             # take assigned/activated/running jobs into account for production
