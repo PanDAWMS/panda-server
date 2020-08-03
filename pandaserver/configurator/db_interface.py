@@ -1,7 +1,5 @@
 #Standard python libraries
 import sys
-import datetime
-from datetime import timedelta
 
 #Specific python libraries
 import sqlalchemy
