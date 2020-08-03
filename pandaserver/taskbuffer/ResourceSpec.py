@@ -3,6 +3,9 @@ Resource type specification for JEDI
 
 """
 
+from . import JobUtils
+
+
 class ResourceSpec(object):
     # attributes
     attributes = ('resource_name', 'mincore', 'maxcore', 'minrampercore', 'maxrampercore')
@@ -43,6 +46,7 @@ class ResourceSpec(object):
             ram_per_core = (ramcount * corecount + base_ramcount) / corecount
         else:
             ram_per_core = (ramcount + base_ramcount) / corecount
+        ram_per_core = JobUtils.compensate_ram_count(ram_per_core)
 
         # check min ram
         if self.minrampercore is not None and ram_per_core < self.minrampercore:

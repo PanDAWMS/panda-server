@@ -23281,3 +23281,58 @@ class DBProxy:
 
         tmp_log.debug("done")
         return pq_data_des
+
+    # get old job metadata
+    def get_old_job_metadata(self, job_spec):
+        comment = ' /* DBProxy.get_old_job_metadata */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += ' < PandaID={0}>'.format(job_spec.PandaID)
+        # sql to get master datasetIDs
+        sqlM = ("SELECT datasetID FROM {0}.JEDI_Datasets "
+                "WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) "
+                "AND masterID IS NULL").format(panda_config.schemaJEDI)
+        # sql to get old PandaIDs
+        sqlI = ("SELECT MAX(PandaID) FROM {0}.filesTable4 "
+                "WHERE jediTaskID=:jedTaskID AND datasetID=:datasetID "
+                "AND fileID=:fileID ").format(panda_config.schemaPANDA)
+        # sql to get associated fileIDs
+        sqlF = ("SELECT fileID FROM {0}.fileTable4 "
+                "WHERE PandaID=:PandaID AND type IN (:type1,:type2) ").format(panda_config.schemaPANDA)
+        try:
+            # get master datasetIDs
+            varMap = dict()
+            varMap[':jediTaskID'] = job_spec.jediTaskID
+            varMap[':type1'] = 'input'
+            varMap[':type2'] = 'pseudo_input'
+            self.cur.execute(sqlM + comment, varMap)
+            datasetIDs = set()
+            [datasetIDs.add(datasetID) for datasetID, in self.cur.fetchall()]
+            # loop over all files
+            fileIDs_checked = set()
+            pandaIDs = set()
+            for fileSpec in job_spec.Files:
+                if fileSpec.type not in ['input', 'pseudo_input']:
+                    continue
+                if fileSpec.datasetID not in datasetIDs:
+                    continue
+                if fileSpec.fileID in fileIDs_checked:
+                    continue
+                fileIDs_checked.add(fileSpec.fileID)
+                # get old PandaIDs
+                varMap = dict()
+                varMap[':jediTaskID'] = job_spec.jediTaskID
+                varMap[':datasetID'] = fileSpec.datasetID
+                varMap[':fileID'] = fileSpec.fileID
+                self.cur.execute(sqlI + comment, varMap)
+                for pandaID, in self.cur.fetchall():
+                    pandaIDs.add(pandaID)
+                    # get associated fileIDs
+                    varMap = dict()
+                    varMap[':PandaID'] = pandaID
+                    varMap[':type1'] = 'input'
+                    varMap[':type2'] = 'pseudo_input'
+                    self.cur.execute(sqlF + comment, varMap)
+                    [fileIDs_checked.add(fileID) for fileID, in self.cur.fetchall()]
+        except Exception:
+            self.dumpErrorMessage(_logger, methodName)
+            raise

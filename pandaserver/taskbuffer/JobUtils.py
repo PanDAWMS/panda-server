@@ -122,3 +122,12 @@ def parseNumStandby(catchall):
                 retMap[sw_id][resource_type] = num
             break
     return retMap
+
+
+# compensate memory count to prevent jobs with ramCount close to the HIMEM border from going to HIMEM PQs
+def compensate_ram_count(ram_count):
+    if ram_count == 'NULL':
+        ram_count = None
+    if ram_count is not None:
+        ram_count = int(ram_count * 0.90)
+    return ram_count
