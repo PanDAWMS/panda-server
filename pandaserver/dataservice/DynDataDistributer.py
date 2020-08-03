@@ -400,6 +400,9 @@ class DynDataDistributer:
             # analysis only
             if not tmpSiteSpec.runs_analysis():
                 continue
+            # skip GPU
+            if tmpSiteSpec.isGPU():
+                continue
             # online
             if tmpSiteSpec.status not in ['online']:
                 self.putLog("skip %s due to status=%s" % (tmpSiteName,tmpSiteSpec.status))

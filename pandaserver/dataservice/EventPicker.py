@@ -273,7 +273,7 @@ class EventPicker:
                         tmpDN = userInfo['nickname']
                         tmpSiteSpec = self.siteMapper.getSite(tmpJob.computingSite)
                         scope_input, scope_output = select_scope(tmpSiteSpec, JobUtils.ANALY_PS, JobUtils.ANALY_PS)
-                        tmpDQ2ID = tmpSiteSpec.ddm_input[scope_input]
+                        tmpDQ2ID = tmpSiteSpec.ddm_output[scope_output]
                         tmpMsg = "%s ds=%s site=%s id=%s" % ('registerDatasetLocation for DaTRI ',
                                                              tmpUserDatasetName,
                                                              tmpDQ2ID,
