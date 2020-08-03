@@ -27,7 +27,7 @@ class Configurator(threading.Thread):
         if hasattr(panda_config, 'CRIC_URL_SITES'):
             self.CRIC_URL_SITES = panda_config.CRIC_URL_SITES
         else:
-            self.CRIC_URL_SITES = ' https://atlas-cric.cern.ch/api/atlas/site/query/?json'
+            self.CRIC_URL_SITES = 'https://atlas-cric.cern.ch/api/atlas/site/query/?json'
 
         _logger.debug('Getting site dump...')
         self.site_dump = aux.get_dump(self.CRIC_URL_SITES)
