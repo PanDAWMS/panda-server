@@ -58,7 +58,11 @@ class Configurator(threading.Thread):
         else:
             self.CRIC_URL_DDMBLACKLIST = 'https://atlas-cric.cern.ch/api/atlas/ddmendpointstatus/query/?json&activity=write_wan&fstate=OFF'
         _logger.debug('Getting schedconfig dump...')
-        self.blacklisted_endpoints = list(aux.get_dump(self.CRIC_URL_DDMBLACKLIST))
+        try:
+            self.blacklisted_endpoints = list(aux.get_dump(self.CRIC_URL_DDMBLACKLIST))
+        except TypeError:
+            self.blacklisted_endpoints = []
+
         _logger.debug('Blacklisted endpoints {0}'.format(self.blacklisted_endpoints))
         _logger.debug('Done')
         

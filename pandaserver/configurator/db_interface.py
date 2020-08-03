@@ -172,7 +172,7 @@ def read_configurator_sites(session):
     except exc.SQLAlchemyError:
         session.rollback()
         _logger.critical('read_configurator_sites excepted --> {0}'.format(sys.exc_info()))
-        return []
+        return set()
 
 
 def read_configurator_panda_sites(session):
@@ -188,7 +188,7 @@ def read_configurator_panda_sites(session):
     except exc.SQLAlchemyError:
         session.rollback()
         _logger.critical('read_configurator_panda_sites excepted --> {0}'.format(sys.exc_info()))
-        return []
+        return set()
 
 
 def read_configurator_ddm_endpoints(session):
@@ -204,7 +204,7 @@ def read_configurator_ddm_endpoints(session):
     except exc.SQLAlchemyError:
         session.rollback()
         _logger.critical('read_configurator_ddm_endpoints excepted --> {0}'.format(sys.exc_info()))
-        return []
+        return set()
 
 
 def read_schedconfig_sites(session):
@@ -220,7 +220,7 @@ def read_schedconfig_sites(session):
     except exc.SQLAlchemyError:
         session.rollback()
         _logger.critical('read_schedconfig_sites excepted --> {0}'.format(sys.exc_info()))
-        return []
+        return set()
 
 
 def read_schedconfig_panda_sites(session):
@@ -236,7 +236,7 @@ def read_schedconfig_panda_sites(session):
     except exc.SQLAlchemyError:
         session.rollback()
         _logger.critical('read_schedconfig_panda_sites excepted --> {0}'.format(sys.exc_info()))
-        return []
+        return set()
 
 
 def update_storage(session, ddm_endpoint_name, rse_usage):
