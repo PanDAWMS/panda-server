@@ -1021,13 +1021,13 @@ def updateJob(req, jobId, state, token=None, transExitCode=None, pilotErrorCode=
     if maxPSS is not None:
         param['maxPSS'] = maxPSS
     if avgRSS is not None:
-        param['avgRSS'] = avgRSS
+        param['avgRSS'] = int(float(avgRSS))
     if avgVMEM is not None:
-        param['avgVMEM'] = avgVMEM
+        param['avgVMEM'] = int(float(avgVMEM))
     if avgSWAP is not None:
-        param['avgSWAP'] = avgSWAP
+        param['avgSWAP'] = int(float(avgSWAP))
     if avgPSS is not None:
-        param['avgPSS'] = avgPSS
+        param['avgPSS'] = int(float(avgPSS))
     if totRCHAR is not None:
         totRCHAR = int(totRCHAR) / 1024 # convert to kByte
         totRCHAR = min(10 ** 10 - 1, totRCHAR)  # limit to 10 digit
@@ -1045,16 +1045,16 @@ def updateJob(req, jobId, state, token=None, transExitCode=None, pilotErrorCode=
         totWBYTES = min(10 ** 10 - 1, totWBYTES)  # limit to 10 digit
         param['totWBYTES'] = totWBYTES
     if rateRCHAR is not None:
-        rateRCHAR = min(10 ** 10 - 1, int(rateRCHAR))  # limit to 10 digit
+        rateRCHAR = min(10 ** 10 - 1, int(float(rateRCHAR)))  # limit to 10 digit
         param['rateRCHAR'] = rateRCHAR
     if rateWCHAR is not None:
-        rateWCHAR = min(10 ** 10 - 1, int(rateWCHAR))  # limit to 10 digit
+        rateWCHAR = min(10 ** 10 - 1, int(float(rateWCHAR)))  # limit to 10 digit
         param['rateWCHAR'] = rateWCHAR
     if rateRBYTES is not None:
-        rateRBYTES = min(10 ** 10 - 1, int(rateRBYTES))  # limit to 10 digit
+        rateRBYTES = min(10 ** 10 - 1, int(float(rateRBYTES)))  # limit to 10 digit
         param['rateRBYTES'] = rateRBYTES
     if rateWBYTES is not None:
-        rateWBYTES = min(10 ** 10 - 1, int(rateWBYTES))  # limit to 10 digit
+        rateWBYTES = min(10 ** 10 - 1, int(float(rateWBYTES)))  # limit to 10 digit
         param['rateWBYTES'] = rateWBYTES
     if startTime is not None:
         try:
