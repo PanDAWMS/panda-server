@@ -2524,7 +2524,7 @@ class DBProxy:
                             # try to update the computing element from the harvester worker table
                             sql_ce = """
                                      UPDATE ATLAS_PANDA.jobsActive4
-                                     SET computingelement = (SELECT computingelement FROM atlas_panda.harvester_workers hw, atlas_panda.Harvester_Rel_Jobs_Workers hrjw
+                                     SET computingelement = (SELECT computingelement FROM ATLAS_PANDA.harvester_workers hw, ATLAS_PANDA.Harvester_Rel_Jobs_Workers hrjw
                                                              WHERE hw.workerid = hrjw.workerid AND hw.harvesterid = hrjw.harvesterid AND hrjw.pandaid = :PandaID)
                                      where PandaID=:PandaID
                                      """
@@ -3308,10 +3308,11 @@ class DBProxy:
                     getValMap[':processingType1'] = 'gangarobot'  # analysis HC jobs
             else:
                 sql1+= "AND (processingType=:processingType1 "
-                sql1+= "OR prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2)) "
+                sql1+= "OR prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3)) "
                 getValMap[':processingType1'] = 'gangarobot'  # analysis HC jobs
                 getValMap[':prodSourceLabel1'] = 'prod_test'  # production HC jobs
                 getValMap[':prodSourceLabel2'] = 'install'
+                getValMap[':prodSourceLabel3'] = 'test'
         elif prodSourceLabel == 'unified':
             pass
         else:
