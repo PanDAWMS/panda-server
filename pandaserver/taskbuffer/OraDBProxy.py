@@ -20207,6 +20207,8 @@ class DBProxy:
         hs_ignore_total = 0
         for hs_entry in hs_distribution_raw:
             gshare, status_group, hs = hs_entry
+            if hs is None:
+                continue
             hs = float(hs)
             hs_distribution_dict.setdefault(gshare, {GlobalShares.PLEDGED: 0, GlobalShares.QUEUED: 0, GlobalShares.EXECUTING: 0})
             hs_distribution_dict[gshare][status_group] = hs
