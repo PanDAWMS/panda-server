@@ -1,6 +1,6 @@
 # dummy plugin of Adder for VOs which don't need DDM access
 
-from AdderPluginBase import AdderPluginBase
+from .AdderPluginBase import AdderPluginBase
 
 
 class AdderDummyPlugin(AdderPluginBase):

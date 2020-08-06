@@ -448,7 +448,8 @@ class AdderGen:
         # get LFN and GUID
         self.logger.debug('XML filename : %s' % self.xmlFile)
         # no outputs
-        if self.job.Files == []:
+        log_out = [f for f in self.job.Files if f.type in ['log', 'output']]
+        if not log_out:
             self.logger.debug("has no outputs")
             self.logger.debug("parseXML end")
             return 0
