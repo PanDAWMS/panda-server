@@ -16,6 +16,7 @@ from pandaserver.taskbuffer.WrappedPickle import WrappedPickle
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.taskbuffer import PrioUtil, JobUtils
 from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.config import panda_config
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
@@ -1047,8 +1048,11 @@ def _getDN(req):
 
 # check role
 def _isProdRoleATLAS(req):
-    # check role
-    prodManager = False
+    # check DN
+    user = _getDN(req)
+    for sdn in panda_config.production_dns:
+        if sdn in user:
+            return True
     # get FQANs
     fqans = _getFQAN(req)
     # loop over all FQANs
@@ -1362,19 +1366,9 @@ def killJobs(req,ids,code=None,useMailAsID=None,killOpts=None):
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
         user = _getDN(req)
     # check role
-    prodManager = False
+    prodManager = _isProdRoleATLAS(req)
     # get FQANs
     fqans = _getFQAN(req)
-    # loop over all FQANs
-    for fqan in fqans:
-        # check production role
-        for rolePat in ['/atlas/usatlas/Role=production','/atlas/Role=production']:
-            if fqan.startswith(rolePat):
-                prodManager = True
-                break
-        # escape
-        if prodManager:
-            break
     # use email address as ID
     if useMailAsID == 'True':
         useMailAsID = True

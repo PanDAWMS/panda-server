@@ -95,6 +95,7 @@ if 'token_audience' not in tmpSelf.__dict__:
     tmpSelf.__dict__['token_audience'] = 'https://pandaserver.cern.ch'
 if 'token_issuers' not in tmpSelf.__dict__:
     tmpSelf.__dict__['token_issuers'] = ''
+tmpSelf.__dict__['production_dns'] = [x for x in tmpSelf.__dict__.get('production_dns', '').split(',') if x]
 
 
 

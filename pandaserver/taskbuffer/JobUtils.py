@@ -17,7 +17,7 @@ ANALY_PS = 'user'
 PROD_PS = 'managed'
 
 ANALY_TASKTYPE = 'anal'
-PROD_TASKTYPE = 'proc'
+PROD_TASKTYPE = 'prod'
 
 job_labels = [ANALY_PS, PROD_PS]
 
