@@ -1734,6 +1734,7 @@ def updateSiteAccess(req,method,siteid,userName,attrValue=''):
 
 # insert task params
 def insertTaskParams(req,taskParams=None,properErrorCode=None):
+
     if properErrorCode == 'True':
         properErrorCode = True
     else:
@@ -1745,6 +1746,7 @@ def insertTaskParams(req,taskParams=None,properErrorCode=None):
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
         user = _getDN(req)
+
     # check format
     try:
         json.loads(taskParams)
@@ -1754,7 +1756,10 @@ def insertTaskParams(req,taskParams=None,properErrorCode=None):
     prodRole = _isProdRoleATLAS(req)
     # get FQANs
     fqans = _getFQAN(req)
-    ret = userIF.insertTaskParams(taskParams,user,prodRole,fqans,properErrorCode)
+
+    _logger.debug("insertTaskParams %s prodRole=%s FQAN:%s" % (user, prodRole, str(userFQANs)))
+
+    ret = userIF.insertTaskParams(taskParams, user, prodRole, fqans, properErrorCode)
     return WrappedPickle.dumps(ret)
 
 
