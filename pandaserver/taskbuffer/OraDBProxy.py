@@ -2524,8 +2524,10 @@ class DBProxy:
                             # try to update the computing element from the harvester worker table
                             sql_ce = """
                                      UPDATE ATLAS_PANDA.jobsActive4
-                                     SET computingelement = (SELECT computingelement FROM ATLAS_PANDA.harvester_workers hw, ATLAS_PANDA.Harvester_Rel_Jobs_Workers hrjw
-                                                             WHERE hw.workerid = hrjw.workerid AND hw.harvesterid = hrjw.harvesterid AND hrjw.pandaid = :PandaID)
+                                     SET computingelement = (SELECT * FROM (
+                                       SELECT computingelement FROM ATLAS_PANDA.harvester_workers hw, ATLAS_PANDA.Harvester_Rel_Jobs_Workers hrjw
+                                       WHERE hw.workerid = hrjw.workerid AND hw.harvesterid = hrjw.harvesterid AND hrjw.pandaid = :PandaID ORDER BY hw.workerid DESC
+                                       ) WHERE rownum=1)
                                      where PandaID=:PandaID
                                      """
                             varMap = {':PandaID': pandaID}
