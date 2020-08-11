@@ -146,12 +146,14 @@ class DBProxy:
         try:
 
             if self.backend == 'oracle':
-                self.conn = cx_Oracle.connect(dsn=self.dbhost,user=self.dbuser,
-                                              password=self.dbpasswd,threaded=True)
+                self.conn = cx_Oracle.connect(dsn=self.dbhost, user=self.dbuser,
+                                              password=self.dbpasswd, threaded=True,
+                                              encoding='UTF-8')
             else:
                 self.conn = MySQLdb.connect(host=self.dbhost, db=self.dbname,
                                             port=self.dbport, connect_timeout=self.dbtimeout,
-                                            user=self.dbuser, passwd=self.dbpasswd)
+                                            user=self.dbuser, passwd=self.dbpasswd,
+                                            charset='utf8')
             self.cur = WrappedCursor(self.conn)
             try:
                 # use SQL dumper
@@ -10102,7 +10104,7 @@ class DBProxy:
 
                     # default unified flag
                     ret.is_unified = False
-                    
+
                     # num slots
                     ret.num_slots_map = num_slots_by_site.get(siteid, {})
 
@@ -16789,7 +16791,7 @@ class DBProxy:
         nRowsCan = self.cur.rowcount
         tmpLog.debug("cancelled {0} events".format(nRowsCan))
 
-    # release unprocessed events 
+    # release unprocessed events
     def release_unprocessed_events(self, jedi_task_id, panda_id):
         comment = ' /* DBProxy.release_unprocessed_events */'
         methodName = comment.split(' ')[-2].split('.')[-1]
@@ -21204,7 +21206,7 @@ class DBProxy:
             if resource_spec.match_task(task_spec):
                 tmp_log.debug('done. resource_type is {0}'.format(resource_spec.resource_name))
                 return resource_spec.resource_name
-        
+
         tmp_log.debug('done. resource_type is Undefined')
         return 'Undefined'
 
@@ -21241,7 +21243,7 @@ class DBProxy:
         try:
             var_map = {':jedi_task_id': jedi_task_id,
                        ':resource_type': resource_name}
-            sql = ("UPDATE {0}.JEDI_Tasks " 
+            sql = ("UPDATE {0}.JEDI_Tasks "
                    "SET resource_type = :resource_type "
                    "WHERE jeditaskid = :jedi_task_id ").format(panda_config.schemaJEDI)
             tmp_log.debug('conn begin...')
@@ -21927,7 +21929,7 @@ class DBProxy:
                 tmpLog.debug('Using ups_core_target {0} for queue {1}'.format(n_cores_running_fake, queue))
         except KeyError:  # no value defined in AGIS
             pass
-        
+
         n_cores_running = max(n_cores_running, n_cores_running_fake)
 
         n_cores_target = max(int(n_cores_running * 0.4), 75 * cores_queue)
