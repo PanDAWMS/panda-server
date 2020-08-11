@@ -6,6 +6,7 @@ import fcntl
 import shelve
 import datetime
 import traceback
+import requests
 import pandaserver.userinterface.Client as Client
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 from pandaserver.taskbuffer import EventServiceUtils
@@ -14,6 +15,9 @@ from pandaserver.jobdispatcher.Watcher import Watcher
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.dataservice.MailUtils import MailUtils
 from pandaserver.srvcore.CoreUtils import commands_get_status_output
+
+from urllib3.exceptions import InsecureRequestWarning
+requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
 # password
 from pandaserver.config import panda_config
@@ -1467,6 +1471,70 @@ for name in mailMap:
     # update email
     _logger.debug("set '%s' to %s" % (name,addr))
     status,res = taskBuffer.querySQLS("UPDATE ATLAS_PANDAMETA.users SET email=:addr WHERE name=:name",{':addr':addr,':name':name})
+
+
+
+# sandbox
+_logger.debug("Touch sandbox")
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=1)
+sqlC = "SELECT hostName,fileName,creationTime,userName FROM ATLAS_PANDAMETA.userCacheUsage "\
+       "WHERE creationTime>:timeLimit AND creationTime>modificationTime "\
+       "AND (fileName like 'sources%' OR fileName like 'jobO%') "
+sqlU = "UPDATE ATLAS_PANDAMETA.userCacheUsage SET modificationTime=CURRENT_DATE "\
+       "WHERE userName=:userName AND fileName=:fileName "
+status, res = taskBuffer.querySQLS(sqlC, {':timeLimit': timeLimit})
+if res is None:
+    _logger.error("failed to get files")
+elif len(res) > 0:
+    _logger.debug("{0} files to touch".format(len(res)))
+    for hostName, fileName, creationTime, userName in res:
+        base_url = 'https://{0}:{1}'.format(hostName, panda_config.pserverport)
+        _logger.debug("touch {0} on {1} created at {2}".format(fileName, hostName, creationTime))
+        s,o = Client.touchFile(base_url, fileName)
+        _logger.debug(o)
+        if o == 'True':
+            varMap = dict()
+            varMap[':userName'] = userName
+            varMap[':fileName'] = fileName
+            taskBuffer.querySQLS(sqlU, varMap)
+
+_logger.debug("Check sandbox")
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=1)
+expireLimit = datetime.datetime.utcnow() - datetime.timedelta(days=30)
+sqlD = "DELETE FROM ATLAS_PANDAMETA.userCacheUsage WHERE userName=:userName AND fileName=:fileName "
+nRange = 100
+for i in range(nRange):
+    _logger.debug("{0}/{1} {2} files to check".format(nRange, i, len(res)))
+    res = taskBuffer.getLockSandboxFiles(timeLimit, 1000)
+    if res is None:
+        _logger.error("failed to get files")
+        break
+    elif len(res) == 0:
+        break
+    for userName, hostName, fileName, creationTime, modificationTime in res:
+        url = 'https://{0}:{1}/cache/{2}'.format(hostName, panda_config.pserverport, fileName)
+        _logger.debug("checking {0} created at {1}".format(url, creationTime))
+        toDelete = False
+        try:
+            x = requests.head(url, verify=False)
+            _logger.debug("code {0}".format(x.status_code))
+            if x.status_code == 404:
+                _logger.debug("delete")
+                toDelete = True
+        except Exception as e:
+            _logger.debug("failed with {0}".format(str(e)))
+            if creationTime < expireLimit:
+                toDelete = True
+                _logger.debug("delete due to creationTime={0}".format(creationTime))
+        # update or delete
+        varMap = dict()
+        varMap[':userName'] = userName
+        varMap[':fileName'] = fileName
+        if toDelete:
+            taskBuffer.querySQLS(sqlD, varMap)
+        else:
+            _logger.debug("keep")
+
 
 _memoryCheck("end")
 

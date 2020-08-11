@@ -1660,6 +1660,18 @@ class TaskBuffer:
         return ret
 
 
+    # get and lock sandbox files
+    def getLockSandboxFiles(self, time_limit, n_files):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret= proxy.getLockSandboxFiles(time_limit, n_files)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # check duplicated sandbox file
     def checkSandboxFile(self,userName,fileSize,checkSum):
         # get DBproxy
