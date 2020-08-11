@@ -6573,6 +6573,48 @@ class DBProxy:
             return "ERROR: DB failure"
 
 
+    # get and lock sandbox files
+    def getLockSandboxFiles(self, time_limit, n_files):
+        comment = ' /* DBProxy.getLockSandboxFiles */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName)
+        sqlC = "SELECT * FROM ("\
+               "SELECT userName,hostName,fileName,creationTime,modificationTime FROM ATLAS_PANDAMETA.userCacheUsage "\
+               "WHERE modificationTime<:timeLimit AND (fileName like 'sources%' OR fileName like 'jobO%') ) "\
+               "WHERE rownum<:nRows "
+        sqlU = "UPDATE ATLAS_PANDAMETA.userCacheUsage SET modificationTime=CURRENT_DATE " \
+               "WHERE userName=:userName AND fileName=:fileName "
+        try:
+            tmpLog.debug('start')
+            # begin transaction
+            self.conn.begin()
+            # check if it already exists
+            varMap = {}
+            varMap[':timeLimit'] = time_limit
+            varMap[':nRows'] = n_files
+            self.cur.execute(sqlC+comment, varMap)
+            res = self.cur.fetchall()
+            retList = []
+            for userName, hostName, fileName, creationTime, modificationTime in res:
+                retList.append((userName, hostName, fileName, creationTime, modificationTime))
+                # lock
+                varMap = dict()
+                varMap[':userName'] = userName
+                varMap[':fileName'] = fileName
+                self.cur.execute(sqlU + comment, varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            tmpLog.debug('locked {0} files'.format(len(retList)))
+            return retList
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, methodName)
+            return None
+
+
     # check duplicated sandbox file
     def checkSandboxFile(self,dn,fileSize,checkSum):
         comment = ' /* DBProxy.checkSandboxFile */'

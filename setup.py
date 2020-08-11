@@ -245,6 +245,7 @@ setup(
                       'sqlalchemy',
                       'stomp.py',
                       'pyyaml',
+                      'requests',
                       'idds-common',
                       'idds-client'
                       ],
