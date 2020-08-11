@@ -1757,7 +1757,7 @@ def insertTaskParams(req,taskParams=None,properErrorCode=None):
     # get FQANs
     fqans = _getFQAN(req)
 
-    _logger.debug("insertTaskParams %s prodRole=%s FQAN:%s" % (user, prodRole, str(userFQANs)))
+    _logger.debug("insertTaskParams {0} prodRole={1} FQAN:{2}".format(user, prodRole, str(fqans)))
 
     ret = userIF.insertTaskParams(taskParams, user, prodRole, fqans, properErrorCode)
     return WrappedPickle.dumps(ret)
