@@ -62,7 +62,6 @@ class Configurator(threading.Thread):
             self.blacklisted_endpoints = list(aux.get_dump(self.CRIC_URL_DDMBLACKLIST))
         except TypeError:
             self.blacklisted_endpoints = []
-
         _logger.debug('Blacklisted endpoints {0}'.format(self.blacklisted_endpoints))
         _logger.debug('Done')
         
@@ -450,6 +449,18 @@ class Configurator(threading.Thread):
         """
         Principal function
         """
+        if self.schedconfig_dump is None:
+            _logger.critical("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_SCHEDCONFIG))
+            return False
+
+        if self.endpoint_dump is None:
+            _logger.critical("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_DDMENDPOINTS))
+            return False
+
+        if self.site_dump is None:
+            _logger.critical("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_SITES))
+            return False
+
         # Get pre-processed CRIC dumps
         sites_list, panda_sites_list, ddm_endpoints_list, panda_ddm_relation_dict = self.process_site_dumps()
 
@@ -686,6 +697,10 @@ class JsonDumper(threading.Thread):
         """
         Principal function
         """
+        if self.schedconfig_dump is None:
+            _logger.critical("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_SCHEDCONFIG))
+            return False
+
         return taskBuffer.upsertQueuesInJSONSchedconfig(self.schedconfig_dump)
 
 
