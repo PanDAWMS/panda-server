@@ -20,6 +20,7 @@ D1 = '1d'
 W1 = '1w'
 TIMESTAMP = 'timestamp'
 
+
 def get_dump(url):
     """
     Retrieves a json file from the given URL and loads it into memory
@@ -35,4 +36,5 @@ def get_dump(url):
                 return r.json()
         except Exception:
             time.sleep(1)
+    return None
 
