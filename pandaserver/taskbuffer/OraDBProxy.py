@@ -21945,7 +21945,7 @@ class DBProxy:
         for share in sorted_shares:
             var_map = {':queue': queue, ':gshare': share.name}
             sql = """
-                  SELECT gshare, prodsourcelabel, resource_type FROM atlas_panda.jobsactive4
+                  SELECT gshare, job_label, prodsourcelabel, resource_type FROM atlas_panda.jobsactive4
                   WHERE jobstatus = 'activated'
                      AND computingsite=:queue
                      AND gshare=:gshare
@@ -21954,11 +21954,14 @@ class DBProxy:
             self.cur.execute(sql + comment, var_map)
             activated_jobs = self.cur.fetchall()
             tmpLog.debug('Processing share: {0}. Got {1} activated jobs'.format(share.name, len(activated_jobs)))
-            for gshare, prodsourcelabel, resource_type in activated_jobs:
+            for gshare, job_label, prodsourcelabel, resource_type in activated_jobs:
                 core_factor = JobUtils.translate_resourcetype_to_cores(resource_type, cores_queue)
 
                 # translate prodsourcelabel to a subset of job types, typically 'user' and 'managed'
-                job_type = JobUtils.translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel)
+                if job_label in (JobUtils.ANALY_PS, JobUtils.PROD_PS):
+                    job_type = job_label
+                else:  # protection: should never happen
+                    job_type = JobUtils.translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel)
 
                 # if we reached the limit for the resource type, skip the job
                 if resource_type in resource_type_limits and resource_type_limits[resource_type] <= 0:
