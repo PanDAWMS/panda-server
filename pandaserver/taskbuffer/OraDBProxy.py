@@ -3279,49 +3279,52 @@ class DBProxy:
         sql1 = "WHERE jobStatus=:oldJobStatus AND computingSite=:computingSite AND commandToPilot IS NULL "
 
         if mem not in [0,'0']:
-            sql1+= "AND (minRamCount<=:minRamCount OR minRamCount=0) "
+            sql1 += "AND (minRamCount<=:minRamCount OR minRamCount=0) "
             getValMap[':minRamCount'] = mem
         if diskSpace not in [0,'0']:
-            sql1+= "AND (maxDiskCount<=:maxDiskCount OR maxDiskCount=0) "
+            sql1 += "AND (maxDiskCount<=:maxDiskCount OR maxDiskCount=0) "
             getValMap[':maxDiskCount'] = diskSpace
         if background is True:
-            sql1+= "AND jobExecutionID=1 "
+            sql1 += "AND jobExecutionID=1 "
         if resourceType is not None:
-            sql1+= "AND resource_type=:resourceType "
+            sql1 += "AND resource_type=:resourceType "
             getValMap[':resourceType'] = resourceType
         if prodSourceLabel == 'user':
-            sql1+= "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3) "
+            sql1 += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3) "
             getValMap[':prodSourceLabel1'] = 'user'
             getValMap[':prodSourceLabel2'] = 'panda'
             getValMap[':prodSourceLabel3'] = 'install'
         elif prodSourceLabel == 'ddm':
-            sql1+= "AND prodSourceLabel=:prodSourceLabel "
+            sql1 += "AND prodSourceLabel=:prodSourceLabel "
             getValMap[':prodSourceLabel'] = 'ddm'
         elif prodSourceLabel in [None,'managed']:
-            sql1+= "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4) "
+            sql1 += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4) "
             getValMap[':prodSourceLabel1'] = 'managed'
             getValMap[':prodSourceLabel2'] = 'test'
             getValMap[':prodSourceLabel3'] = 'prod_test'
             getValMap[':prodSourceLabel4'] = 'install'
         elif prodSourceLabel == 'software':
-            sql1+= "AND prodSourceLabel=:prodSourceLabel "
+            sql1 += "AND prodSourceLabel=:prodSourceLabel "
             getValMap[':prodSourceLabel'] = 'software'
         elif prodSourceLabel == 'test' and computingElement is not None:
-            if is_gu and jobType == 'user':
-                    sql1+= "AND processingType=:processingType1 "
-                    getValMap[':processingType1'] = 'gangarobot'  # analysis HC jobs
-            else:
-                sql1+= "AND (processingType=:processingType1 "
-                sql1+= "OR prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3)) "
-                getValMap[':processingType1'] = 'gangarobot'  # analysis HC jobs
-                getValMap[':prodSourceLabel1'] = 'prod_test'  # production HC jobs
-                getValMap[':prodSourceLabel2'] = 'install'
-                getValMap[':prodSourceLabel3'] = 'test'
-        elif prodSourceLabel == 'unified':
+            sql1 += "AND (processingType=:processingType1 "
+            sql1 += "OR prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3)) "
+            getValMap[':processingType1'] = 'gangarobot'  # analysis HC jobs
+            getValMap[':prodSourceLabel1'] = 'prod_test'  # production HC jobs
+            getValMap[':prodSourceLabel2'] = 'install'
+            getValMap[':prodSourceLabel3'] = 'test'
+            if jobType in (JobUtils.ANALY_PS, JobUtils.PROD_PS):
+                sql1 += "AND job_label=:job_label "
+                getValMap[':job_label'] = jobType
+        elif prodSourceLabel == 'unified':  # ARC Control Tower push mode
             pass
         else:
-            sql1+= "AND prodSourceLabel=:prodSourceLabel "
+            sql1 += "AND prodSourceLabel=:prodSourceLabel "
             getValMap[':prodSourceLabel'] = prodSourceLabel
+            if jobType in (JobUtils.ANALY_PS, JobUtils.PROD_PS):
+                sql1 += "AND job_label=:job_label "
+                getValMap[':job_label'] = jobType
+
         # user ID
         if prodUserID is not None:
             # get compact DN
