@@ -23385,3 +23385,188 @@ class DBProxy:
         except Exception:
             self.dumpErrorMessage(_logger, methodName)
             raise
+
+    # lock process
+    def lockProcess_PANDA(self, component, pid, time_limit, force=False):
+        comment = ' /* DBProxy.lockProcess_PANDA */'
+        method_name = self.getMethodName(comment)
+        # defaults
+        cloud = 'default'
+        workqueue_id = 0
+        resource_name = 'default'
+        method_name += ' <component={0} pid={1}>'.format(component, pid)
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+        try:
+            retVal = False
+            # sql to check
+            sqlCT  = (  'SELECT lockedBy '
+                        'FROM {0}.JEDI_Process_Lock '
+                        'WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel '
+                            'AND cloud=:cloud AND workqueue_id=:workqueue_id '
+                            'AND resource_type=:resource_name AND component=:component '
+                            'AND lockedTime>:lockedTime '
+                        'FOR UPDATE'
+                        ).format(panda_config.schemaJEDI)
+            # sql to delete
+            sqlCD  = (  'DELETE FROM {0}.JEDI_Process_Lock '
+                        'WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel '
+                            'AND cloud=:cloud AND workqueue_id=:workqueue_id '
+                            'AND resource_type=:resource_name AND component=:component '
+                        ).format(panda_config.schemaJEDI)
+            # sql to insert
+            sqlFR  = (  'INSERT INTO {0}.JEDI_Process_Lock '
+                            '(vo, prodSourceLabel, cloud, workqueue_id, resource_type, component, lockedBy, lockedTime) '
+                            'VALUES(:vo, :prodSourceLabel, :cloud, :workqueue_id, :resource_name, :component, :lockedBy, CURRENT_DATE) '
+                        ).format(panda_config.schemaJEDI)
+            # start transaction
+            self.conn.begin()
+            # check
+            if not force:
+                varMap = {}
+                varMap[':vo'] = vo
+                varMap[':prodSourceLabel'] = prodSourceLabel
+                varMap[':cloud'] = cloud
+                varMap[':workqueue_id'] = workqueue_id
+                varMap[':resource_name'] = resource_name
+                varMap[':component'] = component
+                varMap[':lockedTime'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=time_limit)
+                self.cur.execute(sqlCT+comment, varMap)
+                resCT = self.cur.fetchone()
+            else:
+                resCT = None
+            if resCT is not None:
+                tmp_log.debug('skipped, locked by {0}'.format(resCT[0]))
+            else:
+                # delete
+                varMap = {}
+                varMap[':vo'] = vo
+                varMap[':prodSourceLabel'] = prodSourceLabel
+                varMap[':cloud'] = cloud
+                varMap[':workqueue_id'] = workqueue_id
+                varMap[':resource_name'] = resource_name
+                varMap[':component'] = component
+                self.cur.execute(sqlCD+comment,varMap)
+                # insert
+                varMap = {}
+                varMap[':vo'] = vo
+                varMap[':prodSourceLabel'] = prodSourceLabel
+                varMap[':cloud'] = cloud
+                varMap[':workqueue_id'] = workqueue_id
+                varMap[':resource_name'] = resource_name
+                varMap[':component'] = component
+                varMap[':lockedBy'] = pid
+                self.cur.execute(sqlFR+comment, varMap)
+                tmp_log.debug('successfully locked')
+                retVal = True
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmp_log, msgType='debug')
+            return retVal
+
+    # unlock process
+    def unlockProcess_PANDA(self, component, pid):
+        comment = ' /* DBProxy.unlockProcess_PANDA */'
+        method_name = self.getMethodName(comment)
+        # defaults
+        cloud = 'default'
+        workqueue_id = 0
+        resource_name = 'default'
+        method_name += ' <component={0} pid={1}>'.format(component, pid)
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+        try:
+            retVal = False
+            # sql to delete
+            sqlCD  = (  'DELETE FROM {0}.JEDI_Process_Lock '
+                        'WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND cloud=:cloud '
+                            'AND workqueue_id=:workqueue_id AND lockedBy=:lockedBy '
+                            'AND resource_type=:resource_name AND component=:component '
+                        ).format(panda_config.schemaJEDI)
+            # start transaction
+            self.conn.begin()
+            # check
+            varMap = {}
+            varMap[':vo'] = vo
+            varMap[':prodSourceLabel'] = prodSourceLabel
+            varMap[':cloud'] = cloud
+            varMap[':workqueue_id'] = workqueue_id
+            varMap[':resource_name'] = resource_name
+            varMap[':component'] = component
+            varMap[':lockedBy'] = pid
+            self.cur.execute(sqlCD+comment, varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            tmp_log.debug('done')
+            retVal = True
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmp_log)
+            return retVal
+
+    # check process lock
+    def checkProcessLock_PANDA(self, component, pid, time_limit, check_base=False):
+        comment = ' /* DBProxy.checkProcessLock_PANDA */'
+        # defaults
+        cloud = 'default'
+        workqueue_id = 0
+        resource_name = 'default'
+        method_name += ' <component={0} pid={1}>'.format(component, pid)
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+        try:
+            retVal = False, None
+            # sql to check
+            sqlCT = (   'SELECT lockedBy, lockedTime '
+                        'FROM {0}.JEDI_Process_Lock '
+                        'WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel '
+                            'AND cloud=:cloud AND workqueue_id=:workqueue_id '
+                            'AND resource_type=:resource_name AND component=:component '
+                            'AND lockedTime>:lockedTime '
+                        ).format(panda_config.schemaJEDI)
+            # start transaction
+            self.conn.begin()
+            # check
+            varMap = {}
+            varMap[':vo'] = vo
+            varMap[':prodSourceLabel'] = prodSourceLabel
+            varMap[':cloud'] = cloud
+            varMap[':workqueue_id'] = workqueue_id
+            varMap[':resource_name'] = resource_name
+            varMap[':component'] = component
+            varMap[':lockedTime'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=time_limit)
+            self.cur.execute(sqlCT + comment, varMap)
+            resCT = self.cur.fetchone()
+            if resCT is not None:
+                lockedBy, lockedTime = resCT
+                if check_base:
+                    # check only base part
+                    if not lockedBy.startswith(pid):
+                        retVal = True, lockedTime
+                else:
+                    # check whole string
+                    if lockedBy != pid:
+                        retVal = True, lockedTime
+                if retVal[0]:
+                    tmp_log.debug('skipped since locked by {0}'.format(lockedBy))
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            tmp_log.debug('done with {0}'.format(retVal))
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmp_log, msgType='debug')
+            return retVal

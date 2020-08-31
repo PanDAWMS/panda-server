@@ -3927,7 +3927,7 @@ class TaskBuffer:
         # return
         return ret
 
-  # update/insert JSON queue information into the scheconfig replica
+    # update/insert JSON queue information into the scheconfig replica
     def upsertQueuesInJSONSchedconfig(self, schedconfig_dump):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
@@ -3938,7 +3938,7 @@ class TaskBuffer:
         # return
         return ret
 
-  # generate a harvester command to clean up the workers of a site
+    # generate a harvester command to clean up the workers of a site
     def sweepPQ(self, panda_queue_des, status_list_des, ce_list_des, submission_host_list_des):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
@@ -3948,6 +3948,28 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # return
         return ret
+
+    # lock process
+    def lockProcess_PANDA(self, component, pid, time_limit=5, force=False):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.lockProcess_PANDA(component, pid, time_limit, force)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    # unlock process
+    def unlockProcess_PANDA(self, component, pid):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.unlockProcess_PANDA(component, pid)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    # check process lock
+    def checkProcessLock_PANDA(self, component, pid, time_limit, check_base=False):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.checkProcessLock_PANDA(component, pid, time_limit, check_base)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
 
 # Singleton
 taskBuffer = TaskBuffer()
