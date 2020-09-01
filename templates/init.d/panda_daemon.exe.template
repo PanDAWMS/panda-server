@@ -78,6 +78,11 @@ stop)
     for itry in `seq 1 5`
     do
       echo "trying $itry"
+      if [ ! -f $PIDFILE ]; then
+        echo "pidfile $PIDFILE does not exist; skipped"
+        ERROR=2
+        exit $ERROR
+      fi
       kill `cat $PIDFILE`
       sleep 5
       ps -p `cat $PIDFILE` > /dev/null
