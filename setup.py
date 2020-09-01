@@ -240,6 +240,7 @@ setup(
     zip_safe=False,
     install_requires=['panda-common',
                       'pyOpenSSL',
+                      'python-daemon',
                       'mod_wsgi',
                       'six',
                       'sqlalchemy',
