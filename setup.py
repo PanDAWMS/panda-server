@@ -259,8 +259,10 @@ setup(
     packages=[ 'pandaserver',
                'pandaserver.brokerage',
                'pandaserver.config',
+               'pandaserver.daemons',
                'pandaserver.dataservice',
                'pandaserver.jobdispatcher',
+               'pandaserver.scripts',
                'pandaserver.server',
                'pandaserver.srvcore',
                'pandaserver.taskbuffer',
@@ -285,6 +287,7 @@ setup(
 
                 # init script
                 ('etc/rc.d/init.d', ['templates/init.d/panda_server.exe.template',
+                                     'templates/init.d/panda_daemon.exe.template',
                                    ]
                  ),
                 # crons
