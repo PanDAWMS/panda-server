@@ -11,7 +11,6 @@ import requests
 from urllib3.exceptions import InsecureRequestWarning
 
 import pandaserver.userinterface.Client as Client
-from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 from pandaserver.taskbuffer import EventServiceUtils
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.jobdispatcher.Watcher import Watcher
@@ -22,7 +21,7 @@ from pandaserver.config import panda_config
 
 
 # main
-def main():
+def main(tbif=None):
     # password
     requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
@@ -128,7 +127,12 @@ def main():
 
 
     # instantiate TB
-    taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
+    if tbif is None:
+        from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+        taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
+    else:
+        taskBuffer = tbif
+
 
     # instantiate sitemapper
     siteMapper = SiteMapper(taskBuffer)

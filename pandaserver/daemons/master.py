@@ -26,9 +26,12 @@ END_SIGNALS = [
     ]
 
 
-# passphrase to send in queue to stop daemon worker processes
-STOP_PASSPHRASE = '__STOP_PROCESS__'
+# command to send in pipe to stop daemon worker processes
+CMD_STOP = '__STOP'
 
+
+# epoch datetime
+EPOCH = datetime(1970, 1, 1)
 
 # get the logger
 def get_logger():
@@ -52,45 +55,86 @@ def kill_whole():
 
 
 # worker process loop of daemon
-def _process_loop(module_list, msg_queue):
+def _process_loop(mod_config, msg_queue, pipe_conn):
     # logger
     tmp_log = get_logger()
     # pid of the worker
     my_pid = os.getpid()
     # dict of all script modules
     module_map = {}
+    # taskBuffer object
+    from pandaserver.taskbuffer.TaskBuffer import taskBuffer as tbif
+    tbif.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
     # import all modules
-    for module_name in module_list:
+    for mod_name in mod_config:
         try:
-            module_map[module_name] = importlib.import_module(module_name)
+            module_map[mod_name] = importlib.import_module(mod_name)
         except Exception as e:
             tmp_log.warning('<worker_pid={pid}> failed to import {mod} with {err} ; skipped it'.format(
-                                pid=my_pid, mod=module_name, err='{0}: {1}'.format(e.__class__.__name__, e)))
+                                pid=my_pid, mod=mod_name, err='{0}: {1}'.format(e.__class__.__name__, e)))
     tmp_log.debug('<worker_pid={pid}> initialized, running'.format(pid=my_pid))
     # loop
     while True:
+        # get command from pipe
+        if pipe_conn.poll():
+            cmd = pipe_conn.recv()
+            if cmd == CMD_STOP:
+                # got stop command, stop the process
+                tmp_log.debug('<worker_pid={pid}> got stop command, stop this process'.format(pid=my_pid))
+                break
+            else:
+                tmp_log.debug('<worker_pid={pid}> got invalid command "{cmd}" ; skipped it'.format(pid=my_pid, cmd=cmd))
         # get a message from queue
         one_msg = msg_queue.get()
         # process message
-        if one_msg == STOP_PASSPHRASE:
-            # got stop passphrase, stop the process
-            tmp_log.debug('<worker_pid={pid}> got stop signal, stop this process'.format(pid=my_pid))
-            break
-        elif one_msg in module_map:
-            # got a module name, go run the module
-            the_module = module_map[one_msg]
-            # execute the module script
-            try:
-                tmp_log.debug('<worker_pid={pid}> start running module {mod}'.format(pid=my_pid, mod=one_msg))
-                the_module.main()
-                tmp_log.debug('<worker_pid={pid}> finish running module {mod}'.format(pid=my_pid, mod=one_msg))
-            except Exception as e:
-                tb = traceback.format_exc()
-                tmp_log.error('<worker_pid={pid}> failed to run module {mod} with {err} ; skipped it'.format(
-                                pid=my_pid, mod=module_name, err='{0}: {1}\n{2}\n'.format(e.__class__.__name__, e, tb)))
+        if one_msg in module_map:
+            # got a module name, get the module object and corresponding attributes
+            mod_name = one_msg
+            the_module = module_map[mod_name]
+            attrs = mod_config[mod_name]
+            mod_period = attrs['period']
+            mod_period_in_minute = mod_period/60.
+            is_sync = attrs['sync']
+            # initialize variables
+            to_run_module = False
+            last_run_ts = 0
+            # component name in lock table
+            component = 'pandaD.{mod}'.format(mod=mod_name)
+            # whether the daemon shoule be synchronized among nodes
+            if is_sync:
+                # sychronized daemon, check process lock in DB
+                ret_val, locked_time = tbif.checkProcessLock_PANDA(component=component, pid=my_pid, time_limit=mod_period_in_minute)
+                if ret_val:
+                    # locked by some process on other nodes
+                    last_run_ts = int((locked_time - EPOCH).total_seconds())
+                else:
+                    # try to get the lock
+                    got_lock = tbif.lockProcess_PANDA(component=component, pid=my_pid, time_limit=mod_period_in_minute)
+                    if got_lock:
+                        # got the lock
+                        to_run_module = True
+                    else:
+                        # did not get lock, skip
+                        pass
+            else:
+                to_run_module = True
+            # run module
+            if to_run_module:
+                last_run_ts = int(time.time())
+                try:
+                    # execute the module script
+                    tmp_log.debug('<worker_pid={pid}> start running module {mod}'.format(pid=my_pid, mod=mod_name))
+                    the_module.main(tbif=tbif)
+                    tmp_log.debug('<worker_pid={pid}> finish running module {mod}'.format(pid=my_pid, mod=mod_name))
+                except Exception as e:
+                    tb = traceback.format_exc()
+                    tmp_log.error('<worker_pid={pid}> failed to run module {mod} with {err} ; skipped it'.format(
+                                    pid=my_pid, mod=mod_name, err='{0}: {1}\n{2}\n'.format(e.__class__.__name__, e, tb)))
+            # send module last run timestamp back to master
+            pipe_conn.send((mod_name, last_run_ts))
         else:
             # got invalid message
-            tmp_log.error('<worker_pid={pid}> got invalid message "{msg}", skipped it'.format(pid=my_pid, msg=one_msg))
+            tmp_log.error('<worker_pid={pid}> got invalid message "{msg}", skipped it'.format(pid=my_pid, msg=mod_name))
         # sleep
         time.sleep(2**-5)
 
@@ -99,13 +143,18 @@ def _process_loop(module_list, msg_queue):
 class DaemonMaster(object):
 
     # constructor
-    def __init__(self, logger):
+    def __init__(self, logger, n_workers=1):
         # logger
         self.logger = logger
+        # number of daemon worker processes
+        self.n_workers = n_workers
         # make message queue
         self.msg_queue = multiprocessing.SimpleQueue()
+        # list of pipe connection pairs
+        self.pipe_list = []
+        self._make_pipes(self.n_workers)
         # make process pool
-        self.proc_pool = multiprocessing.Pool(processes=4)
+        self.proc_pool = multiprocessing.Pool(processes=self.n_workers)
         # whether to stop scheduler
         self.to_stop_scheduler = False
         # make module config
@@ -114,16 +163,31 @@ class DaemonMaster(object):
         # map of timestamp of last time the module run
         self.last_run_map = { mod: 0 for mod in self.mod_config }
 
+    # make pipe connection pairs for each worker and put them into the list
+    def _make_pipes(self, n_workers):
+        self.pipe_list = []
+        for j in range(n_workers):
+            parent_conn, child_conn = multiprocessing.Pipe()
+            self.pipe_list.append((parent_conn, child_conn))
+
     # parse daemon config
     def _parse_config(self):
         try:
             config_json = daemon_config.config
             config_dict = json.loads(config_json)
             self.mod_config = copy.deepcopy(config_dict)
-            # remove disabled modules
-            for mod, attrs in config_dict.items():
+            # loop over modules
+            for mod_name, attrs in config_dict.items():
+                # remove disabled modules
                 if 'enable' in attrs and attrs['enable'] is False:
-                    del self.mod_config[mod]
+                    del self.mod_config[mod_name]
+                # check mandatory fields
+                if 'period' not in attrs or not isinstance(attrs['enable'], int):
+                    self.logger.warning('daemon config missing period field for {mod} ; skipped'.format(
+                                        mod=mod_name))
+                    del self.mod_config[mod_name]
+                if 'sync' not in attrs:
+                    self.mod_config[mod_name]['sync'] = False
         except Exception as e:
             tb = traceback.format_exc()
             self.logger.error('failed to parse daemon config, {err}'.format(
@@ -132,16 +196,30 @@ class DaemonMaster(object):
     # one scheduler cycle
     def _scheduler_cycle(self):
         now_ts = int(time.time())
-        for x in self.mod_config:
+        # check last run time from pipes
+        for parent_conn, child_conn in self.pipe_list:
+            # get message from the worker
+            while parent_conn.poll():
+                mod_name, last_run_ts = parent_conn.recv()
+                # update last_run_map
+                old_last_run_ts = self.last_run_map[mod_name]
+                if last_run_ts > old_last_run_ts:
+                    self.last_run_map[mod_name] = last_run_ts
+        # send message to workers
+        for mod_name, attrs in self.mod_config.items():
+            run_period = attrs.get('period')
+            last_run_ts = self.last_run_map.get(mod_name)
+            if run_period is None or last_run_ts is None:
+                continue
             if last_run_ts + run_period <= now_ts:
-                self.msg_queue.put(module_name)
+                self.msg_queue.put(mod_name)
         # sleep
         time.sleep(0.5)
 
-    # send stop signal to processes
+    # send stop command to all worker processes
     def _stop_proc(self):
-        for i in range(100):
-            self.msg_queue.put(STOP_PASSPHRASE)
+        for parent_conn, child_conn in self.pipe_list:
+            parent_conn.send(CMD_STOP)
 
     # stop master
     def stop(self):
@@ -155,11 +233,16 @@ class DaemonMaster(object):
     # run
     def run(self):
         self.logger.debug('daemon master started')
+        # make argument list for workers
+        args_list = []
+        for parent_conn, child_conn in self.pipe_list:
+            args = (self.mod_config, self.msg_queue, child_conn)
+            args_list.append(args)
         # start daemon processes
-        self.proc_pool.map_async()
+        self.proc_pool.starmap_async(_process_loop, args_list)
         self.proc_pool.close()
         self.logger.debug('daemon master launched all worker processes')
-        # loop
+        # loop of scheduler
         while not self.to_stop_scheduler:
             self._scheduler_cycle()
         # end
