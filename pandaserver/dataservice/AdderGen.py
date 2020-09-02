@@ -593,6 +593,7 @@ class AdderGen:
                     # XML was deleted
                     return 1
         # parse metadata to get nEvents
+        nEventsFrom = None
         try:
             root  = xml.dom.minidom.parseString(self.job.metadata)
             files = root.getElementsByTagName('File')
@@ -614,6 +615,7 @@ class AdderGen:
                         nevents = long(meta.getAttribute('att_value'))
                         nEventsMap[lfn] = nevents
                         break
+            nEventsFrom = "xml"
         except Exception:
             pass
         # parse json
@@ -633,9 +635,18 @@ class AdderGen:
                         guidMap[lfn] = guid
                     except Exception:
                         pass
+            nEventsFrom = "json"
         except Exception:
             pass
+        # use nEvents reported by the pilot if no job report
+        if self.job.metadata == 'NULL' and self.jobStatus == 'finished' and self.job.nEvents > 0 \
+                and self.job.prodSourceLabel in ['managed']:
+            for file in self.job.Files:
+                if file.type == 'output':
+                    nEventsMap[file.lfn] = self.job.nEvents
+            nEventsFrom = "pilot"
         self.logger.debug('nEventsMap=%s' % str(nEventsMap))
+        self.logger.debug('nEventsFrom=%s' % str(nEventsFrom))
         self.logger.debug('guidMap=%s' % str(guidMap))
         self.logger.debug('self.job.jobStatus=%s in parseXML' % self.job.jobStatus)
         self.logger.debug('isES=%s isJumbo=%s' % (EventServiceUtils.isEventServiceJob(self.job),

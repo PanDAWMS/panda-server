@@ -40,7 +40,7 @@ class _TimedMethod:
 
     # run
     def run(self,*var):
-        _logger.debug(var)
+        _logger.debug(self.method.__name__ + ' ' + str(var))
         thr = threading.Thread(target=self,args=var)
         # run thread
         thr.start()
