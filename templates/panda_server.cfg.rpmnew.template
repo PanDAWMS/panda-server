@@ -386,7 +386,7 @@ uname = atlpan
 gname = zp
 
 # package path of script modules to run in daemon
-package = pandaserver.scripts
+package = pandaserver.daemons.scripts
 
 # number of worker processes to run daemons
 n_proc = 1

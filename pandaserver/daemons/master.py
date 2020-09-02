@@ -148,9 +148,9 @@ def _process_loop(mod_config, msg_queue, pipe_conn):
                 last_run_start_ts = int(time.time())
                 try:
                     # execute the module script
-                    tmp_log.debug('start running module {mod}'.format(mod=mod_name))
+                    tmp_log.debug('start module {mod}'.format(mod=mod_name))
                     the_module.main(tbif=tbif)
-                    tmp_log.debug('finish running module {mod}'.format(mod=mod_name))
+                    tmp_log.debug('finish module {mod}'.format(mod=mod_name))
                 except Exception as e:
                     tb = traceback.format_exc()
                     tmp_log.error('failed to run module {mod} with {err} ; skipped it'.format(
@@ -335,6 +335,8 @@ class DaemonMaster(object):
                     else:
                         # old message processed, send new message
                         self.msg_queue.put(mod_name)
+                        self.logger.info('scheduled module {mod} to run'.format(
+                                            mod=mod_name))
                         mod_run_attrs['msg_ongoing'] = True
                         mod_run_attrs['last_run_start_ts'] = now_ts
         # spwan new workers if ther are less than n_workers
@@ -363,16 +365,16 @@ class DaemonMaster(object):
     def run(self):
         # pid
         pid = os.getpid()
-        self.logger.debug('daemon master started ; pid={pid}'.format(pid=pid))
+        self.logger.info('daemon master started ; pid={pid}'.format(pid=pid))
         # start daemon workers
         for worker in self.worker_pool:
             worker.start()
-        self.logger.debug('daemon master launched all worker processes')
+        self.logger.info('daemon master launched all worker processes')
         # loop of scheduler
         while not self.to_stop_scheduler:
             self._scheduler_cycle()
         # end
-        self.logger.debug('daemon master ended')
+        self.logger.info('daemon master ended')
 
 
 # main function
