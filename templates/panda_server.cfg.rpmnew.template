@@ -397,6 +397,6 @@ config = {
     "add": {"period": 240},
     "copyArchive": {"period": 3600, "sync": true},
     "pilotStreaming": {"enable": false, "period": 300},
-    "configurator": {"module": "Configurator", "period": 200},
-    "serverSchedconfigJson": {"module": "Configurator", "arguments": ["--json_dump"], "period": 200}
+    "configurator": {"module": "configurator", "period": 200},
+    "serverSchedconfigJson": {"module": "configurator", "arguments": ["--json_dump"], "period": 200}
   }

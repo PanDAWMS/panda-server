@@ -261,6 +261,7 @@ setup(
                'pandaserver.brokerage',
                'pandaserver.config',
                'pandaserver.daemons',
+               'pandaserver.daemons.scripts',
                'pandaserver.dataservice',
                'pandaserver.jobdispatcher',
                'pandaserver.server',

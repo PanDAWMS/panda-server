@@ -17,17 +17,11 @@ ARGV="$@"
 # --------------------                              --------------------
 #
 
-# virtual env and package path
-VENV='/opt/panda'
-PACKAGE_PATH='/opt/panda/lib/python3.6/site-packages'
-
 # virtual env activation
-# @@virtual_env_setup@@
-. ${VENV}/bin/activate
+@@virtual_env_setup@@
 
 # the path to application
-# PROGNAME='python -u @@install_purelib@@/pandaserver/daemons/master.py'
-PROGNAME="python -u ${PACKAGE_PATH}/pandaserver/daemons/master.py"
+PROGNAME='python -u @@install_purelib@@/pandaserver/daemons/master.py'
 
 # pid and lock files
 PIDFILE='/var/log/panda/panda_daemon.pid'

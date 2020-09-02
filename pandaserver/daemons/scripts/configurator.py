@@ -8,7 +8,7 @@ from pandaserver.configurator.Configurator import Configurator, NetworkConfigura
 
 
 # main
-def main(argv=tuple(), tbif=None, dbif=None):
+def main(argv=tuple(), tbif=None, dbif=None, **kwargs):
     # logger
     _logger = PandaLogger().getLogger('configurator')
 

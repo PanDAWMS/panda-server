@@ -4,7 +4,7 @@ import math
 
 
 # run
-def main(tbif=None):
+def main(tbif=None, **kwargs):
 
     print('Dummy test of PanDA daemon ---- START')
 

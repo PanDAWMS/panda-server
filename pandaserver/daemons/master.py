@@ -280,8 +280,9 @@ class DaemonMaster(object):
                 if 'sync' not in attrs:
                     self.dem_config[dem_name]['sync'] = False
                 # check mandatory attributes
+                the_attrs = copy.deepcopy(self.dem_config[dem_name])
                 for attr, attr_type in MANDATORY_ATTRS:
-                    if attr not in attrs or not isinstance(attrs[attr], attr_type):
+                    if attr not in the_attrs or not isinstance(the_attrs[attr], attr_type):
                         self.logger.warning('daemon config missing "{attr}" attribute for {dem} ; skipped'.format(
                                             attr=attr, dem=dem_name))
                         del self.dem_config[dem_name]

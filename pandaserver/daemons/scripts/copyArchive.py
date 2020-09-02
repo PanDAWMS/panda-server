@@ -21,7 +21,7 @@ from pandaserver.config import panda_config
 
 
 # main
-def main(argv=tuple(), tbif=None):
+def main(argv=tuple(), tbif=None, **kwargs):
     # password
     requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
