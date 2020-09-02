@@ -11,7 +11,7 @@ from pandaserver.config import panda_config
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 #Configurator libraries
-from models import Site, PandaSite, DdmEndpoint, Schedconfig, Jobsactive4, SiteStats, PandaDdmRelation
+from .models import Site, PandaSite, DdmEndpoint, Schedconfig, Jobsactive4, SiteStats, PandaDdmRelation
 
 #Read connection parameters
 __host = panda_config.dbhost
@@ -27,7 +27,7 @@ __echo = False
 
 #Create the SQLAlchemy engine
 try:
-    __engine = sqlalchemy.create_engine("oracle://%s:%s@%s"%(__user, __passwd, __host), 
+    __engine = sqlalchemy.create_engine("oracle://%s:%s@%s"%(__user, __passwd, __host),
                                          echo=__echo)
 except exc.SQLAlchemyError:
     _logger.critical("Could not load the DB engine: %s"%sys.exc_info())
@@ -48,7 +48,7 @@ def write_sites_db(session, sites_list):
         _logger.debug("Starting write_sites_db")
         for site in sites_list:
             _logger.debug("Site: {0}".format(site['site_name']))
-            session.merge(Site(site_name = site['site_name'], 
+            session.merge(Site(site_name = site['site_name'],
                                       role = site['role'],
                                       tier_level = site['tier_level']))
         session.commit()
@@ -85,8 +85,8 @@ def write_ddm_endpoints_db(session, ddm_endpoints_list):
     try:
         _logger.debug("Starting write_ddm_endpoints_db")
         for ddm_endpoint in ddm_endpoints_list:
-            session.merge(DdmEndpoint(ddm_endpoint_name = ddm_endpoint['ddm_endpoint_name'], 
-                                        site_name = ddm_endpoint['site_name'], 
+            session.merge(DdmEndpoint(ddm_endpoint_name = ddm_endpoint['ddm_endpoint_name'],
+                                        site_name = ddm_endpoint['site_name'],
                                         ddm_spacetoken_name = ddm_endpoint['ddm_spacetoken_name'],
                                         type = ddm_endpoint['type'],
                                         is_tape = ddm_endpoint['is_tape'],
@@ -259,7 +259,7 @@ def update_storage(session, ddm_endpoint_name, rse_usage):
 def delete_sites(session, sites_to_delete):
     """
     Delete sites and all dependent entries (panda_sites, ddm_endpoints, panda_ddm_relations).
-    Deletion of dependent entries is done through cascade definition in models 
+    Deletion of dependent entries is done through cascade definition in models
     """
     if not sites_to_delete:
         _logger.debug("delete_sites: nothing to delete")
@@ -280,7 +280,7 @@ def delete_sites(session, sites_to_delete):
 
 def delete_panda_sites(session, panda_sites_to_delete):
     """
-    Delete PanDA sites and dependent entries in panda_ddm_relations 
+    Delete PanDA sites and dependent entries in panda_ddm_relations
     """
     if not panda_sites_to_delete:
         _logger.debug("delete_panda_sites: nothing to delete")

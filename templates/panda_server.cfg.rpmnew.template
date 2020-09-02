@@ -392,9 +392,11 @@ package = pandaserver.daemons.scripts
 n_proc = 1
 
 # configuration in json about daemons
-# of the form {"script_module_name": {"attr": <value>, ...}, ...}
+# of the form {"daemon_name": {"module": <module_name>, "period": <period>, ...}, ...}
 config = {
     "add": {"period": 240},
     "copyArchive": {"period": 3600, "sync": true},
-    "pilotStreaming": {"enable": false, "period": 300}
+    "pilotStreaming": {"enable": false, "period": 300},
+    "configurator": {"module": "Configurator", "period": 200},
+    "serverSchedconfigJson": {"module": "Configurator", "arguments": ["--json_dump"], "period": 200}
   }

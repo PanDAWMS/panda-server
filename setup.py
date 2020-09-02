@@ -263,7 +263,6 @@ setup(
                'pandaserver.daemons',
                'pandaserver.dataservice',
                'pandaserver.jobdispatcher',
-               'pandaserver.scripts',
                'pandaserver.server',
                'pandaserver.srvcore',
                'pandaserver.taskbuffer',
