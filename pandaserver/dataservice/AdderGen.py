@@ -638,12 +638,14 @@ class AdderGen:
             nEventsFrom = "json"
         except Exception:
             pass
-        # use nEvents reported by the pilot if no job report
+        # use nEvents and GUIDs reported by the pilot if no job report
         if self.job.metadata == 'NULL' and self.jobStatus == 'finished' and self.job.nEvents > 0 \
                 and self.job.prodSourceLabel in ['managed']:
             for file in self.job.Files:
                 if file.type == 'output':
                     nEventsMap[file.lfn] = self.job.nEvents
+            for lfn, guid in zip(lfns, guids):
+                guidMap[lfn] = guid
             nEventsFrom = "pilot"
         self.logger.debug('nEventsMap=%s' % str(nEventsMap))
         self.logger.debug('nEventsFrom=%s' % str(nEventsFrom))
