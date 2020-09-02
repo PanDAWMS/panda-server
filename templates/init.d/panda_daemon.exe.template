@@ -80,6 +80,7 @@ stop)
       echo "trying $itry"
       if [ ! -f $PIDFILE ]; then
         echo "pidfile $PIDFILE does not exist; skipped"
+        rm -f $LOCKFILE
         ERROR=2
         exit $ERROR
       fi
@@ -89,7 +90,7 @@ stop)
       ERROR=$?
       if [ $ERROR -eq 1 ]; then
         echo "succeeded"
-        rm -f $PIDFILE $LOCKFILE
+        rm -f $PIDFILE ${PIDFILE}.lock $LOCKFILE
         break
       else
         echo "failed with $ERROR"

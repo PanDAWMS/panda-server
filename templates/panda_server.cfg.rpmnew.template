@@ -388,6 +388,9 @@ gname = zp
 # package path of script modules to run in daemon
 package = pandaserver.scripts
 
+# number of worker processes to run daemons
+n_proc = 1
+
 # configuration in json about daemons
 # of the form {"script_module_name": {"attr": <value>, ...}, ...}
 config = {
