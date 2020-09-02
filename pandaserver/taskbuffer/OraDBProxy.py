@@ -23389,8 +23389,10 @@ class DBProxy:
     # lock process
     def lockProcess_PANDA(self, component, pid, time_limit, force=False):
         comment = ' /* DBProxy.lockProcess_PANDA */'
-        method_name = self.getMethodName(comment)
+        method_name = 'lockProcess_PANDA'
         # defaults
+        vo = 'default'
+        prodSourceLabel = 'default'
         cloud = 'default'
         workqueue_id = 0
         resource_name = 'default'
@@ -23467,14 +23469,16 @@ class DBProxy:
             # roll back
             self._rollback()
             # error
-            self.dumpErrorMessage(tmp_log, msgType='debug')
+            self.dumpErrorMessage(tmp_log, method_name)
             return retVal
 
     # unlock process
     def unlockProcess_PANDA(self, component, pid):
         comment = ' /* DBProxy.unlockProcess_PANDA */'
-        method_name = self.getMethodName(comment)
+        method_name = 'unlockProcess_PANDA'
         # defaults
+        vo = 'default'
+        prodSourceLabel = 'default'
         cloud = 'default'
         workqueue_id = 0
         resource_name = 'default'
@@ -23511,13 +23515,16 @@ class DBProxy:
             # roll back
             self._rollback()
             # error
-            self.dumpErrorMessage(tmp_log)
+            self.dumpErrorMessage(tmp_log, method_name)
             return retVal
 
     # check process lock
     def checkProcessLock_PANDA(self, component, pid, time_limit, check_base=False):
         comment = ' /* DBProxy.checkProcessLock_PANDA */'
+        method_name = 'checkProcessLock_PANDA'
         # defaults
+        vo = 'default'
+        prodSourceLabel = 'default'
         cloud = 'default'
         workqueue_id = 0
         resource_name = 'default'
@@ -23558,15 +23565,18 @@ class DBProxy:
                     if lockedBy != pid:
                         retVal = True, lockedTime
                 if retVal[0]:
-                    tmp_log.debug('skipped since locked by {0}'.format(lockedBy))
+                    tmp_log.debug('found locked by {0} at {1}'.format(
+                                    lockedBy, lockedTime.strftime('%Y-%m-%d_%H:%M:%S')))
+                else:
+                    tmp_log.debug('found unlocked')
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
-            tmp_log.debug('done with {0}'.format(retVal))
+            tmp_log.debug('done')
             return retVal
         except Exception:
             # roll back
             self._rollback()
             # error
-            self.dumpErrorMessage(tmp_log, msgType='debug')
+            self.dumpErrorMessage(tmp_log, method_name)
             return retVal
