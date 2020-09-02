@@ -3,17 +3,19 @@ import time
 
 # from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 # from pandaserver.configurator import db_interface as dbif
-from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger import logger_utils
+from pandaserver.configurator import Configurator as configurator_module
 from pandaserver.configurator.Configurator import Configurator, NetworkConfigurator, JsonDumper
 
 
 # main
 def main(argv=tuple(), tbif=None, dbif=None, **kwargs):
     # logger
-    _logger = PandaLogger().getLogger('configurator')
+    base_logger = configurator_module._logger
 
     # If no argument, call the basic configurator
     if len(argv) == 1:
+        _logger = logger_utils.make_logger(base_logger, 'Configurator')
         t1 = time.time()
         configurator = Configurator()
         if not configurator.run():
@@ -23,6 +25,7 @@ def main(argv=tuple(), tbif=None, dbif=None, **kwargs):
 
     # If --network argument, call the network configurator
     elif len(argv) == 2 and argv[1].lower() == '--network':
+        _logger = logger_utils.make_logger(base_logger, 'NetworkConfigurator')
         t1 = time.time()
         network_configurator = NetworkConfigurator()
         if not network_configurator.run():
@@ -32,6 +35,7 @@ def main(argv=tuple(), tbif=None, dbif=None, **kwargs):
 
     # If --json_dump
     elif len(argv) == 2 and argv[1].lower() == '--json_dump':
+        _logger = logger_utils.make_logger(base_logger, 'JsonDumper')
         t1 = time.time()
         json_dumper = JsonDumper()
         out_msg = json_dumper.run()

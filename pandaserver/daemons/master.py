@@ -39,6 +39,7 @@ END_SIGNALS = [
 MANDATORY_ATTRS = [
         ('module', str),
         ('period', int),
+        ('arguments', list),
     ]
 
 # command to send in pipe to stop daemon worker processes
@@ -125,6 +126,7 @@ def _process_loop(dem_config, msg_queue, pipe_conn):
             the_module = module_map[dem_name]
             attrs = dem_config[dem_name]
             mod_args = attrs['arguments']
+            mod_argv = tuple([__file__] + mod_args)
             dem_period = attrs['period']
             dem_period_in_minute = dem_period/60.
             is_sync = attrs['sync']
@@ -159,7 +161,7 @@ def _process_loop(dem_config, msg_queue, pipe_conn):
                 try:
                     # execute the module script with arguments
                     tmp_log.debug('start daemon {dem}'.format(dem=dem_name))
-                    the_module.main(argv=mod_args, tbif=tbif)
+                    the_module.main(argv=mod_argv, tbif=tbif)
                     tmp_log.debug('finish daemon {dem}'.format(dem=dem_name))
                 except Exception as e:
                     tb = traceback.format_exc()
@@ -270,21 +272,25 @@ class DaemonMaster(object):
                 # remove disabled daemons
                 if 'enable' in attrs and attrs['enable'] is False:
                     del self.dem_config[dem_name]
+                    continue
                 # handle option attributes
                 if 'module' not in attrs:
                     self.dem_config[dem_name]['module'] = dem_name
-                if 'arguments' in attrs:
-                    self.dem_config[dem_name]['arguments'] = tuple(attrs['arguments'])
-                else:
-                    self.dem_config[dem_name]['arguments'] = tuple()
+                if 'arguments' not in attrs:
+                    self.dem_config[dem_name]['arguments'] = []
                 if 'sync' not in attrs:
                     self.dem_config[dem_name]['sync'] = False
                 # check mandatory attributes
                 the_attrs = copy.deepcopy(self.dem_config[dem_name])
                 for attr, attr_type in MANDATORY_ATTRS:
-                    if attr not in the_attrs or not isinstance(the_attrs[attr], attr_type):
-                        self.logger.warning('daemon config missing "{attr}" attribute for {dem} ; skipped'.format(
+                    if attr not in the_attrs:
+                        self.logger.warning('daemon config missing attribute "{attr}" for {dem} ; skipped'.format(
                                             attr=attr, dem=dem_name))
+                        del self.dem_config[dem_name]
+                        break
+                    elif not isinstance(the_attrs[attr], attr_type):
+                        self.logger.warning('daemon config has invalid type of attribute "{attr}" for {dem} (type must be {typ}) ; skipped'.format(
+                                            attr=attr, dem=dem_name, typ=attr_type.__name__))
                         del self.dem_config[dem_name]
                         break
         except Exception as e:
