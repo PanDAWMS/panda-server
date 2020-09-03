@@ -288,6 +288,7 @@ setup(
 
                 # init script
                 ('etc/rc.d/init.d', ['templates/init.d/panda_server.exe.template',
+                                     'templates/init.d/panda_httpd.exe.template',
                                      'templates/init.d/panda_daemon.exe.template',
                                    ]
                  ),

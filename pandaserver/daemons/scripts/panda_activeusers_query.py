@@ -14,7 +14,6 @@ def main(tbuf=None, **kwargs):
 
     tmpLog.debug("================= start ==================")
     # instantiate TB
-    taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer
         taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
