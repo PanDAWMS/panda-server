@@ -85,10 +85,18 @@ def daemon_loop(dem_config, msg_queue, pipe_conn):
     module_map = {}
     # package of daemon scripts
     mod_package = getattr(daemon_config, 'package')
+    # initialize cx_Oracle using dummy connection
+    try:
+        from pandaserver.taskbuffer.Initializer import initializer
+        initializer.init()
+    except Exception as e:
+        tmp_log.error('failed to launch initializer with {err} ; terminated'.format(
+                            err='{0}: {1}'.format(e.__class__.__name__, e)))
+        return
     # taskBuffer object
     try:
-        from pandaserver.taskbuffer.TaskBuffer import taskBuffer as tbif
-        tbif.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
+        from pandaserver.taskbuffer.TaskBuffer import taskBuffer as tbuf
+        tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
         tmp_log.debug('taskBuffer initialized')
     except Exception as e:
         tmp_log.error('failed to initialize taskBuffer with {err} ; terminated'.format(
@@ -140,13 +148,13 @@ def daemon_loop(dem_config, msg_queue, pipe_conn):
             # whether the daemon shoule be synchronized among nodes
             if is_sync:
                 # sychronized daemon, check process lock in DB
-                ret_val, locked_time = tbif.checkProcessLock_PANDA(component=component, pid=my_full_pid, time_limit=dem_period_in_minute)
+                ret_val, locked_time = tbuf.checkProcessLock_PANDA(component=component, pid=my_full_pid, time_limit=dem_period_in_minute)
                 if ret_val:
                     # locked by some process on other nodes
                     last_run_start_ts = int((locked_time - EPOCH).total_seconds())
                 else:
                     # try to get the lock
-                    got_lock = tbif.lockProcess_PANDA(component=component, pid=my_full_pid, time_limit=dem_period_in_minute)
+                    got_lock = tbuf.lockProcess_PANDA(component=component, pid=my_full_pid, time_limit=dem_period_in_minute)
                     if got_lock:
                         # got the lock
                         to_run_daemon = True
@@ -161,7 +169,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn):
                 try:
                     # execute the module script with arguments
                     tmp_log.debug('daemon {dem} start'.format(dem=dem_name))
-                    the_module.main(argv=mod_argv, tbif=tbif)
+                    the_module.main(argv=mod_argv, tbuf=tbuf)
                     tmp_log.debug('daemon {dem} finish'.format(dem=dem_name))
                 except Exception as e:
                     tb = traceback.format_exc()

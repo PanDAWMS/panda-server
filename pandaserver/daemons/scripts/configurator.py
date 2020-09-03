@@ -9,7 +9,7 @@ from pandaserver.configurator.Configurator import Configurator, NetworkConfigura
 
 
 # main
-def main(argv=tuple(), tbif=None, dbif=None, **kwargs):
+def main(argv=tuple(), tbuf=None, **kwargs):
     # logger
     base_logger = configurator_module._logger
 

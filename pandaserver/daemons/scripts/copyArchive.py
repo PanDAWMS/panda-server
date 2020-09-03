@@ -21,7 +21,7 @@ from pandaserver.config import panda_config
 
 
 # main
-def main(argv=tuple(), tbif=None, **kwargs):
+def main(argv=tuple(), tbuf=None, **kwargs):
     # password
     requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
@@ -127,11 +127,11 @@ def main(argv=tuple(), tbif=None, **kwargs):
 
 
     # instantiate TB
-    if tbif is None:
+    if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer
         taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
     else:
-        taskBuffer = tbif
+        taskBuffer = tbuf
 
 
     # instantiate sitemapper

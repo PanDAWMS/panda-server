@@ -4,7 +4,7 @@ import math
 
 
 # run
-def main(tbif=None, **kwargs):
+def main(tbuf=None, **kwargs):
 
     print('Dummy test of PanDA daemon ---- START')
 
@@ -13,7 +13,7 @@ def main(tbif=None, **kwargs):
 
     print('uid={uid} , pid={pid}'.format(uid=os.getuid(), pid=os.getpid()))
 
-    if tbif is not None:
+    if tbuf is not None:
         print('I got panda taskBuffer from daemon!!')
     else:
         print('I did not get panda taskBuffer from daemon...')
