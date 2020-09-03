@@ -34,11 +34,11 @@ start)
     ERROR=$?
     ;;
 stop)
-    ${S_httpd} stop
-    ERROR1=$?
     ${S_daemon} stop
+    ERROR1=$?
+    ${S_httpd} stop
     ERROR2=$?
-    if [ $ERROR1 -ne 0 ]; then
+    if [ $ERROR2 -eq 0 ]; then
       ERROR=$ERROR1
     else
       ERROR=$ERROR2

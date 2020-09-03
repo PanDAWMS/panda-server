@@ -25,12 +25,12 @@
 #
 # Apache control script designed to allow an easy command line interface
 # to controlling Apache.  Written by Marc Slemko, 1997/08/23
-# 
+#
 # The exit codes returned are:
 #   XXX this doc is no longer correct now that the interesting
 #   XXX functions are handled by httpd
 #	0 - operation completed successfully
-#	1 - 
+#	1 -
 #	2 - usage error
 #	3 - httpd could not be started
 #	4 - httpd could not be stopped
@@ -46,14 +46,14 @@ ARGV="$@"
 #
 # |||||||||||||||||||| START CONFIGURATION SECTION  ||||||||||||||||||||
 # --------------------                              --------------------
-# 
+#
 # the path to your httpd binary, including options if necessary
 HTTPD='/usr/sbin/httpd'
 
 #
 # a command that outputs a formatted text version of the HTML at the
 # url given on the command line.  Designed for lynx, however other
-# programs may work.  
+# programs may work.
 if [ -x /usr/bin/links ]; then
    LYNX="links -dump"
 elif [ -x /usr/bin/lynx ]; then
@@ -73,7 +73,7 @@ if [ -r /etc/sysconfig/panda_server ]; then
 fi
 
 ERROR=0
-if [ "x$ARGV" = "x" ] ; then 
+if [ "x$ARGV" = "x" ] ; then
     ARGV="-h"
 fi
 
@@ -116,7 +116,7 @@ function check_pidfile () {
         if [ ! `echo $PSOUT | grep $COMSTR` ]; then
 	    echo "check pid: deleting /var/log/panda/panda_server_httpd.pid"
             rm -rf /var/log/panda/panda_server_httpd.pid
-	    retval=0 
+	    retval=0
         else
 	    echo "check pid: httpd is running"
 	    retval=1
@@ -139,6 +139,7 @@ restart|graceful)
     fi
     ;;
 start|stop)
+    echo "$ARGV PanDA httpd"
     check13
     case $ARGV in
         start)
@@ -195,4 +196,3 @@ fullstatus)
 esac
 
 exit $ERROR
-
