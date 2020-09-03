@@ -73,10 +73,10 @@ def kill_whole():
 
 
 # worker process loop of daemon
-def _process_loop(dem_config, msg_queue, pipe_conn):
+def daemon_loop(dem_config, msg_queue, pipe_conn):
     # pid of the worker
     my_pid = os.getpid()
-    my_full_pid = '{0}-{1}-{2}'.format(socket.getfqdn().split('.')[0], my_pid, os.getpgrp(), my_pid)
+    my_full_pid = '{0}-{1}-{2}'.format(socket.getfqdn().split('.')[0], os.getpgrp(), my_pid)
     # logger to log in file
     base_logger = logger_utils.setup_logger('daemons')
     tmp_log = logger_utils.make_logger(base_logger, 'worker_pid={pid}'.format(pid=my_pid))
@@ -116,13 +116,13 @@ def _process_loop(dem_config, msg_queue, pipe_conn):
             else:
                 tmp_log.debug('got invalid command "{cmd}" ; skipped it'.format(cmd=cmd))
         # get a message from queue
-        tmp_log.debug('getting message to run daemon...')
+        tmp_log.debug('waiting for message...')
         one_msg = msg_queue.get()
         # process message
         if one_msg in module_map:
-            tmp_log.debug('got message to run daemon {dem}'.format(dem=dem_name))
             # got a daemon name, get the module object and corresponding attributes
             dem_name = one_msg
+            tmp_log.debug('got message of {dem}'.format(dem=dem_name))
             the_module = module_map[dem_name]
             attrs = dem_config[dem_name]
             mod_args = attrs['arguments']
@@ -140,13 +140,13 @@ def _process_loop(dem_config, msg_queue, pipe_conn):
             # whether the daemon shoule be synchronized among nodes
             if is_sync:
                 # sychronized daemon, check process lock in DB
-                ret_val, locked_time = tbif.checkProcessLock_PANDA(component=component, pid=my_pid, time_limit=dem_period_in_minute)
+                ret_val, locked_time = tbif.checkProcessLock_PANDA(component=component, pid=my_full_pid, time_limit=dem_period_in_minute)
                 if ret_val:
                     # locked by some process on other nodes
                     last_run_start_ts = int((locked_time - EPOCH).total_seconds())
                 else:
                     # try to get the lock
-                    got_lock = tbif.lockProcess_PANDA(component=component, pid=my_pid, time_limit=dem_period_in_minute)
+                    got_lock = tbif.lockProcess_PANDA(component=component, pid=my_full_pid, time_limit=dem_period_in_minute)
                     if got_lock:
                         # got the lock
                         to_run_daemon = True
@@ -160,9 +160,9 @@ def _process_loop(dem_config, msg_queue, pipe_conn):
                 last_run_start_ts = int(time.time())
                 try:
                     # execute the module script with arguments
-                    tmp_log.debug('start daemon {dem}'.format(dem=dem_name))
+                    tmp_log.debug('daemon {dem} start'.format(dem=dem_name))
                     the_module.main(argv=mod_argv, tbif=tbif)
-                    tmp_log.debug('finish daemon {dem}'.format(dem=dem_name))
+                    tmp_log.debug('daemon {dem} finish'.format(dem=dem_name))
                 except Exception as e:
                     tb = traceback.format_exc()
                     tmp_log.error('failed to run daemon {dem} with {err} ; skipped it'.format(
@@ -207,7 +207,7 @@ class DaemonWorker(object):
     # make associated process
     def _make_process(self, dem_config, msg_queue):
         args = (dem_config, msg_queue, self.child_conn)
-        self.process = multiprocessing.Process(target=_process_loop, args=args)
+        self.process = multiprocessing.Process(target=daemon_loop, args=args)
 
     # start worker process
     def start(self):
