@@ -19990,17 +19990,21 @@ class DBProxy:
         tmpLog = LogWrapper(_logger,methodName+" <ID={0}>".format(objID))
         tmpLog.debug("start")
         try:
-            f = open(srcFileName)
-            data = json.load(f)
-            for rseName in data:
-                rseData = data[rseName]
-                if rseData['id'] == objID:
-                    retMap = {'name': rseName,
-                              "is_deterministic": rseData['is_deterministic'],
-                              'type': rseData['type']
-                              }
-                    tmpLog.debug("got {0}".format(str(retMap)))
-                    return retMap
+            for srcFile in srcFileName.split(','):
+                if not os.path.exists(srcFile):
+                    continue
+                with open(srcFile) as f:
+                    data = json.load(f)
+                    for rseName in data:
+                        rseData = data[rseName]
+                        if objID in [rseData['id'], rseName]:
+                            retMap = {'name': rseName,
+                                      "is_deterministic": rseData['is_deterministic'],
+                                      'type': rseData['type']
+                                      }
+                            tmpLog.debug("got {0}".format(str(retMap)))
+                            return retMap
+            tmpLog.debug('not found')
         except Exception:
             # error
             self.dumpErrorMessage(_logger,methodName)

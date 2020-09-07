@@ -922,7 +922,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                 # convert to DDM endpoint
                 rse = self.taskBuffer.convertObjIDtoEndPoint(panda_config.endpoint_mapfile,
                                                              epID)
-                if rse['is_deterministic']:
+                if rse is not None and rse['is_deterministic']:
                     epName = rse['name']
                     if epName not in idMap:
                         idMap[epName] = dict()

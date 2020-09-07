@@ -179,3 +179,15 @@ class SiteSpec(object):
     # use local data only
     def use_only_local_data(self):
         return self.hasValueInCatchall('use_only_local_data')
+
+    # check if use VP
+    def use_vp(self, scope):
+        # use default scope if missing
+        if scope not in self.ddm_endpoints_input:
+            scope = 'default'
+        # check if VP_DISK is associated
+        if scope in self.ddm_endpoints_input and \
+                [i for i in self.ddm_endpoints_input[scope].getAllEndPoints() if i.endswith('_VP_DISK')]:
+            return True
+        return False
+

@@ -51,7 +51,7 @@ if job.computingSite in ['',None,'NULL']:
 siteSpec = siteMapper.getSite(job.computingSite)
 scope_input, scope_output = select_scope(siteSpec, job.prodSourceLabel)
 
-with open('/cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_ddmendpoints.json') as f:
+with open('/cvmfs/atlas.cern.ch/repo/sw/local/etc/cric_ddmendpoints.json') as f:
     rseDict = json.load(f)
 
 hash = hashlib.md5()
