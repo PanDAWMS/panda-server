@@ -25,3 +25,7 @@ for tmpKey in tmpDict:
         tmpVal = int(tmpVal)
     # update dict
     tmpSelf.__dict__[tmpKey] = tmpVal
+
+# default values
+if 'enable' not in tmpSelf.__dict__:
+    tmpSelf.__dict__['enable'] = False

@@ -37,35 +37,52 @@ if [ -r /etc/sysconfig/panda_server ]; then
 fi
 
 
+# check if PanDA Daemon is enabled in config
+function check_enable() {
+  command_to_check='from pandaserver.config import daemon_config; print(daemon_config.enable)'
+  return_string=$(python -u -c "${command_to_check}")
+  if [ "$return_string" == "True" ]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+
+# main
 ERROR=0
 if [ "x$ARGV" = "x" ] ; then
     ARGV="-h"
 fi
 
-
 case $ARGV in
 start)
-    if [ -f $LOCKFILE ]; then
-	echo "ERROR: PanDA Daemon is already running with lockfile:$LOCKFILE"
-    else
-	echo "start PanDA Daemon"
-	for itry in `seq 1 5`
-	do
-	    echo "trying $itry"
-	    $PROGNAME --pid $PIDFILE >> $LOGSTDOUT 2>> $LOGSTDERR
-	    touch $LOCKFILE
-	    sleep 5
-	    ps -p `cat $PIDFILE` > /dev/null
-	    ERROR=$?
-	    if [ $ERROR -eq 0 ]; then
+  check_enable
+  if [ $? -ne 0 ]; then
+    echo "PanDA Daemon is not enabled. Do nothing..."
+    exit $ERROR
+  fi
+  if [ -f $LOCKFILE ]; then
+    echo "ERROR: PanDA Daemon is already running with lockfile:$LOCKFILE"
+  else
+    echo "start PanDA Daemon"
+    for itry in `seq 1 5`
+    do
+      echo "trying $itry"
+      $PROGNAME --pid $PIDFILE >> $LOGSTDOUT 2>> $LOGSTDERR
+      touch $LOCKFILE
+      sleep 5
+      ps -p `cat $PIDFILE` > /dev/null
+      ERROR=$?
+      if [ $ERROR -eq 0 ]; then
     		echo "succeeded"
     		break
-	    else
+      else
     		echo "failed with $ERROR"
     		rm -f $LOCKFILE
-	    fi
-	done
-    fi
+      fi
+    done
+  fi
     ;;
 stop)
     echo "stop PanDA Daemon"
