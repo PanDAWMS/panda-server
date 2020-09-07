@@ -393,10 +393,25 @@ n_proc = 1
 
 # configuration in json about daemons
 # of the form {"daemon_name": {"module": <module_name>, "period": <period>, ...}, ...}
-config = {
-    "add": {"period": 240},
-    "copyArchive": {"period": 3600, "sync": true},
-    "pilotStreaming": {"enable": false, "period": 300},
-    "configurator": {"module": "configurator", "period": 200},
-    "serverSchedconfigJson": {"module": "configurator", "arguments": ["--json_dump"], "period": 200}
+config = config = {
+    "dummy_test": {
+        "enable": false, "period": 120},
+    "add": {
+        "enable": true, "period": 240},
+    "evpPD2P": {
+        "enable": true, "period": 600},
+    "copyArchive": {
+        "enable": true, "period": 2400, "sync": true},
+    "datasetManager": {
+        "enable": true, "period": 2400, "sync": true},
+    "proxyCache": {
+        "module": "panda_activeusers_query", "enable": true, "period": 600},
+    "pilot_streaming": {
+        "module": "pilotStreaming", "enable": true, "period": 300},
+    "configurator": {
+        "enable": true, "module": "configurator", "period": 200, "sync": true},
+    "network_configurator": {
+        "enable": true, "module": "configurator", "arguments": ["--network"], "period": 400, "sync": true},
+    "schedconfig_json": {
+        "enable": true, "module": "configurator", "arguments": ["--json_dump"], "period": 200, "sync": true}
   }
