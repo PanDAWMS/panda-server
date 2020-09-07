@@ -550,7 +550,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         thr.join()
 
     # terminate TaskBuffer IF
-    taskBufferIF.terminate()
+    # taskBufferIF.terminate()
 
     tmpLog.debug("===================== end =====================")
 
