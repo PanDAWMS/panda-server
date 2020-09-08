@@ -123,15 +123,17 @@ def daemon_loop(dem_config, msg_queue, pipe_conn):
                 if ret_val:
                     # locked by some process on other nodes
                     last_run_start_ts = int((locked_time - EPOCH).total_seconds())
+                    tmp_log.debug('found {dem} is locked by other process ; skipped it'.format(dem=dem_name))
                 else:
                     # try to get the lock
                     got_lock = tbuf.lockProcess_PANDA(component=component, pid=my_full_pid, time_limit=dem_period_in_minute)
                     if got_lock:
                         # got the lock
                         to_run_daemon = True
+                        tmp_log.debug('got lock of {dem}'.format(dem=dem_name))
                     else:
                         # did not get lock, skip
-                        pass
+                        tmp_log.debug('did not get lock of {dem} ; skipped it'.format(dem=dem_name))
             else:
                 to_run_daemon = True
             # run daemon
