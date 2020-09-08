@@ -13,10 +13,12 @@ from pandaserver.dataservice.EventPicker import EventPicker
 from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
 
+# logger
+_logger = PandaLogger().getLogger('evpPD2P')
+
+
 # main
 def main(tbuf=None, **kwargs):
-    # logger
-    _logger = PandaLogger().getLogger('evpPD2P')
 
     _logger.debug("===================== start =====================")
 

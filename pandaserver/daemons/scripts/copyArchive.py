@@ -20,13 +20,14 @@ from pandaserver.srvcore.CoreUtils import commands_get_status_output
 from pandaserver.config import panda_config
 
 
+# logger
+_logger = PandaLogger().getLogger('copyArchive')
+
+
 # main
 def main(argv=tuple(), tbuf=None, **kwargs):
     # password
     requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
-
-    # logger
-    _logger = PandaLogger().getLogger('copyArchive')
 
     _logger.debug("===================== start =====================")
 

@@ -20,10 +20,12 @@ from pandaserver.dataservice.Closer import Closer
 from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
 
+# logger
+_logger = PandaLogger().getLogger('datasetManager')
+
+
 # main
 def main(tbuf=None, **kwargs):
-    # logger
-    _logger = PandaLogger().getLogger('datasetManager')
 
     _logger.debug("===================== start =====================")
 

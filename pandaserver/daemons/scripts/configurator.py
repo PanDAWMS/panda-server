@@ -8,11 +8,12 @@ from pandaserver.configurator import Configurator as configurator_module
 from pandaserver.configurator.Configurator import Configurator, NetworkConfigurator, JsonDumper
 
 
+# logger
+base_logger = configurator_module._logger
+
+
 # main
 def main(argv=tuple(), tbuf=None, **kwargs):
-    # logger
-    base_logger = configurator_module._logger
-
     # If no argument, call the basic configurator
     if len(argv) == 1:
         _logger = logger_utils.make_logger(base_logger, 'Configurator')

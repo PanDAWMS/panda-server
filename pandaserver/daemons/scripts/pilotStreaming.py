@@ -5,9 +5,13 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.config import panda_config
 
 
+# logger
+_logger = PandaLogger().getLogger('PilotStreaming')
+
+
 class PilotStreaming(object):
     def __init__(self, tbuf):
-        self._logger = PandaLogger().getLogger('PilotStreaming')
+        self._logger = _logger
         self.tbuf = tbuf
         return
 

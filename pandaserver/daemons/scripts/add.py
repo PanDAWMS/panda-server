@@ -23,6 +23,10 @@ from pandaserver.srvcore.CoreUtils import commands_get_status_output
 from pandaserver.taskbuffer.TaskBufferInterface import TaskBufferInterface
 
 
+# logger
+_logger = PandaLogger().getLogger('add')
+
+
 # main
 def main(argv=tuple(), tbuf=None, **kwargs):
 
@@ -31,8 +35,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     except NameError:
         long = int
 
-    # logger
-    _logger = PandaLogger().getLogger('add')
+
 
     tmpLog = LogWrapper(_logger,None)
 

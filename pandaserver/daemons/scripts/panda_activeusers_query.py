@@ -6,10 +6,13 @@ from pandaserver.config import panda_config
 from pandaserver.proxycache import panda_proxy_cache
 
 
+# logger
+_logger = PandaLogger().getLogger('panda_activeusers_query')
+
+
 # main
 def main(tbuf=None, **kwargs):
     # logger
-    _logger = PandaLogger().getLogger('panda_activeusers_query')
     tmpLog = LogWrapper(_logger)
 
     tmpLog.debug("================= start ==================")
