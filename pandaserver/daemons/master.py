@@ -10,15 +10,7 @@ import daemon
 import lockfile
 
 from pandaserver.config import panda_config, daemon_config
-from pandaserver.daemons.utils import DaemonMaster
-
-
-# list of signals accepted to end the main process
-END_SIGNALS = [
-        signal.SIGINT,
-        signal.SIGHUP,
-        signal.SIGTERM,
-    ]
+from pandaserver.daemons.utils import END_SIGNALS, DaemonMaster
 
 
 # get the logger

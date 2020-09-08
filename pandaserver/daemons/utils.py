@@ -9,10 +9,18 @@ import multiprocessing
 import socket
 import importlib
 import traceback
+import signal
 
 from pandacommon.pandalogger import logger_utils
 from pandaserver.config import panda_config, daemon_config
 
+
+# list of signals accepted to end the main process
+END_SIGNALS = [
+        signal.SIGINT,
+        signal.SIGHUP,
+        signal.SIGTERM,
+    ]
 
 # mandatory attributes and thier type of daemon
 MANDATORY_ATTRS = [
@@ -36,7 +44,12 @@ def daemon_loop(dem_config, msg_queue, pipe_conn):
     # logger to log in file
     base_logger = logger_utils.setup_logger('daemons')
     tmp_log = logger_utils.make_logger(base_logger, 'worker_pid={pid}'.format(pid=my_pid))
-    tmp_log.debug('worker start')
+    tmp_log.info('daemon worker start')
+    # signal handler
+    def got_end_sig(sig, frame):
+        tmp_log.warning('(got signal {sig})'.format(sig=sig))
+    for sig in END_SIGNALS:
+        signal.signal(sig, got_end_sig)
     # dict of all daemons and their script module object
     module_map = {}
     # package of daemon scripts
@@ -126,9 +139,9 @@ def daemon_loop(dem_config, msg_queue, pipe_conn):
                 last_run_start_ts = int(time.time())
                 try:
                     # execute the module script with arguments
-                    tmp_log.debug('daemon {dem} start'.format(dem=dem_name))
+                    tmp_log.info('{dem} start'.format(dem=dem_name))
                     the_module.main(argv=mod_argv, tbuf=tbuf)
-                    tmp_log.debug('daemon {dem} finish'.format(dem=dem_name))
+                    tmp_log.info('{dem} finish'.format(dem=dem_name))
                 except Exception as e:
                     tb = traceback.format_exc()
                     tmp_log.error('failed to run daemon {dem} with {err} ; skipped it'.format(
@@ -321,13 +334,13 @@ class DaemonMaster(object):
                         warn_since_ago = now_ts - last_warn_ts
                         if run_delay > max(300, run_period//2) and warn_since_ago > 900:
                             # make warning if delay too much
-                            self.logger.warning('daemon {dem} delayed to run for {delay} sec '.format(
+                            self.logger.warning('{dem} delayed to run for {delay} sec '.format(
                                                 dem=dem_name, delay=run_delay))
                             dem_run_attrs['last_warn_ts'] = now_ts
                     else:
                         # old message processed, send new message
                         self.msg_queue.put(dem_name)
-                        self.logger.info('scheduled to run daemon {dem}'.format(
+                        self.logger.debug('scheduled to run {dem}'.format(
                                             dem=dem_name))
                         dem_run_attrs['msg_ongoing'] = True
                         dem_run_attrs['last_run_start_ts'] = now_ts
@@ -362,7 +375,7 @@ class DaemonMaster(object):
         # start daemon workers
         for worker in self.worker_pool:
             worker.start()
-        self.logger.info('daemon master launched all worker processes')
+        self.logger.debug('daemon master launched all worker processes')
         # loop of scheduler
         while not self.to_stop_scheduler:
             self._scheduler_cycle()
