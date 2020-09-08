@@ -154,8 +154,8 @@ def daemon_loop(dem_config, msg_queue, pipe_conn):
             status_tuple = (dem_name, has_run, last_run_start_ts, last_run_end_ts)
             pipe_conn.send(status_tuple)
             # FIXME: stop and spawn worker in every run for now since some script breaks the worker without exception
-            tmp_log.info('as script done, stop this worker')
-            break
+            # tmp_log.info('as script done, stop this worker')
+            # break
         else:
             # got invalid message
             tmp_log.warning('got invalid message "{msg}", skipped it'.format(msg=one_msg))
