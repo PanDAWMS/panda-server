@@ -153,6 +153,9 @@ def daemon_loop(dem_config, msg_queue, pipe_conn):
             # send daemon status back to master
             status_tuple = (dem_name, has_run, last_run_start_ts, last_run_end_ts)
             pipe_conn.send(status_tuple)
+            # FIXME: stop and spawn worker in every run for now since some script breaks the worker without exception
+            tmp_log.info('as script done, stop this worker')
+            break
         else:
             # got invalid message
             tmp_log.warning('got invalid message "{msg}", skipped it'.format(msg=one_msg))
@@ -345,7 +348,7 @@ class DaemonMaster(object):
                                             dem=dem_name))
                         dem_run_attrs['msg_ongoing'] = True
                         dem_run_attrs['last_run_start_ts'] = now_ts
-        # spwan new workers if ther are less than n_workers
+        # spawn new workers if ther are less than n_workers
         now_n_workers = len(self.worker_pool)
         if now_n_workers < self.n_workers:
             n_up = self.n_workers - now_n_workers
