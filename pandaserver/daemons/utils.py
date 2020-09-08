@@ -90,7 +90,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn):
             cmd = pipe_conn.recv()
             if cmd == CMD_STOP:
                 # got stop command, stop the process
-                tmp_log.debug('got stop command, stop this process')
+                tmp_log.info('got stop command, stop this worker')
                 break
             else:
                 tmp_log.debug('got invalid command "{cmd}" ; skipped it'.format(cmd=cmd))
@@ -144,8 +144,9 @@ def daemon_loop(dem_config, msg_queue, pipe_conn):
                     tmp_log.info('{dem} finish'.format(dem=dem_name))
                 except Exception as e:
                     tb = traceback.format_exc()
-                    tmp_log.error('failed to run daemon {dem} with {err} ; skipped it'.format(
+                    tmp_log.error('failed to run daemon {dem} with {err} ; stop this worker'.format(
                                     dem=dem_name, err='{0}: {1}\n{2}\n'.format(e.__class__.__name__, e, tb)))
+                    break
                 # daemon has run
                 last_run_end_ts = int(time.time())
                 has_run = True
@@ -154,7 +155,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn):
             pipe_conn.send(status_tuple)
         else:
             # got invalid message
-            tmp_log.error('got invalid message "{msg}", skipped it'.format(msg=one_msg))
+            tmp_log.warning('got invalid message "{msg}", skipped it'.format(msg=one_msg))
         # sleep
         time.sleep(2**-5)
 
