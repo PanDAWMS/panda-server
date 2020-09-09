@@ -696,7 +696,7 @@ class FinisherThr (threading.Thread):
                     else:
                         tmpDstID = job.destinationSE
                     tmpDstSite = siteMapper.getSite(tmpDstID)
-                    scope_input, scope_output = select_scope(tmpDstSite, job.prodSourceLabel)
+                    scope_input, scope_output = select_scope(tmpDstSite, job.prodSourceLabel, job.job_label)
                     seList = tmpDstSite.ddm_endpoints_output[scope_output].getLocalEndPoints()
                 # get LFN list
                 lfns   = []
@@ -874,7 +874,7 @@ class ActivatorThr (threading.Thread):
                 else:
                     # check if locally available
                     siteSpec = siteMapper.getSite(tmpJob.computingSite)
-                    scope_input, scope_output = select_scope(siteSpec, tmpJob.prodSourceLabel)
+                    scope_input, scope_output = select_scope(siteSpec, tmpJob.prodSourceLabel, tmpJob.job_label)
                     allOK = True
                     for tmpFile in tmpJob.Files:
                         # only input
@@ -964,7 +964,7 @@ class ActivatorWithRuleThr (threading.Thread):
                     continue
                 # check if locally available
                 siteSpec = siteMapper.getSite(tmpJob.computingSite)
-                scope_input, scope_output = select_scope(siteSpec, tmpJob.prodSourceLabel)
+                scope_input, scope_output = select_scope(siteSpec, tmpJob.prodSourceLabel, tmpJob.job_label)
                 allOK = True
                 for tmpFile in tmpJob.Files:
                     # only input files are checked
