@@ -60,7 +60,7 @@ dq2_dir = /opt/dq2
 # globus dir
 globus_dir = /opt/globus
 
-# path to native python 
+# path to native python
 native_python = @@virtual_env@@/bin
 
 # path to python for lfc client (/data/atlpan/bin/python cannot be used due to lack of libpythonX.Y.so)
@@ -164,7 +164,7 @@ keyDir = /var/keys
 # proxy parameters
 #
 
-# http 
+# http
 httpProxy = ""
 
 
@@ -193,10 +193,10 @@ emailPass = FIXME
 
 ##########################
 #
-# parameters for dynamic task assignment 
+# parameters for dynamic task assignment
 #
 
-# enable dynamic task assignment 
+# enable dynamic task assignment
 enableDynamicTA = True
 
 
@@ -296,10 +296,10 @@ useProxyCache = False
 # Plugin setup
 #
 
-# plugins for Adder. format=vo1(|vo2(vo3...):moduleName:className(,vo4...) 
+# plugins for Adder. format=vo1(|vo2(vo3...):moduleName:className(,vo4...)
 adder_plugins = local:dataservice.AdderDummyPlugin:AdderDummyPlugin
 
-# plugins for Setupper. format=vo1(|vo2(vo3...):moduleName:className(,vo4...) 
+# plugins for Setupper. format=vo1(|vo2(vo3...):moduleName:className(,vo4...)
 setupper_plugins = local:dataservice.SetupperDummyPlugin:SetupperDummyPlugin
 
 # plugins for Closer
@@ -367,3 +367,51 @@ token_authType = None
 token_issuers = https://aipanda026.cern.ch/scitokens
 
 token_audience = https://pandaserver.cern.ch
+
+
+
+
+[daemon]
+
+##########################
+#
+# Daemon
+#
+
+# whether to run daemons for PanDA
+enable = False
+
+# user and group name to run daemons
+uname = atlpan
+gname = zp
+
+# package path of script modules to run in daemon
+package = pandaserver.daemons.scripts
+
+# number of worker processes to run daemons
+n_proc = 1
+
+# configuration in json about daemons
+# of the form {"daemon_name": {"module": <module_name>, "period": <period>, ...}, ...}
+config = config = {
+    "dummy_test": {
+        "enable": false, "period": 120},
+    "add": {
+        "enable": true, "period": 240},
+    "evpPD2P": {
+        "enable": true, "period": 600},
+    "copyArchive": {
+        "enable": true, "period": 2400, "sync": true},
+    "datasetManager": {
+        "enable": true, "period": 2400, "sync": true},
+    "proxyCache": {
+        "module": "panda_activeusers_query", "enable": true, "period": 600},
+    "pilot_streaming": {
+        "module": "pilotStreaming", "enable": true, "period": 300},
+    "configurator": {
+        "enable": true, "module": "configurator", "period": 200, "sync": true},
+    "network_configurator": {
+        "enable": true, "module": "configurator", "arguments": ["--network"], "period": 400, "sync": true},
+    "schedconfig_json": {
+        "enable": true, "module": "configurator", "arguments": ["--json_dump"], "period": 200, "sync": true}
+  }

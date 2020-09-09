@@ -240,6 +240,7 @@ setup(
     zip_safe=False,
     install_requires=['panda-common',
                       'pyOpenSSL',
+                      'python-daemon',
                       'mod_wsgi',
                       'six',
                       'sqlalchemy',
@@ -259,6 +260,8 @@ setup(
     packages=[ 'pandaserver',
                'pandaserver.brokerage',
                'pandaserver.config',
+               'pandaserver.daemons',
+               'pandaserver.daemons.scripts',
                'pandaserver.dataservice',
                'pandaserver.jobdispatcher',
                'pandaserver.server',
@@ -285,6 +288,8 @@ setup(
 
                 # init script
                 ('etc/rc.d/init.d', ['templates/init.d/panda_server.exe.template',
+                                     'templates/init.d/panda_httpd.exe.template',
+                                     'templates/init.d/panda_daemon.exe.template',
                                    ]
                  ),
                 # crons
