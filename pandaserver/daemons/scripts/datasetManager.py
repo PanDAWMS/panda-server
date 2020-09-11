@@ -880,7 +880,7 @@ def main(tbuf=None, **kwargs):
                     else:
                         # check if locally available
                         siteSpec = siteMapper.getSite(tmpJob.computingSite)
-                        scope_input, scope_output = select_scope(siteSpec, tmpJob.prodSourceLabel)
+                        scope_input, scope_output = select_scope(siteSpec, tmpJob.prodSourceLabel, tmpJob.job_label)
                         allOK = True
                         for tmpFile in tmpJob.Files:
                             # only input
@@ -970,7 +970,7 @@ def main(tbuf=None, **kwargs):
                         continue
                     # check if locally available
                     siteSpec = siteMapper.getSite(tmpJob.computingSite)
-                    scope_input, scope_output = select_scope(siteSpec, tmpJob.prodSourceLabel)
+                    scope_input, scope_output = select_scope(siteSpec, tmpJob.prodSourceLabel, tmpJob.job_label)
                     allOK = True
                     for tmpFile in tmpJob.Files:
                         # only input files are checked
