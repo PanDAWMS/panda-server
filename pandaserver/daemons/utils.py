@@ -6,6 +6,7 @@ import json
 import copy
 import threading
 import multiprocessing
+import queue
 import socket
 import importlib
 import traceback
@@ -89,6 +90,10 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime):
     tmp_log.debug('initialized, running')
     # loop
     while True:
+        # stop the worker since when reaches its lifetime
+        if time.time() > expiry_ts:
+            tmp_log.info('worker reached its lifetime, stop this worker')
+            break
         # get command from pipe
         if pipe_conn.poll():
             cmd = pipe_conn.recv()
@@ -100,9 +105,23 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime):
                 tmp_log.debug('got invalid command "{cmd}" ; skipped it'.format(cmd=cmd))
         # get a message from queue
         tmp_log.debug('waiting for message...')
-        one_msg = msg_queue.get()
+        keep_going = True
+        one_msg = None
+        while True:
+            try:
+                one_msg = msg_queue.get(timeout=5)
+                break
+            except queue.Empty:
+                # timeout to get from queue, check whether to keep going
+                if time.time() > expiry_ts:
+                    # worker expired, do not keep going
+                    keep_going = False
+                    break
+        # keep going
+        if not keep_going:
+            continue
         # process message
-        if one_msg in module_map:
+        if one_msg in module_map and one_msg is not None:
             # got a daemon name, get the module object and corresponding attributes
             dem_name = one_msg
             tmp_log.debug('got message of {dem}'.format(dem=dem_name))
@@ -162,9 +181,6 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime):
             # FIXME: stop and spawn worker in every run for now since some script breaks the worker without exception
             # tmp_log.info('as script done, stop this worker')
             # break
-            # stop the worker since when reaches tis lifetime
-            if time.time() > expiry_ts:
-                tmp_log.info('worker reached its lifetime, stop this worker')
         else:
             # got invalid message
             tmp_log.warning('got invalid message "{msg}", skipped it'.format(msg=one_msg))
@@ -227,7 +243,7 @@ class DaemonMaster(object):
         self._worker_lock = threading.Lock()
         self._status_lock = threading.Lock()
         # make message queue
-        self.msg_queue = multiprocessing.SimpleQueue()
+        self.msg_queue = multiprocessing.Queue()
         # process pool
         self.proc_pool = []
         # worker pool
@@ -247,7 +263,9 @@ class DaemonMaster(object):
     def _spawn_workers(self, n_workers=1, auto_start=False):
         for j in range(n_workers):
             with self._worker_lock:
-                worker = DaemonWorker(dem_config=self.dem_config, msg_queue=self.msg_queue)
+                worker = DaemonWorker(  dem_config=self.dem_config,
+                                        msg_queue=self.msg_queue,
+                                        worker_lifetime=self.worker_lifetime)
                 self.worker_pool.add(worker)
                 if auto_start:
                     worker.start()
