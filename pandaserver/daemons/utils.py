@@ -37,7 +37,7 @@ EPOCH = datetime.datetime.fromtimestamp(0)
 
 
 # worker process loop of daemon
-def daemon_loop(dem_config, msg_queue, pipe_conn):
+def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime):
     # pid of the worker
     my_pid = os.getpid()
     my_full_pid = '{0}-{1}-{2}'.format(socket.getfqdn().split('.')[0], os.getpgrp(), my_pid)
@@ -54,6 +54,10 @@ def daemon_loop(dem_config, msg_queue, pipe_conn):
     module_map = {}
     # package of daemon scripts
     mod_package = getattr(daemon_config, 'package')
+    # start timestamp
+    start_ts = time.time()
+    # expiry time
+    expiry_ts = start_ts + worker_lifetime
     # initialize cx_Oracle using dummy connection
     try:
         from pandaserver.taskbuffer.Initializer import initializer
@@ -158,6 +162,9 @@ def daemon_loop(dem_config, msg_queue, pipe_conn):
             # FIXME: stop and spawn worker in every run for now since some script breaks the worker without exception
             # tmp_log.info('as script done, stop this worker')
             # break
+            # stop the worker since when reaches tis lifetime
+            if time.time() > expiry_ts:
+                tmp_log.info('worker reached its lifetime, stop this worker')
         else:
             # got invalid message
             tmp_log.warning('got invalid message "{msg}", skipped it'.format(msg=one_msg))
@@ -179,19 +186,21 @@ class DaemonWorker(object):
     _lock = threading.Lock()
 
     # constructor
-    def __init__(self, dem_config, msg_queue):
+    def __init__(self, dem_config, msg_queue, worker_lifetime):
         # synchronized with lock
         with self._lock:
             self._make_pipe()
-            self._make_process(dem_config=dem_config, msg_queue=msg_queue)
+            self._make_process( dem_config=dem_config,
+                                msg_queue=msg_queue,
+                                worker_lifetime=worker_lifetime)
 
     # make pipe connection pairs for the worker
     def _make_pipe(self):
         self.parent_conn, self.child_conn = multiprocessing.Pipe()
 
     # make associated process
-    def _make_process(self, dem_config, msg_queue):
-        args = (dem_config, msg_queue, self.child_conn)
+    def _make_process(self, dem_config, msg_queue, worker_lifetime):
+        args = (dem_config, msg_queue, self.child_conn, worker_lifetime)
         self.process = multiprocessing.Process(target=daemon_loop, args=args)
 
     # start worker process
@@ -207,11 +216,13 @@ class DaemonWorker(object):
 class DaemonMaster(object):
 
     # constructor
-    def __init__(self, logger, n_workers=1):
+    def __init__(self, logger, n_workers=1, worker_lifetime=28800):
         # logger
         self.logger = logger
         # number of daemon worker processes
         self.n_workers = n_workers
+        # lifetime of daemon worker processes
+        self.worker_lifetime = worker_lifetime
         # locks
         self._worker_lock = threading.Lock()
         self._status_lock = threading.Lock()

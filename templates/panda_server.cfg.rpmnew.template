@@ -391,6 +391,9 @@ package = pandaserver.daemons.scripts
 # number of worker processes to run daemons
 n_proc = 1
 
+# when exceeding lifetime, worker process will be respawned
+proc_lifetime = 14400
+
 # configuration in json about daemons
 # of the form {"daemon_name": {"module": <module_name>, "period": <period>, ...}, ...}
 config = config = {
