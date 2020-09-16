@@ -11,6 +11,7 @@ import socket
 import importlib
 import traceback
 import signal
+import gc
 
 from pandacommon.pandalogger import logger_utils
 from pandaserver.config import panda_config, daemon_config
@@ -103,6 +104,8 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime):
                 break
             else:
                 tmp_log.debug('got invalid command "{cmd}" ; skipped it'.format(cmd=cmd))
+        # clean up memory
+        gc.collect()
         # get a message from queue
         tmp_log.debug('waiting for message...')
         keep_going = True
