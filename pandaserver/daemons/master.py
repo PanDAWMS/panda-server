@@ -52,6 +52,7 @@ def main():
     uid = pwd.getpwnam(uname).pw_uid
     gid = grp.getgrnam(gname).gr_gid
     n_workers = getattr(daemon_config, 'n_proc', 1)
+    worker_lifetime = getattr(daemon_config, 'proc_lifetime', 28800)
     main_log.info('main start')
     # daemon context
     dc = daemon.DaemonContext(  stdout=sys.stdout, stderr=sys.stderr,
@@ -64,7 +65,7 @@ def main():
         with open(options.pidfile, 'w') as pid_file:
             pid_file.write('{0}'.format(os.getpid()))
         # master object
-        master = DaemonMaster(logger=tmp_log, n_workers=n_workers)
+        master = DaemonMaster(logger=tmp_log, n_workers=n_workers, worker_lifetime=worker_lifetime)
         # function to end master when end signal caught
         def end_master(sig, frame):
             tmp_log.info('got end signal: {sig}'.format(sig=sig))

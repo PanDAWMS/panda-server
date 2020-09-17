@@ -62,67 +62,67 @@ def main(tbuf=None, **kwargs):
 
     _memoryCheck("start")
 
-    # kill old dq2 process
-    try:
-        # time limit
-        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
-        # get process list
-        scriptName = sys.argv[0]
-        out = commands_get_status_output(
-            'ps axo user,pid,lstart,args | grep dq2.clientapi | grep -v PYTHONPATH | grep -v grep')[-1]
-        for line in out.split('\n'):
-            if line == '':
-                continue
-            items = line.split()
-            # owned process
-            if items[0] not in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
-                continue
-            # look for python
-            if re.search('python',line) is None:
-                continue
-            # PID
-            pid = items[1]
-            # start time
-            timeM = re.search('(\S+\s+\d+ \d+:\d+:\d+ \d+)',line)
-            startTime = datetime.datetime(*time.strptime(timeM.group(1),'%b %d %H:%M:%S %Y')[:6])
-            # kill old process
-            if startTime < timeLimit:
-                _logger.debug("old dq2 process : %s %s" % (pid,startTime))
-                _logger.debug(line)
-                commands_get_status_output('kill -9 %s' % pid)
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        _logger.error("kill dq2 process : %s %s" % (type,value))
-
-
-    # kill old process
-    try:
-        # time limit
-        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=7)
-        # get process list
-        scriptName = sys.argv[0]
-        out = commands_get_status_output('ps axo user,pid,lstart,args | grep %s' % scriptName)[-1]
-        for line in out.split('\n'):
-            items = line.split()
-            # owned process
-            if items[0] not in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
-                continue
-            # look for python
-            if re.search('python',line) is None:
-                continue
-            # PID
-            pid = items[1]
-            # start time
-            timeM = re.search('(\S+\s+\d+ \d+:\d+:\d+ \d+)',line)
-            startTime = datetime.datetime(*time.strptime(timeM.group(1),'%b %d %H:%M:%S %Y')[:6])
-            # kill old process
-            if startTime < timeLimit:
-                _logger.debug("old process : %s %s" % (pid,startTime))
-                _logger.debug(line)
-                commands_get_status_output('kill -9 %s' % pid)
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        _logger.error("kill process : %s %s" % (type,value))
+    # # kill old dq2 process
+    # try:
+    #     # time limit
+    #     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
+    #     # get process list
+    #     scriptName = sys.argv[0]
+    #     out = commands_get_status_output(
+    #         'ps axo user,pid,lstart,args | grep dq2.clientapi | grep -v PYTHONPATH | grep -v grep')[-1]
+    #     for line in out.split('\n'):
+    #         if line == '':
+    #             continue
+    #         items = line.split()
+    #         # owned process
+    #         if items[0] not in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
+    #             continue
+    #         # look for python
+    #         if re.search('python',line) is None:
+    #             continue
+    #         # PID
+    #         pid = items[1]
+    #         # start time
+    #         timeM = re.search('(\S+\s+\d+ \d+:\d+:\d+ \d+)',line)
+    #         startTime = datetime.datetime(*time.strptime(timeM.group(1),'%b %d %H:%M:%S %Y')[:6])
+    #         # kill old process
+    #         if startTime < timeLimit:
+    #             _logger.debug("old dq2 process : %s %s" % (pid,startTime))
+    #             _logger.debug(line)
+    #             commands_get_status_output('kill -9 %s' % pid)
+    # except Exception:
+    #     type, value, traceBack = sys.exc_info()
+    #     _logger.error("kill dq2 process : %s %s" % (type,value))
+    #
+    #
+    # # kill old process
+    # try:
+    #     # time limit
+    #     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=7)
+    #     # get process list
+    #     scriptName = sys.argv[0]
+    #     out = commands_get_status_output('ps axo user,pid,lstart,args | grep %s' % scriptName)[-1]
+    #     for line in out.split('\n'):
+    #         items = line.split()
+    #         # owned process
+    #         if items[0] not in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
+    #             continue
+    #         # look for python
+    #         if re.search('python',line) is None:
+    #             continue
+    #         # PID
+    #         pid = items[1]
+    #         # start time
+    #         timeM = re.search('(\S+\s+\d+ \d+:\d+:\d+ \d+)',line)
+    #         startTime = datetime.datetime(*time.strptime(timeM.group(1),'%b %d %H:%M:%S %Y')[:6])
+    #         # kill old process
+    #         if startTime < timeLimit:
+    #             _logger.debug("old process : %s %s" % (pid,startTime))
+    #             _logger.debug(line)
+    #             commands_get_status_output('kill -9 %s' % pid)
+    # except Exception:
+    #     type, value, traceBack = sys.exc_info()
+    #     _logger.error("kill process : %s %s" % (type,value))
 
 
     # instantiate TB
@@ -880,7 +880,7 @@ def main(tbuf=None, **kwargs):
                     else:
                         # check if locally available
                         siteSpec = siteMapper.getSite(tmpJob.computingSite)
-                        scope_input, scope_output = select_scope(siteSpec, tmpJob.prodSourceLabel)
+                        scope_input, scope_output = select_scope(siteSpec, tmpJob.prodSourceLabel, tmpJob.job_label)
                         allOK = True
                         for tmpFile in tmpJob.Files:
                             # only input
@@ -970,7 +970,7 @@ def main(tbuf=None, **kwargs):
                         continue
                     # check if locally available
                     siteSpec = siteMapper.getSite(tmpJob.computingSite)
-                    scope_input, scope_output = select_scope(siteSpec, tmpJob.prodSourceLabel)
+                    scope_input, scope_output = select_scope(siteSpec, tmpJob.prodSourceLabel, tmpJob.job_label)
                     allOK = True
                     for tmpFile in tmpJob.Files:
                         # only input files are checked
