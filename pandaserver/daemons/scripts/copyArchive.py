@@ -15,7 +15,7 @@ from pandaserver.taskbuffer import EventServiceUtils
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.jobdispatcher.Watcher import Watcher
 from pandaserver.brokerage.SiteMapper import SiteMapper
-from pandaserver.dataservice.MailUtils import MailUtils
+# from pandaserver.dataservice.MailUtils import MailUtils
 from pandaserver.srvcore.CoreUtils import commands_get_status_output
 from pandaserver.config import panda_config
 
@@ -159,7 +159,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         varMap[':status3'] = 'toberejected'
         status,res = taskBuffer.querySQLS(sql,varMap)
         requestsInCloud = {}
-        mailUtils = MailUtils()
+        # mailUtils = MailUtils()
         # loop over all requests
         for pandaSite,reqStatus,userName in res:
             cloud = siteMapper.getSite(pandaSite).cloud
@@ -182,10 +182,10 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 else:
                     userMailAddr = resUM[0][0]
                 # send
-                if userMailAddr not in ['',None,'None','notsend']:
-                    _logger.debug("send update to %s" % userMailAddr)
-                    retMail = mailUtils.sendSiteAccessUpdate(userMailAddr,newStatus,pandaSite)
-                    _logger.debug(retMail)
+                # if userMailAddr not in ['',None,'None','notsend']:
+                #     _logger.debug("send update to %s" % userMailAddr)
+                #     retMail = mailUtils.sendSiteAccessUpdate(userMailAddr,newStatus,pandaSite)
+                #     _logger.debug(retMail)
                 # update database
                 sqlUp  = "UPDATE ATLAS_PANDAMETA.siteaccess SET status=:newStatus "
                 sqlUp += "WHERE pandaSite=:pandaSite AND dn=:userName"
@@ -220,9 +220,9 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         if siteContactAddr[pandaSite] not in ['',None,'None']:
                             contactAddr[cloud] += ',%s' % siteContactAddr[pandaSite]
                 # send
-                _logger.debug("send request to %s" % contactAddr[cloud])
-                retMail = mailUtils.sendSiteAccessRequest(contactAddr[cloud],requestsMap,cloud)
-                _logger.debug(retMail)
+                # _logger.debug("send request to %s" % contactAddr[cloud])
+                # retMail = mailUtils.sendSiteAccessRequest(contactAddr[cloud],requestsMap,cloud)
+                # _logger.debug(retMail)
                 # update database
                 if retMail:
                     sqlUp  = "UPDATE ATLAS_PANDAMETA.siteaccess SET status=:newStatus "

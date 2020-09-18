@@ -221,46 +221,46 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         tmpLog.error("nRunning : %s %s" % (errType,errValue))
 
 
-    # mail sender
-    class MailSender (threading.Thread):
-        def __init__(self):
-            threading.Thread.__init__(self)
-
-        def run(self):
-            tmpLog.debug("mail : start")
-            tmpFileList = glob.glob('%s/mail_*' % panda_config.logdir)
-            for tmpFile in tmpFileList:
-                # check timestamp to avoid too new files
-                timeStamp = os.path.getmtime(tmpFile)
-                if datetime.datetime.utcnow() - datetime.datetime.fromtimestamp(timeStamp) < datetime.timedelta(minutes=1):
-                    continue
-                # lock
-                mailFile = open(tmpFile)
-                try:
-                    fcntl.flock(mailFile.fileno(), fcntl.LOCK_EX|fcntl.LOCK_NB)
-                except Exception:
-                    tmpLog.debug("mail : failed to lock %s" % tmpFile.split('/')[-1])
-                    mailFile.close()
-                    continue
-                # start notifier
-                from pandaserver.dataservice.Notifier import Notifier
-                nThr = Notifier(None,None,None,None,mailFile,tmpFile)
-                nThr.run()
-                # remove
-                try:
-                    os.remove(tmpFile)
-                except Exception:
-                    pass
-                # unlock
-                try:
-                    fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
-                    mailFile.close()
-                except Exception:
-                    pass
-
-    # start sender
-    mailSender =  MailSender()
-    mailSender.start()
+    # # mail sender
+    # class MailSender (threading.Thread):
+    #     def __init__(self):
+    #         threading.Thread.__init__(self)
+    #
+    #     def run(self):
+    #         tmpLog.debug("mail : start")
+    #         tmpFileList = glob.glob('%s/mail_*' % panda_config.logdir)
+    #         for tmpFile in tmpFileList:
+    #             # check timestamp to avoid too new files
+    #             timeStamp = os.path.getmtime(tmpFile)
+    #             if datetime.datetime.utcnow() - datetime.datetime.fromtimestamp(timeStamp) < datetime.timedelta(minutes=1):
+    #                 continue
+    #             # lock
+    #             mailFile = open(tmpFile)
+    #             try:
+    #                 fcntl.flock(mailFile.fileno(), fcntl.LOCK_EX|fcntl.LOCK_NB)
+    #             except Exception:
+    #                 tmpLog.debug("mail : failed to lock %s" % tmpFile.split('/')[-1])
+    #                 mailFile.close()
+    #                 continue
+    #             # start notifier
+    #             from pandaserver.dataservice.Notifier import Notifier
+    #             nThr = Notifier(None,None,None,None,mailFile,tmpFile)
+    #             nThr.run()
+    #             # remove
+    #             try:
+    #                 os.remove(tmpFile)
+    #             except Exception:
+    #                 pass
+    #             # unlock
+    #             try:
+    #                 fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
+    #                 mailFile.close()
+    #             except Exception:
+    #                 pass
+    #
+    # # start sender
+    # mailSender =  MailSender()
+    # mailSender.start()
 
 
     # session for co-jumbo jobs
@@ -546,7 +546,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         thr.join()
 
     # join sender
-    mailSender.join()
+    # mailSender.join()
 
     # join fork threads
     for thr in forkThrList:
