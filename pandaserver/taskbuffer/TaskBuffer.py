@@ -3970,6 +3970,36 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         return ret
 
+    # insert job output report
+    def insertJobOutputReport(self, panda_id, prod_source_label,
+                                job_status, attempt_nr, data, time_stamp):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.insertJobOutputReport(panda_id, prod_source_label,
+                                    job_status, attempt_nr, data, time_stamp)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    # deleted job output report
+    def deleteJobOutputReport(self, panda_id, attempt_nr):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.deleteJobOutputReport(panda_id, attempt_nr)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    # lock job output report
+    def lockJobOutputReport(self, panda_id, attempt_nr, pid, time_limit):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.lockJobOutputReport(panda_id, attempt_nr, pid, time_limit)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    # list pandaID and attemptNr of job output report
+    def listJobOutputReport(self):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.listJobOutputReport()
+        self.proxyPool.putProxy(proxy)
+        return ret
+
 
 # Singleton
 taskBuffer = TaskBuffer()

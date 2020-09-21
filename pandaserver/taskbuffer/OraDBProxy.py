@@ -23584,3 +23584,167 @@ class DBProxy:
             # error
             self.dumpErrorMessage(tmp_log, method_name)
             return retVal
+
+
+    # insert job output report
+    def insertJobOutputReport(self, panda_id, prod_source_label,
+                                job_status, attempt_nr, data, time_stamp):
+        comment = ' /* DBProxy.insertJobOutputReport */'
+        method_name = 'insertJobOutputReport'
+        # defaults
+        method_name += ' <PandaID={0} attemptNr={1}>'.format(panda_id, attempt_nr)
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+        # sql to insert
+        sqlI  = (  'INSERT INTO {0}.Job_Output_Report '
+                        '(PandaID, prodSourceLabel, jobStatus, attemptNr, data, timeStamp) '
+                        'VALUES(:PandaID, :prodSourceLabel, :jobStatus, :attemptNr, :data, :timeStamp) '
+                    ).format(panda_config.schemaPANDA)
+        try:
+            retVal = False
+            # start transaction
+            self.conn.begin()
+            # insert
+            varMap = {}
+            varMap[':PandaID'] = panda_id
+            varMap[':prodSourceLabel'] = prod_source_label
+            varMap[':jobStatus'] = job_status
+            varMap[':attemptNr'] = attempt_nr
+            varMap[':data'] = data
+            varMap[':timeStamp'] = time_stamp
+            self.cur.execute(sqlI+comment, varMap)
+            tmp_log.debug('successfully inserted')
+            retVal = True
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmp_log, method_name)
+            return retVal
+
+    # deleted job output report
+    def deleteJobOutputReport(self, panda_id, attempt_nr):
+        comment = ' /* DBProxy.deleteJobOutputReport */'
+        method_name = 'deleteJobOutputReport'
+        # defaults
+        retVal = False
+        method_name += ' <PandaID={0} attemptNr={1}>'.format(panda_id, attempt_nr)
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+        # sql to delete
+        sqlD  = (   'DELETE {0}.Job_Output_Report '
+                    'WHERE PandaID=:PandaID AND attemptNr=:attemptNr '
+                    ).format(panda_config.schemaPANDA)
+        try:
+            retVal = False
+            # start transaction
+            self.conn.begin()
+            # delete
+            varMap = {}
+            varMap[':PandaID'] = panda_id
+            varMap[':attemptNr'] = attempt_nr
+            self.cur.execute(sqlD+comment, varMap)
+            tmp_log.debug('successfully deleted')
+            retVal = True
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmp_log, method_name)
+            return retVal
+
+    # lock job output report
+    def lockJobOutputReport(self, panda_id, attempt_nr, pid, time_limit):
+        comment = ' /* DBProxy.lockJobOutputReport */'
+        method_name = 'lockJobOutputReport'
+        # defaults
+        retVal = False
+        method_name += ' <PandaID={0} attemptNr={1}>'.format(panda_id, attempt_nr)
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+        # try to lock
+        try:
+            retVal = False
+            # sql to check
+            sqlCT  = (  'SELECT lockedBy '
+                        'FROM {0}.Job_Output_Report '
+                        'WHERE PandaID=:PandaID AND attemptNr=:attemptNr '
+                            'AND lockedTime>:lockedTime '
+                        'FOR UPDATE'
+                        ).format(panda_config.schemaPANDA)
+            # sql to update
+            sqlU  = (   'UPDATE {0}.Job_Output_Report '
+                            'SET lockedBy=:lockedBy, lockedTime=:lockedTime '
+                        'WHERE PandaID=:PandaID AND attemptNr=:attemptNr '
+                        ).format(panda_config.schemaPANDA)
+            # start transaction
+            self.conn.begin()
+            # check
+            varMap = {}
+            varMap[':PandaID'] = panda_id
+            varMap[':attemptNr'] = attempt_nr
+            varMap[':lockedBy'] = pid
+            varMap[':lockedTime'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=time_limit)
+            self.cur.execute(sqlCT+comment, varMap)
+            resCT = self.cur.fetchone()
+            if resCT is not None:
+                tmp_log.debug('skipped, locked by {0}'.format(resCT[0]))
+            else:
+                # update
+                varMap = {}
+                varMap[':PandaID'] = panda_id
+                varMap[':attemptNr'] = attempt_nr
+                varMap[':lockedBy'] = pid
+                varMap[':lockedTime'] = datetime.datetime.utcnow()
+                self.cur.execute(sqlU+comment, varMap)
+                tmp_log.debug('successfully locked')
+                retVal = True
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmp_log, method_name)
+            return retVal
+
+    # list pandaID and attemptNr of job output report
+    def listJobOutputReport(self):
+        comment = ' /* DBProxy.listJobOutputReport */'
+        method_name = 'listJobOutputReport'
+        # defaults
+        retVal = False
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+        # try to lock
+        try:
+            retVal = None
+            # sql to select
+            sqlS  = (   'SELECT PandaID, attemptNr '
+                        'FROM {0}.Job_Output_Report '
+                        ).format(panda_config.schemaPANDA)
+            # start transaction
+            self.conn.begin()
+            # check
+            self.cur.execute(sqlS+comment)
+            retVal = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmp_log, method_name)
+            return retVal
