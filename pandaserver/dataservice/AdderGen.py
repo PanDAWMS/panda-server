@@ -7,6 +7,7 @@ import os
 import re
 import sys
 import time
+import datetime
 import fcntl
 import traceback
 import xml.dom.minidom
@@ -15,6 +16,7 @@ import uuid
 from pandaserver.config import panda_config
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.taskbuffer import retryModule
 from pandaserver.taskbuffer import JobUtils
@@ -34,9 +36,10 @@ _logger = PandaLogger().getLogger('Adder')
 panda_config.setupPlugin()
 
 
-class AdderGen:
+class AdderGen(GenericThread):
     # constructor
-    def __init__(self,taskBuffer,jobID,jobStatus,xmlFile,ignoreTmpError=True,siteMapper=None):
+    def __init__(self, taskBuffer, jobID, jobStatus, report_dict, ignoreTmpError=True, siteMapper=None):
+        GenericThread.__init__()
         self.job = None
         self.jobID = jobID
         self.jobStatus = jobStatus
@@ -44,34 +47,45 @@ class AdderGen:
         self.ignoreTmpError = ignoreTmpError
         self.lockXML = None
         self.siteMapper = siteMapper
-        self.attemptNr = None
-        self.xmlFile = xmlFile
+        # self.attemptNr = None
         self.datasetMap = {}
         self.extraInfo = {'surl':{},'nevents':{},'lbnr':{},'endpoint':{}, 'guid':{}}
-        # exstract attemptNr
-        try:
-            tmpAttemptNr = self.xmlFile.split('/')[-1].split('_')[-1]
-            if re.search('^\d+$',tmpAttemptNr) is not None:
-                self.attemptNr = int(tmpAttemptNr)
-        except Exception:
-            pass
+        # extract attemptNr
+        # try:
+        #     tmpAttemptNr = self.xmlFile.split('/')[-1].split('_')[-1]
+        #     if re.search('^\d+$',tmpAttemptNr) is not None:
+        #         self.attemptNr = int(tmpAttemptNr)
+        # except Exception:
+        #     pass
+        # extract from report data
+        self.attemptNr = report_dict.get(attemptNr)
+        self.data = report_dict.get(data)
         # logger
         self.logger = LogWrapper(_logger,str(self.jobID))
 
 
     # dump file report
-    def dumpFileReport(self,fileCatalog,attemptNr):
+    def dumpFileReport(self, fileCatalog, attemptNr):
         self.logger.debug("dump file report")
         # dump Catalog into file
-        if attemptNr is None:
-            xmlFile = '%s/%s_%s_%s' % (panda_config.logdir,self.jobID,self.jobStatus,
-                                       str(uuid.uuid4()))
-        else:
-            xmlFile = '%s/%s_%s_%s_%s' % (panda_config.logdir,self.jobID,self.jobStatus,
-                                          str(uuid.uuid4()),attemptNr)
-        file = open(xmlFile,'w')
-        file.write(fileCatalog)
-        file.close()
+        # if attemptNr is None:
+        #     xmlFile = '%s/%s_%s_%s' % (panda_config.logdir,self.jobID,self.jobStatus,
+        #                                str(uuid.uuid4()))
+        # else:
+        #     xmlFile = '%s/%s_%s_%s_%s' % (panda_config.logdir,self.jobID,self.jobStatus,
+        #                                   str(uuid.uuid4()),attemptNr)
+        # file = open(xmlFile,'w')
+        # file.write(fileCatalog)
+        # file.close()
+        # dump Catalog into job output report table
+        attempt_nr = 0 if attemptNr is None else attemptNr
+        if self.job is None:
+            self.job = self.taskBuffer.peekJobs([self.jobID],fromDefined=False,
+                                                fromWaiting=False,
+                                                forAnal=True)[0]
+        self.taskBuffer.insertJobOutputReport(
+            panda_id=self.jobID, prod_source_label=self.job.prodSourceLabel,
+            job_status=self.jobStatus, attempt_nr=attempt_nr, data=fileCatalog)
 
 
     # get plugin class
@@ -91,29 +105,39 @@ class AdderGen:
         try:
             self.logger.debug("new start: %s attemptNr=%s" % (self.jobStatus,self.attemptNr))
             # lock XML
-            self.lockXML = open(self.xmlFile)
-            try:
-                fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_EX|fcntl.LOCK_NB)
-            except Exception:
-                self.logger.debug("cannot get lock : %s" % self.xmlFile)
-                self.lockXML.close()
-                # remove XML just in case for the final attempt
+            # self.lockXML = open(self.xmlFile)
+            # try:
+            #     fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_EX|fcntl.LOCK_NB)
+            # except Exception:
+            #     self.logger.debug("cannot get lock : %s" % self.xmlFile)
+            #     self.lockXML.close()
+            #     # remove XML just in case for the final attempt
+            #     if not self.ignoreTmpError:
+            #         try:
+            #             # remove Catalog
+            #             os.remove(self.xmlFile)
+            #         except Exception:
+            #             pass
+            #     return
+            # lock job output report record
+            got_lock = self.taskBuffer.lockJobOutputReport(
+                            panda_id=self.jobID, attempt_nr=self.attemptNr,
+                            pid=self.get_pid(), time_limit=10)
+            if not got_lock:
+                # did not get lock
                 if not self.ignoreTmpError:
-                    try:
-                        # remove Catalog
-                        os.remove(self.xmlFile)
-                    except Exception:
-                        pass
+                    # remove job output report record just in case for the final attempt
+                    self.taskBuffer.deleteJobOutputReport(panda_id=self.jobID, attempt_nr=self.attemptNr)
                 return
             # check if file exists
-            if not os.path.exists(self.xmlFile):
-                self.logger.debug("not exist : %s" % self.xmlFile)
-                try:
-                    fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
-                    self.lockXML.close()
-                except Exception:
-                    pass
-                return
+            # if not os.path.exists(self.xmlFile):
+            #     self.logger.debug("not exist : %s" % self.xmlFile)
+            #     try:
+            #         fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
+            #         self.lockXML.close()
+            #     except Exception:
+            #         pass
+            #     return
             # query job
             self.job = self.taskBuffer.peekJobs([self.jobID],fromDefined=False,
                                                 fromWaiting=False,
@@ -160,11 +184,13 @@ class AdderGen:
                         retClosed = self.taskBuffer.killJobs([self.jobID],'pilot','60',True)
                         if retClosed[0] is True:
                             self.logger.debug("end")
-                            try:
-                                # remove Catalog
-                                os.remove(self.xmlFile)
-                            except Exception:
-                                pass
+                            # try:
+                            #     # remove Catalog
+                            #     os.remove(self.xmlFile)
+                            # except Exception:
+                            #     pass
+                            # remove Catalog
+                            self.taskBuffer.deleteJobOutputReport(panda_id=self.jobID, attempt_nr=self.attemptNr)
                             # unlock XML
                             if self.lockXML is not None:
                                 fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
@@ -417,11 +443,13 @@ class AdderGen:
                                     cThr.join()
                                     self.logger.debug("end Closer for PandaID={0}".format(assJobID))
             self.logger.debug("end")
-            try:
-                # remove Catalog
-                os.remove(self.xmlFile)
-            except Exception:
-                pass
+            # try:
+            #     # remove Catalog
+            #     os.remove(self.xmlFile)
+            # except Exception:
+            #     pass
+            # remove Catalog
+            self.taskBuffer.deleteJobOutputReport(panda_id=self.jobID, attempt_nr=self.attemptNr)
             # unlock XML
             if self.lockXML is not None:
                 fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
@@ -446,7 +474,7 @@ class AdderGen:
     # 0: succeeded, 1: harmless error to exit, 2: fatal error, 3: event service
     def parseXML(self):
         # get LFN and GUID
-        self.logger.debug('XML filename : %s' % self.xmlFile)
+        # self.logger.debug('XML filename : %s' % self.xmlFile)
         # no outputs
         log_out = [f for f in self.job.Files if f.type in ['log', 'output']]
         if not log_out:
@@ -469,7 +497,8 @@ class AdderGen:
         nEventsMap = {}
         guidMap = dict()
         try:
-            root  = xml.dom.minidom.parse(self.xmlFile)
+            # root  = xml.dom.minidom.parse(self.xmlFile)
+            root  = xml.dom.minidom.parseString(self.data)
             files = root.getElementsByTagName('File')
             for file in files:
                 # get GUID
@@ -528,56 +557,57 @@ class AdderGen:
             # parse json
             try:
                 import json
-                with open(self.xmlFile) as tmpF:
-                    jsonDict = json.load(tmpF)
-                    for lfn in jsonDict:
-                        fileData = jsonDict[lfn]
-                        lfn = str(lfn)
-                        fsize   = None
-                        md5sum  = None
-                        adler32 = None
-                        surl    = None
-                        fullLFN = None
-                        guid = str(fileData['guid'])
-                        if 'fsize' in fileData:
-                            fsize = long(fileData['fsize'])
-                        if 'md5sum' in fileData:
-                            md5sum = str(fileData['md5sum'])
-                            # check
-                            if re.search("^[a-fA-F0-9]{32}$",md5sum) is None:
-                                md5sum = None
-                        if 'adler32' in fileData:
-                            adler32 = str(fileData['adler32'])
-                        if 'surl' in fileData:
-                            surl = str(fileData['surl'])
-                        if 'full_lfn' in fileData:
-                            fullLFN = str(fileData['full_lfn'])
-                        # endpoints
-                        self.extraInfo['endpoint'][lfn] = []
-                        if 'endpoint' in fileData:
-                            self.extraInfo['endpoint'][lfn] = fileData['endpoint']
-                        # error check
-                        if (lfn not in inputLFNs) and (fsize is None or (md5sum is None and adler32 is None)):
-                            if EventServiceUtils.isEventServiceMerge(self.job):
-                                continue
-                            else:
-                                raise RuntimeError('fsize/md5sum/adler32/surl=None')
-                        # append
-                        lfns.append(lfn)
-                        guids.append(guid)
-                        fsizes.append(fsize)
-                        md5sums.append(md5sum)
-                        surls.append(surl)
-                        if adler32 is not None:
-                            # use adler32 if available
-                            chksums.append("ad:%s" % adler32)
+                # with open(self.xmlFile) as tmpF:
+                jsonDict = json.loads(self.data)
+                for lfn in jsonDict:
+                    fileData = jsonDict[lfn]
+                    lfn = str(lfn)
+                    fsize   = None
+                    md5sum  = None
+                    adler32 = None
+                    surl    = None
+                    fullLFN = None
+                    guid = str(fileData['guid'])
+                    if 'fsize' in fileData:
+                        fsize = long(fileData['fsize'])
+                    if 'md5sum' in fileData:
+                        md5sum = str(fileData['md5sum'])
+                        # check
+                        if re.search("^[a-fA-F0-9]{32}$",md5sum) is None:
+                            md5sum = None
+                    if 'adler32' in fileData:
+                        adler32 = str(fileData['adler32'])
+                    if 'surl' in fileData:
+                        surl = str(fileData['surl'])
+                    if 'full_lfn' in fileData:
+                        fullLFN = str(fileData['full_lfn'])
+                    # endpoints
+                    self.extraInfo['endpoint'][lfn] = []
+                    if 'endpoint' in fileData:
+                        self.extraInfo['endpoint'][lfn] = fileData['endpoint']
+                    # error check
+                    if (lfn not in inputLFNs) and (fsize is None or (md5sum is None and adler32 is None)):
+                        if EventServiceUtils.isEventServiceMerge(self.job):
+                            continue
                         else:
-                            chksums.append("md5:%s" % md5sum)
-                        if fullLFN is not None:
-                            fullLfnMap[lfn] = fullLFN
+                            raise RuntimeError('fsize/md5sum/adler32/surl=None')
+                    # append
+                    lfns.append(lfn)
+                    guids.append(guid)
+                    fsizes.append(fsize)
+                    md5sums.append(md5sum)
+                    surls.append(surl)
+                    if adler32 is not None:
+                        # use adler32 if available
+                        chksums.append("ad:%s" % adler32)
+                    else:
+                        chksums.append("md5:%s" % md5sum)
+                    if fullLFN is not None:
+                        fullLfnMap[lfn] = fullLFN
             except Exception:
                 # check if file exists
-                if os.path.exists(self.xmlFile):
+                # if os.path.exists(self.xmlFile):
+                if True:
                     type, value, traceBack = sys.exc_info()
                     self.logger.error(": %s %s" % (type,value))
                     # set failed anyway

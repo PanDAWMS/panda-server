@@ -7,6 +7,7 @@ import re
 import sys
 import uuid
 import threading
+import datetime
 
 from pandaserver.config import panda_config
 from pandaserver.brokerage.SiteMapper import SiteMapper
@@ -44,11 +45,11 @@ class Finisher (threading.Thread):
                 computingSite,destinationSE = self.taskBuffer.getDestSE(self.dataset.name)
                 if destinationSE is None:
                     # try to get computingSite/destinationSE from ARCH to delete sub
-                    # even if no active jobs left 
+                    # even if no active jobs left
                     computingSite, destinationSE = self.taskBuffer.getDestSE(self.dataset.name,True)
                     if destinationSE is None:
                         _logger.error("cannot get source/destination for %s" % self.dataset.name)
-                        _logger.debug("end: %s" % self.dataset.name)                
+                        _logger.debug("end: %s" % self.dataset.name)
                         return
                 _logger.debug("src: %s" % computingSite)
                 _logger.debug("dst: %s" % destinationSE)
@@ -68,7 +69,7 @@ class Finisher (threading.Thread):
                 reqTokens = self.taskBuffer.getDestTokens(self.dataset.name)
                 if reqTokens is None:
                     _logger.error("cannot get required token for %s" % self.dataset.name)
-                    _logger.debug("end: %s" % self.dataset.name)                
+                    _logger.debug("end: %s" % self.dataset.name)
                     return
                 _logger.debug("req Token=%s" % reqTokens)
                 # make bitmap for the token
@@ -173,23 +174,31 @@ class Finisher (threading.Thread):
                                         fileNode.appendChild(fsizeNode)
                                         fileNode.appendChild(chksumNode)
                                         topNode.appendChild(fileNode)
-                                # status in file name
+                                # status of the job record
                                 if failedFiles == []:
-                                    statusFileName = 'finished'
+                                    record_status = 'finished'
                                 else:
-                                    statusFileName = 'failed'
+                                    record_status = 'failed'
                                 # write to file
-                                xmlFile = '%s/%s_%s_%s' % (panda_config.logdir,job.PandaID,statusFileName,
-                                                           str(uuid.uuid4()))
-                                oXML = open(xmlFile,"w")
-                                oXML.write(topNode.toxml())
-                                oXML.close()
+                                # xmlFile = '%s/%s_%s_%s' % (panda_config.logdir,job.PandaID,record_status,
+                                #                            str(uuid.uuid4()))
+                                # oXML = open(xmlFile,"w")
+                                # oXML.write(topNode.toxml())
+                                # oXML.close()
+                                # write to job output report table, try update first
+                                tmp_ret = self.taskBuffer.updateJobOutputReport(
+                                    panda_id=job.PandaID, attempt_nr=0, data=topNode.toxml())
+                                if not tmp_ret:
+                                    # then try insert
+                                    self.taskBuffer.insertJobOutputReport(
+                                        panda_id=job.PandaID, prod_source_label=job.prodSourceLabel,
+                                        job_status=record_status, attempt_nr=0, data=topNode.toxml())
                             except Exception:
                                 type, value, traceBack = sys.exc_info()
                                 _logger.error("Job: %s %s %s" % (job.PandaID,type,value))
-                    _logger.debug("Job: %s status: %s" % (job.PandaID,job.jobStatus))                
+                    _logger.debug("Job: %s status: %s" % (job.PandaID,job.jobStatus))
             # end
-            if self.job is None:        
+            if self.job is None:
                 _logger.debug("end: %s" % self.dataset.name)
             else:
                 _logger.debug("end: %s" % self.job.PandaID)

@@ -3972,10 +3972,10 @@ class TaskBuffer:
 
     # insert job output report
     def insertJobOutputReport(self, panda_id, prod_source_label,
-                                job_status, attempt_nr, data, time_stamp):
+                                job_status, attempt_nr, data):
         proxy = self.proxyPool.getProxy()
         ret = proxy.insertJobOutputReport(panda_id, prod_source_label,
-                                    job_status, attempt_nr, data, time_stamp)
+                                    job_status, attempt_nr, data)
         self.proxyPool.putProxy(proxy)
         return ret
 
@@ -3983,6 +3983,20 @@ class TaskBuffer:
     def deleteJobOutputReport(self, panda_id, attempt_nr):
         proxy = self.proxyPool.getProxy()
         ret = proxy.deleteJobOutputReport(panda_id, attempt_nr)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    # update data of job output report
+    def updateJobOutputReport(self, panda_id, attempt_nr, data):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.updateJobOutputReport(panda_id, attempt_nr, data)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    # get job output report
+    def getJobOutputReport(self, panda_id, attempt_nr):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.getJobOutputReport(panda_id, attempt_nr)
         self.proxyPool.putProxy(proxy)
         return ret
 

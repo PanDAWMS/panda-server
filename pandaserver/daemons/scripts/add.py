@@ -399,7 +399,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             pass
 
         # main loop
-        def run(self,taskBuffer,aSiteMapper,holdingAna):
+        def run(self, taskBuffer, aSiteMapper, holdingAna):
             # import
             from pandaserver.dataservice.AdderGen import AdderGen
             # get logger
@@ -408,36 +408,42 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             timeNow = datetime.datetime.utcnow()
             timeInt = datetime.datetime.utcnow()
             dirName = panda_config.logdir
-            fileList = os.listdir(dirName)
-            fileList.sort()
+            # fileList = os.listdir(dirName)
+            # fileList.sort()
+            job_output_report_list = taskBuffer.listJobOutputReport()
             # remove duplicated files
-            tmpList = []
+            tmp_list = []
             uMap = {}
-            for file in fileList:
-                match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
-                if match is not None:
-                    fileName = '%s/%s' % (dirName,file)
-                    id = match.group(1)
-                    jobStatus = match.group(2)
-                    if id in uMap:
-                        try:
-                            os.remove(fileName)
-                        except Exception:
-                            pass
+            # for file in fileList:
+            if job_output_report_list is not None:
+                for panda_id, job_status, attempt_nr, time_stamp in job_output_report_list:
+                    # match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
+                    # if match is not None:
+                    # fileName = '%s/%s' % (dirName,file)
+                    panda_id = match.group(1)
+                    job_status = match.group(2)
+                    if panda_id in uMap:
+                        # try:
+                        #     os.remove(fileName)
+                        # except Exception:
+                        #     pass
+                        taskBuffer.deleteJobOutputReport(panda_id=panda_id, attempt_nr=attempt_nr)
                     else:
-                        if jobStatus != EventServiceUtils.esRegStatus:
-                            uMap[id] = fileName
-                        if long(id) in holdingAna:
+                        if job_status != EventServiceUtils.esRegStatus:
+                            # uMap[panda_id] = fileName
+                            record = (panda_id, job_status, attempt_nr, time_stamp)
+                            uMap[panda_id] = record
+                        if long(panda_id) in holdingAna:
                             # give a priority to buildJobs
-                            tmpList.insert(0,file)
+                            tmp_list.insert(0, record)
                         else:
-                            tmpList.append(file)
+                            tmp_list.append(record)
             nFixed = 50
-            randTmp = tmpList[nFixed:]
+            randTmp = tmp_list[nFixed:]
             random.shuffle(randTmp)
-            fileList = tmpList[:nFixed] + randTmp
+            job_output_report_list = tmp_list[:nFixed] + randTmp
             # add
-            while len(fileList) != 0:
+            while len(job_output_report_list) != 0:
                 # time limit to avoid too many copyArchive running at the same time
                 if (datetime.datetime.utcnow() - timeNow) > datetime.timedelta(minutes=overallTimeout):
                     tmpLog.debug("time over in Adder session")
@@ -446,61 +452,85 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 if (datetime.datetime.utcnow() - timeInt) > datetime.timedelta(minutes=15):
                     timeInt = datetime.datetime.utcnow()
                     # get file
-                    fileList = os.listdir(dirName)
-                    fileList.sort()
+                    # fileList = os.listdir(dirName)
+                    # fileList.sort()
                     # remove duplicated files
-                    tmpList = []
+                    tmp_list = []
                     uMap = {}
-                    for file in fileList:
-                        match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
-                        if match is not None:
-                            fileName = '%s/%s' % (dirName,file)
-                            id = match.group(1)
-                            jobStatus = match.group(2)
-                            if id in uMap:
-                                try:
-                                    os.remove(fileName)
-                                except Exception:
-                                    pass
+                    # for file in fileList:
+                    if job_output_report_list is not None:
+                        for panda_id, job_status, attempt_nr, time_stamp in job_output_report_list:
+                            # match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
+                            # if match is not None:
+                            # fileName = '%s/%s' % (dirName,file)
+                            panda_id = match.group(1)
+                            job_status = match.group(2)
+                            if panda_id in uMap:
+                                # try:
+                                #     os.remove(fileName)
+                                # except Exception:
+                                #     pass
+                                taskBuffer.deleteJobOutputReport(panda_id=panda_id, attempt_nr=attempt_nr)
                             else:
-                                if jobStatus != EventServiceUtils.esRegStatus:
-                                    uMap[id] = fileName
-                                if long(id) in holdingAna:
-                                    # give a priority to buildJob
-                                    tmpList.insert(0,file)
+                                if job_status != EventServiceUtils.esRegStatus:
+                                    # uMap[panda_id] = fileName
+                                    record = (panda_id, job_status, attempt_nr)
+                                    uMap[panda_id] = record
+                                if long(panda_id) in holdingAna:
+                                    # give a priority to buildJobs
+                                    tmp_list.insert(0, record)
                                 else:
-                                    tmpList.append(file)
-                    fileList = tmpList
+                                    tmp_list.append(record)
+                    # fileList = tmp_list
+                    job_output_report_list = tmp_list
                 # check if
                 if PandaUtils.isLogRotating(5,5):
                     tmpLog.debug("terminate since close to log-rotate time")
                     break
                 # choose a file
-                file = fileList.pop(0)
+                # file = fileList.pop(0)
+                # choose a report record
+                record = job_output_report_list.pop(0)
+                panda_id, job_status, attempt_nr, time_stamp = record
                 # check format
-                match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
-                if match is not None:
-                    fileName = '%s/%s' % (dirName,file)
-                    if not os.path.exists(fileName):
-                        continue
+                # match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
+                # if match is not None:
+                #     fileName = '%s/%s' % (dirName,file)
+                #     if not os.path.exists(fileName):
+                #         continue
+                # try to lock the record
+                got_lock = taskBuffer.lockJobOutputReport(panda_id, attempt_nr, pid, time_limit)
+                if got_lock:
+                    report_dict = taskBuffer.getJobOutputReport(panda_id=panda_id, attempt_nr=attempt_nr)
                     try:
-                        modTime = datetime.datetime(*(time.gmtime(os.path.getmtime(fileName))[:7]))
+                        # modTime = datetime.datetime(*(time.gmtime(os.path.getmtime(fileName))[:7]))
+                        modTime = report_dict['timeStamp']
                         thr = None
                         if (timeNow - modTime) > datetime.timedelta(hours=24):
                             # last chance
-                            tmpLog.debug("Last Add File {0} : {1}".format(os.getpid(),fileName))
-                            thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
-                                           ignoreTmpError=False,siteMapper=aSiteMapper)
+                            # tmpLog.debug("Last Add File {0} : {1}".format(os.getpid(),fileName))
+                            # thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
+                            #                ignoreTmpError=False,siteMapper=aSiteMapper)
+                            tmpLog.debug("Last Add pid={0} job={1}.{2}".format(os.getpid(), panda_id, attempt_nr))
+                            thr = AdderGen(taskBuffer, match.group(1), match.group(2), report_dict,
+                                           ignoreTmpError=False, siteMapper=aSiteMapper)
                         elif (timeInt - modTime) > datetime.timedelta(minutes=gracePeriod):
                             # add
-                            tmpLog.debug("Add File {0} : {1}".format(os.getpid(),fileName))
-                            thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
-                                           ignoreTmpError=True,siteMapper=aSiteMapper)
+                            # tmpLog.debug("Add File {0} : {1}".format(os.getpid(),fileName))
+                            # thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
+                            #                ignoreTmpError=True,siteMapper=aSiteMapper)
+                            tmpLog.debug("Add File pid={0} job={1}.{2}".format(os.getpid(), panda_id, attempt_nr))
+                            thr = AdderGen(taskBuffer, match.group(1), match.group(2), report_dict,
+                                           ignoreTmpError=True, siteMapper=aSiteMapper)
                         if thr is not None:
                             thr.run()
                     except Exception:
                         type, value, traceBack = sys.exc_info()
                         tmpLog.error("%s %s" % (type,value))
+                else:
+                    # did not get lock
+                    tmpLog.debug('Add pid={0} did not get lock of job={1}.{2} ; skip'.format(panda_id, attempt_nr))
+                    continue
 
 
         # launcher

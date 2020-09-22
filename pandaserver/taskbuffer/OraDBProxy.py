@@ -23588,7 +23588,7 @@ class DBProxy:
 
     # insert job output report
     def insertJobOutputReport(self, panda_id, prod_source_label,
-                                job_status, attempt_nr, data, time_stamp):
+                                job_status, attempt_nr, data):
         comment = ' /* DBProxy.insertJobOutputReport */'
         method_name = 'insertJobOutputReport'
         # defaults
@@ -23611,9 +23611,47 @@ class DBProxy:
             varMap[':jobStatus'] = job_status
             varMap[':attemptNr'] = attempt_nr
             varMap[':data'] = data
-            varMap[':timeStamp'] = time_stamp
+            varMap[':timeStamp'] = datetime.datetime.utcnow()
             self.cur.execute(sqlI+comment, varMap)
             tmp_log.debug('successfully inserted')
+            retVal = True
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmp_log, method_name)
+            return retVal
+
+    # update data of job output report
+    def updateJobOutputReport(self, panda_id, attempt_nr, data):
+        comment = ' /* DBProxy.updateJobOutputReport */'
+        method_name = 'updateJobOutputReport'
+        # defaults
+        method_name += ' <PandaID={0} attemptNr={1}>'.format(panda_id, attempt_nr)
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+        # try to lock
+        try:
+            retVal = False
+            # sql to update
+            sqlU  = (   'UPDATE {0}.Job_Output_Report '
+                            'SET data=:data, timeStamp=:timeStamp '
+                        'WHERE PandaID=:PandaID AND attemptNr=:attemptNr '
+                        ).format(panda_config.schemaPANDA)
+            # start transaction
+            self.conn.begin()
+            # update
+            varMap = {}
+            varMap[':PandaID'] = panda_id
+            varMap[':attemptNr'] = attempt_nr
+            varMap[':data'] = data
+            varMap[':timeStamp'] = datetime.datetime.utcnow()
+            self.cur.execute(sqlU+comment, varMap)
+            tmp_log.debug('successfully updated')
             retVal = True
             # commit
             if not self._commit():
@@ -23631,7 +23669,6 @@ class DBProxy:
         comment = ' /* DBProxy.deleteJobOutputReport */'
         method_name = 'deleteJobOutputReport'
         # defaults
-        retVal = False
         method_name += ' <PandaID={0} attemptNr={1}>'.format(panda_id, attempt_nr)
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug('start')
@@ -23661,27 +23698,74 @@ class DBProxy:
             self.dumpErrorMessage(tmp_log, method_name)
             return retVal
 
+    # get record of a job output report
+    def getJobOutputReport(self, panda_id, attempt_nr):
+        comment = ' /* DBProxy.getJobOutputReport */'
+        method_name = 'getJobOutputReport'
+        # defaults
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+        # try to lock
+        try:
+            retVal = {}
+            # sql to get records
+            sqlGR  = (  'SELECT PandaID,prodSourceLabel,jobStatus,attemptNr,data,timeStamp,lockedBy,lockedTime '
+                        'FROM {0}.Job_Output_Report '
+                        'WHERE PandaID=:PandaID AND attemptNr=:attemptNr '
+                        ).format(panda_config.schemaPANDA)
+            # start transaction
+            self.conn.begin()
+            # check
+            varMap = None
+            varMap[':PandaID'] = panda_id
+            varMap[':attemptNr'] = attempt_nr
+            self.cur.execute(sqlGR+comment, varMap)
+            resGR = self.cur.fetchall()
+            if not resGR:
+                tmp_log.debug('skipped, no available record to get')
+            for PandaID, prodSourceLabel, jobStatus, attemptNr, data, timeStamp, lockedBy, lockedTime in resGR:
+                # fill result
+                retVal = {
+                        'PandaID': PandaID,
+                        'attemptNr': prodSourceLabel,
+                        'jobStatus': jobStatus,
+                        'attemptNr': attemptNr,
+                        'timeStamp': timeStamp,
+                        'data': data,
+                        'lockedBy': lockedBy,
+                        'lockedTime': lockedTime,
+                    }
+                break
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmp_log, method_name)
+            return retVal
+
     # lock job output report
     def lockJobOutputReport(self, panda_id, attempt_nr, pid, time_limit):
         comment = ' /* DBProxy.lockJobOutputReport */'
         method_name = 'lockJobOutputReport'
         # defaults
-        retVal = False
-        method_name += ' <PandaID={0} attemptNr={1}>'.format(panda_id, attempt_nr)
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug('start')
         # try to lock
         try:
-            retVal = False
-            # sql to check
-            sqlCT  = (  'SELECT lockedBy '
+            retVal = []
+            # sql to get lock
+            sqlGL  = (  'SELECT PandaID,attemptNr '
                         'FROM {0}.Job_Output_Report '
                         'WHERE PandaID=:PandaID AND attemptNr=:attemptNr '
-                            'AND lockedTime>:lockedTime '
+                            'AND (lockedBy IS NULL OR lockedBy=:lockedBy OR lockedTime<:lockedTime) '
                         'FOR UPDATE'
                         ).format(panda_config.schemaPANDA)
-            # sql to update
-            sqlU  = (   'UPDATE {0}.Job_Output_Report '
+            # sql to update lock
+            sqlUL  = (  'UPDATE {0}.Job_Output_Report '
                             'SET lockedBy=:lockedBy, lockedTime=:lockedTime '
                         'WHERE PandaID=:PandaID AND attemptNr=:attemptNr '
                         ).format(panda_config.schemaPANDA)
@@ -23693,19 +23777,21 @@ class DBProxy:
             varMap[':attemptNr'] = attempt_nr
             varMap[':lockedBy'] = pid
             varMap[':lockedTime'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=time_limit)
-            self.cur.execute(sqlCT+comment, varMap)
-            resCT = self.cur.fetchone()
-            if resCT is not None:
-                tmp_log.debug('skipped, locked by {0}'.format(resCT[0]))
+            utc_now = datetime.datetime.utcnow()
+            self.cur.execute(sqlGL+comment, varMap)
+            resGL = self.cur.fetchone()
+            if not resGL:
+                tmp_log.debug('skipped, no available record to get')
             else:
-                # update
+                panda_id, attempt_nr = resGL
+                # lock
                 varMap = {}
                 varMap[':PandaID'] = panda_id
                 varMap[':attemptNr'] = attempt_nr
                 varMap[':lockedBy'] = pid
-                varMap[':lockedTime'] = datetime.datetime.utcnow()
-                self.cur.execute(sqlU+comment, varMap)
-                tmp_log.debug('successfully locked')
+                varMap[':lockedTime'] = utc_now
+                self.cur.execute(sqlUL+comment, varMap)
+                tmp_log.debug('successfully locked {0}.{1}'.format(panda_id, attempt_nr))
                 retVal = True
             # commit
             if not self._commit():
@@ -23718,19 +23804,20 @@ class DBProxy:
             self.dumpErrorMessage(tmp_log, method_name)
             return retVal
 
-    # list pandaID and attemptNr of job output report
+
+
+    # list pandaID, jobStatus, attemptNr, timeStamp of job output report
     def listJobOutputReport(self):
         comment = ' /* DBProxy.listJobOutputReport */'
         method_name = 'listJobOutputReport'
         # defaults
-        retVal = False
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug('start')
         # try to lock
         try:
             retVal = None
             # sql to select
-            sqlS  = (   'SELECT PandaID, attemptNr '
+            sqlS  = (   'SELECT PandaID,jobStatus,attemptNr,timeStamp '
                         'FROM {0}.Job_Output_Report '
                         ).format(panda_config.schemaPANDA)
             # start transaction
