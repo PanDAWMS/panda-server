@@ -23618,6 +23618,7 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
+            tmp_log.debug('done')
             return retVal
         except Exception:
             # roll back
@@ -23656,6 +23657,7 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
+            tmp_log.debug('done')
             return retVal
         except Exception:
             # roll back
@@ -23690,6 +23692,7 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
+            tmp_log.debug('done')
             return retVal
         except Exception:
             # roll back
@@ -23739,6 +23742,7 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
+            tmp_log.debug('done')
             return retVal
         except Exception:
             # roll back
@@ -23796,6 +23800,7 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
+            tmp_log.debug('done')
             return retVal
         except Exception:
             # roll back
@@ -23828,6 +23833,7 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
+            tmp_log.debug('done')
             return retVal
         except Exception:
             # roll back

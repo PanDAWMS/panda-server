@@ -562,28 +562,31 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     tmpLog.debug("Adder session")
 
     # make TaskBuffer IF
-    taskBufferIF = TaskBufferInterface()
-    taskBufferIF.launch(taskBuffer)
+    # taskBufferIF = TaskBufferInterface()
+    # taskBufferIF.launch(taskBuffer)
 
-    adderThrList = []
-    for i in range(3):
-        p = AdderProcess()
-        p.launch(taskBufferIF.getInterface(),aSiteMapper,holdingAna)
-        adderThrList.append(p)
+    p = AdderProcess()
+    p.run(taskBuffer, aSiteMapper, holdingAna)
+
+    # adderThrList = []
+    # for i in range(3):
+    #     p = AdderProcess()
+    #     p.launch(taskBufferIF.getInterface(),aSiteMapper,holdingAna)
+    #     adderThrList.append(p)
 
     # join all threads
-    for thr in adderThrList:
-        thr.join()
+    # for thr in adderThrList:
+    #     thr.join()
 
     # join sender
     # mailSender.join()
 
     # join fork threads
-    for thr in forkThrList:
-        thr.join()
+    # for thr in forkThrList:
+    #     thr.join()
 
     # terminate TaskBuffer IF
-    taskBufferIF.terminate()
+    # taskBufferIF.terminate()
 
     tmpLog.debug("===================== end =====================")
 
