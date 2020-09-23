@@ -7,6 +7,7 @@ entry point
 
 import datetime
 import traceback
+import six
 
 # config file
 from pandaserver.config import panda_config
@@ -111,8 +112,12 @@ if panda_config.useFastCGI or panda_config.useWSGI:
     from pandacommon.pandalogger.PandaLogger import PandaLogger
     from pandacommon.pandalogger.LogWrapper import LogWrapper
 
-    if panda_config.token_authType == 'scitokens':
+    if panda_config.token_authType is None:
+        pass
+    elif panda_config.token_authType == 'scitokens':
         import scitokens
+    else:
+        from pandaserver.srvcore import oidc_utils
 
     # logger
     _logger = PandaLogger().getLogger('Entry')
@@ -130,28 +135,37 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                 self.headers_in["content-length"] = self.subprocess_env['CONTENT_LENGTH']
             # scitoken
             try:
-                if panda_config.token_authType == 'scitokens' and 'HTTP_AUTHORIZATION' in env:
+                if panda_config.token_authType in ['scitokens', 'oidc'] and 'HTTP_AUTHORIZATION' in env:
                     serialized_token = env['HTTP_AUTHORIZATION'].split()[1]
-                    token = scitokens.SciToken.deserialize(serialized_token, audience=panda_config.token_audience)
+                    if panda_config.token_authType == 'scitokens':
+                        token = scitokens.SciToken.deserialize(serialized_token, audience=panda_config.token_audience)
+                    else:
+                        audience = env['HTTP_AUTHORIZATION'].split()[2]
+                        token = oidc_utils.deserialize_token(serialized_token, audience,
+                                                             panda_config.token_audience_map)
                     # check issuer
                     if 'iss' not in token:
                         tmpLog.error('issuer is undefined')
-                    elif panda_config.token_issuers != '' and token['iss'] not in panda_config.token_issuers.split(','):
-                        tmpLog.error('invalid issuer {0}'.format(token['iss']))
                     else:
-                        for c, v in token.claims():
-                            self.subprocess_env['SCI_TOKEN_{0}'.format(str(c))] = str(v)
+                        if panda_config.token_authType == 'scitokens':
+                            items = token.claims()
+                        else:
+                            items = six.iteritems(token)
+                        for c, v in items:
+                            self.subprocess_env['AUTH_CLAIM_{0}'.format(str(c))] = str(v)
                         # use sub and scope as DN and FQAN
                         if 'SSL_CLIENT_S_DN' not in self.subprocess_env:
-                            self.subprocess_env['SSL_CLIENT_S_DN'] = str(token['sub'])
+                            if 'name' in token:
+                                self.subprocess_env['SSL_CLIENT_S_DN'] = str(token['name'])
+                            else:
+                                self.subprocess_env['SSL_CLIENT_S_DN'] = str(token['sub'])
                             i = 0
-                            for scope in token['scope'].split():
+                            for scope in token.get('scope', '').split():
                                 if scope.startswith('role:'):
-                                    self.subprocess_env['GRST_CRED_SCI_TOKEN_{0}'.format(i)] = 'VOMS ' + str(scope.split(':')[-1])
+                                    self.subprocess_env['GRST_CRED_AUTH_TOKEN_{0}'.format(i)] = 'VOMS ' + str(scope.split(':')[-1])
                                     i += 1
             except Exception as e:
-                tmpLog.error('invalid token: {0}'.format(str(e)))
-
+                tmpLog.error('invalid token: {0} - {1}'.format(str(e), env['HTTP_AUTHORIZATION']))
         # get remote host
         def get_remote_host(self):
             if 'REMOTE_HOST' in self.subprocess_env:
