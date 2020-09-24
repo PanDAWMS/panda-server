@@ -23719,7 +23719,7 @@ class DBProxy:
             # start transaction
             self.conn.begin()
             # check
-            varMap = None
+            varMap = {}
             varMap[':PandaID'] = panda_id
             varMap[':attemptNr'] = attempt_nr
             self.cur.execute(sqlGR+comment, varMap)
@@ -23734,7 +23734,7 @@ class DBProxy:
                         'jobStatus': jobStatus,
                         'attemptNr': attemptNr,
                         'timeStamp': timeStamp,
-                        'data': data,
+                        'data': data.read(),
                         'lockedBy': lockedBy,
                         'lockedTime': lockedTime,
                     }
@@ -23783,20 +23783,21 @@ class DBProxy:
             varMap[':lockedTime'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=time_limit)
             utc_now = datetime.datetime.utcnow()
             self.cur.execute(sqlGL+comment, varMap)
-            resGL = self.cur.fetchone()
+            resGL = self.cur.fetchall()
             if not resGL:
                 tmp_log.debug('skipped, no available record to get')
             else:
-                panda_id, attempt_nr = resGL
-                # lock
-                varMap = {}
-                varMap[':PandaID'] = panda_id
-                varMap[':attemptNr'] = attempt_nr
-                varMap[':lockedBy'] = pid
-                varMap[':lockedTime'] = utc_now
-                self.cur.execute(sqlUL+comment, varMap)
-                tmp_log.debug('successfully locked {0}.{1}'.format(panda_id, attempt_nr))
-                retVal = True
+                for panda_id, attempt_nr in resGL:
+                    # lock
+                    varMap = {}
+                    varMap[':PandaID'] = panda_id
+                    varMap[':attemptNr'] = attempt_nr
+                    varMap[':lockedBy'] = pid
+                    varMap[':lockedTime'] = utc_now
+                    self.cur.execute(sqlUL+comment, varMap)
+                    tmp_log.debug('successfully locked {0}.{1}'.format(panda_id, attempt_nr))
+                    retVal = True
+                    break
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')

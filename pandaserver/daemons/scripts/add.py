@@ -16,6 +16,7 @@ import pandaserver.taskbuffer.ErrorCode
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils import PandaUtils
 from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.brokerage.SiteMapper import SiteMapper
@@ -420,8 +421,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                     # match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
                     # if match is not None:
                     # fileName = '%s/%s' % (dirName,file)
-                    panda_id = match.group(1)
-                    job_status = match.group(2)
+                    # panda_id = match.group(1)
+                    # job_status = match.group(2)
                     if panda_id in uMap:
                         # try:
                         #     os.remove(fileName)
@@ -463,8 +464,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                             # match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
                             # if match is not None:
                             # fileName = '%s/%s' % (dirName,file)
-                            panda_id = match.group(1)
-                            job_status = match.group(2)
+                            # panda_id = match.group(1)
+                            # job_status = match.group(2)
                             if panda_id in uMap:
                                 # try:
                                 #     os.remove(fileName)
@@ -474,7 +475,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                             else:
                                 if job_status != EventServiceUtils.esRegStatus:
                                     # uMap[panda_id] = fileName
-                                    record = (panda_id, job_status, attempt_nr)
+                                    record = (panda_id, job_status, attempt_nr, time_stamp)
                                     uMap[panda_id] = record
                                 if long(panda_id) in holdingAna:
                                     # give a priority to buildJobs
@@ -498,13 +499,12 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 #     fileName = '%s/%s' % (dirName,file)
                 #     if not os.path.exists(fileName):
                 #         continue
-                # try to lock the record
-                got_lock = taskBuffer.lockJobOutputReport(panda_id, attempt_nr, pid, time_limit)
-                if got_lock:
-                    report_dict = taskBuffer.getJobOutputReport(panda_id=panda_id, attempt_nr=attempt_nr)
+                # unique pid
+                uniq_pid = GenericThread().get_pid()
+                if True:
                     try:
                         # modTime = datetime.datetime(*(time.gmtime(os.path.getmtime(fileName))[:7]))
-                        modTime = report_dict['timeStamp']
+                        modTime = time_stamp
                         thr = None
                         if (timeNow - modTime) > datetime.timedelta(hours=24):
                             # last chance
@@ -512,7 +512,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                             # thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
                             #                ignoreTmpError=False,siteMapper=aSiteMapper)
                             tmpLog.debug("Last Add pid={0} job={1}.{2}".format(os.getpid(), panda_id, attempt_nr))
-                            thr = AdderGen(taskBuffer, match.group(1), match.group(2), report_dict,
+                            thr = AdderGen(taskBuffer, panda_id, job_status, attempt_nr,
                                            ignoreTmpError=False, siteMapper=aSiteMapper)
                         elif (timeInt - modTime) > datetime.timedelta(minutes=gracePeriod):
                             # add
@@ -520,7 +520,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                             # thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
                             #                ignoreTmpError=True,siteMapper=aSiteMapper)
                             tmpLog.debug("Add File pid={0} job={1}.{2}".format(os.getpid(), panda_id, attempt_nr))
-                            thr = AdderGen(taskBuffer, match.group(1), match.group(2), report_dict,
+                            thr = AdderGen(taskBuffer, panda_id, job_status, attempt_nr,
                                            ignoreTmpError=True, siteMapper=aSiteMapper)
                         if thr is not None:
                             thr.run()
@@ -529,7 +529,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         tmpLog.error("%s %s" % (type,value))
                 else:
                     # did not get lock
-                    tmpLog.debug('Add pid={0} did not get lock of job={1}.{2} ; skip'.format(panda_id, attempt_nr))
+                    tmpLog.debug('Add pid={0} did not get lock of job={1}.{2} ; skip'.format(os.getpid(), panda_id, attempt_nr))
                     continue
 
 

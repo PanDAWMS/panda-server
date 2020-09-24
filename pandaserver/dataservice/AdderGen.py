@@ -38,8 +38,8 @@ panda_config.setupPlugin()
 
 class AdderGen(GenericThread):
     # constructor
-    def __init__(self, taskBuffer, jobID, jobStatus, report_dict, ignoreTmpError=True, siteMapper=None):
-        GenericThread.__init__()
+    def __init__(self, taskBuffer, jobID, jobStatus, attemptNr, ignoreTmpError=True, siteMapper=None):
+        GenericThread.__init__(self)
         self.job = None
         self.jobID = jobID
         self.jobStatus = jobStatus
@@ -58,8 +58,8 @@ class AdderGen(GenericThread):
         # except Exception:
         #     pass
         # extract from report data
-        self.attemptNr = report_dict.get(attemptNr)
-        self.data = report_dict.get(data)
+        self.attemptNr = attemptNr
+        self.data = None
         # logger
         self.logger = LogWrapper(_logger,str(self.jobID))
 
@@ -129,6 +129,11 @@ class AdderGen(GenericThread):
                     # remove job output report record just in case for the final attempt
                     self.taskBuffer.deleteJobOutputReport(panda_id=self.jobID, attempt_nr=self.attemptNr)
                 return
+
+            # got lock, get the report
+            report_dict = taskBuffer.getJobOutputReport(panda_id=self.jobID, attempt_nr=self.attemptNr)
+            self.data = report_dict.get('data')
+
             # check if file exists
             # if not os.path.exists(self.xmlFile):
             #     self.logger.debug("not exist : %s" % self.xmlFile)

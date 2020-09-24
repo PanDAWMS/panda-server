@@ -187,12 +187,12 @@ class Finisher (threading.Thread):
                                 # oXML.close()
                                 # write to job output report table, try update first
                                 tmp_ret = self.taskBuffer.updateJobOutputReport(
-                                    panda_id=job.PandaID, attempt_nr=0, data=topNode.toxml())
+                                    panda_id=job.PandaID, attempt_nr=job.attemptNr, data=topNode.toxml())
                                 if not tmp_ret:
                                     # then try insert
                                     self.taskBuffer.insertJobOutputReport(
                                         panda_id=job.PandaID, prod_source_label=job.prodSourceLabel,
-                                        job_status=record_status, attempt_nr=0, data=topNode.toxml())
+                                        job_status=record_status, attempt_nr=job.attemptNr, data=topNode.toxml())
                             except Exception:
                                 type, value, traceBack = sys.exc_info()
                                 _logger.error("Job: %s %s %s" % (job.PandaID,type,value))
