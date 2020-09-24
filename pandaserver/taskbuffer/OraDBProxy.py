@@ -23785,7 +23785,7 @@ class DBProxy:
             self.cur.execute(sqlGL+comment, varMap)
             resGL = self.cur.fetchall()
             if not resGL:
-                tmp_log.debug('skipped, no available record to get')
+                tmp_log.debug('record already locked by other thread, skipped')
             else:
                 for panda_id, attempt_nr in resGL:
                     # lock
@@ -23810,7 +23810,61 @@ class DBProxy:
             self.dumpErrorMessage(tmp_log, method_name)
             return retVal
 
-
+    # unlock job output report
+    def unlockJobOutputReport(self, panda_id, attempt_nr, pid):
+        comment = ' /* DBProxy.unlockJobOutputReport */'
+        method_name = 'unlockJobOutputReport'
+        # defaults
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+        # try to lock
+        try:
+            retVal = []
+            # sql to get lock
+            sqlGL  = (  'SELECT PandaID,attemptNr '
+                        'FROM {0}.Job_Output_Report '
+                        'WHERE PandaID=:PandaID AND attemptNr=:attemptNr '
+                            'AND lockedBy=:lockedBy '
+                        'FOR UPDATE'
+                        ).format(panda_config.schemaPANDA)
+            # sql to update lock
+            sqlUL  = (  'UPDATE {0}.Job_Output_Report '
+                            'SET lockedBy=NULL '
+                        'WHERE PandaID=:PandaID AND attemptNr=:attemptNr '
+                        ).format(panda_config.schemaPANDA)
+            # start transaction
+            self.conn.begin()
+            # check
+            varMap = {}
+            varMap[':PandaID'] = panda_id
+            varMap[':attemptNr'] = attempt_nr
+            varMap[':lockedBy'] = pid
+            self.cur.execute(sqlGL+comment, varMap)
+            resGL = self.cur.fetchall()
+            if not resGL:
+                tmp_log.debug('record not locked by this thread, skipped')
+            else:
+                for panda_id, attempt_nr in resGL:
+                    # lock
+                    varMap = {}
+                    varMap[':PandaID'] = panda_id
+                    varMap[':attemptNr'] = attempt_nr
+                    varMap[':lockedBy'] = pid
+                    self.cur.execute(sqlUL+comment, varMap)
+                    tmp_log.debug('successfully unlocked {0}.{1}'.format(panda_id, attempt_nr))
+                    retVal = True
+                    break
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            tmp_log.debug('done')
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmp_log, method_name)
+            return retVal
 
     # list pandaID, jobStatus, attemptNr, timeStamp of job output report
     def listJobOutputReport(self):
@@ -23825,6 +23879,7 @@ class DBProxy:
             # sql to select
             sqlS  = (   'SELECT PandaID,jobStatus,attemptNr,timeStamp '
                         'FROM {0}.Job_Output_Report '
+                        'ORDER BY timeStamp '
                         ).format(panda_config.schemaPANDA)
             # start transaction
             self.conn.begin()

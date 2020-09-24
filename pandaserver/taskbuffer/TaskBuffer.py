@@ -4007,6 +4007,13 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         return ret
 
+    # unlock job output report
+    def unlockJobOutputReport(self, panda_id, attempt_nr, pid):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.unlockJobOutputReport(panda_id, attempt_nr, pid)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
     # list pandaID and attemptNr of job output report
     def listJobOutputReport(self):
         proxy = self.proxyPool.getProxy()

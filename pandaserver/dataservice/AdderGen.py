@@ -8,7 +8,7 @@ import re
 import sys
 import time
 import datetime
-import fcntl
+# import fcntl
 import traceback
 import xml.dom.minidom
 import uuid
@@ -45,7 +45,7 @@ class AdderGen(GenericThread):
         self.jobStatus = jobStatus
         self.taskBuffer = taskBuffer
         self.ignoreTmpError = ignoreTmpError
-        self.lockXML = None
+        # self.lockXML = None
         self.siteMapper = siteMapper
         # self.attemptNr = None
         self.datasetMap = {}
@@ -131,7 +131,7 @@ class AdderGen(GenericThread):
                 return
 
             # got lock, get the report
-            report_dict = taskBuffer.getJobOutputReport(panda_id=self.jobID, attempt_nr=self.attemptNr)
+            report_dict = self.taskBuffer.getJobOutputReport(panda_id=self.jobID, attempt_nr=self.attemptNr)
             self.data = report_dict.get('data')
 
             # check if file exists
@@ -197,9 +197,9 @@ class AdderGen(GenericThread):
                             # remove Catalog
                             self.taskBuffer.deleteJobOutputReport(panda_id=self.jobID, attempt_nr=self.attemptNr)
                             # unlock XML
-                            if self.lockXML is not None:
-                                fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
-                                self.lockXML.close()
+                            # if self.lockXML is not None:
+                            #     fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
+                            #     self.lockXML.close()
                             return
                     # check for cloned jobs
                     if EventServiceUtils.isJobCloningJob(self.job):
@@ -258,13 +258,15 @@ class AdderGen(GenericThread):
                         self.logger.debug(': ignore %s ' % self.job.ddmErrorDiag)
                         self.logger.debug('escape')
                         # unlock XML
-                        try:
-                            fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
-                            self.lockXML.close()
-                        except Exception:
-                            type, value, traceBack = sys.exc_info()
-                            self.logger.debug(": %s %s" % (type,value))
-                            self.logger.debug("cannot unlock XML")
+                        # try:
+                        #     fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
+                        #     self.lockXML.close()
+                        # except Exception:
+                        #     type, value, traceBack = sys.exc_info()
+                        #     self.logger.debug(": %s %s" % (type,value))
+                        #     self.logger.debug("cannot unlock XML")
+                        self.taskBuffer.unlockJobOutputReport(
+                                        panda_id=self.jobID, attempt_nr=self.attemptNr, pid=self.get_pid())
                         return
                     # failed
                     if addResult is None or not addResult.isSucceeded():
@@ -364,13 +366,15 @@ class AdderGen(GenericThread):
                     if not retU[0]:
                         self.logger.error('failed to update DB for pandaid={0}'.format(self.job.PandaID))
                         # unlock XML
-                        try:
-                            fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
-                            self.lockXML.close()
-                        except Exception:
-                            type, value, traceBack = sys.exc_info()
-                            self.logger.debug(": %s %s" % (type,value))
-                            self.logger.debug("cannot unlock XML")
+                        # try:
+                        #     fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
+                        #     self.lockXML.close()
+                        # except Exception:
+                        #     type, value, traceBack = sys.exc_info()
+                        #     self.logger.debug(": %s %s" % (type,value))
+                        #     self.logger.debug("cannot unlock XML")
+                        self.taskBuffer.unlockJobOutputReport(
+                                        panda_id=self.jobID, attempt_nr=self.attemptNr, pid=self.get_pid())
                         return
 
                     try:
@@ -456,9 +460,9 @@ class AdderGen(GenericThread):
             # remove Catalog
             self.taskBuffer.deleteJobOutputReport(panda_id=self.jobID, attempt_nr=self.attemptNr)
             # unlock XML
-            if self.lockXML is not None:
-                fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
-                self.lockXML.close()
+            # if self.lockXML is not None:
+            #     fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
+            #     self.lockXML.close()
         except Exception:
             type, value, traceBack = sys.exc_info()
             errStr = ": %s %s " % (type,value)
@@ -466,13 +470,15 @@ class AdderGen(GenericThread):
             self.logger.error(errStr)
             self.logger.error("except")
             # unlock XML just in case
-            try:
-                if self.lockXML is not None:
-                    fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
-            except Exception:
-                type, value, traceBack = sys.exc_info()
-                self.logger.error(": %s %s" % (type,value))
-                self.logger.error("cannot unlock XML")
+            # try:
+            #     if self.lockXML is not None:
+            #         fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
+            # except Exception:
+            #     type, value, traceBack = sys.exc_info()
+            #     self.logger.error(": %s %s" % (type,value))
+            #     self.logger.error("cannot unlock XML")
+            self.taskBuffer.unlockJobOutputReport(
+                            panda_id=self.jobID, attempt_nr=self.attemptNr, pid=self.get_pid())
 
 
     # parse XML
