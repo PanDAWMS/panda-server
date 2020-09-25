@@ -462,7 +462,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # check heartbeat for 'holding' analysis/ddm jobs
     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
     # get XMLs
-    xmlIDs = []
+    xmlIDs = set()
     # xmlFiles = os.listdir(panda_config.logdir)
     # for file in xmlFiles:
     #     match = re.search('^(\d+)_([^_]+)_.{36}$',file)
@@ -472,7 +472,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     job_output_report_list = taskBuffer.listJobOutputReport()
     if job_output_report_list is not None:
         for panda_id, job_status, attempt_nr, time_stamp in job_output_report_list:
-            xmlIDs.append(int(panda_id))
+            xmlIDs.add(int(panda_id))
     sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime)) AND (prodSourceLabel=:prodSourceLabel1 OR prodSourceLabel=:prodSourceLabel2 OR prodSourceLabel=:prodSourceLabel3) AND stateChangeTime != modificationTime"
     varMap = {}
     varMap[':modificationTime'] = timeLimit

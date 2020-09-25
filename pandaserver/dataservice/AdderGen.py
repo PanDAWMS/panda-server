@@ -16,7 +16,6 @@ import uuid
 from pandaserver.config import panda_config
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
-from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.taskbuffer import retryModule
 from pandaserver.taskbuffer import JobUtils
@@ -36,10 +35,9 @@ _logger = PandaLogger().getLogger('Adder')
 panda_config.setupPlugin()
 
 
-class AdderGen(GenericThread):
+class AdderGen(object):
     # constructor
-    def __init__(self, taskBuffer, jobID, jobStatus, attemptNr, ignoreTmpError=True, siteMapper=None):
-        GenericThread.__init__(self)
+    def __init__(self, taskBuffer, jobID, jobStatus, attemptNr, ignoreTmpError=True, siteMapper=None, pid=None):
         self.job = None
         self.jobID = jobID
         self.jobStatus = jobStatus
@@ -57,8 +55,8 @@ class AdderGen(GenericThread):
         #         self.attemptNr = int(tmpAttemptNr)
         # except Exception:
         #     pass
-        # extract from report data
         self.attemptNr = attemptNr
+        self.pid = pid
         self.data = None
         # logger
         self.logger = LogWrapper(_logger,str(self.jobID))
@@ -122,7 +120,7 @@ class AdderGen(GenericThread):
             # lock job output report record
             got_lock = self.taskBuffer.lockJobOutputReport(
                             panda_id=self.jobID, attempt_nr=self.attemptNr,
-                            pid=self.get_pid(), time_limit=10)
+                            pid=self.pid, time_limit=10)
             if not got_lock:
                 # did not get lock
                 if not self.ignoreTmpError:
@@ -266,7 +264,7 @@ class AdderGen(GenericThread):
                         #     self.logger.debug(": %s %s" % (type,value))
                         #     self.logger.debug("cannot unlock XML")
                         self.taskBuffer.unlockJobOutputReport(
-                                        panda_id=self.jobID, attempt_nr=self.attemptNr, pid=self.get_pid())
+                                        panda_id=self.jobID, attempt_nr=self.attemptNr, pid=self.pid)
                         return
                     # failed
                     if addResult is None or not addResult.isSucceeded():
@@ -374,7 +372,7 @@ class AdderGen(GenericThread):
                         #     self.logger.debug(": %s %s" % (type,value))
                         #     self.logger.debug("cannot unlock XML")
                         self.taskBuffer.unlockJobOutputReport(
-                                        panda_id=self.jobID, attempt_nr=self.attemptNr, pid=self.get_pid())
+                                        panda_id=self.jobID, attempt_nr=self.attemptNr, pid=self.pid)
                         return
 
                     try:
@@ -478,7 +476,7 @@ class AdderGen(GenericThread):
             #     self.logger.error(": %s %s" % (type,value))
             #     self.logger.error("cannot unlock XML")
             self.taskBuffer.unlockJobOutputReport(
-                            panda_id=self.jobID, attempt_nr=self.attemptNr, pid=self.get_pid())
+                            panda_id=self.jobID, attempt_nr=self.attemptNr, pid=self.pid)
 
 
     # parse XML

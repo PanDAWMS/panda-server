@@ -23867,25 +23867,45 @@ class DBProxy:
             return retVal
 
     # list pandaID, jobStatus, attemptNr, timeStamp of job output report
-    def listJobOutputReport(self):
+    def listJobOutputReport(self, only_unlocked, time_limit, limit):
         comment = ' /* DBProxy.listJobOutputReport */'
         method_name = 'listJobOutputReport'
         # defaults
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug('start')
-        # try to lock
         try:
             retVal = None
-            # sql to select
-            sqlS  = (   'SELECT PandaID,jobStatus,attemptNr,timeStamp '
-                        'FROM {0}.Job_Output_Report '
-                        'ORDER BY timeStamp '
-                        ).format(panda_config.schemaPANDA)
-            # start transaction
-            self.conn.begin()
-            # check
-            self.cur.execute(sqlS+comment)
-            retVal = self.cur.fetchall()
+            if only_unlocked:
+                # try to get only records unlocked or with expired lock
+                # sql to get record
+                sqlGR  = (  'SELECT PandaID,jobStatus,attemptNr,timeStamp '
+                            'FROM {0}.Job_Output_Report '
+                            'WHERE rownum<=:limit '
+                                'AND (lockedBy IS NULL OR lockedTime<:lockedTime) '
+                            'ORDER BY timeStamp '
+                            ).format(panda_config.schemaPANDA)
+                # start transaction
+                self.conn.begin()
+                varMap = {}
+                varMap[':limit'] = limit
+                varMap[':lockedTime'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=time_limit)
+                # check
+                self.cur.execute(sqlGR+comment, varMap)
+                retVal = self.cur.fetchall()
+            else:
+                # sql to select
+                sqlS  = (   'SELECT PandaID,jobStatus,attemptNr,timeStamp '
+                            'FROM {0}.Job_Output_Report '
+                            'WHERE rownum<=:limit '
+                            'ORDER BY timeStamp '
+                            ).format(panda_config.schemaPANDA)
+                # start transaction
+                self.conn.begin()
+                varMap = {}
+                varMap[':limit'] = limit
+                # check
+                self.cur.execute(sqlS+comment, varMap)
+                retVal = self.cur.fetchall()
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')

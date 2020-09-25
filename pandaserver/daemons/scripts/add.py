@@ -21,7 +21,9 @@ from pandaserver.config import panda_config
 from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.srvcore.CoreUtils import commands_get_status_output
+from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 from pandaserver.taskbuffer.TaskBufferInterface import TaskBufferInterface
+from pandaserver.dataservice.AdderGen import AdderGen
 
 
 # logger
@@ -394,24 +396,32 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     #         for thr in thrlist:
     #             thr.join()
 
-    # process for adder
-    class AdderProcess:
-        def __init__(self):
-            pass
+    # # process for adder
+    # class AdderProcess:
+    # thread for adder
+    class AdderThread(GenericThread):
+
+        def __init__(self, taskBuffer, aSiteMapper, holdingAna):
+            GenericThread.__init__(self)
+            self.taskBuffer = taskBuffer
+            self.aSiteMapper = aSiteMapper
+            self.holdingAna = holdingAna
 
         # main loop
-        def run(self, taskBuffer, aSiteMapper, holdingAna):
-            # import
-            from pandaserver.dataservice.AdderGen import AdderGen
+        def run(self):
             # get logger
             _logger = PandaLogger().getLogger('add_process')
+            # initialize
+            taskBuffer = self.taskBuffer
+            aSiteMapper = self.aSiteMapper
+            holdingAna = self.holdingAna
             # get file list
             timeNow = datetime.datetime.utcnow()
             timeInt = datetime.datetime.utcnow()
             dirName = panda_config.logdir
             # fileList = os.listdir(dirName)
             # fileList.sort()
-            job_output_report_list = taskBuffer.listJobOutputReport()
+            job_output_report_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=10, limit=9999)
             # remove duplicated files
             tmp_list = []
             uMap = {}
@@ -500,50 +510,47 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 #     if not os.path.exists(fileName):
                 #         continue
                 # unique pid
-                uniq_pid = GenericThread().get_pid()
-                if True:
-                    try:
-                        # modTime = datetime.datetime(*(time.gmtime(os.path.getmtime(fileName))[:7]))
-                        modTime = time_stamp
-                        thr = None
-                        if (timeNow - modTime) > datetime.timedelta(hours=24):
-                            # last chance
-                            # tmpLog.debug("Last Add File {0} : {1}".format(os.getpid(),fileName))
-                            # thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
-                            #                ignoreTmpError=False,siteMapper=aSiteMapper)
-                            tmpLog.debug("Last Add pid={0} job={1}.{2}".format(os.getpid(), panda_id, attempt_nr))
-                            thr = AdderGen(taskBuffer, panda_id, job_status, attempt_nr,
-                                           ignoreTmpError=False, siteMapper=aSiteMapper)
-                        elif (timeInt - modTime) > datetime.timedelta(minutes=gracePeriod):
-                            # add
-                            # tmpLog.debug("Add File {0} : {1}".format(os.getpid(),fileName))
-                            # thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
-                            #                ignoreTmpError=True,siteMapper=aSiteMapper)
-                            tmpLog.debug("Add File pid={0} job={1}.{2}".format(os.getpid(), panda_id, attempt_nr))
-                            thr = AdderGen(taskBuffer, panda_id, job_status, attempt_nr,
-                                           ignoreTmpError=True, siteMapper=aSiteMapper)
-                        if thr is not None:
-                            thr.run()
-                    except Exception:
-                        type, value, traceBack = sys.exc_info()
-                        tmpLog.error("%s %s" % (type,value))
-                else:
-                    # did not get lock
-                    tmpLog.debug('Add pid={0} did not get lock of job={1}.{2} ; skip'.format(os.getpid(), panda_id, attempt_nr))
-                    continue
+                uniq_pid = self.get_pid()
+                try:
+                    # modTime = datetime.datetime(*(time.gmtime(os.path.getmtime(fileName))[:7]))
+                    modTime = time_stamp
+                    adder_gen = None
+                    if (timeNow - modTime) > datetime.timedelta(hours=24):
+                        # last chance
+                        # tmpLog.debug("Last Add File {0} : {1}".format(os.getpid(),fileName))
+                        # thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
+                        #                ignoreTmpError=False,siteMapper=aSiteMapper)
+                        tmpLog.debug("Last Add pid={0} job={1}.{2} st={3}".format(os.getpid(), panda_id, attempt_nr, job_status))
+                        adder_gen = AdderGen(taskBuffer, panda_id, job_status, attempt_nr,
+                                       ignoreTmpError=False, siteMapper=aSiteMapper, pid=uniq_pid)
+                    elif (timeInt - modTime) > datetime.timedelta(minutes=gracePeriod):
+                        # add
+                        # tmpLog.debug("Add File {0} : {1}".format(os.getpid(),fileName))
+                        # thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
+                        #                ignoreTmpError=True,siteMapper=aSiteMapper)
+                        tmpLog.debug("Add File pid={0} job={1}.{2} st={3}".format(os.getpid(), panda_id, attempt_nr, job_status))
+                        adder_gen = AdderGen(taskBuffer, panda_id, job_status, attempt_nr,
+                                       ignoreTmpError=True, siteMapper=aSiteMapper, pid=uniq_pid)
+                    if adder_gen is not None:
+                        adder_gen.run()
+                except Exception:
+                    type, value, traceBack = sys.exc_info()
+                    tmpLog.error("%s %s" % (type,value))
 
-
-        # launcher
-        def launch(self,taskBuffer,aSiteMapper,holdingAna):
-            # run
-            self.process = multiprocessing.Process(target=self.run,
-                                                   args=(taskBuffer,aSiteMapper,holdingAna))
-            self.process.start()
-
-
-        # join
-        def join(self):
-            self.process.join()
+        # # launcher
+        # def launch(self,taskBuffer,aSiteMapper,holdingAna):
+        #     # run
+        #     # self.process = multiprocessing.Process(target=self.run,
+        #     #                                        args=(taskBuffer,aSiteMapper,holdingAna))
+        #     # self.process.start()
+        #     self.thread = multiprocessing.Process(target=self.run,
+        #                                            args=(taskBuffer,aSiteMapper,holdingAna))
+        #     self.thread.start()
+        #
+        # # join
+        # def join(self):
+        #     # self.process.join()
+        #     self.thread.join()
 
 
 
@@ -565,25 +572,33 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # taskBufferIF = TaskBufferInterface()
     # taskBufferIF.launch(taskBuffer)
 
-    p = AdderProcess()
-    p.run(taskBuffer, aSiteMapper, holdingAna)
+    # p = AdderProcess()
+    # p.run(taskBuffer, aSiteMapper, holdingAna)
 
-    # adderThrList = []
-    # for i in range(3):
-    #     p = AdderProcess()
-    #     p.launch(taskBufferIF.getInterface(),aSiteMapper,holdingAna)
-    #     adderThrList.append(p)
+    adderThrList = []
+    for i in range(3):
+        # p = AdderProcess()
+        # p.launch(taskBufferIF.getInterface(),aSiteMapper,holdingAna)
+        tbuf = TaskBuffer()
+        tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
+        thr = AdderThread(tbuf, aSiteMapper, holdingAna)
+        adderThrList.append(thr)
+
+    # start all threads
+    for thr in adderThrList:
+        thr.start()
+        time.sleep(0.25)
 
     # join all threads
-    # for thr in adderThrList:
-    #     thr.join()
+    for thr in adderThrList:
+        thr.join()
 
     # join sender
     # mailSender.join()
 
     # join fork threads
-    # for thr in forkThrList:
-    #     thr.join()
+    for thr in forkThrList:
+        thr.join()
 
     # terminate TaskBuffer IF
     # taskBufferIF.terminate()
