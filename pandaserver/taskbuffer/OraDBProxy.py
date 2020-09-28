@@ -23652,8 +23652,14 @@ class DBProxy:
             varMap[':data'] = data
             varMap[':timeStamp'] = datetime.datetime.utcnow()
             self.cur.execute(sqlU+comment, varMap)
-            tmp_log.debug('successfully updated')
-            retVal = True
+            nRow = self.cur.rowcount
+            if nRow == 1:
+                tmp_log.debug('successfully updated')
+                retVal = True
+            elif nRow == 0:
+                tmp_log.debug('entry not found, not updated')
+            else:
+                tmp_log.warning('updated unspecific number of rows: {0}'.format(nRow))
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
@@ -23734,7 +23740,7 @@ class DBProxy:
                         'jobStatus': jobStatus,
                         'attemptNr': attemptNr,
                         'timeStamp': timeStamp,
-                        'data': data.read(),
+                        'data': data.read() if isinstance(data, cx_Oracle.LOB) else data,
                         'lockedBy': lockedBy,
                         'lockedTime': lockedTime,
                     }
