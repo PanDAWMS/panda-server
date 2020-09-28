@@ -520,7 +520,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         # tmpLog.debug("Last Add File {0} : {1}".format(os.getpid(),fileName))
                         # thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
                         #                ignoreTmpError=False,siteMapper=aSiteMapper)
-                        tmpLog.debug("Last Add pid={0} job={1}.{2} st={3}".format(os.getpid(), panda_id, attempt_nr, job_status))
+                        tmpLog.debug("Last Add pid={0} job={1}.{2} st={3}".format(uniq_pid, panda_id, attempt_nr, job_status))
                         adder_gen = AdderGen(taskBuffer, panda_id, job_status, attempt_nr,
                                        ignoreTmpError=False, siteMapper=aSiteMapper, pid=uniq_pid)
                     elif (timeInt - modTime) > datetime.timedelta(minutes=gracePeriod):
@@ -528,7 +528,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         # tmpLog.debug("Add File {0} : {1}".format(os.getpid(),fileName))
                         # thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
                         #                ignoreTmpError=True,siteMapper=aSiteMapper)
-                        tmpLog.debug("Add File pid={0} job={1}.{2} st={3}".format(os.getpid(), panda_id, attempt_nr, job_status))
+                        tmpLog.debug("Add File pid={0} job={1}.{2} st={3}".format(uniq_pid, panda_id, attempt_nr, job_status))
                         adder_gen = AdderGen(taskBuffer, panda_id, job_status, attempt_nr,
                                        ignoreTmpError=True, siteMapper=aSiteMapper, pid=uniq_pid)
                     if adder_gen is not None:
@@ -536,6 +536,15 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 except Exception:
                     type, value, traceBack = sys.exc_info()
                     tmpLog.error("%s %s" % (type,value))
+
+            # close taskBuffer connection
+            while True:
+                try:
+                    proxy = taskBuffer.proxyPool.proxyList.get(block=False)
+                except Exception:
+                    break
+                else:
+                    proxy.conn.close()
 
         # # launcher
         # def launch(self,taskBuffer,aSiteMapper,holdingAna):
@@ -551,7 +560,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         # def join(self):
         #     # self.process.join()
         #     self.thread.join()
-
 
 
     # get buildJobs in the holding state
