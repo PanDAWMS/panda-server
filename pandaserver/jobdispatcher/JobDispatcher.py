@@ -922,7 +922,7 @@ def updateJob(req, jobId, state, token=None, transExitCode=None, pilotErrorCode=
               nInputFiles=None, batchID=None, attemptNr=None, jobMetrics=None, stdout='', jobSubStatus=None,
               coreCount=None, maxRSS=None, maxVMEM=None, maxSWAP=None, maxPSS=None, avgRSS=None, avgVMEM=None,
               avgSWAP=None, avgPSS=None, totRCHAR=None, totWCHAR=None, totRBYTES=None, totWBYTES=None, rateRCHAR=None,
-              rateWCHAR=None, rateRBYTES=None, rateWBYTES=None, corruptedFiles=None):
+              rateWCHAR=None, rateRBYTES=None, rateWBYTES=None, corruptedFiles=None, meanCoreCount=None):
     tmpLog = LogWrapper(_logger,'updateJob PandaID={0} PID={1}'.format(jobId,os.getpid()))
     tmpLog.debug('start')
     # get DN
@@ -935,14 +935,20 @@ def updateJob(req, jobId, state, token=None, transExitCode=None, pilotErrorCode=
     validToken = _checkToken(token,jobDispatcher)
     # accept json
     acceptJson = req.acceptJson()
-    _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,cpuConsumptionTime=%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,attemptNr:%s,jobSubStatus:%s,core:%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s,maxRSS=%s,maxVMEM=%s,maxSWAP=%s,maxPSS=%s,avgRSS=%s,avgVMEM=%s,avgSWAP=%s,avgPSS=%s,totRCHAR=%s,totWCHAR=%s,totRBYTES=%s,totWBYTES=%s,rateRCHAR=%s,rateWCHAR=%s,rateRBYTES=%s,rateWBYTES=%s,corruptedFiles=%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s\n==Metrics==\n%s\n==stdout==\n%s)" %
+    _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,"
+                  "cpuConsumptionTime=%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
+                  "attemptNr:%s,jobSubStatus:%s,core:%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s,"
+                  "maxRSS=%s,maxVMEM=%s,maxSWAP=%s,maxPSS=%s,avgRSS=%s,avgVMEM=%s,avgSWAP=%s,avgPSS=%s,"
+                  "totRCHAR=%s,totWCHAR=%s,totRBYTES=%s,totWBYTES=%s,rateRCHAR=%s,rateWCHAR=%s,rateRBYTES=%s,"
+                  "rateWBYTES=%s,meanCoreCount=%s,corruptedFiles=%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s\n"
+                  "==Metrics==\n%s\n==stdout==\n%s)" %
                   (jobId, state, transExitCode, pilotErrorCode, pilotErrorDiag, node, workdir, cpuConsumptionTime,
                    cpuConsumptionUnit, remainingSpace, schedulerID, pilotID, siteName, messageLevel, nEvents,
                    nInputFiles, cpuConversionFactor, exeErrorCode, exeErrorDiag, pilotTiming, computingElement,
                    startTime, endTime, batchID, attemptNr, jobSubStatus, coreCount, realDN, prodManager, token,
                    validToken, str(fqans), maxRSS, maxVMEM, maxSWAP, maxPSS, avgRSS, avgVMEM, avgSWAP, avgPSS,
                    totRCHAR, totWCHAR, totRBYTES, totWBYTES, rateRCHAR, rateWCHAR, rateRBYTES, rateWBYTES,
-                   corruptedFiles, xml, pilotLog[:1024], metaData[:1024], jobMetrics, stdout))
+                   meanCoreCount, corruptedFiles, xml, pilotLog[:1024], metaData[:1024], jobMetrics, stdout))
     _pilotReqLogger.debug('method=updateJob,site=%s,node=%s,type=None' % (siteName,node))
     # invalid role
     if not prodManager:
@@ -1012,6 +1018,11 @@ def updateJob(req, jobId, state, token=None, transExitCode=None, pilotErrorCode=
         param['jobSubStatus']=jobSubStatus
     if coreCount not in [None,'']:
         param['actualCoreCount']=coreCount
+    if meanCoreCount:
+        try:
+            param['meanCoreCount'] = float(meanCoreCount)
+        except Exception:
+            pass
     if maxRSS is not None:
         param['maxRSS'] = maxRSS
     if maxVMEM is not None:
