@@ -71,7 +71,10 @@ def pickle_dumps(obj):
 
 
 def pickle_loads(obj_string):
-    return pickle.loads(obj_string.encode())
+    try:
+        return pickle.loads(obj_string.encode())
+    except Exception:
+        return pickle.loads(obj_string)
 
 
 # get URL
@@ -182,7 +185,7 @@ class _Curl:
 
 
     # POST method
-    def post(self,url,data):
+    def post(self, url, data, via_file=False):
         # make command
         com = '%s --silent' % self.path
         if not self.verifyHost:
@@ -213,16 +216,25 @@ class _Curl:
         except Exception:
             tmpName = '/tmp'
         tmpName += '/%s_%s' % (getpass.getuser(), str(uuid.uuid4()))
+        tmpNameOut = '{0}.out'.format(tmpName)
         tmpFile = open(tmpName,'w')
         tmpFile.write(strData)
         tmpFile.close()
         com += ' --config %s' % tmpName
+        if via_file:
+            com += ' -o {0}'.format(tmpNameOut)
         com += ' %s' % url
         # execute
         if self.verbose:
             print(com)
             print(strData)
-        ret = commands_get_status_output(com)
+        s,o = commands_get_status_output(com)
+        if via_file:
+            with open(tmpNameOut, 'rb') as f:
+                ret = (s, f.read())
+            os.remove(tmpNameOut)
+        else:
+            ret = (s, o)
         # remove temporary file
         os.remove(tmpName)
         if ret[0] != 0:
@@ -394,7 +406,7 @@ def getJobStatus(ids, use_json=False):
     # execute
     url = _getURL('URL') + '/getJobStatus'
     data = {'ids':strIDs}
-    status,output = curl.post(url,data)
+    status,output = curl.post(url, data, via_file=True)
     try:
         if use_json:
             return status, json.loads(output)

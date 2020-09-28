@@ -526,13 +526,18 @@ def getVomsAttr(req):
 
 
 # get all attributes
-def getAttr(req):
+def getAttr(req, **kv):
     allAttrs = []
     for tmpKey in req.subprocess_env:
         tmpVal = req.subprocess_env[tmpKey]
         allAttrs.append('%s : %s\n' % (tmpKey,tmpVal))
     allAttrs.sort()
-    retStr = ''
+    retStr = '===== param =====\n'
+    kk = list(kv.keys())
+    kk.sort()
+    for k in kk:
+        retStr += '%s = %s\n' % (k, kv[k])
+    retStr += "\n====== env ======\n"
     for tmpStr in allAttrs:
         retStr += tmpStr
     return retStr

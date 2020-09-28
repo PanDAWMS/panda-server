@@ -1,5 +1,6 @@
 import re
 import sys
+import json
 import socket
 from pandacommon.liveconfigparser.LiveConfigParser import LiveConfigParser
 
@@ -97,6 +98,11 @@ if 'token_audience' not in tmpSelf.__dict__:
 if 'token_issuers' not in tmpSelf.__dict__:
     tmpSelf.__dict__['token_issuers'] = ''
 tmpSelf.__dict__['production_dns'] = [x for x in tmpSelf.__dict__.get('production_dns', '').split(',') if x]
+try:
+    with open(tmpSelf.__dict__['token_audience_map']) as f:
+        tmpSelf.__dict__['token_audience_map'] = json.load(f)
+except Exception:
+    tmpSelf.__dict__['token_audience_map'] = {}
 
 
 
