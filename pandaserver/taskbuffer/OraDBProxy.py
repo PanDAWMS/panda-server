@@ -15003,8 +15003,21 @@ class DBProxy:
                                         #     open(tmpFileName, 'w').close()
                                         # except Exception:
                                         #     pass
-                                        self.insertJobOutputReport(panda_id=pandaID, prod_source_label=zipJobSpec.prodSourceLabel,
-                                                                    job_status=zipJobSpec.jobStatus, attempt_nr=zipJobSpec.attemptNr, data=None)
+                                        # sql to insert
+                                        sqlI  = (  'INSERT INTO {0}.Job_Output_Report '
+                                                        '(PandaID, prodSourceLabel, jobStatus, attemptNr, data, timeStamp) '
+                                                        'VALUES(:PandaID, :prodSourceLabel, :jobStatus, :attemptNr, :data, :timeStamp) '
+                                                    ).format(panda_config.schemaPANDA)
+                                        # insert
+                                        varMap = {}
+                                        varMap[':PandaID'] = pandaID
+                                        varMap[':prodSourceLabel'] = zipJobSpec.prodSourceLabel
+                                        varMap[':jobStatus'] = zipJobSpec.jobStatus
+                                        varMap[':attemptNr'] = zipJobSpec.attemptNr
+                                        varMap[':data'] = None
+                                        varMap[':timeStamp'] = datetime.datetime.utcnow()
+                                        self.cur.execute(sqlI+comment, varMap)
+                                        tmpLog.debug('successfully inserted')
                         # update event
                         varMap = {}
                         varMap[':jediTaskID'] = jediTaskID
@@ -23864,7 +23877,6 @@ class DBProxy:
                     varMap = {}
                     varMap[':PandaID'] = panda_id
                     varMap[':attemptNr'] = attempt_nr
-                    varMap[':lockedBy'] = pid
                     self.cur.execute(sqlUL+comment, varMap)
                     tmp_log.debug('successfully unlocked {0}.{1}'.format(panda_id, attempt_nr))
                     retVal = True

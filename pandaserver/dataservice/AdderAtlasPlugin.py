@@ -811,7 +811,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                     for tmpName in subMap:
                         self.datasetMap[tmpName].status = 'running'
                     if userInfo is not None and 'email' in userInfo:
-                        self.sendEmail(userInfo['email'],tmpMsg,self.job.jediTaskID)
+                        # self.sendEmail(userInfo['email'],tmpMsg,self.job.jediTaskID)
+                        pass
                 except Exception:
                     errType,errValue = sys.exc_info()[:2]
                     tmpMsg = "registerDatasetLocation failed with %s %s" % (errType,errValue)
