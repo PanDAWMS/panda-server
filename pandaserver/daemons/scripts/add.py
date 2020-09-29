@@ -10,6 +10,8 @@ import traceback
 import threading
 import multiprocessing
 
+from concurrent.futures import ProcessPoolExecutor
+
 import pandaserver.userinterface.Client as Client
 import pandaserver.taskbuffer.ErrorCode
 
@@ -421,7 +423,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             dirName = panda_config.logdir
             # fileList = os.listdir(dirName)
             # fileList.sort()
-            job_output_report_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=10, limit=9999)
+            job_output_report_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=10, limit=1000)
             # remove duplicated files
             tmp_list = []
             uMap = {}
@@ -510,6 +512,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 #     if not os.path.exists(fileName):
                 #         continue
                 # unique pid
+                GenericThread.__init__(self)
                 uniq_pid = self.get_pid()
                 try:
                     # modTime = datetime.datetime(*(time.gmtime(os.path.getmtime(fileName))[:7]))
@@ -547,20 +550,16 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 else:
                     proxy.conn.close()
 
-        # # launcher
+        # launcher, run with multiprocessing
         # def launch(self,taskBuffer,aSiteMapper,holdingAna):
-        #     # run
-        #     # self.process = multiprocessing.Process(target=self.run,
-        #     #                                        args=(taskBuffer,aSiteMapper,holdingAna))
-        #     # self.process.start()
-        #     self.thread = multiprocessing.Process(target=self.run,
-        #                                            args=(taskBuffer,aSiteMapper,holdingAna))
-        #     self.thread.start()
-        #
-        # # join
-        # def join(self):
-        #     # self.process.join()
-        #     self.thread.join()
+        def proc_launch(self):
+            # run
+            self.process = multiprocessing.Process(target=self.run)
+            self.process.start()
+
+        # join of multiprocessing
+        def proc_join(self):
+            self.process.join()
 
 
     # get buildJobs in the holding state
@@ -595,12 +594,14 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
     # start all threads
     for thr in adderThrList:
-        thr.start()
+        # thr.start()
+        thr.proc_launch()
         time.sleep(0.25)
 
     # join all threads
     for thr in adderThrList:
-        thr.join()
+        # thr.join()
+        thr.proc_join()
 
     # join sender
     # mailSender.join()
