@@ -17366,20 +17366,27 @@ class DBProxy:
             # begin transaction
             self.conn.begin()
             # sql to get jediTaskID
-            sqlGF  = "SELECT prodSourceLabel, job_label FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
+            sqlGF  = "SELECT prodSourceLabel, tasktype FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
             sqlGF += "WHERE jediTaskID=:jediTaskID "
             varMap = {}
             varMap[':jediTaskID'] = jediTaskID
             self.cur.execute(sqlGF+comment,varMap)
             resFJ = self.cur.fetchone()
             if resFJ is not None:
-                prodSourceLabel, job_label = resFJ
+                prodSourceLabel, task_type = resFJ
             else:
-                prodSourceLabel, job_label = None, None
+                prodSourceLabel, task_type = None, None
+            
+            if task_type:
+                job_label = JobUtils.translate_tasktype_to_jobtype(task_type)
+            else:
+                job_label = None
+            
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
-            _logger.debug("{0} : jediTaskID={1} prodSourceLabel={2}".format(methodName,jediTaskID, prodSourceLabel))
+            _logger.debug("{0} : jediTaskID={1} prodSourceLabel={2} job_label={3}".format(methodName, jediTaskID, 
+                                                                                          prodSourceLabel, job_label))
             return prodSourceLabel, job_label
         except Exception:
             # roll back
