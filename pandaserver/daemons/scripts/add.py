@@ -22,7 +22,7 @@ from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.srvcore.CoreUtils import commands_get_status_output
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
-from pandaserver.taskbuffer.TaskBufferInterface import TaskBufferInterface
+# from pandaserver.taskbuffer.TaskBufferInterface import TaskBufferInterface
 from pandaserver.dataservice.AdderGen import AdderGen
 
 
@@ -528,11 +528,12 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         # tmpLog.debug("Add File {0} : {1}".format(os.getpid(),fileName))
                         # thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
                         #                ignoreTmpError=True,siteMapper=aSiteMapper)
-                        tmpLog.debug("Add File pid={0} job={1}.{2} st={3}".format(uniq_pid, panda_id, attempt_nr, job_status))
+                        tmpLog.debug("Add pid={0} job={1}.{2} st={3}".format(uniq_pid, panda_id, attempt_nr, job_status))
                         adder_gen = AdderGen(taskBuffer, panda_id, job_status, attempt_nr,
                                        ignoreTmpError=True, siteMapper=aSiteMapper, pid=uniq_pid)
                     if adder_gen is not None:
                         adder_gen.run()
+                        del adder_gen
                 except Exception:
                     type, value, traceBack = sys.exc_info()
                     tmpLog.error("%s %s" % (type,value))

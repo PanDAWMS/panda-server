@@ -125,6 +125,7 @@ class AdderGen(object):
                 # did not get lock
                 if not self.ignoreTmpError:
                     # remove job output report record just in case for the final attempt
+                    self.logger.debug('ignore temporary error, end')
                     self.taskBuffer.deleteJobOutputReport(panda_id=self.jobID, attempt_nr=self.attemptNr)
                 return
 
@@ -152,9 +153,9 @@ class AdderGen(object):
                 self.logger.error(': invalid state -> %s' % self.job.jobStatus)
             elif self.attemptNr is not None and self.job.attemptNr != self.attemptNr:
                 self.logger.error('wrong attemptNr -> job=%s <> %s' % (self.job.attemptNr,self.attemptNr))
-            elif self.attemptNr is not None and self.job.jobStatus == 'transferring':
-                errMsg = 'XML with attemptNr for {0}'.format(self.job.jobStatus)
-                self.logger.error(errMsg)
+            # elif self.attemptNr is not None and self.job.jobStatus == 'transferring':
+            #     errMsg = 'XML with attemptNr for {0}'.format(self.job.jobStatus)
+            #     self.logger.error(errMsg)
             elif self.jobStatus == EventServiceUtils.esRegStatus:
                 # instantiate concrete plugin
                 adderPluginClass = self.getPluginClass(self.job.VO)
@@ -428,8 +429,10 @@ class AdderGen(object):
                             else:
                                 cThr = Closer.Closer(self.taskBuffer,destDBList,self.job)
                             self.logger.debug("start Closer")
-                            cThr.start()
-                            cThr.join()
+                            # cThr.start()
+                            # cThr.join()
+                            cThr.run()
+                            del cThr
                             self.logger.debug("end Closer")
                         # run closer for assocaiate parallel jobs
                         if EventServiceUtils.isJobCloningJob(self.job):
@@ -446,8 +449,10 @@ class AdderGen(object):
                                 else:
                                     cThr = Closer.Closer(self.taskBuffer,assDBlocks,assJob)
                                     self.logger.debug("start Closer for PandaID={0}".format(assJobID))
-                                    cThr.start()
-                                    cThr.join()
+                                    # cThr.start()
+                                    # cThr.join()
+                                    cThr.run()
+                                    del cThr
                                     self.logger.debug("end Closer for PandaID={0}".format(assJobID))
             self.logger.debug("end")
             # try:
@@ -461,6 +466,8 @@ class AdderGen(object):
             # if self.lockXML is not None:
             #     fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
             #     self.lockXML.close()
+            del self.data
+            del report_dict
         except Exception:
             type, value, traceBack = sys.exc_info()
             errStr = ": %s %s " % (type,value)

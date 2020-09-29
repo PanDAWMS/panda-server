@@ -14996,13 +14996,14 @@ class DBProxy:
                                     zipRowIdMap[eventDict['zipFile']['lfn']] = zipRow_ID
                                     # make an empty file to trigger registration for zip files in Adder
                                     if zipJobSpec.registerEsFiles():
-                                        tmpFileName = '{0}_{1}_{2}'.format(pandaID, EventServiceUtils.esRegStatus,
-                                                                           uuid.uuid3(uuid.NAMESPACE_DNS,''))
-                                        tmpFileName = os.path.join(panda_config.logdir, tmpFileName)
-                                        try:
-                                            open(tmpFileName, 'w').close()
-                                        except Exception:
-                                            pass
+                                        # tmpFileName = '{0}_{1}_{2}'.format(pandaID, EventServiceUtils.esRegStatus,
+                                        #                                    uuid.uuid3(uuid.NAMESPACE_DNS,''))
+                                        # tmpFileName = os.path.join(panda_config.logdir, tmpFileName)
+                                        # try:
+                                        #     open(tmpFileName, 'w').close()
+                                        # except Exception:
+                                        #     pass
+                                        pass
                         # update event
                         varMap = {}
                         varMap[':jediTaskID'] = jediTaskID
