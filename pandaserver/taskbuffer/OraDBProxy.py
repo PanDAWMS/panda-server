@@ -15003,7 +15003,8 @@ class DBProxy:
                                         #     open(tmpFileName, 'w').close()
                                         # except Exception:
                                         #     pass
-                                        pass
+                                        self.insertJobOutputReport(panda_id=pandaID, prod_source_label=zipJobSpec.prodSourceLabel,
+                                                                    job_status=zipJobSpec.jobStatus, attempt_nr=zipJobSpec.attemptNr, data=None)
                         # update event
                         varMap = {}
                         varMap[':jediTaskID'] = jediTaskID
@@ -17376,16 +17377,16 @@ class DBProxy:
                 prodSourceLabel, task_type = resFJ
             else:
                 prodSourceLabel, task_type = None, None
-            
+
             if task_type:
                 job_label = JobUtils.translate_tasktype_to_jobtype(task_type)
             else:
                 job_label = None
-            
+
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
-            _logger.debug("{0} : jediTaskID={1} prodSourceLabel={2} job_label={3}".format(methodName, jediTaskID, 
+            _logger.debug("{0} : jediTaskID={1} prodSourceLabel={2} job_label={3}".format(methodName, jediTaskID,
                                                                                           prodSourceLabel, job_label))
             return prodSourceLabel, job_label
         except Exception:
