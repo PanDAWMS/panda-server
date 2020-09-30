@@ -28,7 +28,7 @@ __echo = False
 #Create the SQLAlchemy engine
 try:
     __engine = sqlalchemy.create_engine("oracle://%s:%s@%s"%(__user, __passwd, __host),
-                                         echo=__echo)
+                                         echo=__echo, max_identifier_length=128)
 except exc.SQLAlchemyError:
     _logger.critical("Could not load the DB engine: %s"%sys.exc_info())
     raise
