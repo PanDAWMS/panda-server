@@ -10,8 +10,6 @@ import traceback
 import threading
 import multiprocessing
 
-from concurrent.futures import ProcessPoolExecutor
-
 import pandaserver.userinterface.Client as Client
 import pandaserver.taskbuffer.ErrorCode
 

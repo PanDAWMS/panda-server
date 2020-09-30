@@ -149,6 +149,10 @@ class DBProxy:
                 self.conn = cx_Oracle.connect(dsn=self.dbhost, user=self.dbuser,
                                               password=self.dbpasswd, threaded=True,
                                               encoding='UTF-8')
+                def OutputTypeHandler(cursor, name, defaultType, size, precision, scale):
+                    if defaultType == cx_Oracle.CLOB:
+                        return cursor.var(cx_Oracle.LONG_STRING, arraysize = cursor.arraysize)
+                self.conn.outputtypehandler = OutputTypeHandler
             else:
                 self.conn = MySQLdb.connect(host=self.dbhost, db=self.dbname,
                                             port=self.dbport, connect_timeout=self.dbtimeout,
@@ -15013,7 +15017,7 @@ class DBProxy:
                                         varMap[':PandaID'] = pandaID
                                         varMap[':prodSourceLabel'] = zipJobSpec.prodSourceLabel
                                         varMap[':jobStatus'] = zipJobSpec.jobStatus
-                                        varMap[':attemptNr'] = zipJobSpec.attemptNr
+                                        varMap[':attemptNr'] = 0 if zipJobSpec.attemptNr in [None, 'NULL', ''] else zipJobSpec.attemptNr
                                         varMap[':data'] = None
                                         varMap[':timeStamp'] = datetime.datetime.utcnow()
                                         self.cur.execute(sqlI+comment, varMap)
@@ -20792,7 +20796,11 @@ class DBProxy:
                 command_dict['command'] = entry[1]
                 command_dict['params'] = entry[2]
                 if command_dict['params'] is not None:
-                    command_dict['params'] = json.loads(command_dict['params'].read())
+                    try:
+                        theParams= command_dict['params'].read()
+                    except AttributeError:
+                        theParams = command_dict['params']
+                    command_dict['params'] = json.loads(theParams)
                 command_dict['ack_requested'] = entry[3]
                 command_dict['creation_date'] = entry[4].isoformat()
                 commands.append(command_dict)
@@ -23733,6 +23741,7 @@ class DBProxy:
     def getJobOutputReport(self, panda_id, attempt_nr):
         comment = ' /* DBProxy.getJobOutputReport */'
         method_name = 'getJobOutputReport'
+        method_name += ' <PandaID={0} attemptNr={1}>'.format(panda_id, attempt_nr)
         # defaults
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug('start')
@@ -23753,7 +23762,7 @@ class DBProxy:
             self.cur.execute(sqlGR+comment, varMap)
             resGR = self.cur.fetchall()
             if not resGR:
-                tmp_log.debug('skipped, no available record to get')
+                tmp_log.debug('record does not exist, skipped')
             for PandaID, prodSourceLabel, jobStatus, attemptNr, data, timeStamp, lockedBy, lockedTime in resGR:
                 # fill result
                 retVal = {
@@ -23762,10 +23771,11 @@ class DBProxy:
                         'jobStatus': jobStatus,
                         'attemptNr': attemptNr,
                         'timeStamp': timeStamp,
-                        'data': data.read() if isinstance(data, cx_Oracle.LOB) else data,
+                        'data': data,
                         'lockedBy': lockedBy,
                         'lockedTime': lockedTime,
                     }
+                tmp_log.debug('got record')
                 break
             # commit
             if not self._commit():
@@ -23783,6 +23793,7 @@ class DBProxy:
     def lockJobOutputReport(self, panda_id, attempt_nr, pid, time_limit):
         comment = ' /* DBProxy.lockJobOutputReport */'
         method_name = 'lockJobOutputReport'
+        method_name += ' <PandaID={0} attemptNr={1}>'.format(panda_id, attempt_nr)
         # defaults
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug('start')
@@ -23823,7 +23834,7 @@ class DBProxy:
                     varMap[':lockedBy'] = pid
                     varMap[':lockedTime'] = utc_now
                     self.cur.execute(sqlUL+comment, varMap)
-                    tmp_log.debug('successfully locked {0}.{1}'.format(panda_id, attempt_nr))
+                    tmp_log.debug('successfully locked record')
                     retVal = True
                     break
             # commit
@@ -23842,6 +23853,7 @@ class DBProxy:
     def unlockJobOutputReport(self, panda_id, attempt_nr, pid):
         comment = ' /* DBProxy.unlockJobOutputReport */'
         method_name = 'unlockJobOutputReport'
+        method_name += ' <PandaID={0} attemptNr={1}>'.format(panda_id, attempt_nr)
         # defaults
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug('start')
@@ -23878,7 +23890,7 @@ class DBProxy:
                     varMap[':PandaID'] = panda_id
                     varMap[':attemptNr'] = attempt_nr
                     self.cur.execute(sqlUL+comment, varMap)
-                    tmp_log.debug('successfully unlocked {0}.{1}'.format(panda_id, attempt_nr))
+                    tmp_log.debug('successfully unlocked record')
                     retVal = True
                     break
             # commit
@@ -23919,6 +23931,7 @@ class DBProxy:
                 # check
                 self.cur.execute(sqlGR+comment, varMap)
                 retVal = self.cur.fetchall()
+                tmp_log.debug('listed {0} unlocked records'.format(len(retVal)))
             else:
                 # sql to select
                 sqlS  = (   'SELECT PandaID,jobStatus,attemptNr,timeStamp '
@@ -23933,6 +23946,7 @@ class DBProxy:
                 # check
                 self.cur.execute(sqlS+comment, varMap)
                 retVal = self.cur.fetchall()
+                tmp_log.debug('listed {0} records'.format(len(retVal)))
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
