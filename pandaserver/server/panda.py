@@ -130,6 +130,8 @@ if panda_config.useFastCGI or panda_config.useWSGI:
             self.subprocess_env = env
             # header
             self.headers_in = {}
+            # authentication
+            self.authenticated = True
             # content-length
             if 'CONTENT_LENGTH' in self.subprocess_env:
                 self.headers_in["content-length"] = self.subprocess_env['CONTENT_LENGTH']
@@ -140,9 +142,23 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                     if panda_config.token_authType == 'scitokens':
                         token = scitokens.SciToken.deserialize(serialized_token, audience=panda_config.token_audience)
                     else:
-                        audience = env['HTTP_AUTHORIZATION'].split()[2]
-                        token = oidc_utils.deserialize_token(serialized_token, audience,
-                                                             panda_config.token_audience_map)
+                        token = oidc_utils.deserialize_token(serialized_token, panda_config.auth_config)
+                    # check with auth policies
+                    if panda_config.token_authType == 'oidc':
+                        self.authenticated = False
+                        idp = token[ "https://cilogon.org/idp"]
+                        if idp not in panda_config.auth_policies:
+                            tmpLog.error('untrusted IdP : {0} - {1}'.format(idp, env['HTTP_AUTHORIZATION']))
+                        else:
+                            for memberStr, memberInfo in panda_config.auth_policies[idp]:
+                                if memberStr in token["https://cilogon.org/isMemberOf"]:
+                                    self.subprocess_env['PANDA_OIDC_VO'] = memberInfo['vo']
+                                    self.subprocess_env['PANDA_OIDC_GROUP'] = memberInfo['group']
+                                    self.subprocess_env['PANDA_OIDC_ROLE'] = memberInfo['role']
+                                    self.authenticated = True
+                                    break
+                            if not self.authenticated:
+                                tmpLog.error('invalid member - {0}'.format(env['HTTP_AUTHORIZATION']))
                     # check issuer
                     if 'iss' not in token:
                         tmpLog.error('issuer is undefined')
@@ -152,7 +168,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         else:
                             items = six.iteritems(token)
                         for c, v in items:
-                            self.subprocess_env['AUTH_CLAIM_{0}'.format(str(c))] = str(v)
+                            self.subprocess_env['PANDA_OIDC_CLAIM_{0}'.format(str(c))] = str(v)
                         # use sub and scope as DN and FQAN
                         if 'SSL_CLIENT_S_DN' not in self.subprocess_env:
                             if 'name' in token:
@@ -225,6 +241,9 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         tmpLog.debug("with %s" % str(list(params)))
                     # dummy request object
                     dummyReq = DummyReq(environ, tmpLog)
+                    if not dummyReq.authenticated:
+                        start_response('403 Forbidden', [('Content-Type', 'text/plain')])
+                        return ["authentication failure".encode()]
                     param_list = [dummyReq]
                     # exec
                     exeRes = tmpMethod(*param_list, **params)
@@ -254,10 +273,10 @@ if panda_config.useFastCGI or panda_config.useWSGI:
         # return
         if exeRes == pandaserver.taskbuffer.ErrorCode.EC_NotFound:
             start_response('404 Not Found', [('Content-Type', 'text/plain')])
-            return ['not found']
+            return ['not found'.encode()]
         elif isinstance(exeRes, pandaserver.taskbuffer.ErrorCode.EC_Redirect):
             start_response('302 Redirect', [('Location', exeRes.url)])
-            return ['redirect']
+            return ['redirect'.encode()]
         else:
             if retType == 'json':
                 start_response('200 OK', [('Content-Type', 'application/json')])

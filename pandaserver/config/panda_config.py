@@ -99,11 +99,15 @@ if 'token_issuers' not in tmpSelf.__dict__:
     tmpSelf.__dict__['token_issuers'] = ''
 tmpSelf.__dict__['production_dns'] = [x for x in tmpSelf.__dict__.get('production_dns', '').split(',') if x]
 try:
-    with open(tmpSelf.__dict__['token_audience_map']) as f:
-        tmpSelf.__dict__['token_audience_map'] = json.load(f)
+    with open(tmpSelf.__dict__['auth_config']) as f:
+        tmpSelf.__dict__['auth_config'] = json.load(f)
 except Exception:
-    tmpSelf.__dict__['token_audience_map'] = {}
-
+    tmpSelf.__dict__['auth_config'] = {}
+try:
+    with open(tmpSelf.__dict__['auth_policies']) as f:
+        tmpSelf.__dict__['auth_policies'] = json.load(f)
+except Exception:
+    tmpSelf.__dict__['auth_policies'] = {}
 
 
 # dict for plugins
