@@ -1738,7 +1738,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                     break
             # append site
             destSite = self.siteMapper.getSite(tmpJob.computingSite)
-            scope_dest_input, scope_dest_output = select_scope(destSite, tmpJob.prodSourceLabel, job.job_label)
+            scope_dest_input, scope_dest_output = select_scope(destSite, tmpJob.prodSourceLabel, tmpJob.job_label)
             destDQ2ID = destSite.ddm_input[scope_dest_input]
             # T1 used as T2
             if tmpJob.getCloud() != self.siteMapper.getSite(tmpJob.computingSite).cloud and \
