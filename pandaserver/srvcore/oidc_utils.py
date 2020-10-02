@@ -31,12 +31,11 @@ def get_jwk(kid, jwks):
 
 
 # decode and verify JWT token
-def deserialize_token(token, audience, audience_map):
+def deserialize_token(token, auth_config):
     try:
         # check audience
-        if audience not in audience_map:
-            raise jwt.exceptions.InvalidTokenError('unknown audience')
-        discovery_endpoint = audience_map[audience]
+        audience = auth_config['client_id']
+        discovery_endpoint = auth_config['oidc_config_url']
         # decode headers
         headers = jwt.get_unverified_header(token)
         # get key id

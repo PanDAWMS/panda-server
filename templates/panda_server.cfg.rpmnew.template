@@ -362,12 +362,20 @@ ei_dbtimeout = 300
 # Parameters for token-based authentication
 #
 
+# set to oidc to enable OpenID Connect
 token_authType = None
 
+# issuer for SciToken
 token_issuers = https://aipanda026.cern.ch/scitokens
 
+# audience for SciToken
 token_audience = https://pandaserver.cern.ch
 
+# authentication config for OIDC
+auth_config = /opt/panda/etc/panda/auth_config.json
+
+# authentication policies for OIDC
+auth_policies = /opt/panda/etc/panda/auth_policies.json
 
 
 
