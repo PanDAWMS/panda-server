@@ -1746,7 +1746,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                self.siteMapper.getSite(tmpJob.computingSite).cloud in ['US']:
                 tmpSiteSpec = self.siteMapper.getSite(tmpJob.computingSite)
                 scope_tmpSite_input, scope_tmpSite_output = select_scope(tmpSiteSpec, tmpJob.prodSourceLabel,
-                                                                         job.job_label)
+                                                                         tmpJob.job_label)
                 tmpSeTokens = tmpSiteSpec.setokens_input[scope_tmpSite_input]
                 if 'ATLASPRODDISK' in tmpSeTokens:
                     destDQ2ID = tmpSeTokens['ATLASPRODDISK']
