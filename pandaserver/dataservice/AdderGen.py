@@ -121,7 +121,7 @@ class AdderGen(object):
             # lock job output report record
             got_lock = self.taskBuffer.lockJobOutputReport(
                             panda_id=self.jobID, attempt_nr=self.attemptNr,
-                            pid=self.pid, time_limit=10)
+                            pid=self.pid, time_limit=10, take_over_from=self.prelock_pid)
             if not got_lock:
                 # did not get lock
                 if not self.ignoreTmpError:

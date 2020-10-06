@@ -23837,7 +23837,10 @@ class DBProxy:
                     varMap[':lockedBy'] = pid
                     varMap[':lockedTime'] = utc_now
                     self.cur.execute(sqlUL+comment, varMap)
-                    tmp_log.debug('successfully locked record')
+                    if take_over_from is None:
+                        tmp_log.debug('successfully locked record by {0}'.format(pid))
+                    else:
+                        tmp_log.debug('successfully took over locked record from {0} by {1}'.format(take_over_from, pid))
                     retVal = True
                     break
             # commit
