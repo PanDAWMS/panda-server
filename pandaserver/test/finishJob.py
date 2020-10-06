@@ -49,7 +49,7 @@ if job.computingSite in ['',None,'NULL']:
     sys.exit(0)
 
 siteSpec = siteMapper.getSite(job.computingSite)
-scope_input, scope_output = select_scope(siteSpec, job.prodSourceLabel)
+scope_input, scope_output = select_scope(siteSpec, job.prodSourceLabel, job.job_label)
 
 with open('/cvmfs/atlas.cern.ch/repo/sw/local/etc/cric_ddmendpoints.json') as f:
     rseDict = json.load(f)
@@ -85,11 +85,11 @@ for tmpFile in job.Files:
                 tmpSrcDDM = DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
                 if tmpSrcDDM is None:
                     tmpSrcSite = siteMapper.getSite(file.destinationSE)
-                    tmp_scope_input, tmp_scope_output = select_scope(siteSpec, job.prodSourceLabel)
+                    tmp_scope_input, tmp_scope_output = select_scope(siteSpec, job.prodSourceLabel, job.job_label)
                     tmpSrcDDM = tmpSrcSite.ddm_output[tmp_scope_output]
             else:
                 tmpSrcSite = siteMapper.getSite(job.computingSite)
-                tmp_scope_input, tmp_scope_output = select_scope(siteSpec, job.prodSourceLabel)                 
+                tmp_scope_input, tmp_scope_output = select_scope(siteSpec, job.prodSourceLabel, job.job_label)
                 tmpSrcDDM = tmpSrcSite.ddm_output[tmp_scope_output]
             srm,dummy,root = rseDict[tmpSrcDDM]['aprotocols']['w'][0]
             srm = re.sub('^token:[^:]+:','',srm)
@@ -114,7 +114,7 @@ for tmpFile in job.Files:
           <lfn name="%s"/>
         </logical>
         %s
-        <metadata att_name="surl" att_value="%s/%s"/>    
+        <metadata att_name="surl" att_value="%s/%s"/>
         <metadata att_name="fsize" att_value="1273400000"/>
         <metadata att_name="adler32" att_value="0d2a9dc9"/>
        </File>""" % (file.GUID,file.lfn,strDDM,srm,path)

@@ -16,11 +16,14 @@ import pandaserver.taskbuffer.ErrorCode
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils import PandaUtils
 from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.srvcore.CoreUtils import commands_get_status_output
-from pandaserver.taskbuffer.TaskBufferInterface import TaskBufferInterface
+from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
+# from pandaserver.taskbuffer.TaskBufferInterface import TaskBufferInterface
+from pandaserver.dataservice.AdderGen import AdderGen
 
 
 # logger
@@ -221,46 +224,46 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         tmpLog.error("nRunning : %s %s" % (errType,errValue))
 
 
-    # mail sender
-    class MailSender (threading.Thread):
-        def __init__(self):
-            threading.Thread.__init__(self)
-
-        def run(self):
-            tmpLog.debug("mail : start")
-            tmpFileList = glob.glob('%s/mail_*' % panda_config.logdir)
-            for tmpFile in tmpFileList:
-                # check timestamp to avoid too new files
-                timeStamp = os.path.getmtime(tmpFile)
-                if datetime.datetime.utcnow() - datetime.datetime.fromtimestamp(timeStamp) < datetime.timedelta(minutes=1):
-                    continue
-                # lock
-                mailFile = open(tmpFile)
-                try:
-                    fcntl.flock(mailFile.fileno(), fcntl.LOCK_EX|fcntl.LOCK_NB)
-                except Exception:
-                    tmpLog.debug("mail : failed to lock %s" % tmpFile.split('/')[-1])
-                    mailFile.close()
-                    continue
-                # start notifier
-                from pandaserver.dataservice.Notifier import Notifier
-                nThr = Notifier(None,None,None,None,mailFile,tmpFile)
-                nThr.run()
-                # remove
-                try:
-                    os.remove(tmpFile)
-                except Exception:
-                    pass
-                # unlock
-                try:
-                    fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
-                    mailFile.close()
-                except Exception:
-                    pass
-
-    # start sender
-    mailSender =  MailSender()
-    mailSender.start()
+    # # mail sender
+    # class MailSender (threading.Thread):
+    #     def __init__(self):
+    #         threading.Thread.__init__(self)
+    #
+    #     def run(self):
+    #         tmpLog.debug("mail : start")
+    #         tmpFileList = glob.glob('%s/mail_*' % panda_config.logdir)
+    #         for tmpFile in tmpFileList:
+    #             # check timestamp to avoid too new files
+    #             timeStamp = os.path.getmtime(tmpFile)
+    #             if datetime.datetime.utcnow() - datetime.datetime.fromtimestamp(timeStamp) < datetime.timedelta(minutes=1):
+    #                 continue
+    #             # lock
+    #             mailFile = open(tmpFile)
+    #             try:
+    #                 fcntl.flock(mailFile.fileno(), fcntl.LOCK_EX|fcntl.LOCK_NB)
+    #             except Exception:
+    #                 tmpLog.debug("mail : failed to lock %s" % tmpFile.split('/')[-1])
+    #                 mailFile.close()
+    #                 continue
+    #             # start notifier
+    #             from pandaserver.dataservice.Notifier import Notifier
+    #             nThr = Notifier(None,None,None,None,mailFile,tmpFile)
+    #             nThr.run()
+    #             # remove
+    #             try:
+    #                 os.remove(tmpFile)
+    #             except Exception:
+    #                 pass
+    #             # unlock
+    #             try:
+    #                 fcntl.flock(self.lockXML.fileno(), fcntl.LOCK_UN)
+    #                 mailFile.close()
+    #             except Exception:
+    #                 pass
+    #
+    # # start sender
+    # mailSender =  MailSender()
+    # mailSender.start()
 
 
     # session for co-jumbo jobs
@@ -393,51 +396,79 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     #         for thr in thrlist:
     #             thr.join()
 
-    # process for adder
-    class AdderProcess:
-        def __init__(self):
-            pass
+    # # process for adder
+    # class AdderProcess:
+    # thread for adder
+    class AdderThread(GenericThread):
+
+        def __init__(self, taskBuffer, aSiteMapper, holdingAna):
+            GenericThread.__init__(self)
+            self.taskBuffer = taskBuffer
+            self.aSiteMapper = aSiteMapper
+            self.holdingAna = holdingAna
 
         # main loop
-        def run(self,taskBuffer,aSiteMapper,holdingAna):
-            # import
-            from pandaserver.dataservice.AdderGen import AdderGen
+        def run(self):
             # get logger
             _logger = PandaLogger().getLogger('add_process')
+            # initialize
+            taskBuffer = self.taskBuffer
+            aSiteMapper = self.aSiteMapper
+            holdingAna = self.holdingAna
             # get file list
             timeNow = datetime.datetime.utcnow()
             timeInt = datetime.datetime.utcnow()
             dirName = panda_config.logdir
-            fileList = os.listdir(dirName)
-            fileList.sort()
+            # fileList = os.listdir(dirName)
+            # fileList.sort()
+            # job_output_report_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=10, limit=1000)
+            # get some job output reports
+            tmp_JOR_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=2, limit=1000)
+            # try to pre-lock records for a short period of time, so that multiple nodes can get different records
+            prelock_pid = self.get_pid()
+            job_output_report_list = []
+            if tmp_JOR_list is not None:
+                for one_JOR in tmp_JOR_list:
+                    panda_id, job_status, attempt_nr, time_stamp = one_JOR
+                    got_lock = taskBuffer.lockJobOutputReport(
+                                    panda_id=panda_id, attempt_nr=attempt_nr,
+                                    pid=prelock_pid, time_limit=10)
+                    if got_lock:
+                        # only continue with the records this process pre-locked
+                        job_output_report_list.append(one_JOR)
             # remove duplicated files
-            tmpList = []
+            tmp_list = []
             uMap = {}
-            for file in fileList:
-                match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
-                if match is not None:
-                    fileName = '%s/%s' % (dirName,file)
-                    id = match.group(1)
-                    jobStatus = match.group(2)
-                    if id in uMap:
-                        try:
-                            os.remove(fileName)
-                        except Exception:
-                            pass
+            # for file in fileList:
+            # if job_output_report_list is not None:
+            for panda_id, job_status, attempt_nr, time_stamp in job_output_report_list:
+                # match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
+                # if match is not None:
+                # fileName = '%s/%s' % (dirName,file)
+                # panda_id = match.group(1)
+                # job_status = match.group(2)
+                if panda_id in uMap:
+                    # try:
+                    #     os.remove(fileName)
+                    # except Exception:
+                    #     pass
+                    taskBuffer.deleteJobOutputReport(panda_id=panda_id, attempt_nr=attempt_nr)
+                else:
+                    if job_status != EventServiceUtils.esRegStatus:
+                        # uMap[panda_id] = fileName
+                        record = (panda_id, job_status, attempt_nr, time_stamp)
+                        uMap[panda_id] = record
+                    if long(panda_id) in holdingAna:
+                        # give a priority to buildJobs
+                        tmp_list.insert(0, record)
                     else:
-                        if jobStatus != EventServiceUtils.esRegStatus:
-                            uMap[id] = fileName
-                        if long(id) in holdingAna:
-                            # give a priority to buildJobs
-                            tmpList.insert(0,file)
-                        else:
-                            tmpList.append(file)
+                        tmp_list.append(record)
             nFixed = 50
-            randTmp = tmpList[nFixed:]
+            randTmp = tmp_list[nFixed:]
             random.shuffle(randTmp)
-            fileList = tmpList[:nFixed] + randTmp
+            job_output_report_list = tmp_list[:nFixed] + randTmp
             # add
-            while len(fileList) != 0:
+            while len(job_output_report_list) != 0:
                 # time limit to avoid too many copyArchive running at the same time
                 if (datetime.datetime.utcnow() - timeNow) > datetime.timedelta(minutes=overallTimeout):
                     tmpLog.debug("time over in Adder session")
@@ -446,75 +477,101 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 if (datetime.datetime.utcnow() - timeInt) > datetime.timedelta(minutes=15):
                     timeInt = datetime.datetime.utcnow()
                     # get file
-                    fileList = os.listdir(dirName)
-                    fileList.sort()
+                    # fileList = os.listdir(dirName)
+                    # fileList.sort()
                     # remove duplicated files
-                    tmpList = []
+                    tmp_list = []
                     uMap = {}
-                    for file in fileList:
-                        match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
-                        if match is not None:
-                            fileName = '%s/%s' % (dirName,file)
-                            id = match.group(1)
-                            jobStatus = match.group(2)
-                            if id in uMap:
-                                try:
-                                    os.remove(fileName)
-                                except Exception:
-                                    pass
+                    # for file in fileList:
+                    if job_output_report_list is not None:
+                        for panda_id, job_status, attempt_nr, time_stamp in job_output_report_list:
+                            # match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
+                            # if match is not None:
+                            # fileName = '%s/%s' % (dirName,file)
+                            # panda_id = match.group(1)
+                            # job_status = match.group(2)
+                            if panda_id in uMap:
+                                # try:
+                                #     os.remove(fileName)
+                                # except Exception:
+                                #     pass
+                                taskBuffer.deleteJobOutputReport(panda_id=panda_id, attempt_nr=attempt_nr)
                             else:
-                                if jobStatus != EventServiceUtils.esRegStatus:
-                                    uMap[id] = fileName
-                                if long(id) in holdingAna:
-                                    # give a priority to buildJob
-                                    tmpList.insert(0,file)
+                                if job_status != EventServiceUtils.esRegStatus:
+                                    # uMap[panda_id] = fileName
+                                    record = (panda_id, job_status, attempt_nr, time_stamp)
+                                    uMap[panda_id] = record
+                                if long(panda_id) in holdingAna:
+                                    # give a priority to buildJobs
+                                    tmp_list.insert(0, record)
                                 else:
-                                    tmpList.append(file)
-                    fileList = tmpList
+                                    tmp_list.append(record)
+                    # fileList = tmp_list
+                    job_output_report_list = tmp_list
                 # check if
                 if PandaUtils.isLogRotating(5,5):
                     tmpLog.debug("terminate since close to log-rotate time")
                     break
                 # choose a file
-                file = fileList.pop(0)
+                # file = fileList.pop(0)
+                # choose a report record
+                record = job_output_report_list.pop(0)
+                panda_id, job_status, attempt_nr, time_stamp = record
                 # check format
-                match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
-                if match is not None:
-                    fileName = '%s/%s' % (dirName,file)
-                    if not os.path.exists(fileName):
-                        continue
-                    try:
-                        modTime = datetime.datetime(*(time.gmtime(os.path.getmtime(fileName))[:7]))
-                        thr = None
-                        if (timeNow - modTime) > datetime.timedelta(hours=24):
-                            # last chance
-                            tmpLog.debug("Last Add File {0} : {1}".format(os.getpid(),fileName))
-                            thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
-                                           ignoreTmpError=False,siteMapper=aSiteMapper)
-                        elif (timeInt - modTime) > datetime.timedelta(minutes=gracePeriod):
-                            # add
-                            tmpLog.debug("Add File {0} : {1}".format(os.getpid(),fileName))
-                            thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
-                                           ignoreTmpError=True,siteMapper=aSiteMapper)
-                        if thr is not None:
-                            thr.run()
-                    except Exception:
-                        type, value, traceBack = sys.exc_info()
-                        tmpLog.error("%s %s" % (type,value))
+                # match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
+                # if match is not None:
+                #     fileName = '%s/%s' % (dirName,file)
+                #     if not os.path.exists(fileName):
+                #         continue
+                # unique pid
+                GenericThread.__init__(self)
+                uniq_pid = self.get_pid()
+                try:
+                    # modTime = datetime.datetime(*(time.gmtime(os.path.getmtime(fileName))[:7]))
+                    modTime = time_stamp
+                    adder_gen = None
+                    if (timeNow - modTime) > datetime.timedelta(hours=24):
+                        # last chance
+                        # tmpLog.debug("Last Add File {0} : {1}".format(os.getpid(),fileName))
+                        # thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
+                        #                ignoreTmpError=False,siteMapper=aSiteMapper)
+                        tmpLog.debug("Last Add pid={0} job={1}.{2} st={3}".format(uniq_pid, panda_id, attempt_nr, job_status))
+                        adder_gen = AdderGen(taskBuffer, panda_id, job_status, attempt_nr,
+                                       ignoreTmpError=False, siteMapper=aSiteMapper, pid=uniq_pid, prelock_pid=prelock_pid)
+                    elif (timeInt - modTime) > datetime.timedelta(minutes=gracePeriod):
+                        # add
+                        # tmpLog.debug("Add File {0} : {1}".format(os.getpid(),fileName))
+                        # thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
+                        #                ignoreTmpError=True,siteMapper=aSiteMapper)
+                        tmpLog.debug("Add pid={0} job={1}.{2} st={3}".format(uniq_pid, panda_id, attempt_nr, job_status))
+                        adder_gen = AdderGen(taskBuffer, panda_id, job_status, attempt_nr,
+                                       ignoreTmpError=True, siteMapper=aSiteMapper, pid=uniq_pid, prelock_pid=prelock_pid)
+                    if adder_gen is not None:
+                        adder_gen.run()
+                        del adder_gen
+                except Exception:
+                    type, value, traceBack = sys.exc_info()
+                    tmpLog.error("%s %s" % (type,value))
 
+            # close taskBuffer connection
+            while True:
+                try:
+                    proxy = taskBuffer.proxyPool.proxyList.get(block=False)
+                except Exception:
+                    break
+                else:
+                    proxy.conn.close()
 
-        # launcher
-        def launch(self,taskBuffer,aSiteMapper,holdingAna):
+        # launcher, run with multiprocessing
+        # def launch(self,taskBuffer,aSiteMapper,holdingAna):
+        def proc_launch(self):
             # run
-            self.process = multiprocessing.Process(target=self.run,
-                                                   args=(taskBuffer,aSiteMapper,holdingAna))
+            self.process = multiprocessing.Process(target=self.run)
             self.process.start()
 
-
-        # join
-        def join(self):
+        # join of multiprocessing
+        def proc_join(self):
             self.process.join()
-
 
 
     # get buildJobs in the holding state
@@ -532,28 +589,41 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     tmpLog.debug("Adder session")
 
     # make TaskBuffer IF
-    taskBufferIF = TaskBufferInterface()
-    taskBufferIF.launch(taskBuffer)
+    # taskBufferIF = TaskBufferInterface()
+    # taskBufferIF.launch(taskBuffer)
+
+    # p = AdderProcess()
+    # p.run(taskBuffer, aSiteMapper, holdingAna)
 
     adderThrList = []
     for i in range(3):
-        p = AdderProcess()
-        p.launch(taskBufferIF.getInterface(),aSiteMapper,holdingAna)
-        adderThrList.append(p)
+        # p = AdderProcess()
+        # p.launch(taskBufferIF.getInterface(),aSiteMapper,holdingAna)
+        tbuf = TaskBuffer()
+        tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
+        thr = AdderThread(tbuf, aSiteMapper, holdingAna)
+        adderThrList.append(thr)
+
+    # start all threads
+    for thr in adderThrList:
+        # thr.start()
+        thr.proc_launch()
+        time.sleep(0.25)
 
     # join all threads
     for thr in adderThrList:
-        thr.join()
+        # thr.join()
+        thr.proc_join()
 
     # join sender
-    mailSender.join()
+    # mailSender.join()
 
     # join fork threads
     for thr in forkThrList:
         thr.join()
 
     # terminate TaskBuffer IF
-    taskBufferIF.terminate()
+    # taskBufferIF.terminate()
 
     tmpLog.debug("===================== end =====================")
 

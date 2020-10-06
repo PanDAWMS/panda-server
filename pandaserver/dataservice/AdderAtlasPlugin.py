@@ -9,20 +9,22 @@ import time
 import copy
 import datetime
 import traceback
-from pandaserver.dataservice import ErrorCode
-from rucio.common.exception import FileConsistencyMismatch,DataIdentifierNotFound,UnsupportedOperation,\
-    InvalidPath,RSENotFound,InsufficientAccountLimit,RSEProtocolNotSupported,InvalidRSEExpression,\
-    InvalidObject
-
-from pandaserver.dataservice.DDM import rucioAPI
+import gc
 
 from pandaserver.config import panda_config
+from pandaserver.dataservice import ErrorCode
 from pandaserver.dataservice.AdderPluginBase import AdderPluginBase
-from pandaserver.taskbuffer import EventServiceUtils
-from pandaserver.taskbuffer import JobUtils
+from pandaserver.dataservice.DDM import rucioAPI
 from pandaserver.dataservice.MailUtils import MailUtils
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.dataservice.DataServiceUtils import select_scope
+from pandaserver.taskbuffer import EventServiceUtils
+from pandaserver.taskbuffer import JobUtils
+
+from rucio.common.exception import FileConsistencyMismatch,DataIdentifierNotFound,UnsupportedOperation,\
+InvalidPath,RSENotFound,InsufficientAccountLimit,RSEProtocolNotSupported,InvalidRSEExpression,\
+InvalidObject
+
 
 try:
     long
@@ -197,7 +199,7 @@ class AdderAtlasPlugin (AdderPluginBase):
                             self.extraInfo['nevents'][tmpZipFileName] += nEventsInput[tmpLFN]
         # check files
         idMap = {}
-        fileList = []
+        # fileList = []
         subMap = {}
         dsDestMap = {}
         distDSs = set()
@@ -208,6 +210,8 @@ class AdderAtlasPlugin (AdderPluginBase):
         dsIdToDsMap = self.taskBuffer.getOutputDatasetsJEDI(self.job.PandaID)
         self.logger.debug('dsInJEDI=%s' % str(dsIdToDsMap))
         for file in self.job.Files:
+            # gc
+            gc.collect()
             if file.type == 'output' or file.type == 'log':
 
                 # prepare the site spec and scope for the destinationSE site
@@ -222,7 +226,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                 else:
                     subToDsMap[file.destinationDBlock] = file.dataset
                 # append to fileList
-                fileList.append(file.lfn)
+                # commented since unused elsewhere
+                # fileList.append(file.lfn)
                 # add only log file for failed jobs
                 if self.jobStatus == 'failed' and file.type != 'log':
                     continue
@@ -495,6 +500,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                     self.result.setFatal()
                     self.job.ddmErrorDiag = 'failed before adding files : ' + errStr
                     return 1
+        # release some memory
+        del dsIdToDsMap
+        gc.collect()
         # zipping input files
         if len(zipFileMap) > 0 and not self.addToTopOnly:
             for fileSpec in self.job.Files:
@@ -646,6 +654,13 @@ class AdderAtlasPlugin (AdderPluginBase):
             else:
                 self.logger.debug('%s' % str(out))
                 break
+        # release some memory
+        del destIdMap
+        del dsDestMap
+        del osDsFileMap
+        del zipFiles
+        del contZipMap
+        gc.collect()
         # register dataset subscription
         if self.job.processingType == 'urgent' or self.job.currentPriority > 1000:
             subActivity = 'Express'
@@ -811,7 +826,8 @@ class AdderAtlasPlugin (AdderPluginBase):
                     for tmpName in subMap:
                         self.datasetMap[tmpName].status = 'running'
                     if userInfo is not None and 'email' in userInfo:
-                        self.sendEmail(userInfo['email'],tmpMsg,self.job.jediTaskID)
+                        # self.sendEmail(userInfo['email'],tmpMsg,self.job.jediTaskID)
+                        pass
                 except Exception:
                     errType,errValue = sys.exc_info()[:2]
                     tmpMsg = "registerDatasetLocation failed with %s %s" % (errType,errValue)

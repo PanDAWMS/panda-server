@@ -1,8 +1,9 @@
 import sys
 import time
 
-# from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-# from pandaserver.configurator import db_interface as dbif
+from pandaserver.config import panda_config
+from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+from pandaserver.configurator import db_interface as dbif
 from pandacommon.pandalogger import logger_utils
 from pandaserver.configurator import Configurator as configurator_module
 from pandaserver.configurator.Configurator import Configurator, NetworkConfigurator, JsonDumper
@@ -14,11 +15,20 @@ base_logger = configurator_module._logger
 
 # main
 def main(argv=tuple(), tbuf=None, **kwargs):
+    # instantiate TB
+    if tbuf is None:
+        from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
+    else:
+        taskBuffer = tbuf
+    # dbif session
+    session = dbif.get_session()
+
     # If no argument, call the basic configurator
     if len(argv) == 1:
         _logger = logger_utils.make_logger(base_logger, 'Configurator')
         t1 = time.time()
-        configurator = Configurator()
+        configurator = Configurator(session=session)
         if not configurator.run():
             _logger.critical('Configurator loop FAILED')
         t2 = time.time()
@@ -28,7 +38,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     elif len(argv) == 2 and argv[1].lower() == '--network':
         _logger = logger_utils.make_logger(base_logger, 'NetworkConfigurator')
         t1 = time.time()
-        network_configurator = NetworkConfigurator()
+        network_configurator = NetworkConfigurator(taskBuffer=taskBuffer, session=session)
         if not network_configurator.run():
             _logger.critical('Configurator loop FAILED')
         t2 = time.time()
@@ -38,7 +48,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     elif len(argv) == 2 and argv[1].lower() == '--json_dump':
         _logger = logger_utils.make_logger(base_logger, 'JsonDumper')
         t1 = time.time()
-        json_dumper = JsonDumper()
+        json_dumper = JsonDumper(taskBuffer=taskBuffer, session=session)
         out_msg = json_dumper.run()
         _logger.debug('Json_dumper finished with {0}'.format(out_msg))
         t2 = time.time()

@@ -3970,6 +3970,57 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         return ret
 
+    # insert job output report
+    def insertJobOutputReport(self, panda_id, prod_source_label,
+                                job_status, attempt_nr, data):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.insertJobOutputReport(panda_id, prod_source_label,
+                                    job_status, attempt_nr, data)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    # deleted job output report
+    def deleteJobOutputReport(self, panda_id, attempt_nr):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.deleteJobOutputReport(panda_id, attempt_nr)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    # update data of job output report
+    def updateJobOutputReport(self, panda_id, attempt_nr, data):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.updateJobOutputReport(panda_id, attempt_nr, data)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    # get job output report
+    def getJobOutputReport(self, panda_id, attempt_nr):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.getJobOutputReport(panda_id, attempt_nr)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    # lock job output report
+    def lockJobOutputReport(self, panda_id, attempt_nr, pid, time_limit, take_over_from=None):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.lockJobOutputReport(panda_id, attempt_nr, pid, time_limit, take_over_from)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    # unlock job output report
+    def unlockJobOutputReport(self, panda_id, attempt_nr, pid):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.unlockJobOutputReport(panda_id, attempt_nr, pid)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    # list pandaID and attemptNr of job output report
+    def listJobOutputReport(self, only_unlocked=False, time_limit=5, limit=999999):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.listJobOutputReport(only_unlocked, time_limit, limit)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
 
 # Singleton
 taskBuffer = TaskBuffer()

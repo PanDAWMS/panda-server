@@ -369,8 +369,9 @@ class JobDipatcher:
                     response.appendNode('command','NULL')
                 # add output to dataset
                 if tmpWrapper.result not in ["badattemptnr","alreadydone"] and (jobStatus == 'failed' or jobStatus == 'finished'):
-                    adder = AdderGen(self.taskBuffer,jobID,jobStatus,'')
-                    adder.dumpFileReport(xml,attemptNr)
+                    adder_gen = AdderGen(self.taskBuffer, jobID, jobStatus, attemptNr)
+                    adder_gen.dumpFileReport(xml, attemptNr)
+                    del adder_gen
             else:
                 # failed
                 response=Protocol.Response(Protocol.SC_Failed)

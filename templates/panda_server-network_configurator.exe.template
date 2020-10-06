@@ -3,4 +3,4 @@
 # import env vars from sysconfig
 source @@virtual_env@@/etc/sysconfig/panda_server
 
-python @@install_purelib@@/pandaserver/configurator/Configurator.py --network
+python @@install_purelib@@/pandaserver/daemons/scripts/configurator.py --network

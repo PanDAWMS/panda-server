@@ -3,4 +3,4 @@
 # import env vars from sysconfig
 source @@virtual_env@@/etc/sysconfig/panda_server
 
-python @@install_purelib@@/pandaserver/test/add.py
+python @@install_purelib@@/pandaserver/daemons/scripts/add.py
