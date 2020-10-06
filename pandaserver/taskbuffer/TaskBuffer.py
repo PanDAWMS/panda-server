@@ -4001,9 +4001,9 @@ class TaskBuffer:
         return ret
 
     # lock job output report
-    def lockJobOutputReport(self, panda_id, attempt_nr, pid, time_limit):
+    def lockJobOutputReport(self, panda_id, attempt_nr, pid, time_limit, take_over_from=None):
         proxy = self.proxyPool.getProxy()
-        ret = proxy.lockJobOutputReport(panda_id, attempt_nr, pid, time_limit)
+        ret = proxy.lockJobOutputReport(panda_id, attempt_nr, pid, time_limit, take_over_from)
         self.proxyPool.putProxy(proxy)
         return ret
 

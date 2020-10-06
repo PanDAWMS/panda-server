@@ -37,7 +37,7 @@ panda_config.setupPlugin()
 
 class AdderGen(object):
     # constructor
-    def __init__(self, taskBuffer, jobID, jobStatus, attemptNr, ignoreTmpError=True, siteMapper=None, pid=None):
+    def __init__(self, taskBuffer, jobID, jobStatus, attemptNr, ignoreTmpError=True, siteMapper=None, pid=None, prelock_pid=None):
         self.job = None
         self.jobID = jobID
         self.jobStatus = jobStatus
@@ -57,6 +57,7 @@ class AdderGen(object):
         #     pass
         self.attemptNr = attemptNr
         self.pid = pid
+        self.prelock_pid = prelock_pid
         self.data = None
         # logger
         self.logger = LogWrapper(_logger,str(self.jobID))

@@ -421,34 +421,48 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             dirName = panda_config.logdir
             # fileList = os.listdir(dirName)
             # fileList.sort()
-            job_output_report_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=10, limit=1000)
+            # job_output_report_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=10, limit=1000)
+            # get some job output reports
+            tmp_JOR_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=10, limit=1000)
+            # try to pre-lock records for a short period of time, so that multiple nodes can get different records
+            prelock_pid = GenericThread().get_pid()
+            job_output_report_list = []
+            if tmp_JOR_list is not None:
+                for one_JOR in tmp_JOR_list:
+                    panda_id, job_status, attempt_nr, time_stamp = one_JOR
+                    got_lock = taskBuffer.lockJobOutputReport(
+                                    panda_id=panda_id, attempt_nr=attempt_nr,
+                                    pid=prelock_pid, time_limit=2)
+                    if got_lock:
+                        # only continue with the records this process pre-locked
+                        job_output_report_list.append(one_JOR)
             # remove duplicated files
             tmp_list = []
             uMap = {}
             # for file in fileList:
-            if job_output_report_list is not None:
-                for panda_id, job_status, attempt_nr, time_stamp in job_output_report_list:
-                    # match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
-                    # if match is not None:
-                    # fileName = '%s/%s' % (dirName,file)
-                    # panda_id = match.group(1)
-                    # job_status = match.group(2)
-                    if panda_id in uMap:
-                        # try:
-                        #     os.remove(fileName)
-                        # except Exception:
-                        #     pass
-                        taskBuffer.deleteJobOutputReport(panda_id=panda_id, attempt_nr=attempt_nr)
+            # if job_output_report_list is not None:
+            for panda_id, job_status, attempt_nr, time_stamp in job_output_report_list:
+                # match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
+                # if match is not None:
+                # fileName = '%s/%s' % (dirName,file)
+                # panda_id = match.group(1)
+                # job_status = match.group(2)
+                if panda_id in uMap:
+                    # try:
+                    #     os.remove(fileName)
+                    # except Exception:
+                    #     pass
+                    taskBuffer.deleteJobOutputReport(panda_id=panda_id, attempt_nr=attempt_nr)
+                else:
+                    if job_status != EventServiceUtils.esRegStatus:
+                        # uMap[panda_id] = fileName
+                        record = (panda_id, job_status, attempt_nr, time_stamp)
+                        uMap[panda_id] = record
+                    if long(panda_id) in holdingAna:
+                        # give a priority to buildJobs
+                        tmp_list.insert(0, record)
                     else:
-                        if job_status != EventServiceUtils.esRegStatus:
-                            # uMap[panda_id] = fileName
-                            record = (panda_id, job_status, attempt_nr, time_stamp)
-                            uMap[panda_id] = record
-                        if long(panda_id) in holdingAna:
-                            # give a priority to buildJobs
-                            tmp_list.insert(0, record)
-                        else:
-                            tmp_list.append(record)
+                        tmp_list.append(record)
             nFixed = 50
             randTmp = tmp_list[nFixed:]
             random.shuffle(randTmp)
@@ -523,7 +537,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         #                ignoreTmpError=False,siteMapper=aSiteMapper)
                         tmpLog.debug("Last Add pid={0} job={1}.{2} st={3}".format(uniq_pid, panda_id, attempt_nr, job_status))
                         adder_gen = AdderGen(taskBuffer, panda_id, job_status, attempt_nr,
-                                       ignoreTmpError=False, siteMapper=aSiteMapper, pid=uniq_pid)
+                                       ignoreTmpError=False, siteMapper=aSiteMapper, pid=uniq_pid, prelock_pid=prelock_pid)
                     elif (timeInt - modTime) > datetime.timedelta(minutes=gracePeriod):
                         # add
                         # tmpLog.debug("Add File {0} : {1}".format(os.getpid(),fileName))
@@ -531,7 +545,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         #                ignoreTmpError=True,siteMapper=aSiteMapper)
                         tmpLog.debug("Add pid={0} job={1}.{2} st={3}".format(uniq_pid, panda_id, attempt_nr, job_status))
                         adder_gen = AdderGen(taskBuffer, panda_id, job_status, attempt_nr,
-                                       ignoreTmpError=True, siteMapper=aSiteMapper, pid=uniq_pid)
+                                       ignoreTmpError=True, siteMapper=aSiteMapper, pid=uniq_pid, prelock_pid=prelock_pid)
                     if adder_gen is not None:
                         adder_gen.run()
                         del adder_gen

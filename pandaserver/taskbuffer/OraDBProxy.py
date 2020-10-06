@@ -23790,7 +23790,7 @@ class DBProxy:
             return retVal
 
     # lock job output report
-    def lockJobOutputReport(self, panda_id, attempt_nr, pid, time_limit):
+    def lockJobOutputReport(self, panda_id, attempt_nr, pid, time_limit, take_over_from=None):
         comment = ' /* DBProxy.lockJobOutputReport */'
         method_name = 'lockJobOutputReport'
         method_name += ' <PandaID={0} attemptNr={1}>'.format(panda_id, attempt_nr)
@@ -23818,7 +23818,10 @@ class DBProxy:
             varMap = {}
             varMap[':PandaID'] = panda_id
             varMap[':attemptNr'] = attempt_nr
-            varMap[':lockedBy'] = pid
+            if take_over_from is None:
+                varMap[':lockedBy'] = pid
+            else:
+                varMap[':lockedBy'] = take_over_from
             varMap[':lockedTime'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=time_limit)
             utc_now = datetime.datetime.utcnow()
             self.cur.execute(sqlGL+comment, varMap)
