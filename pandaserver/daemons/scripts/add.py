@@ -410,7 +410,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         # main loop
         def run(self):
             # get logger
-            _logger = PandaLogger().getLogger('add_process')
+            # _logger = PandaLogger().getLogger('add_process')
             # initialize
             taskBuffer = self.taskBuffer
             aSiteMapper = self.aSiteMapper
@@ -423,19 +423,28 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             # fileList.sort()
             # job_output_report_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=10, limit=1000)
             # get some job output reports
-            tmp_JOR_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=2, limit=1000)
+            tmp_JOR_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=2, limit=3000)
             # try to pre-lock records for a short period of time, so that multiple nodes can get different records
             prelock_pid = self.get_pid()
             job_output_report_list = []
+            nFixed = 300
             if tmp_JOR_list is not None:
                 for one_JOR in tmp_JOR_list:
                     panda_id, job_status, attempt_nr, time_stamp = one_JOR
-                    got_lock = taskBuffer.lockJobOutputReport(
-                                    panda_id=panda_id, attempt_nr=attempt_nr,
-                                    pid=prelock_pid, time_limit=10)
-                    if got_lock:
-                        # only continue with the records this process pre-locked
+                    if len(job_output_report_list) < nFixed:
+                        # only pre-locked first nFixed records
+                        got_lock = taskBuffer.lockJobOutputReport(
+                                        panda_id=panda_id, attempt_nr=attempt_nr,
+                                        pid=prelock_pid, time_limit=10)
+                        if got_lock:
+                            # continue with the records this process pre-locked
+                            job_output_report_list.append(one_JOR)
+                    else:
                         job_output_report_list.append(one_JOR)
+                    if len(job_output_report_list) >= 1500:
+                        # at most 1500 records in this thread in this cycle
+                        break
+            del tmp_JOR_list
             # remove duplicated files
             tmp_list = []
             uMap = {}
@@ -463,10 +472,10 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         tmp_list.insert(0, record)
                     else:
                         tmp_list.append(record)
-            nFixed = 50
             randTmp = tmp_list[nFixed:]
             random.shuffle(randTmp)
             job_output_report_list = tmp_list[:nFixed] + randTmp
+            tmpLog.debug("Add pid={0} got {1} job records to process".format(prelock_pid, len(job_output_report_list)))
             # add
             while len(job_output_report_list) != 0:
                 # time limit to avoid too many copyArchive running at the same time
