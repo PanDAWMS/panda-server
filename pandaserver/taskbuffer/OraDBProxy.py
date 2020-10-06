@@ -15021,7 +15021,7 @@ class DBProxy:
                                         varMap[':data'] = None
                                         varMap[':timeStamp'] = datetime.datetime.utcnow()
                                         self.cur.execute(sqlI+comment, varMap)
-                                        tmpLog.debug('successfully inserted')
+                                        tmpLog.debug('successfully inserted job output report {0}.{1}'.format(pandaID, varMap[':attemptNr']))
                         # update event
                         varMap = {}
                         varMap[':jediTaskID'] = jediTaskID
@@ -21018,13 +21018,28 @@ class DBProxy:
                                 varMap[':diag'] = JobSpec.truncateStringAttr('taskBufferErrorDiag', varMap[':diag'])
                                 self.cur.execute(sqlJAE+comment, varMap)
                                 # make an empty file to triggre registration for zip files in Adder
-                                tmpFileName = '{0}_{1}_{2}'.format(pandaID, 'failed',
-                                                                   uuid.uuid3(uuid.NAMESPACE_DNS,''))
-                                tmpFileName = os.path.join(panda_config.logdir, tmpFileName)
-                                try:
-                                    open(tmpFileName, 'w').close()
-                                except Exception:
-                                    pass
+                                # tmpFileName = '{0}_{1}_{2}'.format(pandaID, 'failed',
+                                #                                    uuid.uuid3(uuid.NAMESPACE_DNS,''))
+                                # tmpFileName = os.path.join(panda_config.logdir, tmpFileName)
+                                # try:
+                                #     open(tmpFileName, 'w').close()
+                                # except Exception:
+                                #     pass
+                                # sql to insert empty job output report for adder
+                                sqlI  = (  'INSERT INTO {0}.Job_Output_Report '
+                                                '(PandaID, prodSourceLabel, jobStatus, attemptNr, data, timeStamp) '
+                                                'VALUES(:PandaID, :prodSourceLabel, :jobStatus, :attemptNr, :data, :timeStamp) '
+                                            ).format(panda_config.schemaPANDA)
+                                # insert
+                                varMap = {}
+                                varMap[':PandaID'] = pandaID
+                                varMap[':prodSourceLabel'] = JobSpec.prodSourceLabel
+                                varMap[':jobStatus'] = 'failed'
+                                varMap[':attemptNr'] = 0 if JobSpec.attemptNr in [None, 'NULL', ''] else JobSpec.attemptNr
+                                varMap[':data'] = None
+                                varMap[':timeStamp'] = datetime.datetime.utcnow()
+                                self.cur.execute(sqlI+comment, varMap)
+                                tmpLog.debug('successfully inserted job output report {0}.{1}'.format(pandaID, varMap[':attemptNr']))
                         if workerSpec.errorCode not in [None, 0]:
                             varMap = dict()
                             varMap[':PandaID'] = pandaID
