@@ -425,7 +425,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             # get some job output reports
             tmp_JOR_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=10, limit=1000)
             # try to pre-lock records for a short period of time, so that multiple nodes can get different records
-            prelock_pid = GenericThread().get_pid()
+            prelock_pid = self.get_pid()
             job_output_report_list = []
             if tmp_JOR_list is not None:
                 for one_JOR in tmp_JOR_list:
