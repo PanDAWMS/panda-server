@@ -423,7 +423,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             # fileList.sort()
             # job_output_report_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=10, limit=1000)
             # get some job output reports
-            tmp_JOR_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=10, limit=1000)
+            tmp_JOR_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=2, limit=1000)
             # try to pre-lock records for a short period of time, so that multiple nodes can get different records
             prelock_pid = self.get_pid()
             job_output_report_list = []
@@ -432,7 +432,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                     panda_id, job_status, attempt_nr, time_stamp = one_JOR
                     got_lock = taskBuffer.lockJobOutputReport(
                                     panda_id=panda_id, attempt_nr=attempt_nr,
-                                    pid=prelock_pid, time_limit=2)
+                                    pid=prelock_pid, time_limit=10)
                     if got_lock:
                         # only continue with the records this process pre-locked
                         job_output_report_list.append(one_JOR)
