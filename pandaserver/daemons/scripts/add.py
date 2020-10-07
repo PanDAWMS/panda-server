@@ -426,6 +426,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             tmp_JOR_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=2, limit=3000)
             # try to pre-lock records for a short period of time, so that multiple nodes can get different records
             prelock_pid = self.get_pid()
+            prelocked_JOR_list = []
             job_output_report_list = []
             nFixed = 300
             if tmp_JOR_list is not None:
@@ -439,6 +440,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         if got_lock:
                             # continue with the records this process pre-locked
                             job_output_report_list.append(one_JOR)
+                            prelocked_JOR_list.append(one_JOR)
                     else:
                         job_output_report_list.append(one_JOR)
                     if len(job_output_report_list) >= 1500:
@@ -561,7 +563,10 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 except Exception:
                     type, value, traceBack = sys.exc_info()
                     tmpLog.error("%s %s" % (type,value))
-
+            # unlock prelocked reports if possible
+            for panda_id, job_status, attempt_nr, time_stamp in prelocked_JOR_list:
+                taskBuffer.unlockJobOutputReport(
+                            panda_id=panda_id, attempt_nr=attempt_nr, pid=prelock_pid)
             # close taskBuffer connection
             while True:
                 try:
