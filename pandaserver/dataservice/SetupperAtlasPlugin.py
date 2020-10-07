@@ -1065,11 +1065,28 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             tmpSrcID = self.siteMapper.getCloud(job.getCloud())['source']
             srcSiteSpec = self.siteMapper.getSite(tmpSrcID)
             src_scope_input, src_scope_output = select_scope(srcSiteSpec, job.prodSourceLabel, job.job_label)
-            srcDQ2ID = srcSiteSpec.ddm_output[src_scope_output]
+            # could happen if wrong configuration or downtime
+            if src_scope_output in srcSiteSpec.ddm_output:
+                srcDQ2ID = srcSiteSpec.ddm_output[src_scope_output]
+            else:
+                self.logger.error("<task {0}> tmpSrcID {1} has no {2} endpoint (ddm_output {3})".format(job.taskID,
+                                                                                                        tmpSrcID,
+                                                                                                        src_scope_output,
+                                                                                                        srcSiteSpec.ddm_output))
+                continue
 
             dstSiteSpec = self.siteMapper.getSite(job.computingSite)
             dst_scope_input, dst_scope_output = select_scope(dstSiteSpec, job.prodSourceLabel, job.job_label)
-            dstDQ2ID = dstSiteSpec.ddm_input[dst_scope_input]
+            # could happen if wrong configuration or downtime
+            if dst_scope_input in dstSiteSpec.ddm_input:
+                dstDQ2ID = dstSiteSpec.ddm_input[dst_scope_input]
+            else:
+                self.logger.error("<task {0}> computingsite {1} has no {2} endpoint (ddm_input {3})".format(job.taskID,
+                                                                                                            job.computingSite,
+                                                                                                            dst_scope_input,
+                                                                                                            dstSiteSpec.ddm_input))
+                continue
+
             # collect datasets
             datasets = []
             for file in job.Files:
