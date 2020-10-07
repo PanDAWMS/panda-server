@@ -23938,11 +23938,14 @@ class DBProxy:
             if only_unlocked:
                 # try to get only records unlocked or with expired lock
                 # sql to get record
-                sqlGR  = (  'SELECT PandaID,jobStatus,attemptNr,timeStamp '
-                            'FROM {0}.Job_Output_Report '
+                sqlGR  = (  'SELECT * '
+                            'FROM ( '
+                                'SELECT PandaID,jobStatus,attemptNr,timeStamp '
+                                'FROM {0}.Job_Output_Report '
+                                'WHERE (lockedBy IS NULL OR lockedTime<:lockedTime) '
+                                'ORDER BY timeStamp '
+                            ') '
                             'WHERE rownum<=:limit '
-                                'AND (lockedBy IS NULL OR lockedTime<:lockedTime) '
-                            'ORDER BY timeStamp '
                             ).format(panda_config.schemaPANDA)
                 # start transaction
                 self.conn.begin()
@@ -23955,10 +23958,13 @@ class DBProxy:
                 tmp_log.debug('listed {0} unlocked records'.format(len(retVal)))
             else:
                 # sql to select
-                sqlS  = (   'SELECT PandaID,jobStatus,attemptNr,timeStamp '
-                            'FROM {0}.Job_Output_Report '
+                sqlS  = (   'SELECT * '
+                            'FROM ( '
+                                'SELECT PandaID,jobStatus,attemptNr,timeStamp '
+                                'FROM {0}.Job_Output_Report '
+                                'ORDER BY timeStamp '
+                            ') '
                             'WHERE rownum<=:limit '
-                            'ORDER BY timeStamp '
                             ).format(panda_config.schemaPANDA)
                 # start transaction
                 self.conn.begin()
