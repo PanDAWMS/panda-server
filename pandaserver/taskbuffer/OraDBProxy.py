@@ -21033,9 +21033,9 @@ class DBProxy:
                                 # insert
                                 varMap = {}
                                 varMap[':PandaID'] = pandaID
-                                varMap[':prodSourceLabel'] = JobSpec.prodSourceLabel
+                                varMap[':prodSourceLabel'] = 'unknown'
                                 varMap[':jobStatus'] = 'failed'
-                                varMap[':attemptNr'] = 0 if JobSpec.attemptNr in [None, 'NULL', ''] else JobSpec.attemptNr
+                                varMap[':attemptNr'] = 0
                                 varMap[':data'] = None
                                 varMap[':timeStamp'] = datetime.datetime.utcnow()
                                 self.cur.execute(sqlI+comment, varMap)
