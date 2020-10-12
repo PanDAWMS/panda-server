@@ -15020,8 +15020,12 @@ class DBProxy:
                                         varMap[':attemptNr'] = 0 if zipJobSpec.attemptNr in [None, 'NULL', ''] else zipJobSpec.attemptNr
                                         varMap[':data'] = None
                                         varMap[':timeStamp'] = datetime.datetime.utcnow()
-                                        self.cur.execute(sqlI+comment, varMap)
-                                        tmpLog.debug('successfully inserted job output report {0}.{1}'.format(pandaID, varMap[':attemptNr']))
+                                        try:
+                                            self.cur.execute(sqlI+comment, varMap)
+                                        except Exception:
+                                            pass
+                                        else:
+                                            tmpLog.debug('successfully inserted job output report {0}.{1}'.format(pandaID, varMap[':attemptNr']))
                         # update event
                         varMap = {}
                         varMap[':jediTaskID'] = jediTaskID
@@ -20983,7 +20987,7 @@ class DBProxy:
                 tmpLog.debug('workerID={0} get jobs'.format(workerSpec.workerID))
                 sqlCJ  = "SELECT PandaID FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers "
                 sqlCJ += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
-                sqlJAC  = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID  "
+                sqlJAC  = "SELECT jobStatus,prodSourceLabel,attemptNr FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID  "
                 sqlJAA  = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID AND jobStatus IN (:js1,:js2) "
                 sqlJAE  = "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:code,taskBufferErrorDiag=:diag,"
                 sqlJAE += "startTime=(CASE WHEN jobStatus=:starting THEN NULL ELSE startTime END) "
@@ -21004,7 +21008,7 @@ class DBProxy:
                         self.cur.execute(sqlJAC+comment, varMap)
                         resJAC = self.cur.fetchone()
                         if resJAC is not None:
-                            jobStatus, = resJAC
+                            jobStatus, prodSourceLabel, attemptNr = resJAC
                             tmpLog.debug('workerID={0} {1} while PandaID={2} {3}'.format(workerSpec.workerID, workerSpec.status, pandaID, jobStatus))
                             # set failed if out of sync
                             if 'syncLevel' in workerData and workerData['syncLevel'] == 1 and jobStatus in ['running', 'starting']:
@@ -21033,13 +21037,17 @@ class DBProxy:
                                 # insert
                                 varMap = {}
                                 varMap[':PandaID'] = pandaID
-                                varMap[':prodSourceLabel'] = 'unknown'
+                                varMap[':prodSourceLabel'] = prodSourceLabel
                                 varMap[':jobStatus'] = 'failed'
-                                varMap[':attemptNr'] = 0
+                                varMap[':attemptNr'] = attemptNr
                                 varMap[':data'] = None
                                 varMap[':timeStamp'] = datetime.datetime.utcnow()
-                                self.cur.execute(sqlI+comment, varMap)
-                                tmpLog.debug('successfully inserted job output report {0}.{1}'.format(pandaID, varMap[':attemptNr']))
+                                try:
+                                    self.cur.execute(sqlI+comment, varMap)
+                                except Exception:
+                                    pass
+                                else:
+                                    tmpLog.debug('successfully inserted job output report {0}.{1}'.format(pandaID, varMap[':attemptNr']))
                         if workerSpec.errorCode not in [None, 0]:
                             varMap = dict()
                             varMap[':PandaID'] = pandaID
