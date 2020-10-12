@@ -15020,8 +15020,12 @@ class DBProxy:
                                         varMap[':attemptNr'] = 0 if zipJobSpec.attemptNr in [None, 'NULL', ''] else zipJobSpec.attemptNr
                                         varMap[':data'] = None
                                         varMap[':timeStamp'] = datetime.datetime.utcnow()
-                                        self.cur.execute(sqlI+comment, varMap)
-                                        tmpLog.debug('successfully inserted job output report {0}.{1}'.format(pandaID, varMap[':attemptNr']))
+                                        try:
+                                            self.cur.execute(sqlI+comment, varMap)
+                                        except Exception:
+                                            pass
+                                        else:
+                                            tmpLog.debug('successfully inserted job output report {0}.{1}'.format(pandaID, varMap[':attemptNr']))
                         # update event
                         varMap = {}
                         varMap[':jediTaskID'] = jediTaskID
@@ -21038,8 +21042,12 @@ class DBProxy:
                                 varMap[':attemptNr'] = attemptNr
                                 varMap[':data'] = None
                                 varMap[':timeStamp'] = datetime.datetime.utcnow()
-                                self.cur.execute(sqlI+comment, varMap)
-                                tmpLog.debug('successfully inserted job output report {0}.{1}'.format(pandaID, varMap[':attemptNr']))
+                                try:
+                                    self.cur.execute(sqlI+comment, varMap)
+                                except Exception:
+                                    pass
+                                else:
+                                    tmpLog.debug('successfully inserted job output report {0}.{1}'.format(pandaID, varMap[':attemptNr']))
                         if workerSpec.errorCode not in [None, 0]:
                             varMap = dict()
                             varMap[':PandaID'] = pandaID
