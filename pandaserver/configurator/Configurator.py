@@ -59,12 +59,27 @@ class Configurator(threading.Thread):
             self.CRIC_URL_DDMBLACKLIST = panda_config.CRIC_URL_DDMBLACKLIST
         else:
             self.CRIC_URL_DDMBLACKLIST = 'https://atlas-cric.cern.ch/api/atlas/ddmendpointstatus/query/?json&activity=write_wan&fstate=OFF'
-        _logger.debug('Getting schedconfig dump...')
+        _logger.debug('Getting ddmblacklist dump...')
         try:
             self.blacklisted_endpoints = list(aux.get_dump(self.CRIC_URL_DDMBLACKLIST))
+            self.blacklisted_endpoints_write = self.blacklisted_endpoints
         except TypeError:
             self.blacklisted_endpoints = []
+            self.blacklisted_endpoints_write = []
         _logger.debug('Blacklisted endpoints {0}'.format(self.blacklisted_endpoints))
+        _logger.debug('Blacklisted endpoints write {0}'.format(self.blacklisted_endpoints_write))
+        _logger.debug('Done')
+
+        if hasattr(panda_config, 'CRIC_URL_DDMBLACKLIST_READ'):
+            self.CRIC_URL_DDMBLACKLIST_READ = panda_config.CRIC_URL_DDMBLACKLIST_READ
+        else:
+            self.CRIC_URL_DDMBLACKLIST_READ = 'https://atlas-cric.cern.ch/api/atlas/ddmendpointstatus/query/?json&activity=read_wan&fstate=OFF'
+        _logger.debug('Getting ddmblacklist read dump...')
+        try:
+            self.blacklisted_endpoints_read = list(aux.get_dump(self.CRIC_URL_DDMBLACKLIST_READ))
+        except TypeError:
+            self.blacklisted_endpoints_read = []
+        _logger.debug('Blacklisted endpoints read {0}'.format(self.blacklisted_endpoints_read))
         _logger.debug('Done')
 
         if hasattr(panda_config, 'RUCIO_RSE_USAGE'):
@@ -162,10 +177,19 @@ class Configurator(threading.Thread):
                     ddm_endpoint_is_tape = self.endpoint_token_dict[ddm_endpoint_name]['is_tape']
                     if ddm_endpoint_name in self.blacklisted_endpoints:
                         ddm_endpoint_blacklisted = 'Y'
-                        _logger.debug('process_site_dumps: endpoint {0} is blacklisted'.format(ddm_endpoint_name))
+                        ddm_endpoint_blacklisted_write = 'Y'
+                        _logger.debug('process_site_dumps: endpoint {0} is blacklisted for write'.format(ddm_endpoint_name))
                     else:
                         ddm_endpoint_blacklisted = 'N'
-                        _logger.debug('process_site_dumps: endpoint {0} is NOT blacklisted'.format(ddm_endpoint_name))
+                        ddm_endpoint_blacklisted_write = 'N'
+                        _logger.debug('process_site_dumps: endpoint {0} is NOT blacklisted for write'.format(ddm_endpoint_name))
+
+                    if ddm_endpoint_name in self.blacklisted_endpoints_read:
+                        ddm_endpoint_blacklisted_read = 'Y'
+                        _logger.debug('process_site_dumps: endpoint {0} is blacklisted for read'.format(ddm_endpoint_name))
+                    else:
+                        ddm_endpoint_blacklisted_read = 'N'
+                        _logger.debug('process_site_dumps: endpoint {0} is NOT blacklisted for read'.format(ddm_endpoint_name))
                 except KeyError:
                     continue
 
@@ -203,7 +227,9 @@ class Configurator(threading.Thread):
                                                'state': ddm_spacetoken_state,
                                                'type': ddm_endpoint_type,
                                                'is_tape': ddm_endpoint_is_tape,
-                                               'blacklisted': ddm_endpoint_blacklisted,
+                                               'blacklisted': ddm_endpoint_blacklisted_write,
+                                               'blacklisted_write': ddm_endpoint_blacklisted_write,
+                                               'blacklisted_read': ddm_endpoint_blacklisted_read,
                                                'space_used': space_used,
                                                'space_free': space_free,
                                                'space_total': space_total,
