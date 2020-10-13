@@ -191,14 +191,15 @@ def putFile(req,file):
     _logger.debug("putFile : written dn=%s file=%s size=%s crc=%s" % \
                   (username,file.filename,fileSize,checkSum))
     # put file info to DB
-    statClient,outClient = Client.insertSandboxFileInfo(username,file.filename,
-                                                        fileSize,checkSum)
-    if statClient != 0 or outClient.startswith("ERROR"):
-        _logger.error("putFile : failed to put sandbox to DB with %s %s" % (statClient,outClient))
-        #_logger.debug("putFile : end")
-        #return "ERROR : Cannot insert sandbox to DB"
-    else:
-        _logger.debug("putFile : inserted sandbox to DB with %s" % outClient)
+    if panda_config.record_sandbox_info:
+        statClient,outClient = Client.insertSandboxFileInfo(username,file.filename,
+                                                            fileSize,checkSum)
+        if statClient != 0 or outClient.startswith("ERROR"):
+            _logger.error("putFile : failed to put sandbox to DB with %s %s" % (statClient,outClient))
+            #_logger.debug("putFile : end")
+            #return "ERROR : Cannot insert sandbox to DB"
+        else:
+            _logger.debug("putFile : inserted sandbox to DB with %s" % outClient)
     # store to cassandra
     if hasattr(panda_config,'cacheUseCassandra') and panda_config.cacheUseCassandra is True:
         try:

@@ -353,6 +353,11 @@ class Response:
         # HPO
         if job.is_hpo_workflow():
             self.data['isHPO'] = 'True'
+        # VP
+        if siteSpec is not None:
+            scope_input, scope_output = DataServiceUtils.select_scope(siteSpec, job.prodSourceLabel, job.job_label)
+            if siteSpec.use_vp(scope_input):
+                self.data['useVP'] = 'True'
 
 
     # set proxy key
