@@ -10161,7 +10161,7 @@ class DBProxy:
         sql_panda_ddm = """
                SELECT pdr.panda_site_name, pdr.ddm_endpoint_name, pdr.is_local, de.ddm_spacetoken_name,
                       de.is_tape, pdr.default_read, pdr.default_write, pdr.roles, pdr.order_read, pdr.order_write,
-                      nvl(pdr.scope, 'default') as scope, de.blacklisted
+                      nvl(pdr.scope, 'default') as scope, de.blacklisted_read
                FROM ATLAS_PANDA.panda_ddm_relation pdr, ATLAS_PANDA.ddm_endpoint de
                WHERE pdr.ddm_endpoint_name = de.ddm_endpoint_name
                """
@@ -10187,7 +10187,7 @@ class DBProxy:
 
             if panda_site_name not in panda_endpoint_map:
                 panda_endpoint_map[panda_site_name] = {'input': DdmSpec(), 'output': DdmSpec()}
-            if 'read_lan' in tmp_relation['roles'] and tmp_relation['blacklisted'] != 'Y':
+            if 'read_lan' in tmp_relation['roles'] and tmp_relation['blacklisted_read'] != 'Y':
                 panda_endpoint_map[panda_site_name][scope].setdefault('input', DdmSpec())
                 panda_endpoint_map[panda_site_name][scope]['input'].add(tmp_relation, endpoint_dict)
             if 'write_lan' in tmp_relation['roles']:
