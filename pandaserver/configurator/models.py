@@ -16,6 +16,7 @@ schema_meta = panda_config.schemaMETA
 Base = declarative_base()
 metadata = Base.metadata
 
+
 class Site(Base):
     __tablename__ = 'site'
     __table_args__ = {u'schema': schema}
@@ -24,6 +25,7 @@ class Site(Base):
     role = Column(String(256))
     tier_level = Column(Numeric(1, 0, asdecimal=False))
     state = Column(String(52))
+
 
 class PandaSite(Base):
     __tablename__ = 'panda_site'
@@ -38,6 +40,7 @@ class PandaSite(Base):
     site = relationship('Site', foreign_keys=site_name)
     storage_site = relationship('Site', foreign_keys=storage_site_name)
     default_endpoint = relationship('DdmEndpoint', foreign_keys=default_ddm_endpoint)
+
 
 class DdmEndpoint(Base):
     __tablename__ = 'ddm_endpoint'
@@ -54,6 +57,8 @@ class DdmEndpoint(Base):
     is_tape = Column(String(1))
     type = Column(String(20))
     blacklisted = Column(String(1))
+    blacklisted_write = Column(String(1))
+    blacklisted_read = Column(String(1))
 
     site = relationship('Site')
 
