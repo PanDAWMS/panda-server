@@ -1295,6 +1295,7 @@ class TaskBuffer:
                 # athenaMP
                 if tmpJob.coreCount not in ['NULL',None] and tmpJob.coreCount > 1:
                     scrStr += "export ATHENA_PROC_NUMBER=%s\n" % tmpJob.coreCount
+                    scrStr += "export ATHENA_CORE_NUMBER=%s\n" % tmpJob.coreCount
                 # add double quotes for zsh
                 tmpParamStr = tmpPars[tmpIdx]
                 tmpSplitter = shlex.shlex(tmpParamStr, posix=True)
