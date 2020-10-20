@@ -1,7 +1,9 @@
+import os
 import re
 import sys
 import json
 import socket
+import glob
 from pandacommon.liveconfigparser.LiveConfigParser import LiveConfigParser
 
 # get ConfigParser
@@ -103,8 +105,12 @@ if 'token_issuers' not in tmpSelf.__dict__:
     tmpSelf.__dict__['token_issuers'] = ''
 tmpSelf.__dict__['production_dns'] = [x for x in tmpSelf.__dict__.get('production_dns', '').split(',') if x]
 try:
-    with open(tmpSelf.__dict__['auth_config']) as f:
-        tmpSelf.__dict__['auth_config'] = json.load(f)
+    data_dict = {}
+    for name in glob.glob(os.path.join(tmpSelf.__dict__['auth_config'], '*_auth_config.json')):
+        with open(name) as f:
+            data = json.load(f)
+            data_dict[data['client_id']] = data
+    tmpSelf.__dict__['auth_config'] = data_dict
 except Exception:
     tmpSelf.__dict__['auth_config'] = {}
 try:

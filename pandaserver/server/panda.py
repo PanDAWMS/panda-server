@@ -146,13 +146,13 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                     # check with auth policies
                     if panda_config.token_authType == 'oidc':
                         self.authenticated = False
-                        idp = token[ "https://cilogon.org/idp"]
-                        if idp not in panda_config.auth_policies:
-                            tmpLog.error('untrusted IdP : {0} - {1}'.format(idp, env['HTTP_AUTHORIZATION']))
+                        vo = token[ "vo"]
+                        if vo not in panda_config.auth_policies:
+                            tmpLog.error('unknown vo : {0} - {1}'.format(idp, env['HTTP_AUTHORIZATION']))
                         else:
-                            for memberStr, memberInfo in panda_config.auth_policies[idp]:
-                                if memberStr in token["https://cilogon.org/isMemberOf"]:
-                                    self.subprocess_env['PANDA_OIDC_VO'] = memberInfo['vo']
+                            for memberStr, memberInfo in panda_config.auth_policies[vo]:
+                                if memberStr in token["groups"]:
+                                    self.subprocess_env['PANDA_OIDC_VO'] = vo
                                     self.subprocess_env['PANDA_OIDC_GROUP'] = memberInfo['group']
                                     self.subprocess_env['PANDA_OIDC_ROLE'] = memberInfo['role']
                                     self.authenticated = True

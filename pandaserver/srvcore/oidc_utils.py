@@ -34,8 +34,9 @@ def get_jwk(kid, jwks):
 def deserialize_token(token, auth_config):
     try:
         # check audience
-        audience = auth_config['client_id']
-        discovery_endpoint = auth_config['oidc_config_url']
+        unverified = jwt.decode(token, verify=False)
+        audience = unverified['aud']
+        discovery_endpoint = auth_config[audience]['oidc_config_url']
         # decode headers
         headers = jwt.get_unverified_header(token)
         # get key id
@@ -51,6 +52,7 @@ def deserialize_token(token, auth_config):
         # decode token only with RS256
         decoded = jwt.decode(token, public_key, verify=True, algorithms='RS256',
                              audience=audience, issuer=oidc_config['issuer'])
+        decoded['vo'] = auth_config[audience]['vo']
         return decoded
     except Exception:
         raise
