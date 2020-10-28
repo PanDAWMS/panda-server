@@ -215,8 +215,7 @@ def getSitesShareDDM(siteMapper, siteName, prodSourceLabel, job_label):
             continue
         # same endpoint
         try:
-            if siteSpec.ddm_input[scope_site_input] != tmpSiteSpec.ddm_input[scope_tmpSite_input] \
-                    and siteSpec.ddm_output[scope_site_output] not in tmpSiteSpec.ddm_endpoints_input[scope_tmpSite_input].all:
+            if siteSpec.ddm_output[scope_site_output] not in tmpSiteSpec.ddm_endpoints_input[scope_tmpSite_input].all:
                 continue
         except Exception:
             continue
