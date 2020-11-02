@@ -16295,16 +16295,17 @@ class DBProxy:
 
 
     # throttle user jobs
-    def throttleUserJobs(self, prodUserName, workingGroup):
+    def throttleUserJobs(self, prodUserName, workingGroup, get_dict):
         comment = ' /* DBProxy.throttleUserJobs */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <user={0} group={1}>".format(prodUserName, workingGroup)
         tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("start")
         try:
-            # sql to update job
-            sqlT  = 'UPDATE /*+ INDEX_RS_ASC(tab JOBSACTIVE4_PRODUSERNAMEST_IDX) */ '
-            sqlT += 'ATLAS_PANDA.jobsActive4 tab SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag '
+            # sql to get jobs
+            sqlT  = 'SELECT /*+ INDEX_RS_ASC(tab JOBSACTIVE4_PRODUSERNAMEST_IDX) */ '
+            sqlT += 'PandaID,jediTaskID,cloud,computingSite,prodSourceLabel '
+            sqlT += 'FROM ATLAS_PANDA.jobsActive4 tab '
             sqlT += 'WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName '
             sqlT += 'AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag '
             sqlT += 'AND maxCpuCount>:maxTime '
@@ -16312,26 +16313,51 @@ class DBProxy:
                 sqlT += 'AND workingGroup=:workingGroup '
             else:
                 sqlT += 'AND workingGroup IS NULL '
+            # sql to update job
+            sqlU = ("UPDATE {0}.jobsActive4 SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag "
+                    "WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus ").format(
+                panda_config.schemaPANDA)
             # start transaction
             self.conn.begin()
             # select
             self.cur.arraysize = 10
             varMap = {}
             varMap[':prodSourceLabel'] = 'user'
-            varMap[':newRelFlag'] = 3
             varMap[':oldRelFlag'] = 1
             varMap[':prodUserName'] = prodUserName
-            varMap[':newJobStatus'] = 'throttled'
             varMap[':oldJobStatus'] = 'activated'
             varMap[':maxTime'] = 6 * 60 * 60
             if workingGroup is not None:
                 varMap[':workingGroup'] = workingGroup
-            # get datasets
+            # get jobs
             self.cur.execute(sqlT+comment, varMap)
-            nRow = self.cur.rowcount
+            res = self.cur.fetchall()
+            # update jobs
+            nRow = 0
+            nRows = {}
+            for pandaID, taskID, cloud, computingSite, prodSourceLabel in res:
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                varMap[':newRelFlag'] = 3
+                varMap[':newJobStatus'] = 'throttled'
+                varMap[':oldJobStatus'] = 'activated'
+                self.cur.execute(sqlU + comment, varMap)
+                nTmp = self.cur.rowcount
+                if nTmp > 0:
+                    nRow += 1
+                    nRows.setdefault(taskID, 0)
+                    nRows[taskID] += 1
+                    infoMap = {}
+                    infoMap['computingSite'] = computingSite
+                    infoMap['cloud'] = cloud
+                    infoMap['prodSourceLabel'] = prodSourceLabel
+                    self.recordStatusChange(pandaID, varMap[':newJobStatus'], infoMap=infoMap, useCommit=False)
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
+            if get_dict:
+                tmpLog.debug("done with {0}".format(nRows))
+                return nRows
             tmpLog.debug("done with {0}".format(nRow))
             return nRow
         except Exception:
@@ -16383,22 +16409,27 @@ class DBProxy:
 
 
     # unthrottle user jobs
-    def unThrottleUserJobs(self, prodUserName, workingGroup):
+    def unThrottleUserJobs(self, prodUserName, workingGroup, get_dict):
         comment = ' /* DBProxy.unThrottleUserJobs */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <user={0} group={1}>".format(prodUserName, workingGroup)
         tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("start")
         try:
-            # sql to update job
-            sqlT  = 'UPDATE /*+ INDEX_RS_ASC(tab JOBSACTIVE4_PRODUSERNAMEST_IDX) */ '
-            sqlT += 'ATLAS_PANDA.jobsActive4 tab SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag '
+            # sql to get jobs
+            sqlT  = 'SELECT /*+ INDEX_RS_ASC(tab JOBSACTIVE4_PRODUSERNAMEST_IDX) */ '
+            sqlT += 'PandaID,jediTaskID,cloud,computingSite,prodSourceLabel '
+            sqlT += 'FROM ATLAS_PANDA.jobsActive4 tab '
             sqlT += 'WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName '
             sqlT += 'AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag '
             if workingGroup is not None:
                 sqlT += 'AND workingGroup=:workingGroup '
             else:
                 sqlT += 'AND workingGroup IS NULL '
+                        # sql to update job
+            sqlU = ("UPDATE {0}.jobsActive4 SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag "
+                    "WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus ").format(
+                panda_config.schemaPANDA)
             # start transaction
             self.conn.begin()
             # select
@@ -16406,18 +16437,39 @@ class DBProxy:
             varMap = {}
             varMap[':prodSourceLabel'] = 'user'
             varMap[':oldRelFlag'] = 3
-            varMap[':newRelFlag'] = 1
             varMap[':prodUserName'] = prodUserName
             varMap[':oldJobStatus'] = 'throttled'
-            varMap[':newJobStatus'] = 'activated'
             if workingGroup is not None:
                 varMap[':workingGroup'] = workingGroup
-            # get datasets
+            # get jobs
             self.cur.execute(sqlT+comment, varMap)
-            nRow = self.cur.rowcount
+            # update jobs
+            res = self.cur.fetchall()
+            nRow = 0
+            nRows = {}
+            for pandaID, taskID, cloud, computingSite, prodSourceLabel in res:
+                varMap = {}
+                varMap[':PandaID'] = pandaID
+                varMap[':newRelFlag'] = 1
+                varMap[':newJobStatus'] = 'activated'
+                varMap[':oldJobStatus'] = 'throttled'
+                self.cur.execute(sqlU + comment, varMap)
+                nTmp = self.cur.rowcount
+                if nTmp > 0:
+                    nRow += 1
+                    nRows.setdefault(taskID, 0)
+                    nRows[taskID] += 1
+                    infoMap = {}
+                    infoMap['computingSite'] = computingSite
+                    infoMap['cloud'] = cloud
+                    infoMap['prodSourceLabel'] = prodSourceLabel
+                    self.recordStatusChange(pandaID, varMap[':newJobStatus'], infoMap=infoMap, useCommit=False)
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
+                        if get_dict:
+                tmpLog.debug("done with {0}".format(nRows))
+                return nRows
             tmpLog.debug("done with {0}".format(nRow))
             return nRow
         except Exception:

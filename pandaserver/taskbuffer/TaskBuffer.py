@@ -2773,11 +2773,11 @@ class TaskBuffer:
 
 
     # throttle user jobs
-    def throttleUserJobs(self,prodUserName, workingGroup):
+    def throttleUserJobs(self,prodUserName, workingGroup, get_dict=False):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.throttleUserJobs(prodUserName, workingGroup)
+        ret = proxy.throttleUserJobs(prodUserName, workingGroup, get_dict)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -2799,11 +2799,11 @@ class TaskBuffer:
 
 
     # unthrottle user jobs
-    def unThrottleUserJobs(self,prodUserName, workingGroup):
+    def unThrottleUserJobs(self,prodUserName, workingGroup, get_dict=False):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.unThrottleUserJobs(prodUserName, workingGroup)
+        ret = proxy.unThrottleUserJobs(prodUserName, workingGroup, get_dict)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
