@@ -16467,7 +16467,7 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
-                        if get_dict:
+            if get_dict:
                 tmpLog.debug("done with {0}".format(nRows))
                 return nRows
             tmpLog.debug("done with {0}".format(nRow))
