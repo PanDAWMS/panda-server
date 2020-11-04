@@ -82,11 +82,13 @@ class SiteMapper:
                     _logger.debug('Cloud->%s %s' % (tmpName,str(self.cloudSpec[tmpName])))
             # add WORLD cloud
             self.worldCloudSpec['sites'] = []
-            # get list of PandaIDs
-            siteIDsList = taskBuffer.getSiteList()
             firstDefault = True
             # read full list from DB
             siteFullList = taskBuffer.getSiteInfo()
+            siteIDsList = {}
+            for tmpNickname in siteFullList:
+                siteIDsList.setdefault(siteFullList[tmpNickname].sitename, [])
+                siteIDsList[siteFullList[tmpNickname].sitename].append(tmpNickname)
             # read DB to produce paramters in siteinfo dynamically
             for tmpID in siteIDsList:
                 tmpNicknameList = siteIDsList[tmpID]
