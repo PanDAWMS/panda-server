@@ -32,12 +32,11 @@ class SiteSpec(object):
         return str
 
 
-    # check if direct IO
+    # check if direct IO is used when tasks allow it
     def isDirectIO(self):
         if self.direct_access_lan is True:
             return True
         return False
-
 
     # get resource type
     def getResourceType(self):
@@ -165,8 +164,6 @@ class SiteSpec(object):
             return numMap[sw_id][None]
         return None
 
-
-
     # get max disk per core
     def get_max_disk_per_core(self):
         tmpVal = self.getValueFromCatchall('maxDiskPerCore')
@@ -191,3 +188,6 @@ class SiteSpec(object):
             return True
         return False
 
+    # check if always uses direct IO
+    def always_use_direct_io(self):
+        return self.maxinputsize == -1
