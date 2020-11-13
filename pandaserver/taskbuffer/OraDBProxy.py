@@ -23987,7 +23987,7 @@ class DBProxy:
             return retVal
 
     # list pandaID, jobStatus, attemptNr, timeStamp of job output report
-    def listJobOutputReport(self, only_unlocked, time_limit, limit):
+    def listJobOutputReport(self, only_unlocked, time_limit, limit, grace_period):
         comment = ' /* DBProxy.listJobOutputReport */'
         method_name = 'listJobOutputReport'
         # defaults
@@ -24003,6 +24003,7 @@ class DBProxy:
                                 'SELECT PandaID,jobStatus,attemptNr,timeStamp '
                                 'FROM {0}.Job_Output_Report '
                                 'WHERE (lockedBy IS NULL OR lockedTime<:lockedTime) '
+                                'AND timeStamp<:timeStamp '
                                 'ORDER BY timeStamp '
                             ') '
                             'WHERE rownum<=:limit '
@@ -24012,6 +24013,7 @@ class DBProxy:
                 varMap = {}
                 varMap[':limit'] = limit
                 varMap[':lockedTime'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=time_limit)
+                varMap[':timeStamp'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=grace_period)
                 # check
                 self.cur.execute(sqlGR+comment, varMap)
                 retVal = self.cur.fetchall()

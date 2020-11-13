@@ -4016,9 +4016,9 @@ class TaskBuffer:
         return ret
 
     # list pandaID and attemptNr of job output report
-    def listJobOutputReport(self, only_unlocked=False, time_limit=5, limit=999999):
+    def listJobOutputReport(self, only_unlocked=False, time_limit=5, limit=999999, grace_period=3):
         proxy = self.proxyPool.getProxy()
-        ret = proxy.listJobOutputReport(only_unlocked, time_limit, limit)
+        ret = proxy.listJobOutputReport(only_unlocked, time_limit, limit, grace_period)
         self.proxyPool.putProxy(proxy)
         return ret
 

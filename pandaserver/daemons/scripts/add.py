@@ -615,7 +615,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     adderThrList = []
     nThr = 10
     # get some job output reports
-    jor_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=2, limit=3000*nThr)
+    jor_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=10, limit=3000*nThr,
+                                              grace_period=gracePeriod)
     job_output_reports = dict()
     report_index_list = multiprocessing.Queue()
     for one_jor in jor_list:
