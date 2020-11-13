@@ -3,7 +3,7 @@ import re
 import sys
 import time
 import glob
-import fcntl
+import queue
 import random
 import datetime
 import traceback
@@ -401,11 +401,13 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # thread for adder
     class AdderThread(GenericThread):
 
-        def __init__(self, taskBuffer, aSiteMapper, holdingAna):
+        def __init__(self, taskBuffer, aSiteMapper, holdingAna, job_output_reports, report_index_list):
             GenericThread.__init__(self)
             self.taskBuffer = taskBuffer
             self.aSiteMapper = aSiteMapper
             self.holdingAna = holdingAna
+            self.job_output_reports = job_output_reports
+            self.report_index_list = report_index_list
 
         # main loop
         def run(self):
@@ -422,31 +424,32 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             # fileList = os.listdir(dirName)
             # fileList.sort()
             # job_output_report_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=10, limit=1000)
-            # get some job output reports
-            tmp_JOR_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=2, limit=3000)
             # try to pre-lock records for a short period of time, so that multiple nodes can get different records
             prelock_pid = self.get_pid()
             prelocked_JOR_list = []
             job_output_report_list = []
-            nFixed = 300
-            if tmp_JOR_list is not None:
-                for one_JOR in tmp_JOR_list:
-                    panda_id, job_status, attempt_nr, time_stamp = one_JOR
-                    if len(job_output_report_list) < nFixed:
-                        # only pre-locked first nFixed records
-                        got_lock = taskBuffer.lockJobOutputReport(
-                                        panda_id=panda_id, attempt_nr=attempt_nr,
-                                        pid=prelock_pid, time_limit=10)
-                        if got_lock:
-                            # continue with the records this process pre-locked
-                            job_output_report_list.append(one_JOR)
-                            prelocked_JOR_list.append(one_JOR)
-                    else:
+            nFixed = 1000
+            while True:
+                try:
+                    report_index = self.report_index_list.get(timeout=10)
+                except queue.Empty:
+                    break
+                one_JOR = self.job_output_reports[report_index]
+                panda_id, job_status, attempt_nr, time_stamp = one_JOR
+                if len(job_output_report_list) < nFixed:
+                    # only pre-locked first nFixed records
+                    got_lock = taskBuffer.lockJobOutputReport(
+                                    panda_id=panda_id, attempt_nr=attempt_nr,
+                                    pid=prelock_pid, time_limit=10)
+                    if got_lock:
+                        # continue with the records this process pre-locked
                         job_output_report_list.append(one_JOR)
-                    if len(job_output_report_list) >= 1500:
-                        # at most 1500 records in this thread in this cycle
-                        break
-            del tmp_JOR_list
+                        prelocked_JOR_list.append(one_JOR)
+                else:
+                    job_output_report_list.append(one_JOR)
+                if len(job_output_report_list) >= 1500:
+                    # at most 1500 records in this thread in this cycle
+                    break
             # remove duplicated files
             tmp_list = []
             uMap = {}
@@ -597,7 +600,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     if res is not None:
         for id, in res:
             holdingAna.append(id)
-    tmpLog.debug("holding Ana %s " % holdingAna)
+    tmpLog.debug("number of holding Ana %s " % len(holdingAna))
 
     # add files
     tmpLog.debug("Adder session")
@@ -610,14 +613,23 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # p.run(taskBuffer, aSiteMapper, holdingAna)
 
     adderThrList = []
-    for i in range(3):
+    nThr = 10
+    # get some job output reports
+    jor_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=2, limit=3000*nThr)
+    job_output_reports = dict()
+    report_index_list = multiprocessing.Queue()
+    for one_jor in jor_list:
+        panda_id, job_status, attempt_nr, time_stamp = one_jor
+        report_index = (panda_id, attempt_nr)
+        job_output_reports[report_index] = one_jor
+        report_index_list.put(report_index)
+    for i in range(nThr):
         # p = AdderProcess()
         # p.launch(taskBufferIF.getInterface(),aSiteMapper,holdingAna)
         tbuf = TaskBuffer()
         tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
-        thr = AdderThread(tbuf, aSiteMapper, holdingAna)
+        thr = AdderThread(tbuf, aSiteMapper, holdingAna, job_output_reports, report_index_list)
         adderThrList.append(thr)
-
     # start all threads
     for thr in adderThrList:
         # thr.start()
