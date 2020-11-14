@@ -135,6 +135,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime):
             dem_period = attrs['period']
             dem_period_in_minute = dem_period/60.
             is_sync = attrs['sync']
+            is_loop = attrs['loop']
             # initialize variables
             to_run_daemon = False
             has_run = False
@@ -166,10 +167,21 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime):
             if to_run_daemon:
                 last_run_start_ts = int(time.time())
                 try:
-                    # execute the module script with arguments
-                    tmp_log.info('{dem} start'.format(dem=dem_name))
-                    the_module.main(argv=mod_argv, tbuf=tbuf)
-                    tmp_log.info('{dem} finish'.format(dem=dem_name))
+                    if is_loop:
+                        # go looping the script until reaching daemon period
+                        tmp_log.info('{dem} start looping'.format(dem=dem_name))
+                        start_ts = time.time()
+                        while True:
+                            the_module.main(argv=mod_argv, tbuf=tbuf)
+                            now_ts = time.time()
+                            if now_ts > start_ts + dem_period:
+                                break
+                        tmp_log.info('{dem} finish looping'.format(dem=dem_name))
+                    else:
+                        # execute the module script with arguments
+                        tmp_log.info('{dem} start'.format(dem=dem_name))
+                        the_module.main(argv=mod_argv, tbuf=tbuf)
+                        tmp_log.info('{dem} finish'.format(dem=dem_name))
                 except Exception as e:
                     tb = traceback.format_exc()
                     tmp_log.error('failed to run daemon {dem} with {err} ; stop this worker'.format(
@@ -297,6 +309,8 @@ class DaemonMaster(object):
                     self.dem_config[dem_name]['arguments'] = []
                 if 'sync' not in attrs:
                     self.dem_config[dem_name]['sync'] = False
+                if 'loop' not in attrs:
+                    self.dem_config[dem_name]['loop'] = False
                 # check mandatory attributes
                 the_attrs = copy.deepcopy(self.dem_config[dem_name])
                 for attr, attr_type in MANDATORY_ATTRS:
@@ -348,8 +362,9 @@ class DaemonMaster(object):
                     if has_run and last_run_end_ts >= last_run_start_ts:
                         run_duration = last_run_end_ts - last_run_start_ts
                         run_period = self.dem_config[dem_name].get('period')
-                        if run_duration > run_period:
-                            # warning since daemon run duration longer than daemon period
+                        is_loop = self.dem_config[dem_name].get('loop')
+                        if run_duration > run_period and not is_loop:
+                            # warning since daemon run duration longer than daemon period (non-looping)
                             self.logger.warning('daemon {dem} took {dur} sec , longer than its period {period} sec'.format(
                                                 dem=dem_name, dur=run_duration, period=run_period))
                     dem_run_attrs['msg_ongoing'] = False
