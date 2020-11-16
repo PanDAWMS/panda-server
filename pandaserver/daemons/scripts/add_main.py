@@ -10,6 +10,8 @@ import traceback
 import threading
 import multiprocessing
 
+from concurrent.futures import ThreadPoolExecutor
+
 import pandaserver.taskbuffer.ErrorCode
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -72,13 +74,15 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # thread for adder
     class AdderThread(GenericThread):
 
-        def __init__(self, taskBuffer, aSiteMapper, holdingAna, job_output_reports, report_index_list):
+        def __init__(self, taskBuffer, aSiteMapper, holdingAna,
+                        job_output_reports, report_index_list, prelock_pid):
             GenericThread.__init__(self)
             self.taskBuffer = taskBuffer
             self.aSiteMapper = aSiteMapper
             self.holdingAna = holdingAna
             self.job_output_reports = job_output_reports
             self.report_index_list = report_index_list
+            self.prelock_pid = prelock_pid
 
         # main loop
         def run(self):
@@ -91,13 +95,11 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             # get file list
             timeNow = datetime.datetime.utcnow()
             timeInt = datetime.datetime.utcnow()
-            # try to pre-lock records for a short period of time, so that multiple nodes can get different records
-            prelock_pid = self.get_pid()
             # unique pid
             GenericThread.__init__(self)
             uniq_pid = self.get_pid()
             # log pid
-            tmpLog.debug("pid={0} prelock_pid={1}".format(uniq_pid, prelock_pid))
+            tmpLog.debug("pid={0} run".format(uniq_pid))
             # stats
             n_processed = 0
             n_skipped = 0
@@ -119,16 +121,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                     break
 
                 # got a job report
-                one_JOR = self.job_output_reports[report_index]
-                panda_id, job_status, attempt_nr, time_stamp = one_JOR
-                # get lock
-                got_lock = taskBuffer.lockJobOutputReport(
-                                panda_id=panda_id, attempt_nr=attempt_nr,
-                                pid=prelock_pid, time_limit=10)
-                if not got_lock:
-                    # did not get lock, skip
-                    n_skipped += 1
-                    continue
+                one_jor = self.job_output_reports[report_index]
+                panda_id, job_status, attempt_nr, time_stamp = one_jor
 
                 # add
                 try:
@@ -139,13 +133,13 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         # last chance
                         tmpLog.debug("Last Add pid={0} job={1}.{2} st={3}".format(uniq_pid, panda_id, attempt_nr, job_status))
                         adder_gen = AdderGen(taskBuffer, panda_id, job_status, attempt_nr,
-                                       ignoreTmpError=False, siteMapper=aSiteMapper, pid=uniq_pid, prelock_pid=prelock_pid)
+                                       ignoreTmpError=False, siteMapper=aSiteMapper, pid=uniq_pid, prelock_pid=self.prelock_pid)
                         n_processed += 1
                     elif (timeInt - modTime) > datetime.timedelta(minutes=gracePeriod):
                         # add
                         tmpLog.debug("Add pid={0} job={1}.{2} st={3}".format(uniq_pid, panda_id, attempt_nr, job_status))
                         adder_gen = AdderGen(taskBuffer, panda_id, job_status, attempt_nr,
-                                       ignoreTmpError=True, siteMapper=aSiteMapper, pid=uniq_pid, prelock_pid=prelock_pid)
+                                       ignoreTmpError=True, siteMapper=aSiteMapper, pid=uniq_pid, prelock_pid=self.prelock_pid)
                         n_processed += 1
                     else:
                         n_skipped += 1
@@ -157,7 +151,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                     tmpLog.error("%s %s" % (type,value))
                 # unlock prelocked reports if possible
                 taskBuffer.unlockJobOutputReport(
-                            panda_id=panda_id, attempt_nr=attempt_nr, pid=prelock_pid)
+                            panda_id=panda_id, attempt_nr=attempt_nr, pid=self.prelock_pid)
             # stats
             tmpLog.debug("pid={0} : processed {1} , skipped {2}".format(uniq_pid, n_processed, n_skipped))
 
@@ -186,7 +180,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     tmpLog.debug("number of holding Ana %s " % len(holdingAna))
 
     # add files
-    tmpLog.debug("run Adder processes")
+    tmpLog.debug("run Adder")
 
     # p = AdderProcess()
     # p.run(taskBuffer, aSiteMapper, holdingAna)
@@ -197,25 +191,46 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     n_jors_per_batch = 2000
 
     # get some job output reports
-    jor_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=10, limit=n_jors_per_batch*nThr,
-                                              grace_period=gracePeriod)
-    tmpLog.debug("got {0} job reports".format(len(jor_list)))
+    jor_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=10,
+                                                limit=n_jors_per_batch*nThr,
+                                                grace_period=gracePeriod)
     if len(jor_list) < n_jors_per_batch*nThr*0.875:
-        # too few job output reports, can stop the daemon loop
+        # got too few job output reports from DB, can stop the daemon loop
         ret_val = False
+
+    # TaskBuffer with more connections
+    _tbuf = TaskBuffer()
+    _tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=4)
+
+    # try to pre-lock records for a short period of time, so that multiple nodes can get different records
+    prelock_pid = GenericThread().get_pid()
+    def lock_one_jor(one_jor):
+        panda_id, job_status, attempt_nr, time_stamp = one_jor
+        # get lock
+        got_lock = _tbuf.lockJobOutputReport(
+                        panda_id=panda_id, attempt_nr=attempt_nr,
+                        pid=prelock_pid, time_limit=10)
+        return got_lock
+    with ThreadPoolExecutor(4) as thread_pool:
+        jor_lock_list = thread_pool.map(lock_one_jor, jor_list)
 
     # fill in queue
     job_output_reports = dict()
     report_index_list = multiprocessing.Queue()
-    for one_jor in jor_list:
-        panda_id, job_status, attempt_nr, time_stamp = one_jor
-        report_index = (panda_id, attempt_nr)
-        job_output_reports[report_index] = one_jor
-        report_index_list.put(report_index)
+    for one_jor, got_lock in zip(jor_list, jor_lock_list):
+        if got_lock:
+            panda_id, job_status, attempt_nr, time_stamp = one_jor
+            report_index = (panda_id, attempt_nr)
+            job_output_reports[report_index] = one_jor
+            report_index_list.put(report_index)
+    # number of job reports to consume
+    n_jors = report_index_list.qsize()
+    tmpLog.debug("prelock_pid={0} got {1} job reports".format(prelock_pid, n_jors))
+    if n_jors == 0:
+        # no job report to consume, return
+        return ret_val
 
     # taskBuffer interface for multiprocessing
-    _tbuf = TaskBuffer()
-    _tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=3)
     taskBufferIF = TaskBufferInterface()
     taskBufferIF.launch(_tbuf)
 
@@ -225,8 +240,9 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         # p.launch(taskBufferIF.getInterface(),aSiteMapper,holdingAna)
         # tbuf = TaskBuffer()
         # tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
-        # thr = AdderThread(tbuf, aSiteMapper, holdingAna, job_output_reports, report_index_list)
-        thr = AdderThread(taskBufferIF.getInterface(), aSiteMapper, holdingAna, job_output_reports, report_index_list)
+        # thr = AdderThread(tbuf, aSiteMapper, holdingAna, job_output_reports, report_index_list, prelock_pid)
+        thr = AdderThread(taskBufferIF.getInterface(), aSiteMapper, holdingAna,
+                            job_output_reports, report_index_list, prelock_pid)
         adderThrList.append(thr)
     # start all threads
     for thr in adderThrList:
