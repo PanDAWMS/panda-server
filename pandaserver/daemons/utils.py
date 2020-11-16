@@ -172,9 +172,13 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime):
                         tmp_log.info('{dem} start looping'.format(dem=dem_name))
                         start_ts = time.time()
                         while True:
-                            the_module.main(argv=mod_argv, tbuf=tbuf)
+                            ret_val = the_module.main(argv=mod_argv, tbuf=tbuf)
                             now_ts = time.time()
+                            if not ret_val:
+                                # daemon main function says stop the loop
+                                break
                             if now_ts > start_ts + dem_period:
+                                # longer than the period, stop the loop
                                 break
                         tmp_log.info('{dem} finish looping'.format(dem=dem_name))
                     else:

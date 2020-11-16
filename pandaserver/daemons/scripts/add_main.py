@@ -39,6 +39,9 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
     tmpLog.debug("===================== start =====================")
 
+    # return value, true to run main again in next daemon loop
+    ret_val = True
+
     # overall timeout value
     overallTimeout = 20
 
@@ -281,13 +284,18 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # p.run(taskBuffer, aSiteMapper, holdingAna)
 
     adderThrList = []
-    nThr = 3
+    nThr = 6
 
     n_jors_per_batch = 2000
 
     # get some job output reports
     jor_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=10, limit=n_jors_per_batch*nThr,
                                               grace_period=gracePeriod)
+    if len(jor_list) < n_jors_per_batch*nThr*0.875:
+        # too few job output reports, can stop the daemon loop
+        ret_val = False
+
+    # fill in queue
     job_output_reports = dict()
     report_index_list = multiprocessing.Queue()
     for one_jor in jor_list:
@@ -319,6 +327,9 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # taskBufferIF.terminate()
 
     tmpLog.debug("===================== end =====================")
+
+    # return
+    return ret_val
 
 
 # run
