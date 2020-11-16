@@ -20,6 +20,7 @@ from pandaserver.config import panda_config
 from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
+from pandaserver.taskbuffer.TaskBufferInterface import TaskBufferInterface
 from pandaserver.dataservice.AdderGen import AdderGen
 
 
@@ -304,13 +305,18 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         job_output_reports[report_index] = one_jor
         report_index_list.put(report_index)
 
+    # taskBuffer interface for multiprocessing
+    taskBufferIF = TaskBufferInterface()
+    taskBufferIF.launch(taskBuffer)
+
     # adder consumer processes
     for i in range(nThr):
         # p = AdderProcess()
         # p.launch(taskBufferIF.getInterface(),aSiteMapper,holdingAna)
-        tbuf = TaskBuffer()
-        tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
-        thr = AdderThread(tbuf, aSiteMapper, holdingAna, job_output_reports, report_index_list)
+        # tbuf = TaskBuffer()
+        # tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
+        # thr = AdderThread(tbuf, aSiteMapper, holdingAna, job_output_reports, report_index_list)
+        thr = AdderThread(taskBufferIF.getInterface(), aSiteMapper, holdingAna, job_output_reports, report_index_list)
         adderThrList.append(thr)
     # start all threads
     for thr in adderThrList:
@@ -325,6 +331,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
     # terminate TaskBuffer IF
     # taskBufferIF.terminate()
+    # stop TaskBuffer IF
+    taskBufferIF.stop()
 
     tmpLog.debug("===================== end =====================")
 

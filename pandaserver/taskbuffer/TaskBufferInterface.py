@@ -1,4 +1,5 @@
 import sys
+import time
 import pickle
 import multiprocessing
 
@@ -33,7 +34,7 @@ class TaskBufferMethod:
         self.resLock.acquire()
         res = self.commDict['res']
         statusCode = self.commDict['stat']
-        # release lock to children 
+        # release lock to children
         self.childlock.release()
         # return
         if statusCode == 0:
@@ -58,8 +59,8 @@ class TaskBufferInterfaceChild:
     def __getattr__(self,attrName):
         return TaskBufferMethod(attrName,self.commDict,self.childlock,
                                 self.comLock,self.resLock)
-        
-        
+
+
 
 # master class
 class TaskBufferInterface:
@@ -70,11 +71,15 @@ class TaskBufferInterface:
 
 
     # main loop
-    def run(self,taskBuffer,commDict,childlock,comLock,resLock):
+    def run(self,taskBuffer,commDict,childlock,comLock,resLock, to_stop):
         # main loop
         while True:
+            # stop sign
+            if to_stop.value:
+                break
             # wait for command
-            comLock.acquire()
+            if not comLock.acquire(block=False, timeout=0.25):
+                continue
             # get command from child
             methodName = commDict['methodName']
             args = pickle.loads(commDict['args'])
@@ -88,7 +93,7 @@ class TaskBufferInterface:
                 res = sys.exc_info()[:2]
                 commDict['stat'] = 1
             # set response
-            commDict['res'] = res 
+            commDict['res'] = res
             # send response
             resLock.release()
 
@@ -101,10 +106,11 @@ class TaskBufferInterface:
         self.commDict = self.manager.dict()
         self.comLock = self.manager.Semaphore(0)
         self.resLock = self.manager.Semaphore(0)
+        self.to_stop = multiprocessing.Value('i', 0)
         # run
         self.process = multiprocessing.Process(target=self.run,
                                                args=(taskBuffer,self.commDict,self.childlock,
-                                                     self.comLock,self.resLock))
+                                                     self.comLock,self.resLock, self.to_stop))
         self.process.start()
 
 
@@ -112,6 +118,14 @@ class TaskBufferInterface:
     def getInterface(self):
         return TaskBufferInterfaceChild(self.commDict,self.childlock,
                                         self.comLock,self.resLock)
+
+
+    # stop the loop
+    def stop(self):
+        with self.to_stop.get_lock():
+            self.to_stop.value = 1
+        while self.process.is_alive():
+            time.sleep(1)
 
 
     # kill
