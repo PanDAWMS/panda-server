@@ -91,165 +91,72 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             # get file list
             timeNow = datetime.datetime.utcnow()
             timeInt = datetime.datetime.utcnow()
-            dirName = panda_config.logdir
-            # fileList = os.listdir(dirName)
-            # fileList.sort()
-            # job_output_report_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=10, limit=1000)
             # try to pre-lock records for a short period of time, so that multiple nodes can get different records
             prelock_pid = self.get_pid()
-            prelocked_JOR_list = []
-            job_output_report_list = []
-            nFixed = 2000
+            # unique pid
+            GenericThread.__init__(self)
+            uniq_pid = self.get_pid()
+            # log pid
+            tmpLog.debug("pid={0} prelock_pid={1}".format(uniq_pid, prelock_pid))
+            # stats
+            n_processed = 0
+            n_skipped = 0
+            # loop
             while True:
+                # get report index from queue
                 try:
                     report_index = self.report_index_list.get(timeout=1)
                 except queue.Empty:
                     break
+                # got a job report
                 one_JOR = self.job_output_reports[report_index]
                 panda_id, job_status, attempt_nr, time_stamp = one_JOR
-                if len(job_output_report_list) < nFixed:
-                    # only pre-locked first nFixed records
-                    got_lock = taskBuffer.lockJobOutputReport(
-                                    panda_id=panda_id, attempt_nr=attempt_nr,
-                                    pid=prelock_pid, time_limit=10)
-                    if got_lock:
-                        # continue with the records this process pre-locked
-                        job_output_report_list.append(one_JOR)
-                        prelocked_JOR_list.append(one_JOR)
-                else:
-                    job_output_report_list.append(one_JOR)
-                if len(job_output_report_list) >= 2500:
-                    # at most 1500 records in this thread in this cycle
-                    break
-            # remove duplicated files
-            tmp_list = []
-            uMap = {}
-            # for file in fileList:
-            # if job_output_report_list is not None:
-            for panda_id, job_status, attempt_nr, time_stamp in job_output_report_list:
-                # match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
-                # if match is not None:
-                # fileName = '%s/%s' % (dirName,file)
-                # panda_id = match.group(1)
-                # job_status = match.group(2)
-                if panda_id in uMap:
-                    # try:
-                    #     os.remove(fileName)
-                    # except Exception:
-                    #     pass
-                    taskBuffer.deleteJobOutputReport(panda_id=panda_id, attempt_nr=attempt_nr)
-                else:
-                    if job_status != EventServiceUtils.esRegStatus:
-                        # uMap[panda_id] = fileName
-                        record = (panda_id, job_status, attempt_nr, time_stamp)
-                        uMap[panda_id] = record
-                    if long(panda_id) in holdingAna:
-                        # give a priority to buildJobs
-                        tmp_list.insert(0, record)
-                    else:
-                        tmp_list.append(record)
-            randTmp = tmp_list[nFixed:]
-            random.shuffle(randTmp)
-            job_output_report_list = tmp_list[:nFixed] + randTmp
-            tmpLog.debug("Add pid={0} got {1} job records to process".format(prelock_pid, len(job_output_report_list)))
-            # add
-            while len(job_output_report_list) != 0:
+                # get lock
+                got_lock = taskBuffer.lockJobOutputReport(
+                                panda_id=panda_id, attempt_nr=attempt_nr,
+                                pid=prelock_pid, time_limit=10)
+                if not got_lock:
+                    # did not get lock, skip
+                    n_skipped += 1
+                    continue
                 # time limit to avoid too many copyArchive running at the same time
                 if (datetime.datetime.utcnow() - timeNow) > datetime.timedelta(minutes=overallTimeout):
                     tmpLog.debug("time over in Adder session")
                     break
-                # get fileList
-                if (datetime.datetime.utcnow() - timeInt) > datetime.timedelta(minutes=15):
-                    timeInt = datetime.datetime.utcnow()
-                    # get file
-                    # fileList = os.listdir(dirName)
-                    # fileList.sort()
-                    # remove duplicated files
-                    tmp_list = []
-                    uMap = {}
-                    # for file in fileList:
-                    if job_output_report_list is not None:
-                        for panda_id, job_status, attempt_nr, time_stamp in job_output_report_list:
-                            # match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
-                            # if match is not None:
-                            # fileName = '%s/%s' % (dirName,file)
-                            # panda_id = match.group(1)
-                            # job_status = match.group(2)
-                            if panda_id in uMap:
-                                # try:
-                                #     os.remove(fileName)
-                                # except Exception:
-                                #     pass
-                                taskBuffer.deleteJobOutputReport(panda_id=panda_id, attempt_nr=attempt_nr)
-                            else:
-                                if job_status != EventServiceUtils.esRegStatus:
-                                    # uMap[panda_id] = fileName
-                                    record = (panda_id, job_status, attempt_nr, time_stamp)
-                                    uMap[panda_id] = record
-                                if long(panda_id) in holdingAna:
-                                    # give a priority to buildJobs
-                                    tmp_list.insert(0, record)
-                                else:
-                                    tmp_list.append(record)
-                    # fileList = tmp_list
-                    job_output_report_list = tmp_list
-                # check if
+                # check if near to logrotate
                 if PandaUtils.isLogRotating(5,5):
                     tmpLog.debug("terminate since close to log-rotate time")
                     break
-                # choose a file
-                # file = fileList.pop(0)
-                # choose a report record
-                record = job_output_report_list.pop(0)
-                panda_id, job_status, attempt_nr, time_stamp = record
-                # check format
-                # match = re.search('^(\d+)_([^_]+)_.{36}(_\d+)*$',file)
-                # if match is not None:
-                #     fileName = '%s/%s' % (dirName,file)
-                #     if not os.path.exists(fileName):
-                #         continue
-                # unique pid
-                GenericThread.__init__(self)
-                uniq_pid = self.get_pid()
+                # add
                 try:
                     # modTime = datetime.datetime(*(time.gmtime(os.path.getmtime(fileName))[:7]))
                     modTime = time_stamp
                     adder_gen = None
                     if (timeNow - modTime) > datetime.timedelta(hours=24):
                         # last chance
-                        # tmpLog.debug("Last Add File {0} : {1}".format(os.getpid(),fileName))
-                        # thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
-                        #                ignoreTmpError=False,siteMapper=aSiteMapper)
                         tmpLog.debug("Last Add pid={0} job={1}.{2} st={3}".format(uniq_pid, panda_id, attempt_nr, job_status))
                         adder_gen = AdderGen(taskBuffer, panda_id, job_status, attempt_nr,
                                        ignoreTmpError=False, siteMapper=aSiteMapper, pid=uniq_pid, prelock_pid=prelock_pid)
+                        n_processed += 1
                     elif (timeInt - modTime) > datetime.timedelta(minutes=gracePeriod):
                         # add
-                        # tmpLog.debug("Add File {0} : {1}".format(os.getpid(),fileName))
-                        # thr = AdderGen(taskBuffer,match.group(1),match.group(2),fileName,
-                        #                ignoreTmpError=True,siteMapper=aSiteMapper)
                         tmpLog.debug("Add pid={0} job={1}.{2} st={3}".format(uniq_pid, panda_id, attempt_nr, job_status))
                         adder_gen = AdderGen(taskBuffer, panda_id, job_status, attempt_nr,
                                        ignoreTmpError=True, siteMapper=aSiteMapper, pid=uniq_pid, prelock_pid=prelock_pid)
+                        n_processed += 1
+                    else:
+                        n_skipped += 1
                     if adder_gen is not None:
                         adder_gen.run()
                         del adder_gen
                 except Exception:
                     type, value, traceBack = sys.exc_info()
                     tmpLog.error("%s %s" % (type,value))
-            # unlock prelocked reports if possible
-            for panda_id, job_status, attempt_nr, time_stamp in prelocked_JOR_list:
+                # unlock prelocked reports if possible
                 taskBuffer.unlockJobOutputReport(
                             panda_id=panda_id, attempt_nr=attempt_nr, pid=prelock_pid)
-            # close taskBuffer connection
-            # while True:
-            #     try:
-            #         proxy = taskBuffer.proxyPool.proxyList.get(block=False)
-            #     except Exception:
-            #         break
-            #     else:
-            #         proxy.conn.close()
-
+            # stats
+            tmpLog.debug("pid={0} : processed {1} , skipped {2}".format(uniq_pid, n_processed, n_skipped))
         # launcher, run with multiprocessing
         # def launch(self,taskBuffer,aSiteMapper,holdingAna):
         def proc_launch(self):
@@ -292,6 +199,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # get some job output reports
     jor_list = taskBuffer.listJobOutputReport(only_unlocked=True, time_limit=10, limit=n_jors_per_batch*nThr,
                                               grace_period=gracePeriod)
+    tmpLog.debug("got {0} job reports".format(len(jor_list)))
     if len(jor_list) < n_jors_per_batch*nThr*0.875:
         # too few job output reports, can stop the daemon loop
         ret_val = False
