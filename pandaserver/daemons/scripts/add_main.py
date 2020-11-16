@@ -103,11 +103,21 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             n_skipped = 0
             # loop
             while True:
+                # time limit to avoid too many copyArchive running at the same time
+                if (datetime.datetime.utcnow() - timeNow) > datetime.timedelta(minutes=overallTimeout):
+                    tmpLog.debug("time over in Adder session")
+                    break
+                # check if near to logrotate
+                if PandaUtils.isLogRotating(5, 5):
+                    tmpLog.debug("terminate since close to log-rotate time")
+                    break
+
                 # get report index from queue
                 try:
                     report_index = self.report_index_list.get(timeout=1)
                 except queue.Empty:
                     break
+
                 # got a job report
                 one_JOR = self.job_output_reports[report_index]
                 panda_id, job_status, attempt_nr, time_stamp = one_JOR
@@ -119,14 +129,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                     # did not get lock, skip
                     n_skipped += 1
                     continue
-                # time limit to avoid too many copyArchive running at the same time
-                if (datetime.datetime.utcnow() - timeNow) > datetime.timedelta(minutes=overallTimeout):
-                    tmpLog.debug("time over in Adder session")
-                    break
-                # check if near to logrotate
-                if PandaUtils.isLogRotating(5,5):
-                    tmpLog.debug("terminate since close to log-rotate time")
-                    break
+
                 # add
                 try:
                     # modTime = datetime.datetime(*(time.gmtime(os.path.getmtime(fileName))[:7]))
@@ -157,6 +160,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                             panda_id=panda_id, attempt_nr=attempt_nr, pid=prelock_pid)
             # stats
             tmpLog.debug("pid={0} : processed {1} , skipped {2}".format(uniq_pid, n_processed, n_skipped))
+
         # launcher, run with multiprocessing
         # def launch(self,taskBuffer,aSiteMapper,holdingAna):
         def proc_launch(self):
@@ -183,10 +187,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
     # add files
     tmpLog.debug("run Adder processes")
-
-    # make TaskBuffer IF
-    # taskBufferIF = TaskBufferInterface()
-    # taskBufferIF.launch(taskBuffer)
 
     # p = AdderProcess()
     # p.run(taskBuffer, aSiteMapper, holdingAna)
@@ -239,8 +239,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         # thr.join()
         thr.proc_join()
 
-    # terminate TaskBuffer IF
-    # taskBufferIF.terminate()
     # stop TaskBuffer IF
     taskBufferIF.stop()
 
