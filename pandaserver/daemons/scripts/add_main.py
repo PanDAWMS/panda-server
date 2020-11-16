@@ -99,10 +99,10 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             prelock_pid = self.get_pid()
             prelocked_JOR_list = []
             job_output_report_list = []
-            nFixed = 1000
+            nFixed = 2000
             while True:
                 try:
-                    report_index = self.report_index_list.get(timeout=10)
+                    report_index = self.report_index_list.get(timeout=1)
                 except queue.Empty:
                     break
                 one_JOR = self.job_output_reports[report_index]
@@ -118,7 +118,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         prelocked_JOR_list.append(one_JOR)
                 else:
                     job_output_report_list.append(one_JOR)
-                if len(job_output_report_list) >= 1500:
+                if len(job_output_report_list) >= 2500:
                     # at most 1500 records in this thread in this cycle
                     break
             # remove duplicated files
@@ -242,13 +242,13 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 taskBuffer.unlockJobOutputReport(
                             panda_id=panda_id, attempt_nr=attempt_nr, pid=prelock_pid)
             # close taskBuffer connection
-            while True:
-                try:
-                    proxy = taskBuffer.proxyPool.proxyList.get(block=False)
-                except Exception:
-                    break
-                else:
-                    proxy.conn.close()
+            # while True:
+            #     try:
+            #         proxy = taskBuffer.proxyPool.proxyList.get(block=False)
+            #     except Exception:
+            #         break
+            #     else:
+            #         proxy.conn.close()
 
         # launcher, run with multiprocessing
         # def launch(self,taskBuffer,aSiteMapper,holdingAna):
@@ -306,8 +306,10 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         report_index_list.put(report_index)
 
     # taskBuffer interface for multiprocessing
+    _tbuf = TaskBuffer()
+    _tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=3)
     taskBufferIF = TaskBufferInterface()
-    taskBufferIF.launch(taskBuffer)
+    taskBufferIF.launch(_tbuf)
 
     # adder consumer processes
     for i in range(nThr):

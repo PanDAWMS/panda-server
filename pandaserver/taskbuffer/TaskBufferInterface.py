@@ -78,7 +78,7 @@ class TaskBufferInterface:
             if to_stop.value:
                 break
             # wait for command
-            if not comLock.acquire(block=False, timeout=0.25):
+            if not comLock.acquire(timeout=0.25):
                 continue
             # get command from child
             methodName = commDict['methodName']
