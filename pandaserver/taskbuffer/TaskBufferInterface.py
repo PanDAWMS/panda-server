@@ -1,6 +1,7 @@
 import sys
 import pickle
 import multiprocessing
+from concurrent.futures import  ThreadPoolExecutor
 
 # required to reserve changed attributes
 
@@ -19,22 +20,21 @@ class TaskBufferMethod:
         self.comLock = comLock
         self.resLock = resLock
 
-
     def __call__(self,*args,**kwargs):
         # get lock among children
-        self.childlock.acquire()
+        i = self.childlock.get()
         # make dict to send it master
-        self.commDict['methodName'] = self.methodName
-        self.commDict['args'] = pickle.dumps(args)
-        self.commDict['kwargs'] = pickle.dumps(kwargs)
-        # send notificaton to master
-        self.comLock.release()
+        self.commDict[i].update({'methodName': self.methodName,
+                                 'args': pickle.dumps(args),
+                                 'kwargs': pickle.dumps(kwargs)})
+        # send notification to master
+        self.comLock[i].release()
         # wait response
-        self.resLock.acquire()
-        res = self.commDict['res']
-        statusCode = self.commDict['stat']
+        self.resLock[i].acquire()
+        res = self.commDict[i]['res']
+        statusCode = self.commDict[i]['stat']
         # release lock to children 
-        self.childlock.release()
+        self.childlock.put(i)
         # return
         if statusCode == 0:
             return res
@@ -59,7 +59,6 @@ class TaskBufferInterfaceChild:
         return TaskBufferMethod(attrName,self.commDict,self.childlock,
                                 self.comLock,self.resLock)
         
-        
 
 # master class
 class TaskBufferInterface:
@@ -68,9 +67,13 @@ class TaskBufferInterface:
         # make manager to create shared objects
         self.manager = multiprocessing.Manager()
 
+    # main loop
+    def run(self, taskBuffer, commDict, comLock, resLock):
+        with ThreadPoolExecutor(max_workers=taskBuffer.get_num_connections()) as pool:
+            [pool.submit(self.thread_run, taskBuffer, commDict[i], comLock[i], resLock[i]) for i in commDict.keys()]
 
     # main loop
-    def run(self,taskBuffer,commDict,childlock,comLock,resLock):
+    def thread_run(self, taskBuffer, commDict, comLock, resLock):
         # main loop
         while True:
             # wait for command
@@ -88,30 +91,32 @@ class TaskBufferInterface:
                 res = sys.exc_info()[:2]
                 commDict['stat'] = 1
             # set response
-            commDict['res'] = res 
+            commDict['res'] = res
             # send response
             resLock.release()
 
-
-
     # launcher
-    def launch(self,taskBuffer):
+    def launch(self, taskBuffer):
         # shared objects
-        self.childlock = self.manager.Lock()
-        self.commDict = self.manager.dict()
-        self.comLock = self.manager.Semaphore(0)
-        self.resLock = self.manager.Semaphore(0)
+        self.childlock = multiprocessing.Queue()
+        self.commDict = dict()
+        self.comLock = dict()
+        self.resLock = dict()
+        for i in range(taskBuffer.get_num_connections()):
+            self.childlock.put(i)
+            self.commDict[i] = self.manager.dict()
+            self.comLock[i] = multiprocessing.Semaphore(0)
+            self.resLock[i] = multiprocessing.Semaphore(0)
+
         # run
         self.process = multiprocessing.Process(target=self.run,
-                                               args=(taskBuffer,self.commDict,self.childlock,
-                                                     self.comLock,self.resLock))
+                                               args=(taskBuffer, self.commDict, self.comLock, self.resLock))
         self.process.start()
 
 
     # get interface for child
     def getInterface(self):
-        return TaskBufferInterfaceChild(self.commDict,self.childlock,
-                                        self.comLock,self.resLock)
+        return TaskBufferInterfaceChild(self.commDict, self.childlock, self.comLock, self.resLock)
 
 
     # kill
