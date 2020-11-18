@@ -17,7 +17,7 @@ from pandaserver.dataservice.Finisher import Finisher
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.Closer import Closer
-from pandaserver.srvcore.CoreUtils import commands_get_status_output
+# from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
 
 # logger
@@ -1170,7 +1170,9 @@ def main(tbuf=None, **kwargs):
         if len(res) < 100:
             break
 
-
+    # release memory
+    del siteMapper
+    del deletedDisList
 
     _memoryCheck("end")
 

@@ -1,4 +1,5 @@
 import sys
+import time
 import pickle
 import multiprocessing
 from concurrent.futures import  ThreadPoolExecutor
@@ -33,7 +34,7 @@ class TaskBufferMethod:
         self.resLock[i].acquire()
         res = self.commDict[i]['res']
         statusCode = self.commDict[i]['stat']
-        # release lock to children 
+        # release lock to children
         self.childlock.put(i)
         # return
         if statusCode == 0:
@@ -58,7 +59,8 @@ class TaskBufferInterfaceChild:
     def __getattr__(self,attrName):
         return TaskBufferMethod(attrName,self.commDict,self.childlock,
                                 self.comLock,self.resLock)
-        
+
+
 
 # master class
 class TaskBufferInterface:
@@ -68,16 +70,20 @@ class TaskBufferInterface:
         self.manager = multiprocessing.Manager()
 
     # main loop
-    def run(self, taskBuffer, commDict, comLock, resLock):
+    def run(self, taskBuffer, commDict, comLock, resLock, to_stop):
         with ThreadPoolExecutor(max_workers=taskBuffer.get_num_connections()) as pool:
-            [pool.submit(self.thread_run, taskBuffer, commDict[i], comLock[i], resLock[i]) for i in commDict.keys()]
+            [pool.submit(self.thread_run, taskBuffer, commDict[i], comLock[i], resLock[i], to_stop) for i in commDict.keys()]
 
     # main loop
-    def thread_run(self, taskBuffer, commDict, comLock, resLock):
+    def thread_run(self, taskBuffer, commDict, comLock, resLock, to_stop):
         # main loop
         while True:
+            # stop sign
+            if to_stop.value:
+                break
             # wait for command
-            comLock.acquire()
+            if not comLock.acquire(timeout=0.25):
+                continue
             # get command from child
             methodName = commDict['methodName']
             args = pickle.loads(commDict['args'])
@@ -102,6 +108,7 @@ class TaskBufferInterface:
         self.commDict = dict()
         self.comLock = dict()
         self.resLock = dict()
+        self.to_stop = multiprocessing.Value('i', 0)
         for i in range(taskBuffer.get_num_connections()):
             self.childlock.put(i)
             self.commDict[i] = self.manager.dict()
@@ -110,13 +117,23 @@ class TaskBufferInterface:
 
         # run
         self.process = multiprocessing.Process(target=self.run,
-                                               args=(taskBuffer, self.commDict, self.comLock, self.resLock))
+                                               args=(taskBuffer,
+                                                        self.commDict, self.comLock,
+                                                        self.resLock, self.to_stop))
         self.process.start()
 
 
     # get interface for child
     def getInterface(self):
         return TaskBufferInterfaceChild(self.commDict, self.childlock, self.comLock, self.resLock)
+
+
+    # stop the loop
+    def stop(self):
+        with self.to_stop.get_lock():
+            self.to_stop.value = 1
+        while self.process.is_alive():
+            time.sleep(1)
 
 
     # kill
