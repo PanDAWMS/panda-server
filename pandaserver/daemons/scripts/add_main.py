@@ -186,7 +186,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # p.run(taskBuffer, aSiteMapper, holdingAna)
 
     adderThrList = []
-    nThr = 6
+    nThr = 10
 
     n_jors_per_batch = 2000
 
@@ -198,9 +198,10 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         # got too few job output reports from DB, can stop the daemon loop
         ret_val = False
 
-    # TaskBuffer with more connections
+    # TaskBuffer with more connections behind TaskBufferInterface
+    n_connections = 4
     _tbuf = TaskBuffer()
-    _tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=4)
+    _tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=n_connections)
 
     # try to pre-lock records for a short period of time, so that multiple nodes can get different records
     prelock_pid = GenericThread().get_pid()
@@ -211,7 +212,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         panda_id=panda_id, attempt_nr=attempt_nr,
                         pid=prelock_pid, time_limit=10)
         return got_lock
-    with ThreadPoolExecutor(4) as thread_pool:
+    with ThreadPoolExecutor(n_connections) as thread_pool:
         jor_lock_list = thread_pool.map(lock_one_jor, jor_list)
 
     # fill in queue
@@ -235,14 +236,16 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     taskBufferIF.launch(_tbuf)
 
     # adder consumer processes
+    _n_thr_with_tbuf = 0
     for i in range(nThr):
-        # p = AdderProcess()
-        # p.launch(taskBufferIF.getInterface(),aSiteMapper,holdingAna)
-        # tbuf = TaskBuffer()
-        # tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
-        # thr = AdderThread(tbuf, aSiteMapper, holdingAna, job_output_reports, report_index_list, prelock_pid)
-        thr = AdderThread(taskBufferIF.getInterface(), aSiteMapper, holdingAna,
-                            job_output_reports, report_index_list, prelock_pid)
+        if i < _n_thr_with_tbuf:
+            tbuf = TaskBuffer()
+            tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
+            thr = AdderThread(tbuf, aSiteMapper, holdingAna,
+                                job_output_reports, report_index_list, prelock_pid)
+        else:
+            thr = AdderThread(taskBufferIF.getInterface(), aSiteMapper, holdingAna,
+                                job_output_reports, report_index_list, prelock_pid)
         adderThrList.append(thr)
     # start all threads
     for thr in adderThrList:
