@@ -184,9 +184,8 @@ class ConBridge (object):
                 roleType = 'master'
             else:
                 roleType = 'child '
-            _logger.error('%s %s send error : val=%s - %s %s' % \
-                          (roleType, self.pid, str(val), str(e),
-                           traceback.format_exc()))
+            _logger.error('%s %s send error : val=%s - %s %s' % (roleType, self.pid, str(val)[:1024], str(e),
+                                                                 traceback.format_exc()))
             # terminate child
             if not self.isMaster:
                 self.bridge_childExit()
