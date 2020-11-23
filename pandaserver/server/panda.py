@@ -8,6 +8,9 @@ entry point
 import datetime
 import traceback
 import six
+import tempfile
+import io
+import signal
 
 # config file
 from pandaserver.config import panda_config
@@ -148,7 +151,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         self.authenticated = False
                         vo = token[ "vo"]
                         if vo not in panda_config.auth_policies:
-                            tmpLog.error('unknown vo : {0} - {1}'.format(idp, env['HTTP_AUTHORIZATION']))
+                            tmpLog.error('unknown vo : {0} - {1}'.format(vo, env['HTTP_AUTHORIZATION']))
                         else:
                             for memberStr, memberInfo in panda_config.auth_policies[vo]:
                                 if memberStr in token["groups"]:
@@ -204,8 +207,9 @@ if panda_config.useFastCGI or panda_config.useWSGI:
         methodName = ''
         if 'SCRIPT_NAME' in environ:
             methodName = environ['SCRIPT_NAME'].split('/')[-1]
-        tmpLog = LogWrapper(_logger, "PID={0} {1}".format(os.getpid(), methodName))
-        tmpLog.debug("start")
+        tmpLog = LogWrapper(_logger, "PID={0} {1}".format(os.getpid(), methodName), seeMem=True)
+        cont_length = int(environ.get('CONTENT_LENGTH', 0))
+        tmpLog.debug("start content-length={}".format(cont_length))
         regStart = datetime.datetime.utcnow()
         retType = None
         # check method name
@@ -224,7 +228,17 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                 tmpLog.error("is undefined")
                 exeRes = "False"
             else:
+                body = b''
                 try:
+                    while cont_length > 0:
+                        chunk = environ['wsgi.input'].read(min(cont_length, 1024*1024))
+                        if not chunk:
+                            break
+                        cont_length -= len(chunk)
+                        body += chunk
+                    if cont_length > 0:
+                        raise OSError('partial read from client. {} bytes remaining'.format(cont_length))
+                    environ['wsgi.input'] = io.BytesIO(body)
                     # get params
                     tmpPars = cgi.FieldStorage(environ['wsgi.input'], environ=environ,
                                                keep_blank_values=1)
@@ -256,6 +270,14 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         exeRes = str(exeRes)
                 except Exception as e:
                     tmpLog.error("execution failure : {0}\n {1}".format(str(e), traceback.format_exc()))
+                    try:
+                        with tempfile.NamedTemporaryFile(delete=False, prefix='req_dump_') as f:
+                            environ['WSGI_INPUT_DUMP'] = f.name
+                            f.write(body)
+                            os.chmod(f.name, 0o775)
+                    except Exception:
+                        tmpLog.error(traceback.format_exc())
+                        pass
                     errStr = ""
                     for tmpKey in environ:
                         tmpVal = environ[tmpKey]
@@ -263,7 +285,11 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                     tmpLog.error(errStr)
                     # return internal server error
                     start_response('500 INTERNAL SERVER ERROR', [('Content-Type', 'text/plain')])
-                    return [str(e)]
+                    # force kill to release memory
+                    if type(e) == OSError:
+                        tmpLog.warning('force restart due')
+                        os.kill(os.getpid(), signal.SIGINT)
+                    return [str(e).encode()]
         if panda_config.entryVerbose:
             tmpLog.debug("done")
         regTime = datetime.datetime.utcnow() - regStart

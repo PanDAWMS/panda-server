@@ -82,9 +82,10 @@ class AdderGen(object):
             self.job = self.taskBuffer.peekJobs([self.jobID],fromDefined=False,
                                                 fromWaiting=False,
                                                 forAnal=True)[0]
-        self.taskBuffer.insertJobOutputReport(
-            panda_id=self.jobID, prod_source_label=self.job.prodSourceLabel,
-            job_status=self.jobStatus, attempt_nr=attempt_nr, data=fileCatalog)
+        if self.job:
+            self.taskBuffer.insertJobOutputReport(
+                panda_id=self.jobID, prod_source_label=self.job.prodSourceLabel,
+                job_status=self.jobStatus, attempt_nr=attempt_nr, data=fileCatalog)
 
 
     # get plugin class
