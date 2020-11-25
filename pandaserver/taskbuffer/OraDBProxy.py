@@ -2329,7 +2329,8 @@ class DBProxy:
                         if updateStateChange or (jobStatus != oldJobStatus):
                             sql1 += ",stateChangeTime=CURRENT_DATE"
                         # set endTime if undefined for holding
-                        if jobStatus == 'holding' and endTime is None and not presetEndTime:
+                        if (jobStatus == 'holding' or (jobStatus == 'transferring' and oldJobStatus == 'running')) \
+                            and endTime is None and not presetEndTime:
                             sql1 += ',endTime=CURRENT_DATE '
                         # update startTime
                         if oldJobStatus in ['sent', 'starting'] and jobStatus == 'running' and \
