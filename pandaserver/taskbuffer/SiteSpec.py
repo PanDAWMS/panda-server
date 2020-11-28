@@ -191,3 +191,16 @@ class SiteSpec(object):
     # check if always uses direct IO
     def always_use_direct_io(self):
         return self.maxinputsize == -1
+
+    # disable reassign
+    def disable_reassign(self):
+        if self.hasValueInCatchall('disableReassign'):
+            return True
+        self.status == 'paused'
+
+    # get job chunk size
+    def get_job_chunk_size(self):
+        try:
+            return int(self.getValueFromCatchall('jobChunkSize'))
+        except Exception:
+            return None

@@ -377,8 +377,17 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     status,res = taskBuffer.querySQLS(sql,varMap)
     for siteid, in res:
         sitesToSkipTO.add(siteid)
-
     _logger.debug("PQs to skip timeout : {0}".format(','.join(sitesToSkipTO)))
+
+    sitesToDisableReassign = set()
+    # get sites to disable reassign
+    for siteName, siteSpec in enumerate(siteMapper.siteSpecList):
+        if siteSpec.capability == 'ucore' and not siteSpec.is_unified:
+            continue
+        if siteSpec.disable_reassign():
+            sitesToDisableReassign.add(siteName)
+    _logger.debug("PQs to disable reassign : {0}".format(','.join(sitesToDisableReassign)))
+
 
     _memoryCheck("watcher")
 
@@ -670,49 +679,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         _logger.debug("kill DDM Jobs (%s)" % str(jobs))
         Client.killJobs(jobs,2)
 
-    # kill hang-up movers
-    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
-    sql = "SELECT PandaID from ATLAS_PANDA.jobsActive4 WHERE prodSourceLabel=:prodSourceLabel AND transferType=:transferType AND jobStatus=:jobStatus AND startTime<:startTime"
-    varMap = {}
-    varMap[':startTime'] = timeLimit
-    varMap[':prodSourceLabel'] = 'ddm'
-    varMap[':transferType']    = 'dis'
-    varMap[':jobStatus'] = 'running'
-    _logger.debug(sql+str(varMap))
-    status,res = taskBuffer.querySQLS(sql,varMap)
-    _logger.debug(res)
-    jobs   = []
-    movers = []
-    if res is not None:
-        for id, in res:
-            movers.append(id)
-            # get dispatch dataset
-            sql = 'SELECT name FROM ATLAS_PANDA.Datasets WHERE MoverID=:MoverID'
-            stDS,resDS = taskBuffer.querySQLS(sql,{':MoverID':id})
-            if resDS is not None:
-                disDS = resDS[0][0]
-                # get PandaIDs associated to the dis dataset
-                sql = "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND dispatchDBlock=:dispatchDBlock"
-                varMap = {}
-                varMap[':jobStatus'] = 'assigned'
-                varMap[':dispatchDBlock'] = disDS
-                stP,resP = taskBuffer.querySQLS(sql,varMap)
-                if resP is not None:
-                    for pandaID, in resP:
-                        jobs.append(pandaID)
-    # kill movers
-    if len(movers):
-        _logger.debug("kill hangup DDM Jobs (%s)" % str(movers))
-        Client.killJobs(movers,2)
-    # reassign jobs
-    if len(jobs):
-        nJob = 100
-        iJob = 0
-        while iJob < len(jobs):
-            _logger.debug('reassignJobs for hangup movers (%s)' % jobs[iJob:iJob+nJob])
-            taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
-            iJob += nJob
-
     # reassign activated jobs in inactive sites
     inactiveTimeLimitSite = 2
     inactiveTimeLimitJob  = 4
@@ -744,8 +710,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     sqlPI += 'AND lockedby=:lockedby AND currentPriority>=:prioLimit '
     sqlPI += 'AND computingSite=:site AND NOT processingType IN (:pType1) AND relocationFlag<>:rFlag1 '
     for tmpSite, in resDS:
-        if tmpSite in sitesToSkipTO:
-            _logger.debug('skip reassignJobs at inactive site %s since timeout is disabled' % (tmpSite))
+        if tmpSite in sitesToDisableReassign:
+            _logger.debug('skip reassignJobs at inactive site %s since reassign is disabled' % (tmpSite))
             continue
         # check if the site is inactive
         varMap = {}
@@ -900,8 +866,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 # skip T1
                 if tmpComputingSite == siteMapper.getCloud(tmpCloud)['tier1']:
                     continue
-                # skip if timeout is disabled
-                if tmpComputingSite in sitesToSkipTO:
+                # skip if reassign is disabled
+                if tmpComputingSite in sitesToDisableReassign:
                     continue
                 # add cloud/site
                 tmpKey = (tmpCloud,tmpComputingSite)
@@ -959,8 +925,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     jediJobs = []
     if res is not None:
         for pandaID, lockedby, eventService, attemptNr, computingSite in res:
-            if computingSite in sitesToSkipTO:
-                _logger.debug('skip reassignJobs for PandaID={0} for long activated in active table since timeout is disabled at {1}'.format(pandaID,computingSite))
+            if computingSite in sitesToDisableReassign:
+                _logger.debug('skip reassignJobs for long activated PandaID={0} since disabled at {1}'.format(pandaID,computingSite))
                 continue
             if lockedby == 'jedi':
                 if eventService in [EventServiceUtils.esMergeJobFlagNumber]:
@@ -995,8 +961,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     jediJobs = []
     if res is not None:
         for pandaID, lockedby, eventService, attemptNr, computingSite in res:
-            if computingSite in sitesToSkipTO:
-                _logger.debug('skip reassignJobs for PandaID={0} for long starting in active table since timeout is disabled at {1}'.format(pandaID,computingSite))
+            if computingSite in sitesToDisableReassign:
+                _logger.debug('skip reassignJobs for long starting PandaID={0} since disabled at {1}'.format(pandaID,computingSite))
                 continue
             if lockedby == 'jedi':
                 jediJobs.append(pandaID)
