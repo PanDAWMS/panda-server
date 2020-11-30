@@ -317,6 +317,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # finalize failed jobs
     _logger.debug("check stuck mergeing jobs")
     try:
+        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
         # get PandaIDs
         varMap = {}
         varMap[':prodSourceLabel'] = 'managed'
@@ -381,7 +382,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
     sitesToDisableReassign = set()
     # get sites to disable reassign
-    for siteName, siteSpec in enumerate(siteMapper.siteSpecList):
+    for siteName in siteMapper.siteSpecList:
+        siteSpec = siteMapper.siteSpecList[siteName]
         if siteSpec.capability == 'ucore' and not siteSpec.is_unified:
             continue
         if siteSpec.disable_reassign():
