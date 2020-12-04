@@ -22055,16 +22055,16 @@ class DBProxy:
         for share in sorted_shares:
             var_map = {':queue': queue, ':gshare': share.name}
             sql = """
-                  SELECT gshare, prodsourcelabel, resource_type FROM atlas_panda.jobsactive4
+                  SELECT gshare, prodsourcelabel, resource_type, current_priority_count FROM atlas_panda.jobsactive4
                   WHERE jobstatus = 'activated'
                      AND computingsite=:queue
                      AND gshare=:gshare
-                  ORDER BY currentpriority DESC
+                  ORDER BY current_priority_binned DESC
                   """
             self.cur.execute(sql + comment, var_map)
             activated_jobs = self.cur.fetchall()
             tmpLog.debug('Processing share: {0}. Got {1} activated jobs'.format(share.name, len(activated_jobs)))
-            for gshare, prodsourcelabel, resource_type in activated_jobs:
+            for gshare, prodsourcelabel, resource_type, count in activated_jobs:
                 core_factor = JobUtils.translate_resourcetype_to_cores(resource_type, cores_queue)
 
                 # translate prodsourcelabel to a subset of job types, typically 'user' and 'managed'
@@ -22076,12 +22076,14 @@ class DBProxy:
                     continue
                 workers_queued.setdefault(job_type, {})
                 workers_queued[job_type].setdefault(resource_type, 0)
-                workers_queued[job_type][resource_type] = workers_queued[job_type][resource_type] - 1
+
+                n_workers_to_submit = min(ceil(n_cores_to_submit / core_factor), count)
+                workers_queued[job_type][resource_type] = workers_queued[job_type][resource_type] - n_workers_to_submit
                 if workers_queued[job_type][resource_type] <= 0:
                     # we've gone over the jobs that already have a queued worker, now we go for new workers
-                    n_cores_to_submit = n_cores_to_submit - core_factor
+                    n_cores_to_submit = n_cores_to_submit - core_factor * n_workers_to_submit
 
-                # We reached the number of workers needed
+                # We reached the number of cores needed
                 if n_cores_to_submit <= 0:
                     tmpLog.debug('Reached cores needed (inner)')
                     break
