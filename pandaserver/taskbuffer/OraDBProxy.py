@@ -10020,7 +10020,7 @@ class DBProxy:
                                 pass
     
                         # cloud list
-                        if queue_data.get('cloud') != '':
+                        if queue_data.get('cloud') not in ['', None]:
                             ret.cloudlist = [queue_data['cloud'].split(',')[0]]
                             if queue_data.get('multicloud') not in ['', None, 'None']:
                                 ret.cloudlist += queue_data['multicloud'].split(',')
