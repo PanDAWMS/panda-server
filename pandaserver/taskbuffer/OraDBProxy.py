@@ -9889,232 +9889,242 @@ class DBProxy:
             if resList is not None:
                 # loop over all results
                 for res in resList:
-                    # change None to ''
-                    resTmp = []
-                    for tmpItem in res:
-                        if tmpItem is None:
-                            tmpItem = ''
-                        resTmp.append(tmpItem)
-
-                    siteid, queue_data_json, pandasite, role = resTmp
-                    try:
-                        queue_data = json.loads(queue_data_json)
-                    except Exception:
-                        _logger.error("loading json for queue {0} excepted. json was: {1}".format(siteid, queue_data_json))
-                        continue
-
-                    # skip invalid siteid
-                    if siteid in [None,''] or not queue_data:
-                        _logger.error("siteid {0} had no queue_data {1}".format(siteid, queue_data))
-                        continue
-
-                    _logger.debug("processing queue {0}".format(siteid))
-
-                    # instantiate SiteSpec
-                    ret = SiteSpec.SiteSpec()
-                    ret.sitename = siteid
-                    ret.pandasite = pandasite
-                    ret.role = role
-
-                    ret.type = queue_data.get('type', 'production')
-                    ret.nickname = queue_data.get('nickname')
-                    ret.dq2url = queue_data.get('dq2url')
-                    ret.ddm = queue_data.get('ddm', '').split(',')[0]
-                    ret.cloud = queue_data.get('cloud', '').split(',')[0]
-                    ret.memory = queue_data.get('memory')
-                    ret.maxrss = queue_data.get('maxrss')
-                    ret.minrss = queue_data.get('minrss')
-                    ret.maxtime = queue_data.get('maxtime')
-                    ret.status = queue_data.get('status')
-                    ret.space = queue_data.get('space')
-                    ret.glexec = queue_data.get('glexec')
-                    ret.localqueue = queue_data.get('localqueue')
-                    ret.cachedse = queue_data.get('cachedse')
-                    ret.accesscontrol = queue_data.get('accesscontrol')
-                    ret.maxinputsize = queue_data.get('maxinputsize')
-                    ret.comment = queue_data.get('comment_')
-                    ret.statusmodtime = queue_data.get('lastmod')
-                    ret.catchall = queue_data.get('catchall')
-                    ret.tier = queue_data.get('tier')
-                    ret.jobseed = queue_data.get('jobseed')
-                    ret.capability = queue_data.get('capability')
-                    ret.workflow = queue_data.get('workflow')
-                    ret.maxDiskio = queue_data.get('maxdiskio')
-                    ret.pandasite_state = 'ACTIVE'
-                    ret.fairsharePolicy = queue_data.get('fairsharepolicy')
-                    ret.priorityoffset = queue_data.get('priorityoffset')
-                    ret.allowedgroups  = queue_data.get('allowedgroups')
-                    ret.defaulttoken   = queue_data.get('defaulttoken')
-
-                    ret.direct_access_lan = (queue_data.get('direct_access_lan') is True)
-                    ret.direct_access_wan = (queue_data.get('direct_access_wan') is True)
-
-                    if queue_data.get('corepower') is None:
-                        ret.corepower = 0
-                    else:
-                        ret.corepower = queue_data.get('corepower')
-
-                    ret.wnconnectivity = queue_data.get('wnconnectivity')
-                    if ret.wnconnectivity == '':
-                        ret.wnconnectivity = None
-
-                    # maxwdir
-                    try:
-                        if queue_data.get('maxwdir') is None:
-                            ret.maxwdir = 0
+                    try:   # don't let a problem with one queue break the whole map
+                        # change None to ''
+                        resTmp = []
+                        for tmpItem in res:
+                            if tmpItem is None:
+                                tmpItem = ''
+                            resTmp.append(tmpItem)
+    
+                        siteid, queue_data_json, pandasite, role = resTmp
+                        try:
+                            queue_data = json.loads(queue_data_json)
+                        except Exception:
+                            _logger.error("loading json for queue {0} excepted. json was: {1}".format(siteid, queue_data_json))
+                            continue
+    
+                        # skip invalid siteid
+                        if siteid in [None,''] or not queue_data:
+                            _logger.error("siteid {0} had no queue_data {1}".format(siteid, queue_data))
+                            continue
+    
+                        _logger.debug("processing queue {0}".format(siteid))
+    
+                        # instantiate SiteSpec
+                        ret = SiteSpec.SiteSpec()
+                        ret.sitename = siteid
+                        ret.pandasite = pandasite
+                        ret.role = role
+    
+                        ret.type = queue_data.get('type', 'production')
+                        ret.nickname = queue_data.get('nickname')
+                        ret.dq2url = queue_data.get('dq2url')
+                        try:
+                            ret.ddm = queue_data.get('ddm', '').split(',')[0]
+                        except AttributeError:
+                            ret.ddm = ''
+                        try:
+                            ret.cloud = queue_data.get('cloud', '').split(',')[0]
+                        except AttributeError:
+                            ret.cloud = ''
+                        ret.memory = queue_data.get('memory')
+                        ret.maxrss = queue_data.get('maxrss')
+                        ret.minrss = queue_data.get('minrss')
+                        ret.maxtime = queue_data.get('maxtime')
+                        ret.status = queue_data.get('status')
+                        ret.space = queue_data.get('space')
+                        ret.glexec = queue_data.get('glexec')
+                        ret.localqueue = queue_data.get('localqueue')
+                        ret.cachedse = queue_data.get('cachedse')
+                        ret.accesscontrol = queue_data.get('accesscontrol')
+                        ret.maxinputsize = queue_data.get('maxinputsize')
+                        ret.comment = queue_data.get('comment_')
+                        ret.statusmodtime = queue_data.get('lastmod')
+                        ret.catchall = queue_data.get('catchall')
+                        ret.tier = queue_data.get('tier')
+                        ret.jobseed = queue_data.get('jobseed')
+                        ret.capability = queue_data.get('capability')
+                        ret.workflow = queue_data.get('workflow')
+                        ret.maxDiskio = queue_data.get('maxdiskio')
+                        ret.pandasite_state = 'ACTIVE'
+                        ret.fairsharePolicy = queue_data.get('fairsharepolicy')
+                        ret.priorityoffset = queue_data.get('priorityoffset')
+                        ret.allowedgroups  = queue_data.get('allowedgroups')
+                        ret.defaulttoken   = queue_data.get('defaulttoken')
+    
+                        ret.direct_access_lan = (queue_data.get('direct_access_lan') is True)
+                        ret.direct_access_wan = (queue_data.get('direct_access_wan') is True)
+    
+                        if queue_data.get('corepower') is None:
+                            ret.corepower = 0
                         else:
-                            ret.maxwdir = int(queue_data['maxwdir'])
-                    except Exception:
-                        if ret.maxinputsize in [0, None]:
-                            ret.maxwdir = 0
+                            ret.corepower = queue_data.get('corepower')
+    
+                        ret.wnconnectivity = queue_data.get('wnconnectivity')
+                        if ret.wnconnectivity == '':
+                            ret.wnconnectivity = None
+    
+                        # maxwdir
+                        try:
+                            if queue_data.get('maxwdir') is None:
+                                ret.maxwdir = 0
+                            else:
+                                ret.maxwdir = int(queue_data['maxwdir'])
+                        except Exception:
+                            if ret.maxinputsize in [0, None]:
+                                ret.maxwdir = 0
+                            else:
+                                try:
+                                    ret.maxwdir = ret.maxinputsize + 2000
+                                except Exception:
+                                    ret.maxwdir = 16336
+    
+                        # mintime
+                        if queue_data.get('mintime') is not None:
+                            ret.mintime = queue_data['mintime']
                         else:
+                            ret.mintime = 0
+    
+                        # reliability
+                        ret.reliabilityLevel = None
+    
+                        # contry groups
+                        if queue_data.get('countrygroup') not in ['', None]:
+                            ret.countryGroup = queue_data['countrygroup'].split(',')
+                        else:
+                            ret.countryGroup = []
+    
+                        # available CPUs
+                        ret.availableCPU = 0
+                        if queue_data.get('availablecpu') not in ['', None]:
                             try:
-                                ret.maxwdir = ret.maxinputsize + 2000
+                                ret.availableCPU = int(queue_data['availablecpu'])
                             except Exception:
-                                ret.maxwdir = 16336
-
-                    # mintime
-                    if queue_data.get('mintime') is not None:
-                        ret.mintime = queue_data['mintime']
-                    else:
-                        ret.mintime = 0
-
-                    # reliability
-                    ret.reliabilityLevel = None
-
-                    # contry groups
-                    if queue_data.get('countrygroup') not in ['', None]:
-                        ret.countryGroup = queue_data['countrygroup'].split(',')
-                    else:
-                        ret.countryGroup = []
-
-                    # available CPUs
-                    ret.availableCPU = 0
-                    if queue_data.get('availablecpu') not in ['', None]:
+                                pass
+    
+                        # pledged CPUs
+                        ret.pledgedCPU = 0
+                        if queue_data.get('pledgedcpu') not in ['', None]:
+                            try:
+                                ret.pledgedCPU = int(queue_data['pledgedcpu'])
+                            except Exception:
+                                pass
+    
+                        # core count
+                        ret.coreCount = 0
+                        if queue_data.get('corecount') not in ['', None]:
+                            try:
+                                ret.coreCount = int(queue_data['corecount'])
+                            except Exception:
+                                pass
+    
+                        # cloud list
+                        if queue_data.get('cloud') != '':
+                            ret.cloudlist = [queue_data['cloud'].split(',')[0]]
+                            if queue_data.get('multicloud') not in ['', None, 'None']:
+                                ret.cloudlist += queue_data['multicloud'].split(',')
+                        else:
+                            ret.cloudlist = []
+    
+                        # job recovery
+                        ret.retry = True
+                        if queue_data.get('retry') is False:
+                            ret.retry = False
+    
+                        # convert releases to list
+                        ret.releases = []
+                        if queue_data.get('releases'):
+                            ret.releases = queue_data['releases']
+    
+                        # convert validatedreleases to list
+                        ret.validatedreleases = []
+                        if queue_data.get('validatedreleases'):
+                            for tmpRel in queue_data['validatedreleases'].split('|'):
+                                # remove white space
+                                tmpRel = tmpRel.strip()
+                                if tmpRel != '':
+                                    ret.validatedreleases.append(tmpRel)
+    
+                        # CVMFS
+                        if siteid in cvmfsSites:
+                            ret.iscvmfs = True
+                        else:
+                            ret.iscvmfs = False
+    
+                        # limit of the number of transferring jobs
+                        ret.transferringlimit = 0
+                        if queue_data.get('transferringlimit') not in ['', None]:
+                            try:
+                                ret.transferringlimit = int(queue_data['transferringlimit'])
+                            except Exception:
+                                pass
+    
+                        # FAX
+                        ret.allowfax = False
                         try:
-                            ret.availableCPU = int(queue_data['availablecpu'])
+                            if queue_data.get('catchall') is not None and 'allowfax' in queue_data['catchall']:
+                                ret.allowfax = True
+                            if queue_data.get('allowfax') is True:
+                                ret.allowfax = True
                         except Exception:
                             pass
-
-                    # pledged CPUs
-                    ret.pledgedCPU = 0
-                    if queue_data.get('pledgedcpu') not in ['', None]:
+    
+                        ret.wansourcelimit = 0
+                        if queue_data.get('wansourcelimit') not in [None,'']:
+                            ret.wansourcelimit = queue_data['wansourcelimit']
+                        ret.wansinklimit = 0
+                        if queue_data.get('wansinklimit') not in [None,'']:
+                            ret.wansinklimit = queue_data['wansinklimit']
+    
+                        # DDM endpoints
+                        ret.ddm_endpoints_input = {}
+                        ret.ddm_endpoints_output = {}
+                        if siteid in pandaEndpointMap:
+                            for scope in pandaEndpointMap[siteid]:
+                                if 'input' in pandaEndpointMap[siteid][scope]:
+                                    ret.ddm_endpoints_input[scope] = pandaEndpointMap[siteid][scope]['input']
+                                if 'output' in pandaEndpointMap[siteid][scope]:
+                                    ret.ddm_endpoints_output[scope] = pandaEndpointMap[siteid][scope]['output']
+                        else:
+                            # empty
+                            ret.ddm_endpoints_input['default'] = DdmSpec()
+                            ret.ddm_endpoints_output['default'] = DdmSpec()
+    
+                        # initialize dictionary fields
+                        ret.setokens_input = {}
+                        ret.setokens_output = {}
+                        ret.ddm_input = {}
+                        for scope in ret.ddm_endpoints_input:
+                            # mapping between token and endpoints
+                            ret.setokens_input[scope] = ret.ddm_endpoints_input[scope].getTokenMap('input')
+                            # set DDM to the default endpoint
+                            ret.ddm_input[scope] = ret.ddm_endpoints_input[scope].getDefaultRead()
+    
+                        ret.ddm_output = {}
+                        for scope in ret.ddm_endpoints_output:
+                            # mapping between token and endpoints
+                            ret.setokens_output[scope] = ret.ddm_endpoints_output[scope].getTokenMap('output')
+                            # set DDM to the default endpoint
+                            ret.ddm_output[scope] = ret.ddm_endpoints_output[scope].getDefaultWrite()
+    
+                        # object stores
                         try:
-                            ret.pledgedCPU = int(queue_data['pledgedcpu'])
+                            ret.objectstores = queue_data['objectstores']
                         except Exception:
-                            pass
-
-                    # core count
-                    ret.coreCount = 0
-                    if queue_data.get('corecount') not in ['', None]:
-                        try:
-                            ret.coreCount = int(queue_data['corecount'])
-                        except Exception:
-                            pass
-
-                    # cloud list
-                    if queue_data.get('cloud') != '':
-                        ret.cloudlist = [queue_data['cloud'].split(',')[0]]
-                        if queue_data.get('multicloud') not in ['', None, 'None']:
-                            ret.cloudlist += queue_data['multicloud'].split(',')
-                    else:
-                        ret.cloudlist = []
-
-                    # job recovery
-                    ret.retry = True
-                    if queue_data.get('retry') is False:
-                        ret.retry = False
-
-                    # convert releases to list
-                    ret.releases = []
-                    if queue_data.get('releases'):
-                        ret.releases = queue_data['releases']
-
-                    # convert validatedreleases to list
-                    ret.validatedreleases = []
-                    if queue_data.get('validatedreleases'):
-                        for tmpRel in queue_data['validatedreleases'].split('|'):
-                            # remove white space
-                            tmpRel = tmpRel.strip()
-                            if tmpRel != '':
-                                ret.validatedreleases.append(tmpRel)
-
-                    # CVMFS
-                    if siteid in cvmfsSites:
-                        ret.iscvmfs = True
-                    else:
-                        ret.iscvmfs = False
-
-                    # limit of the number of transferring jobs
-                    ret.transferringlimit = 0
-                    if queue_data.get('transferringlimit') not in ['', None]:
-                        try:
-                            ret.transferringlimit = int(queue_data['transferringlimit'])
-                        except Exception:
-                            pass
-
-                    # FAX
-                    ret.allowfax = False
-                    try:
-                        if queue_data.get('catchall') is not None and 'allowfax' in queue_data['catchall']:
-                            ret.allowfax = True
-                        if queue_data.get('allowfax') is True:
-                            ret.allowfax = True
+                            ret.objectstores = []
+    
+                        # default unified flag
+                        ret.is_unified = False
+    
+                        # num slots
+                        ret.num_slots_map = num_slots_by_site.get(siteid, {})
+    
+                        # append
+                        retList[ret.nickname] = ret
                     except Exception:
-                        pass
-
-                    ret.wansourcelimit = 0
-                    if queue_data.get('wansourcelimit') not in [None,'']:
-                        ret.wansourcelimit = queue_data['wansourcelimit']
-                    ret.wansinklimit = 0
-                    if queue_data.get('wansinklimit') not in [None,'']:
-                        ret.wansinklimit = queue_data['wansinklimit']
-
-                    # DDM endpoints
-                    ret.ddm_endpoints_input = {}
-                    ret.ddm_endpoints_output = {}
-                    if siteid in pandaEndpointMap:
-                        for scope in pandaEndpointMap[siteid]:
-                            if 'input' in pandaEndpointMap[siteid][scope]:
-                                ret.ddm_endpoints_input[scope] = pandaEndpointMap[siteid][scope]['input']
-                            if 'output' in pandaEndpointMap[siteid][scope]:
-                                ret.ddm_endpoints_output[scope] = pandaEndpointMap[siteid][scope]['output']
-                    else:
-                        # empty
-                        ret.ddm_endpoints_input['default'] = DdmSpec()
-                        ret.ddm_endpoints_output['default'] = DdmSpec()
-
-                    # initialize dictionary fields
-                    ret.setokens_input = {}
-                    ret.setokens_output = {}
-                    ret.ddm_input = {}
-                    for scope in ret.ddm_endpoints_input:
-                        # mapping between token and endpoints
-                        ret.setokens_input[scope] = ret.ddm_endpoints_input[scope].getTokenMap('input')
-                        # set DDM to the default endpoint
-                        ret.ddm_input[scope] = ret.ddm_endpoints_input[scope].getDefaultRead()
-
-                    ret.ddm_output = {}
-                    for scope in ret.ddm_endpoints_output:
-                        # mapping between token and endpoints
-                        ret.setokens_output[scope] = ret.ddm_endpoints_output[scope].getTokenMap('output')
-                        # set DDM to the default endpoint
-                        ret.ddm_output[scope] = ret.ddm_endpoints_output[scope].getDefaultWrite()
-
-                    # object stores
-                    try:
-                        ret.objectstores = queue_data['objectstores']
-                    except Exception:
-                        ret.objectstores = []
-
-                    # default unified flag
-                    ret.is_unified = False
-
-                    # num slots
-                    ret.num_slots_map = num_slots_by_site.get(siteid, {})
-
-                    # append
-                    retList[ret.nickname] = ret
+                        _logger.error('getSiteInfo exception in queue: {1}'.format(traceback.format_exc()))
+                        continue
             _logger.debug("getSiteInfo done")
             return retList
         except Exception:
