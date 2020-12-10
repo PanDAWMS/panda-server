@@ -10123,7 +10123,7 @@ class DBProxy:
                         # append
                         retList[ret.nickname] = ret
                     except Exception:
-                        _logger.error('getSiteInfo exception in queue: {1}'.format(traceback.format_exc()))
+                        _logger.error('getSiteInfo exception in queue: {0}'.format(traceback.format_exc()))
                         continue
             _logger.debug("getSiteInfo done")
             return retList
