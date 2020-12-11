@@ -407,7 +407,9 @@ proc_lifetime = 14400
 config = config = {
     "dummy_test": {
         "enable": false, "period": 120},
-    "add": {
+    "add_main": {
+        "enable": true, "period": 240, "loop": true},
+    "add_sub": {
         "enable": true, "period": 240},
     "evpPD2P": {
         "enable": true, "period": 600},

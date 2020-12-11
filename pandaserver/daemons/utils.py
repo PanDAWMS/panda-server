@@ -39,7 +39,7 @@ EPOCH = datetime.datetime.fromtimestamp(0)
 
 
 # worker process loop of daemon
-def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime):
+def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None):
     # pid of the worker
     my_pid = os.getpid()
     my_full_pid = '{0}-{1}-{2}'.format(socket.getfqdn().split('.')[0], os.getpgrp(), my_pid)
@@ -60,23 +60,25 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime):
     start_ts = time.time()
     # expiry time
     expiry_ts = start_ts + worker_lifetime
-    # initialize cx_Oracle using dummy connection
-    try:
-        from pandaserver.taskbuffer.Initializer import initializer
-        initializer.init()
-    except Exception as e:
-        tmp_log.error('failed to launch initializer with {err} ; terminated'.format(
-                            err='{0}: {1}'.format(e.__class__.__name__, e)))
-        return
-    # taskBuffer object
-    try:
-        from pandaserver.taskbuffer.TaskBuffer import taskBuffer as tbuf
-        tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
-        tmp_log.debug('taskBuffer initialized')
-    except Exception as e:
-        tmp_log.error('failed to initialize taskBuffer with {err} ; terminated'.format(
-                            err='{0}: {1}'.format(e.__class__.__name__, e)))
-        return
+    # create taskBuffer object if not given
+    if tbuf is None:
+        # initialize cx_Oracle using dummy connection
+        try:
+            from pandaserver.taskbuffer.Initializer import initializer
+            initializer.init()
+        except Exception as e:
+            tmp_log.error('failed to launch initializer with {err} ; terminated'.format(
+                                err='{0}: {1}'.format(e.__class__.__name__, e)))
+            return
+        # taskBuffer object
+        try:
+            from pandaserver.taskbuffer.TaskBuffer import taskBuffer as tbuf
+            tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
+            tmp_log.debug('taskBuffer initialized')
+        except Exception as e:
+            tmp_log.error('failed to initialize taskBuffer with {err} ; terminated'.format(
+                                err='{0}: {1}'.format(e.__class__.__name__, e)))
+            return
     # import module of all daemons
     for dem_name, attrs in dem_config.items():
         mod_name = attrs['module']
@@ -221,21 +223,22 @@ class DaemonWorker(object):
     _lock = threading.Lock()
 
     # constructor
-    def __init__(self, dem_config, msg_queue, worker_lifetime):
+    def __init__(self, dem_config, msg_queue, worker_lifetime, tbuf=None):
         # synchronized with lock
         with self._lock:
             self._make_pipe()
             self._make_process( dem_config=dem_config,
                                 msg_queue=msg_queue,
-                                worker_lifetime=worker_lifetime)
+                                worker_lifetime=worker_lifetime,
+                                tbuf=tbuf)
 
     # make pipe connection pairs for the worker
     def _make_pipe(self):
         self.parent_conn, self.child_conn = multiprocessing.Pipe()
 
     # make associated process
-    def _make_process(self, dem_config, msg_queue, worker_lifetime):
-        args = (dem_config, msg_queue, self.child_conn, worker_lifetime)
+    def _make_process(self, dem_config, msg_queue, worker_lifetime, tbuf):
+        args = (dem_config, msg_queue, self.child_conn, worker_lifetime, tbuf)
         self.process = multiprocessing.Process(target=daemon_loop, args=args)
 
     # start worker process
@@ -275,8 +278,29 @@ class DaemonMaster(object):
         # map of run status of daemons
         self.dem_run_map = {}
         self._make_dem_run_map()
+        # shared taskBufferIF
+        self.tbif = None
+        self._make_tbif()
         # spawn workers
         self._spawn_workers(self.n_workers)
+
+    # make common taskBuffer interface for daemon workers
+    def _make_tbif(self):
+        try:
+            from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
+            from pandaserver.taskbuffer.TaskBufferInterface import TaskBufferInterface
+            # taskBuffer
+            _tbuf = TaskBuffer()
+            _tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
+            # taskBuffer interface for multiprocessing
+            taskBufferIF = TaskBufferInterface()
+            taskBufferIF.launch(_tbuf)
+            self.logger.debug('taskBuffer interface initialized')
+            self.tbif = taskBufferIF
+        except Exception as e:
+            self.logger.error('failed to initialize taskBuffer interface with {err} ; terminated'.format(
+                                err='{0}: {1}'.format(e.__class__.__name__, e)))
+            raise e
 
     # spawn new workers and put into worker pool
     def _spawn_workers(self, n_workers=1, auto_start=False):
@@ -284,7 +308,8 @@ class DaemonMaster(object):
             with self._worker_lock:
                 worker = DaemonWorker(  dem_config=self.dem_config,
                                         msg_queue=self.msg_queue,
-                                        worker_lifetime=self.worker_lifetime)
+                                        worker_lifetime=self.worker_lifetime,
+                                        tbuf=self.tbif.getInterface())
                 self.worker_pool.add(worker)
                 if auto_start:
                     worker.start()
@@ -421,8 +446,10 @@ class DaemonMaster(object):
         self.to_stop_scheduler = True
         # send stop command to workers
         self._stop_proc()
+        # stop taskBuffer interface
+        self.tbif.stop()
         # wait a bit
-        time.sleep(3)
+        time.sleep(2.5)
 
     # run
     def run(self):
