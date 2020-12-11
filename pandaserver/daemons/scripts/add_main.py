@@ -229,6 +229,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     tmpLog.debug("prelock_pid={0} got {1} job reports".format(prelock_pid, n_jors))
     if n_jors == 0:
         # no job report to consume, return
+        tmpLog.debug("===================== end =====================")
         return ret_val
 
     # taskBuffer interface for multiprocessing

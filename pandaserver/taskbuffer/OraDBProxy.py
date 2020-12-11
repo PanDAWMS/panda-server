@@ -228,6 +228,8 @@ class DBProxy:
             self.conn.begin()
             self.cur.arraysize = arraySize
             ret = self.cur.execute(sql+comment,varMap)
+            if ret:
+                ret = True
             if sql.startswith('INSERT') or sql.startswith('UPDATE') or \
                    sql.startswith('DELETE'):
                 res = self.cur.rowcount
@@ -9896,27 +9898,27 @@ class DBProxy:
                             if tmpItem is None:
                                 tmpItem = ''
                             resTmp.append(tmpItem)
-    
+
                         siteid, queue_data_json, pandasite, role = resTmp
                         try:
                             queue_data = json.loads(queue_data_json)
                         except Exception:
                             _logger.error("loading json for queue {0} excepted. json was: {1}".format(siteid, queue_data_json))
                             continue
-    
+
                         # skip invalid siteid
                         if siteid in [None,''] or not queue_data:
                             _logger.error("siteid {0} had no queue_data {1}".format(siteid, queue_data))
                             continue
-    
+
                         _logger.debug("processing queue {0}".format(siteid))
-    
+
                         # instantiate SiteSpec
                         ret = SiteSpec.SiteSpec()
                         ret.sitename = siteid
                         ret.pandasite = pandasite
                         ret.role = role
-    
+
                         ret.type = queue_data.get('type', 'production')
                         ret.nickname = queue_data.get('nickname')
                         ret.dq2url = queue_data.get('dq2url')
@@ -9952,19 +9954,19 @@ class DBProxy:
                         ret.priorityoffset = queue_data.get('priorityoffset')
                         ret.allowedgroups  = queue_data.get('allowedgroups')
                         ret.defaulttoken   = queue_data.get('defaulttoken')
-    
+
                         ret.direct_access_lan = (queue_data.get('direct_access_lan') is True)
                         ret.direct_access_wan = (queue_data.get('direct_access_wan') is True)
-    
+
                         if queue_data.get('corepower') is None:
                             ret.corepower = 0
                         else:
                             ret.corepower = queue_data.get('corepower')
-    
+
                         ret.wnconnectivity = queue_data.get('wnconnectivity')
                         if ret.wnconnectivity == '':
                             ret.wnconnectivity = None
-    
+
                         # maxwdir
                         try:
                             if queue_data.get('maxwdir') is None:
@@ -9979,22 +9981,22 @@ class DBProxy:
                                     ret.maxwdir = ret.maxinputsize + 2000
                                 except Exception:
                                     ret.maxwdir = 16336
-    
+
                         # mintime
                         if queue_data.get('mintime') is not None:
                             ret.mintime = queue_data['mintime']
                         else:
                             ret.mintime = 0
-    
+
                         # reliability
                         ret.reliabilityLevel = None
-    
+
                         # contry groups
                         if queue_data.get('countrygroup') not in ['', None]:
                             ret.countryGroup = queue_data['countrygroup'].split(',')
                         else:
                             ret.countryGroup = []
-    
+
                         # available CPUs
                         ret.availableCPU = 0
                         if queue_data.get('availablecpu') not in ['', None]:
@@ -10002,7 +10004,7 @@ class DBProxy:
                                 ret.availableCPU = int(queue_data['availablecpu'])
                             except Exception:
                                 pass
-    
+
                         # pledged CPUs
                         ret.pledgedCPU = 0
                         if queue_data.get('pledgedcpu') not in ['', None]:
@@ -10010,7 +10012,7 @@ class DBProxy:
                                 ret.pledgedCPU = int(queue_data['pledgedcpu'])
                             except Exception:
                                 pass
-    
+
                         # core count
                         ret.coreCount = 0
                         if queue_data.get('corecount') not in ['', None]:
@@ -10018,7 +10020,7 @@ class DBProxy:
                                 ret.coreCount = int(queue_data['corecount'])
                             except Exception:
                                 pass
-    
+
                         # cloud list
                         if queue_data.get('cloud') not in ['', None]:
                             ret.cloudlist = [queue_data['cloud'].split(',')[0]]
@@ -10026,17 +10028,17 @@ class DBProxy:
                                 ret.cloudlist += queue_data['multicloud'].split(',')
                         else:
                             ret.cloudlist = []
-    
+
                         # job recovery
                         ret.retry = True
                         if queue_data.get('retry') is False:
                             ret.retry = False
-    
+
                         # convert releases to list
                         ret.releases = []
                         if queue_data.get('releases'):
                             ret.releases = queue_data['releases']
-    
+
                         # convert validatedreleases to list
                         ret.validatedreleases = []
                         if queue_data.get('validatedreleases'):
@@ -10045,13 +10047,13 @@ class DBProxy:
                                 tmpRel = tmpRel.strip()
                                 if tmpRel != '':
                                     ret.validatedreleases.append(tmpRel)
-    
+
                         # CVMFS
                         if siteid in cvmfsSites:
                             ret.iscvmfs = True
                         else:
                             ret.iscvmfs = False
-    
+
                         # limit of the number of transferring jobs
                         ret.transferringlimit = 0
                         if queue_data.get('transferringlimit') not in ['', None]:
@@ -10059,7 +10061,7 @@ class DBProxy:
                                 ret.transferringlimit = int(queue_data['transferringlimit'])
                             except Exception:
                                 pass
-    
+
                         # FAX
                         ret.allowfax = False
                         try:
@@ -10069,14 +10071,14 @@ class DBProxy:
                                 ret.allowfax = True
                         except Exception:
                             pass
-    
+
                         ret.wansourcelimit = 0
                         if queue_data.get('wansourcelimit') not in [None,'']:
                             ret.wansourcelimit = queue_data['wansourcelimit']
                         ret.wansinklimit = 0
                         if queue_data.get('wansinklimit') not in [None,'']:
                             ret.wansinklimit = queue_data['wansinklimit']
-    
+
                         # DDM endpoints
                         ret.ddm_endpoints_input = {}
                         ret.ddm_endpoints_output = {}
@@ -10090,7 +10092,7 @@ class DBProxy:
                             # empty
                             ret.ddm_endpoints_input['default'] = DdmSpec()
                             ret.ddm_endpoints_output['default'] = DdmSpec()
-    
+
                         # initialize dictionary fields
                         ret.setokens_input = {}
                         ret.setokens_output = {}
@@ -10100,26 +10102,26 @@ class DBProxy:
                             ret.setokens_input[scope] = ret.ddm_endpoints_input[scope].getTokenMap('input')
                             # set DDM to the default endpoint
                             ret.ddm_input[scope] = ret.ddm_endpoints_input[scope].getDefaultRead()
-    
+
                         ret.ddm_output = {}
                         for scope in ret.ddm_endpoints_output:
                             # mapping between token and endpoints
                             ret.setokens_output[scope] = ret.ddm_endpoints_output[scope].getTokenMap('output')
                             # set DDM to the default endpoint
                             ret.ddm_output[scope] = ret.ddm_endpoints_output[scope].getDefaultWrite()
-    
+
                         # object stores
                         try:
                             ret.objectstores = queue_data['objectstores']
                         except Exception:
                             ret.objectstores = []
-    
+
                         # default unified flag
                         ret.is_unified = False
-    
+
                         # num slots
                         ret.num_slots_map = num_slots_by_site.get(siteid, {})
-    
+
                         # append
                         retList[ret.nickname] = ret
                     except Exception:

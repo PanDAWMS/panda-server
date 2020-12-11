@@ -56,6 +56,9 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     else:
         _logger.error('Configurator being called with wrong arguments. Use either no arguments or --network or --json_dump')
 
+    # dbif session close
+    session.close()
+
 
 # run
 if __name__ == '__main__':

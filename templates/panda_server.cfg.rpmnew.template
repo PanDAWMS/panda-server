@@ -399,6 +399,9 @@ package = pandaserver.daemons.scripts
 # number of worker processes to run daemons
 n_proc = 1
 
+# number of DB connections to share among daemon worker processes
+n_dbconn = 1
+
 # when exceeding lifetime, worker process will be respawned
 proc_lifetime = 14400
 
@@ -407,7 +410,9 @@ proc_lifetime = 14400
 config = config = {
     "dummy_test": {
         "enable": false, "period": 120},
-    "add": {
+    "add_main": {
+        "enable": true, "period": 240, "loop": true},
+    "add_sub": {
         "enable": true, "period": 240},
     "evpPD2P": {
         "enable": true, "period": 600},
