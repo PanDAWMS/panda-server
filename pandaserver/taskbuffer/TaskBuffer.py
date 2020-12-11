@@ -1705,6 +1705,18 @@ class TaskBuffer:
         return retList
 
 
+    # get and lock dataset with a query
+    def getLockDatasets(self, sqlQuery, varMapGet, modTimeOffset='', getVersion=False):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # query Dataset
+        ret = proxy.getLockDatasets(sqlQuery, varMapGet, modTimeOffset, getVersion)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # query Dataset
     def queryDatasetWithMap(self,map):
         # get DBproxy

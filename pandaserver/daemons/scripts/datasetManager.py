@@ -327,9 +327,7 @@ def main(tbuf=None, **kwargs):
         varMap[':type']   = 'output'
         varMap[':status'] = 'tobeclosed'
         sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= %s" % maxRows
-        proxyS = taskBuffer.proxyPool.getProxy()
-        res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
-        taskBuffer.proxyPool.putProxy(proxyS)
+        res = taskBuffer.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
         if res is None:
             _logger.debug("# of datasets to be closed: %s" % res)
         else:
@@ -545,9 +543,7 @@ def main(tbuf=None, **kwargs):
         varMap[':status5'] = 'doing'
         varMap[':subType'] = 'sub'
         freezeProxyLock.acquire()
-        proxyS = taskBuffer.proxyPool.getProxy()
-        res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
-        taskBuffer.proxyPool.putProxy(proxyS)
+        res = taskBuffer.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
         if res is None:
             _logger.debug("# of datasets to be frozen: %s" % res)
         else:
@@ -634,9 +630,7 @@ def main(tbuf=None, **kwargs):
             varMap[':status'] = targetStatus
             sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= %s" % maxRows
             disEraseProxyLock.acquire()
-            proxyS = taskBuffer.proxyPool.getProxy()
-            res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
-            taskBuffer.proxyPool.putProxy(proxyS)
+            res = taskBuffer.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
             if res is None:
                 _logger.debug("# of dis datasets for %s: None" % targetStatus)
             else:
@@ -1145,9 +1139,7 @@ def main(tbuf=None, **kwargs):
         varMap[':st2']  = 'cleanup'
         sqlQuery = "type=:type AND subType=:subtype AND status IN (:st1,:st2) AND (creationdate BETWEEN :limitL AND :limitU) AND (modificationdate BETWEEN :limitL AND :limitU) AND rownum <= %s" % maxRows
         subdeleteProxyLock.acquire()
-        proxyS = taskBuffer.proxyPool.getProxy()
-        res = proxyS.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
-        taskBuffer.proxyPool.putProxy(proxyS)
+        res = taskBuffer.getLockDatasets(sqlQuery,varMap,modTimeOffset='90/24/60')
         if res is None:
             _logger.debug("# of sub datasets to be deleted %s" % res)
         else:
