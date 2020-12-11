@@ -399,6 +399,9 @@ package = pandaserver.daemons.scripts
 # number of worker processes to run daemons
 n_proc = 1
 
+# number of DB connections to share among daemon worker processes
+n_dbconn = 1
+
 # when exceeding lifetime, worker process will be respawned
 proc_lifetime = 14400
 

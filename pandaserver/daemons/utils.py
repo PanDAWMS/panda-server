@@ -254,11 +254,13 @@ class DaemonWorker(object):
 class DaemonMaster(object):
 
     # constructor
-    def __init__(self, logger, n_workers=1, worker_lifetime=28800):
+    def __init__(self, logger, n_workers=1, n_dbconn=1, worker_lifetime=28800):
         # logger
         self.logger = logger
         # number of daemon worker processes
         self.n_workers = n_workers
+        # number of db connections for common taskBuffer interface
+        self.n_dbconn = n_dbconn
         # lifetime of daemon worker processes
         self.worker_lifetime = worker_lifetime
         # locks
@@ -291,7 +293,7 @@ class DaemonMaster(object):
             from pandaserver.taskbuffer.TaskBufferInterface import TaskBufferInterface
             # taskBuffer
             _tbuf = TaskBuffer()
-            _tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
+            _tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=self.n_dbconn)
             # taskBuffer interface for multiprocessing
             taskBufferIF = TaskBufferInterface()
             taskBufferIF.launch(_tbuf)
