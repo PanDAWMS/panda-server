@@ -255,7 +255,7 @@ class ConBridge (object):
                 roleType = 'child '
             if type(e) == HarmlessEx:
                 _logger.debug('%s %s recv harmless ex : %s' % \
-                              (roleType, self.pid, e.message))
+                              (roleType, self.pid, str(e)))
             else:
                 _logger.error('%s %s recv error : %s %s' % \
                               (roleType, self.pid, str(e),
