@@ -256,6 +256,8 @@ class DBProxy:
             self.conn.begin()
             self.cur.arraysize = arraySize
             ret = self.cur.execute(sql+comment,varMap)
+            if ret:
+                ret = True
             res = []
             for items in self.cur:
                 resItem = []
