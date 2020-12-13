@@ -32,7 +32,7 @@ class TaskBufferMethod:
         self.comLock[i].release()
         # wait response
         self.resLock[i].acquire()
-        res = self.commDict[i]['res']
+        res = pickle.loads(self.commDict[i]['res'])
         statusCode = self.commDict[i]['stat']
         # release lock to children
         self.childlock.put(i)
@@ -84,20 +84,21 @@ class TaskBufferInterface:
             # wait for command
             if not comLock.acquire(timeout=0.25):
                 continue
-            # get command from child
-            methodName = commDict['methodName']
-            args = pickle.loads(commDict['args'])
-            kwargs = pickle.loads(commDict['kwargs'])
-            # execute
             try:
+                # get command from child
+                methodName = commDict['methodName']
+                args = pickle.loads(commDict['args'])
+                kwargs = pickle.loads(commDict['kwargs'])
+                # execute
                 method = getattr(taskBuffer,methodName)
                 res = method(*args, **kwargs)
                 commDict['stat'] = 0
+                # set response
+                commDict['res'] = pickle.dumps(res)
             except Exception:
                 res = sys.exc_info()[:2]
                 commDict['stat'] = 1
-            # set response
-            commDict['res'] = res
+                commDict['res'] = pickle.dumps(res)
             # send response
             resLock.release()
 
