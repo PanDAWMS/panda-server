@@ -1,6 +1,8 @@
+import os
 import sys
 import time
 import pickle
+import threading
 import multiprocessing
 from concurrent.futures import  ThreadPoolExecutor
 
@@ -10,6 +12,10 @@ from pandaserver.taskbuffer import JobSpec
 from pandaserver.taskbuffer import FileSpec
 JobSpec.reserveChangedState = True
 FileSpec.reserveChangedState = True
+
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.LogWrapper import LogWrapper
+_logger = PandaLogger().getLogger('TaskBufferInterface')
 
 
 # method class
@@ -22,6 +28,10 @@ class TaskBufferMethod:
         self.resLock = resLock
 
     def __call__(self,*args,**kwargs):
+        log = LogWrapper(_logger, 'pid={} thr={} {}'.format(os.getpid(),
+                                                            threading.current_thread().ident,
+                                                            self.methodName))
+        log.debug('start')
         # get lock among children
         i = self.childlock.get()
         # make dict to send it master
@@ -36,6 +46,7 @@ class TaskBufferMethod:
         statusCode = self.commDict[i]['stat']
         # release lock to children
         self.childlock.put(i)
+        log.debug('end')
         # return
         if statusCode == 0:
             return res
