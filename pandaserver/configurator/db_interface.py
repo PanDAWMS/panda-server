@@ -37,6 +37,10 @@ except exc.SQLAlchemyError:
 def get_session():
     return sessionmaker(bind=__engine)()
 
+
+def engine_dispose():
+    __engine.dispose()
+
 # TODO: The performance of all write methods could significantly be improved by writing in bulks.
 # The current implementation was the fastest way to get it done with the merge method and avoiding
 # issues with duplicate keys

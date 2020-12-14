@@ -128,11 +128,11 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
 
     # instantiate TB
-    if tbuf is None:
-        from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-        taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
-    else:
-        taskBuffer = tbuf
+    # if tbuf is None:
+    from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+    taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
+    # else:
+    #     taskBuffer = tbuf
 
 
     # instantiate sitemapper

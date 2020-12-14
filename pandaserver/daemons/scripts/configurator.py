@@ -58,6 +58,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
     # dbif session close
     session.close()
+    dbif.engine_dispose()
 
 
 # run

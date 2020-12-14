@@ -162,6 +162,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None):
                         tmp_log.debug('got lock of {dem}'.format(dem=dem_name))
                     else:
                         # did not get lock, skip
+                        last_run_start_ts = int(time.time())
                         tmp_log.debug('did not get lock of {dem} ; skipped it'.format(dem=dem_name))
             else:
                 to_run_daemon = True
@@ -416,7 +417,9 @@ class DaemonMaster(object):
                         # old message not processed yet, maybe daemon still running, skip
                         run_delay = now_ts - (last_run_start_ts + run_period)
                         warn_since_ago = now_ts - last_warn_ts
-                        if run_delay > max(300, run_period//2) and warn_since_ago > 900:
+                        if last_run_start_ts > 0 \
+                                and run_delay > max(300, run_period//2) \
+                                and warn_since_ago > 900:
                             # make warning if delay too much
                             self.logger.warning('{dem} delayed to run for {delay} sec '.format(
                                                 dem=dem_name, delay=run_delay))
@@ -427,7 +430,7 @@ class DaemonMaster(object):
                         self.logger.debug('scheduled to run {dem}'.format(
                                             dem=dem_name))
                         dem_run_attrs['msg_ongoing'] = True
-                        dem_run_attrs['last_run_start_ts'] = now_ts
+                        # dem_run_attrs['last_run_start_ts'] = now_ts
         # spawn new workers if ther are less than n_workers
         now_n_workers = len(self.worker_pool)
         if now_n_workers < self.n_workers:
