@@ -502,10 +502,15 @@ class ConBridge (object):
                     # reconnect
                     try:
                         _logger.debug('master %s trying to reconnect' % self.pid)
-                        self.parent.connect()
-                        _logger.debug('master %s reconnect completed' % self.pid)
+                        is_ok = self.parent.connect()
+                        if is_ok:
+                            _logger.debug('master %s reconnect completed' % self.pid)
+                        else:
+                            _logger.debug('master %s reconnect failed' % self.pid)
+                            time.sleep(120)
                     except Exception:
                         _logger.error('master %s connect failed' % self.pid)
+                        time.sleep(120)
 
 
     # get atter for cursor attributes
