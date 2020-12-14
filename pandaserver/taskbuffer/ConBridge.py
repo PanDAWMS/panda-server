@@ -506,10 +506,10 @@ class ConBridge (object):
                         if is_ok:
                             _logger.debug('master %s reconnect completed' % self.pid)
                         else:
-                            _logger.debug('master %s reconnect failed' % self.pid)
+                            _logger.debug('master %s reconnect failed. sleep' % self.pid)
                             time.sleep(120)
                     except Exception:
-                        _logger.error('master %s connect failed' % self.pid)
+                        _logger.error('master %s connect failed. sleep' % self.pid)
                         time.sleep(120)
 
 
