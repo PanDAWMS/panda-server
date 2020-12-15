@@ -294,7 +294,8 @@ setup(
                                    ]
                  ),
                 # crons
-                ('usr/bin', ['templates/panda_server-add.exe.template',
+                ('usr/bin', ['templates/panda_server-add_main.exe.template',
+                             'templates/panda_server-add_sub.exe.template',
                              'templates/panda_server-priority.exe.template',
                              'templates/panda_server-copyArchive.exe.template',
                              'templates/panda_server-vomsrenew.exe.template',
