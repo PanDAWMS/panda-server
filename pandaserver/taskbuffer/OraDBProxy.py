@@ -23801,7 +23801,7 @@ class DBProxy:
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug('start')
         # sql to delete
-        sqlD  = (   'DELETE {0}.Job_Output_Report '
+        sqlD  = (   'DELETE FROM {0}.Job_Output_Report '
                     'WHERE PandaID=:PandaID AND attemptNr=:attemptNr '
                     ).format(panda_config.schemaPANDA)
         try:
