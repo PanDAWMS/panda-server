@@ -2681,11 +2681,11 @@ class TaskBuffer:
 
 
     # get a list of even ranges for a PandaID
-    def getEventRanges(self,pandaID,jobsetID,jediTaskID,nRanges,acceptJson,scattered):
+    def getEventRanges(self, pandaID, jobsetID, jediTaskID, nRanges, acceptJson, scattered, segment_id):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.getEventRanges(pandaID,jobsetID,jediTaskID,nRanges,acceptJson,scattered)
+        ret = proxy.getEventRanges(pandaID, jobsetID, jediTaskID, nRanges, acceptJson, scattered, segment_id)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

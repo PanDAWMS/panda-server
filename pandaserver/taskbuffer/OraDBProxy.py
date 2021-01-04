@@ -14533,12 +14533,12 @@ class DBProxy:
 
 
     # get a list of even ranges for a PandaID
-    def getEventRanges(self,pandaID,jobsetID,jediTaskID,nRanges,acceptJson,scattered):
+    def getEventRanges(self, pandaID, jobsetID, jediTaskID, nRanges, acceptJson, scattered, segment_id):
         comment = ' /* DBProxy.getEventRanges */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        methodName += " <PandaID={0} jobsetID={1} jediTaskID={2}>".format(pandaID,jobsetID,jediTaskID)
+        methodName += " <PandaID={0} jobsetID={1} jediTaskID={2}>".format(pandaID, jobsetID, jediTaskID)
         tmpLog = LogWrapper(_logger,methodName)
-        tmpLog.debug("start nRanges={0} scattered={1}".format(nRanges, scattered))
+        tmpLog.debug("start nRanges={0} scattered={1} segment={2}".format(nRanges, scattered, segment_id))
         try:
             regStart = datetime.datetime.utcnow()
             # convert to int
@@ -14583,6 +14583,8 @@ class DBProxy:
             sqlW += "/* sorted by JEDITASKID, PANDAID, FILEID to take advantage of the IOT table structure*/ "
             sqlW += "{0}.JEDI_Events tab ".format(panda_config.schemaJEDI)
             sqlW += "WHERE jediTaskID=:jediTaskID AND PandaID=:jobsetID AND status=:eventStatus AND attemptNr>:minAttemptNr "
+            if segment_id is not None:
+                sqlW += "AND datasetID=:datasetID "
             sqlW += "ORDER BY jediTaskID,PandaID,fileID "
             sqlW += ") WHERE rownum<={0}) ".format(nRanges+1)
             # sql to get ranges for jumbo
@@ -14682,6 +14684,8 @@ class DBProxy:
                 varMap[':pandaID'] = pandaID
                 varMap[':eventStatus'] = EventServiceUtils.ST_ready
                 varMap[':newEventStatus'] = EventServiceUtils.ST_reserved_get
+                if segment_id is not None:
+                    varMap[':datasetID'] = segment_id
                 if not isJumbo:
                     varMap[':jobsetID'] = jobsetID
                 if isJumbo:
@@ -14763,7 +14767,8 @@ class DBProxy:
                 nRow = self.cur.rowcount
                 tmpLog.debug("locked {0} events".format(nRow))
                 # kill unused consumers
-                if not isJumbo and not toSkip and (retRanges == [] or noMoreEvents) and jediTaskID is not None:
+                if not isJumbo and not toSkip and (retRanges == [] or noMoreEvents) and jediTaskID is not None\
+                        and segment_id is None:
                     tmpLog.debug("kill unused consumers")
                     tmpJobSpec = JobSpec()
                     tmpJobSpec.PandaID = pandaID

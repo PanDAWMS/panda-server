@@ -435,10 +435,10 @@ class JobDipatcher:
 
 
     # get a list of event ranges for a PandaID
-    def getEventRanges(self, pandaID, jobsetID, jediTaskID, nRanges, timeout, acceptJson, scattered):
+    def getEventRanges(self, pandaID, jobsetID, jediTaskID, nRanges, timeout, acceptJson, scattered, segment_id):
         # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.getEventRanges,timeout)
-        tmpWrapper.run(pandaID,jobsetID,jediTaskID,nRanges,acceptJson,scattered)
+        tmpWrapper.run(pandaID,jobsetID,jediTaskID,nRanges,acceptJson,scattered,segment_id)
         # make response
         if tmpWrapper.result == Protocol.TimeOutToken:
             # timeout
@@ -1133,8 +1133,9 @@ def checkJobStatus(req,ids,timeout=60):
 
 
 # get a list of even ranges for a PandaID
-def getEventRanges(req,pandaID,jobsetID,taskID=None,nRanges=10,timeout=60,scattered=None):
-    tmpStr = "getEventRanges(PandaID=%s jobsetID=%s taskID=%s,nRanges=%s)" % (pandaID,jobsetID,taskID,nRanges)
+def getEventRanges(req, pandaID, jobsetID, taskID=None, nRanges=10, timeout=60, scattered=None, segment_id=None):
+    tmpStr = "getEventRanges(PandaID=%s jobsetID=%s taskID=%s,nRanges=%s,segment=%s)" % (
+        pandaID, jobsetID, taskID, nRanges, segment_id)
     _logger.debug(tmpStr+' start')
     # get site
     tmpMap = jobDispatcher.getActiveJobAttributes(pandaID, ['computingSite'])
@@ -1150,7 +1151,10 @@ def getEventRanges(req,pandaID,jobsetID,taskID=None,nRanges=10,timeout=60,scatte
         scattered = True
     else:
         scattered = False
-    return jobDispatcher.getEventRanges(pandaID,jobsetID,taskID,nRanges,int(timeout),req.acceptJson(),scattered)
+    if segment_id is not None:
+        segment_id = int(segment_id)
+    return jobDispatcher.getEventRanges(pandaID, jobsetID, taskID, nRanges, int(timeout), req.acceptJson(),
+                                        scattered, segment_id)
 
 
 
