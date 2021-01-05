@@ -13058,10 +13058,10 @@ class DBProxy:
             sqlTtask  = "UPDATE {0}.T_TASK ".format(schemaDEFT)
             if jobSpec.processingType != 'pmerge':
                 updateNumDone = True
-                sqlTtask += "SET total_done_jobs=total_done_jobs+1,timestamp=CURRENT_DATE,total_events=total_events+:noutevents "
+                sqlTtask += "SET total_done_jobs=total_done_jobs+1,timestamp=CURRENT_DATE,total_events=LEAST(9999999999,total_events+:noutevents) "
             else:
                 updateNumDone = False
-                sqlTtask += "SET timestamp=CURRENT_DATE,total_events=total_events+:noutevents "
+                sqlTtask += "SET timestamp=CURRENT_DATE,total_events=LEAST(9999999999,total_events+:noutevents) "
             sqlTtask += "WHERE taskid=:jediTaskID "
             tmpLog.debug(sqlTtask+comment+str(varMap))
             cur.execute(sqlTtask+comment,varMap)
