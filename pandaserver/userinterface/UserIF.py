@@ -21,6 +21,13 @@ from pandaserver.config import panda_config
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 try:
+    from idds.client.client import Client as iDDS_Client
+    import idds.common.constants
+    import idds.common.utils
+except ImportError:
+    pass
+
+try:
     long()
 except NameError:
     long = int
@@ -2484,3 +2491,41 @@ def sweepPQ(req, panda_queue, status_list, ce_list, submission_host_list):
         return json.dumps((False, "production or pilot role required"))
 
     return json.dumps((True, userIF.sweepPQ(panda_queue, status_list, ce_list, submission_host_list)))
+
+
+# json decoder for idds constants
+def decode_idds_enum(d):
+    if "__idds_const__" in d:
+        items = d["__idds_const__"].split(".")
+        obj = idds.common.constants
+        for item in items:
+            obj = getattr(obj, item)
+        return obj
+    else:
+        return d
+
+
+# relay iDDS command
+def relay_idds_command(req, command_name, args=None, kwargs=None):
+    # check security
+    if not isSecure(req):
+        return json.dumps((False, "SSL is required"))
+    try:
+        c = iDDS_Client(idds.common.utils.get_rest_host())
+        if not hasattr(c, command_name):
+            return json.dumps((False, "{} is not iDDS command"))
+        if args:
+            args = json.loads(args, object_hook=decode_idds_enum)
+        else:
+            args = []
+        if kwargs:
+            kwargs = json.loads(kwargs, object_hook=decode_idds_enum)
+        else:
+            kwargs = {}
+        _logger.debug("relay_idds_command : com=%s args=%s kwargs=%s" % (command_name, str(args),
+                                                                         str(kwargs)))
+        ret = getattr(c, command_name)(*args, **kwargs)
+        return json.dumps((True, ret))
+    except Exception as e:
+        _logger.error("relay_idds_command : %s %s" % (str(e), traceback.format_exc()))
+        return json.dumps('server failed with {}'.format(str(e)))
