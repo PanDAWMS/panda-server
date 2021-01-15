@@ -241,14 +241,14 @@ class SiteMapper:
                 nucleus = NucleusSpec(ret.pandasite)
                 nucleus.state = ret.pandasite_state
                 self.nuclei[ret.pandasite] = nucleus
-            self.nuclei[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output)
+            self.nuclei[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output, ret.ddm_endpoints_input)
         # collect satellites
         if ret.role == 'satellite' and ret.runs_production():
             if ret.pandasite not in self.satellites:
                 satellite = NucleusSpec(ret.pandasite)
                 satellite.state = ret.pandasite_state
                 self.satellites[ret.pandasite] = satellite
-            self.satellites[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output)
+            self.satellites[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output, ret.ddm_endpoints_input)
 
 
     # accessor for site

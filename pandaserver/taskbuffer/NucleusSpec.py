@@ -12,12 +12,11 @@ class NucleusSpec(object):
         self.name = name
         self.allPandaSites = []
         self.allDdmEndPoints = {}
+        self.all_ddm_endpoints_in = {}
         self.state = None
 
-
-
     # add
-    def add(self,siteName,ddmSpecDict):
+    def add(self, siteName, ddmSpecDict, ddmSpecDictForInput=None):
         if siteName not in self.allPandaSites:
             self.allPandaSites.append(siteName)
             # add local endpoints
@@ -26,8 +25,13 @@ class NucleusSpec(object):
                 for localEndPoint in ddmSpec.getLocalEndPoints():
                     if localEndPoint not in self.allDdmEndPoints:
                         self.allDdmEndPoints[localEndPoint] = ddmSpec.getEndPoint(localEndPoint)
-
-
+            if ddmSpecDictForInput is not None:
+                # add endpoints
+                for scope in ddmSpecDict:
+                    ddmSpec = ddmSpecDict[scope]
+                    for localEndPoint in ddmSpec.getLocalEndPoints():
+                        if localEndPoint not in self.all_ddm_endpoints_in:
+                            self.all_ddm_endpoints_in[localEndPoint] = ddmSpec.getEndPoint(localEndPoint)
 
     # check if associated panda site
     def isAssociatedPandaSite(self,siteName):
@@ -39,7 +43,9 @@ class NucleusSpec(object):
     def isAssociatedEndpoint(self,endPoint):
         return endPoint in self.allDdmEndPoints
 
-
+    # check if associated endpoint for input
+    def is_associated_for_input(self, endpoint):
+        return endpoint in self.all_ddm_endpoints_in
 
     # get associated DDM endpoint
     def getEndpoint(self,endPoint):
@@ -47,8 +53,6 @@ class NucleusSpec(object):
             return self.allDdmEndPoints[endPoint]
         except Exception:
             None
-
-
 
     # get associated DDM endpoint
     def getAssociatedEndpoint(self,patt):
