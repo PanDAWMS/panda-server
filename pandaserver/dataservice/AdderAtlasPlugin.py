@@ -817,17 +817,26 @@ class AdderAtlasPlugin (AdderPluginBase):
                     # set dataset status
                     for tmpName in subMap:
                         self.datasetMap[tmpName].status = 'running'
-                except InsufficientAccountLimit as errType:
-                    tmpMsg = "Rucio failed to make subscriptions at {0} since {1}".format(','.join(userEPs),errType)
+                except (InsufficientAccountLimit, InvalidRSEExpression) as errType:
+                    tmpMsg = "Rucio rejected to transfer files to {0} since {1}".format(','.join(userEPs),errType)
                     self.logger.error(tmpMsg)
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                     self.job.ddmErrorDiag = "Rucio failed with {0}".format(errType)
                     # set dataset status
                     for tmpName in subMap:
                         self.datasetMap[tmpName].status = 'running'
-                    if userInfo is not None and 'email' in userInfo:
-                        # self.sendEmail(userInfo['email'],tmpMsg,self.job.jediTaskID)
-                        pass
+                    # send warning
+                    tmpST = self.taskBuffer.update_problematic_resource_info(self.job.prodUserName, self.job.jediTaskID,
+                                                                             userEPs[0], 'dest')
+                    if not tmpST:
+                        self.logger.debug('skip to send warning since already done')
+                    else:
+                        toAdder = self.taskBuffer.getEmailAddr(self.job.prodUserName)
+                        if toAdder is None or toAdder.startswith('notsend'):
+                            self.logger.debug('skip to send warning since suppressed')
+                        else:
+                            tmpSM = self.sendEmail(toAdder, tmpMsg, self.job.jediTaskID)
+                            self.logger.debug('sent warning with {}'.format(tmpSM))
                 except Exception:
                     errType,errValue = sys.exc_info()[:2]
                     tmpMsg = "registerDatasetLocation failed with %s %s" % (errType,errValue)
@@ -891,14 +900,14 @@ class AdderAtlasPlugin (AdderPluginBase):
     # send email notification
     def sendEmail(self,toAdder,message,jediTaskID):
         # subject
-        mailSubject = "PANDA warning for TaskID:{0} with --destSE".format(jediTaskID)
+        mailSubject = "PANDA WARNING for TaskID:{0} with --destSE".format(jediTaskID)
         # message
         mailBody = "Hello,\n\nTaskID:{0} cannot process the --destSE request\n\n".format(jediTaskID)
         mailBody +=     "Reason : %s\n" % message
         # send
         retVal = MailUtils().send(toAdder,mailSubject,mailBody)
         # return
-        return
+        return retVal
 
 
 

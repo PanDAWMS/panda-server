@@ -13472,6 +13472,7 @@ class DBProxy:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "{0}: {1} {2}".format(methodName,errtype.__name__,errvalue)
         errStr.strip()
+        errStr += ' '
         errStr += traceback.format_exc()
         tmpLog.error(errStr)
 
@@ -24067,3 +24068,74 @@ class DBProxy:
             # error
             self.dumpErrorMessage(tmp_log, method_name)
             return retVal
+
+    # update problematic resource info for user
+    def update_problematic_resource_info(self, user_name, jedi_task_id, resource, problem_type):
+        comment = ' /* DBProxy.update_problematic_resource_info */'
+        method_name = comment.split()[1].split('.')[-1]
+        method_name += ' < user={0} jediTaskID={1} >'.format(user_name, jedi_task_id)
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+        retVal = False
+        try:
+            if problem_type not in ['dest', None]:
+                tmp_log.debug('unknown problem type: {}'.format(problem_type))
+                return None
+            sqlR = 'SELECT pagecache FROM ATLAS_PANDAMETA.users '\
+                   'WHERE name=:name '
+            sqlW = 'UPDATE ATLAS_PANDAMETA.users SET pagecache=:data '\
+                   'WHERE name=:name '
+            # string to use a dict key
+            jedi_task_id = str(jedi_task_id)
+            # start transaction
+            self.conn.begin()
+            # read
+            varMap = {}
+            varMap[':name'] = user_name
+            self.cur.execute(sqlR+comment, varMap)
+            data = self.cur.fetchone()
+            if data is None:
+                tmp_log.debug('user not found')
+            else:
+                try:
+                    data = json.loads(data[0])
+                except Exception:
+                    data = {}
+                if problem_type is not None:
+                    data.setdefault(problem_type, {})
+                    data[problem_type].setdefault(jedi_task_id, {})
+                    data[problem_type][jedi_task_id].setdefault(resource, None)
+                    old = data[problem_type][jedi_task_id][resource]
+                    if old is None or \
+                            datetime.datetime.utcnow() - datetime.datetime.utcfromtimestamp(old) > \
+                            datetime.timedelta(days=1):
+                        retVal = True
+                        data[problem_type][jedi_task_id][resource] = time.time()
+                # delete old data
+                for p in list(data):
+                    for t in list(data[p]):
+                        for r in list(data[p][t]):
+                            ts = data[p][t][r]
+                            if datetime.datetime.utcnow() - datetime.datetime.utcfromtimestamp(ts) > \
+                                    datetime.timedelta(days=7):
+                                del data[p][t][r]
+                        if not data[p][t]:
+                            del data[p][t]
+                    if not data[p]:
+                        del data[p]
+                # update
+                varMap = {}
+                varMap[':name'] = user_name
+                varMap[':data'] = json.dumps(data)
+                self.cur.execute(sqlW + comment, varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            tmp_log.debug('done with {} : {}'.format(retVal, str(data)))
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return None

@@ -4039,6 +4039,12 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         return ret
 
+    # update problematic resource info for user
+    def update_problematic_resource_info(self, user_name, jedi_task_id, resource, problem_type):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.update_problematic_resource_info(user_name, jedi_task_id, resource, problem_type)
+        self.proxyPool.putProxy(proxy)
+        return ret
 
 # Singleton
 taskBuffer = TaskBuffer()
