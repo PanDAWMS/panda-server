@@ -2515,11 +2515,17 @@ def relay_idds_command(req, command_name, args=None, kwargs=None):
         if not hasattr(c, command_name):
             return json.dumps((False, "{} is not iDDS command"))
         if args:
-            args = json.loads(args, object_hook=decode_idds_enum)
+            try:
+                args = idds.common.utils.json_loads(args)
+            except Exception:
+                args = json.loads(args, object_hook=decode_idds_enum)
         else:
             args = []
         if kwargs:
-            kwargs = json.loads(kwargs, object_hook=decode_idds_enum)
+            try:
+                kwargs = idds.common.utils.json_loads(kwargs)
+            except Exception:
+                kwargs = json.loads(kwargs, object_hook=decode_idds_enum)
         else:
             kwargs = {}
         _logger.debug("relay_idds_command : com=%s args=%s kwargs=%s" % (command_name, str(args),
@@ -2528,4 +2534,4 @@ def relay_idds_command(req, command_name, args=None, kwargs=None):
         return json.dumps((True, ret))
     except Exception as e:
         _logger.error("relay_idds_command : %s %s" % (str(e), traceback.format_exc()))
-        return json.dumps('server failed with {}'.format(str(e)))
+        return json.dumps((False, 'server failed with {}'.format(str(e))))
