@@ -51,7 +51,7 @@ RedirectMatch 403 "/panda.py$"
 Alias /trf/ "/var/trf/"
 Alias /cache/ "/var/cache/pandaserver/"
 Alias /appdir/ "/var/appdir/"
-Alias /auth/config.json "/opt/panda/etc/panda/auth_config.json"
+Alias /auth/ "/opt/panda/etc/panda/auth/"
 
 <Location /server-status>
     SetHandler server-status

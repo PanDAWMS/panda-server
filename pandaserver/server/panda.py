@@ -145,7 +145,12 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                     if panda_config.token_authType == 'scitokens':
                         token = scitokens.SciToken.deserialize(serialized_token, audience=panda_config.token_audience)
                     else:
-                        token = oidc_utils.deserialize_token(serialized_token, panda_config.auth_config)
+                        if 'HTTP_ORIGIN' in env:
+                            vo = env['HTTP_ORIGIN']
+                        else:
+                            vo = None
+                        token = oidc_utils.deserialize_token(serialized_token, panda_config.auth_config,
+                                                             vo)
                     # check with auth policies
                     if panda_config.token_authType == 'oidc':
                         self.authenticated = False
@@ -161,7 +166,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                                     self.authenticated = True
                                     break
                             if not self.authenticated:
-                                tmpLog.error('invalid member - {0}'.format(env['HTTP_AUTHORIZATION']))
+                                tmpLog.error('invalid member in {} - {}'.format(vo, env['HTTP_AUTHORIZATION']))
                     # check issuer
                     if 'iss' not in token:
                         tmpLog.error('issuer is undefined')
@@ -185,6 +190,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                                     i += 1
             except Exception as e:
                 tmpLog.error('invalid token: {0} - {1}'.format(str(e), env['HTTP_AUTHORIZATION']))
+
         # get remote host
         def get_remote_host(self):
             if 'REMOTE_HOST' in self.subprocess_env:
@@ -257,7 +263,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                     dummyReq = DummyReq(environ, tmpLog)
                     if not dummyReq.authenticated:
                         start_response('403 Forbidden', [('Content-Type', 'text/plain')])
-                        return ["authentication failure".encode()]
+                        return ["authN/Z failure".encode()]
                     param_list = [dummyReq]
                     # exec
                     exeRes = tmpMethod(*param_list, **params)

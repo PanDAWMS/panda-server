@@ -31,7 +31,7 @@ def get_jwk(kid, jwks):
 
 
 # decode and verify JWT token
-def deserialize_token(token, auth_config):
+def deserialize_token(token, auth_config, vo):
     try:
         # check audience
         unverified = jwt.decode(token, verify=False)
@@ -52,7 +52,10 @@ def deserialize_token(token, auth_config):
         # decode token only with RS256
         decoded = jwt.decode(token, public_key, verify=True, algorithms='RS256',
                              audience=audience, issuer=oidc_config['issuer'])
-        decoded['vo'] = auth_config[audience]['vo']
+        if vo is not None:
+            decoded['vo'] = vo
+        else:
+            decoded['vo'] = auth_config[audience]['vo']
         return decoded
     except Exception:
         raise

@@ -371,10 +371,10 @@ token_issuers = https://aipanda026.cern.ch/scitokens
 # audience for SciToken
 token_audience = https://pandaserver.cern.ch
 
-# authentication config for OIDC
-auth_config = /opt/panda/etc/panda/auth_config.json
+# directory where OIDC authentication config files are placed
+auth_config = /opt/panda/etc/panda/auth/
 
-# authentication policies for OIDC
+# json filename where OIDC authentication policies are described
 auth_policies = /opt/panda/etc/panda/auth_policies.json
 
 
