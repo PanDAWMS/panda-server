@@ -1069,24 +1069,30 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             if src_scope_output in srcSiteSpec.ddm_output:
                 srcDQ2ID = srcSiteSpec.ddm_output[src_scope_output]
             else:
-                self.logger.error("<task {0}> tmpSrcID {1} has no {2} endpoint (ddm_output {3})".format(job.taskID,
-                                                                                                        tmpSrcID,
-                                                                                                        src_scope_output,
-                                                                                                        srcSiteSpec.ddm_output))
+                errMsg = "Source site {} has no {} endpoint (ddm_output {})".format(tmpSrcID,
+                                                                                    src_scope_output,
+                                                                                    srcSiteSpec.ddm_output)
+                self.logger.error("< jediTaskID={} PandaID={} > {}".format(job.taskID, job.PandaID, errMsg))
+                job.jobStatus = 'failed'
+                job.ddmErrorCode = ErrorCode.EC_RSE
+                job.ddmErrorDiag = errMsg
+                jobsFailed.append(job)
                 continue
-
             dstSiteSpec = self.siteMapper.getSite(job.computingSite)
             dst_scope_input, dst_scope_output = select_scope(dstSiteSpec, job.prodSourceLabel, job.job_label)
             # could happen if wrong configuration or downtime
             if dst_scope_input in dstSiteSpec.ddm_input:
                 dstDQ2ID = dstSiteSpec.ddm_input[dst_scope_input]
             else:
-                self.logger.error("<task {0}> computingsite {1} has no {2} endpoint (ddm_input {3})".format(job.taskID,
-                                                                                                            job.computingSite,
-                                                                                                            dst_scope_input,
-                                                                                                            dstSiteSpec.ddm_input))
+                errMsg = "computingsite {} has no {} endpoint (ddm_input {})".format(job.computingSite,
+                                                                                     dst_scope_input,
+                                                                                     dstSiteSpec.ddm_input)
+                self.logger.error("< jediTaskID={} PandaID={} > {}".format(job.taskID, job.PandaID, errMsg))
+                job.jobStatus = 'failed'
+                job.ddmErrorCode = ErrorCode.EC_RSE
+                job.ddmErrorDiag = errMsg
+                jobsFailed.append(job)
                 continue
-
             # collect datasets
             datasets = []
             for file in job.Files:

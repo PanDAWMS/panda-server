@@ -23,3 +23,6 @@ EC_MissingNumEvents = 204
 
 # inconsistent GUID
 EC_InconsistentGUID = 205
+
+# wrong RSE configuration
+EC_RSE = 206
