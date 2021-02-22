@@ -277,7 +277,7 @@ record_statuschange = True
 #
 
 # use JEDI
-useJEDI = False
+useJEDI = True
 
 
 
