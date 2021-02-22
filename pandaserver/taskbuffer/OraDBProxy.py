@@ -22598,8 +22598,11 @@ class DBProxy:
         sqlI  = "INSERT INTO ATLAS_PANDA.Harvester_Slots (pandaQueueName,gshare,resourceType,numSlots,modificationTime,expirationTime) "
         sqlI += "VALUES (:pandaQueueName,:gshare,:resourceType,:numSlots,:modificationTime,:expirationTime) "
         # sql to update
-        sqlU  = "UPDATE ATLAS_PANDA.Harvester_Slots SET "
-        sqlU += "numSlots=:numSlots,modificationTime=:modificationTime,expirationTime=:expirationTime "
+        if numSlots == -1:
+            sqlU = "DELETE FROM ATLAS_PANDA.Harvester_Slots "
+        else:
+            sqlU = "UPDATE ATLAS_PANDA.Harvester_Slots SET "
+            sqlU += "numSlots=:numSlots,modificationTime=:modificationTime,expirationTime=:expirationTime "
         sqlU += "WHERE pandaQueueName=:pandaQueueName "
         if gshare is None:
             sqlU += "AND gshare IS NULL "
@@ -22629,18 +22632,23 @@ class DBProxy:
                 varMap[':gshare'] = gshare
             if resC is None or resourceType is not None:
                 varMap[':resourceType'] = resourceType
-            varMap[':numSlots'] = numSlots
-            varMap[':modificationTime'] = timeNow
-            if validPeriod is None:
-                varMap[':expirationTime'] = None
+            if numSlots != -1:
+                varMap[':numSlots'] = numSlots
+                varMap[':modificationTime'] = timeNow
+                if validPeriod is None:
+                    varMap[':expirationTime'] = None
+                else:
+                    varMap[':expirationTime'] = timeNow + datetime.timedelta(days=int(validPeriod))
+                if resC is None:
+                    # insert
+                    self.cur.execute(sqlI, varMap)
+                else:
+                    # update
+                    self.cur.execute(sqlU, varMap)
             else:
-                varMap[':expirationTime'] = timeNow + datetime.timedelta(days=int(validPeriod))
-            if resC is None:
-                # insert
-                self.cur.execute(sqlI, varMap)
-            else:
-                # update
-                self.cur.execute(sqlU, varMap)
+                # delete
+                if resC is not None:
+                    self.cur.execute(sqlU, varMap)
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
