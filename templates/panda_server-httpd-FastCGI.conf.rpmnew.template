@@ -92,7 +92,8 @@ Alias /auth/ "/opt/panda/etc/panda/auth/"
 </IfModule>
 
 <IfModule mod_wsgi.c>
-   WSGIDaemonProcess pandasrv_daemon processes=25 threads=2 home=/home/atlpan
+   WSGIPythonHome /opt/panda
+   WSGIDaemonProcess pandasrv_daemon processes=12 threads=1 home=/home/atlpan
    WSGIProcessGroup pandasrv_daemon
    WSGIApplicationGroup %{GLOBAL}
    WSGIScriptAliasMatch ^/server/panda/(.+)$ @@install_purelib@@/pandaserver/server/panda.py
