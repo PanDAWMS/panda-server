@@ -27,8 +27,8 @@ class NucleusSpec(object):
                         self.allDdmEndPoints[localEndPoint] = ddmSpec.getEndPoint(localEndPoint)
             if ddmSpecDictForInput is not None:
                 # add endpoints
-                for scope in ddmSpecDict:
-                    ddmSpec = ddmSpecDict[scope]
+                for scope in ddmSpecDictForInput:
+                    ddmSpec = ddmSpecDictForInput[scope]
                     for localEndPoint in ddmSpec.getLocalEndPoints():
                         if localEndPoint not in self.all_ddm_endpoints_in:
                             self.all_ddm_endpoints_in[localEndPoint] = ddmSpec.getEndPoint(localEndPoint)
