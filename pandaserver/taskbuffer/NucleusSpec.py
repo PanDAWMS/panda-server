@@ -50,7 +50,9 @@ class NucleusSpec(object):
     # get associated DDM endpoint
     def getEndpoint(self,endPoint):
         try:
-            return self.allDdmEndPoints[endPoint]
+            if endPoint in self.allDdmEndPoints:
+                return self.allDdmEndPoints[endPoint]
+            return self.all_ddm_endpoints_in[endPoint]
         except Exception:
             None
 
