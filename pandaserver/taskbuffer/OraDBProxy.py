@@ -4918,7 +4918,7 @@ class DBProxy:
                 else:
                     if modeOn:
                         # set debug mode
-                        specialHandling = '%s,%s' % (debugStr,specialHandling)
+                        specialHandling = debugStr
                     else:
                         # already disabled debug mode
                         updateSH = False
@@ -14182,7 +14182,7 @@ class DBProxy:
 
 
     # get active JediTasks in a time range
-    def getJediTasksInTimeRange(self, dn, timeRange, fullFlag=False, minTaskID=None):
+    def getJediTasksInTimeRange(self, dn, timeRange, fullFlag=False, minTaskID=None, task_type='user'):
         comment = ' /* DBProxy.getJediTasksInTimeRange */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         _logger.debug("{0} : DN={1} range={2} full={3}".format(methodName, dn, timeRange.strftime('%Y-%m-%d %H:%M:%S'), fullFlag))
@@ -14205,7 +14205,7 @@ class DBProxy:
             sql += "WHERE userName=:userName AND modificationTime>=:modificationTime AND prodSourceLabel=:prodSourceLabel "
             varMap = {}
             varMap[':userName'] = compactDN
-            varMap[':prodSourceLabel']  = 'user'
+            varMap[':prodSourceLabel']  = task_type
             varMap[':modificationTime'] = timeRange
             if minTaskID is not None:
                 sql += "AND jediTaskID>:minTaskID "

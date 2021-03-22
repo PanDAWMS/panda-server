@@ -2638,7 +2638,7 @@ class TaskBuffer:
 
 
     # get active JediTasks in a time range
-    def getJediTasksInTimeRange(self, dn, timeRangeStr, fullFlag=False, minTaskID=None):
+    def getJediTasksInTimeRange(self, dn, timeRangeStr, fullFlag=False, minTaskID=None, task_type='user'):
         # check DN
         if dn in ['NULL','','None',None]:
             return {}
@@ -2659,7 +2659,7 @@ class TaskBuffer:
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.getJediTasksInTimeRange(dn, timeRange, fullFlag, minTaskID)
+        ret = proxy.getJediTasksInTimeRange(dn, timeRange, fullFlag, minTaskID, task_type)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
