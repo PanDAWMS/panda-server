@@ -2511,9 +2511,13 @@ def relay_idds_command(req, command_name, args=None, kwargs=None):
     if not isSecure(req):
         return json.dumps((False, "SSL is required"))
     try:
-        c = iDDS_Client(idds.common.utils.get_rest_host())
+        if '+' in command_name:
+            command_name, idds_host = command_name.split('+')
+        else:
+            idds_host = idds.common.utils.get_rest_host()
+        c = iDDS_Client(idds_host)
         if not hasattr(c, command_name):
-            return json.dumps((False, "{} is not iDDS command"))
+            return json.dumps((False, "{} is not an iDDS command"))
         if args:
             try:
                 args = idds.common.utils.json_loads(args)
@@ -2528,8 +2532,9 @@ def relay_idds_command(req, command_name, args=None, kwargs=None):
                 kwargs = json.loads(kwargs, object_hook=decode_idds_enum)
         else:
             kwargs = {}
-        _logger.debug("relay_idds_command : com=%s args=%s kwargs=%s" % (command_name, str(args),
-                                                                         str(kwargs)))
+        _logger.debug("relay_idds_command : com=%s host=%s args=%s kwargs=%s" % (command_name, idds_host,
+                                                                                 str(args),
+                                                                                 str(kwargs)))
         ret = getattr(c, command_name)(*args, **kwargs)
         return json.dumps((True, ret))
     except Exception as e:
