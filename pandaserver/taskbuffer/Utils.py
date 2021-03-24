@@ -12,6 +12,7 @@ import socket
 import struct
 import datetime
 import json
+import gzip
 import pandaserver.jobdispatcher.Protocol as Protocol
 from pandaserver.taskbuffer import ErrorCode
 from pandaserver.userinterface import Client
@@ -149,19 +150,24 @@ def putFile(req,file):
         _logger.debug("putFile : end")
         return errStr
     try:
-        fileFullPath = '%s/%s' % (panda_config.cache_dir,file.filename.split('/')[-1])
+        fileName = file.filename.split('/')[-1]
+        fileFullPath = '%s/%s' % (panda_config.cache_dir, fileName)
+
         # avoid overwriting
         if os.path.exists(fileFullPath):
             # touch
             os.utime(fileFullPath,None)
             # send error message
             errStr = "ERROR : Cannot overwrite file"
-            _logger.debug('putFile : cannot overwrite file %s' % file.filename)
+            _logger.debug('putFile : cannot overwrite file %s' % fileName)
             _logger.debug("putFile : end")
             return errStr
         # write
         fo = open(fileFullPath,'wb')
         fileContent = file.file.read()
+        if hasattr(panda_config, 'compress_file_names') and \
+                [True for patt in panda_config.compress_file_names.split(',') if re.search(patt, fileName) is not None]:
+            fileContent = gzip.compress(fileContent)
         fo.write(fileContent)
         fo.close()
     except Exception:
