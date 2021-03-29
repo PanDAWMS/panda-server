@@ -68,6 +68,7 @@ class JobSpec(object):
                  'inFilePosEvtNum'    : 'if',
                  'inputPrestaging'    : 'ip',
                  'lumiBlock'          : 'lb',
+                 'noLoopingCheck'     : 'lc',
                  'mergeAtOs'          : 'mo',
                  'noExecStrCnv'       : 'nc',
                  'putLogToOS'         : 'po',
@@ -832,4 +833,20 @@ class JobSpec(object):
             items = []
         if self._tagForSH['hpoWorkflow'] not in items:
             items.append(self._tagForSH['hpoWorkflow'])
+        self.specialHandling = ','.join(items)
+
+    # check if looping check is disabled
+    def is_no_looping_check(self):
+        if self.specialHandling is not None:
+            return self._tagForSH['noLoopingCheck'] in self.specialHandling.split(',')
+        return False
+
+    # disable looping check
+    def disable_looping_check(self):
+        if self.specialHandling:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if self._tagForSH['noLoopingCheck'] not in items:
+            items.append(self._tagForSH['noLoopingCheck'])
         self.specialHandling = ','.join(items)

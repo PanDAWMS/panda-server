@@ -272,6 +272,9 @@ class Response:
         self.data['nucleus'] = job.nucleus
         # walltime
         self.data['maxWalltime'] = job.maxWalltime
+        # looping check
+        if job.is_no_looping_check():
+            self.data['loopingCheck'] = False
         # debug mode
         if job.specialHandling is not None and 'debug' in job.specialHandling:
             self.data['debug'] = 'True'
