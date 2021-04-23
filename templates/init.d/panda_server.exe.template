@@ -30,14 +30,12 @@ start)
     if [ $ERROR -ne 0 ]; then
       exit $ERROR
     fi
-    ${S_httpd} start
-    ERROR=$?
+    { ${S_httpd} start; ERROR=$?; } | awk '{ print strftime("[%Y-%m-%d %H:%M:%S]",systime(),1), $0 }' |& tee /tmp/panda_server_start.log
     ;;
 stop)
     ${S_daemon} stop
     ERROR1=$?
-    ${S_httpd} stop
-    ERROR2=$?
+    { ${S_httpd} stop; ERROR2=$?; } | awk '{ print strftime("[%Y-%m-%d %H:%M:%S]",systime(),1), $0 }' |& tee /tmp/panda_server_stop.log
     if [ $ERROR2 -eq 0 ]; then
       ERROR=$ERROR1
     else
