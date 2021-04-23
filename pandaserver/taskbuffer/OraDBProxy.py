@@ -13599,8 +13599,36 @@ class DBProxy:
             # sql to insert command
             sqlIC  = "INSERT INTO {0}.PRODSYS_COMM (COMM_TASK,COMM_OWNER,COMM_CMD,COMM_PARAMETERS) ".format(schemaDEFT)
             sqlIC += "VALUES (:jediTaskID,:comm_owner,:comm_cmd,:comm_parameters) "
+            max_n_tasks = self.getConfigValue('dbproxy',
+                                              'MAX_ACTIVE_TASKS_PER_USER_{}'.format(taskParamsJson['prodSourceLabel']))
             # begin transaction
             self.conn.begin()
+            # check max
+            if max_n_tasks is not None:
+                sqlTOT = ("SELECT COUNT(*) "
+                          "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_AUX_Status_MinTaskID tabA "
+                          "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+                          "AND tabT.prodSourceLabel=:prodSourceLabel AND tabT.userName=:userName "
+                          "AND tabT.status IN (").format(panda_config.schemaJEDI)
+                varMapTot = {}
+                varMapTot[':prodSourceLabel'] = taskParamsJson['prodSourceLabel']
+                varMapTot[':userName'] = taskParamsJson['userName']
+                for st in ['registered', 'defined', 'ready', 'scouting', 'running', 'paused', 'throttled']:
+                    key = ':{}'.format(st)
+                    sqlTOT += '{},'.format(key)
+                    varMapTot[key] = st
+                sqlTOT = sqlTOT[:-1]
+                sqlTOT += ') '
+                self.cur.execute(sqlTOT + comment, varMapTot)
+                resTOT = self.cur.fetchone()
+                if resTOT is not None and resTOT[0] > max_n_tasks:
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError('Commit error')
+                    tmpMsg = "Too many active tasks for {} {}>{}".format(taskParamsJson['userName'],
+                                                                         resTOT[0], max_n_tasks)
+                    _logger.debug('{} {}'.format(methodName, tmpMsg))
+                    return 10, tmpMsg
             # check duplication
             goForward = True
             retFlag = False

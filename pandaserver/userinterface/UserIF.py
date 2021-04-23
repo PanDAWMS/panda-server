@@ -19,6 +19,7 @@ from pandaserver.dataservice.DDM import rucioAPI
 from pandaserver.config import panda_config
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.LogWrapper import LogWrapper
 
 try:
     from idds.client.client import Client as iDDS_Client
@@ -1741,14 +1742,17 @@ def updateSiteAccess(req,method,siteid,userName,attrValue=''):
 
 # insert task params
 def insertTaskParams(req,taskParams=None,properErrorCode=None):
-
+    tmpLog = LogWrapper(_logger, 'insertTaskParams-{}'.format(datetime.datetime.utcnow().isoformat('/')))
+    tmpLog.debug('start')
     if properErrorCode == 'True':
         properErrorCode = True
     else:
         properErrorCode = False
     # check security
     if not isSecure(req):
-        return WrappedPickle.dumps((False,'secure connection is required'))
+        tmpMsg = 'secure connection is required'
+        tmpLog.debug(tmpMsg)
+        return WrappedPickle.dumps((False, tmpMsg))
     # get DN
     user = None
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
@@ -1758,15 +1762,20 @@ def insertTaskParams(req,taskParams=None,properErrorCode=None):
     try:
         json.loads(taskParams)
     except Exception:
-        return WrappedPickle.dumps((False,'failed to decode json'))
+        tmpMsg = 'failed to decode json'
+        tmpLog.debug(tmpMsg)
+        return WrappedPickle.dumps((False, tmpMsg))
     # check role
     prodRole = _isProdRoleATLAS(req)
     # get FQANs
     fqans = _getFQAN(req)
 
-    _logger.debug("insertTaskParams {0} prodRole={1} FQAN:{2}".format(user, prodRole, str(fqans)))
-
+    tmpLog.debug("user={0} prodRole={1} FQAN:{2}".format(user, prodRole, str(fqans)))
     ret = userIF.insertTaskParams(taskParams, user, prodRole, fqans, properErrorCode)
+    try:
+        tmpLog.debug(ret[1])
+    except Exception:
+        pass
     return WrappedPickle.dumps(ret)
 
 
