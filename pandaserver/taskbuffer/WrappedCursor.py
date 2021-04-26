@@ -19,6 +19,39 @@ warnings.filterwarnings('ignore')
 # logger
 _logger = PandaLogger().getLogger('WrappedCursor')
 
+
+# convert SQL and parameters in_printf format
+def convert_query_in_printf_format(sql, var_dict):
+    # current date
+    sql = re.sub(r'CURRENT_DATE', r'CURRENT_TIMESTAMP', sql, flags=re.IGNORECASE)
+    # sequence
+    sql = re.sub(r"""([^ $,()]+).currval""", r"currval('\1')", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"""([^ $,()]+).nextval""", r"nextval('\1')", sql, flags=re.IGNORECASE)
+    # returning
+    sql = re.sub(r"(RETURNING\s+\S+\s+)INTO\s+\S+", r"\1", sql, flags=re.IGNORECASE)
+    # sub query + rownum
+    sql = re.sub(r"\)\s+WHERE\s+rownum", r") tmp_sub WHERE rownum", sql, flags=re.IGNORECASE)
+    # rownum
+    sql = re.sub(r"(WHERE|AND)\s+rownum[^\d:]+(\d+|:[^ \)]+)", r" LIMIT \2", sql, flags=re.IGNORECASE)
+    # NVL
+    sql = re.sub(r"NVL\(", r"COALESCE(", sql, flags=re.IGNORECASE)
+    # GENERATE_SERIES
+    sql = re.sub(r'\(SELECT\s+level\s+FROM\s+dual\s+CONNECT\s+BY\s+level\s*<=\s*(:[^ \)]+)\)*',
+                 r'GENERATE_SERIES(1,\1)',
+                 sql, flags=re.IGNORECASE)
+    # extract placeholders
+    paramList = []
+    items = re.findall(r':[^ $,)\n]+', sql)
+    for item in items:
+        if item not in var_dict:
+            raise KeyError('{0} is missing in SQL parameters'.format(item))
+        if item not in paramList:
+            paramList.append(var_dict[item])
+    # using the printf style syntax
+    sql = re.sub(':[^ $,)]+', '%s', sql)
+    return sql, paramList
+
+
 # proxy
 class WrappedCursor(object):
 
@@ -32,6 +65,11 @@ class WrappedCursor(object):
         self.backend = panda_config.backend
         # statement
         self.statement = None
+        # dump
+        if hasattr(panda_config, 'cursor_dump') and panda_config.cursor_dump:
+            self.dump = True
+        else:
+            self.dump = False
 
 
     # __iter__
@@ -56,6 +94,14 @@ class WrappedCursor(object):
             self.execute("ALTER SESSION SET TIME_ZONE='UTC'")
             # set DATE format
             self.execute("ALTER SESSION SET NLS_DATE_FORMAT='YYYY/MM/DD HH24:MI:SS'")
+        elif self.backend == 'postgres':
+            # dissable autocommit
+            # make sure that always have commit() since any query execution, including SELECT will start a transaction
+            self.conn.set_session(autocommit=False)
+            # encoding
+            self.conn.set_client_encoding('UTF-8')
+            # TZ
+            self.execute("SET timezone=0")
         else:
             # get hostname
             self.execute("SELECT SUBSTRING_INDEX(USER(),'@',-1)")
@@ -69,6 +115,7 @@ class WrappedCursor(object):
             # disable autocommit
             self.execute("SET autocommit=0")
         return hostname
+
     # execute query on cursor
     def execute(self, sql, varDict=None, cur=None  # , returningInto=None
                 ):
@@ -77,16 +124,22 @@ class WrappedCursor(object):
         if cur is None:
             cur = self.cur
         ret = None
+        # schema names
+        sql = re.sub('ATLAS_PANDA\.', panda_config.schemaPANDA + '.', sql)
+        sql = re.sub('ATLAS_PANDAMETA\.', panda_config.schemaMETA + '.', sql)
+        sql = re.sub('ATLAS_GRISLI\.', panda_config.schemaGRISLI + '.', sql)
+        sql = re.sub('ATLAS_PANDAARCH\.', panda_config.schemaPANDAARCH + '.', sql)
+        # remove `
+        sql = re.sub('`', '', sql)
         if self.backend == 'oracle':
-            # schema names
-            sql = re.sub('ATLAS_PANDA\.',     panda_config.schemaPANDA + '.',     sql)
-            sql = re.sub('ATLAS_PANDAMETA\.', panda_config.schemaMETA + '.',      sql)
-            sql = re.sub('ATLAS_GRISLI\.',    panda_config.schemaGRISLI + '.',    sql)
-            sql = re.sub('ATLAS_PANDAARCH\.', panda_config.schemaPANDAARCH + '.', sql)
-
-            # remove `
-            sql = re.sub('`','',sql)
             ret = cur.execute(sql, varDict)
+        elif self.backend == 'postgres':
+            if self.dump:
+                _logger.debug('OLD: {} {}'.format(sql, str(varDict)))
+            sql, varList = convert_query_in_printf_format(sql, varDict)
+            if self.dump:
+                _logger.debug('NEW: {} {}'.format(sql, str(varList)))
+            ret = cur.execute(sql, varList)
         elif self.backend == 'mysql':
             print("DEBUG execute : original SQL     %s " % sql)
             print("DEBUG execute : original varDict %s " % varDict)
@@ -208,7 +261,6 @@ class WrappedCursor(object):
                     pass
         return result
 
-
     # fetchall
     def fetchall(self):
         return self.cur.fetchall()
@@ -229,6 +281,8 @@ class WrappedCursor(object):
     def var(self, dataType, *args, **kwargs):
         if self.backend == 'mysql':
             return apply(dataType,[0])
+        elif self.backend == 'postgres':
+            return None
         else:
             return self.cur.var(dataType, *args, **kwargs)
 
@@ -237,6 +291,8 @@ class WrappedCursor(object):
     def getvalue(self,dataItem):
         if self.backend == 'mysql':
             return dataItem
+        elif self.backend == 'postgres':
+            return self.cur.fetchone()[0]
         else:
             return dataItem.getvalue()
 

@@ -61,6 +61,10 @@ except NameError:
 if panda_config.backend == 'oracle':
     import cx_Oracle
     varNUMBER = cx_Oracle.NUMBER
+elif panda_config.backend == 'postgres':
+    import psycopg2 as psycopg
+    from . import WrappedPostgresConn
+    varNUMBER = long
 else:
     import MySQLdb
     varNUMBER = long
@@ -153,6 +157,16 @@ class DBProxy:
                     if defaultType == cx_Oracle.CLOB:
                         return cursor.var(cx_Oracle.LONG_STRING, arraysize = cursor.arraysize)
                 self.conn.outputtypehandler = OutputTypeHandler
+            elif self.backend == 'postgres':
+                dsn = {'dbname': self.dbname, 'user': self.dbuser}
+                if self.dbpasswd:
+                    dsn['password'] = self.dbpasswd
+                if self.dbhost:
+                    dsn['host'] = self.dbhost
+                if self.dbport:
+                    dsn['port'] = self.dbport
+                conn = psycopg.connect(**dsn)
+                self.conn = WrappedPostgresConn.WrappedPostgresConn(conn)
             else:
                 self.conn = MySQLdb.connect(host=self.dbhost, db=self.dbname,
                                             port=self.dbport, connect_timeout=self.dbtimeout,
@@ -10340,18 +10354,18 @@ class DBProxy:
                 var_map[':leave{0}'.format(i)] = leave.name
                 if leave.name == 'Test':
                     # Test share will bypass others for the moment
-                    tmp_list.append(':leave{0}, 0'.format(i))
+                    tmp_list.append('WHEN gshare=:leave{0} THEN 0'.format(i))
                 else:
-                    tmp_list.append(':leave{0}, {0}'.format(i))
+                    tmp_list.append('WHEN gshare=:leave{0} THEN {0}'.format(i))
                 i += 1
 
             # Only get max_jobs, to avoid getting all activated jobs from the table
             var_map[':njobs'] = max_jobs
 
             # We want to sort by global share, highest priority and lowest pandaid
-            leave_bindings = ','.join(tmp_list)
+            leave_bindings = ' '.join(tmp_list)
             ret_sql = """
-                      ORDER BY DECODE (gshare, {1}, {2}), currentpriority desc, pandaid asc)
+                      ORDER BY (CASE {1} ELSE {2} END), currentpriority desc, pandaid asc)
                       WHERE ROWNUM <= {0}
                       """.format(':njobs', leave_bindings, len(sorted_leaves))
 
@@ -13053,7 +13067,7 @@ class DBProxy:
         if jobSpec.jobStatus == 'finished' and jobSpec.prodSourceLabel not in ['panda']:
             varMap = {}
             varMap[':jediTaskID'] = jobSpec.jediTaskID
-            varMap['noutevents']  = nOutEvents
+            varMap[':noutevents']  = nOutEvents
             schemaDEFT = self.getSchemaDEFT()
             sqlTtask  = "UPDATE {0}.T_TASK ".format(schemaDEFT)
             if jobSpec.processingType != 'pmerge':
@@ -13564,7 +13578,7 @@ class DBProxy:
             sqlT  = "INSERT INTO {0}.T_TASK ".format(schemaDEFT)
             sqlT += "(taskid,status,submit_time,vo,prodSourceLabel,userName,taskName,jedi_task_parameters,priority,current_priority,parent_tid) VALUES "
             varMap = {}
-            if self.backend == 'oracle':
+            if self.backend in ['oracle', 'postgres']:
                 sqlT += "({0}.PRODSYS2_TASK_ID_SEQ.nextval,".format(schemaDEFT)
             else:
                 #panda_config.backend == 'mysql':
@@ -13579,7 +13593,7 @@ class DBProxy:
                 varMap[':nextval'] = nextval
             sqlT += ":status,CURRENT_DATE,:vo,:prodSourceLabel,:userName,:taskName,:param,:priority,:current_priority,"
             if parent_tid is None:
-                if self.backend == 'oracle':
+                if self.backend in ['oracle', 'postgres']:
                     sqlT += "{0}.PRODSYS2_TASK_ID_SEQ.currval) ".format(schemaDEFT)
                 else:
                     #panda_config.backend == 'mysql':
@@ -18152,7 +18166,7 @@ class DBProxy:
                 # update dataset statistics
                 sqlUDI  = 'UPDATE {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
                 sqlUDI += 'SET nFilesUsed=nFilesUsed-:nDiff,nFilesFinished=nFilesFinished-:nDiff,'
-                sqlUDI += 'nEventsUsed=(SELECT SUM(DECODE(startEvent,NULL,nEvents,endEvent-startEvent+1)) '
+                sqlUDI += 'nEventsUsed=(SELECT SUM(CASE WHEN startEvent IS NULL THEN nEvents ELSE endEvent-startEvent+1 END) '
                 sqlUDI += 'FROM {0}.JEDI_Dataset_Contents '.format(panda_config.schemaJEDI)
                 sqlUDI += 'WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status) '
                 sqlUDI += 'WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID '

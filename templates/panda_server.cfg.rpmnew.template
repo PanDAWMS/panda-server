@@ -115,6 +115,9 @@ dbbridgeverbose = False
 # SQL dumper
 dump_sql = False
 
+# dump in cursor
+cursor_dump = False
+
 
 
 ##########################
