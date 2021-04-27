@@ -254,6 +254,7 @@ setup(
     extras_require={
         'oracle': ['cx_Oracle'],
         'mysql': ['mysqlclient'],
+        'postgres': ['psycopg2-binary'],
         'rucio': ['rucio-clients'],
         'elasticsearch': ['elasticsearch'],
         'atlasprod': ['cx_Oracle', 'rucio-clients', 'elasticsearch'],
