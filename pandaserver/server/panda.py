@@ -276,7 +276,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         exeRes = str(exeRes)
                 except Exception as e:
                     tmpLog.error("execution failure : {0}\n {1}".format(str(e), traceback.format_exc()))
-                    if 'dumpBadRequest' in panda_config and panda_config.dumpBadRequest:
+                    if hasattr(panda_config, 'dumpBadRequest') and panda_config.dumpBadRequest:
                         try:
                             with tempfile.NamedTemporaryFile(delete=False, prefix='req_dump_') as f:
                                 environ['WSGI_INPUT_DUMP'] = f.name
