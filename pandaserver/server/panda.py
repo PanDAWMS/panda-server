@@ -11,6 +11,8 @@ import six
 import tempfile
 import io
 import signal
+import json
+import gzip
 
 # config file
 from pandaserver.config import panda_config
@@ -215,7 +217,8 @@ if panda_config.useFastCGI or panda_config.useWSGI:
             methodName = environ['SCRIPT_NAME'].split('/')[-1]
         tmpLog = LogWrapper(_logger, "PID={0} {1}".format(os.getpid(), methodName), seeMem=True)
         cont_length = int(environ.get('CONTENT_LENGTH', 0))
-        tmpLog.debug("start content-length={}".format(cont_length))
+        json_body = environ.get('CONTENT_TYPE', None) == 'application/json'
+        tmpLog.debug("start content-length={} json={}".format(cont_length, json_body))
         regStart = datetime.datetime.utcnow()
         retType = None
         # check method name
@@ -244,19 +247,25 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         body += chunk
                     if cont_length > 0:
                         raise OSError('partial read from client. {} bytes remaining'.format(cont_length))
-                    environ['wsgi.input'] = io.BytesIO(body)
-                    # get params
-                    tmpPars = cgi.FieldStorage(environ['wsgi.input'], environ=environ,
-                                               keep_blank_values=1)
-                    # convert to map
-                    params = {}
-                    for tmpKey in list(tmpPars):
-                        if tmpPars[tmpKey].file is not None and tmpPars[tmpKey].filename is not None:
-                            # file
-                            params[tmpKey] = tmpPars[tmpKey]
-                        else:
-                            # string
-                            params[tmpKey] = tmpPars.getfirst(tmpKey)
+                    if not json_body:
+                        # query string
+                        environ['wsgi.input'] = io.BytesIO(body)
+                        # get params
+                        tmpPars = cgi.FieldStorage(environ['wsgi.input'], environ=environ,
+                                                   keep_blank_values=1)
+                        # convert to map
+                        params = {}
+                        for tmpKey in list(tmpPars):
+                            if tmpPars[tmpKey].file is not None and tmpPars[tmpKey].filename is not None:
+                                # file
+                                params[tmpKey] = tmpPars[tmpKey]
+                            else:
+                                # string
+                                params[tmpKey] = tmpPars.getfirst(tmpKey)
+                    else:
+                        # json
+                        body = gzip.decompress(body)
+                        params = json.loads(body)
                     if panda_config.entryVerbose:
                         tmpLog.debug("with %s" % str(list(params)))
                     # dummy request object
