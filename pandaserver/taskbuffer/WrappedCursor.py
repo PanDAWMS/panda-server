@@ -35,6 +35,8 @@ def convert_query_in_printf_format(sql, var_dict):
     sql = re.sub(r"(WHERE|AND)\s+rownum[^\d:]+(\d+|:[^ \)]+)", r" LIMIT \2", sql, flags=re.IGNORECASE)
     # NVL
     sql = re.sub(r"NVL\(", r"COALESCE(", sql, flags=re.IGNORECASE)
+    # random
+    sql = re.sub(r"DBMS_RANDOM.value", r"RANDOM()", sql, flags=re.IGNORECASE)
     # GENERATE_SERIES
     sql = re.sub(r'\(SELECT\s+level\s+FROM\s+dual\s+CONNECT\s+BY\s+level\s*<=\s*(:[^ \)]+)\)*',
                  r'GENERATE_SERIES(1,\1)',
