@@ -88,13 +88,16 @@ home_dir_cwd = /home/atlpan
 # host
 dbhost = ADCR_PANDA
 
+# port if non-standard
+# dbport = 12345
+
 # user
 dbuser = ATLAS_PANDA_WRITER
 
 # password
 dbpasswd = FIXME
 
-# database
+# database name
 dbname = PandaDB
 
 # number of connections
