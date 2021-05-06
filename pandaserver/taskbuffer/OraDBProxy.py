@@ -9857,6 +9857,8 @@ class DBProxy:
         _logger.debug("getSiteInfo start")
         methodName = comment.split(' ')[-2].split('.')[-1]
         try:
+            # set autocommit on
+            self.conn.begin()
             # get CVMFS availability
             sqlCVMFS  = "SELECT distinct siteid FROM ATLAS_PANDAMETA.installedSW WHERE `release`=:release"
             self.cur.execute(sqlCVMFS, {':release': 'CVMFS'})
@@ -10143,15 +10145,16 @@ class DBProxy:
                     except Exception:
                         _logger.error('getSiteInfo exception in queue: {0}'.format(traceback.format_exc()))
                         continue
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
             _logger.debug("getSiteInfo done")
             return retList
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error("getSiteInfo : %s %s" % (type, value))
-            _logger.error('getSiteInfo exception : {0}'.format(traceback.format_exc()))
-            self.dumpErrorMessage(_logger,methodName)
+        except Exception as e:
             # roll back
-            #self._rollback()
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, methodName)
             return {}
 
 

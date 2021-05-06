@@ -52,7 +52,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     try:
         gracePeriod = int(argv[1])
     except Exception:
-        gracePeriod = 3
+        gracePeriod = 1
 
     # current minute
     currentMinute = datetime.datetime.utcnow().minute
