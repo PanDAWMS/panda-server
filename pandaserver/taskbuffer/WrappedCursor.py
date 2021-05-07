@@ -33,6 +33,8 @@ def convert_query_in_printf_format(sql, var_dict):
     sql = re.sub(r"(RETURNING\s+\S+\s+)INTO\s+\S+", r"\1", sql, flags=re.IGNORECASE)
     # sub query + rownum
     sql = re.sub(r"\)\s+WHERE\s+rownum", r") tmp_sub WHERE rownum", sql, flags=re.IGNORECASE)
+    # sub query + GROUP BY
+    sql = re.sub(r"\)\s+GROUP\s+BY", r") tmp_sub GROUP BY", sql, flags=re.IGNORECASE)
     # rownum
     sql = re.sub(r"(WHERE|AND)\s+rownum[^\d:]+(\d+|:[^ \)]+)", r" LIMIT \2", sql, flags=re.IGNORECASE)
     # NVL
