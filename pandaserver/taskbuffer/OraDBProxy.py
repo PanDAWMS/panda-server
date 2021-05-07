@@ -253,12 +253,11 @@ class DBProxy:
             if not self._commit():
                 raise RuntimeError('Commit error')
             return ret,res
-        except Exception:
+        except Exception as e:
             # roll back
             self._rollback(self.useOtherError)
-            type, value, traceBack = sys.exc_info()
             _logger.error("querySQLS : %s %s" % (sql,str(varMap)))
-            _logger.error("querySQLS : %s %s" % (type,value))
+            _logger.error("querySQLS : %s" % str(e))
             return -1,None
 
 

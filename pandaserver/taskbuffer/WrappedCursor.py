@@ -22,6 +22,8 @@ _logger = PandaLogger().getLogger('WrappedCursor')
 
 # convert SQL and parameters in_printf format
 def convert_query_in_printf_format(sql, var_dict):
+    # %
+    sql = re.sub(r'%', r'%%', sql)
     # current date
     sql = re.sub(r'CURRENT_DATE', r'CURRENT_TIMESTAMP', sql, flags=re.IGNORECASE)
     # sequence
