@@ -9866,6 +9866,8 @@ class DBProxy:
             for tmpItem, in tmpList:
                 if tmpItem not in cvmfsSites:
                     cvmfsSites.append(tmpItem)
+            if not self._commit():
+                raise RuntimeError('Commit error')
 
             # get DDM endpoints
             pandaEndpointMap = self.getDdmEndpoints()
@@ -9882,12 +9884,11 @@ class DBProxy:
             # self.cur.execute(sql+comment)
             # resList = self.cur.fetchall()
             ret, resList = self.getClobObj(sql, {})
-            # if not self._commit():
-            #    raise RuntimeError('Commit error')
-
             if not resList:
                 _logger.error('Empty site list!')
 
+            # set autocommit on
+            self.conn.begin()
             # sql to get num slots
             sqlSL = "SELECT pandaQueueName, gshare, resourcetype, numslots FROM ATLAS_PANDA.Harvester_Slots "
             sqlSL += "WHERE (expirationTime IS NULL OR expirationTime>CURRENT_DATE) "
