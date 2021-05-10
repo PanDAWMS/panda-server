@@ -889,16 +889,22 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         if srcDQ2ID == dstDQ2ID and not missingAtT1:
                             # prestage to associated endpoints
                             if job.prodSourceLabel in ['user','panda']:
-                                # use DATADISK
                                 tmpSiteSpec = self.siteMapper.getSite(job.computingSite)
                                 scope_tmpSite_input, scope_tmpSite_output = select_scope(tmpSiteSpec,
                                                                                          job.prodSourceLabel,
                                                                                          job.job_label)
+                                # use DATADISK if possible
+                                changed = False
                                 if 'ATLASDATADISK' in tmpSiteSpec.setokens_input[scope_tmpSite_input]:
                                     tmpDq2ID = tmpSiteSpec.setokens_input[scope_tmpSite_input]['ATLASDATADISK']
                                     if tmpDq2ID in tmpSiteSpec.ddm_endpoints_input[scope_tmpSite_input].getLocalEndPoints():
                                         self.logger.debug('use {0} instead of {1} for tape prestaging'.format(tmpDq2ID, dq2ID))
                                         dq2ID = tmpDq2ID
+                                        changed = True
+                                # use default input endpoint
+                                if not changed:
+                                    dq2ID = tmpSiteSpec.ddm_endpoints_input[scope_tmpSite_input].getDefaultRead()
+                                    self.logger.debug('use default_read {0} for tape prestaging'.format(dq2ID))
                             self.logger.debug('use {0} for tape prestaging'.format(dq2ID))
                             # register dataset locations
                             isOK = True
