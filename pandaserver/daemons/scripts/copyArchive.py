@@ -859,8 +859,10 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         varMap[':prodSourceLabel']  = 'managed'
         varMap[':processingType1']  = 'evgen'
         varMap[':processingType2']  = 'simul'
-        status,res = taskBuffer.querySQLS("SELECT cloud,computingSite,jobStatus,COUNT(*) FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus IN (:jobStatus1,:jobStatus2) AND prodSourceLabel=:prodSourceLabel AND processingType IN (:processingType1,:processingType2) GROUP BY cloud,computingSite,jobStatus",
-                                          varMap)
+        sql = "SELECT cloud,computingSite,jobStatus,COUNT(*) FROM ATLAS_PANDA.jobsActive4 "\
+              "WHERE jobStatus IN (:jobStatus1,:jobStatus2) AND prodSourceLabel=:prodSourceLabel "\
+              "AND processingType IN (:processingType1,:processingType2) GROUP BY cloud,computingSite,jobStatus "
+        status,res = taskBuffer.querySQLS(sql, varMap)
         if res is not None:
             # get ratio of activated/running
             siteStatData = {}

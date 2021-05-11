@@ -27,8 +27,14 @@ __echo = False
 
 #Create the SQLAlchemy engine
 try:
-    __engine = sqlalchemy.create_engine("oracle://%s:%s@%s"%(__user, __passwd, __host),
-                                         echo=__echo, max_identifier_length=30)
+    if panda_config.backend == 'postgres':
+        if panda_config.dbport:
+            __host = '{}:{}'.format(__host, panda_config.dbport)
+        __engine = sqlalchemy.create_engine("postgresql://{}:{}@{}/{}".format(__user, __passwd, __host, __dbname),
+                                            echo=__echo, max_identifier_length=30)
+    else:
+        __engine = sqlalchemy.create_engine("oracle://%s:%s@%s"%(__user, __passwd, __host),
+                                            echo=__echo, max_identifier_length=30)
 except exc.SQLAlchemyError:
     _logger.critical("Could not load the DB engine: %s"%sys.exc_info())
     raise

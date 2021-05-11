@@ -19162,16 +19162,23 @@ class DBProxy:
         VALUES (:src, :dst, :key, :value, :ts)
         """
 
-        sql_merge = """
-        MERGE /*+ FULL(nm_kv) */ INTO ATLAS_PANDA.network_matrix_kv nm_kv USING
-            (SELECT  src, dst, key, value, ts FROM ATLAS_PANDA.NETWORK_MATRIX_KV_TEMP) input
-            ON (nm_kv.src = input.src AND nm_kv.dst= input.dst AND nm_kv.key = input.key)
-        WHEN NOT MATCHED THEN
-            INSERT (src, dst, key, value, ts)
-            VALUES (input.src, input.dst, input.key, input.value, input.ts)
-        WHEN MATCHED THEN
-            UPDATE SET nm_kv.value = input.value, nm_kv.ts = input.ts
-        """
+        if self.backend == 'postgres':
+            sql_merge = "INSERT INTO ATLAS_PANDA.network_matrix_kv "\
+                        "(src, dst, key, value, ts) "\
+                        "SELECT  src, dst, key, value, ts FROM ATLAS_PANDA.NETWORK_MATRIX_KV_TEMP "\
+                        "ON CONFLICT (src, dst, key) "\
+                        "DO UPDATE SET value=EXCLUDED.value, ts=EXCLUDED.ts "
+        else:
+            sql_merge = """
+            MERGE /*+ FULL(nm_kv) */ INTO ATLAS_PANDA.network_matrix_kv nm_kv USING
+                (SELECT  src, dst, key, value, ts FROM ATLAS_PANDA.NETWORK_MATRIX_KV_TEMP) input
+                ON (nm_kv.src = input.src AND nm_kv.dst= input.dst AND nm_kv.key = input.key)
+            WHEN NOT MATCHED THEN
+                INSERT (src, dst, key, value, ts)
+                VALUES (input.src, input.dst, input.key, input.value, input.ts)
+            WHEN MATCHED THEN
+                UPDATE SET nm_kv.value = input.value, nm_kv.ts = input.ts
+            """
         try:
             self.conn.begin()
             for shard in create_shards(data, 100):
@@ -19196,7 +19203,9 @@ class DBProxy:
             self.cur.execute(sql_merge+comment)
             time5 = time.time()
             tmpLog.debug("Final merge took: {0}s".format(time5 - time4))
-
+            if self.backend == 'postgres':
+                # cleanup since ON CONFLICT DO UPDATE doesn't work with duplicated entries
+                self.cur.execute("DELETE FROM ATLAS_PANDA.NETWORK_MATRIX_KV_TEMP " + comment)
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
@@ -19222,7 +19231,7 @@ class DBProxy:
         # delete any data older than a week
         sql_delete = """
         DELETE FROM ATLAS_PANDA.network_matrix_kv
-        WHERE ts < (sysdate - 7)
+        WHERE ts < (current_date - 7)
         """
         try:
             self.conn.begin()
@@ -23173,7 +23182,7 @@ class DBProxy:
 
             sql = """
                   INSERT INTO atlas_panda.agis_dump (panda_site, update_time, json_data)
-                  VALUES (:panda_site, sysdate, :json_data)
+                  VALUES (:panda_site, current_date, :json_data)
                   """
 
             # generate the entries for the DB
@@ -23421,7 +23430,7 @@ class DBProxy:
             # delete inactive queues
             tmp_log.debug("Going to delete obsoleted queues")
             sql_delete = """
-                         DELETE FROM ATLAS_PANDA.SCHEDCONFIG_JSON WHERE last_update < sysdate - INTERVAL '7' DAY
+                         DELETE FROM ATLAS_PANDA.SCHEDCONFIG_JSON WHERE last_update < current_date - INTERVAL '7' DAY
                          """
             self.cur.execute(sql_delete + comment)
             tmp_log.debug("deleted old queues")

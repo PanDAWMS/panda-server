@@ -24,8 +24,9 @@ _logger = PandaLogger().getLogger('WrappedCursor')
 def convert_query_in_printf_format(sql, var_dict):
     # %
     sql = re.sub(r'%', r'%%', sql)
-    # current date
-    sql = re.sub(r'CURRENT_DATE', r'CURRENT_TIMESTAMP', sql, flags=re.IGNORECASE)
+    # current date except for being used for interval
+    if re.search(r'CURRENT_DATE\s*[\+-]', sql, flags=re.IGNORECASE) is None:
+        sql = re.sub(r'CURRENT_DATE', r'CURRENT_TIMESTAMP', sql, flags=re.IGNORECASE)
     # sequence
     sql = re.sub(r"""([^ $,()]+).currval""", r"currval('\1')", sql, flags=re.IGNORECASE)
     sql = re.sub(r"""([^ $,()]+).nextval""", r"nextval('\1')", sql, flags=re.IGNORECASE)
@@ -34,7 +35,8 @@ def convert_query_in_printf_format(sql, var_dict):
     # sub query + rownum
     sql = re.sub(r"\)\s+WHERE\s+rownum", r") tmp_sub WHERE rownum", sql, flags=re.IGNORECASE)
     # sub query + GROUP BY
-    sql = re.sub(r"\)\s+GROUP\s+BY", r") tmp_sub GROUP BY", sql, flags=re.IGNORECASE)
+    if re.search(r'FROM\s+\(SELECT', sql, flags=re.IGNORECASE):
+        sql = re.sub(r"\)\s+GROUP\s+BY", r") tmp_sub GROUP BY", sql, flags=re.IGNORECASE)
     # rownum
     sql = re.sub(r"(WHERE|AND)\s+rownum[^\d:]+(\d+|:[^ \)]+)", r" LIMIT \2", sql, flags=re.IGNORECASE)
     # NVL
