@@ -23,6 +23,7 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 
 try:
     from idds.client.client import Client as iDDS_Client
+    from idds.client.clientmanager import ClientManager as iDDS_ClientManager
     import idds.common.constants
     import idds.common.utils
 except ImportError:
@@ -2515,18 +2516,24 @@ def decode_idds_enum(d):
 
 
 # relay iDDS command
-def relay_idds_command(req, command_name, args=None, kwargs=None):
+def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None):
     # check security
     if not isSecure(req):
         return json.dumps((False, "SSL is required"))
     try:
+        if manager is not True:
+            manager = False
         if '+' in command_name:
             command_name, idds_host = command_name.split('+')
         else:
             idds_host = idds.common.utils.get_rest_host()
-        c = iDDS_Client(idds_host)
+        if manager:
+            c = iDDS_ClientManager(idds_host)
+        else:
+            c = iDDS_Client(idds_host)
         if not hasattr(c, command_name):
-            return json.dumps((False, "{} is not an iDDS command"))
+            return json.dumps((False, "{} is not a command of iDDS {}".format(
+                command_name, c.__class__.__name__)))
         if args:
             try:
                 args = idds.common.utils.json_loads(args)
