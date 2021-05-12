@@ -2548,9 +2548,8 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None):
                 kwargs = json.loads(kwargs, object_hook=decode_idds_enum)
         else:
             kwargs = {}
-        _logger.debug("relay_idds_command : com=%s host=%s args=%s kwargs=%s" % (command_name, idds_host,
-                                                                                 str(args),
-                                                                                 str(kwargs)))
+        _logger.debug("relay_idds_command : class={} com={} host={} args={} kwargs={}".format(
+            c.__class__.__name__, command_name, idds_host, str(args), str(kwargs)))
         ret = getattr(c, command_name)(*args, **kwargs)
         return json.dumps((True, ret))
     except Exception as e:
