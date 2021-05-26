@@ -21014,9 +21014,10 @@ class DBProxy:
         """
         comment = ' /* DBProxy.updateWorkers */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        tmpLog = LogWrapper(_logger, methodName+' < HarvesterID={0} >'.format(harvesterID))
+        tmpLog = LogWrapper(_logger, methodName+' < HarvesterID={} pid={} >'.format(harvesterID, os.getpid()))
         try:
             tmpLog.debug('start {0} workers'.format(len(data)))
+            regStart = datetime.datetime.utcnow()
             sqlC  = "SELECT {0} FROM ATLAS_PANDA.Harvester_Workers ".format(WorkerSpec.columnNames())
             sqlC += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
             # loop over all workers
@@ -21028,6 +21029,7 @@ class DBProxy:
                 workerSpec = WorkerSpec()
                 workerSpec.harvesterID = harvesterID
                 workerSpec.workerID = workerData['workerID']
+                tmpLog.debug('workerID={0} start'.format(workerSpec.workerID))
                 # check if already exists
                 varMap = dict()
                 varMap[':harvesterID'] = workerSpec.harvesterID
@@ -21112,8 +21114,10 @@ class DBProxy:
                     tmpLog.debug('workerID={0} deleted {1} jobs'.format(workerSpec.workerID, len(exPandaIDs)))
                 # comprehensive heartbeat
                 tmpLog.debug('workerID={0} get jobs'.format(workerSpec.workerID))
-                sqlCJ  = "SELECT PandaID FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers "
-                sqlCJ += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
+                sqlCJ  = "SELECT r.PandaID FROM "
+                sqlCJ += "ATLAS_PANDA.Harvester_Rel_Jobs_Workers r,ATLAS_PANDA.jobsActive4 j  "
+                sqlCJ += "WHERE r.harvesterID=:harvesterID AND r.workerID=:workerID "
+                sqlCJ += "AND j.PandaID=r.PandaID AND NOT j.jobStatus IN (:holding) "
                 sqlJAC  = "SELECT jobStatus,prodSourceLabel,attemptNr FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID  "
                 sqlJAA  = "UPDATE ATLAS_PANDA.jobsActive4 SET modificationTime=CURRENT_DATE WHERE PandaID=:PandaID AND jobStatus IN (:js1,:js2) "
                 sqlJAE  = "UPDATE ATLAS_PANDA.jobsActive4 SET taskBufferErrorCode=:code,taskBufferErrorDiag=:diag,"
@@ -21124,9 +21128,10 @@ class DBProxy:
                 varMap = dict()
                 varMap[':harvesterID'] = harvesterID
                 varMap[':workerID'] = workerData['workerID']
+                varMap[':holding'] = 'holding'
                 self.cur.execute(sqlCJ+comment, varMap)
                 resCJ = self.cur.fetchall()
-                tmpLog.debug('workerID={0} update jobs'.format(workerSpec.workerID))
+                tmpLog.debug('workerID={} update {} jobs'.format(workerSpec.workerID, len(resCJ)))
                 for pandaID, in resCJ:
                     # check job status when worker is in a final state
                     if workerSpec.status in ['finished', 'failed', 'cancelled', 'missed']:
@@ -21194,12 +21199,15 @@ class DBProxy:
                     if nRowJA > 0:
                         tmpLog.debug('workerID={0} PandaID={1} updated modificationTime'.format(workerSpec.workerID, pandaID))
                     """
+                tmpLog.debug('workerID={0} end'.format(workerSpec.workerID))
                 # commit
                 if useCommit:
                     if not self._commit():
                         raise RuntimeError('Commit error')
                 retList.append(True)
-            tmpLog.debug('done')
+            regTime = datetime.datetime.utcnow() - regStart
+            tmpLog.debug('done. exec_time=%s.%03d sec' % (regTime.seconds,
+                                                          regTime.microseconds/1000))
             return retList
         except Exception:
             # roll back

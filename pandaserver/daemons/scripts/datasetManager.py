@@ -991,7 +991,7 @@ def main(tbuf=None, **kwargs):
                     if not allOK:
                         continue
                     # append to run activator
-                    _logger.debug("%s to activate with rule" % tmpJob.PandaID)
+                    _logger.debug("{} to activate with rule {}".format(tmpJob.PandaID, str(replicaMap)))
                     actJobs.append(tmpJob)
                 # update
                 _logger.debug("activating ...")
