@@ -1015,6 +1015,12 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
+    # send command to a job
+    def send_command_to_job(self, panda_id, com):
+        ret = self.taskBuffer.send_command_to_job(panda_id, com)
+        # return
+        return ret
+
 
 # Singleton
 userIF = UserIF()
@@ -2555,3 +2561,16 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None):
     except Exception as e:
         _logger.error("relay_idds_command : %s %s" % (str(e), traceback.format_exc()))
         return json.dumps((False, 'server failed with {}'.format(str(e))))
+
+
+# send command to a job
+def send_command_to_job(req, panda_id, com):
+    # check security
+    if not isSecure(req):
+        return json.dumps((False,"SSL is required"))
+    # check role
+    prod_role = _isProdRoleATLAS(req)
+    if not prod_role:
+        return json.dumps((False, "production or pilot role required"))
+
+    return json.dumps(userIF.send_command_to_job(panda_id, com))

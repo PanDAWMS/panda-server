@@ -2496,3 +2496,35 @@ def sweepPQ(panda_queue, status_list, ce_list, submission_host_list):
         err_type, err_value = sys.exc_info()[:2]
         err_str = "ERROR sweepPQ : {0} {1}".format(err_type, err_value)
         return EC_Failed, '{0}\n{1}'.format(output, err_str)
+
+# send a command to a job
+def send_command_to_job(panda_id, com):
+    """
+       args:
+           panda_id: PandaID of the job
+           com: a command string passed to the pilot. max 250 chars
+       returns:
+           status code
+                 0: communication succeeded to the panda server
+                 255: communication failure
+           return: a tuple of return code and message
+                 False: failed
+                 True: the command received
+    """
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey = _x509()
+
+    # execute
+    url = baseURLSSL + '/send_command_to_job'
+    data = {'panda_id': panda_id,
+            'com': com
+            }
+    status, output = curl.post(url, data)
+
+    try:
+        return status, json.loads(output)
+    except Exception as e:
+        err_str = "ERROR send_command_to_job : {}".format(str(e))
+        return EC_Failed, '{0}\n{1}'.format(output, err_str)

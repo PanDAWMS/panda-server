@@ -4046,5 +4046,12 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         return ret
 
+    # send command to a job
+    def send_command_to_job(self, panda_id, com):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.send_command_to_job(panda_id, com)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
 # Singleton
 taskBuffer = TaskBuffer()

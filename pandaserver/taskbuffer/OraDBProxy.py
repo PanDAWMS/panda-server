@@ -3298,8 +3298,7 @@ class DBProxy:
         getValMap[':computingSite'] = siteName
 
         # sql1 is the WHERE clause with all the applicable filters for the request
-        sql1 = "WHERE jobStatus=:oldJobStatus AND computingSite=:computingSite AND commandToPilot IS NULL "
-
+        sql1 = "WHERE jobStatus=:oldJobStatus AND computingSite=:computingSite "
         if mem not in [0,'0']:
             sql1+= "AND (minRamCount<=:minRamCount OR minRamCount=0) "
             getValMap[':minRamCount'] = mem
@@ -4191,8 +4190,9 @@ class DBProxy:
         sql0  = "SELECT prodUserID,prodSourceLabel,jobDefinitionID,jobsetID,workingGroup,specialHandling,jobStatus,taskBufferErrorCode,eventService FROM %s "
         sql0 += "WHERE PandaID=:PandaID "
         sql0 += "FOR UPDATE NOWAIT "
-        sql1  = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID AND commandToPilot IS NULL"
-        sql1F = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID"
+        sql1  = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID "
+        sql1 += "AND (commandToPilot IS NULL OR commandToPilot<>'tobekilled') "
+        sql1F = "UPDATE %s SET commandToPilot=:commandToPilot,taskBufferErrorDiag=:taskBufferErrorDiag WHERE PandaID=:PandaID "
         sql2  = "SELECT %s " % JobSpec.columnNames()
         sql2 += "FROM %s WHERE PandaID=:PandaID AND jobStatus<>:jobStatus"
         sql3  = "DELETE FROM %s WHERE PandaID=:PandaID"
@@ -24209,3 +24209,56 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger, method_name)
             return None
+
+    # send command to a job
+    def send_command_to_job(self, panda_id, com):
+        comment = ' /* DBProxy.send_command_to_job */'
+        method_name = comment.split()[1].split('.')[-1]
+        method_name += ' < PandaID={} >'.format(panda_id)
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+        retVal = None
+        try:
+            # check length
+            new_com = JobSpec.truncateStringAttr('commandToPilot', com)
+            if len(new_com) != len(com):
+                retVal = (False, 'command string too long. must be less than {} chars'.format(len(new_com)))
+            else:
+                sqlR = "SELECT commandToPilot FROM ATLAS_PANDA.{} WHERE PandaID=:PandaID FOR UPDATE "
+                sqlU = "UPDATE ATLAS_PANDA.{} SET commandToPilot=:commandToPilot "\
+                       "WHERE PandaID=:PandaID "
+                for table in ['jobsDefined4', 'jobsActive4']:
+                    # start transaction
+                    self.conn.begin()
+                    # read
+                    varMap = {}
+                    varMap[':PandaID'] = panda_id
+                    self.cur.execute(sqlR.format(table)+comment, varMap)
+                    data = self.cur.fetchone()
+                    if data is not None:
+                        commandToPilot, = data
+                        if commandToPilot == 'tobekilled':
+                            retVal = (False, 'job is being killed')
+                        else:
+                            varMap = {}
+                            varMap[':PandaID'] = panda_id
+                            varMap[':commandToPilot'] = com
+                            self.cur.execute(sqlU.format(table) + comment, varMap)
+                            nRow = self.cur.rowcount
+                            if nRow:
+                                retVal = (True, 'command received')
+                    # commit
+                    if not self._commit():
+                        raise RuntimeError('Commit error')
+                    if retVal is not None:
+                        break
+            if retVal is None:
+                retVal = (False, 'no active job with PandaID={}'.format(panda_id))
+            tmp_log.debug('done with {}'.format(str(retVal)))
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return False, 'database error'

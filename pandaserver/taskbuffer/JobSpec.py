@@ -55,6 +55,7 @@ class JobSpec(object):
                     'exeErrorDiag'           : 500,
                     'jobSubStatus'           : 80,
                     'supErrorDiag'           : 250,
+                    'commandToPilot'         : 250,
                     }
     # tag for special handling
     _tagForSH = {'altStgOut'          : 'ao',
