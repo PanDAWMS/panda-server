@@ -732,9 +732,10 @@ class UserIF:
 
 
     # insert task params
-    def insertTaskParams(self,taskParams,user,prodRole,fqans,properErrorCode):
+    def insertTaskParams(self,taskParams,user,prodRole,fqans,properErrorCode, parent_tid):
         # register
-        ret = self.taskBuffer.insertTaskParamsPanda(taskParams,user,prodRole,fqans,properErrorCode=properErrorCode)
+        ret = self.taskBuffer.insertTaskParamsPanda(taskParams,user,prodRole,fqans,properErrorCode=properErrorCode,
+                                                    parent_tid=parent_tid)
         # return
         return ret
 
@@ -1748,7 +1749,7 @@ def updateSiteAccess(req,method,siteid,userName,attrValue=''):
 
 
 # insert task params
-def insertTaskParams(req,taskParams=None,properErrorCode=None):
+def insertTaskParams(req, taskParams=None, properErrorCode=None, parent_tid=None):
     tmpLog = LogWrapper(_logger, 'insertTaskParams-{}'.format(datetime.datetime.utcnow().isoformat('/')))
     tmpLog.debug('start')
     if properErrorCode == 'True':
@@ -1777,8 +1778,8 @@ def insertTaskParams(req,taskParams=None,properErrorCode=None):
     # get FQANs
     fqans = _getFQAN(req)
 
-    tmpLog.debug("user={0} prodRole={1} FQAN:{2}".format(user, prodRole, str(fqans)))
-    ret = userIF.insertTaskParams(taskParams, user, prodRole, fqans, properErrorCode)
+    tmpLog.debug("user={} prodRole={} FQAN:{} parent_tid={}".format(user, prodRole, str(fqans), parent_tid))
+    ret = userIF.insertTaskParams(taskParams, user, prodRole, fqans, properErrorCode, parent_tid)
     try:
         tmpLog.debug(ret[1])
     except Exception:
