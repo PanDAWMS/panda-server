@@ -71,7 +71,7 @@ def main(tbuf=None, **kwargs):
                 tmpLog = LogWrapper(_logger, '< jediTaskID={} >'.format(ops['jediTaskID']))
                 tmpLog.debug('start {}'.format(self.fileName))
                 s, o = RecoverLostFilesCore.main(self.taskBuffer, ops, tmpLog)
-                tmpLog.debug('{} {}'.format(s, o))
+                tmpLog.debug('status={}. {}'.format(s, o))
                 if s is not None or self.to_delete:
                     tmpLog.debug('delete')
                     try:

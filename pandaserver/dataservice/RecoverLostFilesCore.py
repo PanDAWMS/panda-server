@@ -171,7 +171,6 @@ def main(taskBuffer=None, exec_options=None, log_stream=None):
             log_stream.debug("done")
         else:
             print("retried task: done with {}".format(msgStr))
-            print("done")
         return True, msgStr
     else:
         msgStr = 'failed'
