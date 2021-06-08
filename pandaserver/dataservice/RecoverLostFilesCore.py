@@ -105,7 +105,7 @@ def main(taskBuffer=None, exec_options=None, log_stream=None):
                     return st, tmp_files_rucio
                 # ignore unknown dataset
                 if st:
-                    files_rucio.union(tmp_files_rucio)
+                    files_rucio = files_rucio.union(tmp_files_rucio)
             # get files from rucio
             fd, fo = taskBuffer.querySQLS(
                 'SELECT d.datasetName,c.lfn FROM ATLAS_PANDA.JEDI_Datasets d,ATLAS_PANDA.JEDI_Dataset_Contents c '

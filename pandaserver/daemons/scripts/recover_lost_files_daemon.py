@@ -95,7 +95,7 @@ def main(tbuf=None, **kwargs):
     while len(fileList) != 0:
         # time limit to aviod too many copyArchve running at the sametime
         if (datetime.datetime.utcnow() - timeNow) > datetime.timedelta(minutes=overallTimeout):
-            _logger.debug("time over in EVP session")
+            _logger.debug("time over in main session")
             break
         # try to get Semaphore
         adderLock.acquire()
@@ -120,11 +120,11 @@ def main(tbuf=None, **kwargs):
                 thr.start()
             elif (timeInt - modTime) > datetime.timedelta(seconds=5):
                 # try
-                _logger.debug("attempt : %s" % fileName)
+                _logger.debug("Normal attempt : %s" % fileName)
                 thr = EvpThr(adderLock, adderThreadPool, taskBuffer, fileName, True)
                 thr.start()
             else:
-                _logger.debug("%s : %s" % ((timeInt - modTime), fileName))
+                _logger.debug("Wait %s : %s" % ((timeInt - modTime), fileName))
         except Exception as e:
             _logger.error("{} {}".format(str(e), traceback.format_exc()))
 
