@@ -5,6 +5,7 @@ utility service
 import os
 import re
 import sys
+import traceback
 import zlib
 import uuid
 import time
@@ -442,6 +443,36 @@ def putEventPickingRequest(req,runEventList='',eventPickDataType='',eventPickStr
     _logger.debug("putEventPickingRequest : %s end" % userName)
     return True
 
+
+# upload lost file recovery request
+def put_file_recovery_request(req, jediTaskID, dryRun=None):
+    if not Protocol.isSecure(req):
+        return json.dumps((False, "ERROR : no HTTPS"))
+    userName = req.subprocess_env['SSL_CLIENT_S_DN']
+    creationTime = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    tmpLog = LogWrapper(_logger, 'put_file_recovery_request < jediTaskID={}'.format(jediTaskID))
+    tmpLog.debug("start user={}".format(userName))
+    # get total size
+    try:
+        jediTaskID = int(jediTaskID)
+        # make filename
+        evpFileName = '%s/recov.%s' % (panda_config.cache_dir,str(uuid.uuid4()))
+        tmpLog.debug("file={}".format(evpFileName))
+        # write
+        with open(evpFileName, 'w') as fo:
+            data = {"userName": userName,
+                    "creationTime": creationTime,
+                    "jediTaskID": int(jediTaskID)
+                    }
+            if dryRun:
+                data['dryRun'] = True
+            json.dump(data, fo)
+    except Exception as e:
+        errStr = "cannot put request due to {} ".format(str(e))
+        tmpLog.error(errStr + traceback.format_exc())
+        return json.dumps((False, errStr))
+    tmpLog.debug('done')
+    return json.dumps((True, 'request was accepted and will be processed in a few minutes'))
 
 # delete file
 def deleteFile(req,file):
