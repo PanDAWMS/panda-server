@@ -145,7 +145,7 @@ def main(taskBuffer=None, exec_options=None, log_stream=None):
 
     # go ahead
     if options.dryRun:
-        sys.exit(0)
+        return True, 'done in the dry-run mode'
     if s:
         if options.resurrectDS:
             sd,so = taskBuffer.querySQLS(
