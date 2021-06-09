@@ -69,11 +69,11 @@ def main(tbuf=None, **kwargs):
             with open(self.fileName) as f:
                 ops = json.load(f)
                 tmpLog = LogWrapper(_logger, '< jediTaskID={} >'.format(ops['jediTaskID']))
-                tmpLog.debug('start {}'.format(self.fileName))
+                tmpLog.info('start {}'.format(self.fileName))
                 s, o = RecoverLostFilesCore.main(self.taskBuffer, ops, tmpLog)
-                tmpLog.debug('status={}. {}'.format(s, o))
+                tmpLog.info('status={}. {}'.format(s, o))
                 if s is not None or self.to_delete:
-                    tmpLog.debug('delete')
+                    tmpLog.debug('delete {}'.format(self.fileName))
                     try:
                         os.remove(self.fileName)
                     except Exception:

@@ -46,7 +46,10 @@ def main(taskBuffer=None, exec_options=None, log_stream=None):
     parser.add_argument('--dryRun',action='store_const',const=True,dest='dryRun',default=False,
                         help='dry run')
     # parse options
-    options = parser.parse_args()
+    if taskBuffer:
+        options, unknown = parser.parse_known_args()
+    else:
+        options = parser.parse_args()
 
     # executed via command-line
     givenTaskID = None
@@ -120,7 +123,7 @@ def main(taskBuffer=None, exec_options=None, log_stream=None):
             files = ds_files[tmpDS]
             msgStr = '{} has {} lost files -> {}'.format(tmpDS, len(files), ','.join(files))
             if log_stream:
-                log_stream.debug(msgStr)
+                log_stream.info(msgStr)
             else:
                 print(msgStr)
 
@@ -138,7 +141,7 @@ def main(taskBuffer=None, exec_options=None, log_stream=None):
             ts, jediTaskID = taskBuffer.resetFileStatusInJEDI('', True, tmpDS, files, [], options.dryRun)
         msgStr = 'reset file status for {} in the DB: done with {} for jediTaskID={}'.format(tmpDS, ts, jediTaskID)
         if log_stream:
-            log_stream.debug(msgStr)
+            log_stream.info(msgStr)
         else:
             print(msgStr)
         s |= ts
@@ -167,8 +170,8 @@ def main(taskBuffer=None, exec_options=None, log_stream=None):
                             pass
         msgStr = Client.retryTask(jediTaskID, noChildRetry=options.noChildRetry)[-1][-1]
         if log_stream:
-            log_stream.debug("retried task: done with {}".format(msgStr))
-            log_stream.debug("done")
+            log_stream.info("retried task with {}".format(msgStr))
+            log_stream.info("done")
         else:
             print("retried task: done with {}".format(msgStr))
         return True, msgStr
