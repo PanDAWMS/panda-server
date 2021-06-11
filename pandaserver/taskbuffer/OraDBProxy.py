@@ -3290,7 +3290,10 @@ class DBProxy:
         comment = ' /* DBProxy.getJobs */'
 
         # Number of PanDAIDs that will be tried
-        maxAttemptIDx = 10
+        if hasattr(panda_config, 'nJobsInGetJob'):
+            maxAttemptIDx = panda_config.nJobsInGetJob
+        else:
+            maxAttemptIDx = 10
 
         # construct where clause
         getValMap = {}
@@ -3369,10 +3372,11 @@ class DBProxy:
         retJobs = []
         nSent = 0
         getValMapOrig = copy.copy(getValMap)
+        tmpLog = None
         try:
             timeLimit = datetime.timedelta(seconds=timeout-10)
             timeStart = datetime.datetime.utcnow()
-            strName   = datetime.datetime.isoformat(timeStart)
+            tmpLog = LogWrapper(_logger, "getJobs : %s -> " % datetime.datetime.isoformat(timeStart))
             attLimit  = datetime.datetime.utcnow() - datetime.timedelta(minutes=15)
             attSQL    = "AND ((creationTime<:creationTime AND attemptNr>1) OR attemptNr<=1) "
             # get nJobs
@@ -3451,7 +3455,7 @@ class DBProxy:
                     # set siteID
                     tmpSiteID = siteName
                     # get file lock
-                    _logger.debug("getJobs : %s -> lock" % strName)
+                    tmpLog.debug("lock")
                     if (datetime.datetime.utcnow() - timeStart) < timeLimit:
                         toGetPandaIDs = True
                         pandaIDs = []
@@ -3466,7 +3470,7 @@ class DBProxy:
                                 sqlP = 'SELECT * FROM (' + sqlP
                                 sqlP += sorting_sql
 
-                            _logger.debug(sqlP+comment+str(getValMap))
+                            tmpLog.debug(sqlP+comment+str(getValMap))
                             # start transaction
                             self.conn.begin()
                             # select
@@ -3482,7 +3486,7 @@ class DBProxy:
                                 specialHandlingMap[tmpPandaID] = tmpSpecialHandling
 
                         if pandaIDs == []:
-                            _logger.debug("getJobs : %s -> no PandaIDs" % strName)
+                            tmpLog.debug("no PandaIDs")
                             retU = 0 # retU: return from update
                         else:
                             # update
@@ -3490,6 +3494,9 @@ class DBProxy:
                                 # max attempts
                                 if indexID > maxAttemptIDx:
                                     break
+                                # lock first
+                                sqlPL = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 "\
+                                        "WHERE PandaID=:PandaID FOR UPDATE NOWAIT "
                                 # update
                                 sqlJ = "UPDATE ATLAS_PANDA.jobsActive4 "
                                 sqlJ+= "SET jobStatus=:newJobStatus,modificationTime=CURRENT_DATE,modificationHost=:modificationHost,startTime=CURRENT_DATE"
@@ -3524,16 +3531,29 @@ class DBProxy:
                                 varMapSent[':prodSourceLabel1'] = 'managed'
                                 varMapSent[':prodSourceLabel2'] = 'test'
                                 # start
-                                _logger.debug(sqlJ+comment+str(varMap))
                                 # start transaction
                                 self.conn.begin()
+                                # pre-lock
+                                prelocked = False
+                                try:
+                                    varMapPL = {':PandaID': tmpPandaID}
+                                    tmpLog.debug(sqlPL + comment + str(varMapPL))
+                                    self.cur.execute(sqlPL + comment, varMapPL)
+                                    prelocked = True
+                                except Exception:
+                                    tmpLog.debug("cannot pre-lock")
                                 # update
-                                self.cur.execute(sqlJ+comment, varMap)
-                                retU = self.cur.rowcount
+                                if prelocked:
+                                    tmpLog.debug(sqlJ + comment + str(varMap))
+                                    self.cur.execute(sqlJ+comment, varMap)
+                                    retU = self.cur.rowcount
+                                    tmpLog.debug("retU=%s" % retU)
+                                else:
+                                    retU = 0
                                 if retU != 0:
                                     # get nSent for production jobs
                                     if prodSourceLabel in [None,'managed']:
-                                        _logger.debug(sqlSent+comment+str(varMapSent))
+                                        tmpLog.debug(sqlSent+comment+str(varMapSent))
                                         self.cur.execute(sqlSent+comment, varMapSent)
                                         resSent = self.cur.fetchone()
                                         if resSent is not None:
@@ -3558,7 +3578,7 @@ class DBProxy:
                                         self.cur.execute(sqlJWH+comment, varMap)
                                         resJWH = self.cur.fetchone()
                                         if resJWH is None:
-                                            _logger.debug("getJobs : Site {0} harvester_id={1} not found".format(tmpSiteID, harvester_id))
+                                            tmpLog.debug("getJobs : Site {0} harvester_id={1} not found".format(tmpSiteID, harvester_id))
                                         else:
                                             varMap = dict()
                                             varMap[':harvesterID'] = harvester_id
@@ -3585,10 +3605,10 @@ class DBProxy:
                                     pandaID = tmpPandaID
                                     break
                     else:
-                        _logger.debug("getJobs : %s -> do nothing" % strName)
+                        tmpLog.debug("do nothing")
                         retU = 0
                     # release file lock
-                    _logger.debug("getJobs : %s -> unlock" % strName)
+                    tmpLog.debug("unlock")
                     # succeeded
                     if retU != 0:
                         break
@@ -3599,7 +3619,7 @@ class DBProxy:
                 if retU == 0:
                     # reset pandaID
                     pandaID = 0
-                _logger.debug("getJobs : Site %s : retU %s : PandaID %s - %s"
+                tmpLog.debug("Site %s : retU %s : PandaID %s - %s"
                               % (siteName,retU,pandaID,prodSourceLabel))
                 if pandaID == 0:
                     break
@@ -3876,17 +3896,17 @@ class DBProxy:
                 try:
                     self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
                 except Exception:
-                    _logger.error('recordStatusChange in getJobs')
+                    tmpLog.error('recordStatusChange in getJobs')
             return retJobs, nSent
-        except Exception:
-            errtype, errvalue = sys.exc_info()[:2]
-            errStr = "getJobs : %s %s" % (errtype, errvalue)
-            errStr.strip()
-            errStr += traceback.format_exc()
-            _logger.error(errStr)
+        except Exception as e:
+            errStr = "getJobs : {} {}".format(str(e), traceback.format_exc())
+            if tmpLog:
+                tmpLog.error(errStr)
+            else:
+                _logger.error(errStr)
             # roll back
             self._rollback()
-            return [],0
+            return [], 0
 
 
     # reset job in jobsActive or jobsWaiting
