@@ -1,5 +1,6 @@
 import re
 import json
+import base64
 try:
     from urllib import urlencode
 except ImportError:
@@ -212,6 +213,8 @@ class Response:
         self.data['jobPars'], ppSteps = job.extractMultiStepExec()
         if ppSteps is not None:
             self.data.update(ppSteps)
+        if job.to_encode_job_params():
+            self.data['jobPars'] = base64.b64encode(self.data['jobPars'].encode()).decode()
         # attempt number
         self.data['attemptNr'] = job.attemptNr
         # GUIDs

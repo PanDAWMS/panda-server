@@ -63,6 +63,7 @@ class JobSpec(object):
                  'notDiscardEvents'   : 'de',
                  'decAttOnFailedES'   : 'df',
                  'dynamicNumEvents'   : 'dy',
+                 'encJobParams'       : 'ej',
                  'fakeJobToIgnore'    : 'fake',
                  'homeCloud'          : 'hc',
                  'hpoWorkflow'        : 'ho',
@@ -850,4 +851,20 @@ class JobSpec(object):
             items = []
         if self._tagForSH['noLoopingCheck'] not in items:
             items.append(self._tagForSH['noLoopingCheck'])
+        self.specialHandling = ','.join(items)
+
+    # check if encode job parameters
+    def to_encode_job_params(self):
+        if self.specialHandling is not None:
+            return self._tagForSH['encJobParams'] in self.specialHandling.split(',')
+        return False
+
+    # encode job parameters
+    def set_encode_job_params(self):
+        if self.specialHandling:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if self._tagForSH['encJobParams'] not in items:
+            items.append(self._tagForSH['encJobParams'])
         self.specialHandling = ','.join(items)
