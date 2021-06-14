@@ -2318,6 +2318,9 @@ class DBProxy:
                     elif oldJobStatus in ['holding', 'transferring'] and jobStatus == 'starting':
                         # don't update holding
                         _logger.debug("updateJobStatus : PandaID={0} skip to change {1} to {2} to avoid inconsistency".format(pandaID, oldJobStatus, jobStatus))
+                    elif oldJobStatus == 'holding' and jobStatus == 'running':
+                        # don't update holding
+                        _logger.debug("updateJobStatus : PandaID={0} skip to change {1} to {2} not to return to active".format(pandaID, oldJobStatus, jobStatus))
                     elif batchID not in ['', None] and 'batchID' in param and param['batchID'] not in ['', None] \
                             and batchID != param['batchID'] and re.search('^\d+\.*\d+$', batchID) is None \
                             and re.search('^\d+\.*\d+$', param['batchID']) is None:
