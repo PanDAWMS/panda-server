@@ -14,8 +14,11 @@ _logger = PandaLogger().getLogger('ProxyCache')
 def execute(program):
     """Run a program on the command line. Return stderr, stdout and status."""
     _logger.debug("executable: %s" % program)
+    my_env = os.environ.copy()
+    if 'PANDA_HOME' in my_env:
+        my_env['HOME'] = my_env['PANDA_HOME']
     pipe = subprocess.Popen(program, bufsize=-1, shell=True, close_fds=False,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=my_env)
     stdout, stderr = pipe.communicate()
     return stdout, stderr, pipe.wait()
 
