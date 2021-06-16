@@ -41,7 +41,7 @@ class MyProxyInterface(object):
         # check if empty dummy file
         if os.path.exists(proxy_path) and os.stat(proxy_path).st_size == 0:
             if datetime.datetime.utcnow() - datetime.datetime.utcfromtimestamp(os.path.getctime(proxy_path)) < datetime.timedelta(hours=1):
-                _logger.debug('skip too early to try again')
+                _logger.debug('skip too early to try again according to {}'.format(proxy_path))
                 return 2
         cmd = "myproxy-logon -s %s --no_passphrase --out %s -l '%s' -k %s -t 0" % (server_name, proxy_path, user_dn, cred_name)
         # if myproxy.cern.ch fails, try myproxy on bnl as well
@@ -90,6 +90,9 @@ class MyProxyInterface(object):
             if stderr:
                 _logger.debug('stderr is %s ' % stderr)
             _logger.debug('test the status of atlas... %s' %status)
+        # make dummy to avoid too early attempts
+        if status != 0 and not os.path.exists(proxy_path):
+            open(proxy_path, 'w').close()
         # will remove the proxy later on as I need to check the actual validity in order to send notification emails
         #if os.path.exists(proxy_path):
         #    print 'will now remove the plain proxy from the cache'

@@ -139,6 +139,8 @@ if panda_config.useFastCGI or panda_config.useWSGI:
             self.headers_in = {}
             # authentication
             self.authenticated = True
+            # message
+            self.message = None
             # content-length
             if 'CONTENT_LENGTH' in self.subprocess_env:
                 self.headers_in["content-length"] = self.subprocess_env['CONTENT_LENGTH']
@@ -160,7 +162,8 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         self.authenticated = False
                         vo = token[ "vo"]
                         if vo not in panda_config.auth_policies:
-                            tmpLog.error('unknown vo : {0} - {1}'.format(vo, env['HTTP_AUTHORIZATION']))
+                            self.message = 'unknown vo : {}'.format(vo)
+                            tmpLog.error('{} - {}'.format(self.message, env['HTTP_AUTHORIZATION']))
                         else:
                             for memberStr, memberInfo in panda_config.auth_policies[vo]:
                                 if memberStr in token["groups"]:
@@ -170,10 +173,12 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                                     self.authenticated = True
                                     break
                             if not self.authenticated:
-                                tmpLog.error('invalid member in {} - {}'.format(vo, env['HTTP_AUTHORIZATION']))
+                                self.message = 'invalid member in {}'.format(vo)
+                                tmpLog.error('{} - {}'.format(self.message, env['HTTP_AUTHORIZATION']))
                     # check issuer
                     if 'iss' not in token:
-                        tmpLog.error('issuer is undefined')
+                        self.message = 'issuer is undefined in the token'
+                        tmpLog.error(self.message)
                     else:
                         if panda_config.token_authType == 'scitokens':
                             items = token.claims()
@@ -193,7 +198,8 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                                     self.subprocess_env['GRST_CRED_AUTH_TOKEN_{0}'.format(i)] = 'VOMS ' + str(scope.split(':')[-1])
                                     i += 1
             except Exception as e:
-                tmpLog.error('invalid token: {0} - {1}'.format(str(e), env['HTTP_AUTHORIZATION']))
+                self.message = 'invalid token: {}'.format(str(e))
+                tmpLog.error('{} - {}'.format(self.message, env['HTTP_AUTHORIZATION']))
 
         # get remote host
         def get_remote_host(self):
@@ -274,7 +280,8 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                     dummyReq = DummyReq(environ, tmpLog)
                     if not dummyReq.authenticated:
                         start_response('403 Forbidden', [('Content-Type', 'text/plain')])
-                        return ["authN/Z failure".encode()]
+                        return ["ERROR : token-based authentication failed on the server side with {}".format(
+                            dummyReq.message).encode()]
                     param_list = [dummyReq]
                     # exec
                     exeRes = tmpMethod(*param_list, **params)
