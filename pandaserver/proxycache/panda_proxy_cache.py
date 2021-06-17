@@ -43,7 +43,7 @@ class MyProxyInterface(object):
         # check if empty dummy file
         if os.path.exists(proxy_path) and os.stat(proxy_path).st_size == 0:
             if datetime.datetime.utcnow() - datetime.datetime.utcfromtimestamp(os.path.getctime(proxy_path)) < datetime.timedelta(hours=1):
-                log_stream.info('skip too early to try again according to {}'.format(proxy_path))
+                log_stream.info('skip too early to try again according to timestamp of {}'.format(proxy_path))
                 return 2
         cmd = "myproxy-logon -s %s --no_passphrase --out %s -l '%s' -k %s -t 0" % (server_name, proxy_path, user_dn, cred_name)
         # if myproxy.cern.ch fails, try myproxy on bnl as well
@@ -69,7 +69,7 @@ class MyProxyInterface(object):
                 log_stream.info('stdout is %s ' % stdout)
             if stderr:
                 log_stream.info('stderr is %s ' % stderr)
-            _logger.debug('test the status of production... %s' %status)
+            log_stream.debug('test the status of production... %s' %status)
         elif production:
             log_stream.info('production proxy needed - need to add voms attributes and store it in the cache')
             prodproxy_path = os.path.join(self.__target_path, str(hashlib.sha1(six.b(user_dn + '.prod')).hexdigest()))
@@ -122,6 +122,7 @@ class MyProxyInterface(object):
             proxy_path = os.path.join(self.__target_path, str(hashlib.sha1(six.b(user_dn + '.prod')).hexdigest()))
         else:
             proxy_path = os.path.join(self.__target_path, hashlib.sha1(six.b(user_dn)).hexdigest())
+        isOK = False
         if os.path.isfile(proxy_path):
             log_stream.info('Proxy is there. Need to check validity')
             cmd = "voms-proxy-info -exists -hours 72 -file %s" % proxy_path
@@ -131,36 +132,45 @@ class MyProxyInterface(object):
             if stderr:
                 log_stream.info('stderr is %s ' %stderr)
             if status == 1:
-                _logger.info('Proxy expires in 3 days or less. We need to renew proxy!')
-                if self.store(user_dn, self.__cred_name, production, role=role, log_stream=log_stream) == 0:
-                    log_stream.info('Proxy stored successfully')
+                log_stream.info('Proxy expires in 3 days or less. We need to renew proxy!')
+                ret = self.store(user_dn, self.__cred_name, production, role=role, log_stream=log_stream)
+                if ret == 0:
+                    log_stream.info('proxy stored successfully')
+                    isOK = True
+                elif ret == 2:
+                    log_stream.info('proxy retrieval on hold')
                 else:
-                    log_stream.info('Proxy retrieval failed')
+                    log_stream.error('proxy retrieval failed')
             else:
-                log_stream.info('Proxy is valid for more than 3 days')
-
+                log_stream.info('proxy is valid for more than 3 days')
+                isOK = True
         else:
             log_stream.info('Proxy is not in the cache repo. Will try to get it from myproxy')
-            if self.store(user_dn, self.__cred_name, production, role=role, log_stream=log_stream) == 0:
+            ret = self.store(user_dn, self.__cred_name, production, role=role, log_stream=log_stream)
+            if ret == 0:
                 log_stream.info('proxy stored successfully')
+                isOK = True
+            elif ret == 2:
+                log_stream.info('proxy retrieval on hold')
             else:
                 log_stream.error('proxy retrieval failed')
-        plain_path = os.path.join(self.__target_path, hashlib.sha1(six.b(user_dn + '.plain')).hexdigest())
-        if os.path.isfile(plain_path):
-            return self.checkValidity(plain_path, log_stream)
-        else:
-            log_stream.error('plain proxy not there at the moment!')
+        if isOK:
+            plain_path = os.path.join(self.__target_path, hashlib.sha1(six.b(user_dn + '.plain')).hexdigest())
+            if os.path.isfile(plain_path):
+                return self.checkValidity(plain_path, log_stream)
+            else:
+                log_stream.error('plain proxy not there at the moment!')
 
     def checkValidity(self, proxy_path, log_stream):
         log_stream.info('Need to check validity and expiry!')
-        datechecks = [24, 72, 168, 730.484]
+        datechecks = [24, 72, 168]
         #datechecks = [1,2,3,4]
         status = 0
         for i in datechecks:
             cmd = "voms-proxy-info -exists -hours %s -file %s" % (i, proxy_path)
             stdout, stderr, status = execute(cmd, log_stream)
             if status == 1:
-                log_stream.warning('Proxy expires in %s hours. We need to send a notification!' %i)
+                log_stream.warning('Proxy expires in %s hours' %i)
                 return i
         return status
 
