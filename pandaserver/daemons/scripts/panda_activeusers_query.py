@@ -42,10 +42,11 @@ def main(tbuf=None, **kwargs):
         realDN = re.sub('/CN=limited proxy','',realDN)
         realDN = re.sub('(/CN=proxy)+','',realDN)
         realDN = re.sub('(/CN=\d+)+$','',realDN)
+        name = taskBuffer.cleanUserID(realDN)
         # check proxy
-        tmpLog.debug("check proxy cache for DN={0}".format(realDN))
+        tmpLog.debug("check proxy cache for {}".format(name))
         for role in roles:
-            my_proxy_interface_instance.checkProxy(realDN, role=role)
+            my_proxy_interface_instance.checkProxy(realDN, role=role, name=name)
     tmpLog.debug("done")
 
 
