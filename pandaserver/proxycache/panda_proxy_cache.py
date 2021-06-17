@@ -124,7 +124,7 @@ class MyProxyInterface(object):
             proxy_path = os.path.join(self.__target_path, hashlib.sha1(six.b(user_dn)).hexdigest())
         isOK = False
         if os.path.isfile(proxy_path):
-            log_stream.info('Proxy is there. Need to check validity')
+            log_stream.info('proxy is there. Need to check validity')
             cmd = "voms-proxy-info -exists -hours 72 -file %s" % proxy_path
             stdout, stderr, status = execute(cmd, log_stream)
             if stdout:
@@ -132,10 +132,10 @@ class MyProxyInterface(object):
             if stderr:
                 log_stream.info('stderr is %s ' %stderr)
             if status == 1:
-                log_stream.info('Proxy expires in 3 days or less. We need to renew proxy!')
+                log_stream.info('proxy expires in 3 days or less. We need to renew proxy!')
                 ret = self.store(user_dn, self.__cred_name, production, role=role, log_stream=log_stream)
                 if ret == 0:
-                    log_stream.info('proxy stored successfully')
+                    log_stream.info('proxy retrieval successful')
                     isOK = True
                 elif ret == 2:
                     log_stream.info('proxy retrieval on hold')
@@ -145,7 +145,7 @@ class MyProxyInterface(object):
                 log_stream.info('proxy is valid for more than 3 days')
                 isOK = True
         else:
-            log_stream.info('Proxy is not in the cache repo. Will try to get it from myproxy')
+            log_stream.info('proxy is not in the cache repo. will try to get it from myproxy')
             ret = self.store(user_dn, self.__cred_name, production, role=role, log_stream=log_stream)
             if ret == 0:
                 log_stream.info('proxy stored successfully')
@@ -170,7 +170,7 @@ class MyProxyInterface(object):
             cmd = "voms-proxy-info -exists -hours %s -file %s" % (i, proxy_path)
             stdout, stderr, status = execute(cmd, log_stream)
             if status == 1:
-                log_stream.warning('Proxy expires in %s hours' %i)
+                log_stream.warning('proxy expires in %s hours' %i)
                 return i
         return status
 
