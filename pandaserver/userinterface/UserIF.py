@@ -767,7 +767,8 @@ class UserIF:
 
 
     # retry task
-    def retryTask(self,jediTaskID,user,prodRole,properErrorCode,newParams,noChildRetry,discardEvents):
+    def retryTask(self, jediTaskID, user, prodRole, properErrorCode, newParams, noChildRetry, discardEvents,
+                  disable_staging_mode):
         # retry with new params
         if newParams is not None:
             try:
@@ -797,6 +798,11 @@ class UserIF:
                     comQualifier = 'discard'
                 else:
                     comQualifier += ' discard'
+            if disable_staging_mode:
+                if comQualifier is None:
+                    comQualifier = 'staged'
+                else:
+                    comQualifier += ' staged'
             # normal retry
             ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'retry',properErrorCode=properErrorCode,
                                                        comQualifier=comQualifier)
@@ -1821,7 +1827,7 @@ def killTask(req,jediTaskID=None,properErrorCode=None):
 
 # retry task
 def retryTask(req,jediTaskID,properErrorCode=None,newParams=None,noChildRetry=None,
-              discardEvents=None):
+              discardEvents=None, disable_staging_mode=None):
     if properErrorCode == 'True':
         properErrorCode = True
     else:
@@ -1834,6 +1840,10 @@ def retryTask(req,jediTaskID,properErrorCode=None,newParams=None,noChildRetry=No
         discardEvents = True
     else:
         discardEvents = False
+    if disable_staging_mode == 'True':
+        disable_staging_mode = True
+    else:
+        disable_staging_mode = False
     # check security
     if not isSecure(req):
         if properErrorCode:
@@ -1855,7 +1865,7 @@ def retryTask(req,jediTaskID,properErrorCode=None,newParams=None,noChildRetry=No
         else:
             return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
     ret = userIF.retryTask(jediTaskID,user,prodRole,properErrorCode,newParams,noChildRetry,
-                           discardEvents)
+                           discardEvents, disable_staging_mode)
     return WrappedPickle.dumps(ret)
 
 
