@@ -204,3 +204,23 @@ class SiteSpec(object):
             return int(self.getValueFromCatchall('jobChunkSize'))
         except Exception:
             return None
+
+    # get WN connectivity
+    def get_wn_connectivity(self):
+        if self.wnconnectivity is None:
+            return None
+        items = self.wnconnectivity.split('#')
+        if not items or not items[0]:
+            return None
+        else:
+            return items[0]
+
+    # get IP stack
+    def get_ipstack(self):
+        if self.wnconnectivity is None:
+            return None
+        items = self.wnconnectivity.split('#')
+        if len(items) == 2 and items[-1]:
+            return items[-1]
+        else:
+            return None
