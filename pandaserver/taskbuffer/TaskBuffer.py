@@ -4026,16 +4026,17 @@ class TaskBuffer:
         return ret
 
     # unlock job output report
-    def unlockJobOutputReport(self, panda_id, attempt_nr, pid):
+    def unlockJobOutputReport(self, panda_id, attempt_nr, pid, lock_offset):
         proxy = self.proxyPool.getProxy()
-        ret = proxy.unlockJobOutputReport(panda_id, attempt_nr, pid)
+        ret = proxy.unlockJobOutputReport(panda_id, attempt_nr, pid, lock_offset)
         self.proxyPool.putProxy(proxy)
         return ret
 
     # list pandaID and attemptNr of job output report
-    def listJobOutputReport(self, only_unlocked=False, time_limit=5, limit=999999, grace_period=3):
+    def listJobOutputReport(self, only_unlocked=False, time_limit=5, limit=999999, grace_period=3, labels=None,
+                            anti_labels=None):
         proxy = self.proxyPool.getProxy()
-        ret = proxy.listJobOutputReport(only_unlocked, time_limit, limit, grace_period)
+        ret = proxy.listJobOutputReport(only_unlocked, time_limit, limit, grace_period, labels, anti_labels)
         self.proxyPool.putProxy(proxy)
         return ret
 

@@ -24045,7 +24045,7 @@ class DBProxy:
             return retVal
 
     # unlock job output report
-    def unlockJobOutputReport(self, panda_id, attempt_nr, pid):
+    def unlockJobOutputReport(self, panda_id, attempt_nr, pid, lock_offset):
         comment = ' /* DBProxy.unlockJobOutputReport */'
         method_name = 'unlockJobOutputReport'
         method_name += ' <PandaID={0} attemptNr={1}>'.format(panda_id, attempt_nr)
@@ -24064,7 +24064,7 @@ class DBProxy:
                         ).format(panda_config.schemaPANDA)
             # sql to update lock
             sqlUL  = (  'UPDATE {0}.Job_Output_Report '
-                            'SET lockedBy=NULL '
+                            'SET lockedTime=:lockedTime '
                         'WHERE PandaID=:PandaID AND attemptNr=:attemptNr '
                         ).format(panda_config.schemaPANDA)
             # start transaction
@@ -24084,6 +24084,7 @@ class DBProxy:
                     varMap = {}
                     varMap[':PandaID'] = panda_id
                     varMap[':attemptNr'] = attempt_nr
+                    varMap[':lockedTime'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=lock_offset)
                     self.cur.execute(sqlUL+comment, varMap)
                     tmp_log.debug('successfully unlocked record')
                     retVal = True
@@ -24101,33 +24102,48 @@ class DBProxy:
             return retVal
 
     # list pandaID, jobStatus, attemptNr, timeStamp of job output report
-    def listJobOutputReport(self, only_unlocked, time_limit, limit, grace_period):
+    def listJobOutputReport(self, only_unlocked, time_limit, limit, grace_period, labels, anti_labels):
         comment = ' /* DBProxy.listJobOutputReport */'
         method_name = 'listJobOutputReport'
         # defaults
         tmp_log = LogWrapper(_logger, method_name)
-        tmp_log.debug('start')
+        tmp_log.debug('start label={} anti_label={}'.format(str(labels), str(anti_labels)))
         try:
             retVal = None
             if only_unlocked:
                 # try to get only records unlocked or with expired lock
-                # sql to get record
-                sqlGR  = (  'SELECT * '
-                            'FROM ( '
-                                'SELECT PandaID,jobStatus,attemptNr,timeStamp '
-                                'FROM {0}.Job_Output_Report '
-                                'WHERE (lockedBy IS NULL OR lockedTime<:lockedTime) '
-                                'AND timeStamp<:timeStamp '
-                                'ORDER BY timeStamp '
-                            ') '
-                            'WHERE rownum<=:limit '
-                            ).format(panda_config.schemaPANDA)
-                # start transaction
-                self.conn.begin()
                 varMap = {}
                 varMap[':limit'] = limit
                 varMap[':lockedTime'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=time_limit)
-                varMap[':timeStamp'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=grace_period)
+                varMap[':timeStamp'] = datetime.datetime.utcnow() - datetime.timedelta(seconds=grace_period)
+                # sql to get record
+                sqlGR = 'SELECT * '\
+                        'FROM ( '\
+                        'SELECT PandaID,jobStatus,attemptNr,timeStamp '\
+                        'FROM {0}.Job_Output_Report '\
+                        'WHERE (lockedBy IS NULL OR lockedTime<:lockedTime) '\
+                        'AND timeStamp<:timeStamp '.format(panda_config.schemaPANDA)
+                if labels is not None:
+                    sqlGR += 'AND prodSourceLabel IN ('
+                    for l in labels:
+                        k = ':l_{}'.format(l)
+                        varMap[k] = l
+                        sqlGR += '{},'.format(k)
+                    sqlGR = sqlGR[:-1]
+                    sqlGR += ') '
+                if anti_labels is not None:
+                    sqlGR += 'AND prodSourceLabel NOT IN ('
+                    for l in anti_labels:
+                        k = ':al_{}'.format(l)
+                        varMap[k] = l
+                        sqlGR += '{},'.format(k)
+                    sqlGR = sqlGR[:-1]
+                    sqlGR += ') '
+                sqlGR += 'ORDER BY timeStamp '\
+                         ') '\
+                         'WHERE rownum<=:limit '
+                # start transaction
+                self.conn.begin()
                 # check
                 self.cur.execute(sqlGR+comment, varMap)
                 retVal = self.cur.fetchall()
