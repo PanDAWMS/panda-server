@@ -23994,7 +23994,7 @@ class DBProxy:
                         'FROM {0}.Job_Output_Report '
                         'WHERE PandaID=:PandaID AND attemptNr=:attemptNr '
                             'AND (lockedBy IS NULL OR lockedBy=:lockedBy OR lockedTime<:lockedTime) '
-                        'FOR UPDATE'
+                        'FOR UPDATE NOWAIT '
                         ).format(panda_config.schemaPANDA)
             # sql to update lock
             sqlUL  = (  'UPDATE {0}.Job_Output_Report '
@@ -24013,11 +24013,15 @@ class DBProxy:
                 varMap[':lockedBy'] = take_over_from
             varMap[':lockedTime'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=time_limit)
             utc_now = datetime.datetime.utcnow()
-            self.cur.execute(sqlGL+comment, varMap)
-            resGL = self.cur.fetchall()
-            if not resGL:
-                tmp_log.debug('record already locked by other thread, skipped')
-            else:
+            try:
+                self.cur.execute(sqlGL+comment, varMap)
+                resGL = self.cur.fetchall()
+                if not resGL:
+                    tmp_log.debug('record already locked by other thread, skipped')
+            except Exception:
+                resGL = None
+                tmp_log.debug('record skipped due to NOWAIT')
+            if resGL:
                 for panda_id, attempt_nr in resGL:
                     # lock
                     varMap = {}
