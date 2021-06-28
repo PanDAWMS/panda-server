@@ -690,24 +690,32 @@ class RucioAPI:
             client = RucioClient()
             userInfo = None
             retVal = False
-            for i in client.list_accounts(account_type='USER',identity=userName):
-                userInfo = {'nickname':i['account'],
-                            'email':i['email']}
-                break
-            if userInfo is None:
-                # remove /CN=\d
-                userName = re.sub('(/CN=\d+)+$','',userName)
-                for i in client.list_accounts(account_type='USER',identity=userName):
+            for accType in ['USER', 'GROUP']:
+                for i in client.list_accounts(account_type=accType, identity=userName):
                     userInfo = {'nickname':i['account'],
                                 'email':i['email']}
                     break
-            if userInfo is not None:
-                retVal = True
-        except Exception:
-            errtype, errvalue = sys.exc_info()[:2]
-            errMsg = '{0} {1}'.format(errtype.__name__, errvalue)
+                if userInfo is None:
+                    # remove /CN=\d
+                    userName = re.sub('(/CN=\d+)+$','',userName)
+                    for i in client.list_accounts(account_type=accType, identity=userName):
+                        userInfo = {'nickname':i['account'],
+                                    'email':i['email']}
+                        break
+                try:
+                    if userInfo is None:
+                        i = client.get_account(userName)
+                        userInfo = {'nickname': i['account'],
+                                    'email': i['email']}
+                except Exception:
+                    pass
+                if userInfo is not None:
+                    retVal = True
+                    break
+        except Exception as e:
+            errMsg = '{}'.format(str(e))
             userInfo = errMsg
-        return retVal,userInfo
+        return retVal, userInfo
 
 
 

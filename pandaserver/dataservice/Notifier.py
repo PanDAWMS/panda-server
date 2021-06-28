@@ -9,6 +9,7 @@ import uuid
 import urllib
 import smtplib
 import datetime
+import traceback
 import time
 
 from pandaserver.config import panda_config
@@ -361,7 +362,7 @@ Report Panda problems of any sort to
 
 
     # get email
-    def getEmail(self,dn):
+    def getEmail(self, dn):
         # get DN
         _logger.debug("getDN for %s" % dn)
         dbProxy = DBProxy()
@@ -390,8 +391,12 @@ Report Panda problems of any sort to
         realDN = re.sub('(/CN=proxy)+','',realDN)
         try:
             tmpStatus,userInfo = rucioAPI.finger(realDN)
-            mailAddr = userInfo['email']
-            _logger.debug("email from DDM : '%s'" % mailAddr)
+            if tmpStatus:
+                mailAddr = userInfo['email']
+                _logger.debug("email from DDM : '%s'" % mailAddr)
+            else:
+                mailAddr = None
+                _logger.error("failed to get email from DDM : {}".format(userInfo))
             if mailAddr is None:
                 mailAddr = ''
             # make email field to update DB
@@ -405,7 +410,6 @@ Report Panda problems of any sort to
             if notSendMail:
                 return 'notsend'
             return mailAddr
-        except Exception:
-            errType,errValue = sys.exc_info()[:2]
-            _logger.error("%s %s" % (errType,errValue))
+        except Exception as e:
+            _logger.error("getEmail failed with {} {}".format(str(e), traceback.format_exc()))
         return ""
