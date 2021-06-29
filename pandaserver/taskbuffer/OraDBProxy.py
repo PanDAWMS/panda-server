@@ -2004,7 +2004,9 @@ class DBProxy:
     # finalize pending jobs
     def finalizePendingJobs(self,prodUserName,jobDefinitionID,waitLock=False):
         comment = ' /* DBProxy.finalizePendingJobs */'
-        _logger.debug("finalizePendingJobs : %s %s" % (prodUserName,jobDefinitionID))
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName + " < user={} jobdefID={} >".format(prodUserName, jobDefinitionID))
+        tmpLog.debug("start")
         sql0 = "SELECT PandaID,lockedBy,jediTaskID FROM ATLAS_PANDA.jobsActive4 "
         sql0+= "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
         sql0+= "AND prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus "
@@ -2071,7 +2073,7 @@ class DBProxy:
                 self.cur.execute(sql1+comment,varMap)
                 res = self.cur.fetchall()
                 if len(res) == 0:
-                    _logger.debug("finalizePendingJobs : PandaID %d not found" % pandaID)
+                    tmpLog.debug("PandaID %s not found" % pandaID)
                     # commit
                     if not self._commit():
                         raise RuntimeError('Commit error')
@@ -2085,9 +2087,9 @@ class DBProxy:
                 n = self.cur.rowcount
                 if n==0:
                     # already killed
-                    _logger.debug("finalizePendingJobs : Not found %s" % pandaID)
+                    tmpLog.debug("Not found %s" % pandaID)
                 else:
-                    _logger.debug("finalizePendingJobs : finalizing %s" % pandaID)
+                    tmpLog.debug("finalizing %s" % pandaID)
                     # insert
                     self.cur.execute(sql3+comment,job.valuesMap())
                     # update files,metadata,parametes
@@ -2115,13 +2117,12 @@ class DBProxy:
                 # commit
                 if not self._commit():
                     raise RuntimeError('Commit error')
-            _logger.debug("finalizePendingJobs : %s %s done for %s" % (prodUserName,jobDefinitionID,len(pPandaIDs)))
+            tmpLog.debug("done {} jobs".format(len(pPandaIDs)))
             return True
-        except Exception:
+        except Exception as e:
             # roll back
             self._rollback()
-            errType,errValue = sys.exc_info()[:2]
-            _logger.error("finalizePendingJobs : %s %s" % (errType,errValue))
+            tmpLog.error("failed with {}".format(str(e)))
             return False
 
 

@@ -219,22 +219,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         # append
                         if siteContactAddr[pandaSite] not in ['',None,'None']:
                             contactAddr[cloud] += ',%s' % siteContactAddr[pandaSite]
-                # send
-                # _logger.debug("send request to %s" % contactAddr[cloud])
-                # retMail = mailUtils.sendSiteAccessRequest(contactAddr[cloud],requestsMap,cloud)
-                # _logger.debug(retMail)
-                # update database
-                if retMail:
-                    sqlUp  = "UPDATE ATLAS_PANDAMETA.siteaccess SET status=:newStatus "
-                    sqlUp += "WHERE pandaSite=:pandaSite AND dn=:userName"
-                    for pandaSite in requestsMap:
-                        userNames = requestsMap[pandaSite]
-                        for userName in userNames:
-                            varMap = {}
-                            varMap[':userName']  = userName
-                            varMap[':newStatus'] = 'inprocess'
-                            varMap[':pandaSite'] = pandaSite
-                            stUp,resUp = taskBuffer.querySQLS(sqlUp,varMap)
             else:
                 _logger.error("contact email address is unavailable for %s" % cloud)
     except Exception:
@@ -266,12 +250,14 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 sqlC += "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
                 sqlC += "AND jediTaskID=:jediTaskID "
                 sqlC += "AND computingSite=:computingSite "
+                sqlC += "AND jobDefinitionID=:jobDefinitionID "
                 sqlC += "AND NOT jobStatus IN (:jobStatus1,:jobStatus2) "
                 sqlC += "UNION "
                 sqlC += "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 "
                 sqlC += "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
                 sqlC += "AND jediTaskID=:jediTaskID "
                 sqlC += "AND computingSite=:computingSite "
+                sqlC += "AND jobDefinitionID=:jobDefinitionID "
                 sqlC += "AND NOT jobStatus IN (:jobStatus1,:jobStatus2) "
                 sqlC += ") "
                 varMap = {}
@@ -281,6 +267,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 varMap[':jediTaskID']      = jediTaskID
                 varMap[':computingSite']   = computingSite
                 varMap[':prodUserName']    = prodUserName
+                varMap[':jobDefinitionID'] = jobDefinitionID
                 statC,resC = taskBuffer.querySQLS(sqlC,varMap)
                 # finalize if there is no non-failed jobs
                 if resC is not None:
