@@ -190,13 +190,22 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None):
                         the_module.main(argv=mod_argv, tbuf=tbuf)
                         tmp_log.info('{dem} finish'.format(dem=dem_name))
                 except Exception as e:
+                    # with error
                     tb = traceback.format_exc()
                     tmp_log.error('failed to run daemon {dem} with {err} ; stop this worker'.format(
                                     dem=dem_name, err='{0}: {1}\n{2}\n'.format(e.__class__.__name__, e, tb)))
+                    # daemon has run but failed
+                    last_run_end_ts = int(time.time())
+                    has_run = True
+                    # send daemon status back to master
+                    status_tuple = (dem_name, has_run, last_run_start_ts, last_run_end_ts)
+                    pipe_conn.send(status_tuple)
+                    # stop the worker
                     break
-                # daemon has run
-                last_run_end_ts = int(time.time())
-                has_run = True
+                else:
+                    # daemon has run
+                    last_run_end_ts = int(time.time())
+                    has_run = True
             # send daemon status back to master
             status_tuple = (dem_name, has_run, last_run_start_ts, last_run_end_ts)
             pipe_conn.send(status_tuple)
