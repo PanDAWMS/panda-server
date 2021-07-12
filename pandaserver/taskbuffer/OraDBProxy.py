@@ -21777,10 +21777,14 @@ class DBProxy:
         tmpLog.debug('start')
         retVal = {'command': None, 'status': None}
         try:
-            sqlC = "SELECT jobStatus,commandToPilot FROM ATLAS_PANDA.jobsActive4 "
-            sqlC += "WHERE PandaID=:pandaID "
+            sqlC = "SELECT jobStatus,commandToPilot FROM ATLAS_PANDA.jobsActive4 "\
+                   "WHERE PandaID=:pandaID "\
+                   "UNION "\
+                   "SELECT jobStatus,commandToPilot FROM ATLAS_PANDA.jobsArchived4 " \
+                   "WHERE PandaID=:pandaID AND modificationTime>:timeLimit "
             varMap = dict()
             varMap[':pandaID'] = pandaID
+            varMap[':timeLimit'] = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
             # begin transaction
             self.conn.begin()
             # select

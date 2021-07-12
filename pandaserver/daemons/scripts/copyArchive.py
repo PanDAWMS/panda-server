@@ -574,8 +574,10 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 thr.join()
 
     # check heartbeat for production jobs
-    sql = "SELECT PandaID,jobStatus,j.computingSite FROM ATLAS_PANDA.jobsActive4 j, ATLAS_PANDAMETA.schedconfig s "
-    sql += "WHERE j.computingSite=s.siteid AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4) AND modificationTime<:modificationTime "
+    sql = "SELECT PandaID,jobStatus,j.computingSite FROM ATLAS_PANDA.jobsActive4 j "\
+          "LEFT JOIN ATLAS_PANDAMETA.schedconfig s ON j.computingSite=s.siteid "\
+          "WHERE jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4) "\
+          "AND modificationTime<:modificationTime "
     for workflow in workflows:
         if workflow == 'analysis':
             continue
