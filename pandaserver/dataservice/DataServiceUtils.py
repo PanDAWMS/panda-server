@@ -194,7 +194,9 @@ def checkCertificate(certName):
 
 
 # get sites which share DDM endpoint
-def getSitesShareDDM(siteMapper, siteName, prodSourceLabel, job_label):
+def getSitesShareDDM(siteMapper, siteName, prodSourceLabel, job_label, output_share=False):
+    # output_share: False to get sites which use the output RSE as input, True to get sites which use
+    #               the input RSEs as output
 
     # nonexistent site
     if not siteMapper.checkSite(siteName):
@@ -215,7 +217,13 @@ def getSitesShareDDM(siteMapper, siteName, prodSourceLabel, job_label):
             continue
         # same endpoint
         try:
-            if siteSpec.ddm_output[scope_site_output] not in tmpSiteSpec.ddm_endpoints_input[scope_tmpSite_input].all:
+            if not output_share and \
+                siteSpec.ddm_output[scope_site_output] \
+                    not in tmpSiteSpec.ddm_endpoints_input[scope_tmpSite_input].all:
+                continue
+            if output_share and \
+                tmpSiteSpec.ddm_output[scope_site_output]\
+                    not in siteSpec.ddm_endpoints_input[scope_tmpSite_input].all:
                 continue
         except Exception:
             continue
