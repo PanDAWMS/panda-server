@@ -22144,7 +22144,7 @@ class DBProxy:
         # For queues that need more pressure towards reaching a target
         n_cores_running_fake = 0
         try:
-            if pq_data_des['status'] == 'online':  # don't flood test/brokeroff sites with workers
+            if pq_data_des['status'] in ['online', 'brokeroff']:  # don't flood test sites with workers
                 n_cores_running_fake = pq_data_des['params']['ups_core_target']
                 tmpLog.debug('Using ups_core_target {0} for queue {1}'.format(n_cores_running_fake, queue))
         except KeyError:  # no value defined in AGIS
