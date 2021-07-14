@@ -15,6 +15,7 @@ from pandaserver.dataservice.DDM import rucioAPI
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.taskbuffer.JobSpec import JobSpec
 import pandaserver.brokerage.broker
+from pandaserver.taskbuffer import JobUtils
 
 from pandaserver.config import panda_config
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -402,6 +403,9 @@ class DynDataDistributer:
                 continue
             # skip GPU
             if tmpSiteSpec.isGPU():
+                continue
+            # skip VP
+            if tmpSiteSpec.use_vp(JobUtils.ANALY_PS):
                 continue
             # online
             if tmpSiteSpec.status not in ['online']:
