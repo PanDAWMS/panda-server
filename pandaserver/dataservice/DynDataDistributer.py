@@ -389,7 +389,7 @@ class DynDataDistributer:
         # get close sites
         closeSitesMap = {}
         # get all sites
-        allSiteMap = {}
+        allSiteMap = []
         for tmpSiteName in self.siteMapper.siteSpecList:
             tmpSiteSpec = self.siteMapper.siteSpecList[tmpSiteName]
             # check cloud
@@ -409,118 +409,48 @@ class DynDataDistributer:
                 continue
             # online
             if tmpSiteSpec.status not in ['online']:
-                self.putLog("skip %s due to status=%s" % (tmpSiteName,tmpSiteSpec.status))
                 continue
-            allSiteMap.setdefault(tmpSiteSpec.cloud, [])
-            allSiteMap[tmpSiteSpec.cloud].append(tmpSiteSpec)
+            allSiteMap.append(tmpSiteSpec)
         # NG DQ2 IDs
         ngDQ2SuffixList = ['LOCALGROUPDISK','STAGING']
         # loop over all clouds
         returnMap = {}
-        checkedMetaMap = {}
-        userSubscriptionsMap = {}
-        for cloud in self.pd2pClouds:
-            # DQ2 prefix of T1
-            tmpT1SiteID = self.siteMapper.getCloud(cloud)['source']
-            tmpT1SiteSpec = self.siteMapper.getSite(tmpT1SiteID)
-            tmp_scope_input, tmp_scope_output = select_scope(tmpT1SiteSpec, prodsourcelabel, job_label)
-            if tmp_scope_input in tmpT1SiteSpec.ddm_input:
-                tmpT1DQ2ID = tmpT1SiteSpec.ddm_input[tmp_scope_input]
-            else:
-                tmpT1DQ2ID = 'DUMMY'
-            prefixDQ2T1 = re.sub('[^_]+DISK$','',tmpT1DQ2ID)
-            # loop over all datasets
-            for tmpDS in tmpRepMaps:
-                tmpRepMap = tmpRepMaps[tmpDS]
-                candSites     = []
-                sitesComDS    = []
-                sitesCompPD2P = []
-                # check T1 has a replica and get close sites
-                t1HasReplica = False
-                t1HasPrimary = False
-                nSecReplicas = 0
-                closeSiteList = []
-                candForMoU = []
-                for tmpDQ2ID in tmpRepMap:
-                    # check NG suffix
-                    ngSuffixFlag = False
-                    for tmpNGSuffix in ngDQ2SuffixList:
-                        if tmpDQ2ID.endswith(tmpNGSuffix):
-                            ngSuffixFlag = True
-                            break
-                    if ngSuffixFlag:
-                        continue
-                    # get close sites
-                    if tmpDQ2ID in closeSitesMap:
-                        for tmpCloseSiteID in closeSitesMap[tmpDQ2ID]:
-                            if tmpCloseSiteID not in closeSiteList:
-                                closeSiteList.append(tmpCloseSiteID)
-                self.putLog("close sites : %s" % str(closeSiteList))
-                # get on-going subscriptions
-                timeRangeSub = 7
-                userSubscriptionsMap.setdefault(tmpDS, self.taskBuffer.getUserSubscriptions(tmpDS,timeRangeSub))
-                userSubscriptions = userSubscriptionsMap[tmpDS]
-                # unused cloud
-                if cloud not in allSiteMap:
+        cloud = 'WORLD'
+        # loop over all datasets
+        for tmpDS in tmpRepMaps:
+            tmpRepMap = tmpRepMaps[tmpDS]
+            candSites     = []
+            sitesComDS    = []
+            sitesCompPD2P = []
+            t1HasReplica = False
+            t1HasPrimary = False
+            nSecReplicas = 0
+            candForMoU = []
+            # check sites
+            nUserSub = 0
+            for tmpSiteSpec in allSiteMap:
+                tmp_scope_input, tmp_scope_output = select_scope(tmpSiteSpec, prodsourcelabel, job_label)
+                if tmp_scope_input not in tmpSiteSpec.ddm_endpoints_input:
                     continue
-                # count the number of T1 subscriptions
-                nT1Sub = 0
-                for tmpUserSub in userSubscriptions:
-                    if tmpUserSub.startswith(prefixDQ2T1):
-                        nT1Sub += 1
-                # check sites
-                nUserSub = 0
-                for tmpSiteSpec in allSiteMap[cloud]:
-                    tmp_scope_input, tmp_scope_output = select_scope(tmpSiteSpec, prodsourcelabel, job_label)
-
-                    # check cloud
-                    if tmpSiteSpec.cloud != cloud:
-                        continue
-                    # prefix of DQ2 ID
-                    if tmpSiteSpec.ddm_input[tmp_scope_input] is None:
-                        continue
-                    prefixDQ2 = re.sub('[^_]+DISK$', '', tmpSiteSpec.ddm_input[tmp_scope_input])
-                    # skip T1
-                    if prefixDQ2 == prefixDQ2T1:
-                        continue
-                    # check if corresponding DQ2 ID is a replica location
-                    hasReplica = False
-                    for tmpDQ2ID in tmpRepMap:
-                        tmpStatMap = tmpRepMap[tmpDQ2ID]
-                        # check NG suffix
-                        ngSuffixFlag = False
-                        for tmpNGSuffix in ngDQ2SuffixList:
-                            if tmpDQ2ID.endswith(tmpNGSuffix):
-                                ngSuffixFlag = True
-                                break
-                        if ngSuffixFlag:
-                            continue
-                        if tmpDQ2ID.startswith(prefixDQ2):
-                            if tmpStatMap[0]['total'] == tmpStatMap[0]['found']:
-                                # complete
-                                sitesComDS.append(tmpSiteSpec.sitename)
-                                if tmpSiteSpec.cachedse == 1:
-                                    sitesCompPD2P.append(tmpSiteSpec.sitename)
-                            hasReplica = True
-                            break
-                    # site doesn't have a replica
-                    if (not hasReplica) and tmpSiteSpec.cachedse == 1:
-                        candForMoU.append(tmpSiteSpec.sitename)
-                        if not useCloseSites:
-                            candSites.append(tmpSiteSpec.sitename)
-                        else:
-                            # use close sites only
-                            if self.getDQ2ID(tmpSiteSpec.sitename, tmpDS, tmp_scope_input) in closeSiteList:
-                                candSites.append(tmpSiteSpec.sitename)
-                    # the number of subscriptions
-                    for tmpUserSub in userSubscriptions:
-                        if tmpUserSub.startswith(prefixDQ2):
-                            nUserSub += 1
-                            break
-                # append
-                returnMap.setdefault(tmpDS, {})
-                returnMap[tmpDS][cloud] = (candSites,sitesComDS,sitesCompPD2P,nUserSub,t1HasReplica,t1HasPrimary,
-                                           nSecReplicas,nT1Sub,candForMoU)
+                rses = tmpSiteSpec.ddm_endpoints_input[tmp_scope_input].getLocalEndPoints()
+                hasReplica = False
+                for tmpDQ2ID in tmpRepMap:
+                    tmpStatMap = tmpRepMap[tmpDQ2ID]
+                    if tmpDQ2ID in rses and tmpStatMap[0]['total'] == tmpStatMap[0]['found']\
+                            and tmpDQ2ID.endswith('DATADISK'):
+                        # complete
+                        sitesComDS.append(tmpSiteSpec.sitename)
+                        hasReplica = True
+                        break
+                # site doesn't have a replica
+                if hasReplica or not useCloseSites:
+                    candSites.append(tmpSiteSpec.sitename)
+            # append
+            returnMap.setdefault(tmpDS, {})
+            if sitesComDS:
+                candSites = sitesComDS
+            returnMap[tmpDS][cloud] = (candSites,sitesComDS,sitesCompPD2P,nUserSub,t1HasReplica,t1HasPrimary,
+                                       nSecReplicas,0,candForMoU)
         # return
         return True,returnMap
 

@@ -203,7 +203,7 @@ class EventPicker:
             tmpDN = re.sub('/CN=limited proxy','',tmpDN)
             tmpDN = re.sub('(/CN=proxy)+$','',tmpDN)
             # make dataset container
-            tmpRet = self.pd2p.registerDatasetContainerWithDatasets(self.userDatasetName,allFiles,
+            tmpRet = self.pd2p.registerDatasetContainerWithDatasets(self.userDatasetName, allFiles,
                                                                     locationMap,
                                                                     nSites=eventPickNumSites,
                                                                     owner=tmpDN)
@@ -272,14 +272,14 @@ class EventPicker:
                             raise RuntimeError('user info not found for {0} with {1}'.format(tmpDN,userInfo))
                         tmpDN = userInfo['nickname']
                         tmpSiteSpec = self.siteMapper.getSite(tmpJob.computingSite)
-                        scope_input, scope_output = select_scope(tmpSiteSpec, JobUtils.ANALY_PS, JobUtils.ANALY_PS)
+                        scope_input, scope_output = select_scope(tmpSiteSpec, JobUtils.PROD_PS, JobUtils.PROD_PS)
                         tmpDQ2ID = tmpSiteSpec.ddm_output[scope_output]
-                        tmpMsg = "%s ds=%s site=%s id=%s" % ('registerDatasetLocation for DaTRI ',
+                        tmpMsg = "%s ds=%s site=%s id=%s" % ('registerDatasetLocation for EventPicking ',
                                                              tmpUserDatasetName,
                                                              tmpDQ2ID,
-                                                             tmpDN)
+                                                             None)
                         self.putLog(tmpMsg)
-                        rucioAPI.registerDatasetLocation(tmpDS,[tmpDQ2ID],lifetime=14,owner=tmpDN,
+                        rucioAPI.registerDatasetLocation(tmpDS,[tmpDQ2ID],lifetime=14,owner=None,
                                                          activity="User Subscriptions")
                         self.putLog('OK')
                     except Exception:

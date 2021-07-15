@@ -878,6 +878,11 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     nPilots = nWNmap[site]['getJob'] + nWNmap[site]['updateJob']
                                     nPilotsGet = nWNmap[site]['getJob']
                                     nPilotsUpdate = nWNmap[site]['updateJob']
+                                elif site.split('/')[0] in nWNmap:
+                                    tmpID = site.split('/')[0]
+                                    nPilots = nWNmap[tmpID]['getJob'] + nWNmap[tmpID]['updateJob']
+                                    nPilotsGet = nWNmap[tmpID]['getJob']
+                                    nPilotsUpdate = nWNmap[tmpID]['updateJob']
                                 else:
                                     nPilots = 0
                                 tmpLog.debug(' original nPilots:%s get:%s update:%s' % (nPilots,nPilotsGet,nPilotsUpdate))
