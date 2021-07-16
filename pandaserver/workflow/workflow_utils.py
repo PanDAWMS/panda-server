@@ -1,5 +1,6 @@
 import copy
 import six
+import re
 
 
 # DAG vertex
@@ -7,7 +8,7 @@ class Node (object):
 
     def __init__(self, id, node_type, data, is_leaf, name):
         self.id = id
-        self.node_type = node_type
+        self.type = node_type
         self.data = data
         self.is_leaf = is_leaf
         self.is_tail = False
@@ -49,7 +50,7 @@ class Node (object):
         return data
 
     def __str__(self):
-        outstr = "ID:{} Name:{} Type:{}\n".format(self.id, self.name, self.node_type)
+        outstr = "ID:{} Name:{} Type:{}\n".format(self.id, self.name, self.type)
         outstr += "  Parent:{}\n".format(','.join([str(p) for p in self.parents]))
         outstr += "  Input:\n"
         for k, v in six.iteritems(self.convert_dict_inputs()):
@@ -62,6 +63,23 @@ class Node (object):
                 v = 'NA'
             outstr += "     {}: {}\n".format(k, v)
         return outstr
+
+    # resolve prun parameters
+    def resolve_prun_params(self):
+        dict_inputs = self.convert_dict_inputs()
+        if 'opt_secondaryDSs' in dict_inputs:
+            idx = 0
+            for ds_name, ds_type in zip(dict_inputs['opt_secondaryDSs'], dict_inputs['opt_secondayDsTypes']):
+                src = "%%SECDS{}".format(idx)
+                dst = "{}.{}".format(ds_name, ds_type)
+                dict_inputs['opt_exec'] = re.sub(src, dst, dict_inputs['opt_exec'])
+                dict_inputs['opt_args'] = re.sub(src, dst, dict_inputs['opt_args'])
+                idx += 1
+            for k, v in six.iteritems(self.inputs):
+                if k.endswith('opt_exec'):
+                    v['value'] = dict_inputs['opt_exec']
+                elif k.endswith('opt_args'):
+                    v['value'] = dict_inputs['opt_args']
 
 
 # dump nodes

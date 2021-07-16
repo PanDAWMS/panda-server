@@ -191,6 +191,9 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, outDsName
                         values = values[0]
                     node.set_input_value(tmp_name, tmp_source, values)
                     continue
+        # resolve workflow-specific params
+        if node.type == 'prun':
+            node.resolve_prun_params()
         # scatter
         if node.scatter:
             # resolve scattered parameters
