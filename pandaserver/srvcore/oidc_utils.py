@@ -34,7 +34,7 @@ def get_jwk(kid, jwks):
 def deserialize_token(token, auth_config, vo):
     try:
         # check audience
-        unverified = jwt.decode(token, verify=False)
+        unverified = jwt.decode(token, verify=False, options={"verify_signature": False})
         audience = unverified['aud']
         discovery_endpoint = auth_config[audience]['oidc_config_url']
         # decode headers
