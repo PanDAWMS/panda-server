@@ -1,3 +1,4 @@
+import copy
 import re
 import six
 import os.path
@@ -132,20 +133,20 @@ def parse_workflow_file(workflow_file, log_stream):
                     parent_ids = parent_ids[0]
                 tmp_data['parent_id'] = parent_ids
 
-
     # sort
     node_list = top_sort(node_list, set())
     return node_list, root_inputs
 
 
 # resolve nodes
-def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, outDsName, log_stream, values=None):
+def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, outDsName, log_stream):
     for k in root_inputs:
         kk = k.split('#')[-1]
         if kk in data:
             root_inputs[k] = data[kk]
     tmp_to_real_id_map = {}
     resolved_map = {}
+    all_nodes = []
     for node in node_list:
         log_stream.debug('tmpID:{} name:{} is_leaf:{}'.format(node.id, node.name, node.is_leaf))
         # resolve input
@@ -190,40 +191,62 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, outDsName
                         values = values[0]
                     node.set_input_value(tmp_name, tmp_source, values)
                     continue
-        # set real node ID
-        if node.is_leaf:
-            resolved_map[node.id] = [node]
-            tmp_to_real_id_map[node.id] = set([serial_id])
-            node.id = serial_id
-            serial_id += 1
+        # scatter
+        if node.scatter:
+            # resolve scattered parameters
+            scatters = None
+            sc_nodes = []
+            for item in node.scatter:
+                if scatters is None:
+                    scatters = [{item: v} for v in node.inputs[item]['value']]
+                else:
+                    [i.update({item: v}) for i, v in zip(scatters, node.inputs[item]['value'])]
+            for item in scatters:
+                sc_node = copy.deepcopy(node)
+                for k, v in six.iteritems(item):
+                    sc_node.inputs[k]['value'] = v
+                sc_nodes.append(sc_node)
         else:
-            serial_id, sub_tail_nodes = resolve_nodes(node.sub_nodes, node.root_inputs,
-                                                      node.convert_dict_inputs(),
-                                                      serial_id, parent_ids, outDsName,
-                                                      log_stream)
-            resolved_map[node.id] = sub_tail_nodes
-            tmp_to_real_id_map[node.id] = set([n.id for n in sub_tail_nodes])
-        # resolve parents
-        real_parens = set()
-        for i in node.parents:
-            real_parens |= tmp_to_real_id_map[i]
-        node.parents = real_parens
-        if is_head:
-            node.parents |= parent_ids
-        # resolve outputs
-        if node.is_leaf:
-            for tmp_name, tmp_data in six.iteritems(node.outputs):
-                tmp_data['value'] = "{}_{:03d}_{}".format(outDsName, node.id, node.name)
+            sc_nodes = [node]
+        # loop over scattered nodes
+        for sc_node in sc_nodes:
+            all_nodes.append(sc_node)
+            # set real node ID
+            resolved_map.setdefault(sc_node.id, [])
+            tmp_to_real_id_map.setdefault(sc_node.id, set())
+            if sc_node.is_leaf:
+                resolved_map[sc_node.id].append(sc_node)
+                tmp_to_real_id_map[sc_node.id].add(serial_id)
+                sc_node.id = serial_id
+                serial_id += 1
+            else:
+                serial_id, sub_tail_nodes, sc_node.sub_nodes = resolve_nodes(sc_node.sub_nodes, sc_node.root_inputs,
+                                                                             sc_node.convert_dict_inputs(),
+                                                                             serial_id, parent_ids, outDsName,
+                                                                             log_stream)
+                resolved_map[sc_node.id] += sub_tail_nodes
+                tmp_to_real_id_map[sc_node.id] |= set([n.id for n in sub_tail_nodes])
+            # resolve parents
+            real_parens = set()
+            for i in sc_node.parents:
+                real_parens |= tmp_to_real_id_map[i]
+            sc_node.parents = real_parens
+            if is_head:
+                sc_node.parents |= parent_ids
+            # resolve outputs
+            if sc_node.is_leaf:
+                for tmp_name, tmp_data in six.iteritems(sc_node.outputs):
+                    tmp_data['value'] = "{}_{:03d}_{}".format(outDsName, sc_node.id, sc_node.name)
 
     # return tails
     tail_nodes = []
-    for node in node_list:
+    for node in all_nodes:
         if node.is_tail:
             if node.is_tail:
                 tail_nodes.append(node)
             else:
                 tail_nodes += resolved_map[node.id]
-    return serial_id, tail_nodes
+    return serial_id, tail_nodes, all_nodes
 
 
 if __name__ == '__main__':
@@ -232,6 +255,7 @@ if __name__ == '__main__':
     with open(sys.argv[2]) as f:
         data = yaml.safe_load(f)
     nodes, root_in = parse_workflow_file(sys.argv[1], logging)
-    resolve_nodes(nodes, root_in, data, 0, set(), 'hogehoge', logging)
-
+    s_id, tail_nodes, nodes = resolve_nodes(nodes, root_in, data, 0, set(), 'hogehoge', logging)
+    from workflow_utils import dump_nodes
+    dump_nodes(nodes)
 

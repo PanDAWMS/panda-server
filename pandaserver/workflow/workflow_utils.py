@@ -1,9 +1,8 @@
-# node of DAG
 import copy
-
 import six
 
 
+# DAG vertex
 class Node (object):
 
     def __init__(self, id, node_type, data, is_leaf, name):
