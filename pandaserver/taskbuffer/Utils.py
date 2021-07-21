@@ -474,6 +474,35 @@ def put_file_recovery_request(req, jediTaskID, dryRun=None):
     tmpLog.debug('done')
     return json.dumps((True, 'request was accepted and will be processed in a few minutes'))
 
+
+# upload workflow request
+def put_workflow_request(req, data):
+    if not Protocol.isSecure(req):
+        return json.dumps((False, "ERROR : no HTTPS"))
+    userName = req.subprocess_env['SSL_CLIENT_S_DN']
+    creationTime = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    tmpLog = LogWrapper(_logger, 'put_workflow_request')
+    tmpLog.debug("start user={}".format(userName))
+    # get total size
+    try:
+        # make filename
+        evpFileName = '%s/workflow.%s' % (panda_config.cache_dir,str(uuid.uuid4()))
+        tmpLog.debug("file={}".format(evpFileName))
+        # write
+        with open(evpFileName, 'w') as fo:
+            data = {"userName": userName,
+                    "creationTime": creationTime,
+                    "data": json.loads(data),
+                    }
+            json.dump(data, fo)
+    except Exception as e:
+        errStr = "cannot put request due to {} ".format(str(e))
+        tmpLog.error(errStr + traceback.format_exc())
+        return json.dumps((False, errStr))
+    tmpLog.debug('done')
+    return json.dumps((True, 'request was accepted and will be processed in a few minutes'))
+
+
 # delete file
 def deleteFile(req,file):
     if not Protocol.isSecure(req):

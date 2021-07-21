@@ -5,6 +5,17 @@ import shlex
 from urllib.parse import quote
 
 
+# extract argument value from execution string
+def get_arg_value(arg, exec_str):
+    args = shlex.split(exec_str)
+    if arg in args:
+        return args[args.index(arg)+1]
+    for item in args:
+        if item.startswith(arg):
+            return item.split('=')[-1]
+    return None
+
+
 # DAG vertex
 class Node (object):
 
@@ -21,6 +32,7 @@ class Node (object):
         self.name = name
         self.sub_nodes = set()
         self.root_inputs = None
+        self.task_params = None
 
     def add_parent(self, id):
         self.parents.add(id)
@@ -67,13 +79,11 @@ class Node (object):
         return outstr
 
     # resolve workload-specific parameters
-    def resolve_params(self):
+    def resolve_params(self, task_template=None, id_map=None):
         if self.type == 'prun':
             dict_inputs = self.convert_dict_inputs()
             if 'opt_secondaryDSs' in dict_inputs:
                 idx = 1
-                print (dict_inputs['opt_secondaryDSs'])
-                print (dict_inputs['opt_secondaryDsTypes'])
                 for ds_name, ds_type in zip(dict_inputs['opt_secondaryDSs'], dict_inputs['opt_secondaryDsTypes']):
                     src = "%%DS{}%%".format(idx)
                     dst = "{}.{}".format(ds_name, ds_type)
@@ -85,20 +95,12 @@ class Node (object):
                         v['value'] = dict_inputs['opt_exec']
                     elif k.endswith('opt_args'):
                         v['value'] = dict_inputs['opt_args']
-        [n.resolve_params() for n in self.sub_nodes]
-
-    # get arg value from exec string
-    def get_arg_value(self, arg, exec_str):
-        args = shlex.split(exec_str)
-        if arg in args:
-            return args[args.index(arg)+1]
-        for item in args:
-            if item.startswith(arg):
-                return item.split('=')[-1]
-        return None
+        if task_template:
+            self.task_params = self.make_task_params(task_template, id_map)
+        [n.resolve_params(task_template, id_map) for n in self.sub_nodes]
 
     # create task params
-    def make_task_params(self, task_template):
+    def make_task_params(self, task_template, id_map):
         if self.type == 'prun':
             dict_inputs = self.convert_dict_inputs()
             task_params = copy.deepcopy(task_template)
@@ -121,7 +123,7 @@ class Node (object):
                 com += ['--inDS', in_ds_str]
             else:
                 # no input
-                n_jobs = self.get_arg_value('--nJobs', dict_inputs['opt_args'])
+                n_jobs = get_arg_value('--nJobs', dict_inputs['opt_args'])
                 if not n_jobs:
                     n_jobs = 1
                 else:
@@ -130,11 +132,20 @@ class Node (object):
                 task_params['nEvents'] = n_jobs
                 task_params['nEventsPerJob'] = 1
             com += ['--outDS', task_name]
+            container_image = None
+            if 'opt_containerImage' in dict_inputs and dict_inputs['opt_containerImage']:
+                container_image = dict_inputs['opt_containerImage']
+                com += ['--containerImage', container_image]
             task_params['cliParams'] = ' '.join(shlex.quote(x) for x in com)
             # exec
             for item in task_params['jobParameters']:
                 if item['value'] == '__dummy_exec_str__':
                     item['value'] = quote(dict_inputs['opt_exec'])
+            # log
+            task_params['log'] = {"type": "template", "param_type": "log",
+                                  "container": '{}/'.format(task_name),
+                                  "value": task_name + ".log.$JEDITASKID.${SN}.log.tgz",
+                                  "dataset": '{}/'.format(task_name)}
             # job params
             if in_ds_str:
                 # input dataset
@@ -146,7 +157,7 @@ class Node (object):
                 if 'opt_secondaryDSs' in dict_inputs:
                     # parse
                     in_map = {}
-                    secondaryDSs = self.get_arg_value('--secondaryDSs', dict_inputs['opt_args'])
+                    secondaryDSs = get_arg_value('--secondaryDSs', dict_inputs['opt_args'])
                     for tmpItem in secondaryDSs.split(','):
                         tmpItems = tmpItem.split(':')
                         if len(tmpItems) >= 3:
@@ -166,7 +177,7 @@ class Node (object):
                                      }
                         task_params['jobParameters'].append(dict_item)
             # outputs
-            outputs = self.get_arg_value('--outputs', dict_inputs['opt_args'])
+            outputs = get_arg_value('--outputs', dict_inputs['opt_args'])
             if outputs:
                 outMap = {}
                 for tmpLFN in outputs.split(','):
@@ -192,24 +203,48 @@ class Node (object):
                                  'value': '-o "{0}"'.format(str(outMap)),
                                  }
                     task_params['jobParameters'].append(dict_item)
+            # container
+            if container_image:
+                task_params['container_name'] = container_image
+                task_params['multiStepExec']['containerOptions']['containerImage'] = container_image
+            else:
+                del task_params['container_name']
+                del task_params['multiStepExec']
+            # parent
+            if self.parents and len(self.parents) == 1:
+                task_params['noWaitParent'] = True
+                task_params['parentTaskName'] = id_map[list(self.parents)[0]].task_params['taskName']
             # return
             return task_params
+        return None
 
 
 # dump nodes
-def dump_nodes(node_list, only_leaves=True, task_template=None):
+def dump_nodes(node_list, dump_str=None, only_leaves=True):
+    if dump_str is None:
+        dump_str = ''
     for node in node_list:
         if node.is_leaf:
-            print(node)
-            if task_template:
-                task_params = node.make_task_params(task_template)
-                if task_params:
-                    ks = list(task_params.keys())
-                    ks.sort()
-                    for k in ks:
-                        print('{} : {}'.format(k, task_params[k]))
-                print('')
+            dump_str += "{}\n".format(node)
+            if node.task_params:
+                ks = list(node.task_params.keys())
+                ks.sort()
+                for k in ks:
+                    dump_str += '{} : {}\n'.format(k, node.task_params[k])
+                dump_str += '\n'
         else:
             if not only_leaves:
-                print(node)
-            dump_nodes(node.sub_nodes, only_leaves, task_template)
+                dump_str += "{}\n".format(node)
+            dump_str = dump_nodes(node.sub_nodes, dump_str, only_leaves)
+    return dump_str
+
+
+# get id map
+def get_node_id_map(node_list, id_map=None):
+    if id_map is None:
+        id_map = {}
+    for node in node_list:
+        id_map[node.id] = node
+        if node.sub_nodes:
+            id_map = get_node_id_map(node.sub_nodes, id_map)
+    return id_map

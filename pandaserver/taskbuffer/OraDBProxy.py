@@ -13569,8 +13569,23 @@ class DBProxy:
             _logger.debug('{0} start'.format(methodName))
             # decode json
             taskParamsJson = PrioUtil.decodeJSON(taskParams)
-            # set user name and task type
-            taskParamsJson['userName'] = compactDN
+            # set user name
+            if not prodRole or 'userName' not in taskParamsJson:
+                taskParamsJson['userName'] = compactDN
+            # identify parent
+            if 'parentTaskName' in taskParamsJson:
+                parent_tid = self.get_parent_task_id_with_name(taskParamsJson['userName'],
+                                                               taskParamsJson['parentTaskName'])
+                if not parent_tid:
+                    tmpMsg = 'failed to find parent with user="{}" name={}'.format(taskParamsJson['userName'],
+                                                                                   taskParamsJson['parentTaskName'])
+                    _logger.debug('{} {}'.format(methodName, tmpMsg))
+                    return 11, tmpMsg
+                else:
+                    _logger.debug('{} found parent {} with user="{}" name={}'.format(methodName, parent_tid,
+                                                                                     taskParamsJson['userName'],
+                                                                                     taskParamsJson['parentTaskName']))
+            # set task type
             if not prodRole or 'taskType' not in taskParamsJson:
                 taskParamsJson['taskType']   = 'anal'
                 taskParamsJson['taskPriority'] = 1000
@@ -24310,3 +24325,36 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger, method_name)
             return False, 'database error'
+
+    # get parent task id
+    def get_parent_task_id_with_name(self, user_name, parent_name):
+        comment = ' /* DBProxy.get_task_id_with_dataset */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        try:
+            methodName += " <{}>".format(user_name)
+            tmpLog = LogWrapper(_logger, methodName)
+            tmpLog.debug("try to find parent={}".format(parent_name))
+            # sql to get workers
+            sqlC = "SELECT jediTaskID FROM ATLAS_PANDA.JEDI_Tasks "\
+                   "WHERE userName=:userName AND taskName=:taskName "\
+                   "ORDER BY jediTaskID DESC "
+            # start transaction
+            self.conn.begin()
+            varMap = {}
+            varMap[':userName'] = user_name
+            varMap[':taskName'] = parent_name
+            self.cur.execute(sqlC + comment, varMap)
+            tid = self.cur.fetchone()
+            if tid:
+                tid, = tid
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            tmpLog.debug("got {}".format(tid))
+            return tid
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, methodName)
+            return None

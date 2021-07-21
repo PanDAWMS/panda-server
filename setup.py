@@ -249,7 +249,9 @@ setup(
                       'pyjwt',
                       'requests',
                       'idds-common',
-                      'idds-client'
+                      'idds-client',
+                      'ruamel.yaml',
+                      'cwl-utils'
                       ],
     extras_require={
         'oracle': ['cx_Oracle'],
@@ -274,7 +276,8 @@ setup(
                'pandaserver.test.alice',
                'pandaserver.userinterface',
                'pandaserver.proxycache',
-               'pandaserver.configurator'
+               'pandaserver.configurator',
+               'pandaserver.workflow'
               ],
     package_data = {'pandaserver.server': ['.gacl']},
     data_files=[

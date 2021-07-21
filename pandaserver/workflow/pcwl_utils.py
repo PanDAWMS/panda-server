@@ -7,7 +7,7 @@ from ruamel import yaml
 from urllib.parse import urlparse
 import sys
 
-from workflow_utils import Node
+from .workflow_utils import Node
 
 
 # extract id
@@ -247,39 +247,3 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, outDsName
             else:
                 tail_nodes += resolved_map[node.id]
     return serial_id, tail_nodes, all_nodes
-
-
-if __name__ == '__main__':
-    import logging
-    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.DEBUG)
-    with open(sys.argv[2]) as f:
-        data = yaml.safe_load(f)
-    nodes, root_in = parse_workflow_file(sys.argv[1], logging)
-    s_id, t_nodes, nodes = resolve_nodes(nodes, root_in, data, 0, set(), 'hogehoge', logging)
-    [node.resolve_params() for node in nodes]
-    # task template
-    task_template = {"buildSpec": {"jobParameters": "-i ${IN} -o ${OUT} --sourceURL ${SURL} -r . ",
-                                   "archiveName": "sources.bfb28dae-cc83-4945-b110-486f0b9b9657.tar.gz",
-                                   "prodSourceLabel": "panda"},
-                     "sourceURL": "https://aipanda059.cern.ch:25443",
-                     "site": None,
-                     "vo": "atlas",
-                     "respectSplitRule": True,
-                     "osInfo": "Linux-3.10.0-1160.25.1.el7.x86_64-x86_64-with-centos-7.9.2009-Core",
-                     "transUses": "", "excludedSite": [],
-                     "nMaxFilesPerJob": 200, "uniqueTaskName": True,
-                     "transHome": None,
-                     "includedSite": None,
-                     "jobParameters": [{"type": "constant", "value": "-j \"\" --sourceURL ${SURL}"},
-                                       {"type": "constant", "value": "-r ."},
-                                       {"padding": False, "type": "constant", "value": "-p \""},
-                                       {"padding": False, "type": "constant",
-                                       "value": "__dummy_exec_str__"},
-                                       {"type": "constant", "value": "\""},
-                                       {"type": "constant", "value": "-l ${LIB}"}],
-                     "prodSourceLabel": "user",
-                     "processingType": "panda-client-1.4.79-jedi-run",
-                     }
-    from workflow_utils import dump_nodes
-    dump_nodes(nodes, task_template=task_template)
-
