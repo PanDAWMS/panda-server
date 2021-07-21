@@ -27,6 +27,7 @@ class Node (object):
         self.is_tail = False
         self.inputs = {}
         self.outputs = {}
+        self.output_types = []
         self.scatter = None
         self.parents = set()
         self.name = name
@@ -63,6 +64,15 @@ class Node (object):
                 raise ReferenceError("{} is not resolved".format(k))
         return data
 
+    # convert outputs to set
+    def convert_set_outputs(self):
+        data = set()
+        for k, v in six.iteritems(self.outputs):
+            if 'value' in v:
+                data.add(v['value'])
+        return data
+
+    # string representation
     def __str__(self):
         outstr = "ID:{} Name:{} Type:{}\n".format(self.id, self.name, self.type)
         outstr += "  Parent:{}\n".format(','.join([str(p) for p in self.parents]))
@@ -117,9 +127,30 @@ class Node (object):
             in_ds_str = None
             if 'opt_inDS' in dict_inputs and dict_inputs['opt_inDS']:
                 if isinstance(dict_inputs['opt_inDS'], list):
-                    in_ds_str = ','.join(dict_inputs['opt_inDS'])
+                    is_list_in_ds = True
                 else:
-                    in_ds_str = dict_inputs['opt_inDS']
+                    is_list_in_ds = False
+                if 'opt_inDsType' not in dict_inputs or not dict_inputs['opt_inDsType']:
+                    if is_list_in_ds:
+                        in_ds_suffix = []
+                    else:
+                        in_ds_suffix = None
+                    for tmp_in_ds in dict_inputs['opt_inDS']:
+                        for parent_id in self.parents:
+                            parent_node = id_map[parent_id]
+                            if tmp_in_ds in parent_node.convert_set_outputs():
+                                if is_list_in_ds:
+                                    in_ds_suffix.append(parent_node.output_types[0])
+                                else:
+                                    in_ds_suffix = parent_node.output_types[0]
+                                break
+                else:
+                    in_ds_suffix = dict_inputs['opt_inDsType']
+                if is_list_in_ds:
+                    in_ds_str = ','.join(['{}.{}'.format(s1, s2) for s1, s2 in zip(dict_inputs['opt_inDS'],
+                                                                                   in_ds_suffix)])
+                else:
+                    in_ds_str = '{}.{}'.format(dict_inputs['opt_inDS'], in_ds_suffix)
                 com += ['--inDS', in_ds_str]
             else:
                 # no input
@@ -198,6 +229,7 @@ class Node (object):
                                  'param_type': 'output', 'hidden': True, 'type': 'template'},
                     task_params['jobParameters'].append(dict_item)
                     outMap[tmpLFN] = lfn
+                    self.output_types.append(tmpLFN)
                 if outMap:
                     dict_item = {'type':'constant',
                                  'value': '-o "{0}"'.format(str(outMap)),
@@ -222,7 +254,7 @@ class Node (object):
 # dump nodes
 def dump_nodes(node_list, dump_str=None, only_leaves=True):
     if dump_str is None:
-        dump_str = ''
+        dump_str = '\n'
     for node in node_list:
         if node.is_leaf:
             dump_str += "{}\n".format(node)
