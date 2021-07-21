@@ -2,6 +2,7 @@ import copy
 import six
 import re
 import shlex
+import json
 from urllib.parse import quote
 
 
@@ -259,10 +260,7 @@ def dump_nodes(node_list, dump_str=None, only_leaves=True):
         if node.is_leaf:
             dump_str += "{}\n".format(node)
             if node.task_params:
-                ks = list(node.task_params.keys())
-                ks.sort()
-                for k in ks:
-                    dump_str += '{} : {}\n'.format(k, node.task_params[k])
+                dump_str += json.dumps(node.task_params, indent=4, sort_keys=True)
                 dump_str += '\n'
         else:
             if not only_leaves:
