@@ -9,7 +9,7 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=lo
 with open(sys.argv[2]) as f:
     data = yaml.safe_load(f)
 nodes, root_in = parse_workflow_file(sys.argv[1], logging)
-s_id, t_nodes, nodes = resolve_nodes(nodes, root_in, data, 0, set(), 'hogehoge', logging)
+s_id, t_nodes, nodes = resolve_nodes(nodes, root_in, data, 0, set(), sys.argv[3], logging)
 id_map = get_node_id_map(nodes)
 # task template
 task_template = {"buildSpec": {"jobParameters": "-i ${IN} -o ${OUT} --sourceURL ${SURL} -r . ",
