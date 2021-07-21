@@ -260,13 +260,13 @@ def dump_nodes(node_list, dump_str=None, only_leaves=True):
         dump_str = '\n'
     for node in node_list:
         if node.is_leaf:
-            dump_str += "{}\n".format(node)
+            dump_str += "{}".format(node)
             if node.task_params:
                 dump_str += json.dumps(node.task_params, indent=4, sort_keys=True)
-                dump_str += '\n'
+                dump_str += '\n\n'
         else:
             if not only_leaves:
-                dump_str += "{}\n".format(node)
+                dump_str += "{}".format(node)
             dump_str = dump_nodes(node.sub_nodes, dump_str, only_leaves)
     return dump_str
 
