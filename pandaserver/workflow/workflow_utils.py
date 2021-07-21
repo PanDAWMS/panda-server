@@ -134,9 +134,11 @@ class Node (object):
                 if 'opt_inDsType' not in dict_inputs or not dict_inputs['opt_inDsType']:
                     if is_list_in_ds:
                         in_ds_suffix = []
+                        in_ds_list = dict_inputs['opt_inDS']
                     else:
                         in_ds_suffix = None
-                    for tmp_in_ds in dict_inputs['opt_inDS']:
+                        in_ds_list = [dict_inputs['opt_inDS']]
+                    for tmp_in_ds in in_ds_list:
                         for parent_id in self.parents:
                             parent_node = id_map[parent_id]
                             if tmp_in_ds in parent_node.convert_set_outputs():
@@ -148,10 +150,10 @@ class Node (object):
                 else:
                     in_ds_suffix = dict_inputs['opt_inDsType']
                 if is_list_in_ds:
-                    in_ds_str = ','.join(['{}.{}'.format(s1, s2) for s1, s2 in zip(dict_inputs['opt_inDS'],
+                    in_ds_str = ','.join(['{}_{}/'.format(s1, s2) for s1, s2 in zip(dict_inputs['opt_inDS'],
                                                                                    in_ds_suffix)])
                 else:
-                    in_ds_str = '{}.{}'.format(dict_inputs['opt_inDS'], in_ds_suffix)
+                    in_ds_str = '{}_{}/'.format(dict_inputs['opt_inDS'], in_ds_suffix)
                 com += ['--inDS', in_ds_str]
             else:
                 # no input
@@ -230,7 +232,7 @@ class Node (object):
                                  'param_type': 'output', 'hidden': True, 'type': 'template'},
                     task_params['jobParameters'].append(dict_item)
                     outMap[tmpLFN] = lfn
-                    self.output_types.append(tmpLFN)
+                    self.output_types.append(tmpNewLFN)
                 if outMap:
                     dict_item = {'type':'constant',
                                  'value': '-o "{0}"'.format(str(outMap)),
