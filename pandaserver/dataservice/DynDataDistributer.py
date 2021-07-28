@@ -930,8 +930,7 @@ class DynDataDistributer:
                     continue
                 # duplicated
                 if len(tmpDsNames) != 1:
-                    self.putLog('there are multiple datasets %s for GUID:%s' % (str(tmpDsNames),guid),'error')
-                    return resForFatal
+                    self.putLog('use the first dataset in %s for GUID:%s' % (str(tmpDsNames), guid))
                 # append
                 retMap[guid] = tmpDsNames[0]
         except Exception:
