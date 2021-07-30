@@ -7,6 +7,8 @@ import shelve
 import datetime
 import traceback
 import requests
+import six
+import math
 
 from urllib3.exceptions import InsecureRequestWarning
 
@@ -15,8 +17,6 @@ from pandaserver.taskbuffer import EventServiceUtils
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.jobdispatcher.Watcher import Watcher
 from pandaserver.brokerage.SiteMapper import SiteMapper
-# from pandaserver.dataservice.MailUtils import MailUtils
-from pandaserver.srvcore.CoreUtils import commands_get_status_output
 from pandaserver.config import panda_config
 
 
@@ -650,25 +650,101 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         _logger.debug("killJobs for Active (%s)" % str(jobs))
         Client.killJobs(jobs,2)
 
+    # fast rebrokerage at PQs where Nq/Nr overshoots
+    _logger.debug("fast rebrokerage at PQs where Nq/Nr overshoots")
+    try:
+        ratioLimit = taskBuffer.getConfigValue('rebroker', 'FAST_REBRO_NQNR_RATIO')
+        fractionLimit = taskBuffer.getConfigValue('rebroker', 'FAST_REBRO_NQUEUE_FRAC')
+        if not ratioLimit:
+            ratioLimit = 3
+        if not fractionLimit:
+            fractionLimit = 0.3
 
-    # kill long-waiting ddm jobs for dispatch
-    _logger.debug("kill PandaMovers")
-    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
-    sql = "SELECT PandaID from ATLAS_PANDA.jobsActive4 WHERE prodSourceLabel=:prodSourceLabel AND transferType=:transferType AND creationTime<:creationTime"
-    varMap = {}
-    varMap[':creationTime']    = timeLimit
-    varMap[':prodSourceLabel'] = 'ddm'
-    varMap[':transferType']    = 'dis'
-    _logger.debug(sql+str(varMap))
-    status,res = taskBuffer.querySQLS(sql,varMap)
-    _logger.debug(res)
-    jobs=[]
-    if res is not None:
-        for (id,) in res:
-            jobs.append(id)
-    if len(jobs):
-        _logger.debug("kill DDM Jobs (%s)" % str(jobs))
-        Client.killJobs(jobs,2)
+        # get overloaded PQs
+        sql = "SELECT COMPUTINGSITE,JOBSTATUS,GSHARE,SUM(NJOBS) FROM ATLAS_PANDA.{} " \
+              "WHERE workqueue_id NOT IN " \
+              "(SELECT queue_id FROM ATLAS_PANDA.jedi_work_queue WHERE queue_function = 'Resource') " \
+              "AND computingsite NOT IN " \
+              "(SELECT pandaqueuename FROM ATLAS_PANDA.HARVESTER_Slots) GROUP BY COMPUTINGSITE,JOBSTATUS,GSHARE "
+
+        statsPerShare = {}
+        statsPerPQ = {}
+        for table in ['JOBS_SHARE_STATS', 'JOBSDEFINED_SHARE_STATS']:
+            status, res = taskBuffer.querySQLS(sql.format(table), {})
+            for computingSite, jobStatus, gshare, nJobs in res:
+                statsPerShare.setdefault(gshare, {'nq': 0, 'nr': 0})
+                statsPerPQ.setdefault(computingSite, {})
+                statsPerPQ[computingSite].setdefault(gshare, {'nq': 0, 'nr': 0})
+                if jobStatus in ['definied', 'assigned', 'activated', 'starting']:
+                    statsPerPQ[computingSite][gshare]['nq'] += nJobs
+                    statsPerShare[gshare]['nq'] += nJobs
+                elif jobStatus == 'running':
+                    statsPerPQ[computingSite][gshare]['nr'] += nJobs
+                    statsPerShare[gshare]['nr'] += nJobs
+
+        # check
+        sql = "SELECT * FROM ("\
+              "SELECT * FROM ("\
+              "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 "\
+              "WHERE computingSite=:computingSite "\
+              "AND gshare=:gshare AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4) "\
+              "UNION "\
+              "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "\
+              "WHERE computingSite=:computingSite "\
+              "AND gshare=:gshare AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4) "\
+              ") ORDER BY PandaID "\
+              ") WHERE rownum<:nRows "
+        nQueueLimitMap = {}
+        for computingSite, shareStat in six.iteritems(statsPerPQ):
+            for gshare, nStat in six.iteritems(shareStat):
+                # get limit
+                if gshare not in nQueueLimitMap:
+                    key = 'FAST_REBRO_THRESHOLD_NQUEUE_{}'.format(gshare)
+                    nQueueLimitMap[gshare] = taskBuffer.getConfigValue('rebroker', key)
+                nQueueLimit = nQueueLimitMap[gshare]
+                if not nQueueLimit:
+                    dry_run = True
+                    nQueueLimit = 10
+                else:
+                    dry_run = False
+                ratioCheck = nStat['nr'] * ratioLimit < nStat['nq']
+                statCheck = nStat['nq'] > nQueueLimit
+                fracCheck = nStat['nq'] > statsPerShare[gshare]['nq'] * fractionLimit
+                _logger.debug("{} in {} : nQueue({})>nRun({})*{}: {},"
+                              " nQueue>nQueueThreshold({}):{}, nQueue>nQueue_total({})*{}:{}".format(
+                              computingSite, gshare, nStat['nq'],
+                              nStat['nr'], ratioLimit, ratioCheck,
+                              nQueueLimit, statCheck,
+                              statsPerShare[gshare]['nq'],
+                              fractionLimit, fracCheck))
+                if ratioCheck and statCheck and fracCheck:
+                    _logger.debug('{} overloaded in {}'.format(computingSite, gshare))
+                    if not dry_run:
+                        # calculate excess
+                        excess = min(nStat['nq'] - nStat['nr'] * ratioLimit, nStat['nq'] - nQueueLimit)
+                        excess = min(excess, nStat['nq'] - statsPerShare[gshare]['nq'] * fractionLimit)
+                        excess = int(math.ceil(excess))
+                        varMap = {}
+                        varMap[':computingSite'] = computingSite
+                        varMap[':gshare'] = gshare
+                        varMap[':jobStatus1'] = 'defined'
+                        varMap[':jobStatus2'] = 'assigned'
+                        varMap[':jobStatus3'] = 'activated'
+                        varMap[':jobStatus4'] = 'starting'
+                        varMap[':nRows'] = excess
+                        status, res = taskBuffer.querySQLS(sql, varMap)
+                        jediJobs = [p for p, in res]
+                        _logger.debug('got {} jobs to kill excess={}'.format(len(jediJobs), excess))
+                        if jediJobs:
+                            nJob = 100
+                            iJob = 0
+                            while iJob < len(jediJobs):
+                                _logger.debug('reassignJobs for JEDI at Nq/Nr overshoot site {} ({})'.format(
+                                    computingSite, str(jediJobs[iJob:iJob + nJob])))
+                                Client.killJobs(jediJobs[iJob:iJob + nJob], 10, keepUnmerged=True)
+                                iJob += nJob
+    except Exception as e:
+        _logger.error('failed with {} {}'.format(str(e), traceback.format_exc()))
 
     # reassign activated jobs in inactive sites
     inactiveTimeLimitSite = 2

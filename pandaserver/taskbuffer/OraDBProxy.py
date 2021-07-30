@@ -4191,6 +4191,7 @@ class DBProxy:
         # 7  : retry by server
         # 8  : rebrokerage
         # 9  : force kill
+        # 10 : fast rebrokerage in overloaded PQ
         # 50 : kill by JEDI
         # 51 : reassigned by JEDI
         # 52 : force kill by JEDI
@@ -4279,7 +4280,8 @@ class DBProxy:
                             validGroupProdRole = True
                             break
                 if prodManager:
-                    if res[1] in ['user','panda'] and (code not in ['2','4','7','8','9','50','51','52','91']):
+                    if res[1] in ['user','panda'] and (code not in ['2','4','7','8','9','50','51','52','91'
+                                                                    '10']):
                         tmpLog.debug("ignored -> prod proxy tried to kill analysis job type=%s" % res[1])
                         break
                     tmpLog.debug("using prod role")
@@ -4303,7 +4305,7 @@ class DBProxy:
                 varMap[':PandaID'] = pandaID
                 varMap[':commandToPilot'] = 'tobekilled'
                 varMap[':taskBufferErrorDiag'] = 'killed by %s' % user
-                if code in ['2','9','52','51','60']:
+                if code in ['2', '9', '10', '52', '51', '60']:
                     # ignore commandToPilot for force kill
                     self.cur.execute((sql1F+comment) % table, varMap)
                 elif useEventService or jobStatusInDB in ['merging']:
@@ -4396,6 +4398,10 @@ class DBProxy:
                         job.jobStatus = 'closed'
                         job.taskBufferErrorCode = ErrorCode.EC_Kill
                         job.taskBufferErrorDiag = 'closed by the pilot'
+                    elif code == '10':
+                        job.jobStatus = 'closed'
+                        job.taskBufferErrorCode = ErrorCode.EC_FastRebrokerage
+                        job.taskBufferErrorDiag = 'fast rebrokerage at {} due to Nq/Nr overshoot'
                     else:
                         # killed
                         job.taskBufferErrorCode = ErrorCode.EC_Kill

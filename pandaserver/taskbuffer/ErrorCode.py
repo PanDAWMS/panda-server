@@ -75,11 +75,15 @@ EC_EventServiceNoEsQueues = 125
 # Closed in bad job status
 EC_EventServiceBadStatus = 126
 
+# Fast rebrokerage for overloaded
+EC_FastRebrokerage = 130
+
 # failed to lock semaphore for job cloning
 EC_JobCloningUnlock = 200
 
 # worker is done before job is done
 EC_WorkerDone = 300
+
 
 
 
