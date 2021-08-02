@@ -4280,7 +4280,7 @@ class DBProxy:
                             validGroupProdRole = True
                             break
                 if prodManager:
-                    if res[1] in ['user','panda'] and (code not in ['2','4','7','8','9','50','51','52','91'
+                    if res[1] in ['user','panda'] and (code not in ['2','4','7','8','9','50','51','52','91',
                                                                     '10']):
                         tmpLog.debug("ignored -> prod proxy tried to kill analysis job type=%s" % res[1])
                         break

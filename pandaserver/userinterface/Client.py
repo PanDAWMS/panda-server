@@ -521,6 +521,7 @@ def killJobs(ids,code=None,verbose=False,srvID=None,useMailAsID=False,keepUnmerg
                  7: retry by server
                  8: rebrokerage
                  9: force kill
+                 10: fast rebrokerage on overloaded PQs
                  50: kill by JEDI
                  91: kill user jobs with prod role
            verbose: set True to see what's going on
