@@ -76,7 +76,8 @@ def main(tbuf=None, **kwargs):
                 with open(self.fileName) as f:
                     ops = json.load(f)
                     user_name = self.taskBuffer.cleanUserID(ops["userName"])
-                    ops['data']['taskParams']['userName'] = user_name
+                    for task_type in ops['data']['taskParams']:
+                        ops['data']['taskParams'][task_type]['userName'] = user_name
                     tmpLog = LogWrapper(_logger, '< id="{}" outDS={} >'.format(user_name, ops['data']['outDS']))
                     tmpLog.info('start {}'.format(self.fileName))
                     sandbox_url = os.path.join(ops['data']['sourceURL'], 'cache', ops['data']['sandbox'])

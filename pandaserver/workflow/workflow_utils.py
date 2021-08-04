@@ -114,7 +114,17 @@ class Node (object):
     def make_task_params(self, task_template, id_map):
         if self.type == 'prun':
             dict_inputs = self.convert_dict_inputs()
-            task_params = copy.deepcopy(task_template)
+            # check type
+            use_athena = False
+            if 'opt_useAthenaPackages' in dict_inputs and dict_inputs['opt_useAthenaPackages']:
+                use_athena = True
+            container_image = None
+            if 'opt_containerImage' in dict_inputs and dict_inputs['opt_containerImage']:
+                container_image = dict_inputs['opt_containerImage']
+            if use_athena:
+                task_params = copy.deepcopy(task_template['athena'])
+            else:
+                task_params = copy.deepcopy(task_template['container'])
             # task name
             for k, v in six.iteritems(self.outputs):
                 task_name = v['value']
@@ -166,9 +176,9 @@ class Node (object):
                 task_params['nEvents'] = n_jobs
                 task_params['nEventsPerJob'] = 1
             com += ['--outDS', task_name]
-            container_image = None
-            if 'opt_containerImage' in dict_inputs and dict_inputs['opt_containerImage']:
-                container_image = dict_inputs['opt_containerImage']
+            if use_athena:
+                com += ['--useAthenaPackages']
+            if container_image:
                 com += ['--containerImage', container_image]
             task_params['cliParams'] = ' '.join(shlex.quote(x) for x in com)
             # exec
@@ -243,8 +253,10 @@ class Node (object):
                 task_params['container_name'] = container_image
                 task_params['multiStepExec']['containerOptions']['containerImage'] = container_image
             else:
-                del task_params['container_name']
-                del task_params['multiStepExec']
+                if 'container_name' in task_params:
+                    del task_params['container_name']
+                if 'multiStepExec' in task_params:
+                    del task_params['multiStepExec']
             # parent
             if self.parents and len(self.parents) == 1:
                 task_params['noWaitParent'] = True

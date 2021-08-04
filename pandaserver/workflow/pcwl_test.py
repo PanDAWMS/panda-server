@@ -1,6 +1,7 @@
 from ruamel import yaml
 import logging
 import sys
+import copy
 
 from pandaserver.workflow.workflow_utils import get_node_id_map, dump_nodes
 from pandaserver.workflow.pcwl_utils import parse_workflow_file, resolve_nodes
@@ -12,7 +13,7 @@ nodes, root_in = parse_workflow_file(sys.argv[1], logging)
 s_id, t_nodes, nodes = resolve_nodes(nodes, root_in, data, 0, set(), sys.argv[3], logging)
 id_map = get_node_id_map(nodes)
 # task template
-task_template = {"buildSpec": {"jobParameters": "-i ${IN} -o ${OUT} --sourceURL ${SURL} -r . ",
+template = {"buildSpec": {"jobParameters": "-i ${IN} -o ${OUT} --sourceURL ${SURL} -r . ",
                                "archiveName": "sources.bfb28dae-cc83-4945-b110-486f0b9b9657.tar.gz",
                                "prodSourceLabel": "panda"},
                  "sourceURL": "https://aipanda059.cern.ch:25443",
@@ -43,6 +44,9 @@ task_template = {"buildSpec": {"jobParameters": "-i ${IN} -o ${OUT} --sourceURL 
                                                                          "/bin/sh __run_main_exec.sh"},
                                    "postprocess": {"args": "--postprocess ${TRF_ARGS}", "command": "${TRF}"}},
                  }
+
+task_template = {'athena': copy.deepcopy(template), 'container': copy.deepcopy(template)}
+
 [node.resolve_params(task_template, id_map) for node in nodes]
 print(dump_nodes(nodes))
 
