@@ -195,7 +195,7 @@ class Node (object):
                 # input dataset
                 dict_item = {'value': '-i "${IN/T}"', 'dataset': in_ds_str,
                              'param_type': 'input', 'exclude': '\\.log\\.tgz(\\.\\d+)*$',
-                             'type': 'template', 'expand': True},
+                             'type': 'template', 'expand': True}
                 task_params['jobParameters'].append(dict_item)
                 # secondary datasets
                 if 'opt_secondaryDSs' in dict_inputs:
@@ -239,7 +239,7 @@ class Node (object):
                     dict_item = {'container': dataset,
                                  'value': lfn,
                                  'dataset': dataset,
-                                 'param_type': 'output', 'hidden': True, 'type': 'template'},
+                                 'param_type': 'output', 'hidden': True, 'type': 'template'}
                     task_params['jobParameters'].append(dict_item)
                     outMap[tmpLFN] = lfn
                     self.output_types.append(tmpNewLFN)
