@@ -2801,6 +2801,43 @@ class DBProxy:
                 _logger.error("updateJob : %s %s" % (type,value))
                 return False
 
+    # update the worker status as seen by the pilot
+    def updateWorkerPilotStatus(self, workerID, harvesterID, status):
+        comment = ' /* DBProxy.updateWorkerPilotStatus */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_logger = LogWrapper(_logger, method_name + '< harvesterID={0} workerID={1} >'.format(harvesterID, workerID))
+        
+        timestamp_utc = datetime.datetime.utcnow()
+        var_map = {':status': status, ':harvesterID': harvesterID, ':workerID': workerID}
+        sql = "UPDATE ATLAS_PANDA.harvester_workers SET pilotStatus=:status "
+
+        tmp_logger.debug('Updating to status={0} at {1}'.format(status, timestamp_utc))
+
+        # add the start or end time
+        if status == 'started':
+            sql += "AND pilotStartTime=:now "
+            var_map[':now'] = timestamp_utc
+        elif status == 'finished':
+            sql += "AND pilotEndTime=:now "
+            var_map[':now'] = timestamp_utc
+        
+        sql += "WHERE workerID=:workerID AND harvesterID=:harvesterID "
+
+        try:
+            self.conn.begin()
+            self.cur.execute(sql+comment, var_map)
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            tmp_logger.debug('Updated successfully')
+            return True
+
+        except Exception:
+            # roll back
+            self._rollback(True)
+            err_type, err_value = sys.exc_info()[:2]
+            tmp_logger.error("updateWorkerPilotStatus : %s %s" % (err_type, err_value))
+            return False
+
 
     # retry analysis job
     def retryJob(self,pandaID,param,failedInActive=False,changeJobInMem=False,inMemJob=None,
@@ -24363,4 +24400,44 @@ class DBProxy:
             self._rollback()
             # error
             self.dumpErrorMessage(_logger, methodName)
+            return None
+
+
+    # get workers with stale harvester states and newer pilot state
+    def get_workers_to_synchronize(self):
+        comment = ' /* DBProxy.get_workers_to_synchronize */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        try:
+            tmp_log.debug('Starting')
+            # Select workers where the status is more advanced according to the pilot than to harvester
+            sql = """
+            SELECT harvesterID, workerID, pilotStatus FROM ATLAS_PANDA.harvester_workers
+            WHERE (status in ('submitted', 'ready') AND pilotStatus='running')
+            OR (status in ('submitted', 'ready', 'running') AND pilotStatus='finished')
+            AND lastupdate > sysdate - interval '14' day
+            AND submittime > sysdate - interval '14' day
+            """
+
+            # run query to select workers
+            self.conn.begin()
+            self.cur.arraysize = 10000
+            self.cur.execute(sql + comment, varMap)
+            db_workers = self.cur.fetchall()           
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            
+            # prepare workers and separate by harvester instance
+            workers_to_sync = {}
+            for harvester_id, worker_id, pilot_status in db_workers:
+                workers_to_sync.setdefault(harvester_id, [])
+                workers_to_sync[harvester_id].append({'worker_id': worker_id, 'status': pilot_status})
+
+            return workers_to_sync
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmp_log, method_name)
             return None
