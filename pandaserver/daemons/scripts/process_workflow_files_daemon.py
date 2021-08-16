@@ -16,6 +16,11 @@ from pandaserver.workflow import pcwl_utils
 from pandaserver.workflow import workflow_utils
 from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
+from idds.client.clientmanager import ClientManager
+from idds.common.utils import get_rest_host
+from idds.workflow.workflow import Workflow, Condition
+from idds.atlas.workflow.atlaspandawork import ATLASPandaWork
+
 # logger
 _logger = PandaLogger().getLogger('process_workflow_files')
 
@@ -73,6 +78,7 @@ def main(tbuf=None, **kwargs):
             try:
                 is_fatal = False
                 is_OK = True
+                request_id = None
                 with open(self.fileName) as f:
                     ops = json.load(f)
                     user_name = self.taskBuffer.cleanUserID(ops["userName"])
@@ -113,16 +119,46 @@ def main(tbuf=None, **kwargs):
                             if is_OK:
                                 tmpLog.info('parse workflow')
                                 nodes, root_in = pcwl_utils.parse_workflow_file(ops['data']['workflowSpecFile'], tmpLog)
-                                with open(ops['data']['workflowInputFile']) as workflow_in:
-                                    data = yaml.safe_load(workflow_in)
+                                with open(ops['data']['workflowInputFile']) as workflow_input:
+                                    data = yaml.safe_load(workflow_input)
                                 s_id, t_nodes, nodes = pcwl_utils.resolve_nodes(nodes, root_in, data, 0, set(),
                                                                                 ops['data']['outDS'], tmpLog)
                                 id_map = workflow_utils.get_node_id_map(nodes)
                                 [node.resolve_params(ops['data']['taskParams'], id_map) for node in nodes]
                                 dump_str = workflow_utils.dump_nodes(nodes)
                                 tmpLog.info(dump_str)
+                                workflow_to_submit = None
+                                id_work_map = {}
+                                for node in nodes:
+                                    if node.is_leaf:
+                                        if not workflow_to_submit:
+                                            workflow_to_submit = Workflow()
+                                        work = ATLASPandaWork(task_parameters=node.task_params)
+                                        workflow_to_submit.add_work(work)
+                                        id_work_map[node.id] = work
+                                # add conditions
+                                if workflow_to_submit:
+                                    for node in nodes:
+                                        if node.is_leaf:
+                                            if len(node.parents) > 1:
+                                                c_work = id_work_map[node.id]
+                                                for p_id in node.parents:
+                                                    p_work = id_work_map[p_id]
+                                                    cond = Condition(cond=p_work.is_finished, current_work=p_work,
+                                                                     true_work=c_work)
+                                                    workflow_to_submit.add_condition(cond)
+                                try:
+                                    if workflow_to_submit:
+                                        tmpLog.info('submit workflow')
+                                        wm = ClientManager(host=get_rest_host())
+                                        request_id = wm.submit(workflow_to_submit)
+                                    else:
+                                        tmpLog.info('workflow is empty')
+                                except Exception as e:
+                                    tmpLog.error('failed to submit the workflow with {} {]'.format(
+                                        str(e), traceback.format_exc()))
                     os.chdir(cur_dir)
-                    tmpLog.info('is_OK={} is_fatal={}'.format(is_OK, is_fatal))
+                    tmpLog.info('is_OK={} is_fatal={} request_id={}'.format(is_OK, is_fatal,request_id))
                     if is_OK or is_fatal or self.to_delete:
                         tmpLog.debug('delete {}'.format(self.fileName))
                         try:

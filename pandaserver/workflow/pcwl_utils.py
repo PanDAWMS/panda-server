@@ -101,6 +101,10 @@ def parse_workflow_file(workflow_file, log_stream):
         output_map.update({name: serial_id for name in node.outputs})
         if step.scatter:
             node.scatter = [extract_id(s) for s in step.scatter]
+        if hasattr(step, 'when'):
+            # parse condition
+
+            node.when = step.when
         # expand sub-workflow
         if not node.is_leaf:
             p = urlparse(step.run)
