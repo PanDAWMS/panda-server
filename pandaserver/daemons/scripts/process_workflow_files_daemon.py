@@ -16,11 +16,6 @@ from pandaserver.workflow import pcwl_utils
 from pandaserver.workflow import workflow_utils
 from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
-from idds.client.clientmanager import ClientManager
-from idds.common.utils import get_rest_host
-from idds.workflow.workflow import Workflow, Condition
-from idds.atlas.workflow.atlaspandawork import ATLASPandaWork
-
 # logger
 _logger = PandaLogger().getLogger('process_workflow_files')
 
@@ -76,6 +71,11 @@ def main(tbuf=None, **kwargs):
         def run(self):
             self.lock.acquire()
             try:
+                # import idds modules locally not to change message levels of other modules
+                from idds.client.clientmanager import ClientManager
+                from idds.common.utils import get_rest_host
+                from idds.workflow.workflow import Workflow, Condition
+                from idds.atlas.workflow.atlaspandawork import ATLASPandaWork
                 is_fatal = False
                 is_OK = True
                 request_id = None
