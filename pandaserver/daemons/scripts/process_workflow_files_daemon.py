@@ -15,8 +15,6 @@ from pandaserver.config import panda_config
 from pandaserver.workflow import pcwl_utils
 from pandaserver.workflow import workflow_utils
 from pandaserver.srvcore.CoreUtils import commands_get_status_output
-# import rucio before idds not to change message levels of other modules
-from pandaserver.dataservice.DDM import rucioAPI
 
 # logger
 _logger = PandaLogger().getLogger('process_workflow_files')
