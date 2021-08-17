@@ -653,8 +653,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # fast rebrokerage at PQs where Nq/Nr overshoots
     _logger.debug("fast rebrokerage at PQs where Nq/Nr overshoots")
     try:
-        ratioLimit = taskBuffer.getConfigValue('rebroker', 'FAST_REBRO_NQNR_RATIO')
-        fractionLimit = taskBuffer.getConfigValue('rebroker', 'FAST_REBRO_NQUEUE_FRAC')
+        ratioLimit = taskBuffer.getConfigValue('rebroker', 'FAST_REBRO_THRESHOLD_NQNR_RATIO')
+        fractionLimit = taskBuffer.getConfigValue('rebroker', 'FAST_REBRO_THRESHOLD_NQUEUE_FRAC')
         if not ratioLimit:
             ratioLimit = 3
         if not fractionLimit:

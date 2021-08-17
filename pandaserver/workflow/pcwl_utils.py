@@ -5,9 +5,8 @@ import os.path
 from pathlib import Path
 from ruamel import yaml
 from urllib.parse import urlparse
-import sys
 
-from .workflow_utils import Node
+from .workflow_utils import Node, ConditionItem
 
 
 # extract id
@@ -101,10 +100,9 @@ def parse_workflow_file(workflow_file, log_stream):
         output_map.update({name: serial_id for name in node.outputs})
         if step.scatter:
             node.scatter = [extract_id(s) for s in step.scatter]
-        if hasattr(step, 'when'):
+        if hasattr(step, 'when') and step.when:
             # parse condition
-
-            node.when = step.when
+            node.condition = parse_condition_string(step.when)
         # expand sub-workflow
         if not node.is_leaf:
             p = urlparse(step.run)
@@ -136,6 +134,11 @@ def parse_workflow_file(workflow_file, log_stream):
                 if is_str:
                     parent_ids = parent_ids[0]
                 tmp_data['parent_id'] = parent_ids
+
+        # convert parameters to parent IDs in conditions
+        if node.condition:
+            convert_params_to_parent_ids(node.condition, node.inputs)
+            pass
 
     # sort
     node_list = top_sort(node_list, set())
@@ -251,3 +254,82 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, outDsName
             else:
                 tail_nodes += resolved_map[node.id]
     return serial_id, tail_nodes, all_nodes
+
+
+# parse condition string
+def parse_condition_string(cond_string):
+    # remove $()
+    cond_string = re.sub(r'\$\((?P<aaa>.+)\)', r'\g<aaa>', cond_string)
+    cond_map = {}
+    id = 0
+    while True:
+        # look for the most inner parentheses
+        item_list = re.findall(r'\(([^\(\)]+)\)', cond_string)
+        if not item_list:
+            return convert_plain_condition_string(cond_string, cond_map)
+        else:
+            for item in item_list:
+                cond = convert_plain_condition_string(item, cond_map)
+                key = '___{}___'.format(id)
+                id += 1
+                cond_map[key] = cond
+                cond_string = cond_string.replace('('+item+')', key)
+
+
+# extract parameter from token
+def extract_parameter(token):
+    m = re.search(r'self\.([^!=]+)', token)
+    return m.group(1)
+
+
+# convert plain condition string
+def convert_plain_condition_string(cond_string, cond_map):
+    cond_string = re.sub(r' *== *', r'==', cond_string)
+    cond_string = re.sub(r' *!= *', r'!=', cond_string)
+    cond_string = re.sub(r'\|\|', r' || ', cond_string)
+    cond_string = re.sub(r'&&', r' && ', cond_string)
+
+    tokens = cond_string.split()
+    left = None
+    operator = None
+    for token in tokens:
+        if token == '||':
+            operator = 'or'
+            continue
+        elif token == '&&':
+            operator = 'and'
+            continue
+        elif '==' in token:
+            param = extract_parameter(token)
+            right = ConditionItem(param)
+            if not left:
+                left = right
+                continue
+        elif '!=' in token:
+            param = extract_parameter(token)
+            right = ConditionItem(param, operator='not')
+            if not left:
+                left = right
+                continue
+        elif re.search(r'___\d+___', token) and token in cond_map:
+            right = cond_map[token]
+            if not left:
+                left = right
+                continue
+        else:
+            raise TypeError('unknown token "{}"'.format(token))
+
+        left = ConditionItem(left, right, operator)
+    return left
+
+
+# convert parameter names to parent IDs
+def convert_params_to_parent_ids(condition_item, input_data):
+    for item in ['left', 'right']:
+        param = getattr(condition_item, item)
+        if isinstance(param, str):
+            for tmp_name, tmp_data in six.iteritems(input_data):
+                if param == tmp_name.split('/')[-1]:
+                    setattr(condition_item, item, str(tmp_data['parent_id']))
+        elif isinstance(param, ConditionItem):
+            convert_params_to_parent_ids(param, input_data)

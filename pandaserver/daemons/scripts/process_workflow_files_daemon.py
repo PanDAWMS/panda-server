@@ -118,45 +118,56 @@ def main(tbuf=None, **kwargs):
                             # parse workflow files
                             if is_OK:
                                 tmpLog.info('parse workflow')
-                                nodes, root_in = pcwl_utils.parse_workflow_file(ops['data']['workflowSpecFile'], tmpLog)
-                                with open(ops['data']['workflowInputFile']) as workflow_input:
-                                    data = yaml.safe_load(workflow_input)
-                                s_id, t_nodes, nodes = pcwl_utils.resolve_nodes(nodes, root_in, data, 0, set(),
-                                                                                ops['data']['outDS'], tmpLog)
-                                id_map = workflow_utils.get_node_id_map(nodes)
-                                [node.resolve_params(ops['data']['taskParams'], id_map) for node in nodes]
-                                dump_str = workflow_utils.dump_nodes(nodes)
-                                tmpLog.info(dump_str)
                                 workflow_to_submit = None
-                                id_work_map = {}
-                                for node in nodes:
-                                    if node.is_leaf:
-                                        if not workflow_to_submit:
-                                            workflow_to_submit = Workflow()
-                                        work = ATLASPandaWork(task_parameters=node.task_params)
-                                        workflow_to_submit.add_work(work)
-                                        id_work_map[node.id] = work
-                                # add conditions
-                                if workflow_to_submit:
+                                if ops['data']['language'] == 'cwl':
+                                    nodes, root_in = pcwl_utils.parse_workflow_file(ops['data']['workflowSpecFile'],
+                                                                                    tmpLog)
+                                    with open(ops['data']['workflowInputFile']) as workflow_input:
+                                        data = yaml.safe_load(workflow_input)
+                                    s_id, t_nodes, nodes = pcwl_utils.resolve_nodes(nodes, root_in, data, 0, set(),
+                                                                                    ops['data']['outDS'], tmpLog)
+                                    id_map = workflow_utils.get_node_id_map(nodes)
+                                    [node.resolve_params(ops['data']['taskParams'], id_map) for node in nodes]
+                                    dump_str = workflow_utils.dump_nodes(nodes)
+                                    tmpLog.info(dump_str)
+                                    id_work_map = {}
                                     for node in nodes:
                                         if node.is_leaf:
-                                            if len(node.parents) > 1:
-                                                c_work = id_work_map[node.id]
-                                                for p_id in node.parents:
-                                                    p_work = id_work_map[p_id]
-                                                    cond = Condition(cond=p_work.is_finished, current_work=p_work,
-                                                                     true_work=c_work)
-                                                    workflow_to_submit.add_condition(cond)
-                                try:
-                                    if workflow_to_submit:
-                                        tmpLog.info('submit workflow')
-                                        wm = ClientManager(host=get_rest_host())
-                                        request_id = wm.submit(workflow_to_submit)
-                                    else:
-                                        tmpLog.info('workflow is empty')
-                                except Exception as e:
-                                    tmpLog.error('failed to submit the workflow with {} {]'.format(
-                                        str(e), traceback.format_exc()))
+                                            if not workflow_to_submit:
+                                                workflow_to_submit = Workflow()
+                                            work = ATLASPandaWork(task_parameters=node.task_params)
+                                            workflow_to_submit.add_work(work)
+                                            id_work_map[node.id] = work
+                                else:
+                                    tmpLog.error("{} is not supported to describe the workflow")
+                                    is_fatal = True
+                                    is_OK = False
+                                # add conditions
+                                if is_OK and workflow_to_submit:
+                                    for node in nodes:
+                                        if node.is_leaf:
+                                            if not node.condition:
+                                                if node.parents:
+                                                    c_work = id_work_map[node.id]
+                                                    for p_id in node.parents:
+                                                        p_work = id_work_map[p_id]
+                                                        if len(node.parents) == 1:
+                                                            cond_function = p_work.is_started
+                                                        else:
+                                                            cond_function = p_work.is_finished
+                                                        cond = Condition(cond=cond_function, current_work=p_work,
+                                                                         true_work=c_work)
+                                                        workflow_to_submit.add_condition(cond)
+                                    try:
+                                        if workflow_to_submit:
+                                            tmpLog.info('submit workflow')
+                                            wm = ClientManager(host=get_rest_host())
+                                            request_id = wm.submit(workflow_to_submit)
+                                        else:
+                                            tmpLog.info('workflow is empty')
+                                    except Exception as e:
+                                        tmpLog.error('failed to submit the workflow with {} {]'.format(
+                                            str(e), traceback.format_exc()))
                     os.chdir(cur_dir)
                     tmpLog.info('is_OK={} is_fatal={} request_id={}'.format(is_OK, is_fatal,request_id))
                     if is_OK or is_fatal or self.to_delete:

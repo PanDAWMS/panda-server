@@ -35,7 +35,7 @@ class Node (object):
         self.sub_nodes = set()
         self.root_inputs = None
         self.task_params = None
-        self.condition = {}
+        self.condition = None
 
     def add_parent(self, id):
         self.parents.add(id)
@@ -310,6 +310,9 @@ class ConditionItem (object):
     def get_dict_form(self, serial_id=None, dict_form=None):
         if dict_form is None:
             dict_form = {}
+            is_entry = True
+        else:
+            is_entry = False
         if serial_id is None:
             serial_id = 0
         if isinstance(self.left, ConditionItem):
@@ -326,71 +329,7 @@ class ConditionItem (object):
             else:
                 right_id = str(self.right)
         dict_form[serial_id] = {'left': left_id, 'right': right_id, 'operator': self.operator}
-        return serial_id+1, dict_form
-
-
-# parse condition string
-def parse_condition_string(cond_string):
-    # remove $()
-    cond_string = re.sub(r'\$\((?P<aaa>.+)\)', r'\g<aaa>', cond_string)
-    cond_map = {}
-    id = 0
-    while True:
-        # look for the most inner parentheses
-        item_list = re.findall(r'\(([^\(\)]+)\)', cond_string)
-        if not item_list:
-            return convert_plain_condition_string(cond_string, cond_map)
+        if is_entry:
+            return dict_form
         else:
-            for item in item_list:
-                cond = convert_plain_condition_string(item, cond_map)
-                key = '___{}___'.format(id)
-                id += 1
-                cond_map[key] = cond
-                cond_string = cond_string.replace('('+item+')', key)
-
-
-# extract parameter from token
-def extract_parameter(token):
-    m = re.search(r'self\.([^!=]+)', token)
-    return m.group(1)
-
-
-# convert plain condition string
-def convert_plain_condition_string(cond_string, cond_map):
-    cond_string = re.sub(r' *== *', r'==', cond_string)
-    cond_string = re.sub(r' *!= *', r'!=', cond_string)
-    cond_string = re.sub(r'\|\|', r' || ', cond_string)
-    cond_string = re.sub(r'&&', r' && ', cond_string)
-
-    tokens = cond_string.split()
-    left = None
-    operator = None
-    for token in tokens:
-        if token == '||':
-            operator = 'or'
-            continue
-        elif token == '&&':
-            operator = 'and'
-            continue
-        elif '==' in token:
-            param = extract_parameter(token)
-            right = ConditionItem(param)
-            if not left:
-                left = right
-                continue
-        elif '!=' in token:
-            param = extract_parameter(token)
-            right = ConditionItem(param, operator='not')
-            if not left:
-                left = right
-                continue
-        elif re.search(r'___\d+___', token) and token in cond_map:
-            right = cond_map[token]
-            if not left:
-                left = right
-                continue
-        else:
-            raise TypeError('unknown token "{}"'.format(token))
-
-        left = ConditionItem(left, right, operator)
-    return left
+            return serial_id+1, dict_form
