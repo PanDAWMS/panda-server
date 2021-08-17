@@ -27,9 +27,14 @@ def main(tbuf=None, **kwargs):
     # overall timeout value
     overallTimeout = 300
     # prefix of the files
-    prefixEVP = '/workflow.'
-    # file pattern of evp files
-    evpFilePatt = panda_config.cache_dir + '/' + prefixEVP + '*'
+    if 'target' in kwargs and kwargs['target']:
+        evpFilePatt = os.path.join(panda_config.cache_dir, kwargs['target'])
+        test_mode = True
+    else:
+        prefixEVP = '/workflow.'
+        # file pattern of evp files
+        evpFilePatt = panda_config.cache_dir + '/' + prefixEVP + '*'
+        test_mode = False
 
     from pandaserver.taskbuffer.TaskBuffer import taskBuffer
     taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
@@ -143,7 +148,7 @@ def main(tbuf=None, **kwargs):
                                     is_fatal = True
                                     is_OK = False
                                 # add conditions
-                                if is_OK and workflow_to_submit:
+                                if is_OK and workflow_to_submit and not test_mode:
                                     for node in nodes:
                                         if node.is_leaf:
                                             if not node.condition:
@@ -170,7 +175,7 @@ def main(tbuf=None, **kwargs):
                                             str(e), traceback.format_exc()))
                     os.chdir(cur_dir)
                     tmpLog.info('is_OK={} is_fatal={} request_id={}'.format(is_OK, is_fatal,request_id))
-                    if is_OK or is_fatal or self.to_delete:
+                    if not test_mode and (is_OK or is_fatal or self.to_delete):
                         tmpLog.debug('delete {}'.format(self.fileName))
                         try:
                             os.remove(self.fileName)
@@ -236,4 +241,9 @@ def main(tbuf=None, **kwargs):
 
 # run
 if __name__ == '__main__':
-    main()
+    import sys
+    if len(sys.argv) > 1:
+        target = sys.argv[1]
+    else:
+        target = None
+    main(target=target)

@@ -170,21 +170,33 @@ class Node (object):
             com += ['--outDS', task_name]
             if container_image:
                 com += ['--containerImage', container_image]
+                parse_com = copy.copy(com[1:])
+            else:
+                # add dummy container to keep build step consistent
+                parse_com = copy.copy(com[1:])
+                parse_com += ['--containerImage', None]
             # parse args before setting --useAthenaPackages since it requires real Athena runtime
-            parsed_params = PrunScript.main(True, com[1:], dry_mode=True)
+            parsed_params = PrunScript.main(True, parse_com, dry_mode=True)
             if use_athena:
                 com += ['--useAthenaPackages']
             task_params['cliParams'] = ' '.join(shlex.quote(x) for x in com)
+            # extract sandbox
+            sandbox = None
+            for tmp_item in task_params['jobParameters']:
+                if tmp_item['type'] == 'constant' and tmp_item["value"].startswith('-a '):
+                    sandbox = tmp_item["value"]
             # set parsed parameters
             for p_key, p_value in six.iteritems(parsed_params):
+                if p_key in ['buildSpec']:
+                    continue
                 if p_key not in task_params or p_key in ['jobParameters']:
                     task_params[p_key] = p_value
-            if 'buildSpec' not in parsed_params and 'buildSpec' in task_params:
-                del task_params['buildSpec']
             # outputs
             for tmp_item in task_params['jobParameters']:
                 if tmp_item['type'] == 'template' and tmp_item["param_type"] == "output":
                     self.output_types.append(re.search(r'}\.(.+)$', tmp_item["value"]).group(1))
+                elif sandbox and tmp_item['type'] == 'constant' and tmp_item["value"].startswith('-a '):
+                    tmp_item["value"] = sandbox
             # container
             if not container_image:
                 if 'container_name' in task_params:
