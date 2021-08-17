@@ -3,7 +3,8 @@ import six
 import re
 import shlex
 import json
-from urllib.parse import quote
+
+from pandaclient import PrunScript
 
 
 # extract argument value from execution string
@@ -166,94 +167,26 @@ class Node (object):
                 else:
                     in_ds_str = '{}_{}/'.format(dict_inputs['opt_inDS'], in_ds_suffix)
                 com += ['--inDS', in_ds_str]
-            else:
-                # no input
-                n_jobs = get_arg_value('--nJobs', dict_inputs['opt_args'])
-                if not n_jobs:
-                    n_jobs = 1
-                else:
-                    n_jobs = int(n_jobs)
-                task_params['noInput'] = True
-                task_params['nEvents'] = n_jobs
-                task_params['nEventsPerJob'] = 1
             com += ['--outDS', task_name]
-            if use_athena:
-                com += ['--useAthenaPackages']
             if container_image:
                 com += ['--containerImage', container_image]
+            # parse args before setting --useAthenaPackages since it requires real Athena runtime
+            parsed_params = PrunScript.main(True, com[1:], dry_mode=True)
+            if use_athena:
+                com += ['--useAthenaPackages']
             task_params['cliParams'] = ' '.join(shlex.quote(x) for x in com)
-            # exec
-            for item in task_params['jobParameters']:
-                if item['value'] == '__dummy_exec_str__':
-                    item['value'] = quote(dict_inputs['opt_exec'])
-            # log
-            task_params['log'] = {"type": "template", "param_type": "log",
-                                  "container": '{}/'.format(task_name),
-                                  "value": task_name + ".log.$JEDITASKID.${SN}.log.tgz",
-                                  "dataset": '{}/'.format(task_name)}
-            # job params
-            if in_ds_str:
-                # input dataset
-                dict_item = {'value': '-i "${IN/T}"', 'dataset': in_ds_str,
-                             'param_type': 'input', 'exclude': '\\.log\\.tgz(\\.\\d+)*$',
-                             'type': 'template', 'expand': True}
-                task_params['jobParameters'].append(dict_item)
-                # secondary datasets
-                if 'opt_secondaryDSs' in dict_inputs:
-                    # parse
-                    in_map = {}
-                    secondaryDSs = get_arg_value('--secondaryDSs', dict_inputs['opt_args'])
-                    for tmpItem in secondaryDSs.split(','):
-                        tmpItems = tmpItem.split(':')
-                        if len(tmpItems) >= 3:
-                            in_map.setdefault('IN', "dummy_IN")
-                            dict_item = {'nFilesPerJob': int(tmpItems[1]),
-                                         'value': '${%s}' % tmpItems[0],
-                                         'dataset': tmpItems[2],
-                                         'param_type': 'input', 'hidden': True, 'type': 'template', 'expand': True}
-                            in_map[tmpItems[0]] = 'dummy_%s' % tmpItems[0]
-                            task_params['jobParameters'].append(dict_item)
-                    if in_map:
-                        str_in_map = str(in_map)
-                        for k in in_map:
-                            str_in_map = str_in_map.replace("'dummy_" + k + "'", '${' + k + '/T}')
-                        dict_item = {'type': 'constant',
-                                     'value': '--inMap "%s"' % str_in_map,
-                                     }
-                        task_params['jobParameters'].append(dict_item)
+            # set parsed parameters
+            for p_key, p_value in six.iteritems(parsed_params):
+                if p_key not in task_params or p_key in ['jobParameters']:
+                    task_params[p_key] = p_value
+            if 'buildSpec' not in parsed_params and 'buildSpec' in task_params:
+                del task_params['buildSpec']
             # outputs
-            outputs = get_arg_value('--outputs', dict_inputs['opt_args'])
-            if outputs:
-                outMap = {}
-                for tmpLFN in outputs.split(','):
-                    tmpDsSuffix = ''
-                    if ':' in tmpLFN:
-                        tmpDsSuffix,tmpLFN = tmpLFN.split(':')
-                    tmpNewLFN = tmpLFN
-                    # change * to XYZ and add .tgz
-                    if '*' in tmpNewLFN:
-                        tmpNewLFN = tmpNewLFN.replace('*', 'XYZ')
-                        tmpNewLFN += '.tgz'
-                    lfn = task_name
-                    lfn += '.$JEDITASKID._${{SN/P}}.{0}'.format(tmpNewLFN)
-                    dataset = '{}_{}/'.format(task_name, tmpNewLFN)
-                    dict_item = {'container': dataset,
-                                 'value': lfn,
-                                 'dataset': dataset,
-                                 'param_type': 'output', 'hidden': True, 'type': 'template'}
-                    task_params['jobParameters'].append(dict_item)
-                    outMap[tmpLFN] = lfn
-                    self.output_types.append(tmpNewLFN)
-                if outMap:
-                    dict_item = {'type':'constant',
-                                 'value': '-o "{0}"'.format(str(outMap)),
-                                 }
-                    task_params['jobParameters'].append(dict_item)
+            for tmp_item in task_params['jobParameters']:
+                if tmp_item['type'] == 'template' and tmp_item["param_type"] == "output":
+                    self.output_types.append(re.search(r'}\.(.+)$', tmp_item["value"]).group(1))
             # container
-            if container_image:
-                task_params['container_name'] = container_image
-                task_params['multiStepExec']['containerOptions']['containerImage'] = container_image
-            else:
+            if not container_image:
                 if 'container_name' in task_params:
                     del task_params['container_name']
                 if 'multiStepExec' in task_params:
