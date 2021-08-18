@@ -18,6 +18,39 @@ def get_arg_value(arg, exec_str):
     return None
 
 
+# merge job parameters
+def merge_job_params(base_params, io_params):
+    new_params = []
+    # remove exec stuff from base_params
+    exec_start = False
+    end_exec = False
+    for tmp_item in base_params:
+        if tmp_item['type'] == 'constant' and tmp_item["value"].startswith('-p '):
+            exec_start = True
+            continue
+        if exec_start:
+            if end_exec:
+                pass
+            elif tmp_item['type'] == 'constant' and "padding" not in tmp_item:
+                end_exec = True
+                continue
+        if exec_start and not end_exec:
+            continue
+        new_params.append(tmp_item)
+    # take exec and IO stuff from io_params
+    exec_start = False
+    for tmp_item in io_params:
+        if tmp_item['type'] == 'constant' and tmp_item["value"].startswith('-p '):
+            exec_start = True
+        # ignore archive option
+        if tmp_item['type'] == 'constant' and tmp_item["value"].startswith('-a '):
+            continue
+        if not exec_start:
+            continue
+        new_params.append(tmp_item)
+    return new_params
+
+
 # DAG vertex
 class Node (object):
 
@@ -175,28 +208,35 @@ class Node (object):
                 # add dummy container to keep build step consistent
                 parse_com = copy.copy(com[1:])
                 parse_com += ['--containerImage', None]
-            # parse args before setting --useAthenaPackages since it requires real Athena runtime
-            parsed_params = PrunScript.main(True, parse_com, dry_mode=True)
+            athena_tag = False
             if use_athena:
                 com += ['--useAthenaPackages']
+                athena_tag = '--athenaTag' in com
+                # add cmtConfig
+                if athena_tag and '--cmtConfig' not in parse_com:
+                    parse_com += ['--cmtConfig', task_params['architecture'].split('@')[0]]
+            # parse args without setting --useAthenaPackages since it requires real Athena runtime
+            parsed_params = PrunScript.main(True, parse_com, dry_mode=True)
             task_params['cliParams'] = ' '.join(shlex.quote(x) for x in com)
-            # extract sandbox
-            sandbox = None
-            for tmp_item in task_params['jobParameters']:
-                if tmp_item['type'] == 'constant' and tmp_item["value"].startswith('-a '):
-                    sandbox = tmp_item["value"]
             # set parsed parameters
             for p_key, p_value in six.iteritems(parsed_params):
                 if p_key in ['buildSpec']:
                     continue
-                if p_key not in task_params or p_key in ['jobParameters']:
+                if p_key not in task_params:
                     task_params[p_key] = p_value
+                elif athena_tag:
+                    if p_key in ['transUses', 'transHome']:
+                        task_params[p_key] = p_value
+                    elif p_key == 'architecture' and p_value and \
+                        ('opt_architecture' not in dict_inputs or not dict_inputs['opt_architecture']):
+                        task_params[p_key] = p_value
+            # merge job params
+            task_params['jobParameters'] = merge_job_params(task_params['jobParameters'],
+                                                            parsed_params['jobParameters'])
             # outputs
             for tmp_item in task_params['jobParameters']:
                 if tmp_item['type'] == 'template' and tmp_item["param_type"] == "output":
                     self.output_types.append(re.search(r'}\.(.+)$', tmp_item["value"]).group(1))
-                elif sandbox and tmp_item['type'] == 'constant' and tmp_item["value"].startswith('-a '):
-                    tmp_item["value"] = sandbox
             # container
             if not container_image:
                 if 'container_name' in task_params:
