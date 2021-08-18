@@ -21801,10 +21801,11 @@ class DBProxy:
             sqlC = "SELECT jobStatus,commandToPilot FROM ATLAS_PANDA.jobsActive4 "\
                    "WHERE PandaID=:pandaID "\
                    "UNION "\
-                   "SELECT jobStatus,commandToPilot FROM ATLAS_PANDA.jobsArchived4 " \
+                   "SELECT /*+ INDEX_RS_ASC(JOBSARCHIVED4 JOBSARCH4_MTIMEPRODSLABEL_IDX) */ "\
+                   "jobStatus,commandToPilot FROM ATLAS_PANDA.jobsArchived4 " \
                    "WHERE PandaID=:pandaID AND modificationTime>:timeLimit "
             varMap = dict()
-            varMap[':pandaID'] = pandaID
+            varMap[':pandaID'] = int(pandaID)
             varMap[':timeLimit'] = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
             # begin transaction
             self.conn.begin()
