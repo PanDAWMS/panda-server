@@ -21801,7 +21801,7 @@ class DBProxy:
             sqlC = "SELECT jobStatus,commandToPilot FROM ATLAS_PANDA.jobsActive4 "\
                    "WHERE PandaID=:pandaID "\
                    "UNION "\
-                   "SELECT /*+ INDEX_RS_ASC(JOBSARCHIVED4 JOBSARCH4_MTIMEPRODSLABEL_IDX) */ "\
+                   "SELECT /*+ INDEX_RS_ASC(JOBSARCHIVED4 PART_JOBSARCHIVED4_PK) */ "\
                    "jobStatus,commandToPilot FROM ATLAS_PANDA.jobsArchived4 " \
                    "WHERE PandaID=:pandaID AND modificationTime>:timeLimit "
             varMap = dict()
