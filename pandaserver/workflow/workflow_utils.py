@@ -70,6 +70,7 @@ class Node (object):
         self.root_inputs = None
         self.task_params = None
         self.condition = None
+        self.is_workflow_output = False
 
     def add_parent(self, id):
         self.parents.add(id)
@@ -250,6 +251,9 @@ class Node (object):
             if self.parents and len(self.parents) == 1:
                 task_params['noWaitParent'] = True
                 task_params['parentTaskName'] = id_map[list(self.parents)[0]].task_params['taskName']
+            # notification
+            if not self.is_workflow_output:
+                task_params['noEmail'] = True
             # return
             return task_params
         return None
@@ -281,6 +285,28 @@ def get_node_id_map(node_list, id_map=None):
         if node.sub_nodes:
             id_map = get_node_id_map(node.sub_nodes, id_map)
     return id_map
+
+
+# get all parents
+def get_all_parents(node_list, all_parents=None):
+    if all_parents is None:
+        all_parents = set()
+    for node in node_list:
+        all_parents |= node.parents
+        if node.sub_nodes:
+            all_parents = get_node_id_map(node.sub_nodes, all_parents)
+    return all_parents
+
+
+# set workflow outputs
+def set_workflow_outputs(node_list, all_parents=None):
+    if all_parents is None:
+        all_parents = get_all_parents(node_list)
+    for node in node_list:
+        if node.is_leaf and node.id not in all_parents:
+            node.is_workflow_output = True
+        if node.sub_nodes:
+            set_workflow_outputs(node.sub_nodes, all_parents)
 
 
 # condition item

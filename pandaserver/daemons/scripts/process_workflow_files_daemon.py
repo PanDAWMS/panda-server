@@ -132,6 +132,7 @@ def main(tbuf=None, **kwargs):
                                         data = yaml.safe_load(workflow_input)
                                     s_id, t_nodes, nodes = pcwl_utils.resolve_nodes(nodes, root_in, data, 0, set(),
                                                                                     ops['data']['outDS'], tmpLog)
+                                    workflow_utils.set_workflow_outputs(nodes)
                                     id_map = workflow_utils.get_node_id_map(nodes)
                                     [node.resolve_params(ops['data']['taskParams'], id_map) for node in nodes]
                                     dump_str = workflow_utils.dump_nodes(nodes)

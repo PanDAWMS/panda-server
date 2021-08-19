@@ -3,7 +3,7 @@ import logging
 import sys
 import copy
 
-from pandaserver.workflow.workflow_utils import get_node_id_map, dump_nodes
+from pandaserver.workflow.workflow_utils import get_node_id_map, dump_nodes, set_workflow_outputs
 from pandaserver.workflow.pcwl_utils import parse_workflow_file, resolve_nodes
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.DEBUG)
@@ -11,6 +11,7 @@ with open(sys.argv[2]) as f:
     data = yaml.safe_load(f)
 nodes, root_in = parse_workflow_file(sys.argv[1], logging)
 s_id, t_nodes, nodes = resolve_nodes(nodes, root_in, data, 0, set(), sys.argv[3], logging)
+set_workflow_outputs(nodes)
 id_map = get_node_id_map(nodes)
 # task template
 template = {"buildSpec": {"jobParameters": "-i ${IN} -o ${OUT} --sourceURL ${SURL} "
