@@ -149,23 +149,49 @@ def main(tbuf=None, **kwargs):
                                     is_fatal = True
                                     is_OK = False
                                 # add conditions
-                                if is_OK and workflow_to_submit and not test_mode:
+                                if is_OK and workflow_to_submit:
                                     for node in nodes:
                                         if node.is_leaf:
-                                            if not node.condition:
-                                                if node.parents:
-                                                    c_work = id_work_map[node.id]
+                                            if node.parents:
+                                                c_work = id_work_map[node.id]
+                                                if not node.condition:
+                                                    # default conditions if unspecified
                                                     for p_id in node.parents:
                                                         p_work = id_work_map[p_id]
                                                         if len(node.parents) == 1:
                                                             cond_function = p_work.is_started
                                                         else:
                                                             cond_function = p_work.is_finished
-                                                        cond = Condition(cond=cond_function, current_work=p_work,
+                                                        cond = Condition(cond=cond_function,
+                                                                         current_work=p_work,
                                                                          true_work=c_work)
                                                         workflow_to_submit.add_condition(cond)
+                                                else:
+                                                    # convert conditions
+                                                    cond_list = node.condition.get_dict_form()
+                                                    base_cond_map = {}
+                                                    for tmp_idx, base_cond in cond_list:
+                                                        base_cond_map.setdefault(tmp_idx, [])
+                                                        # leaf condition
+                                                        if base_cond['right'] is None and \
+                                                                isinstance(base_cond['left'], set):
+                                                            for p_id in base_cond['left']:
+                                                                p_work = id_work_map[p_id]
+                                                                # finished or failed
+                                                                if base_cond['operator'] is None:
+                                                                    cond_function = p_work.is_finished
+                                                                else:
+                                                                    cond_function = p_work.is_failed
+                                                                cond = Condition(cond=cond_function,
+                                                                                 current_work=p_work,
+                                                                                 true_work=c_work)
+                                                                workflow_to_submit.add_condition(cond)
+                                                                base_cond_map[tmp_idx].append(cond)
+                                                        else:
+                                                            # composite conditions
+                                                            pass
                                     try:
-                                        if workflow_to_submit:
+                                        if workflow_to_submit and not test_mode:
                                             tmpLog.info('submit workflow')
                                             wm = ClientManager(host=get_rest_host())
                                             request_id = wm.submit(workflow_to_submit)
@@ -174,8 +200,10 @@ def main(tbuf=None, **kwargs):
                                     except Exception as e:
                                         tmpLog.error('failed to submit the workflow with {} {]'.format(
                                             str(e), traceback.format_exc()))
+                                    if test_mode:
+                                        tmpLog.debug(str(workflow_to_submit))
                     os.chdir(cur_dir)
-                    tmpLog.info('is_OK={} is_fatal={} request_id={}'.format(is_OK, is_fatal,request_id))
+                    tmpLog.info('is_OK={} is_fatal={} request_id={}'.format(is_OK, is_fatal, request_id))
                     if not test_mode and (is_OK or is_fatal or self.to_delete):
                         tmpLog.debug('delete {}'.format(self.fileName))
                         try:

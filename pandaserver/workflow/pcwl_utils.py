@@ -103,6 +103,8 @@ def parse_workflow_file(workflow_file, log_stream):
         if hasattr(step, 'when') and step.when:
             # parse condition
             node.condition = parse_condition_string(step.when)
+            # suppress inputs based on condition
+            suppress_inputs_based_on_condition(node.condition, node.inputs)
         # expand sub-workflow
         if not node.is_leaf:
             p = urlparse(step.run)
@@ -134,11 +136,6 @@ def parse_workflow_file(workflow_file, log_stream):
                 if is_str:
                     parent_ids = parent_ids[0]
                 tmp_data['parent_id'] = parent_ids
-
-        # convert parameters to parent IDs in conditions
-        if node.condition:
-            convert_params_to_parent_ids(node.condition, node.inputs)
-            pass
 
     # sort
     node_list = top_sort(node_list, set())
@@ -240,6 +237,9 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, outDsName
             sc_node.parents = real_parens
             if is_head:
                 sc_node.parents |= parent_ids
+            # convert parameters to parent IDs in conditions
+            if sc_node.condition:
+                convert_params_to_parent_ids(sc_node.condition, sc_node.inputs, tmp_to_real_id_map)
             # resolve outputs
             if sc_node.is_leaf:
                 for tmp_name, tmp_data in six.iteritems(sc_node.outputs):
@@ -284,8 +284,7 @@ def extract_parameter(token):
 
 # convert plain condition string
 def convert_plain_condition_string(cond_string, cond_map):
-    cond_string = re.sub(r' *== *', r'==', cond_string)
-    cond_string = re.sub(r' *!= *', r'!=', cond_string)
+    cond_string = re.sub(r' *! *', r'!', cond_string)
     cond_string = re.sub(r'\|\|', r' || ', cond_string)
     cond_string = re.sub(r'&&', r' && ', cond_string)
 
@@ -293,26 +292,32 @@ def convert_plain_condition_string(cond_string, cond_map):
     left = None
     operator = None
     for token in tokens:
+        token = token.strip()
         if token == '||':
             operator = 'or'
             continue
         elif token == '&&':
             operator = 'and'
             continue
-        elif '==' in token:
+        elif token.startswith('self.'):
             param = extract_parameter(token)
             right = ConditionItem(param)
             if not left:
                 left = right
                 continue
-        elif '!=' in token:
+        elif token.startswith('!self.'):
             param = extract_parameter(token)
             right = ConditionItem(param, operator='not')
             if not left:
                 left = right
                 continue
-        elif re.search(r'___\d+___', token) and token in cond_map:
+        elif re.search(r'^___\d+___$', token) and token in cond_map:
             right = cond_map[token]
+            if not left:
+                left = right
+                continue
+        elif re.search(r'^!___\d+___$', token) and token[1:] in cond_map:
+            right = ConditionItem(cond_map[token[1:]], operator='not')
             if not left:
                 left = right
                 continue
@@ -324,12 +329,25 @@ def convert_plain_condition_string(cond_string, cond_map):
 
 
 # convert parameter names to parent IDs
-def convert_params_to_parent_ids(condition_item, input_data):
+def convert_params_to_parent_ids(condition_item, input_data, id_map):
     for item in ['left', 'right']:
         param = getattr(condition_item, item)
         if isinstance(param, str):
             for tmp_name, tmp_data in six.iteritems(input_data):
                 if param == tmp_name.split('/')[-1]:
-                    setattr(condition_item, item, str(tmp_data['parent_id']))
+                    setattr(condition_item, item, id_map[tmp_data['parent_id']])
         elif isinstance(param, ConditionItem):
             convert_params_to_parent_ids(param, input_data)
+
+
+# suppress inputs based on condition
+def suppress_inputs_based_on_condition(condition_item, input_data):
+    if condition_item.right is None and condition_item.operator == 'not' and isinstance(condition_item.left, str):
+        for tmp_name, tmp_data in six.iteritems(input_data):
+            if condition_item.left == tmp_name.split('/')[-1]:
+                tmp_data['suppressed'] = True
+    else:
+        for item in ['left', 'right']:
+            param = getattr(condition_item, item)
+            if isinstance(param, ConditionItem):
+                suppress_inputs_based_on_condition(param, input_data)

@@ -74,6 +74,7 @@ class Node (object):
     def add_parent(self, id):
         self.parents.add(id)
 
+    # set real input values
     def set_input_value(self, key, src_key, src_value):
         if isinstance(self.inputs[key]['source'], list):
             self.inputs[key].setdefault('value', copy.copy(self.inputs[key]['source']))
@@ -88,9 +89,11 @@ class Node (object):
             self.inputs[key]['value'] = src_value
 
     # convert inputs to dict inputs
-    def convert_dict_inputs(self):
+    def convert_dict_inputs(self, skip_suppressed=False):
         data = {}
         for k, v in six.iteritems(self.inputs):
+            if skip_suppressed and 'suppressed' in v and v['suppressed']:
+                continue
             y_name = k.split('/')[-1]
             if 'value' in v:
                 data[y_name] = v['value']
@@ -148,7 +151,7 @@ class Node (object):
     # create task params
     def make_task_params(self, task_template, id_map):
         if self.type == 'prun':
-            dict_inputs = self.convert_dict_inputs()
+            dict_inputs = self.convert_dict_inputs(skip_suppressed=True)
             # check type
             use_athena = False
             if 'opt_useAthenaPackages' in dict_inputs and dict_inputs['opt_useAthenaPackages']:
@@ -301,20 +304,22 @@ class ConditionItem (object):
         if serial_id is None:
             serial_id = 0
         if isinstance(self.left, ConditionItem):
-            serial_id, dict_form  = self.left.get_dict_form(serial_id, dict_form)
+            serial_id, dict_form = self.left.get_dict_form(serial_id, dict_form)
             left_id = serial_id
+            serial_id += 1
         else:
-            left_id = str(self.left)
+            left_id = self.left
         if isinstance(self.right, ConditionItem):
             serial_id, dict_form = self.right.get_dict_form(serial_id, dict_form)
             right_id = serial_id
+            serial_id += 1
         else:
-            if self.right is None:
-                right_id = None
-            else:
-                right_id = str(self.right)
+            right_id = self.right
         dict_form[serial_id] = {'left': left_id, 'right': right_id, 'operator': self.operator}
         if is_entry:
-            return dict_form
+            # sort
+            keys = list(dict_form.keys())
+            keys.sort()
+            return [(k, dict_form[k]) for k in keys]
         else:
-            return serial_id+1, dict_form
+            return serial_id, dict_form
