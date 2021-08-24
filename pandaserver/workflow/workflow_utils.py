@@ -5,6 +5,7 @@ import shlex
 import json
 
 from pandaclient import PrunScript
+from pandaclient import PhpoScript
 
 
 # extract argument value from execution string
@@ -151,6 +152,10 @@ class Node (object):
 
     # create task params
     def make_task_params(self, task_template, id_map):
+        # task name
+        for k, v in six.iteritems(self.outputs):
+            task_name = v['value']
+            break
         if self.type == 'prun':
             dict_inputs = self.convert_dict_inputs(skip_suppressed=True)
             # check type
@@ -164,10 +169,6 @@ class Node (object):
                 task_params = copy.deepcopy(task_template['athena'])
             else:
                 task_params = copy.deepcopy(task_template['container'])
-            # task name
-            for k, v in six.iteritems(self.outputs):
-                task_name = v['value']
-                break
             task_params['taskName'] = task_name
             # architecture
             if 'opt_architecture' in dict_inputs and dict_inputs['opt_architecture']:
@@ -254,6 +255,39 @@ class Node (object):
             # notification
             if not self.is_workflow_output:
                 task_params['noEmail'] = True
+            # return
+            return task_params
+        elif self.type == 'phpo':
+            dict_inputs = self.convert_dict_inputs(skip_suppressed=True)
+            # extract source and base URL
+            source_url = task_template['container']['sourceURL']
+            for tmp_item in task_template['container']["jobParameters"]:
+                if tmp_item['type'] == "constant" and tmp_item["value"].startswith("-a "):
+                    source_name = tmp_item["value"].split()[-1]
+            # cli params
+            com = shlex.split(dict_inputs['opt_args'])
+            if 'opt_trainingDS' in dict_inputs and dict_inputs['opt_trainingDS']:
+                if 'opt_trainingDsType' not in dict_inputs or not dict_inputs['opt_trainingDsType']:
+                    in_ds_suffix = None
+                    for parent_id in self.parents:
+                        parent_node = id_map[parent_id]
+                        if dict_inputs['opt_trainingDS'] in parent_node.convert_set_outputs():
+                            in_ds_suffix = parent_node.output_types[0]
+                            break
+                else:
+                    in_ds_suffix = dict_inputs['opt_inDsType']
+                in_ds_str = '{}_{}/'.format(dict_inputs['opt_trainingDS'], in_ds_suffix)
+                com += ['--trainingDS', in_ds_str]
+            com += ['--outDS', task_name]
+            # get task params
+            task_params = PhpoScript.main(True, com, dry_mode=True)
+            # change sandbox
+            new_job_params = []
+            for tmp_item in task_params["jobParameters"]:
+                if tmp_item['type'] == "constant" and tmp_item["value"].startswith("-a "):
+                    tmp_item["value"] = '-a {} --sourceURL {}'.format(source_name, source_url)
+                new_job_params.append(tmp_item)
+            task_params["jobParameters"] = new_job_params
             # return
             return task_params
         return None

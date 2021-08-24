@@ -192,12 +192,15 @@ def main(tbuf=None, **kwargs):
                                                             # composite conditions
                                                             pass
                                     try:
-                                        if workflow_to_submit and not test_mode:
-                                            tmpLog.info('submit workflow')
-                                            wm = ClientManager(host=get_rest_host())
-                                            request_id = wm.submit(workflow_to_submit)
+                                        if workflow_to_submit:
+                                            if not test_mode:
+                                                tmpLog.info('submit workflow')
+                                                wm = ClientManager(host=get_rest_host())
+                                                request_id = wm.submit(workflow_to_submit)
                                         else:
-                                            tmpLog.info('workflow is empty')
+                                            tmpLog.error('workflow is empty')
+                                            is_fatal = True
+                                            is_OK = False
                                     except Exception as e:
                                         tmpLog.error('failed to submit the workflow with {} {]'.format(
                                             str(e), traceback.format_exc()))

@@ -92,6 +92,8 @@ def parse_workflow_file(workflow_file, log_stream):
         # leaf workflow and sub-workflow
         if cwl_name == 'prun.cwl':
             node = Node(serial_id, 'prun', None, True, workflow_name)
+        elif cwl_name == 'phpo.cwl':
+            node = Node(serial_id, 'phpo', None, True, workflow_name)
         else:
             node = Node(serial_id, 'workflow', None, False, workflow_name)
         node.inputs = {extract_id(s.id): {'default': s.default, 'source': extract_id(s.source)}
