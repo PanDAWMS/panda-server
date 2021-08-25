@@ -19,7 +19,7 @@ from pandaserver.srvcore.CoreUtils import commands_get_status_output
 # import idds modules after PandaLogger not to change message levels of other modules
 from idds.client.clientmanager import ClientManager
 from idds.common.utils import get_rest_host
-from idds.workflow.workflow import Workflow, Condition
+from idds.workflow.workflow import Workflow, Condition, AndCondition, OrCondition
 from idds.atlas.workflow.atlaspandawork import ATLASPandaWork
 
 # logger
@@ -171,26 +171,51 @@ def main(tbuf=None, **kwargs):
                                                     # convert conditions
                                                     cond_list = node.condition.get_dict_form()
                                                     base_cond_map = {}
+                                                    root_condition = None
                                                     for tmp_idx, base_cond in cond_list:
-                                                        base_cond_map.setdefault(tmp_idx, [])
                                                         # leaf condition
-                                                        if base_cond['right'] is None and \
-                                                                isinstance(base_cond['left'], set):
+                                                        if base_cond['right'] is None:
+                                                            # condition based on works
+                                                            cond_func_list = []
                                                             for p_id in base_cond['left']:
                                                                 p_work = id_work_map[p_id]
                                                                 # finished or failed
                                                                 if base_cond['operator'] is None:
-                                                                    cond_function = p_work.is_finished
+                                                                    cond_func_list.append(p_work.is_finished)
                                                                 else:
-                                                                    cond_function = p_work.is_failed
-                                                                cond = Condition(cond=cond_function,
-                                                                                 current_work=p_work,
-                                                                                 true_work=c_work)
-                                                                workflow_to_submit.add_condition(cond)
-                                                                base_cond_map[tmp_idx].append(cond)
+                                                                    cond_func_list.append(p_work.is_failed)
+                                                            cond = AndCondition(conditions=cond_func_list)
+                                                            base_cond_map[tmp_idx] = cond
+                                                            root_condition = cond
                                                         else:
-                                                            # composite conditions
-                                                            pass
+                                                            # composite condition
+                                                            if isinstance(base_cond['left'], set):
+                                                                cond_func_list = []
+                                                                for p_id in base_cond['left']:
+                                                                    p_work = id_work_map[p_id]
+                                                                    cond_func_list.append(p_work.is_finished)
+                                                                l_cond = AndCondition(conditions=cond_func_list)
+                                                            else:
+                                                                l_cond = base_cond_map[base_cond['left']]
+                                                            if isinstance(base_cond['right'], set):
+                                                                cond_func_list = []
+                                                                for p_id in base_cond['right']:
+                                                                    p_work = id_work_map[p_id]
+                                                                    cond_func_list.append(p_work.is_finished)
+                                                                r_cond = AndCondition(conditions=cond_func_list)
+                                                            else:
+                                                                r_cond = base_cond_map[base_cond['right']]
+                                                            if base_cond['operator'] == 'and':
+                                                                cond = AndCondition(conditions=[l_cond, r_cond])
+                                                            else:
+                                                                cond = OrCondition(conditions=[l_cond, r_cond])
+                                                            cond = AndCondition(conditions=cond_func_list)
+                                                            base_cond_map[tmp_idx] = cond
+                                                            root_condition = cond
+                                                    # set root condition
+                                                    if root_condition:
+                                                        root_condition.true_works = [c_work]
+                                                        workflow_to_submit.add_condition(root_condition)
                                     try:
                                         if workflow_to_submit:
                                             if not test_mode:
