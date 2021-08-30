@@ -13778,9 +13778,15 @@ class DBProxy:
                                                   'cliParams','nFilesPerJob','nFiles','nEvents',
                                                   'nGBPerJob','fixedSandbox','ignoreMissingInDS',
                                                   'currentPriority', 'priority', 'nMaxFilesPerJob',
-                                                  'ramCount', 'noLoopingCheck']:
+                                                  'ramCount', 'noLoopingCheck', 'loopingCheck']:
                                 if tmpKey == 'priority':
                                     tmpKey = 'currentPriority'
+                                if tmpKey == 'loopingCheck':
+                                    tmpKey == 'noLoopingCheck'
+                                    if tmpVal:
+                                        tmpVal = False
+                                    else:
+                                        tmpVal = True
                                 newTaskParams[tmpKey] = tmpVal
                                 if tmpKey == 'fixedSandbox' and 'sourceURL' in taskParamsJson:
                                     newTaskParams['sourceURL'] = taskParamsJson['sourceURL']
