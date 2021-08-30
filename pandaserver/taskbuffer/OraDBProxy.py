@@ -13778,7 +13778,7 @@ class DBProxy:
                                                   'cliParams','nFilesPerJob','nFiles','nEvents',
                                                   'nGBPerJob','fixedSandbox','ignoreMissingInDS',
                                                   'currentPriority', 'priority', 'nMaxFilesPerJob',
-                                                  'ramCount']:
+                                                  'ramCount', 'noLoopingCheck']:
                                 if tmpKey == 'priority':
                                     tmpKey = 'currentPriority'
                                 newTaskParams[tmpKey] = tmpVal
