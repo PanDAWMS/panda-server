@@ -718,7 +718,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                               statsPerShare[gshare]['nq'],
                               fractionLimit, fracCheck))
                 if ratioCheck and statCheck and fracCheck:
-                    _logger.debug('{} overloaded in {}'.format(computingSite, gshare))
+                    _logger.debug('{} overshoot in {}'.format(computingSite, gshare))
                     if not dry_run:
                         # calculate excess
                         excess = min(nStat['nq'] - nStat['nr'] * ratioLimit, nStat['nq'] - nQueueLimit)

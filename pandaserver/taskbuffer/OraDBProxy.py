@@ -4401,7 +4401,7 @@ class DBProxy:
                     elif code == '10':
                         job.jobStatus = 'closed'
                         job.taskBufferErrorCode = ErrorCode.EC_FastRebrokerage
-                        job.taskBufferErrorDiag = 'fast rebrokerage at {} due to Nq/Nr overshoot'
+                        job.taskBufferErrorDiag = 'fast rebrokerage due to Nq/Nr overshoot'
                     else:
                         # killed
                         job.taskBufferErrorCode = ErrorCode.EC_Kill
