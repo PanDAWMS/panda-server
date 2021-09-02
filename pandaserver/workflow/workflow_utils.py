@@ -170,9 +170,6 @@ class Node (object):
             else:
                 task_params = copy.deepcopy(task_template['container'])
             task_params['taskName'] = task_name
-            # architecture
-            if 'opt_architecture' in dict_inputs and dict_inputs['opt_architecture']:
-                task_params['architecture'] = dict_inputs['opt_architecture']
             # cli params
             com = ['prun', '--exec', dict_inputs['opt_exec'], *shlex.split(dict_inputs['opt_args'])]
             in_ds_str = None
@@ -229,11 +226,15 @@ class Node (object):
                     continue
                 if p_key not in task_params:
                     task_params[p_key] = p_value
+                elif p_key == 'architecture':
+                    task_params[p_key] = p_value
+                    if not container_image:
+                        if task_params[p_key] is None:
+                            task_params[p_key] = ''
+                        if '@' not in task_params[p_key] and 'basePlatform' in task_params:
+                            task_params[p_key] = '{}@{}'.format(task_params[p_key], task_params['basePlatform'])
                 elif athena_tag:
                     if p_key in ['transUses', 'transHome']:
-                        task_params[p_key] = p_value
-                    elif p_key == 'architecture' and p_value and \
-                        ('opt_architecture' not in dict_inputs or not dict_inputs['opt_architecture']):
                         task_params[p_key] = p_value
             # merge job params
             task_params['jobParameters'] = merge_job_params(task_params['jobParameters'],
@@ -248,6 +249,8 @@ class Node (object):
                     del task_params['container_name']
                 if 'multiStepExec' in task_params:
                     del task_params['multiStepExec']
+            if 'basePlatform' in task_params:
+                del task_params['basePlatform']
             # parent
             if self.parents and len(self.parents) == 1:
                 task_params['noWaitParent'] = True
