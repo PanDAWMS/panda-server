@@ -154,7 +154,6 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, outDsName
     resolved_map = {}
     all_nodes = []
     for node in node_list:
-        log_stream.debug('tmpID:{} name:{} is_leaf:{}'.format(node.id, node.name, node.is_leaf))
         # resolve input
         is_head = False
         for tmp_name, tmp_data in six.iteritems(node.inputs):

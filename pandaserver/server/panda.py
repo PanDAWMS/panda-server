@@ -23,7 +23,7 @@ from pandaserver.jobdispatcher.JobDispatcher import jobDispatcher
 from pandaserver.dataservice.DataService import dataService
 from pandaserver.userinterface.UserIF import userIF
 from pandaserver.taskbuffer.Utils import isAlive, putFile, deleteFile, getServer, updateLog, fetchLog,\
-     touchFile, getVomsAttr, putEventPickingRequest, getAttr, getFile, uploadLog, put_checkpoint, delete_checkpoint,\
+     touchFile, getVomsAttr, putEventPickingRequest, getAttr, uploadLog, put_checkpoint, delete_checkpoint,\
      put_file_recovery_request, put_workflow_request
 from pandaserver.dataservice.DataService import datasetCompleted, updateFileStatusInDisp
 from pandaserver.jobdispatcher.JobDispatcher import getJob, updateJob, getStatus, genPilotToken,\
@@ -76,7 +76,7 @@ if panda_config.nDBConnection != 0:
 allowedMethods = []
 
 allowedMethods += ['isAlive', 'putFile', 'deleteFile', 'getServer', 'updateLog', 'fetchLog',
-                   'touchFile', 'getVomsAttr', 'putEventPickingRequest', 'getAttr', 'getFile',
+                   'touchFile', 'getVomsAttr', 'putEventPickingRequest', 'getAttr',
                    'uploadLog', 'put_checkpoint', 'delete_checkpoint', 'put_file_recovery_request',
                    'put_workflow_request']
 

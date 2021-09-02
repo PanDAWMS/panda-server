@@ -41,6 +41,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.SupErrors import SupErrors
+from pandaserver.srvcore import CoreUtils
 
 try:
     from idds.client.client import Client as iDDS_Client
@@ -11183,41 +11184,9 @@ class DBProxy:
             _logger.error("getAllowedNodes : %s %s" % (tmpType,tmpValue))
             return {}
 
-
     # extract name from DN
     def cleanUserID(self, id):
-        try:
-            up = re.compile('/(DC|O|OU|C|L)=[^\/]+')
-            username = up.sub('', id)
-            up2 = re.compile('/CN=[0-9]+')
-            username = up2.sub('', username)
-            up3 = re.compile(' [0-9]+')
-            username = up3.sub('', username)
-            up4 = re.compile('_[0-9]+')
-            username = up4.sub('', username)
-            username = username.replace('/CN=proxy','')
-            username = username.replace('/CN=limited proxy','')
-            username = username.replace('limited proxy','')
-            username = re.sub('/CN=Robot:[^/]+','',username)
-            pat = re.compile('.*/CN=([^\/]+)/CN=([^\/]+)')
-            mat = pat.match(username)
-            if mat:
-                username = mat.group(2)
-            else:
-                username = username.replace('/CN=','')
-            if username.lower().find('/email') > 0:
-                username = username[:username.lower().find('/email')]
-            pat = re.compile('.*(limited.*proxy).*')
-            mat = pat.match(username)
-            if mat:
-                username = mat.group(1)
-            username = username.replace('(','')
-            username = username.replace(')','')
-            username = username.replace("'",'')
-            return username
-        except Exception:
-            return id
-
+        return CoreUtils.clean_user_id(id)
 
     # extract scope from dataset name
     def extractScope(self,name):

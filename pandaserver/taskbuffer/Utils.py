@@ -8,16 +8,14 @@ import sys
 import traceback
 import zlib
 import uuid
-import time
-import socket
 import struct
 import datetime
 import json
 import gzip
 import pandaserver.jobdispatcher.Protocol as Protocol
-from pandaserver.taskbuffer import ErrorCode
 from pandaserver.userinterface import Client
 from pandaserver.config import panda_config
+from pandaserver.srvcore import CoreUtils
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -33,87 +31,6 @@ _logger = PandaLogger().getLogger('Utils')
 # check if server is alive
 def isAlive(req):
     return "alive=yes"
-
-
-# extract name from DN
-def cleanUserID(id):
-    try:
-        up = re.compile('/(DC|O|OU|C|L)=[^\/]+')
-        username = up.sub('', id)
-        up2 = re.compile('/CN=[0-9]+')
-        username = up2.sub('', username)
-        up3 = re.compile(' [0-9]+')
-        username = up3.sub('', username)
-        up4 = re.compile('_[0-9]+')
-        username = up4.sub('', username)
-        username = username.replace('/CN=proxy','')
-        username = username.replace('/CN=limited proxy','')
-        username = username.replace('limited proxy','')
-        username = re.sub('/CN=Robot:[^/]+','',username)
-        pat = re.compile('.*/CN=([^\/]+)/CN=([^\/]+)')
-        mat = pat.match(username)
-        if mat:
-            username = mat.group(2)
-        else:
-            username = username.replace('/CN=','')
-        if username.lower().find('/email') > 0:
-            username = username[:username.lower().find('/email')]
-        pat = re.compile('.*(limited.*proxy).*')
-        mat = pat.match(username)
-        if mat:
-            username = mat.group(1)
-        username = username.replace('(','')
-        username = username.replace(')','')
-        username = username.replace("'",'')
-        return username
-    except Exception:
-        return id
-
-
-# insert with rety
-def insertWithRetryCassa(familyName,keyName,valMap,msgStr,nTry=3):
-    for iTry in range(nTry):
-        try:
-            familyName.insert(keyName,valMap)
-        except pycassa.MaximumRetryException(tmpE):
-            if iTry+1 < nTry:
-                _logger.debug("%s sleep %s/%s" % (msgStr,iTry,nTry))
-                time.sleep(30)
-            else:
-                raise pycassa.MaximumRetryException(tmpE.value)
-        else:
-            break
-
-
-# touch in Cassandra
-def touchFileCassa(filefamily,fileKeyName,timeNow):
-    try:
-        # get old timestamp
-        oldFileInfo = filefamily.get(fileKeyName)
-    except Exception:
-        _logger.warning('cannot get old fileinfo for %s from Cassandra' % fileKeyName)
-        return False
-    try:
-        # update time in fileTable
-        for splitIdx in range(oldFileInfo['nSplit']):
-            tmpFileKeyName = fileKeyName
-            if splitIdx != 0:
-                tmpFileKeyName += '_%s' % splitIdx
-            insertWithRetryCassa(filefamily,tmpFileKeyName,
-                                 {'year'   : timeNow.year,
-                                  'month'  : timeNow.month,
-                                  'day'    : timeNow.day,
-                                  'hour'   : timeNow.hour,
-                                  'minute' : timeNow.minute,
-                                  'second' : timeNow.second},
-                                 'touchFileCassa : %s' % fileKeyName
-                                 )
-        return True
-    except Exception:
-        errType,errValue = sys.exc_info()[:2]
-        errStr = "cannot touch %s due to %s %s" % (fileKeyName,errType,errValue)
-        _logger.error(errStr)
-        return False
 
 
 # upload file
@@ -194,7 +111,7 @@ def putFile(req,file):
     # file size
     fileSize = len(fileContent)
     # user name
-    username = cleanUserID(req.subprocess_env['SSL_CLIENT_S_DN'])
+    username = CoreUtils.clean_user_id(req.subprocess_env['SSL_CLIENT_S_DN'])
     _logger.debug("putFile : written dn=%s file=%s size=%s crc=%s" % \
                   (username,file.filename,fileSize,checkSum))
     # put file info to DB
@@ -207,172 +124,8 @@ def putFile(req,file):
             #return "ERROR : Cannot insert sandbox to DB"
         else:
             _logger.debug("putFile : inserted sandbox to DB with %s" % outClient)
-    # store to cassandra
-    if hasattr(panda_config,'cacheUseCassandra') and panda_config.cacheUseCassandra is True:
-        try:
-            # time-stamp
-            timeNow = datetime.datetime.utcnow()
-            creationTime = timeNow.strftime('%Y-%m-%d %H:%M:%S')
-            # user name
-            username = req.subprocess_env['SSL_CLIENT_S_DN']
-            username = username.replace('/CN=proxy','')
-            username = username.replace('/CN=limited proxy','')
-            # file size
-            fileSize = len(fileContent)
-            # key
-            fileKeyName = file.filename.split('/')[-1]
-            sizeCheckSum = '%s:%s' % (fileSize,checkSum)
-            # insert to cassandra
-            import pycassa
-            pool = pycassa.ConnectionPool(panda_config.cacheKeySpace)
-            filefamily = pycassa.ColumnFamily(pool,panda_config.cacheFileTable)
-            # avoid overwriting
-            gotoNextCassa = True
-            if filefamily.get_count(fileKeyName) > 0:
-                # touch
-                touchFlag = touchFileCassa(filefamily,fileKeyName,timeNow)
-                if touchFlag:
-                    gotoNextCassa = False
-                    # send error message
-                    errStr = "ERROR : Cannot overwrite file in Cassandra"
-                    _logger.error(errStr)
-                    if not panda_config.cacheIgnoreCassandraError:
-                        _logger.debug("putFile : end")
-                        return errStr
-            # check uniqueness with size and checksum
-            if gotoNextCassa:
-                try:
-                    uniqExp = pycassa.index.create_index_expression('uniqID',sizeCheckSum)
-                    userExp = pycassa.index.create_index_expression('user',username)
-                    tmpClause = pycassa.index.create_index_clause([uniqExp,userExp])
-                    tmpResults = filefamily.get_indexed_slices(tmpClause,columns=['creationTime'])
-                    for oldFileKeyName,tmpDict in tmpResults:
-                        _logger.debug('The same size and chksum %s found in old:%s and new:%s' % \
-                                      (sizeCheckSum,oldFileKeyName,fileKeyName))
-                        # touch
-                        touchFlag = touchFileCassa(filefamily,oldFileKeyName,timeNow)
-                        if touchFlag:
-                            # make alias
-                            _logger.debug('Making alias %s->%s' % (fileKeyName,oldFileKeyName))
-                            insertWithRetryCassa(filefamily,fileKeyName,
-                                                 {'alias':oldFileKeyName,
-                                                  'creationTime':creationTime,
-                                                  'nSplit':0,
-                                                  },
-                                                 'putFile : make alias for %s' % file.filename
-                                                 )
-                            # set time
-                            touchFileCassa(filefamily,fileKeyName,timeNow)
-                            _logger.debug("putFile : end")
-                            return True
-                except Exception:
-                    gotoNextCassa = False
-                    errType,errValue = sys.exc_info()[:2]
-                    errStr = "cannot make alias for %s due to %s %s" % (fileKeyName,errType,errValue)
-                    _logger.error(errStr)
-                    if not panda_config.cacheIgnoreCassandraError:
-                        _logger.debug("putFile : end")
-                        return errStr
-            # insert new record
-            if gotoNextCassa:
-                splitIdx = 0
-                splitSize = 5 * 1024 * 1024
-                nSplit,tmpMod = divmod(len(fileContent),splitSize)
-                if tmpMod != 0:
-                    nSplit += 1
-                _logger.debug('Inserting %s with %s blocks' % (fileKeyName,nSplit))
-                for splitIdx in range(nSplit):
-                    # split to small chunks since cassandra is not good at large files
-                    tmpFileContent = fileContent[splitSize*splitIdx:splitSize*(splitIdx+1)]
-                    tmpFileKeyName = fileKeyName
-                    tmpAttMap = {'file':tmpFileContent,
-                                 'user':username,
-                                 'creationTime':creationTime,
-                                 }
-                    if splitIdx == 0:
-                        tmpAttMap['size']     = fileSize
-                        tmpAttMap['nSplit']   = nSplit
-                        tmpAttMap['uniqID']   = sizeCheckSum
-                        tmpAttMap['checkSum'] = str(checkSum)
-                    else:
-                        tmpFileKeyName += '_%s' % splitIdx
-                        tmpAttMap['size']   = 0
-                        tmpAttMap['nSplit'] = 0
-                    # insert with retry
-                    insertWithRetryCassa(filefamily,tmpFileKeyName,tmpAttMap,
-                                         'putFile : insert %s' % file.filename)
-                # set time
-                touchFileCassa(filefamily,fileKeyName,timeNow)
-        except Exception:
-            errType,errValue = sys.exc_info()[:2]
-            errStr = "cannot put %s into Cassandra due to %s %s" % (fileKeyName,errType,errValue)
-            _logger.error(errStr)
-            # send error message
-            errStr = "ERROR : " + errStr
-            if not panda_config.cacheIgnoreCassandraError:
-                _logger.debug("putFile : end")
-                return errStr
     _logger.debug("putFile : %s end" % file.filename)
     return True
-
-
-# get file
-def getFile(req,fileName):
-    _logger.debug("getFile : %s start" % fileName)
-    try:
-        # look into cassandra
-        import pycassa
-        pool = pycassa.ConnectionPool(panda_config.cacheKeySpace)
-        filefamily = pycassa.ColumnFamily(pool,panda_config.cacheFileTable)
-        fileInfo = filefamily.get(fileName)
-        # check alias
-        if 'alias' in fileInfo and fileInfo['alias'] != '':
-            realFileName = fileInfo['alias']
-            fileInfo = filefamily.get(realFileName)
-            _logger.debug("getFile : %s use alias=%s" % (fileName,realFileName))
-        else:
-            realFileName = fileName
-        # check cached file
-        hostKey = socket.gethostname() + '_cache'
-        if hostKey in fileInfo and fileInfo[hostKey] != '':
-            _logger.debug("getFile : %s found cache=%s" % (fileName,fileInfo[hostKey]))
-            try:
-                fileFullPath = '%s%s' % (panda_config.cache_dir,fileInfo[hostKey])
-                # touch
-                os.utime(fileFullPath,None)
-                _logger.debug("getFile : %s end" % fileName)
-                # return
-                return ErrorCode.EC_Redirect('/cache%s' % fileInfo[hostKey])
-            except Exception:
-                errtype,errvalue = sys.exc_info()[:2]
-                _logger.debug("getFile : %s failed to touch %s due to %s:%s" % (fileName,fileFullPath,errtype,errvalue))
-        # write to cache file
-        fileRelPath  = '/cassacache/%s' % str(uuid.uuid4())
-        fileFullPath = '%s%s' % (panda_config.cache_dir,fileRelPath)
-        _logger.debug("getFile : %s write cache to %s" % (fileName,fileFullPath))
-        fo = open(fileFullPath,'wb')
-        fo.write(fileInfo['file'])
-        if fileInfo['nSplit'] > 1:
-            for splitIdx in range(fileInfo['nSplit']):
-                if splitIdx == 0:
-                    continue
-                fileInfo = filefamily.get(realFileName+'_%s' % splitIdx)
-                fo.write(fileInfo['file'])
-        fo.close()
-        # set cache name in DB
-        insertWithRetryCassa(filefamily,realFileName,{hostKey:fileRelPath},
-                             'getFile : set cache for %s' % fileName)
-        _logger.debug("getFile : %s end" % fileName)
-        # return
-        return ErrorCode.EC_Redirect('/cache%s' % fileRelPath)
-    except pycassa.NotFoundException:
-        _logger.error("getFile : %s not found" % fileName)
-        return ErrorCode.EC_NotFound
-    except Exception:
-        errtype,errvalue = sys.exc_info()[:2]
-        errStr = "getFile : %s %s for %s" % (errtype,errvalue,fileName)
-        _logger.error(errStr)
-        raise RuntimeError(errStr)
 
 
 # get event picking request
@@ -476,13 +229,17 @@ def put_file_recovery_request(req, jediTaskID, dryRun=None):
 
 
 # upload workflow request
-def put_workflow_request(req, data):
+def put_workflow_request(req, data, check=False):
     if not Protocol.isSecure(req):
         return json.dumps((False, "ERROR : no HTTPS"))
     userName = req.subprocess_env['SSL_CLIENT_S_DN']
     creationTime = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     tmpLog = LogWrapper(_logger, 'put_workflow_request')
-    tmpLog.debug("start user={}".format(userName))
+    tmpLog.debug("start user={} check={}".format(userName, check))
+    if check == 'True' or check is True:
+        check = True
+    else:
+        check = False
     # get total size
     try:
         # make filename
@@ -495,6 +252,21 @@ def put_workflow_request(req, data):
                     "data": json.loads(data),
                     }
             json.dump(data, fo)
+        # check
+        if check:
+            tmpLog.debug('checking')
+            from pandaserver.daemons.scripts import process_workflow_files_daemon
+            data = {'target': evpFileName,
+                    'interactive_mode': True,
+                    'test_mode': True}
+            ret = process_workflow_files_daemon.main(**data)
+            if os.path.exists(evpFileName):
+                try:
+                    os.remove(evpFileName)
+                except Exception:
+                    pass
+            tmpLog.debug('done')
+            return json.dumps((True, ret))
     except Exception as e:
         errStr = "cannot put request due to {} ".format(str(e))
         tmpLog.error(errStr + traceback.format_exc())

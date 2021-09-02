@@ -113,6 +113,23 @@ class Node (object):
                 data.add(v['value'])
         return data
 
+    # verify
+    def verify(self):
+        if self.is_leaf:
+            dict_inputs = self.convert_dict_inputs(True)
+            # check input
+            for k, v in six.iteritems(dict_inputs):
+                if v is None:
+                    return False, '{} is unresolved'.format(k)
+            # check args
+            for k in ['opt_exec', 'opt_args']:
+                test_str = dict_inputs.get(k)
+                if test_str:
+                    m = re.search(r'%%DS\d+%%', test_str)
+                    if m:
+                        return False, '{} is unresolved in {}'.format(m.group(0), k)
+        return True, ''
+
     # string representation
     def __str__(self):
         outstr = "ID:{} Name:{} Type:{}\n".format(self.id, self.name, self.type)

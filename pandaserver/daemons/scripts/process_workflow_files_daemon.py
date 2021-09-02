@@ -14,7 +14,7 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandaserver.config import panda_config
 from pandaserver.workflow import pcwl_utils
 from pandaserver.workflow import workflow_utils
-from pandaserver.srvcore.CoreUtils import commands_get_status_output
+from pandaserver.srvcore.CoreUtils import commands_get_status_output, clean_user_id
 
 # import idds modules after PandaLogger not to change message levels of other modules
 from idds.client.clientmanager import ClientManager
@@ -34,16 +34,15 @@ def main(tbuf=None, **kwargs):
     overallTimeout = 300
     # prefix of the files
     if 'target' in kwargs and kwargs['target']:
-        evpFilePatt = os.path.join(panda_config.cache_dir, kwargs['target'])
-        test_mode = True
+        evpFilePatt = kwargs['target']
     else:
         prefixEVP = '/workflow.'
         # file pattern of evp files
         evpFilePatt = panda_config.cache_dir + '/' + prefixEVP + '*'
-        test_mode = False
 
-    from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-    taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
+    test_mode = kwargs.get('test_mode', False)
+    interactive_mode = kwargs.get('interactive_mode', False)
+    dump_workflow = kwargs.get('dump_workflow', False)
 
     # thread pool
     class ThreadPool:
@@ -70,13 +69,13 @@ def main(tbuf=None, **kwargs):
 
     # thread
     class EvpThr(threading.Thread):
-        def __init__(self, lock, pool, tb_if, file_name, to_delete):
+        def __init__(self, lock, pool, file_name, to_delete, get_log):
             threading.Thread.__init__(self)
             self.lock = lock
             self.pool = pool
             self.fileName = file_name
             self.to_delete = to_delete
-            self.taskBuffer = tb_if
+            self.get_log = get_log
             self.pool.add(self)
 
         def run(self):
@@ -85,9 +84,10 @@ def main(tbuf=None, **kwargs):
                 is_fatal = False
                 is_OK = True
                 request_id = None
+                dump_str = None
                 with open(self.fileName) as f:
                     ops = json.load(f)
-                    user_name = self.taskBuffer.cleanUserID(ops["userName"])
+                    user_name = clean_user_id(ops["userName"])
                     base_platform = ops['data'].get('base_platform')
                     for task_type in ops['data']['taskParams']:
                         ops['data']['taskParams'][task_type]['userName'] = user_name
@@ -138,8 +138,17 @@ def main(tbuf=None, **kwargs):
                                     workflow_utils.set_workflow_outputs(nodes)
                                     id_map = workflow_utils.get_node_id_map(nodes)
                                     [node.resolve_params(ops['data']['taskParams'], id_map) for node in nodes]
-                                    dump_str = workflow_utils.dump_nodes(nodes)
+                                    dump_str = "internally converted as follows\n" + workflow_utils.dump_nodes(nodes)
                                     tmpLog.info(dump_str)
+                                    for node in nodes:
+                                        s_check, o_check = node.verify()
+                                        tmp_str = 'Verification failure in ID:{} {}'.format(node.id, o_check)
+                                        if not s_check:
+                                            tmpLog.error(tmp_str)
+                                            dump_str += tmp_str
+                                            dump_str += '\n'
+                                            is_fatal = True
+                                            is_OK = False
                                     id_work_map = {}
                                     for node in nodes:
                                         if node.is_leaf:
@@ -232,10 +241,14 @@ def main(tbuf=None, **kwargs):
                                     except Exception as e:
                                         tmpLog.error('failed to submit the workflow with {} {]'.format(
                                             str(e), traceback.format_exc()))
-                                    if test_mode:
+                                    if dump_workflow:
                                         tmpLog.debug(str(workflow_to_submit))
                     os.chdir(cur_dir)
-                    tmpLog.info('is_OK={} is_fatal={} request_id={}'.format(is_OK, is_fatal, request_id))
+                    if not self.get_log:
+                        if is_OK:
+                            tmpLog.info('is_OK={} request_id={}'.format(is_OK, request_id))
+                        else:
+                            tmpLog.info('is_OK={} is_fatal={} request_id={}'.format(is_OK, is_fatal, request_id))
                     if not test_mode and (is_OK or is_fatal or self.to_delete):
                         tmpLog.debug('delete {}'.format(self.fileName))
                         try:
@@ -246,6 +259,13 @@ def main(tbuf=None, **kwargs):
                 tmpLog.error("failed to run with {} {}".format(str(e), traceback.format_exc()))
             self.pool.remove(self)
             self.lock.release()
+            if self.get_log:
+                ret_val = {'status': is_OK}
+                if is_OK:
+                    ret_val['log'] = dump_str
+                else:
+                    ret_val['log'] = tmpLog.dumpToString()
+                return ret_val
 
     # get files
     timeNow = datetime.datetime.utcnow()
@@ -279,15 +299,19 @@ def main(tbuf=None, **kwargs):
             continue
         try:
             modTime = datetime.datetime(*(time.gmtime(os.path.getmtime(fileName))[:7]))
-            if (timeNow - modTime) > datetime.timedelta(hours=2):
+            if interactive_mode:
+                _logger.debug("Interactive attempt : %s" % fileName)
+                thr = EvpThr(adderLock, adderThreadPool, fileName, True, True)
+                return thr.run()
+            elif (timeNow - modTime) > datetime.timedelta(hours=2):
                 # last chance
                 _logger.debug("Last attempt : %s" % fileName)
-                thr = EvpThr(adderLock, adderThreadPool, taskBuffer, fileName, False)
+                thr = EvpThr(adderLock, adderThreadPool, fileName, False, False)
                 thr.start()
             elif (timeInt - modTime) > datetime.timedelta(seconds=5):
                 # try
                 _logger.debug("Normal attempt : %s" % fileName)
-                thr = EvpThr(adderLock, adderThreadPool, taskBuffer, fileName, True)
+                thr = EvpThr(adderLock, adderThreadPool, fileName, True, False)
                 thr.start()
             else:
                 _logger.debug("Wait %s : %s" % ((timeInt - modTime), fileName))
@@ -304,7 +328,9 @@ def main(tbuf=None, **kwargs):
 if __name__ == '__main__':
     import sys
     if len(sys.argv) > 1:
-        target = sys.argv[1]
+        data = {'target': sys.argv[1],
+                'test_mode': True,
+                'dump_workflow': True}
     else:
-        target = None
-    main(target=target)
+        data = {}
+    main(**data)

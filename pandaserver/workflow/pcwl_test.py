@@ -1,7 +1,6 @@
 from ruamel import yaml
 import logging
 import sys
-import copy
 
 from pandaserver.workflow.workflow_utils import get_node_id_map, dump_nodes, set_workflow_outputs
 from pandaserver.workflow.pcwl_utils import parse_workflow_file, resolve_nodes
@@ -92,4 +91,9 @@ task_template = {'athena': template, 'container': c_template}
 
 [node.resolve_params(task_template, id_map) for node in nodes]
 print(dump_nodes(nodes))
+
+for node in nodes:
+    s, o = node.verify()
+    if not s:
+        print('Verification error in ID:{} {}'.format(node.id, o))
 
