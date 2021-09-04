@@ -345,6 +345,7 @@ class TaskBuffer:
                         ddmBackEnd = job.getDdmBackEnd()
                         isHPO = job.is_hpo_workflow()
                         isScout = job.isScoutJob()
+                        no_looping_check = job.is_no_looping_check()
                         # reset specialHandling
                         specialHandling = specialHandling[:-1]
                         job.specialHandling = specialHandling
@@ -352,6 +353,8 @@ class TaskBuffer:
                             job.setScoutJobFlag()
                         if isHPO:
                             job.set_hpo_workflow()
+                        if no_looping_check:
+                            job.disable_looping_check()
                         # set DDM backend
                         if ddmBackEnd is not None:
                             job.setDdmBackEnd(ddmBackEnd)
