@@ -11,6 +11,36 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 # logger
 _logger = PandaLogger().getLogger('MailUtils')
 
+
+# wrapper to patch smtplib.stderr to send debug info to logger
+class StderrLogger(object):
+    def __init__(self, tmpLog):
+        self.tmpLog = tmpLog
+    def write(self, message):
+        message = message.strip()
+        if message != '':
+            self.tmpLog.debug(message)
+
+
+# wrapper of SMTP to redirect messages
+class MySMTP (smtplib.SMTP):
+
+    def set_log(self, tmp_log):
+        self.tmpLog = tmp_log
+        try:
+            self.org_stderr = getattr(smtplib, 'stderr')
+            setattr(smtplib, 'stderr', tmp_log)
+        except Exception:
+            self.org_stderr = None
+
+    def _print_debug(self, *args):
+        self.tmpLog.write(' '.join(map(str, args)))
+
+    def reset_log(self):
+        if self.org_stderr is not None:
+            setattr(smtplib, 'stderr', self.org_stderr)
+
+
 class MailUtils:
     # constructor
     def __init__(self):
@@ -40,8 +70,10 @@ To: %s
             message = self.addTailer(message)
             # send mail
             _logger.debug("send to %s\n%s" % (toAddr,message))
-            server = smtplib.SMTP(panda_config.emailSMTPsrv)
+            stderrLog = StderrLogger(_logger)
+            server = MySMTP(panda_config.emailSMTPsrv)
             server.set_debuglevel(1)
+            server.set_log(stderrLog)
             server.ehlo()
             server.starttls()
             #server.login(panda_config.emailLogin,panda_config.emailPass)
@@ -53,6 +85,10 @@ To: %s
             type, value, traceBack = sys.exc_info()
             _logger.error("%s %s" % (type,value))
             retVal = False
+        try:
+            server.reset_log()
+        except Exception:
+            pass
         _logger.debug("end SEND session")
         return retVal
 

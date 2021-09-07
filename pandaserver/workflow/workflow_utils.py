@@ -128,6 +128,15 @@ class Node (object):
                     m = re.search(r'%%DS\d+%%', test_str)
                     if m:
                         return False, '{} is unresolved in {}'.format(m.group(0), k)
+            if self.type == 'prun':
+                for k in dict_inputs:
+                    if k not in ['opt_inDS', 'opt_inDsType', 'opt_secondaryDSs', 'opt_secondayDsTypes',
+                                 'opt_args', 'opt_exec', 'opt_useAthenaPackages', 'opt_containerImage']:
+                        return False, 'unknown input parameter {}'.format(k)
+            elif self.type == 'phpo':
+                for k in dict_inputs:
+                    if k not in ['opt_trainingDS', 'opt_trainingDsType', 'opt_args']:
+                        return False, 'unknown input parameter {}'.format(k)
         return True, ''
 
     # string representation
