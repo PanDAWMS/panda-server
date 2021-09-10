@@ -821,7 +821,10 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # reassign defined jobs in defined table
     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
     # get PandaIDs
-    status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsDefined4",timeLimit,['defined'],['managed'],[],[],[],
+    status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsDefined4",
+                                                timeLimit, ['defined'],
+                                                ['managed', 'test'],
+                                                [], [], [],
                                                 True)
     jobs = []
     jediJobs = []
