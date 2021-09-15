@@ -185,7 +185,7 @@ class WorkflowProcessor(object):
                                         if not test_mode:
                                             tmpLog.info('submit workflow')
                                             wm = ClientManager(host=get_rest_host())
-                                            request_id = wm.submit(workflow_to_submit)
+                                            request_id = wm.submit(workflow_to_submit, username=user_name)
                                     else:
                                         dump_str = 'workflow is empty'
                                         tmpLog.error(dump_str)

@@ -72,8 +72,8 @@ class Node (object):
         self.task_params = None
         self.condition = None
         self.is_workflow_output = False
+        self.loop = False
         self.in_loop = False
-        self.sub_workflow_id = None
 
     def add_parent(self, id):
         self.parents.add(id)
@@ -226,7 +226,7 @@ class Node (object):
                     in_ds_suffix = dict_inputs['opt_inDsType']
                 if is_list_in_ds:
                     in_ds_str = ','.join(['{}_{}/'.format(s1, s2) for s1, s2 in zip(dict_inputs['opt_inDS'],
-                                                                                   in_ds_suffix)])
+                                                                                    in_ds_suffix)])
                 else:
                     in_ds_str = '{}_{}/'.format(dict_inputs['opt_inDS'], in_ds_suffix)
                 com += ['--inDS', in_ds_str]
@@ -321,7 +321,21 @@ class Node (object):
             task_params["jobParameters"] = new_job_params
             # return
             return task_params
+        elif self.type == 'junction':
+            return {}
         return None
+
+    # get parameters in a loop
+    def get_looping_parameters(self):
+        if not self.loop:
+            return None
+        params = {}
+        for k, v in six.iteritems(self.root_inputs):
+            param = k.split('#')[-1]
+            m = re.search(r'^param_(.+)', param)
+            if m:
+                params[m.group(1)] = v
+        return params
 
 
 # dump nodes
@@ -331,7 +345,7 @@ def dump_nodes(node_list, dump_str=None, only_leaves=True):
     for node in node_list:
         if node.is_leaf:
             dump_str += "{}".format(node)
-            if node.task_params:
+            if node.task_params is not None:
                 dump_str += json.dumps(node.task_params, indent=4, sort_keys=True)
                 dump_str += '\n\n'
         else:
