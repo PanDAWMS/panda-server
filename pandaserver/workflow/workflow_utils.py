@@ -72,6 +72,8 @@ class Node (object):
         self.task_params = None
         self.condition = None
         self.is_workflow_output = False
+        self.in_loop = False
+        self.sub_workflow_id = None
 
     def add_parent(self, id):
         self.parents.add(id)
@@ -130,7 +132,7 @@ class Node (object):
                         return False, '{} is unresolved in {}'.format(m.group(0), k)
             if self.type == 'prun':
                 for k in dict_inputs:
-                    if k not in ['opt_inDS', 'opt_inDsType', 'opt_secondaryDSs', 'opt_secondayDsTypes',
+                    if k not in ['opt_inDS', 'opt_inDsType', 'opt_secondaryDSs', 'opt_secondaryDsTypes',
                                  'opt_args', 'opt_exec', 'opt_useAthenaPackages', 'opt_containerImage']:
                         return False, 'unknown input parameter {}'.format(k)
             elif self.type == 'phpo':
@@ -172,7 +174,7 @@ class Node (object):
                         v['value'] = dict_inputs['opt_exec']
                     elif k.endswith('opt_args'):
                         v['value'] = dict_inputs['opt_args']
-        if task_template:
+        if self.is_leaf and task_template:
             self.task_params = self.make_task_params(task_template, id_map)
         [n.resolve_params(task_template, id_map) for n in self.sub_nodes]
 
@@ -357,7 +359,7 @@ def get_all_parents(node_list, all_parents=None):
     for node in node_list:
         all_parents |= node.parents
         if node.sub_nodes:
-            all_parents = get_node_id_map(node.sub_nodes, all_parents)
+            all_parents = get_all_parents(node.sub_nodes, all_parents)
     return all_parents
 
 

@@ -13,6 +13,7 @@ import traceback
 import pandaserver.jobdispatcher.Protocol as Protocol
 import pandaserver.taskbuffer.ProcessGroups
 from pandaserver.taskbuffer.WrappedPickle import WrappedPickle
+from pandaserver.srvcore.CoreUtils import clean_user_id
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.taskbuffer import PrioUtil, JobUtils
 from pandaserver.dataservice.DDM import rucioAPI
@@ -2565,6 +2566,11 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None):
                 kwargs = json.loads(kwargs, object_hook=decode_idds_enum)
         else:
             kwargs = {}
+        # set user name
+        if manager and command_name in ['submit']:
+            dn = req.subprocess_env.get('SSL_CLIENT_S_DN')
+            if dn:
+                kwargs['username'] = clean_user_id(dn)
         _logger.debug("relay_idds_command : class={} com={} host={} args={} kwargs={}".format(
             c.__class__.__name__, command_name, idds_host, str(args), str(kwargs)))
         ret = getattr(c, command_name)(*args, **kwargs)

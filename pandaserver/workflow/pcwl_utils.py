@@ -45,7 +45,7 @@ def top_sort(list_data, visited):
 
 
 # parse CWL file
-def parse_workflow_file(workflow_file, log_stream):
+def parse_workflow_file(workflow_file, log_stream, in_loop=False):
     # read the file from yaml
     cwl_file = Path(os.path.abspath(workflow_file))
     with open(cwl_file, "r") as cwl_h:
@@ -82,18 +82,20 @@ def parse_workflow_file(workflow_file, log_stream):
     output_map = {}
     serial_id = 0
     for step in root_obj.steps:
-        # exclude command
-        if not step.run.endswith('.cwl'):
+        cwl_name = os.path.basename(step.run)
+        # check cwl command
+        if not cwl_name.endswith('.cwl') and cwl_name not in ['prun', 'phpo', 'junction']:
             log_stream.error("Unknown workflow {}".format(step.run))
             return False, None
         serial_id += 1
-        cwl_name = os.path.basename(step.run)
         workflow_name = step.id.split('#')[-1]
         # leaf workflow and sub-workflow
-        if cwl_name == 'prun.cwl':
+        if cwl_name in ['prun.cwl', 'prun']:
             node = Node(serial_id, 'prun', None, True, workflow_name)
-        elif cwl_name == 'phpo.cwl':
+        elif cwl_name in ['phpo.cwl', 'phpo']:
             node = Node(serial_id, 'phpo', None, True, workflow_name)
+        elif cwl_name in ['junction']:
+            node = Node(serial_id, 'junction', None, True, workflow_name)
         else:
             node = Node(serial_id, 'workflow', None, False, workflow_name)
         node.inputs = {extract_id(s.id): {'default': s.default, 'source': extract_id(s.source)}
@@ -107,11 +109,13 @@ def parse_workflow_file(workflow_file, log_stream):
             node.condition = parse_condition_string(step.when)
             # suppress inputs based on condition
             suppress_inputs_based_on_condition(node.condition, node.inputs)
+        if step.hints and 'loop' in step.hints or in_loop:
+            node.in_loop = True
         # expand sub-workflow
         if not node.is_leaf:
             p = urlparse(step.run)
             tmp_path = os.path.abspath(os.path.join(p.netloc, p.path))
-            node.sub_nodes, node.root_inputs = parse_workflow_file(tmp_path, log_stream)
+            node.sub_nodes, node.root_inputs = parse_workflow_file(tmp_path, log_stream, node.in_loop)
         # check if tail
         if root_outputs & set(node.outputs):
             node.is_tail = True
@@ -145,7 +149,7 @@ def parse_workflow_file(workflow_file, log_stream):
 
 
 # resolve nodes
-def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, outDsName, log_stream):
+def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, outDsName, log_stream, sub_workflow_id=0):
     for k in root_inputs:
         kk = k.split('#')[-1]
         if kk in data:
@@ -153,6 +157,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, outDsName
     tmp_to_real_id_map = {}
     resolved_map = {}
     all_nodes = []
+    orig_sub_workflow_id = sub_workflow_id
     for node in node_list:
         # resolve input
         is_head = False
@@ -219,18 +224,6 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, outDsName
             # set real node ID
             resolved_map.setdefault(sc_node.id, [])
             tmp_to_real_id_map.setdefault(sc_node.id, set())
-            if sc_node.is_leaf:
-                resolved_map[sc_node.id].append(sc_node)
-                tmp_to_real_id_map[sc_node.id].add(serial_id)
-                sc_node.id = serial_id
-                serial_id += 1
-            else:
-                serial_id, sub_tail_nodes, sc_node.sub_nodes = resolve_nodes(sc_node.sub_nodes, sc_node.root_inputs,
-                                                                             sc_node.convert_dict_inputs(),
-                                                                             serial_id, parent_ids, outDsName,
-                                                                             log_stream)
-                resolved_map[sc_node.id] += sub_tail_nodes
-                tmp_to_real_id_map[sc_node.id] |= set([n.id for n in sub_tail_nodes])
             # resolve parents
             real_parens = set()
             for i in sc_node.parents:
@@ -238,6 +231,21 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, outDsName
             sc_node.parents = real_parens
             if is_head:
                 sc_node.parents |= parent_ids
+            sc_node.sub_workflow_id = orig_sub_workflow_id
+            if sc_node.is_leaf:
+                resolved_map[sc_node.id].append(sc_node)
+                tmp_to_real_id_map[sc_node.id].add(serial_id)
+                sc_node.id = serial_id
+                serial_id += 1
+            else:
+                sub_workflow_id += 1
+                serial_id, sub_tail_nodes, sc_node.sub_nodes, sub_workflow_id =\
+                    resolve_nodes(sc_node.sub_nodes, sc_node.root_inputs,
+                                  sc_node.convert_dict_inputs(),
+                                  serial_id, sc_node.parents, outDsName,
+                                  log_stream, sub_workflow_id)
+                resolved_map[sc_node.id] += sub_tail_nodes
+                tmp_to_real_id_map[sc_node.id] |= set([n.id for n in sub_tail_nodes])
             # convert parameters to parent IDs in conditions
             if sc_node.condition:
                 convert_params_to_parent_ids(sc_node.condition, sc_node.inputs, tmp_to_real_id_map)
@@ -254,7 +262,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, outDsName
                 tail_nodes.append(node)
             else:
                 tail_nodes += resolved_map[node.id]
-    return serial_id, tail_nodes, all_nodes
+    return serial_id, tail_nodes, all_nodes, sub_workflow_id
 
 
 # parse condition string
