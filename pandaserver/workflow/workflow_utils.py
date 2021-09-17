@@ -74,6 +74,7 @@ class Node (object):
         self.is_workflow_output = False
         self.loop = False
         self.in_loop = False
+        self.upper_root_inputs = None
 
     def add_parent(self, id):
         self.parents.add(id)
@@ -198,8 +199,13 @@ class Node (object):
             else:
                 task_params = copy.deepcopy(task_template['container'])
             task_params['taskName'] = task_name
+            # tweak opt_exec for looping scatter
+            opt_exec = dict_inputs['opt_exec']
+            if self.in_loop and self.scatter_index is not None and self.get_looping_parameters():
+                for k in self.get_looping_parameters():
+                    opt_exec = opt_exec.replace('%%{}%%'.format(k), '%%{}_{}%%'.format(k, self.scatter_index))
             # cli params
-            com = ['prun', '--exec', dict_inputs['opt_exec'], *shlex.split(dict_inputs['opt_args'])]
+            com = ['prun', '--exec', opt_exec, *shlex.split(dict_inputs['opt_args'])]
             in_ds_str = None
             if 'opt_inDS' in dict_inputs and dict_inputs['opt_inDS']:
                 if isinstance(dict_inputs['opt_inDS'], list):
@@ -327,10 +333,14 @@ class Node (object):
 
     # get parameters in a loop
     def get_looping_parameters(self):
-        if not self.loop:
+        if self.is_leaf:
+            root_inputs = self.upper_root_inputs
+        else:
+            root_inputs = self.root_inputs
+        if root_inputs is None:
             return None
         params = {}
-        for k, v in six.iteritems(self.root_inputs):
+        for k, v in six.iteritems(root_inputs):
             param = k.split('#')[-1]
             m = re.search(r'^param_(.+)', param)
             if m:

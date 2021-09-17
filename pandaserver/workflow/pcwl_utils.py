@@ -212,10 +212,13 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                     scatters = [{item: v} for v in node.inputs[item]['value']]
                 else:
                     [i.update({item: v}) for i, v in zip(scatters, node.inputs[item]['value'])]
-            for item in scatters:
+            for idx, item in enumerate(scatters):
                 sc_node = copy.deepcopy(node)
                 for k, v in six.iteritems(item):
                     sc_node.inputs[k]['value'] = v
+                for tmp_node in sc_node.sub_nodes:
+                    tmp_node.scatter_index = idx
+                    tmp_node.upper_root_inputs = sc_node.root_inputs
                 sc_nodes.append(sc_node)
         else:
             sc_nodes = [node]
