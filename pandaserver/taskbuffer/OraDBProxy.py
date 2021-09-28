@@ -1332,7 +1332,7 @@ class DBProxy:
         else:
             sql0 = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID FOR UPDATE "
             sql1 = "DELETE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
-        sql2 = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
+        sql2 = "INSERT /*+ NO_BIND_AWARE */ INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
         sql2+= JobSpec.bindValuesExpression()
         updatedJobList = []
         nTry=1
@@ -1366,7 +1366,7 @@ class DBProxy:
                     sqlDJS = "SELECT %s " % JobSpec.columnNames()
                     sqlDJS+= "FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
                     sqlDJD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
-                    sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
+                    sqlDJI = "INSERT /*+ NO_BIND_AWARE */ INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
                     sqlDJI+= JobSpec.bindValuesExpression()
                     sqlDFup = "UPDATE ATLAS_PANDA.filesTable4 SET status=:status WHERE PandaID=:PandaID AND type IN (:type1,:type2)"
                     sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
@@ -1561,7 +1561,7 @@ class DBProxy:
                                 sqlDJS = "SELECT %s " % JobSpec.columnNames()
                                 sqlDJS+= "FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
                                 sqlDJD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
-                                sqlDJI = "INSERT INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
+                                sqlDJI = "INSERT /*+ NO_BIND_AWARE */ INTO ATLAS_PANDA.jobsArchived4 (%s) " % JobSpec.columnNames()
                                 sqlDJI+= JobSpec.bindValuesExpression()
                                 sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
                                 sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
@@ -2212,7 +2212,7 @@ class DBProxy:
         sql0 += "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
         varMap0 = {}
         varMap0[':PandaID'] = pandaID
-        sql1 = "UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:jobStatus"
+        sql1 = "UPDATE /*+ NO_BIND_AWARE */ ATLAS_PANDA.jobsActive4 SET jobStatus=:jobStatus"
         varMap = {}
         presetEndTime = False
         for key in list(param):
