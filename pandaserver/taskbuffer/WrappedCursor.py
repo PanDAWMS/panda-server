@@ -103,7 +103,8 @@ class WrappedCursor(object):
             # set DATE format
             self.execute("ALTER SESSION SET NLS_DATE_FORMAT='YYYY/MM/DD HH24:MI:SS'")
             # avoid hard parsing for queries
-            self.execute("ALTER SESSION SET EVENTS '10503 trace name context forever, level 2000'")
+            self.execute("ALTER SESSION SET \"_fix_control\"='17443547:0'")
+
         elif self.backend == 'postgres':
             # disable autocommit
             # make sure that always have commit() since any query execution, including SELECT will start a transaction
