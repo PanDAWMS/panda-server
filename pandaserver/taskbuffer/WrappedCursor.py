@@ -102,8 +102,6 @@ class WrappedCursor(object):
             self.execute("ALTER SESSION SET TIME_ZONE='UTC'")
             # set DATE format
             self.execute("ALTER SESSION SET NLS_DATE_FORMAT='YYYY/MM/DD HH24:MI:SS'")
-            # avoid hard parsing for queries
-            self.execute("ALTER SESSION SET \"_fix_control\"='17443547:0'")
 
         elif self.backend == 'postgres':
             # disable autocommit
