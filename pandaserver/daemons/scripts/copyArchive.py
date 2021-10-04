@@ -1197,8 +1197,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 varMap[':jobStatus1'] = 'closed'
                 varMap[':jobStatus2'] = 'failed'
                 varMap[':jobStatus3'] = 'starting'
-                _logger.debug(" rebro:%s/%s:ID=%s:%s jediTaskID=%s site=%s" % (iComb,nComb,jobDefinitionID,
-                                                                               prodUserName,jediTaskID,
+                _logger.debug(" rebro:%s/%s:ID=%s:%s jediTaskID=%s site=%s" % (iComb, nComb, jobDefinitionID,
+                                                                               prodUserName, jediTaskID,
                                                                                computingSite))
                 iComb += 1
                 hasRecentJobs = False
