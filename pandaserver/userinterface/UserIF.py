@@ -2627,7 +2627,7 @@ def execute_idds_workflow_command(req, command_name, kwargs=None):
                 tmpLog.error(tmpMsg)
                 return json.dumps((False, ))
             user_name = req[0].get('username')
-            if user_name != requester:
+            if user_name and user_name != requester:
                 tmpMsg = 'request {} is not owned by {}'.format(request_id, requester)
                 tmpLog.error(tmpMsg)
                 return json.dumps((False, tmpMsg))

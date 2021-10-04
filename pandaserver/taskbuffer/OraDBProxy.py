@@ -16502,9 +16502,9 @@ class DBProxy:
         tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("start")
         try:
-            # sql to get jobs
+            # sql to get tasks
             sqlT  = 'SELECT /*+ INDEX_RS_ASC(tab JOBSACTIVE4_PRODUSERNAMEST_IDX) */ '
-            sqlT += 'PandaID,jediTaskID,cloud,computingSite,prodSourceLabel '
+            sqlT += 'distinct jediTaskID '
             sqlT += 'FROM ATLAS_PANDA.jobsActive4 tab '
             sqlT += 'WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName '
             sqlT += 'AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag '
@@ -16512,9 +16512,15 @@ class DBProxy:
                 sqlT += 'AND workingGroup=:workingGroup '
             else:
                 sqlT += 'AND workingGroup IS NULL '
-                        # sql to update job
+            # sql to get jobs
+            sqlJ  = 'SELECT '\
+                    'PandaID,jediTaskID,cloud,computingSite,prodSourceLabel '\
+                    'FROM ATLAS_PANDA.jobsActive4 '\
+                    'WHERE jediTaskID=:jediTaskID '\
+                    'AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag '
+            # sql to update job
             sqlU = ("UPDATE {0}.jobsActive4 SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag "
-                    "WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus ").format(
+                    "WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus ").format(
                 panda_config.schemaPANDA)
             # start transaction
             self.conn.begin()
@@ -16527,32 +16533,50 @@ class DBProxy:
             varMap[':oldJobStatus'] = 'throttled'
             if workingGroup is not None:
                 varMap[':workingGroup'] = workingGroup
-            # get jobs
+            # get tasks
             self.cur.execute(sqlT+comment, varMap)
-            # update jobs
-            res = self.cur.fetchall()
+            resT = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            # loop over all tasks
+            tasks = [jediTaskID for jediTaskID, in resT]
+            random.shuffle(tasks)
             nRow = 0
             nRows = {}
-            for pandaID, taskID, cloud, computingSite, prodSourceLabel in res:
+            for jediTaskID in tasks:
+                tmpLog.debug("reset jediTaskID={}".format(jediTaskID))
+                # start transaction
+                self.conn.begin()
+                # get jobs
                 varMap = {}
-                varMap[':PandaID'] = pandaID
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':oldRelFlag'] = 3
+                varMap[':oldJobStatus'] = 'throttled'
+                self.cur.execute(sqlJ + comment, varMap)
+                resJ = self.cur.fetchall()
+                infoMapDict = {pandaID: {'computingSite': computingSite,
+                                         'cloud': cloud,
+                                         'prodSourceLabel': prodSourceLabel}
+                               for pandaID, taskID, cloud, computingSite, prodSourceLabel in resJ}
+                # update jobs
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
                 varMap[':newRelFlag'] = 1
                 varMap[':newJobStatus'] = 'activated'
                 varMap[':oldJobStatus'] = 'throttled'
                 self.cur.execute(sqlU + comment, varMap)
                 nTmp = self.cur.rowcount
+                tmpLog.debug("reset {} jobs".format(nTmp))
                 if nTmp > 0:
-                    nRow += 1
-                    nRows.setdefault(taskID, 0)
-                    nRows[taskID] += 1
-                    infoMap = {}
-                    infoMap['computingSite'] = computingSite
-                    infoMap['cloud'] = cloud
-                    infoMap['prodSourceLabel'] = prodSourceLabel
+                    nRow += nTmp
+                    nRows[jediTaskID] = nTmp
+                for pandaID in infoMapDict:
+                    infoMap = infoMapDict[pandaID]
                     self.recordStatusChange(pandaID, varMap[':newJobStatus'], infoMap=infoMap, useCommit=False)
-            # commit
-            if not self._commit():
-                raise RuntimeError('Commit error')
+                # commit
+                if not self._commit():
+                    raise RuntimeError('Commit error')
             if get_dict:
                 tmpLog.debug("done with {0}".format(nRows))
                 return nRows
