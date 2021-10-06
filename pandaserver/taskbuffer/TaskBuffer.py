@@ -142,7 +142,7 @@ class TaskBuffer:
                   esJobsetMap=None, getEsJobsetMap=False, unprocessedMap=None):
         try:
             tmpLog = LogWrapper(_logger, 'storeJobs <{}>'.format(CoreUtils.clean_user_id(user)))
-            tmpLog.debug("storeJobs : start nJobs={}".format(len(jobs)))
+            tmpLog.debug("start nJobs={}".format(len(jobs)))
             # check quota for priority calculation
             weight = 0.0
             userJobID = -1
