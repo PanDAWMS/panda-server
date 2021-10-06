@@ -121,6 +121,10 @@ class DBProxy:
         self.__hs_distribution = None  # HS06s distribution of sites
         self.__t_update_distribution = None  # Timestamp when the HS06s distribution was last updated
 
+        # priority boost
+        self.job_prio_boost_dict = None
+        self.job_prio_boost_dict_update_time = None
+
         # keep type
         self.__orig_type = type
 
@@ -349,7 +353,7 @@ class DBProxy:
     # insert job to jobsDefined
     def insertNewJob(self, job, user, serNum, weight=0.0, priorityOffset=0, userVO=None, groupJobSN=0, toPending=False,
                      origEsJob=False, eventServiceInfo=None, oldPandaIDs=None, relationType=None, fileIDPool=[],
-                     origSpecialHandling=None, unprocessedMap=None):
+                     origSpecialHandling=None, unprocessedMap=None, prio_reduction=True):
         comment = ' /* DBProxy.insertNewJob */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += ' <JediTaskID={0} idPool={1}>'.format(job.jediTaskID,len(fileIDPool))
@@ -398,7 +402,12 @@ class DBProxy:
                 # avoid prio reduction for merge jobs
                 pass
             else:
-                if job.currentPriority not in ['NULL',None] and (job.isScoutJob() or job.currentPriority >= JobUtils.priorityTasksToJumpOver):
+                if not prio_reduction:
+                    job.currentPriority = priorityOffset
+                    if job.isScoutJob():
+                        job.currentPriority += 1
+                elif job.currentPriority not in ['NULL',None] and \
+                    (job.isScoutJob() or job.currentPriority >= JobUtils.priorityTasksToJumpOver):
                     pass
                 else:
                     job.currentPriority = PrioUtil.calculatePriority(priorityOffset,serNum,weight)
@@ -24391,3 +24400,54 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger, methodName)
             return None
+
+    # get users and groups to boost job priorities
+    def get_dict_to_boost_job_prio(self, vo):
+        comment = ' /* DBProxy.get_dict_to_boost_job_prio */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        if self.job_prio_boost_dict_update_time and \
+                datetime.datetime.utcnow()-self.job_prio_boost_dict_update_time < datetime.timedelta(minutes=15):
+            return self.job_prio_boost_dict
+        try:
+            self.job_prio_boost_dict_update_time = datetime.datetime.utcnow()
+            self.job_prio_boost_dict = {}
+            # get configs
+            tmpLog = LogWrapper(_logger, methodName)
+            # sql to get configs
+            sqlC = "SELECT value FROM ATLAS_PANDA.Config " \
+                   "WHERE app=:app AND component=:component AND vo=:vo AND key LIKE :key "
+            # start transaction
+            self.conn.begin()
+            varMap = {}
+            varMap[':app'] = 'pandaserver'
+            varMap[':component'] = 'dbproxy'
+            varMap[':vo'] = vo
+            varMap[':key'] = 'USER_JOB_PRIO_BOOST_LIST_%'
+            self.cur.execute(sqlC + comment, varMap)
+            res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            # parse list
+            for tmp_data, in res:
+                if tmp_data:
+                    for tmp_item in tmp_data.split(','):
+                        try:
+                            tmp_name, tmp_type, tmp_prio, tmp_expire = tmp_item.split(':')
+                            # check expiration
+                            if tmp_expire:
+                                tmp_expire = datetime.datetime.strptime(tmp_expire, '%Y%m%d')
+                                if tmp_expire < datetime.datetime.utcnow():
+                                    continue
+                            self.job_prio_boost_dict.setdefault(tmp_type, {})
+                            self.job_prio_boost_dict[tmp_type][tmp_name] = int(tmp_prio)
+                        except Exception as e:
+                            tmpLog.error(str(e))
+            tmpLog.debug("got {}".format(self.job_prio_boost_dict))
+            return self.job_prio_boost_dict
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, methodName)
+            return {}
