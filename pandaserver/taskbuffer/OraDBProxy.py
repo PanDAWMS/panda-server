@@ -16035,7 +16035,7 @@ class DBProxy:
                 sqlSN += "AND sc.status=:siteStatus "
             sqlSN += "AND dr.default_write ='Y' "
             sqlSN += "AND (scope = 'default' OR scope IS NULL) " # skip endpoints with analysis roles
-            sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
+            sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity LIKE :wc1) "
             varMap = {}
             varMap[':site'] = jobSpec.computingSite
             if 'localEsMerge' in catchAll and 'useBrokerOff' in catchAll:
@@ -16043,7 +16043,7 @@ class DBProxy:
                 varMap[':siteStatus2'] = 'brokeroff'
             else:
                 varMap[':siteStatus'] = 'online'
-            varMap[':wc1'] = 'full'
+            varMap[':wc1'] = 'full%'
             varMap[':capability'] = 'ucore'
             # get sites
             self.cur.execute(sqlSN+comment,varMap)
@@ -16086,11 +16086,11 @@ class DBProxy:
                 sqlSN += "AND sc.status=:siteStatus "
                 sqlSN += "AND dr.default_write='Y' "
                 sqlSN += "AND (scope = 'default' OR scope IS NULL) "  # skip endpoints with analysis roles
-                sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
+                sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity LIKE :wc1) "
                 varMap = {}
                 varMap[':nucleus'] = tmpNucleus
                 varMap[':siteStatus'] = 'online'
-                varMap[':wc1'] = 'full'
+                varMap[':wc1'] = 'full%'
                 varMap[':capability'] = 'ucore'
                 # get sites
                 self.cur.execute(sqlSN+comment,varMap)
@@ -16110,10 +16110,10 @@ class DBProxy:
             sqlSN += "AND sc.status=:siteStatus "
             sqlSN += "AND dr.default_write='Y' "
             sqlSN += "AND (scope = 'default' OR scope IS NULL) " # skip endpoints with analysis roles
-            sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
+            sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity LIKE :wc1) "
             varMap = {}
             varMap[':siteStatus'] = 'online'
-            varMap[':wc1'] = 'full'
+            varMap[':wc1'] = 'full%'
             varMap[':capability'] = 'ucore'
             # get sites
             self.cur.execute(sqlSN+comment,varMap)
