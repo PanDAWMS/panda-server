@@ -287,6 +287,9 @@ class Node (object):
                 del task_params['basePlatform']
             # no build
             if use_athena and '--noBuild' in parse_com:
+                for tmp_item in task_params['jobParameters']:
+                    if tmp_item['type'] == 'constant' and tmp_item["value"] == '-l ${LIB}':
+                        tmp_item["value"] = '-a {}'.format(task_params['buildSpec']['archiveName'])
                 del task_params['buildSpec']
             # parent
             if self.parents and len(self.parents) == 1:
