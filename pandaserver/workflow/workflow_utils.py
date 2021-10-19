@@ -41,8 +41,9 @@ def merge_job_params(base_params, io_params):
     # take exec and IO stuff from io_params
     exec_start = False
     for tmp_item in io_params:
-        if tmp_item['type'] == 'constant' and tmp_item["value"].startswith('-p '):
+        if tmp_item['type'] == 'constant' and tmp_item["value"] == '__delimiter__':
             exec_start = True
+            continue
         # ignore archive option
         if tmp_item['type'] == 'constant' and tmp_item["value"].startswith('-a '):
             continue
