@@ -229,6 +229,7 @@ class WorkflowProcessor(object):
                             tmpSM = MailUtils().send(toAdder, mailSubject, mailBody)
                             tmpLog.debug('sent message with {}'.format(tmpSM))
         except Exception as e:
+            is_OK = False
             tmpLog.error("failed to run with {} {}".format(str(e), traceback.format_exc()))
         if get_log:
             ret_val = {'status': is_OK}

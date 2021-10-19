@@ -285,6 +285,9 @@ class Node (object):
                     del task_params['multiStepExec']
             if 'basePlatform' in task_params:
                 del task_params['basePlatform']
+            # no build
+            if use_athena and '--noBuild' in parse_com:
+                del task_params['buildSpec']
             # parent
             if self.parents and len(self.parents) == 1:
                 task_params['noWaitParent'] = True
