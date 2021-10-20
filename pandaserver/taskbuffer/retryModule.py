@@ -181,7 +181,7 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
             if acted_on_job:
                 break
 
-            error_source = error['error_source']
+            error_source = error['source']
             error_code = error['error_code']
             error_diag = error['error_diag']
 
@@ -278,7 +278,7 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
                                   .format(rule, jobID, error_source, error_code, attemptNr))
 
                 except KeyError:
-                    _logger.error("Rule was missing some field(s). Rule: %s" %rule)
+                    _logger.error("Rule was missing some field(s). Rule: %s" % rule)
 
     except KeyError as e:
         _logger.debug("No retrial rules to apply for jobID {0}, attemptNr {1}, failed with {2}. (Exception {3})"
