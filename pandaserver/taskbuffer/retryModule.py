@@ -98,7 +98,8 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
     _logger.debug("Entered preprocess_rules")
     filtered_rules = []
     try:
-        # See if there is a  NO_RETRY rule. Effect of NO_RETRY rules is the same, so just take the first one that appears
+        # See if there is a  NO_RETRY rule.
+        # Effect of NO_RETRY rules is the same, so just take the first one that appears
         for rule in rules:
             if (rule['action']!= NO_RETRY or
                 not conditions_apply(error_diag_job, architecture_job, release_job, wqid_job, rule['error_diag'],
@@ -107,9 +108,10 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
             else:
                 filtered_rules.append(rule)
         
-        # See if there is a INCREASE_MEM rule. The effect of INCREASE_MEM rules is the same, so take the first one that appears
+        # See if there is a INCREASE_MEM rule.
+        # The effect of INCREASE_MEM rules is the same, so take the first one that appears
         for rule in rules:
-            if (rule['action']!= INCREASE_MEM or
+            if (rule['action'] != INCREASE_MEM or
                 not conditions_apply(error_diag_job, architecture_job, release_job, wqid_job, rule['error_diag'],
                                      rule['architecture'], rule['release'], rule['wqid'])):
                 continue
@@ -119,7 +121,7 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
 
         # See if there is a INCREASE_CPU rule. The effect of INCREASE_CPU rules is the same, so take the first one that appears
         for rule in rules:
-            if (rule['action']!= INCREASE_CPU or
+            if (rule['action'] != INCREASE_CPU or
                 not conditions_apply(error_diag_job, architecture_job, release_job, wqid_job, rule['error_diag'],
                                      rule['architecture'], rule['release'], rule['wqid'])):
                 continue
@@ -130,7 +132,7 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
         # See if there is a LIMIT_RETRY rule. Take the narrowest rule, in case of draw take the strictest conditions
         limit_retry_rule = {}
         for rule in rules:
-            if (rule['action']!= LIMIT_RETRY or
+            if (rule['action'] != LIMIT_RETRY or
                 not conditions_apply(error_diag_job, architecture_job, release_job, wqid_job, rule['error_diag'],
                                      rule['architecture'], rule['release'], rule['wqid'])):
                 continue
@@ -146,7 +148,7 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
                 elif comparison == -1:
                     pass
     except KeyError:
-        _logger.error("Rules are not properly defined. Rules: %s"%rules)
+        _logger.error("Rules are not properly defined. Rules: %s" % rules)
 
     if limit_retry_rule:
         filtered_rules.append(limit_retry_rule)
@@ -233,7 +235,7 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
                             acted_on_job = True
                             _logger.info(message)
                         except (KeyError, ValueError):
-                            _logger.error("Inconsistent definition of limit_retry rule - maxAttempt not defined. parameters: %s" %parameters)
+                            _logger.error("Inconsistent definition of limit_retry rule - maxAttempt not defined. parameters: %s" % parameters)
 
                     elif action == INCREASE_MEM:
                         try:
@@ -245,14 +247,14 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
                             acted_on_job = True
                             _logger.info(message)
                         except Exception:
-                            errtype,errvalue = sys.exc_info()[:2]
-                            _logger.error("Failed to increase RAM limit : %s %s" % (errtype,errvalue))
+                            errtype, errvalue = sys.exc_info()[:2]
+                            _logger.error("Failed to increase RAM limit : %s %s" % (errtype, errvalue))
 
                     elif action == INCREASE_CPU:
                         try:
 
                             # request recalculation of task parameters and see if it applied
-                            applied= False
+                            applied = False
 
                             if active:
                                 rowcount = task_buffer.requestTaskParameterRecalculation(job.jediTaskID)
@@ -264,7 +266,8 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
 
                             # Log to pandamon and logfile
                             message = "action=increaseCpuTime requested recalculation of task parameters for PandaID={0} jediTaskID={1} (active={2} ), applied={3}. ( ErrorSource={4} ErrorCode={5} ErrorDiag: {6}. Error/action active={7} error_id={8} )"\
-                                .format(jobID, job.jediTaskID, active, applied, error_source, error_code, error_diag_rule, active, error_id)
+                                .format(jobID, job.jediTaskID, active, applied, error_source, error_code,
+                                        error_diag_rule, active, error_id)
                             acted_on_job = True
                             _logger.info(message)
                         except Exception:
@@ -278,6 +281,6 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
                     _logger.error("Rule was missing some field(s). Rule: %s" %rule)
 
     except KeyError as e:
-        _logger.debug("No retrial rules to apply for jobID {0}, attemptNr {1}, failed with {2}={3}. (Exception {4})"
-                      .format(jobID, attemptNr, error_source, error_code, e))
+        _logger.debug("No retrial rules to apply for jobID {0}, attemptNr {1}, failed with {2}. (Exception {3})"
+                      .format(jobID, attemptNr, errors, e))
 
