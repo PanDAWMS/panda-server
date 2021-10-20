@@ -190,8 +190,14 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
             except ValueError:
                 _logger.error("Error code ({0}) can not be casted to int".format(error_code))
                 continue
+            try:
+                rule = retrial_rules[error_source][error_code]
+            except KeyError as e:
+                _logger.debug("Retry rule does not apply for jobID {0}, attemptNr {1}, failed with {2}. (Exception {3})"
+                              .format(jobID, attemptNr, errors, e))
+                continue
 
-            applicable_rules = preprocess_rules(retrial_rules[error_source][error_code], error_diag, job.AtlasRelease,
+            applicable_rules = preprocess_rules(rule, error_diag, job.AtlasRelease,
                                                 job.cmtConfig, job.workQueue_ID)
             _logger.debug("Applicable rules for PandaID={0}: {1}".format(jobID, applicable_rules))
             for rule in applicable_rules:
