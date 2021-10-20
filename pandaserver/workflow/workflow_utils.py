@@ -232,10 +232,11 @@ class Node (object):
                 else:
                     in_ds_suffix = dict_inputs['opt_inDsType']
                 if is_list_in_ds:
-                    in_ds_str = ','.join(['{}_{}/'.format(s1, s2) for s1, s2 in zip(dict_inputs['opt_inDS'],
-                                                                                    in_ds_suffix)])
+                    in_ds_str = ','.join(['{}_{}/'.format(s1, s2) if s2 else s1 for s1, s2
+                                          in zip(dict_inputs['opt_inDS'], in_ds_suffix)])
                 else:
-                    in_ds_str = '{}_{}/'.format(dict_inputs['opt_inDS'], in_ds_suffix)
+                    in_ds_str = '{}_{}/'.format(dict_inputs['opt_inDS'], in_ds_suffix) if in_ds_suffix \
+                        else dict_inputs['opt_inDS']
                 com += ['--inDS', in_ds_str, '--notExpandInDS', '--notExpandSecDSs']
             com += ['--outDS', task_name]
             if container_image:
