@@ -236,7 +236,7 @@ class Node (object):
                                                                                     in_ds_suffix)])
                 else:
                     in_ds_str = '{}_{}/'.format(dict_inputs['opt_inDS'], in_ds_suffix)
-                com += ['--inDS', in_ds_str]
+                com += ['--inDS', in_ds_str, '--notExpandInDS', '--notExpandSecDSs']
             com += ['--outDS', task_name]
             if container_image:
                 com += ['--containerImage', container_image]
