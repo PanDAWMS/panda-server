@@ -19,12 +19,15 @@ RUN mv /opt/panda/etc/panda/panda_common.cfg.rpmnew /etc/panda/panda_common.cfg
 RUN mv /opt/panda/etc/idds/idds.cfg.client.template /opt/panda/etc/idds/idds.cfg
 RUN ln -fs /mnt/config/panda_server.cfg /etc/panda/panda_server.cfg
 RUN ln -fs /mnt/config/panda_server /etc/sysconfig/panda_server
+RUN ln -fs /mnt/config/hostkey.pem /etc/grid-security/hostkey.pem
+RUN ln -fs /mnt/config/hostcert.pem /etc/grid-security/hostcert.pem
 RUN ln -fs /mnt/config/panda_server-httpd.conf /opt/panda/etc/panda/panda_server-httpd.conf
 RUN ln -s /opt/panda/etc/rc.d/init.d/panda_server /etc/rc.d/init.d/httpd-pandasrv
 
+RUN mkdir -p /data/atlpan
 RUN mkdir -p /var/log/panda/wsgisocks
 RUN chown -R atlpan:zp /var/log/panda
 
-RUN chkconfig --add httpd-pandasrv
+CMD exec /bin/bash -c "trap : TERM INT; sleep infinity & wait"
 
 EXPOSE 25080 25443
