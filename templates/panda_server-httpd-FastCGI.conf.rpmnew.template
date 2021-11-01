@@ -7,15 +7,15 @@ User  @@panda_user@@
 Group @@panda_group@@
 
 <IfModule prefork.c>
-StartServers         25
-MinSpareServers      25
-ServerLimit          512
-MaxSpareServers      512
-MaxClients           512
+StartServers         ${PANDA_SERVER_CONF_MIN_WORKERS}
+MinSpareServers      ${PANDA_SERVER_CONF_MIN_WORKERS}
+ServerLimit          ${PANDA_SERVER_CONF_MAX_WORKERS}
+MaxSpareServers      ${PANDA_SERVER_CONF_MAX_WORKERS}
+MaxClients           ${PANDA_SERVER_CONF_MAX_WORKERS}
 MaxRequestsPerChild  2000
 </IfModule>
 
-ServerName pandaserver.cern.ch
+ServerName ${PANDA_SERVER_CONF_SERVERNAME}
 
 DocumentRoot "@@install_purelib@@/pandaserver"
 
@@ -79,7 +79,7 @@ Alias /auth/ "/opt/panda/etc/panda/auth/"
 
 <IfModule mod_wsgi.c>
    WSGIPythonHome /opt/panda
-   WSGIDaemonProcess pandasrv_daemon processes=12 threads=1 home=/home/atlpan
+   WSGIDaemonProcess pandasrv_daemon processes=${PANDA_SERVER_CONF_NUM_WSGI} threads=1 home=/home/atlpan
    WSGIProcessGroup pandasrv_daemon
    WSGIApplicationGroup %{GLOBAL}
    WSGIScriptAliasMatch ^/server/panda/(.+)$ @@install_purelib@@/pandaserver/server/panda.py

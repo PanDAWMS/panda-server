@@ -42,3 +42,26 @@ export X509_USER_PROXY=/data/atlpan/x509up_u25606
 export PANDA_URL="http://`hostname --fqdn`:25080/server/panda"
 export PANDA_URL_SSL="https://`hostname --fqdn`:25443/server/panda"
 export PANDA_URL_MAP=CERN,$PANDA_URL,$PANDA_URL_SSL
+
+
+# httpd config
+
+# server name
+if [[ -z "${PANDA_SERVER_CONF_SERVERNAME}" ]]; then
+  export PANDA_SERVER_CONF_SERVERNAME=pandaserver.cern.ch
+fi
+
+# min number of workers
+if [[ -z "${PANDA_SERVER_CONF_MIN_WORKERS}" ]]; then
+  export PANDA_SERVER_CONF_MIN_WORKERS=25
+fi
+
+# max number of workers
+if [[ -z "${PANDA_SERVER_CONF_MAX_WORKERS}" ]]; then
+  export PANDA_SERVER_CONF_MAX_WORKERS=512
+fi
+
+# max number of WSGI daemons
+if [[ -z "${PANDA_SERVER_CONF_NUM_WSGI}" ]]; then
+  export PANDA_SERVER_CONF_NUM_WSGI=12
+fi
