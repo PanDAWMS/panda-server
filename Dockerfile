@@ -2,7 +2,7 @@ FROM docker.io/centos:7
 
 RUN yum update -y
 RUN yum install -y epel-release
-RUN yum install -y python3 python3-devel httpd httpd-devel gcc gridsite less
+RUN yum install -y python3 python3-devel httpd httpd-devel gcc gridsite less git
 RUN python3 -m venv /opt/panda
 RUN /opt/panda/bin/pip install -U pip
 RUN /opt/panda/bin/pip install -U setuptools

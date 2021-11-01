@@ -1,24 +1,10 @@
-LoadModule authz_host_module modules/mod_authz_host.so
-LoadModule alias_module modules/mod_alias.so
-LoadModule rewrite_module modules/mod_rewrite.so
-LoadModule mime_magic_module modules/mod_mime_magic.so
-LoadModule mime_module modules/mod_mime.so
-LoadModule include_module modules/mod_include.so
-LoadModule log_config_module modules/mod_log_config.so
-LoadModule env_module modules/mod_env.so
-LoadModule deflate_module modules/mod_deflate.so
-LoadModule setenvif_module modules/mod_setenvif.so
-LoadModule dir_module modules/mod_dir.so
-LoadModule ssl_module modules/mod_ssl.so
-LoadModule headers_module modules/mod_headers.so
-LoadModule gridsite_module modules/mod_gridsite.so
-LoadModule status_module modules/mod_status.so
+Include conf.modules.d/0*.conf
 
-# WSGI
+LoadModule gridsite_module modules/mod_gridsite.so
 LoadModule wsgi_module modules/mod_wsgi.so
 
 User  @@panda_user@@
-Group @@panda_group@@1
+Group @@panda_group@@
 
 <IfModule prefork.c>
 StartServers         25
