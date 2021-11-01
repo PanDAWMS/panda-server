@@ -5,6 +5,7 @@ import json
 import socket
 import glob
 from pandacommon.liveconfigparser.LiveConfigParser import LiveConfigParser
+from . import config_utils
 
 # get ConfigParser
 tmpConf = LiveConfigParser()
@@ -14,6 +15,9 @@ tmpConf.read('panda_server.cfg')
 
 # get server section
 tmpDict = tmpConf.server
+
+# read configmap
+config_utils.load_config_map('server', tmpDict)
 
 # expand all values
 tmpSelf = sys.modules[ __name__ ]
@@ -26,7 +30,7 @@ for tmpKey in tmpDict:
         tmpVal = False
     elif tmpVal == 'None':
         tmpVal = None
-    elif re.match('^\d+$',tmpVal):
+    elif isinstance(tmpVal, str) and re.match('^\d+$',tmpVal):
         tmpVal = int(tmpVal)
     # update dict
     tmpSelf.__dict__[tmpKey] = tmpVal

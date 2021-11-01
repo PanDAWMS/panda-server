@@ -1,7 +1,7 @@
 import re
 import sys
-import socket
 from pandacommon.liveconfigparser.LiveConfigParser import LiveConfigParser
+from . import config_utils
 
 # get ConfigParser
 tmpConf = LiveConfigParser()
@@ -12,6 +12,9 @@ tmpConf.read('panda_server.cfg')
 # get daemon section
 tmpDict = getattr(tmpConf, 'daemon', {})
 
+# read configmap
+config_utils.load_config_map('daemon', tmpDict)
+
 # expand all values
 tmpSelf = sys.modules[ __name__ ]
 for tmpKey in tmpDict:
@@ -21,7 +24,7 @@ for tmpKey in tmpDict:
         tmpVal = True
     elif tmpVal == 'False':
         tmpVal = False
-    elif re.match('^\d+$', tmpVal):
+    elif isinstance(tmpVal, str) and re.match('^\d+$', tmpVal):
         tmpVal = int(tmpVal)
     # update dict
     tmpSelf.__dict__[tmpKey] = tmpVal

@@ -18,7 +18,7 @@ LoadModule status_module modules/mod_status.so
 LoadModule wsgi_module modules/mod_wsgi.so
 
 User  @@panda_user@@
-Group @@panda_group@@
+Group @@panda_group@@1
 
 <IfModule prefork.c>
 StartServers         25
@@ -148,14 +148,14 @@ RewriteRule .* - [F]
 RewriteRule ^/cscache/(.*)$ /server/panda/getFile?fileName=$1 [PT,L]
 
 # CERN security recommendation to only allow the seven strongest ssl ciphers
-SSLProtocol  all -SSLv2 -SSLv3
-SSLCipherSuite HIGH:!CAMELLIA:!ADH:!aNULL:!eNULL:!EXPORT:!DES:!RC4:!MD5:!PSK:!3DES
+SSLProtocol all -SSLv2 -SSLv3 -TLSv1 -TLSv1.1
+SSLCipherSuite ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
 SSLHonorCipherOrder on
 
 SSLEngine               on
 SSLCertificateFile      /etc/grid-security/hostcert.pem
 SSLCertificateKeyFile   /etc/grid-security/hostkey.pem
-SSLCACertificatePath    /etc/grid-security/certificates
+#SSLCACertificatePath    /etc/grid-security/certificates
 SSLVerifyClient         optional
 SSLVerifyDepth          10
 SSLOptions              +ExportCertData +StdEnvVars +LegacyDNStringFormat
