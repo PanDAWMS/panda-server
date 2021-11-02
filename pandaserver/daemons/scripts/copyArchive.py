@@ -1118,15 +1118,15 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         normalTimeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeoutVal)
         sortTimeLimit   = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
         sql = "WITH p AS ("\
-              "SELECT MIN(PandaID) PandaID,jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType "\
+              "SELECT MIN(PandaID) PandaID,jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType,workingGroup "\
               "FROM ATLAS_PANDA.jobsActive4 "\
               "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "\
               "AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3) "\
               "AND jobsetID IS NOT NULL AND lockedBy=:lockedBy "\
-              "GROUP BY jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType "\
+              "GROUP BY jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType,workingGroup "\
               ") "\
               "SELECT /*+ INDEX (s JOBS_STATUSLOG_PANDAID_IDX) */ "\
-              "p.jobDefinitionID,p.prodUserName,p.prodUserID,p.computingSite,s.modificationTime,p.jediTaskID,p.processingType " \
+              "p.jobDefinitionID,p.prodUserName,p.prodUserID,p.computingSite,s.modificationTime,p.jediTaskID,p.processingType,p.workingGroup " \
               "FROM p, ATLAS_PANDA.jobs_statuslog s "\
               "WHERE s.PandaID=p.PandaID AND s.jobStatus=:s_jobStatus AND s.modificationTime<:modificationTime "
         varMap = {}
@@ -1144,16 +1144,17 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         keyList = set()
         if res is not None:
             for tmpItem in res:
-                jobDefinitionID,prodUserName,prodUserID,computingSite,maxTime,jediTaskID,processingType = tmpItem
+                jobDefinitionID,prodUserName,prodUserID,computingSite,maxTime,jediTaskID,processingType,workingGroup\
+                    = tmpItem
                 tmpKey = (jediTaskID,jobDefinitionID)
                 keyList.add(tmpKey)
                 resList.append(tmpItem)
         # get stalled assigned job
-        sqlA  = "SELECT jobDefinitionID,prodUserName,prodUserID,computingSite,MAX(creationTime),jediTaskID,processingType "
+        sqlA  = "SELECT jobDefinitionID,prodUserName,prodUserID,computingSite,MAX(creationTime),jediTaskID,processingType,workingGroup "
         sqlA += "FROM ATLAS_PANDA.jobsDefined4 "
         sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus IN (:jobStatus1,:jobStatus2) "
         sqlA += "AND creationTime<:modificationTime AND lockedBy=:lockedBy "
-        sqlA += "GROUP BY jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType "
+        sqlA += "GROUP BY jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType,workingGroup "
         varMap = {}
         varMap[':prodSourceLabel1'] = 'user'
         varMap[':prodSourceLabel2'] = 'panda'
@@ -1164,7 +1165,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         retA,resA = taskBuffer.querySQLS(sqlA, varMap)
         if resA is not None:
             for tmpItem in resA:
-                jobDefinitionID,prodUserName,prodUserID,computingSite,maxTime,jediTaskID,processingType = tmpItem
+                jobDefinitionID,prodUserName,prodUserID,computingSite,maxTime,jediTaskID,processingType,workingGroup\
+                    = tmpItem
                 tmpKey = (jediTaskID,jobDefinitionID)
                 if tmpKey not in keyList:
                     keyList.add(tmpKey)
@@ -1180,13 +1182,15 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         sqlJJ  = "SELECT PandaID FROM %s "
         sqlJJ += "WHERE jediTaskID=:jediTaskID AND jobStatus IN (:jobS1,:jobS2,:jobS3,:jobS4,:jobS5) "
         sqlJJ += "AND jobDefinitionID=:jobDefID AND computingSite=:computingSite "
+        timeoutMap = {}
         if resList != []:
             recentRuntimeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
             # loop over all user/jobID combinations
             iComb = 0
             nComb = len(resList)
             _logger.debug("total combinations = %s" % nComb)
-            for jobDefinitionID,prodUserName,prodUserID,computingSite,maxModificationTime,jediTaskID,processingType in resList:
+            for jobDefinitionID,prodUserName,prodUserID,computingSite,maxModificationTime,jediTaskID,\
+                processingType, workingGroup in resList:
                 # check if jobs with the jobID have run recently
                 varMap = {}
                 varMap[':jediTaskID']       = jediTaskID
@@ -1209,9 +1213,22 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 # check site status
                 tmpSiteStatus = siteMapper.getSite(computingSite).status
                 if tmpSiteStatus not in ['offline','test']:
+                    if workingGroup:
+                        if workingGroup not in timeoutMap:
+                            tmp_timeoutVal = taskBuffer.getConfigValue('rebroker',
+                                                                       'ANALY_TIMEOUT_{}'.format(workingGroup))
+                            if tmp_timeoutVal:
+                                timeoutMap[workingGroup] = datetime.datetime.utcnow() - \
+                                                           datetime.timedelta(hours=tmp_timeoutVal)
+                            else:
+                                timeoutMap[workingGroup] = normalTimeLimit
+                        tmp_normalTimeLimit = timeoutMap[workingGroup]
+                    else:
+                        tmp_normalTimeLimit = normalTimeLimit
                     # use normal time limit for normal site status
-                    if maxModificationTime > normalTimeLimit:
-                        _logger.debug("    -> skip wait for normal timelimit=%s<maxModTime=%s" % (normalTimeLimit,maxModificationTime))
+                    if maxModificationTime > tmp_normalTimeLimit:
+                        _logger.debug("    -> skip wait for normal timelimit=%s<maxModTime=%s" % (tmp_normalTimeLimit,
+                                                                                                  maxModificationTime))
                         continue
                     for tableName in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']:
                         retU,resU = taskBuffer.querySQLS(sql % tableName, varMap)
