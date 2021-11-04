@@ -2,7 +2,8 @@ from ruamel import yaml
 import logging
 import sys
 
-from pandaserver.workflow.workflow_utils import get_node_id_map, dump_nodes, set_workflow_outputs
+from pandaserver.workflow.workflow_utils import get_node_id_map, dump_nodes, set_workflow_outputs, \
+    convert_nodes_to_workflow
 from pandaserver.workflow.pcwl_utils import parse_workflow_file, resolve_nodes
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.DEBUG)
@@ -91,6 +92,9 @@ task_template = {'athena': template, 'container': c_template}
 
 [node.resolve_params(task_template, id_map) for node in nodes]
 print(dump_nodes(nodes))
+
+workflow, dump_str_list = convert_nodes_to_workflow(nodes)
+print(''.join(dump_str_list))
 
 for node in nodes:
     s, o = node.verify()
