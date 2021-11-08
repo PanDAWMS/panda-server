@@ -56,14 +56,13 @@ class MetricsDB(object):
         # sql
         sql_update_tmp = (
             """UPDATE ATLAS_PANDA.Metrics SET """
-                """data_json = json_mergepatch(data_json, '{patch_data_json}'), """
-                """timestamp_json = json_mergepatch(timestamp_json, '{patch_timestamp_json}') """
+                """data_json = json_mergepatch(data_json, '{patch_data_json}') """
             """WHERE computingSite=:site AND gshare=:gshare """
         )
         sql_insert_tmp = (
             """INSERT INTO ATLAS_PANDA.Metrics """
                 """VALUES ( """
-                    """:site, :gshare, '{patch_data_json}', '{patch_timestamp_json}' """
+                    """:site, :gshare, '{patch_data_json}' """
                 """) """
         )
         # var map
@@ -72,24 +71,20 @@ class MetricsDB(object):
             ':gshare': gshare,
         }
         # json string evaluated
-        patch_data_dict = {}
-        patch_timestamp_dict = {}
         try:
-            patch_data_dict[key] = value
+            now_time_str = get_now_time_str()
+            patch_data_dict = dict()
+            patch_data_dict[key] = {
+                "value": value,
+                "timestamp": now_time_str,
+            }
             patch_data_json = json.dumps(patch_data_dict)
         except Exception:
             tmp_log.error(traceback.format_exc())
             return
-        try:
-            now_time_str = get_now_time_str()
-            patch_timestamp_dict[key] = now_time_str
-            patch_timestamp_json = json.dumps(patch_timestamp_dict)
-        except Exception:
-            tmp_log.error(traceback.format_exc())
-            return
         # json in sql
-        sql_update = sql_update_tmp.format(patch_data_json=patch_data_json, patch_timestamp_json=patch_timestamp_json)
-        sql_insert = sql_insert_tmp.format(patch_data_json=patch_data_json, patch_timestamp_json=patch_timestamp_json)
+        sql_update = sql_update_tmp.format(patch_data_json=patch_data_json)
+        sql_insert = sql_insert_tmp.format(patch_data_json=patch_data_json)
         # update
         n_row = self.tbuf.querySQL(sql_update, varMap)
         # try insert if no row updated
