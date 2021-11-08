@@ -15,8 +15,6 @@ from pandaserver.srvcore.MailUtils import MailUtils
 
 from idds.client.clientmanager import ClientManager
 from idds.common.utils import get_rest_host
-from idds.workflow.workflow import Workflow, Condition, AndCondition, OrCondition
-from idds.atlas.workflow.atlaspandawork import ATLASPandaWork
 
 
 # process workflow
@@ -77,7 +75,6 @@ class WorkflowProcessor(object):
                         # parse workflow files
                         if is_OK:
                             tmpLog.info('parse workflow')
-                            workflow_to_submit = None
                             if ops['data']['language'] == 'cwl':
                                 nodes, root_in = pcwl_utils.parse_workflow_file(ops['data']['workflowSpecFile'],
                                                                                 tmpLog)
@@ -86,8 +83,8 @@ class WorkflowProcessor(object):
                                 s_id, t_nodes, nodes = pcwl_utils.resolve_nodes(nodes, root_in, data, 0, set(),
                                                                                 ops['data']['outDS'], tmpLog)
                                 workflow_utils.set_workflow_outputs(nodes)
-                                id_map = workflow_utils.get_node_id_map(nodes)
-                                [node.resolve_params(ops['data']['taskParams'], id_map) for node in nodes]
+                                id_node_map = workflow_utils.get_node_id_map(nodes)
+                                [node.resolve_params(ops['data']['taskParams'], id_node_map) for node in nodes]
                                 dump_str = "the description was internally converted as follows\n" \
                                            + workflow_utils.dump_nodes(nodes)
                                 tmpLog.info(dump_str)
@@ -100,86 +97,14 @@ class WorkflowProcessor(object):
                                         dump_str += '\n'
                                         is_fatal = True
                                         is_OK = False
-                                id_work_map = {}
-                                for node in nodes:
-                                    if node.is_leaf:
-                                        if not workflow_to_submit:
-                                            workflow_to_submit = Workflow()
-                                        work = ATLASPandaWork(task_parameters=node.task_params)
-                                        workflow_to_submit.add_work(work)
-                                        id_work_map[node.id] = work
                             else:
                                 dump_str = "{} is not supported to describe the workflow"
                                 tmpLog.error(dump_str)
                                 is_fatal = True
                                 is_OK = False
-                            # add conditions
-                            if is_OK and workflow_to_submit:
-                                for node in nodes:
-                                    if node.is_leaf:
-                                        if node.parents:
-                                            c_work = id_work_map[node.id]
-                                            if not node.condition:
-                                                # default conditions if unspecified
-                                                for p_id in node.parents:
-                                                    p_work = id_work_map[p_id]
-                                                    if len(node.parents) == 1:
-                                                        cond_function = p_work.is_started
-                                                    else:
-                                                        cond_function = p_work.is_finished
-                                                    cond = Condition(cond=cond_function,
-                                                                     current_work=p_work,
-                                                                     true_work=c_work)
-                                                    workflow_to_submit.add_condition(cond)
-                                            else:
-                                                # convert conditions
-                                                cond_list = node.condition.get_dict_form()
-                                                base_cond_map = {}
-                                                root_condition = None
-                                                for tmp_idx, base_cond in cond_list:
-                                                    # leaf condition
-                                                    if base_cond['right'] is None:
-                                                        # condition based on works
-                                                        cond_func_list = []
-                                                        for p_id in base_cond['left']:
-                                                            p_work = id_work_map[p_id]
-                                                            # finished or failed
-                                                            if base_cond['operator'] is None:
-                                                                cond_func_list.append(p_work.is_finished)
-                                                            else:
-                                                                cond_func_list.append(p_work.is_failed)
-                                                        cond = AndCondition(conditions=cond_func_list)
-                                                        base_cond_map[tmp_idx] = cond
-                                                        root_condition = cond
-                                                    else:
-                                                        # composite condition
-                                                        if isinstance(base_cond['left'], set):
-                                                            cond_func_list = []
-                                                            for p_id in base_cond['left']:
-                                                                p_work = id_work_map[p_id]
-                                                                cond_func_list.append(p_work.is_finished)
-                                                            l_cond = AndCondition(conditions=cond_func_list)
-                                                        else:
-                                                            l_cond = base_cond_map[base_cond['left']]
-                                                        if isinstance(base_cond['right'], set):
-                                                            cond_func_list = []
-                                                            for p_id in base_cond['right']:
-                                                                p_work = id_work_map[p_id]
-                                                                cond_func_list.append(p_work.is_finished)
-                                                            r_cond = AndCondition(conditions=cond_func_list)
-                                                        else:
-                                                            r_cond = base_cond_map[base_cond['right']]
-                                                        if base_cond['operator'] == 'and':
-                                                            cond = AndCondition(conditions=[l_cond, r_cond])
-                                                        else:
-                                                            cond = OrCondition(conditions=[l_cond, r_cond])
-                                                        cond = AndCondition(conditions=cond_func_list)
-                                                        base_cond_map[tmp_idx] = cond
-                                                        root_condition = cond
-                                                # set root condition
-                                                if root_condition:
-                                                    root_condition.true_works = [c_work]
-                                                    workflow_to_submit.add_condition(root_condition)
+                            # convert to workflow
+                            if is_OK:
+                                workflow_to_submit, dump_str_list = workflow_utils.convert_nodes_to_workflow(nodes)
                                 try:
                                     if workflow_to_submit:
                                         if not test_mode:
@@ -195,7 +120,7 @@ class WorkflowProcessor(object):
                                     dump_str = 'failed to submit the workflow with {}'.format(str(e))
                                     tmpLog.error('{} {}'.format(dump_str, traceback.format_exc()))
                                 if dump_workflow:
-                                    tmpLog.debug(str(workflow_to_submit))
+                                    tmpLog.debug(''.join(dump_str_list))
                 os.chdir(cur_dir)
                 if not get_log:
                     if is_OK:

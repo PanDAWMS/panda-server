@@ -267,12 +267,13 @@ class DBProxy:
 
 
     # get CLOB
-    def getClobObj(self, sql, varMap, arraySize=10000):
+    def getClobObj(self, sql, varMap, arraySize=10000, use_commit=True):
         comment = ' /* DBProxy.getClobObj */'
         try:
             # begin transaction
-            self.conn.begin()
-            self.cur.arraysize = arraySize
+            if use_commit:
+                self.conn.begin()
+                self.cur.arraysize = arraySize
             ret = self.cur.execute(sql+comment,varMap)
             if ret:
                 ret = True
@@ -289,15 +290,17 @@ class DBProxy:
                 # append
                 res.append(resItem)
             # commit
-            if not self._commit():
-                raise RuntimeError('Commit error')
+            if use_commit:
+                if not self._commit():
+                    raise RuntimeError('Commit error')
             return ret, res
-        except Exception:
+        except Exception as e:
             # roll back
-            self._rollback()
+            if use_commit:
+                self._rollback()
             type, value, traceBack = sys.exc_info()
             _logger.error("getClobObj : %s %s" % (sql,str(varMap)))
-            _logger.error("getClobObj : %s %s" % (type,value))
+            _logger.error("getClobObj : {}".format(str(e)))
             return -1, None
 
 
@@ -19580,10 +19583,6 @@ class DBProxy:
         else:
             sqlJ += "FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
 
-        # sql to get site attributes
-        sqlS  = "SELECT corePower FROM ATLAS_PANDAMETA.schedconfig "
-        sqlS += "WHERE siteid=:siteid "
-
         # sql to update HS06sec
         if inActive:
             sqlU  = "UPDATE ATLAS_PANDA.jobsActive4 "
@@ -19600,16 +19599,11 @@ class DBProxy:
             tmpLog.debug('skip since job not found')
         else:
             jediTaskID, startTime, endTime, actualCoreCount, defCoreCount, jobMetrics, computingSite = resJ
-
-            # get site attributes
-            varMap = {}
-            varMap[':siteid'] = computingSite
-            self.cur.execute(sqlS+comment,varMap)
-            resS = self.cur.fetchone()
-            if resS is None:
-                tmpLog.debug('skip since site={0} not found'.format(computingSite))
+            # get corePower
+            corePower, tmpMsg = self.get_core_power(computingSite)
+            if corePower is None:
+                tmpLog.debug('skip since corePower is undefined for site={0}'.format(computingSite))
             else:
-                corePower, = resS
                 # get core count
                 coreCount = JobUtils.getCoreCount(actualCoreCount, defCoreCount, jobMetrics)
                 # get HS06sec
@@ -20217,7 +20211,43 @@ class DBProxy:
             self.dumpErrorMessage(_logger,methodName)
             return False
 
-
+    # get core power
+    @memoize
+    def get_core_power(self, site_id):
+        comment = ' /* DBProxy.get_core_power */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName + " <siteid={}>".format(site_id))
+        tmpLog.debug("start")
+        # sql to get site attributes
+        sqlS  = "SELECT corePower FROM ATLAS_PANDAMETA.schedconfig "
+        sqlS += "WHERE siteid=:siteid "
+        # sql to get site json attributes
+        sqlSJ  = "SELECT data FROM ATLAS_PANDA.schedconfig_json "
+        sqlSJ += "WHERE panda_queue=:siteid "
+        try:
+            # read schedconfig
+            varMap = {}
+            varMap[':siteid'] = site_id
+            self.cur.execute(sqlS + comment, varMap)
+            resS = self.cur.fetchone()
+            core_power = None
+            if resS is not None:
+                core_power, = resS
+            # read schedconfig json
+            if core_power is None:
+                retS, resS = self.getClobObj(sqlSJ, varMap, use_commit=False)
+                if retS is None or not resS:
+                    msg = 'site={} not found'.format(site_id)
+                    tmpLog.debug(msg)
+                    return None, msg
+                data = json.loads(resS[0][0])
+                core_power = data['corepower']
+            tmpLog.debug('got {}'.format(core_power))
+            return core_power, None
+        except Exception:
+            # error
+            self.dumpErrorMessage(_logger, methodName)
+            return None, 'failed to get corePower'
 
     # convert ObjID to endpoint
     @memoize

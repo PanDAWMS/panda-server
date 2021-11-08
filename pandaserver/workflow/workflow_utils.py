@@ -7,6 +7,9 @@ import json
 from pandaclient import PrunScript
 from pandaclient import PhpoScript
 
+from idds.workflowv2.workflow import Workflow, Condition, AndCondition, OrCondition
+from idds.atlas.workflow.atlaspandawork import ATLASPandaWork
+
 
 # extract argument value from execution string
 def get_arg_value(arg, exec_str):
@@ -62,6 +65,7 @@ class Node (object):
         self.data = data
         self.is_leaf = is_leaf
         self.is_tail = False
+        self.is_head = False
         self.inputs = {}
         self.outputs = {}
         self.output_types = []
@@ -159,12 +163,26 @@ class Node (object):
             outstr += "     {}\n".format(v)
         return outstr
 
+    # short description
+    def short_desc(self):
+        return "ID:{} Name:{} Type:{}".format(self.id, self.name, self.type)
+
     # resolve workload-specific parameters
     def resolve_params(self, task_template=None, id_map=None):
         if self.type == 'prun':
             dict_inputs = self.convert_dict_inputs()
             if 'opt_secondaryDSs' in dict_inputs:
                 idx = 1
+                # look for secondaryDsTypes if missing
+                if 'opt_secondaryDsTypes' not in dict_inputs:
+                    dict_inputs['opt_secondaryDsTypes'] = []
+                    for ds_name in dict_inputs['opt_secondaryDSs']:
+                        for pid in self.parents:
+                            parent_node = id_map[pid]
+                            if ds_name in parent_node.convert_set_outputs():
+                                dict_inputs['opt_secondaryDsTypes'].append(parent_node.output_types[0])
+                                break
+                # resolve secondary dataset names
                 for ds_name, ds_type in zip(dict_inputs['opt_secondaryDSs'], dict_inputs['opt_secondaryDsTypes']):
                     src = "%%DS{}%%".format(idx)
                     dst = "{}.{}".format(ds_name, ds_type)
@@ -200,13 +218,8 @@ class Node (object):
             else:
                 task_params = copy.deepcopy(task_template['container'])
             task_params['taskName'] = task_name
-            # tweak opt_exec for looping scatter
-            opt_exec = dict_inputs['opt_exec']
-            if self.in_loop and self.scatter_index is not None and self.get_looping_parameters():
-                for k in self.get_looping_parameters():
-                    opt_exec = opt_exec.replace('%%{}%%'.format(k), '%%{}_{}%%'.format(k, self.scatter_index))
             # cli params
-            com = ['prun', '--exec', opt_exec, *shlex.split(dict_inputs['opt_args'])]
+            com = ['prun', '--exec', dict_inputs['opt_exec'], *shlex.split(dict_inputs['opt_args'])]
             in_ds_str = None
             if 'opt_inDS' in dict_inputs and dict_inputs['opt_inDS']:
                 if isinstance(dict_inputs['opt_inDS'], list):
@@ -355,9 +368,20 @@ class Node (object):
                 params[m.group(1)] = v
         return params
 
+    # get all sub node IDs
+    def get_all_sub_node_ids(self, all_ids=None):
+        if all_ids is None:
+            all_ids = set()
+        all_ids.add(self.id)
+        for sub_node in self.sub_nodes:
+            all_ids.add(sub_node.id)
+            if not sub_node.is_leaf:
+                sub_node.get_all_sub_node_ids(all_ids)
+        return all_ids
+
 
 # dump nodes
-def dump_nodes(node_list, dump_str=None, only_leaves=True):
+def dump_nodes(node_list, dump_str=None, only_leaves=False):
     if dump_str is None:
         dump_str = '\n'
     for node in node_list:
@@ -368,7 +392,7 @@ def dump_nodes(node_list, dump_str=None, only_leaves=True):
                 dump_str += '\n\n'
         else:
             if not only_leaves:
-                dump_str += "{}".format(node)
+                dump_str += "{}\n".format(node)
             dump_str = dump_nodes(node.sub_nodes, dump_str, only_leaves)
     return dump_str
 
@@ -446,3 +470,167 @@ class ConditionItem (object):
             return [(k, dict_form[k]) for k in keys]
         else:
             return serial_id, dict_form
+
+
+# convert nodes to workflow
+def convert_nodes_to_workflow(nodes, parent_node=None, workflow=None):
+    if workflow is None:
+        is_top = True
+        workflow = Workflow()
+    else:
+        is_top = False
+    id_work_map = {}
+    all_sub_id_work_map = {}
+    sub_to_id_map = {}
+    cond_dump_str = '  Conditions\n'
+    class_dump_str = '===== Workflow ID:{} ====\n'.format(parent_node.id if parent_node else None)
+    class_dump_str += "  Works\n"
+    dump_str_list = []
+    # create works or workflows
+    for node in nodes:
+        if node.is_leaf:
+            # work
+            if node.type == 'junction':
+                # FIXME
+                work = ATLASPandaWork(task_parameters=node.task_params)
+            else:
+                work = ATLASPandaWork(task_parameters=node.task_params)
+            workflow.add_work(work)
+            id_work_map[node.id] = work
+            class_dump_str += '    {} Class:{}\n'.format(node.short_desc(), work.__class__.__name__)
+        else:
+            # sub workflow
+            sub_workflow = Workflow()
+            id_work_map[node.id] = sub_workflow
+            class_dump_str += '    {} Class:{}\n'.format(node.short_desc(), sub_workflow.__class__.__name__)
+            sub_id_work_map, tmp_dump_str_list = convert_nodes_to_workflow(node.sub_nodes, node, sub_workflow)
+            dump_str_list += tmp_dump_str_list
+            for sub_id in node.get_all_sub_node_ids():
+                all_sub_id_work_map[sub_id] = sub_workflow
+                sub_to_id_map[sub_id] = node.id
+            # add loop condition
+            if node.loop:
+                for sub_node in node.sub_nodes:
+                    if sub_node.type == 'junction':
+                        cond = Condition(cond=sub_id_work_map[sub_node.id].is_finished)
+                        sub_workflow.add_loop_condition(cond)
+                        cond_dump_str += '    Loop in ID:{} with terminator ID:{}\n'.format(node.id, sub_node.id)
+                        break
+            workflow.add_work(sub_workflow)
+    # add conditions
+    for node in nodes:
+        if not node.is_head and node.parents:
+            c_work = id_work_map[node.id]
+            if not node.condition:
+                # default conditions if unspecified
+                cond_func_list = []
+                for p_id in node.parents:
+                    if p_id in id_work_map:
+                        p_work = id_work_map[p_id]
+                        str_p_id = p_id
+                    else:
+                        p_work = all_sub_id_work_map[p_id]
+                        str_p_id = sub_to_id_map[p_id]
+                    if len(node.parents) > 1 or isinstance(p_work, Workflow) or node.type == 'junction':
+                        cond_function = p_work.is_finished
+                    else:
+                        cond_function = p_work.is_started
+                    cond_func_list.append(cond_function)
+                    cond_dump_str += '    Default Link ID:{} {} -> ID:{}\n'.format(str_p_id, cond_function.__name__,
+                                                                                   node.id)
+                cond = AndCondition(true_works=[c_work], conditions=cond_func_list)
+                workflow.add_condition(cond)
+            else:
+                # convert conditions
+                cond_list = node.condition.get_dict_form()
+                base_cond_map = {}
+                str_cond_map = {}
+                root_condition = None
+                for tmp_idx, base_cond in cond_list:
+                    # leaf condition
+                    if base_cond['right'] is None:
+                        # condition based on works
+                        cond_func_list = []
+                        str_func_list = []
+                        for p_id in base_cond['left']:
+                            if p_id in id_work_map:
+                                p_work = id_work_map[p_id]
+                                str_p_id = p_id
+                            else:
+                                p_work = all_sub_id_work_map[p_id]
+                                str_p_id = sub_to_id_map[p_id]
+                            # finished or failed
+                            if base_cond['operator'] is None:
+                                cond_function = p_work.is_finished
+                            else:
+                                cond_function = p_work.is_failed
+                            cond_func_list.append(cond_function)
+                            str_func_list.append("ID:{} {}".format(str_p_id, cond_function.__name__))
+                        cond = AndCondition(conditions=cond_func_list)
+                        base_cond_map[tmp_idx] = cond
+                        str_func = "AND ".join(str_func_list)
+                        str_cond_map[tmp_idx] = str_func
+                        cond_dump_str += '    Unary Ops  {} ({}) for ID:{}\n'.format(
+                            cond.__class__.__name__, str_func, node.id)
+                        root_condition = cond
+                    else:
+                        # composite condition
+                        l_str_func_list = []
+                        r_str_func_list = []
+                        if isinstance(base_cond['left'], set):
+                            cond_func_list = []
+                            for p_id in base_cond['left']:
+                                if p_id in id_work_map:
+                                    p_work = id_work_map[p_id]
+                                    str_p_id = p_id
+                                else:
+                                    p_work = all_sub_id_work_map[p_id]
+                                    str_p_id = sub_to_id_map[p_id]
+                                cond_function = p_work.is_finished
+                                cond_func_list.append(cond_function)
+                                l_str_func_list.append("ID:{} {}".format(str_p_id, cond_function.__name__))
+                            l_cond = AndCondition(conditions=cond_func_list)
+                            l_str_func = "AND ".join(l_str_func_list)
+                            str_cond_map[base_cond['left']] = l_str_func
+                        else:
+                            l_cond = base_cond_map[base_cond['left']]
+                            l_str_func = str_cond_map[base_cond['left']]
+                        if isinstance(base_cond['right'], set):
+                            cond_func_list = []
+                            for p_id in base_cond['right']:
+                                if p_id in id_work_map:
+                                    p_work = id_work_map[p_id]
+                                    str_p_id = p_id
+                                else:
+                                    p_work = all_sub_id_work_map[p_id]
+                                    str_p_id = sub_to_id_map[p_id]
+                                cond_function = p_work.is_finished
+                                cond_func_list.append(cond_function)
+                                r_str_func_list.append("ID:{} {}".format(str_p_id, cond_function.__name__))
+                            r_cond = AndCondition(conditions=cond_func_list)
+                            r_str_func = "AND ".join(r_str_func_list)
+                            str_cond_map[base_cond['right']] = r_str_func
+                        else:
+                            r_cond = base_cond_map[base_cond['right']]
+                            r_str_func = str_cond_map[base_cond['right']]
+                        if base_cond['operator'] == 'and':
+                            cond = AndCondition(conditions=[l_cond.is_condition_true, r_cond.is_condition_true])
+                        else:
+                            cond = OrCondition(conditions=[l_cond.is_condition_true, r_cond.is_condition_true])
+                        base_cond_map[tmp_idx] = cond
+                        cond_dump_str += '    Binary Ops {} ({}) ({}) for ID:{}\n'.format(
+                            cond.__class__.__name__,
+                            l_str_func,
+                            r_str_func,
+                            node.id)
+                        root_condition = cond
+                # set root condition
+                if root_condition:
+                    root_condition.true_works = [c_work]
+                    # FIXME
+                    #workflow.add_condition(root_condition)
+    dump_str_list.insert(0, class_dump_str+'\n'+cond_dump_str+'\n\n')
+    # return
+    if not is_top:
+        return id_work_map, dump_str_list
+    return workflow, dump_str_list

@@ -161,7 +161,6 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
     all_nodes = []
     for node in node_list:
         # resolve input
-        is_head = False
         for tmp_name, tmp_data in six.iteritems(node.inputs):
             if not tmp_data['source']:
                 continue
@@ -181,7 +180,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                 isOK = False
                 # check root input
                 if tmp_source in root_inputs:
-                    is_head = True
+                    node.is_head = True
                     node.set_input_value(tmp_name, tmp_source, root_inputs[tmp_source])
                     continue
                 # check parent output
@@ -233,7 +232,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
             for i in sc_node.parents:
                 real_parens |= tmp_to_real_id_map[i]
             sc_node.parents = real_parens
-            if is_head:
+            if sc_node.is_head:
                 sc_node.parents |= parent_ids
             if sc_node.is_leaf:
                 resolved_map[sc_node.id].append(sc_node)
@@ -248,16 +247,18 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                                   log_stream)
                 resolved_map[sc_node.id] += sub_tail_nodes
                 tmp_to_real_id_map[sc_node.id] |= set([n.id for n in sub_tail_nodes])
+                sc_node.id = serial_id
+                serial_id += 1
             # convert parameters to parent IDs in conditions
             if sc_node.condition:
-                convert_params_to_parent_ids(sc_node.condition, sc_node.inputs, tmp_to_real_id_map)
+                convert_params_in_condition_to_parent_ids(sc_node.condition, sc_node.inputs, tmp_to_real_id_map)
             # resolve outputs
             if sc_node.is_leaf:
                 for tmp_name, tmp_data in six.iteritems(sc_node.outputs):
                     tmp_data['value'] = "{}_{:03d}_{}".format(out_ds_name, sc_node.id, sc_node.name)
                     # add loop count for nodes in a loop
                     if sc_node.in_loop:
-                        tmp_data['value'] += '_%%i%%'
+                        tmp_data['value'] += '.___i___'
 
     # return tails
     tail_nodes = []
@@ -343,15 +344,32 @@ def convert_plain_condition_string(cond_string, cond_map):
 
 
 # convert parameter names to parent IDs
-def convert_params_to_parent_ids(condition_item, input_data, id_map):
+def convert_params_in_condition_to_parent_ids(condition_item, input_data, id_map):
     for item in ['left', 'right']:
         param = getattr(condition_item, item)
         if isinstance(param, str):
+            m = re.search(r'^[^\[]+\[(\d+)\]', param)
+            if m:
+                param = param.split('[')[0]
+                idx = int(m.group(1))
+            else:
+                idx = None
+            isOK = False
             for tmp_name, tmp_data in six.iteritems(input_data):
                 if param == tmp_name.split('/')[-1]:
-                    setattr(condition_item, item, id_map[tmp_data['parent_id']])
+                    isOK = True
+                    if isinstance(tmp_data['parent_id'], list):
+                        if idx is not None:
+                            setattr(condition_item, item, id_map[tmp_data['parent_id'][idx]])
+                        else:
+                            setattr(condition_item, item, id_map[tmp_data['parent_id']])
+                    else:
+                        setattr(condition_item, item, id_map[tmp_data['parent_id']])
+                    break
+            if not isOK:
+                raise ReferenceError('unresolved paramter {} in the condition string'.format(param))
         elif isinstance(param, ConditionItem):
-            convert_params_to_parent_ids(param, input_data)
+            convert_params_in_condition_to_parent_ids(param, input_data, id_map)
 
 
 # suppress inputs based on condition
