@@ -191,7 +191,8 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         # use sub and scope as DN and FQAN
                         if 'SSL_CLIENT_S_DN' not in self.subprocess_env:
                             if 'name' in token:
-                                self.subprocess_env['SSL_CLIENT_S_DN'] = str(token['name'])
+                                self.subprocess_env['SSL_CLIENT_S_DN'] = ' '.join(
+                                    [t[:1].upper() + t[1:].lower() for t in str(token['name']).split()])
                             else:
                                 self.subprocess_env['SSL_CLIENT_S_DN'] = str(token['sub'])
                             i = 0
