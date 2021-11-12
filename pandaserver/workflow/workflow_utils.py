@@ -168,7 +168,7 @@ class Node (object):
         return "ID:{} Name:{} Type:{}".format(self.id, self.name, self.type)
 
     # resolve workload-specific parameters
-    def resolve_params(self, task_template=None, id_map=None):
+    def resolve_params(self, task_template=None, id_map=None, workflow=None):
         if self.type == 'prun':
             dict_inputs = self.convert_dict_inputs()
             if 'opt_secondaryDSs' in dict_inputs:
@@ -195,11 +195,11 @@ class Node (object):
                     elif k.endswith('opt_args'):
                         v['value'] = dict_inputs['opt_args']
         if self.is_leaf and task_template:
-            self.task_params = self.make_task_params(task_template, id_map)
-        [n.resolve_params(task_template, id_map) for n in self.sub_nodes]
+            self.task_params = self.make_task_params(task_template, id_map, workflow)
+        [n.resolve_params(task_template, id_map, self) for n in self.sub_nodes]
 
     # create task params
-    def make_task_params(self, task_template, id_map):
+    def make_task_params(self, task_template, id_map, workflow_node):
         # task name
         for k, v in six.iteritems(self.outputs):
             task_name = v['value']
@@ -292,6 +292,16 @@ class Node (object):
             for tmp_item in task_params['jobParameters']:
                 if tmp_item['type'] == 'template' and tmp_item["param_type"] == "output":
                     self.output_types.append(re.search(r'}\.(.+)$', tmp_item["value"]).group(1))
+            # global parameters
+            if workflow_node:
+                tmp_global = workflow_node.get_global_parameters()
+                if tmp_global:
+                    for k in tmp_global:
+                        tmp_src = '%25%7B{}%7D'.format(k)
+                        tmp_dst = '___idds___user_{}___'.format(k)
+                        for tmp_item in task_params['jobParameters']:
+                            if tmp_item['type'] == 'constant':
+                                tmp_item['value'] = re.sub(tmp_src, tmp_dst, tmp_item['value'])
             # container
             if not container_image:
                 if 'container_name' in task_params:
@@ -352,8 +362,8 @@ class Node (object):
             return {}
         return None
 
-    # get parameters in a loop
-    def get_looping_parameters(self):
+    # get global parameters in the workflow
+    def get_global_parameters(self):
         if self.is_leaf:
             root_inputs = self.upper_root_inputs
         else:
@@ -473,7 +483,7 @@ class ConditionItem (object):
 
 
 # convert nodes to workflow
-def convert_nodes_to_workflow(nodes, parent_node=None, workflow=None):
+def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None):
     if workflow is None:
         is_top = True
         workflow = Workflow()
@@ -483,7 +493,7 @@ def convert_nodes_to_workflow(nodes, parent_node=None, workflow=None):
     all_sub_id_work_map = {}
     sub_to_id_map = {}
     cond_dump_str = '  Conditions\n'
-    class_dump_str = '===== Workflow ID:{} ====\n'.format(parent_node.id if parent_node else None)
+    class_dump_str = '===== Workflow ID:{} ====\n'.format(workflow_node.id if workflow_node else None)
     class_dump_str += "  Works\n"
     dump_str_list = []
     # create works or workflows
@@ -629,6 +639,14 @@ def convert_nodes_to_workflow(nodes, parent_node=None, workflow=None):
                     root_condition.true_works = [c_work]
                     # FIXME
                     #workflow.add_condition(root_condition)
+    # global parameters
+    if workflow_node:
+        tmp_global = workflow_node.get_global_parameters()
+        if tmp_global:
+            workflow.set_global_parameters({'user_' + k: tmp_global[k] for k in tmp_global})
+            cond_dump_str += '\n  Globals\n'
+            cond_dump_str += '    {}\n'.format(tmp_global)
+    # dump strings
     dump_str_list.insert(0, class_dump_str+'\n'+cond_dump_str+'\n\n')
     # return
     if not is_top:
