@@ -61,35 +61,35 @@ class MetricsDB(object):
         # sql
         sql_update_tmp = (
             """UPDATE ATLAS_PANDA.Metrics SET """
-                """data_json = json_mergepatch(data_json, '{patch_data_json}') """
+                """metric = :metric , """
+                """value_json = json_mergepatch(value_json, '{patch_value_json}'), """
+                """timestamp = :timestamp """
             """WHERE computingSite=:site AND gshare=:gshare """
         )
         sql_insert_tmp = (
             """INSERT INTO ATLAS_PANDA.Metrics """
                 """VALUES ( """
-                    """:site, :gshare, '{patch_data_json}' """
+                    """:site, :gshare, :metric, '{patch_value_json}', :timestamp """
                 """) """
         )
+        # now
+        now_time = datetime.datetime.utcnow()
         # var map
         varMap = {
             ':site': site,
             ':gshare': gshare,
+            ':metric': key,
+            ':timestamp': now_time,
         }
         # json string evaluated
         try:
-            now_time_str = get_now_time_str()
-            patch_data_dict = dict()
-            patch_data_dict[key] = {
-                "value": value,
-                "timestamp": now_time_str,
-            }
-            patch_data_json = json.dumps(patch_data_dict)
+            patch_value_json = json.dumps(value)
         except Exception:
             tmp_log.error(traceback.format_exc())
             return
         # json in sql
-        sql_update = sql_update_tmp.format(patch_data_json=patch_data_json)
-        sql_insert = sql_insert_tmp.format(patch_data_json=patch_data_json)
+        sql_update = sql_update_tmp.format(patch_value_json=patch_value_json)
+        sql_insert = sql_insert_tmp.format(patch_value_json=patch_value_json)
         # update
         n_row = self.tbuf.querySQL(sql_update, varMap)
         # try insert if no row updated
@@ -200,7 +200,13 @@ class FetchData(object):
                         'med': median,
                         # 'quantiles': quantiles,
                     })
-                tmp_log.debug('site={site}, n={n}, mean={mean:.3f}, stdev={stdev:.3f}, med={med:.3f}'.format(site=site, **site_dict[site]))
+                # log
+                try:
+                    # stdev can be None
+                    stdev_str = '{0:.3f}'.format(stdev)
+                except TypeError:
+                    stdev_str = str(stdev)
+                tmp_log.debug('site={site}, n={n}, mean={mean:.3f}, stdev={stdev_str}, med={med:.3f}'.format(site=site, stdev_str=stdev_str, **site_dict[site]))
             # return
             return site_dict
         except Exception:
