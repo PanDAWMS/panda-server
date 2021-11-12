@@ -20,9 +20,10 @@ from pandaserver.config import panda_config
 main_logger = PandaLogger().getLogger('metric_collector')
 
 
-# list of metrics in FetchData to fetch data and update to DB. Format: (metric, type, period_sec)
+# list of metrics in FetchData to fetch data and update to DB. Format: (metric, type, period_minutes)
 metric_list = [
-    ('analy_pmerge_jobs_wait_time', 'site', 1800),
+    ('analy_pmerge_jobs_wait_time', 'site', 30),
+    ('gshare_preference', 'gshare', 20),
 ]
 
 
@@ -118,6 +119,8 @@ class FetchData(object):
 
     def __init__(self, tbuf):
         self.tbuf = tbuf
+        # initialize stored data
+        self.gshare_status = None
 
     def analy_pmerge_jobs_wait_time(self):
         tmp_log = logger_utils.make_logger(main_logger, 'FetchData')
@@ -205,80 +208,24 @@ class FetchData(object):
 
     def gshare_preference(self):
         tmp_log = logger_utils.make_logger(main_logger, 'FetchData')
-        # sql
-        sql_get_jobs = (
-            "SELECT pandaID, computingSite "
-            "FROM ATLAS_PANDA.jobsArchived4 "
-            "WHERE prodSourceLabel='user' "
-                "AND jobStatus='finished' "
-                "AND processingType='pmerge' "
-        )
-        sql_get_latest_job_mtime_status = (
-            "SELECT jobStatus, MIN(modificationTime) "
-            "FROM ATLAS_PANDA.jobs_StatusLog "
-            "WHERE pandaID=:pandaID "
-            "GROUP BY jobStatus "
-        )
         try:
+            # get share and hs info
+            if self.gshare_status is None:
+                self.gshare_status = self.tbuf.getGShareStatus()
             # initialize
-            tmp_site_dict = dict()
-            # get user jobs
-            jobs_list = self.tbuf.querySQL(sql_get_jobs, {})
-            n_tot_jobs = len(jobs_list)
-            tmp_log.debug('got total {0} jobs'.format(n_tot_jobs))
-            # loop over jobs to get modificationTime when activated and running
-            cc = 0
-            for pandaID, site in jobs_list:
-                if not site:
-                    continue
-                varMap = {':pandaID': pandaID}
-                status_mtime_list = self.tbuf.querySQL(sql_get_latest_job_mtime_status, varMap)
-                status_mtime_dict = dict(status_mtime_list)
-                if 'activated' not in status_mtime_dict or 'running' not in status_mtime_dict:
-                    continue
-                wait_time = status_mtime_dict['running'] - status_mtime_dict['activated']
-                wait_time_sec = wait_time.total_seconds()
-                if wait_time_sec < 0:
-                    tmp_log.warning('job {0} has negative wait time'.format(pandaID))
-                    continue
-                tmp_site_dict.setdefault(site, [])
-                tmp_site_dict[site].append(wait_time_sec)
-                # log message
-                if cc > 0 and cc % 5000 == 0:
-                    tmp_log.debug('... queried {0:9d} jobs ...'.format(cc))
-                cc += 1
-            tmp_log.debug('queried {0} jobs'.format(cc))
-            # evaluate stats
-            site_dict = dict()
-            for site, data_list in tmp_site_dict.items():
-                site_dict.setdefault(site, {})
-                n_jobs = len(data_list)
-                try:
-                    mean = statistics.mean(data_list)
-                except statistics.StatisticsError:
-                    mean = None
-                try:
-                    stdev = statistics.stdev(data_list)
-                except statistics.StatisticsError:
-                    stdev = None
-                try:
-                    stdev = statistics.stdev(data_list)
-                except statistics.StatisticsError:
-                    stdev = None
-                # try:
-                #     quantiles = statistics.quantiles(data_list, n=4, method='inclusive')
-                # except statistics.StatisticsError:
-                #     quantiles = None
-                # update
-                site_dict[site].update({
-                        'n': n_jobs,
-                        'mean': mean,
-                        'stdev': stdev,
-                        # 'quantiles': quantiles,
-                    })
-                tmp_log.debug('site={site}, n={n}, mean={mean:.3f}, stdev={stdev:.3f}'.format(site=site, **site_dict[site]))
+            gshare_dict = dict()
+            # rank and data
+            for idx, leaf in enumerate(self.gshare_status):
+                rank = idx + 1
+                gshare = leaf['name']
+                gshare_dict[gshare] = {
+                    'rank': rank,
+                    'running_hs': leaf['running'],
+                    'target_hs': leaf['target'],
+                }
+                tmp_log.debug('rank={rank}, gshare={gshare}'.format(gshare=gshare, **gshare_dict[gshare]))
             # return
-            return site_dict
+            return gshare_dict
         except Exception:
             tmp_log.error(traceback.format_exc())
 
