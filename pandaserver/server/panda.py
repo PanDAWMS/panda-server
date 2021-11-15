@@ -46,8 +46,9 @@ from pandaserver.userinterface.UserIF import submitJobs, getJobStatus, queryPand
      pauseTask, resumeTask, increaseAttemptNrPanda, killUnfinishedJobs, changeTaskSplitRulePanda,\
      changeTaskModTimePanda, avalancheTask, getPandaIDsWithTaskID, reactivateTask, getTaskStatus, \
      reassignShare, listTasksInShare, getTaskParamsMap, updateWorkers, harvesterIsAlive,\
-     reportWorkerStats, reportWorkerStats_jobtype, addHarvesterDialogs, getJobStatisticsPerSiteResource, setNumSlotsForWP,\
-     reloadInput, enableJumboJobs, updateServiceMetrics, getUserJobMetadata, getJumboJobDatasets, getGShareStatus,\
+     reportWorkerStats, reportWorkerStats_jobtype, updateWorkerPilotStatus, addHarvesterDialogs, \
+     getJobStatisticsPerSiteResource, setNumSlotsForWP, reloadInput, enableJumboJobs, updateServiceMetrics, \
+     getUserJobMetadata, getJumboJobDatasets, getGShareStatus,\
      sweepPQ,get_job_statistics_per_site_label_resource, relay_idds_command, send_command_to_job
 
 # import error
@@ -105,7 +106,7 @@ allowedMethods += ['submitJobs', 'getJobStatus', 'queryPandaIDs', 'killJobs', 'r
                    'killUnfinishedJobs', 'changeTaskSplitRulePanda', 'changeTaskModTimePanda', 'avalancheTask',
                    'getPandaIDsWithTaskID', 'reactivateTask', 'getTaskStatus',
                    'reassignShare', 'listTasksInShare', 'getTaskParamsMap', 'updateWorkers', 'harvesterIsAlive',
-                   'reportWorkerStats', 'reportWorkerStats_jobtype', 'addHarvesterDialogs',
+                   'reportWorkerStats', 'reportWorkerStats_jobtype', 'updateWorkerPilotStatus', 'addHarvesterDialogs',
                    'getJobStatisticsPerSiteResource', 'setNumSlotsForWP', 'reloadInput', 'enableJumboJobs',
                    'updateServiceMetrics', 'getUserJobMetadata', 'getJumboJobDatasets',
                    'getGShareStatus', 'sweepPQ', 'get_job_statistics_per_site_label_resource', 'relay_idds_command',
