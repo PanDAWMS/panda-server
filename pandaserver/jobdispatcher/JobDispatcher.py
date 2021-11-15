@@ -720,6 +720,24 @@ class JobDipatcher:
     def getActiveJobAttributes(self, pandaID, attrs):
         return self.taskBuffer.getActiveJobAttributes(pandaID, attrs)
 
+    # update job status
+    def updateWorkerPilotStatus(self, workerID, harvesterID, status, timeout, accept_json):
+
+        tmp_wrapper = _TimedMethod(self.taskBuffer.updateWorkerPilotStatus, timeout)
+        tmp_wrapper.run(workerID, harvesterID, status)
+
+        # make response
+        if tmp_wrapper.result == Protocol.TimeOutToken:
+            response = Protocol.Response(Protocol.SC_TimeOut)
+        else:
+            if tmp_wrapper.result:  # success
+                response = Protocol.Response(Protocol.SC_Success)
+            else:  # error
+                response = Protocol.Response(Protocol.SC_Failed)
+        _logger.debug("updateWorkerPilotStatus : {0} [1} {2} ret -> {3}}"
+                      .format(workerID, harvesterID, status, response.encode(accept_json)))
+        return response.encode(accept_json)
+
 
 # Singleton
 jobDispatcher = JobDipatcher()
@@ -924,7 +942,7 @@ def updateJob(req, jobId, state, token=None, transExitCode=None, pilotErrorCode=
               coreCount=None, maxRSS=None, maxVMEM=None, maxSWAP=None, maxPSS=None, avgRSS=None, avgVMEM=None,
               avgSWAP=None, avgPSS=None, totRCHAR=None, totWCHAR=None, totRBYTES=None, totWBYTES=None, rateRCHAR=None,
               rateWCHAR=None, rateRBYTES=None, rateWBYTES=None, corruptedFiles=None, meanCoreCount=None):
-    tmpLog = LogWrapper(_logger,'updateJob PandaID={0} PID={1}'.format(jobId,os.getpid()))
+    tmpLog = LogWrapper(_logger, 'updateJob PandaID={0} PID={1}'.format(jobId,os.getpid()))
     tmpLog.debug('start')
     # get DN
     realDN = _getDN(req)
@@ -1157,7 +1175,6 @@ def getEventRanges(req, pandaID, jobsetID, taskID=None, nRanges=10, timeout=60, 
                                         scattered, segment_id)
 
 
-
 # update an event range
 def updateEventRange(req, eventRangeID, eventStatus, coreCount=None, cpuConsumptionTime=None,
                      objstoreID=None, timeout=60, pandaID=None):
@@ -1176,7 +1193,6 @@ def updateEventRange(req, eventRangeID, eventStatus, coreCount=None, cpuConsumpt
         return tmpOut
     return jobDispatcher.updateEventRange(eventRangeID, eventStatus, coreCount, cpuConsumptionTime,
                                           objstoreID, int(timeout))
-
 
 
 # update an event ranges
@@ -1200,7 +1216,6 @@ def updateEventRanges(req, eventRanges, timeout=120, version=0, pandaID=None):
     return jobDispatcher.updateEventRanges(eventRanges,int(timeout),req.acceptJson(),version)
 
 
-
 # check event availability
 def checkEventsAvailability(req, pandaID, jobsetID, taskID, timeout=60):
     tmpStr = "checkEventsAvailability(pandaID={0} jobsetID={1} taskID={2})".format(pandaID, jobsetID, taskID)
@@ -1210,7 +1225,6 @@ def checkEventsAvailability(req, pandaID, jobsetID, taskID, timeout=60):
         _logger.error(tmpStr+'failed with '+tmpOut)
         #return tmpOut
     return jobDispatcher.checkEventsAvailability(pandaID, jobsetID, taskID, timeout)
-
 
 
 # generate pilot token
@@ -1232,13 +1246,11 @@ def genPilotToken(req, schedulerid, host=None):
     return jobDispatcher.genPilotToken(host,realDN,schedulerid)
 
 
-
 # get key pair
 def getKeyPair(req, publicKeyName, privateKeyName):
     # get DN
     realDN = _getDN(req)
     return jobDispatcher.getKeyPair(realDN,publicKeyName,privateKeyName,req.acceptJson())
-
 
 
 # get proxy
@@ -1317,3 +1329,30 @@ def getResourceTypes(req, timeout=30):
     accept_json = req.acceptJson()
     # retrieve the commands
     return jobDispatcher.getResourceTypes(timeout, accept_json)
+
+
+# update the status of a worker according to the pilot
+def updateWorkerPilotStatus(req, site, workerID, harvesterID, status, timeout=60):
+
+    tmp_log = LogWrapper(_logger, 'updateWorkerPilotStatus workerID={0} harvesterID={1} status={2} PID={3}'
+                         .format(workerID, harvesterID, status, os.getpid()))
+    tmp_log.debug('start')
+
+    # validate the pilot permissions
+    tmp_stat, tmp_out = checkPilotPermission(req, site)
+    if not tmp_stat:
+        tmp_log.error('failed with {0}'.format(tmp_out))
+        return tmp_out
+
+    # validate the state passed by the pilot
+    valid_states = ('started', 'finished')
+    if status not in valid_states:
+        message = 'Invalid worker state. The worker state has to be in {0}'.format(valid_worker_states)
+        tmp_log.debug(message)
+        return message
+
+    accept_json = req.acceptJson()
+
+    return jobDispatcher.updateWorkerPilotStatus(workerID, harvesterID, status, timeout, accept_json)
+
+
