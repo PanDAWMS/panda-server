@@ -2815,12 +2815,12 @@ class DBProxy:
 
         # add the start or end time
         if status == 'started':
-            sql += "AND pilotStartTime=:now "
+            sql += ", pilotStartTime=:now "
             var_map[':now'] = timestamp_utc
         elif status == 'finished':
-            sql += "AND pilotEndTime=:now "
+            sql += ", pilotEndTime=:now "
             var_map[':now'] = timestamp_utc
-        
+
         sql += "WHERE workerID=:workerID AND harvesterID=:harvesterID "
 
         try:
