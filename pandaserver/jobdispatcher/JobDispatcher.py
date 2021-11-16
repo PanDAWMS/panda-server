@@ -734,7 +734,7 @@ class JobDipatcher:
                 response = Protocol.Response(Protocol.SC_Success)
             else:  # error
                 response = Protocol.Response(Protocol.SC_Failed)
-        _logger.debug("updateWorkerPilotStatus : {0} [1} {2} ret -> {3}}"
+        _logger.debug("updateWorkerPilotStatus : {0} [1} {2} ret -> {3}"
                       .format(workerID, harvesterID, status, response.encode(accept_json)))
         return response.encode(accept_json)
 
