@@ -45,6 +45,8 @@ def main(taskBuffer=None, exec_options=None, log_stream=None):
                         help='resurrect output and log datasets if they were already deleted')
     parser.add_argument('--dryRun',action='store_const',const=True,dest='dryRun',default=False,
                         help='dry run')
+    parser.add_argument('--force', action='store_const', const=True, dest='force', default=False,
+                        help='force retry even if no lost files')
     # parse options
     if taskBuffer:
         options, unknown = parser.parse_known_args()
@@ -128,8 +130,8 @@ def main(taskBuffer=None, exec_options=None, log_stream=None):
                 print(msgStr)
 
     # no lost files
-    if not ds_files:
-        return True, "no lost files"
+    if not ds_files and not options.force:
+        return True, "No lost files. Use --force to ignore this check"
 
     # reset file status
     s = False
@@ -148,8 +150,8 @@ def main(taskBuffer=None, exec_options=None, log_stream=None):
 
     # go ahead
     if options.dryRun:
-        return True, 'done in the dry-run mode'
-    if s:
+        return True, 'Done in the dry-run mode with {}'.format(s)
+    if s or options.force:
         if options.resurrectDS:
             sd,so = taskBuffer.querySQLS(
                 'SELECT datasetName FROM ATLAS_PANDA.JEDI_Datasets WHERE jediTaskID=:id AND type IN (:t1,:t2)',
@@ -170,10 +172,10 @@ def main(taskBuffer=None, exec_options=None, log_stream=None):
                             pass
         msgStr = Client.retryTask(jediTaskID, noChildRetry=options.noChildRetry)[-1][-1]
         if log_stream:
-            log_stream.info("retried task with {}".format(msgStr))
-            log_stream.info("done")
+            log_stream.info("Retried task with {}".format(msgStr))
+            log_stream.info("Done")
         else:
-            print("retried task: done with {}".format(msgStr))
+            print("Retried task: done with {}".format(msgStr))
         return True, msgStr
     else:
         msgStr = 'failed'

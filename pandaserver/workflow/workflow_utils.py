@@ -8,7 +8,7 @@ from pandaclient import PrunScript
 from pandaclient import PhpoScript
 
 from idds.workflowv2.workflow import Workflow, Condition, AndCondition, OrCondition
-from idds.atlas.workflow.atlaspandawork import ATLASPandaWork
+from idds.atlas.workflowv2.atlaspandawork import ATLASPandaWork
 
 
 # extract argument value from execution string
