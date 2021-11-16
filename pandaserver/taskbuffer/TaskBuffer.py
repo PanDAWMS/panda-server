@@ -663,6 +663,17 @@ class TaskBuffer:
         return ret
 
 
+    # update worker status by the pilot
+    def updateWorkerPilotStatus(self, workerID, harvesterID, status):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # update DB and buffer
+        ret = proxy.updateWorkerPilotStatus(workerID, harvesterID, status)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+
     # finalize pending analysis jobs
     def finalizePendingJobs(self,prodUserName,jobDefinitionID,waitLock=False):
         # get DB proxy
@@ -4066,6 +4077,13 @@ class TaskBuffer:
     def send_command_to_job(self, panda_id, com):
         proxy = self.proxyPool.getProxy()
         ret = proxy.send_command_to_job(panda_id, com)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    # get workers with stale states and update them with pilot information
+    def get_workers_to_synchronize(self):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.get_workers_to_synchronize()
         self.proxyPool.putProxy(proxy)
         return ret
 

@@ -28,7 +28,7 @@ from pandaserver.taskbuffer.Utils import isAlive, putFile, deleteFile, getServer
 from pandaserver.dataservice.DataService import datasetCompleted, updateFileStatusInDisp
 from pandaserver.jobdispatcher.JobDispatcher import getJob, updateJob, getStatus, genPilotToken,\
     getEventRanges, updateEventRange, getKeyPair, updateEventRanges, getDNsForS3, getProxy, getCommands, ackCommands,\
-    checkJobStatus, checkEventsAvailability, updateJobsInBulk, getResourceTypes
+    checkJobStatus, checkEventsAvailability, updateJobsInBulk, getResourceTypes, updateWorkerPilotStatus
 from pandaserver.userinterface.UserIF import submitJobs, getJobStatus, queryPandaIDs, killJobs, reassignJobs,\
      getJobStatistics, getJobStatisticsPerSite, resubmitJobs, queryLastFilesInDataset, getPandaIDsSite,\
      getJobsToBeUpdated, updateProdDBUpdateTimes, runTaskAssignment, getAssigningTask, getSiteSpecs,\
@@ -46,10 +46,10 @@ from pandaserver.userinterface.UserIF import submitJobs, getJobStatus, queryPand
      pauseTask, resumeTask, increaseAttemptNrPanda, killUnfinishedJobs, changeTaskSplitRulePanda,\
      changeTaskModTimePanda, avalancheTask, getPandaIDsWithTaskID, reactivateTask, getTaskStatus, \
      reassignShare, listTasksInShare, getTaskParamsMap, updateWorkers, harvesterIsAlive,\
-     reportWorkerStats, reportWorkerStats_jobtype, addHarvesterDialogs, getJobStatisticsPerSiteResource, setNumSlotsForWP,\
-     reloadInput, enableJumboJobs, updateServiceMetrics, getUserJobMetadata, getJumboJobDatasets, getGShareStatus,\
-     sweepPQ,get_job_statistics_per_site_label_resource, relay_idds_command, send_command_to_job,\
-     execute_idds_workflow_command
+     reportWorkerStats, reportWorkerStats_jobtype, addHarvesterDialogs, \
+     getJobStatisticsPerSiteResource, setNumSlotsForWP, reloadInput, enableJumboJobs, updateServiceMetrics, \
+     getUserJobMetadata, getJumboJobDatasets, getGShareStatus,\
+     sweepPQ,get_job_statistics_per_site_label_resource, relay_idds_command, send_command_to_job, execute_idds_workflow_command
 
 # import error
 import pandaserver.taskbuffer.ErrorCode
@@ -86,7 +86,8 @@ allowedMethods += ['datasetCompleted', 'updateFileStatusInDisp']
 allowedMethods += ['getJob', 'updateJob', 'getStatus', 'genPilotToken',
                    'getEventRanges', 'updateEventRange', 'getKeyPair',
                    'updateEventRanges', 'getDNsForS3', 'getProxy', 'getCommands', 'ackCommands',
-                   'checkJobStatus', 'checkEventsAvailability', 'updateJobsInBulk', 'getResourceTypes']
+                   'checkJobStatus', 'checkEventsAvailability', 'updateJobsInBulk', 'getResourceTypes',
+                   'updateWorkerPilotStatus']
 
 allowedMethods += ['submitJobs', 'getJobStatus', 'queryPandaIDs', 'killJobs', 'reassignJobs', 'getJobStatistics',
                    'getJobStatisticsPerSite', 'resubmitJobs', 'queryLastFilesInDataset', 'getPandaIDsSite',
