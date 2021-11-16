@@ -96,6 +96,12 @@ def main(taskBuffer=None, exec_options=None, log_stream=None):
                 if tmpLFN not in files_rucio:
                     ds_files.setdefault(options.ds, [])
                     ds_files[options.ds].append(tmpLFN)
+            # get taskID
+            td, to = taskBuffer.querySQLS(
+                        'SELECT jediTaskID FROM ATLAS_PANDA.JEDI_Datasets '
+                        'WHERE datasetName=:datasetName AND type IN (:t1,:t2) ',
+                        {':t1': 'output', ':t2': 'log', ':datasetName': dsName})
+            jediTaskID, = to[0]
         else:
             # get dataset names
             dd, do = taskBuffer.querySQLS(
