@@ -2505,6 +2505,18 @@ class TaskBuffer:
         return ret
 
 
+    # query an SQL
+    def querySQL(self, sql, varMap, arraySize=1000):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get
+        ret = proxy.querySQLS(sql, varMap, arraySize)[1]
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+
     # check quota
     def checkQuota(self,dn):
         # query an SQL return Status
