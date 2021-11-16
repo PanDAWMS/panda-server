@@ -24487,7 +24487,7 @@ class DBProxy:
             # run query to select workers
             self.conn.begin()
             self.cur.arraysize = 10000
-            self.cur.execute(sql + comment, varMap)
+            self.cur.execute(sql + comment)
             db_workers = self.cur.fetchall()           
             # commit
             if not self._commit():
@@ -24505,7 +24505,7 @@ class DBProxy:
             self._rollback()
             # error
             self.dumpErrorMessage(tmp_log, method_name)
-            return None
+            return []
 
     # get users and groups to boost job priorities
     def get_dict_to_boost_job_prio(self, vo):
