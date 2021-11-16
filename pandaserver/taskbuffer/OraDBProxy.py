@@ -41,6 +41,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.SupErrors import SupErrors
+from pandaserver.srvcore import CoreUtils
 
 try:
     from idds.client.client import Client as iDDS_Client
@@ -119,6 +120,10 @@ class DBProxy:
         self.__t_update_shares = None  # Timestamp when the shares were last updated
         self.__hs_distribution = None  # HS06s distribution of sites
         self.__t_update_distribution = None  # Timestamp when the HS06s distribution was last updated
+
+        # priority boost
+        self.job_prio_boost_dict = None
+        self.job_prio_boost_dict_update_time = None
 
         # keep type
         self.__orig_type = type
@@ -262,12 +267,13 @@ class DBProxy:
 
 
     # get CLOB
-    def getClobObj(self, sql, varMap, arraySize=10000):
+    def getClobObj(self, sql, varMap, arraySize=10000, use_commit=True):
         comment = ' /* DBProxy.getClobObj */'
         try:
             # begin transaction
-            self.conn.begin()
-            self.cur.arraysize = arraySize
+            if use_commit:
+                self.conn.begin()
+                self.cur.arraysize = arraySize
             ret = self.cur.execute(sql+comment,varMap)
             if ret:
                 ret = True
@@ -284,15 +290,17 @@ class DBProxy:
                 # append
                 res.append(resItem)
             # commit
-            if not self._commit():
-                raise RuntimeError('Commit error')
+            if use_commit:
+                if not self._commit():
+                    raise RuntimeError('Commit error')
             return ret, res
-        except Exception:
+        except Exception as e:
             # roll back
-            self._rollback()
+            if use_commit:
+                self._rollback()
             type, value, traceBack = sys.exc_info()
             _logger.error("getClobObj : %s %s" % (sql,str(varMap)))
-            _logger.error("getClobObj : %s %s" % (type,value))
+            _logger.error("getClobObj : {}".format(str(e)))
             return -1, None
 
 
@@ -348,7 +356,7 @@ class DBProxy:
     # insert job to jobsDefined
     def insertNewJob(self, job, user, serNum, weight=0.0, priorityOffset=0, userVO=None, groupJobSN=0, toPending=False,
                      origEsJob=False, eventServiceInfo=None, oldPandaIDs=None, relationType=None, fileIDPool=[],
-                     origSpecialHandling=None, unprocessedMap=None):
+                     origSpecialHandling=None, unprocessedMap=None, prio_reduction=True):
         comment = ' /* DBProxy.insertNewJob */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += ' <JediTaskID={0} idPool={1}>'.format(job.jediTaskID,len(fileIDPool))
@@ -397,7 +405,12 @@ class DBProxy:
                 # avoid prio reduction for merge jobs
                 pass
             else:
-                if job.currentPriority not in ['NULL',None] and (job.isScoutJob() or job.currentPriority >= JobUtils.priorityTasksToJumpOver):
+                if not prio_reduction:
+                    job.currentPriority = priorityOffset
+                    if job.isScoutJob():
+                        job.currentPriority += 1
+                elif job.currentPriority not in ['NULL',None] and \
+                    (job.isScoutJob() or job.currentPriority >= JobUtils.priorityTasksToJumpOver):
                     pass
                 else:
                     job.currentPriority = PrioUtil.calculatePriority(priorityOffset,serNum,weight)
@@ -4438,7 +4451,7 @@ class DBProxy:
                     elif code == '10':
                         job.jobStatus = 'closed'
                         job.taskBufferErrorCode = ErrorCode.EC_FastRebrokerage
-                        job.taskBufferErrorDiag = 'fast rebrokerage at {} due to Nq/Nr overshoot'
+                        job.taskBufferErrorDiag = 'fast rebrokerage due to Nq/Nr overshoot'
                     else:
                         # killed
                         job.taskBufferErrorCode = ErrorCode.EC_Kill
@@ -11220,41 +11233,9 @@ class DBProxy:
             _logger.error("getAllowedNodes : %s %s" % (tmpType,tmpValue))
             return {}
 
-
     # extract name from DN
     def cleanUserID(self, id):
-        try:
-            up = re.compile('/(DC|O|OU|C|L)=[^\/]+')
-            username = up.sub('', id)
-            up2 = re.compile('/CN=[0-9]+')
-            username = up2.sub('', username)
-            up3 = re.compile(' [0-9]+')
-            username = up3.sub('', username)
-            up4 = re.compile('_[0-9]+')
-            username = up4.sub('', username)
-            username = username.replace('/CN=proxy','')
-            username = username.replace('/CN=limited proxy','')
-            username = username.replace('limited proxy','')
-            username = re.sub('/CN=Robot:[^/]+','',username)
-            pat = re.compile('.*/CN=([^\/]+)/CN=([^\/]+)')
-            mat = pat.match(username)
-            if mat:
-                username = mat.group(2)
-            else:
-                username = username.replace('/CN=','')
-            if username.lower().find('/email') > 0:
-                username = username[:username.lower().find('/email')]
-            pat = re.compile('.*(limited.*proxy).*')
-            mat = pat.match(username)
-            if mat:
-                username = mat.group(1)
-            username = username.replace('(','')
-            username = username.replace(')','')
-            username = username.replace("'",'')
-            return username
-        except Exception:
-            return id
-
+        return CoreUtils.clean_user_id(id)
 
     # extract scope from dataset name
     def extractScope(self,name):
@@ -13815,9 +13796,15 @@ class DBProxy:
                                                   'cliParams','nFilesPerJob','nFiles','nEvents',
                                                   'nGBPerJob','fixedSandbox','ignoreMissingInDS',
                                                   'currentPriority', 'priority', 'nMaxFilesPerJob',
-                                                  'ramCount']:
+                                                  'ramCount', 'noLoopingCheck', 'loopingCheck']:
                                 if tmpKey == 'priority':
                                     tmpKey = 'currentPriority'
+                                if tmpKey == 'loopingCheck':
+                                    tmpKey == 'noLoopingCheck'
+                                    if tmpVal:
+                                        tmpVal = False
+                                    else:
+                                        tmpVal = True
                                 newTaskParams[tmpKey] = tmpVal
                                 if tmpKey == 'fixedSandbox' and 'sourceURL' in taskParamsJson:
                                     newTaskParams['sourceURL'] = taskParamsJson['sourceURL']
@@ -16088,7 +16075,7 @@ class DBProxy:
                 sqlSN += "AND sc.status=:siteStatus "
             sqlSN += "AND dr.default_write ='Y' "
             sqlSN += "AND (scope = 'default' OR scope IS NULL) " # skip endpoints with analysis roles
-            sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
+            sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity LIKE :wc1) "
             varMap = {}
             varMap[':site'] = jobSpec.computingSite
             if 'localEsMerge' in catchAll and 'useBrokerOff' in catchAll:
@@ -16096,7 +16083,7 @@ class DBProxy:
                 varMap[':siteStatus2'] = 'brokeroff'
             else:
                 varMap[':siteStatus'] = 'online'
-            varMap[':wc1'] = 'full'
+            varMap[':wc1'] = 'full%'
             varMap[':capability'] = 'ucore'
             # get sites
             self.cur.execute(sqlSN+comment,varMap)
@@ -16139,11 +16126,11 @@ class DBProxy:
                 sqlSN += "AND sc.status=:siteStatus "
                 sqlSN += "AND dr.default_write='Y' "
                 sqlSN += "AND (scope = 'default' OR scope IS NULL) "  # skip endpoints with analysis roles
-                sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
+                sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity LIKE :wc1) "
                 varMap = {}
                 varMap[':nucleus'] = tmpNucleus
                 varMap[':siteStatus'] = 'online'
-                varMap[':wc1'] = 'full'
+                varMap[':wc1'] = 'full%'
                 varMap[':capability'] = 'ucore'
                 # get sites
                 self.cur.execute(sqlSN+comment,varMap)
@@ -16163,10 +16150,10 @@ class DBProxy:
             sqlSN += "AND sc.status=:siteStatus "
             sqlSN += "AND dr.default_write='Y' "
             sqlSN += "AND (scope = 'default' OR scope IS NULL) " # skip endpoints with analysis roles
-            sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity=:wc1) "
+            sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity LIKE :wc1) "
             varMap = {}
             varMap[':siteStatus'] = 'online'
-            varMap[':wc1'] = 'full'
+            varMap[':wc1'] = 'full%'
             varMap[':capability'] = 'ucore'
             # get sites
             self.cur.execute(sqlSN+comment,varMap)
@@ -16449,10 +16436,10 @@ class DBProxy:
         methodName += " <user={0} group={1}>".format(prodUserName, workingGroup)
         tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("start")
-        try:
-            # sql to get jobs
+        try:           
+            # sql to get tasks
             sqlT  = 'SELECT /*+ INDEX_RS_ASC(tab JOBSACTIVE4_PRODUSERNAMEST_IDX) */ '
-            sqlT += 'PandaID,jediTaskID,cloud,computingSite,prodSourceLabel '
+            sqlT += 'distinct jediTaskID '
             sqlT += 'FROM ATLAS_PANDA.jobsActive4 tab '
             sqlT += 'WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName '
             sqlT += 'AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag '
@@ -16461,9 +16448,16 @@ class DBProxy:
                 sqlT += 'AND workingGroup=:workingGroup '
             else:
                 sqlT += 'AND workingGroup IS NULL '
+            # sql to get jobs
+            sqlJ  = 'SELECT '\
+                    'PandaID, jediTaskID, cloud, computingSite, prodSourceLabel '\
+                    'FROM ATLAS_PANDA.jobsActive4 '\
+                    'WHERE jediTaskID=:jediTaskID '\
+                    'AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag '\
+                    'AND maxCpuCount>:maxTime '
             # sql to update job
             sqlU = ("UPDATE {0}.jobsActive4 SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag "
-                    "WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus ").format(
+                    "WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus AND maxCpuCount>:maxTime").format(
                 panda_config.schemaPANDA)
             # start transaction
             self.conn.begin()
@@ -16477,32 +16471,52 @@ class DBProxy:
             varMap[':maxTime'] = 6 * 60 * 60
             if workingGroup is not None:
                 varMap[':workingGroup'] = workingGroup
-            # get jobs
+            # get tasks
             self.cur.execute(sqlT+comment, varMap)
-            res = self.cur.fetchall()
-            # update jobs
-            nRow = 0
-            nRows = {}
-            for pandaID, taskID, cloud, computingSite, prodSourceLabel in res:
-                varMap = {}
-                varMap[':PandaID'] = pandaID
-                varMap[':newRelFlag'] = 3
-                varMap[':newJobStatus'] = 'throttled'
-                varMap[':oldJobStatus'] = 'activated'
-                self.cur.execute(sqlU + comment, varMap)
-                nTmp = self.cur.rowcount
-                if nTmp > 0:
-                    nRow += 1
-                    nRows.setdefault(taskID, 0)
-                    nRows[taskID] += 1
-                    infoMap = {}
-                    infoMap['computingSite'] = computingSite
-                    infoMap['cloud'] = cloud
-                    infoMap['prodSourceLabel'] = prodSourceLabel
-                    self.recordStatusChange(pandaID, varMap[':newJobStatus'], infoMap=infoMap, useCommit=False)
+            resT = self.cur.fetchall()
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
+            # loop over all tasks
+            tasks = [jediTaskID for jediTaskID, in resT]
+            random.shuffle(tasks)
+            nRow = 0
+            nRows = {}
+            for jediTaskID in tasks:
+                tmpLog.debug("reset jediTaskID={0}".format(jediTaskID))
+                # start transaction
+                self.conn.begin()
+                # get jobs
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':oldRelFlag'] = 1
+                varMap[':oldJobStatus'] = 'activated'
+                varMap[':maxTime'] = 6 * 60 * 60
+                self.cur.execute(sqlJ + comment, varMap)
+                resJ = self.cur.fetchall()
+                infoMapDict = {pandaID: {'computingSite': computingSite,
+                                         'cloud': cloud,
+                                         'prodSourceLabel': prodSourceLabel}
+                               for pandaID, taskID, cloud, computingSite, prodSourceLabel in resJ}
+                # update jobs
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':newRelFlag'] = 3
+                varMap[':newJobStatus'] = 'throttled'
+                varMap[':oldJobStatus'] = 'activated'
+                varMap[':maxTime'] = 6 * 60 * 60
+                self.cur.execute(sqlU + comment, varMap)
+                nTmp = self.cur.rowcount
+                tmpLog.debug("reset {0} jobs".format(nTmp))
+                if nTmp > 0:
+                    nRow += nTmp
+                    nRows[jediTaskID] = nTmp
+                for pandaID in infoMapDict:
+                    infoMap = infoMapDict[pandaID]
+                    self.recordStatusChange(pandaID, varMap[':newJobStatus'], infoMap=infoMap, useCommit=False)
+                # commit
+                if not self._commit():
+                    raise RuntimeError('Commit error')
             if get_dict:
                 tmpLog.debug("done with {0}".format(nRows))
                 return nRows
@@ -16564,9 +16578,9 @@ class DBProxy:
         tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("start")
         try:
-            # sql to get jobs
+            # sql to get tasks
             sqlT  = 'SELECT /*+ INDEX_RS_ASC(tab JOBSACTIVE4_PRODUSERNAMEST_IDX) */ '
-            sqlT += 'PandaID,jediTaskID,cloud,computingSite,prodSourceLabel '
+            sqlT += 'distinct jediTaskID '
             sqlT += 'FROM ATLAS_PANDA.jobsActive4 tab '
             sqlT += 'WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName '
             sqlT += 'AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag '
@@ -16574,9 +16588,15 @@ class DBProxy:
                 sqlT += 'AND workingGroup=:workingGroup '
             else:
                 sqlT += 'AND workingGroup IS NULL '
-                        # sql to update job
+            # sql to get jobs
+            sqlJ  = 'SELECT '\
+                    'PandaID, jediTaskID, cloud, computingSite, prodSourceLabel '\
+                    'FROM ATLAS_PANDA.jobsActive4 '\
+                    'WHERE jediTaskID=:jediTaskID '\
+                    'AND jobStatus=:oldJobStatus AND relocationFlag=:oldRelFlag '
+            # sql to update job
             sqlU = ("UPDATE {0}.jobsActive4 SET jobStatus=:newJobStatus,relocationFlag=:newRelFlag "
-                    "WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus ").format(
+                    "WHERE jediTaskID=:jediTaskID AND jobStatus=:oldJobStatus ").format(
                 panda_config.schemaPANDA)
             # start transaction
             self.conn.begin()
@@ -16589,32 +16609,50 @@ class DBProxy:
             varMap[':oldJobStatus'] = 'throttled'
             if workingGroup is not None:
                 varMap[':workingGroup'] = workingGroup
-            # get jobs
+            # get tasks
             self.cur.execute(sqlT+comment, varMap)
-            # update jobs
-            res = self.cur.fetchall()
+            resT = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            # loop over all tasks
+            tasks = [jediTaskID for jediTaskID, in resT]
+            random.shuffle(tasks)
             nRow = 0
             nRows = {}
-            for pandaID, taskID, cloud, computingSite, prodSourceLabel in res:
+            for jediTaskID in tasks:
+                tmpLog.debug("reset jediTaskID={0}".format(jediTaskID))
+                # start transaction
+                self.conn.begin()
+                # get jobs
                 varMap = {}
-                varMap[':PandaID'] = pandaID
+                varMap[':jediTaskID'] = jediTaskID
+                varMap[':oldRelFlag'] = 3
+                varMap[':oldJobStatus'] = 'throttled'
+                self.cur.execute(sqlJ + comment, varMap)
+                resJ = self.cur.fetchall()
+                infoMapDict = {pandaID: {'computingSite': computingSite,
+                                         'cloud': cloud,
+                                         'prodSourceLabel': prodSourceLabel}
+                               for pandaID, taskID, cloud, computingSite, prodSourceLabel in resJ}
+                # update jobs
+                varMap = {}
+                varMap[':jediTaskID'] = jediTaskID
                 varMap[':newRelFlag'] = 1
                 varMap[':newJobStatus'] = 'activated'
                 varMap[':oldJobStatus'] = 'throttled'
                 self.cur.execute(sqlU + comment, varMap)
                 nTmp = self.cur.rowcount
+                tmpLog.debug("reset {0} jobs".format(nTmp))
                 if nTmp > 0:
-                    nRow += 1
-                    nRows.setdefault(taskID, 0)
-                    nRows[taskID] += 1
-                    infoMap = {}
-                    infoMap['computingSite'] = computingSite
-                    infoMap['cloud'] = cloud
-                    infoMap['prodSourceLabel'] = prodSourceLabel
+                    nRow += nTmp
+                    nRows[jediTaskID] = nTmp
+                for pandaID in infoMapDict:
+                    infoMap = infoMapDict[pandaID]
                     self.recordStatusChange(pandaID, varMap[':newJobStatus'], infoMap=infoMap, useCommit=False)
-            # commit
-            if not self._commit():
-                raise RuntimeError('Commit error')
+                # commit
+                if not self._commit():
+                    raise RuntimeError('Commit error')
             if get_dict:
                 tmpLog.debug("done with {0}".format(nRows))
                 return nRows
@@ -19582,10 +19620,6 @@ class DBProxy:
         else:
             sqlJ += "FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
 
-        # sql to get site attributes
-        sqlS  = "SELECT corePower FROM ATLAS_PANDAMETA.schedconfig "
-        sqlS += "WHERE siteid=:siteid "
-
         # sql to update HS06sec
         if inActive:
             sqlU  = "UPDATE ATLAS_PANDA.jobsActive4 "
@@ -19602,16 +19636,11 @@ class DBProxy:
             tmpLog.debug('skip since job not found')
         else:
             jediTaskID, startTime, endTime, actualCoreCount, defCoreCount, jobMetrics, computingSite = resJ
-
-            # get site attributes
-            varMap = {}
-            varMap[':siteid'] = computingSite
-            self.cur.execute(sqlS+comment,varMap)
-            resS = self.cur.fetchone()
-            if resS is None:
-                tmpLog.debug('skip since site={0} not found'.format(computingSite))
+            # get corePower
+            corePower, tmpMsg = self.get_core_power(computingSite)
+            if corePower is None:
+                tmpLog.debug('skip since corePower is undefined for site={0}'.format(computingSite))
             else:
-                corePower, = resS
                 # get core count
                 coreCount = JobUtils.getCoreCount(actualCoreCount, defCoreCount, jobMetrics)
                 # get HS06sec
@@ -20219,7 +20248,43 @@ class DBProxy:
             self.dumpErrorMessage(_logger,methodName)
             return False
 
-
+    # get core power
+    @memoize
+    def get_core_power(self, site_id):
+        comment = ' /* DBProxy.get_core_power */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName + " <siteid={}>".format(site_id))
+        tmpLog.debug("start")
+        # sql to get site attributes
+        sqlS  = "SELECT corePower FROM ATLAS_PANDAMETA.schedconfig "
+        sqlS += "WHERE siteid=:siteid "
+        # sql to get site json attributes
+        sqlSJ  = "SELECT data FROM ATLAS_PANDA.schedconfig_json "
+        sqlSJ += "WHERE panda_queue=:siteid "
+        try:
+            # read schedconfig
+            varMap = {}
+            varMap[':siteid'] = site_id
+            self.cur.execute(sqlS + comment, varMap)
+            resS = self.cur.fetchone()
+            core_power = None
+            if resS is not None:
+                core_power, = resS
+            # read schedconfig json
+            if core_power is None:
+                retS, resS = self.getClobObj(sqlSJ, varMap, use_commit=False)
+                if retS is None or not resS:
+                    msg = 'site={} not found'.format(site_id)
+                    tmpLog.debug(msg)
+                    return None, msg
+                data = json.loads(resS[0][0])
+                core_power = data['corepower']
+            tmpLog.debug('got {}'.format(core_power))
+            return core_power, None
+        except Exception:
+            # error
+            self.dumpErrorMessage(_logger, methodName)
+            return None, 'failed to get corePower'
 
     # convert ObjID to endpoint
     @memoize
@@ -21838,10 +21903,11 @@ class DBProxy:
             sqlC = "SELECT jobStatus,commandToPilot FROM ATLAS_PANDA.jobsActive4 "\
                    "WHERE PandaID=:pandaID "\
                    "UNION "\
-                   "SELECT jobStatus,commandToPilot FROM ATLAS_PANDA.jobsArchived4 " \
+                   "SELECT /*+ INDEX_RS_ASC(JOBSARCHIVED4 PART_JOBSARCHIVED4_PK) */ "\
+                   "jobStatus,commandToPilot FROM ATLAS_PANDA.jobsArchived4 " \
                    "WHERE PandaID=:pandaID AND modificationTime>:timeLimit "
             varMap = dict()
-            varMap[':pandaID'] = pandaID
+            varMap[':pandaID'] = int(pandaID)
             varMap[':timeLimit'] = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
             # begin transaction
             self.conn.begin()
@@ -24402,7 +24468,6 @@ class DBProxy:
             self.dumpErrorMessage(_logger, methodName)
             return None
 
-
     # get workers with stale harvester states and newer pilot state
     def get_workers_to_synchronize(self):
         comment = ' /* DBProxy.get_workers_to_synchronize */'
@@ -24441,3 +24506,54 @@ class DBProxy:
             # error
             self.dumpErrorMessage(tmp_log, method_name)
             return None
+
+    # get users and groups to boost job priorities
+    def get_dict_to_boost_job_prio(self, vo):
+        comment = ' /* DBProxy.get_dict_to_boost_job_prio */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        if self.job_prio_boost_dict_update_time and \
+                datetime.datetime.utcnow()-self.job_prio_boost_dict_update_time < datetime.timedelta(minutes=15):
+            return self.job_prio_boost_dict
+        try:
+            self.job_prio_boost_dict_update_time = datetime.datetime.utcnow()
+            self.job_prio_boost_dict = {}
+            # get configs
+            tmpLog = LogWrapper(_logger, methodName)
+            # sql to get configs
+            sqlC = "SELECT value FROM ATLAS_PANDA.Config " \
+                   "WHERE app=:app AND component=:component AND vo=:vo AND key LIKE :key "
+            # start transaction
+            self.conn.begin()
+            varMap = {}
+            varMap[':app'] = 'pandaserver'
+            varMap[':component'] = 'dbproxy'
+            varMap[':vo'] = vo
+            varMap[':key'] = 'USER_JOB_PRIO_BOOST_LIST_%'
+            self.cur.execute(sqlC + comment, varMap)
+            res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            # parse list
+            for tmp_data, in res:
+                if tmp_data:
+                    for tmp_item in tmp_data.split(','):
+                        try:
+                            tmp_name, tmp_type, tmp_prio, tmp_expire = tmp_item.split(':')
+                            # check expiration
+                            if tmp_expire:
+                                tmp_expire = datetime.datetime.strptime(tmp_expire, '%Y%m%d')
+                                if tmp_expire < datetime.datetime.utcnow():
+                                    continue
+                            self.job_prio_boost_dict.setdefault(tmp_type, {})
+                            self.job_prio_boost_dict[tmp_type][tmp_name] = int(tmp_prio)
+                        except Exception as e:
+                            tmpLog.error(str(e))
+            tmpLog.debug("got {}".format(self.job_prio_boost_dict))
+            return self.job_prio_boost_dict
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, methodName)
+            return {}

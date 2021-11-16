@@ -5,6 +5,7 @@ import json
 import socket
 import glob
 from pandacommon.liveconfigparser.LiveConfigParser import LiveConfigParser
+from . import config_utils
 
 # get ConfigParser
 tmpConf = LiveConfigParser()
@@ -14,6 +15,9 @@ tmpConf.read('panda_server.cfg')
 
 # get server section
 tmpDict = tmpConf.server
+
+# read configmap
+config_utils.load_config_map('server', tmpDict)
 
 # expand all values
 tmpSelf = sys.modules[ __name__ ]
@@ -26,7 +30,7 @@ for tmpKey in tmpDict:
         tmpVal = False
     elif tmpVal == 'None':
         tmpVal = None
-    elif re.match('^\d+$',tmpVal):
+    elif isinstance(tmpVal, str) and re.match('^\d+$',tmpVal):
         tmpVal = int(tmpVal)
     # update dict
     tmpSelf.__dict__[tmpKey] = tmpVal
@@ -100,7 +104,11 @@ if 'def_type' not in tmpSelf.__dict__:
 if 'def_status' not in tmpSelf.__dict__:
     tmpSelf.__dict__['def_status'] = 'online'
 if 'token_authType' not in tmpSelf.__dict__:
-    tmpSelf.__dict__['token_authType'] = None
+    tmpSelf.__dict__['token_authType'] = 'oidc'
+if 'auth_config' not in tmpSelf.__dict__:
+    tmpSelf.__dict__['auth_config'] = '/opt/panda/etc/panda/auth/'
+if 'auth_policies' not in tmpSelf.__dict__:
+    tmpSelf.__dict__['auth_policies'] = '/opt/panda/etc/panda/auth_policies.json'
 if 'token_audience' not in tmpSelf.__dict__:
     tmpSelf.__dict__['token_audience'] = 'https://pandaserver.cern.ch'
 if 'token_issuers' not in tmpSelf.__dict__:

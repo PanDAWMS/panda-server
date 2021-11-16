@@ -102,8 +102,11 @@ class WrappedCursor(object):
             self.execute("ALTER SESSION SET TIME_ZONE='UTC'")
             # set DATE format
             self.execute("ALTER SESSION SET NLS_DATE_FORMAT='YYYY/MM/DD HH24:MI:SS'")
+            # set Oracle optimizer version. This is done only temporarily for controlled migration to 19c
+            self.execute("ALTER SESSION SET optimizer_features_enable='19.1.0'")
+
         elif self.backend == 'postgres':
-            # dissable autocommit
+            # disable autocommit
             # make sure that always have commit() since any query execution, including SELECT will start a transaction
             self.conn.set_session(autocommit=False)
             # encoding

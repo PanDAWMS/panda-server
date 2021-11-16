@@ -119,8 +119,8 @@ try:
 					msg = 'throttled {0} jobs for user="{1}" group={2} since too many ({3}) running jobs'.format(
 						tmpNumJobs, prodUserName, workingGroup,	maxNumRun)
 					tmpLog.debug(msg)
-					tmpLog.sendMsg(msg,panda_config.loggername,'userCap','warning')
-			elif tmpNumTotal < maxNumRun*0.9 and (prodUserName, workingGroup) in throttledUsers:
+					tmpLog.sendMsg(msg, panda_config.loggername, 'userCap', 'warning')
+			elif tmpNumTotal < maxNumRun * 0.9 and (prodUserName, workingGroup) in throttledUsers:
 				# throttle user
 				tmpNumJobs = taskBuffer.unThrottleUserJobs(prodUserName, workingGroup)
 				if tmpNumJobs is not None and tmpNumJobs > 0:

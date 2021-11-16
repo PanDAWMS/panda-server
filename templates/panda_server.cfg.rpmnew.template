@@ -100,6 +100,9 @@ dbpasswd = FIXME
 # database name
 dbname = PandaDB
 
+# database backend
+# backend = postgres
+
 # number of connections
 nDBConnection = 2
 

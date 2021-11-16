@@ -23,7 +23,7 @@ from pandaserver.jobdispatcher.JobDispatcher import jobDispatcher
 from pandaserver.dataservice.DataService import dataService
 from pandaserver.userinterface.UserIF import userIF
 from pandaserver.taskbuffer.Utils import isAlive, putFile, deleteFile, getServer, updateLog, fetchLog,\
-     touchFile, getVomsAttr, putEventPickingRequest, getAttr, getFile, uploadLog, put_checkpoint, delete_checkpoint,\
+     touchFile, getVomsAttr, putEventPickingRequest, getAttr, uploadLog, put_checkpoint, delete_checkpoint,\
      put_file_recovery_request, put_workflow_request
 from pandaserver.dataservice.DataService import datasetCompleted, updateFileStatusInDisp
 from pandaserver.jobdispatcher.JobDispatcher import getJob, updateJob, getStatus, genPilotToken,\
@@ -49,7 +49,7 @@ from pandaserver.userinterface.UserIF import submitJobs, getJobStatus, queryPand
      reportWorkerStats, reportWorkerStats_jobtype, addHarvesterDialogs, \
      getJobStatisticsPerSiteResource, setNumSlotsForWP, reloadInput, enableJumboJobs, updateServiceMetrics, \
      getUserJobMetadata, getJumboJobDatasets, getGShareStatus,\
-     sweepPQ,get_job_statistics_per_site_label_resource, relay_idds_command, send_command_to_job
+     sweepPQ,get_job_statistics_per_site_label_resource, relay_idds_command, send_command_to_job, execute_idds_workflow_command
 
 # import error
 import pandaserver.taskbuffer.ErrorCode
@@ -77,7 +77,7 @@ if panda_config.nDBConnection != 0:
 allowedMethods = []
 
 allowedMethods += ['isAlive', 'putFile', 'deleteFile', 'getServer', 'updateLog', 'fetchLog',
-                   'touchFile', 'getVomsAttr', 'putEventPickingRequest', 'getAttr', 'getFile',
+                   'touchFile', 'getVomsAttr', 'putEventPickingRequest', 'getAttr',
                    'uploadLog', 'put_checkpoint', 'delete_checkpoint', 'put_file_recovery_request',
                    'put_workflow_request']
 
@@ -111,7 +111,7 @@ allowedMethods += ['submitJobs', 'getJobStatus', 'queryPandaIDs', 'killJobs', 'r
                    'getJobStatisticsPerSiteResource', 'setNumSlotsForWP', 'reloadInput', 'enableJumboJobs',
                    'updateServiceMetrics', 'getUserJobMetadata', 'getJumboJobDatasets',
                    'getGShareStatus', 'sweepPQ', 'get_job_statistics_per_site_label_resource', 'relay_idds_command',
-                   'send_command_to_job']
+                   'send_command_to_job','execute_idds_workflow_command']
 
 
 # FastCGI/WSGI entry
@@ -192,7 +192,8 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         # use sub and scope as DN and FQAN
                         if 'SSL_CLIENT_S_DN' not in self.subprocess_env:
                             if 'name' in token:
-                                self.subprocess_env['SSL_CLIENT_S_DN'] = str(token['name'])
+                                self.subprocess_env['SSL_CLIENT_S_DN'] = ' '.join(
+                                    [t[:1].upper() + t[1:].lower() for t in str(token['name']).split()])
                             else:
                                 self.subprocess_env['SSL_CLIENT_S_DN'] = str(token['sub'])
                             i = 0

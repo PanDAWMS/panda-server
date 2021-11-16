@@ -11,7 +11,7 @@ import datetime
 import traceback
 import pandaserver.brokerage.broker
 from pandaserver.dataservice import DynDataDistributer
-from pandaserver.dataservice.MailUtils import MailUtils
+from pandaserver.srvcore.MailUtils import MailUtils
 from pandaserver.dataservice.Notifier import Notifier
 from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.taskbuffer import JobUtils

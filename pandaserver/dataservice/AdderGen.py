@@ -220,29 +220,34 @@ class AdderGen(object):
                 if self.job.jobStatus == 'failed' or self.jobStatus == 'failed':
                     # First of all: check if job failed and in this case take first actions according to error table
                     source, error_code, error_diag = None, None, None
+                    errors = []
                     if self.job.pilotErrorCode:
                         source = 'pilotErrorCode'
                         error_code = self.job.pilotErrorCode
                         error_diag = self.job.pilotErrorDiag
-                    elif self.job.exeErrorCode:
+                        errors.append({'source': source, 'error_code': error_code, 'error_diag': error_diag})
+                    if self.job.exeErrorCode:
                         source = 'exeErrorCode'
                         error_code = self.job.exeErrorCode
                         error_diag = self.job.exeErrorDiag
-                    elif self.job.ddmErrorCode:
+                        errors.append({'source': source, 'error_code': error_code, 'error_diag': error_diag})
+                    if self.job.ddmErrorCode:
                         source = 'ddmErrorCode'
                         error_code = self.job.ddmErrorCode
                         error_diag = self.job.ddmErrorDiag
-                    elif self.job.transExitCode:
+                        errors.append({'source': source, 'error_code': error_code, 'error_diag': error_diag})
+                    if self.job.transExitCode:
                         source = 'transExitCode'
                         error_code = self.job.transExitCode
                         error_diag = ''
+                        errors.append({'source': source, 'error_code': error_code, 'error_diag': error_diag})
 
                     # _logger.info("updatejob has source %s, error_code %s and error_diag %s"%(source, error_code, error_diag))
 
                     if source and error_code:
                         try:
                             self.logger.debug("AdderGen.run will call apply_retrial_rules")
-                            retryModule.apply_retrial_rules(self.taskBuffer, self.job.PandaID, source, error_code, error_diag, self.job.attemptNr)
+                            retryModule.apply_retrial_rules(self.taskBuffer, self.job.PandaID, errors, self.job.attemptNr)
                             self.logger.debug("apply_retrial_rules is back")
                         except Exception as e:
                             self.logger.error("apply_retrial_rules excepted and needs to be investigated (%s): %s"%(e, traceback.format_exc()))
@@ -327,14 +332,15 @@ class AdderGen(object):
                             source = 'taskBufferErrorCode'
                             error_code = job_tmp.taskBufferErrorCode
                             error_diag = job_tmp.taskBufferErrorDiag
+                            errors = [{'source': source, 'error_code': error_code, 'error_diag': error_diag}]
                             self.logger.debug("AdderGen.run 2 will call apply_retrial_rules")
-                            retryModule.apply_retrial_rules(self.taskBuffer, job_tmp.PandaID, source, error_code,
-                                                            error_diag, job_tmp.attemptNr)
+                            retryModule.apply_retrial_rules(self.taskBuffer, job_tmp.PandaID, errors, job_tmp.attemptNr)
                             self.logger.debug("apply_retrial_rules 2 is back")
                     except IndexError:
                         pass
                     except Exception as e:
-                        self.logger.error("apply_retrial_rules 2 excepted and needs to be investigated (%s): %s" % (e, traceback.format_exc()))
+                        self.logger.error("apply_retrial_rules 2 excepted and needs to be investigated (%s): %s"
+                                          % (e, traceback.format_exc()))
 
                     # setup for closer
                     if not (EventServiceUtils.isEventServiceJob(self.job) and self.job.isCancelled()):

@@ -653,8 +653,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # fast rebrokerage at PQs where Nq/Nr overshoots
     _logger.debug("fast rebrokerage at PQs where Nq/Nr overshoots")
     try:
-        ratioLimit = taskBuffer.getConfigValue('rebroker', 'FAST_REBRO_NQNR_RATIO')
-        fractionLimit = taskBuffer.getConfigValue('rebroker', 'FAST_REBRO_NQUEUE_FRAC')
+        ratioLimit = taskBuffer.getConfigValue('rebroker', 'FAST_REBRO_THRESHOLD_NQNR_RATIO')
+        fractionLimit = taskBuffer.getConfigValue('rebroker', 'FAST_REBRO_THRESHOLD_NQUEUE_FRAC')
         if not ratioLimit:
             ratioLimit = 3
         if not fractionLimit:
@@ -718,7 +718,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                               statsPerShare[gshare]['nq'],
                               fractionLimit, fracCheck))
                 if ratioCheck and statCheck and fracCheck:
-                    _logger.debug('{} overloaded in {}'.format(computingSite, gshare))
+                    _logger.debug('{} overshoot in {}'.format(computingSite, gshare))
                     if not dry_run:
                         # calculate excess
                         excess = min(nStat['nq'] - nStat['nr'] * ratioLimit, nStat['nq'] - nQueueLimit)
@@ -821,7 +821,10 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # reassign defined jobs in defined table
     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
     # get PandaIDs
-    status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsDefined4",timeLimit,['defined'],['managed'],[],[],[],
+    status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsDefined4",
+                                                timeLimit, ['defined'],
+                                                ['managed', 'test'],
+                                                [], [], [],
                                                 True)
     jobs = []
     jediJobs = []
@@ -878,113 +881,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             _logger.debug('reassignJobs for long JEDI in defined table (%s)' % jediJobs[iJob:iJob+nJob])
             Client.killJobs(jediJobs[iJob:iJob+nJob],51,keepUnmerged=True)
             iJob += nJob
-
-
-    # reassign too long-standing evgen/simul jobs with active state at T1
-    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
-    for tmpCloud in siteMapper.getCloudList():
-        # ignore special clouds
-        if tmpCloud in ['CERN','OSG']:
-            continue
-        status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['activated'],['managed'],
-                                                    ['evgen','simul'],[siteMapper.getCloud(tmpCloud)['tier1']],[],
-                                                    True,onlyReassignable=True)
-        jobs = []
-        jediJobs = []
-        if res is not None:
-            for (id,lockedby) in res:
-                if lockedby == 'jedi':
-                    jediJobs.append(id)
-                else:
-                    jobs.append(id)
-        _logger.debug('reassignJobs for Active T1 evgensimul in %s -> #%s' % (tmpCloud,len(jobs)))
-        if len(jobs) != 0:
-            nJob = 100
-            iJob = 0
-            while iJob < len(jobs):
-                _logger.debug('reassignJobs for Active T1 evgensimul (%s)' % jobs[iJob:iJob+nJob])
-                taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
-                iJob += nJob
-        _logger.debug('reassignJobs for Active T1 JEDI evgensimul in %s -> #%s' % (tmpCloud,len(jediJobs)))
-        if len(jediJobs) != 0:
-            nJob = 100
-            iJob = 0
-            while iJob < len(jediJobs):
-                _logger.debug('reassignJobs for Active T1 JEDI evgensimul (%s)' % jediJobs[iJob:iJob+nJob])
-                Client.killJobs(jediJobs[iJob:iJob+nJob],51,keepUnmerged=True)
-                iJob += nJob
-
-    # reassign too long-standing evgen/simul jobs with active state at T2
-    try:
-        _logger.debug('looking for stuck T2s to reassign evgensimul')
-        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
-        varMap = {}
-        varMap[':jobStatus1']       = 'activated'
-        varMap[':jobStatus2']       = 'running'
-        varMap[':prodSourceLabel']  = 'managed'
-        varMap[':processingType1']  = 'evgen'
-        varMap[':processingType2']  = 'simul'
-        sql = "SELECT cloud,computingSite,jobStatus,COUNT(*) FROM ATLAS_PANDA.jobsActive4 "\
-              "WHERE jobStatus IN (:jobStatus1,:jobStatus2) AND prodSourceLabel=:prodSourceLabel "\
-              "AND processingType IN (:processingType1,:processingType2) GROUP BY cloud,computingSite,jobStatus "
-        status,res = taskBuffer.querySQLS(sql, varMap)
-        if res is not None:
-            # get ratio of activated/running
-            siteStatData = {}
-            for tmpCloud,tmpComputingSite,tmpJobStatus,tmpCount in res:
-                # skip T1
-                if tmpComputingSite == siteMapper.getCloud(tmpCloud)['tier1']:
-                    continue
-                # skip if reassign is disabled
-                if tmpComputingSite in sitesToDisableReassign:
-                    continue
-                # add cloud/site
-                tmpKey = (tmpCloud,tmpComputingSite)
-                if tmpKey not in siteStatData:
-                    siteStatData[tmpKey] = {'activated':0,'running':0}
-                # add the number of jobs
-                if tmpJobStatus in siteStatData[tmpKey]:
-                    siteStatData[tmpKey][tmpJobStatus] += tmpCount
-            # look for stuck site
-            stuckThr = 10
-            stuckSites = []
-            for tmpKey in siteStatData:
-                tmpStatData = siteStatData[tmpKey]
-                if tmpStatData['running'] == 0 or \
-                       float(tmpStatData['activated'])/float(tmpStatData['running']) > stuckThr:
-                    tmpCloud,tmpComputingSite = tmpKey
-                    _logger.debug(' %s:%s %s/%s > %s' % (tmpCloud,tmpComputingSite,tmpStatData['activated'],tmpStatData['running'],stuckThr))
-                    # get stuck jobs
-                    status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsActive4",timeLimit,['activated'],['managed'],
-                                                                ['evgen','simul'],[tmpComputingSite],[tmpCloud],True,
-                                                                onlyReassignable=True)
-                    jobs = []
-                    jediJobs = []
-                    if res is not None:
-                        for (id,lockedby) in res:
-                            if lockedby == 'jedi':
-                                jediJobs.append(id)
-                            else:
-                                jobs.append(id)
-                    _logger.debug('reassignJobs for Active T2 evgensimul %s:%s -> #%s' % (tmpCloud,tmpComputingSite,len(jobs)))
-                    if len(jobs) > 0:
-                        nJob = 100
-                        iJob = 0
-                        while iJob < len(jobs):
-                            _logger.debug('reassignJobs for Active T2 evgensimul (%s)' % jobs[iJob:iJob+nJob])
-                            taskBuffer.reassignJobs(jobs[iJob:iJob+nJob],joinThr=True)
-                            iJob += nJob
-                    _logger.debug('reassignJobs for Active T2 JEDI evgensimul %s:%s -> #%s' % (tmpCloud,tmpComputingSite,len(jediJobs)))
-                    if len(jediJobs) > 0:
-                        nJob = 100
-                        iJob = 0
-                        while iJob < len(jediJobs):
-                            _logger.debug('reassignJobs for Active T2 JEDI evgensimul (%s)' % jediJobs[iJob:iJob+nJob])
-                            Client.killJobs(jediJobs[iJob:iJob+nJob],51,keepUnmerged=True)
-                            iJob += nJob
-    except Exception:
-        errType,errValue = sys.exc_info()[:2]
-        _logger.error("failed to reassign T2 evgensimul with %s:%s" % (errType,errValue))
 
     # reassign too long activated jobs in active table
     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=2)
@@ -1222,15 +1118,15 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         normalTimeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeoutVal)
         sortTimeLimit   = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
         sql = "WITH p AS ("\
-              "SELECT MIN(PandaID) PandaID,jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType "\
+              "SELECT MIN(PandaID) PandaID,jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType,workingGroup "\
               "FROM ATLAS_PANDA.jobsActive4 "\
               "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "\
               "AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3) "\
               "AND jobsetID IS NOT NULL AND lockedBy=:lockedBy "\
-              "GROUP BY jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType "\
+              "GROUP BY jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType,workingGroup "\
               ") "\
               "SELECT /*+ INDEX (s JOBS_STATUSLOG_PANDAID_IDX) */ "\
-              "p.jobDefinitionID,p.prodUserName,p.prodUserID,p.computingSite,s.modificationTime,p.jediTaskID,p.processingType " \
+              "p.jobDefinitionID,p.prodUserName,p.prodUserID,p.computingSite,s.modificationTime,p.jediTaskID,p.processingType,p.workingGroup " \
               "FROM p, ATLAS_PANDA.jobs_statuslog s "\
               "WHERE s.PandaID=p.PandaID AND s.jobStatus=:s_jobStatus AND s.modificationTime<:modificationTime "
         varMap = {}
@@ -1248,16 +1144,17 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         keyList = set()
         if res is not None:
             for tmpItem in res:
-                jobDefinitionID,prodUserName,prodUserID,computingSite,maxTime,jediTaskID,processingType = tmpItem
+                jobDefinitionID,prodUserName,prodUserID,computingSite,maxTime,jediTaskID,processingType,workingGroup\
+                    = tmpItem
                 tmpKey = (jediTaskID,jobDefinitionID)
                 keyList.add(tmpKey)
                 resList.append(tmpItem)
         # get stalled assigned job
-        sqlA  = "SELECT jobDefinitionID,prodUserName,prodUserID,computingSite,MAX(creationTime),jediTaskID,processingType "
+        sqlA  = "SELECT jobDefinitionID,prodUserName,prodUserID,computingSite,MAX(creationTime),jediTaskID,processingType,workingGroup "
         sqlA += "FROM ATLAS_PANDA.jobsDefined4 "
         sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus IN (:jobStatus1,:jobStatus2) "
         sqlA += "AND creationTime<:modificationTime AND lockedBy=:lockedBy "
-        sqlA += "GROUP BY jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType "
+        sqlA += "GROUP BY jobDefinitionID,prodUserName,prodUserID,computingSite,jediTaskID,processingType,workingGroup "
         varMap = {}
         varMap[':prodSourceLabel1'] = 'user'
         varMap[':prodSourceLabel2'] = 'panda'
@@ -1268,7 +1165,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         retA,resA = taskBuffer.querySQLS(sqlA, varMap)
         if resA is not None:
             for tmpItem in resA:
-                jobDefinitionID,prodUserName,prodUserID,computingSite,maxTime,jediTaskID,processingType = tmpItem
+                jobDefinitionID,prodUserName,prodUserID,computingSite,maxTime,jediTaskID,processingType,workingGroup\
+                    = tmpItem
                 tmpKey = (jediTaskID,jobDefinitionID)
                 if tmpKey not in keyList:
                     keyList.add(tmpKey)
@@ -1284,13 +1182,15 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         sqlJJ  = "SELECT PandaID FROM %s "
         sqlJJ += "WHERE jediTaskID=:jediTaskID AND jobStatus IN (:jobS1,:jobS2,:jobS3,:jobS4,:jobS5) "
         sqlJJ += "AND jobDefinitionID=:jobDefID AND computingSite=:computingSite "
+        timeoutMap = {}
         if resList != []:
             recentRuntimeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
             # loop over all user/jobID combinations
             iComb = 0
             nComb = len(resList)
             _logger.debug("total combinations = %s" % nComb)
-            for jobDefinitionID,prodUserName,prodUserID,computingSite,maxModificationTime,jediTaskID,processingType in resList:
+            for jobDefinitionID,prodUserName,prodUserID,computingSite,maxModificationTime,jediTaskID,\
+                processingType, workingGroup in resList:
                 # check if jobs with the jobID have run recently
                 varMap = {}
                 varMap[':jediTaskID']       = jediTaskID
@@ -1301,8 +1201,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 varMap[':jobStatus1'] = 'closed'
                 varMap[':jobStatus2'] = 'failed'
                 varMap[':jobStatus3'] = 'starting'
-                _logger.debug(" rebro:%s/%s:ID=%s:%s jediTaskID=%s site=%s" % (iComb,nComb,jobDefinitionID,
-                                                                               prodUserName,jediTaskID,
+                _logger.debug(" rebro:%s/%s:ID=%s:%s jediTaskID=%s site=%s" % (iComb, nComb, jobDefinitionID,
+                                                                               prodUserName, jediTaskID,
                                                                                computingSite))
                 iComb += 1
                 hasRecentJobs = False
@@ -1313,9 +1213,22 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 # check site status
                 tmpSiteStatus = siteMapper.getSite(computingSite).status
                 if tmpSiteStatus not in ['offline','test']:
+                    if workingGroup:
+                        if workingGroup not in timeoutMap:
+                            tmp_timeoutVal = taskBuffer.getConfigValue('rebroker',
+                                                                       'ANALY_TIMEOUT_{}'.format(workingGroup))
+                            if tmp_timeoutVal:
+                                timeoutMap[workingGroup] = datetime.datetime.utcnow() - \
+                                                           datetime.timedelta(hours=tmp_timeoutVal)
+                            else:
+                                timeoutMap[workingGroup] = normalTimeLimit
+                        tmp_normalTimeLimit = timeoutMap[workingGroup]
+                    else:
+                        tmp_normalTimeLimit = normalTimeLimit
                     # use normal time limit for normal site status
-                    if maxModificationTime > normalTimeLimit:
-                        _logger.debug("    -> skip wait for normal timelimit=%s<maxModTime=%s" % (normalTimeLimit,maxModificationTime))
+                    if maxModificationTime > tmp_normalTimeLimit:
+                        _logger.debug("    -> skip wait for normal timelimit=%s<maxModTime=%s" % (tmp_normalTimeLimit,
+                                                                                                  maxModificationTime))
                         continue
                     for tableName in ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsArchived4']:
                         retU,resU = taskBuffer.querySQLS(sql % tableName, varMap)

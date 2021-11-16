@@ -95,7 +95,12 @@ stop)
         ERROR=2
         exit $ERROR
       fi
-      kill `cat $PIDFILE`
+      if [[ $itry -gt 3 ]]; then
+        echo "try force kill..."
+        pkill -9 -P `cat $PIDFILE`
+      else
+        kill `cat $PIDFILE`
+      fi
       sleep 5
       ps -p `cat $PIDFILE` > /dev/null
       ERROR=$?

@@ -5,9 +5,8 @@ import os.path
 from pathlib import Path
 from ruamel import yaml
 from urllib.parse import urlparse
-import sys
 
-from .workflow_utils import Node
+from .workflow_utils import Node, ConditionItem
 
 
 # extract id
@@ -46,7 +45,7 @@ def top_sort(list_data, visited):
 
 
 # parse CWL file
-def parse_workflow_file(workflow_file, log_stream):
+def parse_workflow_file(workflow_file, log_stream, in_loop=False):
     # read the file from yaml
     cwl_file = Path(os.path.abspath(workflow_file))
     with open(cwl_file, "r") as cwl_h:
@@ -83,16 +82,20 @@ def parse_workflow_file(workflow_file, log_stream):
     output_map = {}
     serial_id = 0
     for step in root_obj.steps:
-        # exclude command
-        if not step.run.endswith('.cwl'):
+        cwl_name = os.path.basename(step.run)
+        # check cwl command
+        if not cwl_name.endswith('.cwl') and cwl_name not in ['prun', 'phpo', 'junction']:
             log_stream.error("Unknown workflow {}".format(step.run))
             return False, None
         serial_id += 1
-        cwl_name = os.path.basename(step.run)
         workflow_name = step.id.split('#')[-1]
         # leaf workflow and sub-workflow
-        if cwl_name == 'prun.cwl':
+        if cwl_name in ['prun.cwl', 'prun']:
             node = Node(serial_id, 'prun', None, True, workflow_name)
+        elif cwl_name in ['phpo.cwl', 'phpo']:
+            node = Node(serial_id, 'phpo', None, True, workflow_name)
+        elif cwl_name in ['junction']:
+            node = Node(serial_id, 'junction', None, True, workflow_name)
         else:
             node = Node(serial_id, 'workflow', None, False, workflow_name)
         node.inputs = {extract_id(s.id): {'default': s.default, 'source': extract_id(s.source)}
@@ -101,11 +104,20 @@ def parse_workflow_file(workflow_file, log_stream):
         output_map.update({name: serial_id for name in node.outputs})
         if step.scatter:
             node.scatter = [extract_id(s) for s in step.scatter]
+        if hasattr(step, 'when') and step.when:
+            # parse condition
+            node.condition = parse_condition_string(step.when)
+            # suppress inputs based on condition
+            suppress_inputs_based_on_condition(node.condition, node.inputs)
+        if step.hints and 'loop' in step.hints:
+            node.loop = True
+        if node.loop or in_loop:
+            node.in_loop = True
         # expand sub-workflow
         if not node.is_leaf:
             p = urlparse(step.run)
             tmp_path = os.path.abspath(os.path.join(p.netloc, p.path))
-            node.sub_nodes, node.root_inputs = parse_workflow_file(tmp_path, log_stream)
+            node.sub_nodes, node.root_inputs = parse_workflow_file(tmp_path, log_stream, node.in_loop)
         # check if tail
         if root_outputs & set(node.outputs):
             node.is_tail = True
@@ -139,7 +151,7 @@ def parse_workflow_file(workflow_file, log_stream):
 
 
 # resolve nodes
-def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, outDsName, log_stream):
+def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_name, log_stream):
     for k in root_inputs:
         kk = k.split('#')[-1]
         if kk in data:
@@ -148,9 +160,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, outDsName
     resolved_map = {}
     all_nodes = []
     for node in node_list:
-        log_stream.debug('tmpID:{} name:{} is_leaf:{}'.format(node.id, node.name, node.is_leaf))
         # resolve input
-        is_head = False
         for tmp_name, tmp_data in six.iteritems(node.inputs):
             if not tmp_data['source']:
                 continue
@@ -170,7 +180,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, outDsName
                 isOK = False
                 # check root input
                 if tmp_source in root_inputs:
-                    is_head = True
+                    node.is_head = True
                     node.set_input_value(tmp_name, tmp_source, root_inputs[tmp_source])
                     continue
                 # check parent output
@@ -201,10 +211,13 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, outDsName
                     scatters = [{item: v} for v in node.inputs[item]['value']]
                 else:
                     [i.update({item: v}) for i, v in zip(scatters, node.inputs[item]['value'])]
-            for item in scatters:
+            for idx, item in enumerate(scatters):
                 sc_node = copy.deepcopy(node)
                 for k, v in six.iteritems(item):
                     sc_node.inputs[k]['value'] = v
+                for tmp_node in sc_node.sub_nodes:
+                    tmp_node.scatter_index = idx
+                    tmp_node.upper_root_inputs = sc_node.root_inputs
                 sc_nodes.append(sc_node)
         else:
             sc_nodes = [node]
@@ -214,29 +227,38 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, outDsName
             # set real node ID
             resolved_map.setdefault(sc_node.id, [])
             tmp_to_real_id_map.setdefault(sc_node.id, set())
+            # resolve parents
+            real_parens = set()
+            for i in sc_node.parents:
+                real_parens |= tmp_to_real_id_map[i]
+            sc_node.parents = real_parens
+            if sc_node.is_head:
+                sc_node.parents |= parent_ids
             if sc_node.is_leaf:
                 resolved_map[sc_node.id].append(sc_node)
                 tmp_to_real_id_map[sc_node.id].add(serial_id)
                 sc_node.id = serial_id
                 serial_id += 1
             else:
-                serial_id, sub_tail_nodes, sc_node.sub_nodes = resolve_nodes(sc_node.sub_nodes, sc_node.root_inputs,
-                                                                             sc_node.convert_dict_inputs(),
-                                                                             serial_id, parent_ids, outDsName,
-                                                                             log_stream)
+                serial_id, sub_tail_nodes, sc_node.sub_nodes = \
+                    resolve_nodes(sc_node.sub_nodes, sc_node.root_inputs,
+                                  sc_node.convert_dict_inputs(),
+                                  serial_id, sc_node.parents, out_ds_name,
+                                  log_stream)
                 resolved_map[sc_node.id] += sub_tail_nodes
                 tmp_to_real_id_map[sc_node.id] |= set([n.id for n in sub_tail_nodes])
-            # resolve parents
-            real_parens = set()
-            for i in sc_node.parents:
-                real_parens |= tmp_to_real_id_map[i]
-            sc_node.parents = real_parens
-            if is_head:
-                sc_node.parents |= parent_ids
+                sc_node.id = serial_id
+                serial_id += 1
+            # convert parameters to parent IDs in conditions
+            if sc_node.condition:
+                convert_params_in_condition_to_parent_ids(sc_node.condition, sc_node.inputs, tmp_to_real_id_map)
             # resolve outputs
             if sc_node.is_leaf:
                 for tmp_name, tmp_data in six.iteritems(sc_node.outputs):
-                    tmp_data['value'] = "{}_{:03d}_{}".format(outDsName, sc_node.id, sc_node.name)
+                    tmp_data['value'] = "{}_{:03d}_{}".format(out_ds_name, sc_node.id, sc_node.name)
+                    # add loop count for nodes in a loop
+                    if sc_node.in_loop:
+                        tmp_data['value'] += '.___i___'
 
     # return tails
     tail_nodes = []
@@ -247,3 +269,117 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, outDsName
             else:
                 tail_nodes += resolved_map[node.id]
     return serial_id, tail_nodes, all_nodes
+
+
+# parse condition string
+def parse_condition_string(cond_string):
+    # remove $()
+    cond_string = re.sub(r'\$\((?P<aaa>.+)\)', r'\g<aaa>', cond_string)
+    cond_map = {}
+    id = 0
+    while True:
+        # look for the most inner parentheses
+        item_list = re.findall(r'\(([^\(\)]+)\)', cond_string)
+        if not item_list:
+            return convert_plain_condition_string(cond_string, cond_map)
+        else:
+            for item in item_list:
+                cond = convert_plain_condition_string(item, cond_map)
+                key = '___{}___'.format(id)
+                id += 1
+                cond_map[key] = cond
+                cond_string = cond_string.replace('('+item+')', key)
+
+
+# extract parameter from token
+def extract_parameter(token):
+    m = re.search(r'self\.([^!=]+)', token)
+    return m.group(1)
+
+
+# convert plain condition string
+def convert_plain_condition_string(cond_string, cond_map):
+    cond_string = re.sub(r' *! *', r'!', cond_string)
+    cond_string = re.sub(r'\|\|', r' || ', cond_string)
+    cond_string = re.sub(r'&&', r' && ', cond_string)
+
+    tokens = cond_string.split()
+    left = None
+    operator = None
+    for token in tokens:
+        token = token.strip()
+        if token == '||':
+            operator = 'or'
+            continue
+        elif token == '&&':
+            operator = 'and'
+            continue
+        elif token.startswith('self.'):
+            param = extract_parameter(token)
+            right = ConditionItem(param)
+            if not left:
+                left = right
+                continue
+        elif token.startswith('!self.'):
+            param = extract_parameter(token)
+            right = ConditionItem(param, operator='not')
+            if not left:
+                left = right
+                continue
+        elif re.search(r'^___\d+___$', token) and token in cond_map:
+            right = cond_map[token]
+            if not left:
+                left = right
+                continue
+        elif re.search(r'^!___\d+___$', token) and token[1:] in cond_map:
+            right = ConditionItem(cond_map[token[1:]], operator='not')
+            if not left:
+                left = right
+                continue
+        else:
+            raise TypeError('unknown token "{}"'.format(token))
+
+        left = ConditionItem(left, right, operator)
+    return left
+
+
+# convert parameter names to parent IDs
+def convert_params_in_condition_to_parent_ids(condition_item, input_data, id_map):
+    for item in ['left', 'right']:
+        param = getattr(condition_item, item)
+        if isinstance(param, str):
+            m = re.search(r'^[^\[]+\[(\d+)\]', param)
+            if m:
+                param = param.split('[')[0]
+                idx = int(m.group(1))
+            else:
+                idx = None
+            isOK = False
+            for tmp_name, tmp_data in six.iteritems(input_data):
+                if param == tmp_name.split('/')[-1]:
+                    isOK = True
+                    if isinstance(tmp_data['parent_id'], list):
+                        if idx is not None:
+                            setattr(condition_item, item, id_map[tmp_data['parent_id'][idx]])
+                        else:
+                            setattr(condition_item, item, id_map[tmp_data['parent_id']])
+                    else:
+                        setattr(condition_item, item, id_map[tmp_data['parent_id']])
+                    break
+            if not isOK:
+                raise ReferenceError('unresolved paramter {} in the condition string'.format(param))
+        elif isinstance(param, ConditionItem):
+            convert_params_in_condition_to_parent_ids(param, input_data, id_map)
+
+
+# suppress inputs based on condition
+def suppress_inputs_based_on_condition(condition_item, input_data):
+    if condition_item.right is None and condition_item.operator == 'not' and isinstance(condition_item.left, str):
+        for tmp_name, tmp_data in six.iteritems(input_data):
+            if condition_item.left == tmp_name.split('/')[-1]:
+                tmp_data['suppressed'] = True
+    else:
+        for item in ['left', 'right']:
+            param = getattr(condition_item, item)
+            if isinstance(param, ConditionItem):
+                suppress_inputs_based_on_condition(param, input_data)

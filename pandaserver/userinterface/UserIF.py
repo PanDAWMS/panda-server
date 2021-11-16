@@ -13,6 +13,7 @@ import traceback
 import pandaserver.jobdispatcher.Protocol as Protocol
 import pandaserver.taskbuffer.ProcessGroups
 from pandaserver.taskbuffer.WrappedPickle import WrappedPickle
+from pandaserver.srvcore.CoreUtils import clean_user_id
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.taskbuffer import PrioUtil, JobUtils
 from pandaserver.dataservice.DDM import rucioAPI
@@ -2565,12 +2566,77 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None):
                 kwargs = json.loads(kwargs, object_hook=decode_idds_enum)
         else:
             kwargs = {}
+        # set user name
+        if manager and command_name in ['submit']:
+            dn = req.subprocess_env.get('SSL_CLIENT_S_DN')
+            if dn:
+                kwargs['username'] = clean_user_id(dn)
         _logger.debug("relay_idds_command : class={} com={} host={} args={} kwargs={}".format(
             c.__class__.__name__, command_name, idds_host, str(args), str(kwargs)))
         ret = getattr(c, command_name)(*args, **kwargs)
         return json.dumps((True, ret))
     except Exception as e:
         _logger.error("relay_idds_command : %s %s" % (str(e), traceback.format_exc()))
+        return json.dumps((False, 'server failed with {}'.format(str(e))))
+
+
+# relay iDDS workflow command with ownership check
+def execute_idds_workflow_command(req, command_name, kwargs=None):
+    try:
+        tmpLog = LogWrapper(_logger, 'relay_idds_user_command-{}'.format(datetime.datetime.utcnow().isoformat('/')))
+        if kwargs:
+            try:
+                kwargs = idds.common.utils.json_loads(kwargs)
+            except Exception:
+                kwargs = json.loads(kwargs, object_hook=decode_idds_enum)
+        else:
+            kwargs = {}
+        if '+' in command_name:
+            command_name, idds_host = command_name.split('+')
+        else:
+            idds_host = idds.common.utils.get_rest_host()
+        # check permission
+        if command_name in ['get_status']:
+            check_owner = False
+        elif command_name in ['abort', 'suspend', 'resume', 'retry', 'finish']:
+            check_owner = True
+        else:
+            tmpMsg = '{} is unsupported'.format(command_name)
+            tmpLog.error(tmpMsg)
+            return json.dumps((False, tmpMsg))
+        # check owner
+        c = iDDS_ClientManager(idds_host)
+        if check_owner:
+            # requester
+            dn = req.subprocess_env.get('SSL_CLIENT_S_DN')
+            if not dn:
+                tmpMsg = 'SSL_CLIENT_S_DN is missing in HTTP request'
+                tmpLog.error(tmpMsg)
+                return json.dumps((False, ))
+            requester = clean_user_id(dn)
+            # get request_id
+            request_id = kwargs.get('request_id')
+            if request_id is None:
+                tmpMsg = 'request_id is missing'
+                tmpLog.error(tmpMsg)
+                return json.dumps((False, tmpMsg))
+            # get request
+            req = c.get_requests(request_id=request_id)
+            if not req:
+                tmpMsg = 'request {} is not found'.format(request_id)
+                tmpLog.error(tmpMsg)
+                return json.dumps((False, ))
+            user_name = req[0].get('username')
+            if user_name and user_name != requester:
+                tmpMsg = 'request {} is not owned by {}'.format(request_id, requester)
+                tmpLog.error(tmpMsg)
+                return json.dumps((False, tmpMsg))
+        # execute command
+        tmpLog.debug('com={} host={} kwargs={}'.format(command_name, idds_host, str(kwargs)))
+        ret = getattr(c, command_name)(**kwargs)
+        return json.dumps((True, ret))
+    except Exception as e:
+        tmpLog.error('failed with {} {}'.format(str(e), traceback.format_exc()))
         return json.dumps((False, 'server failed with {}'.format(str(e))))
 
 

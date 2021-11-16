@@ -15,6 +15,7 @@ from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.dataservice.Setupper import Setupper
 from pandaserver.dataservice.Closer import Closer
 from pandaserver.dataservice.ProcessLimiter import ProcessLimiter
+from pandaserver.srvcore import CoreUtils
 
 # logger
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -66,12 +67,13 @@ class TaskBuffer:
 
 
     # get priority parameters for user
-    def getPrioParameters(self,jobs,user,fqans,userDefinedWG,validWorkingGroup):
-        withProdRole   = False
-        workingGroup   = None
+    def getPrioParameters(self, jobs, user, fqans, userDefinedWG, validWorkingGroup):
         priorityOffset = 0
         serNum         = 0
         weight         = None
+        prio_reduction = True
+        # get boosted users and groups
+        boost_dict = {}
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # check production role
@@ -90,10 +92,26 @@ class TaskBuffer:
                    or jobs[0].processingType.startswith('gangarobot-'):
                 serNum = 0
                 weight = 0.0
-            if jobs[0].processingType in ['gangarobot','gangarobot-pft']:
+            elif jobs[0].processingType in ['gangarobot','gangarobot-pft']:
                 priorityOffset = 3000
-            if jobs[0].processingType in ['hammercloud-fax']:
+            elif jobs[0].processingType in ['hammercloud-fax']:
                 priorityOffset = 1001
+            else:
+                # get users and groups to boost job priorities
+                boost_dict = proxy.get_dict_to_boost_job_prio(jobs[-1].VO)
+                if boost_dict:
+                    prodUserName = proxy.cleanUserID(user)
+                    # check boost list
+                    if userDefinedWG and validWorkingGroup:
+                        if 'group' in boost_dict and jobs[-1].workingGroup in boost_dict['group']:
+                            priorityOffset = boost_dict['group'][jobs[-1].workingGroup]
+                            weight = 0.0
+                            prio_reduction = False
+                    else:
+                        if 'user' in boost_dict and prodUserName in boost_dict['user']:
+                            priorityOffset = boost_dict['user'][prodUserName]
+                            weight = 0.0
+                            prio_reduction = False
         # check quota
         if weight is None:
             weight = proxy.checkQuota(user)
@@ -115,7 +133,7 @@ class TaskBuffer:
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
-        return withProdRole,workingGroup,priorityOffset,serNum,weight
+        return withProdRole, workingGroup, priorityOffset, serNum, weight, prio_reduction
 
 
     # store Jobs into DB
@@ -123,7 +141,8 @@ class TaskBuffer:
                   checkSpecialHandling=True, toPending=False, oldPandaIDs=None, relationType=None, userVO='atlas',
                   esJobsetMap=None, getEsJobsetMap=False, unprocessedMap=None):
         try:
-            _logger.debug("storeJobs : start for %s nJobs=%s" % (user, len(jobs)))
+            tmpLog = LogWrapper(_logger, 'storeJobs <{}>'.format(CoreUtils.clean_user_id(user)))
+            tmpLog.debug("start nJobs={}".format(len(jobs)))
             # check quota for priority calculation
             weight = 0.0
             userJobID = -1
@@ -146,7 +165,7 @@ class TaskBuffer:
                 self.proxyPool.putProxy(proxy)
                 # return if DN is blocked
                 if not tmpStatus:
-                    _logger.debug("storeJobs : end for %s DN is blocked 1" % user)
+                    tmpLog.debug("end 1 since DN %s is blocked" % user)
                     if getEsJobsetMap:
                         return ([], None, unprocessedMap)
                     return []
@@ -208,7 +227,7 @@ class TaskBuffer:
                             tmpOffset = 0
                         # loop over all FQANs
                         for tmpFQAN in fqans:
-                            _logger.debug(tmpFQAN)
+                            tmpLog.debug(tmpFQAN)
                             if re.search('^%s/' % tmpGroup,tmpFQAN) is not None or \
                                    re.search('%s$' % tmpGroup,tmpFQAN) is not None:
                                 # use the largest offset
@@ -243,7 +262,7 @@ class TaskBuffer:
 
             # return if DN is blocked
             if not userStatus:
-                _logger.debug("storeJobs : end for %s DN is blocked 2" % user)
+                tmpLog.debug("end 2 since %s DN is blocked" % user)
                 if getEsJobsetMap:
                     return ([], None, unprocessedMap)
                 return []
@@ -261,6 +280,7 @@ class TaskBuffer:
             usingBuild = False
             withProdRole = False
             workingGroup = None
+            prio_reduction = True
             if len(jobs) > 0 and (jobs[0].prodSourceLabel in JobUtils.analy_sources) \
                    and (not jobs[0].processingType in ['merge','unmerge']):
                 # extract user's working group from FQANs
@@ -283,10 +303,10 @@ class TaskBuffer:
                 if jobs[0].prodSourceLabel == 'panda':
                     usingBuild = True
                 # get priority parameters for user
-                withProdRole,workingGroup,priorityOffset,serNum,weight = self.getPrioParameters(jobs,user,fqans,userDefinedWG,
-                                                                                                validWorkingGroup)
-                _logger.debug("storeJobs : {0} workingGroup={1} serNum={2} weight={3} pOffset={4}".format(user,jobs[0].workingGroup,
-                                                                                                          serNum,weight,priorityOffset))
+                withProdRole, workingGroup, priorityOffset, serNum, weight, prio_reduction = \
+                    self.getPrioParameters(jobs, user, fqans, userDefinedWG, validWorkingGroup)
+                tmpLog.debug("workingGroup={} serNum={} weight={} pOffset={} reduction={}".format(
+                    jobs[0].workingGroup, serNum, weight, priorityOffset, prio_reduction))
             # get DB proxy
             proxy = self.proxyPool.getProxy()
             # get group job serial number
@@ -317,7 +337,8 @@ class TaskBuffer:
             if esJobsetMap is None:
                 esJobsetMap = {}
             try:
-                _logger.debug("storeJobs : jediTaskID={0} len(esJobsetMap)={1} nJobs={2}".format(jobs[0].jediTaskID, len(esJobsetMap), len(jobs)))
+                tmpLog.debug("jediTaskID={} len(esJobsetMap)={} nJobs={}".format(jobs[0].jediTaskID,
+                                                                                 len(esJobsetMap), len(jobs)))
             except Exception:
                 pass
             for idxJob, job in enumerate(jobs):
@@ -345,6 +366,7 @@ class TaskBuffer:
                         ddmBackEnd = job.getDdmBackEnd()
                         isHPO = job.is_hpo_workflow()
                         isScout = job.isScoutJob()
+                        no_looping_check = job.is_no_looping_check()
                         # reset specialHandling
                         specialHandling = specialHandling[:-1]
                         job.specialHandling = specialHandling
@@ -352,6 +374,8 @@ class TaskBuffer:
                             job.setScoutJobFlag()
                         if isHPO:
                             job.set_hpo_workflow()
+                        if no_looping_check:
+                            job.disable_looping_check()
                         # set DDM backend
                         if ddmBackEnd is not None:
                             job.setDdmBackEnd(ddmBackEnd)
@@ -385,11 +409,6 @@ class TaskBuffer:
                         tmpNunRun = len(jobs)
                     # encode
                     job.taskID = tmpNumBuild + (tmpNunRun << 1)
-                    # change TRF URL just in case
-                    if job.transformation.startswith('http://www.usatlas.bnl.gov/svn/panda/pathena/trf'):
-                        job.transformation = re.sub('^http://www.usatlas.bnl.gov/svn/panda/pathena/trf/',
-                                                    'http://pandaserver.cern.ch:25080/trf/user/',
-                                                    job.transformation)
                 # set hostname
                 if hostname != '':
                     job.creationHost = hostname
@@ -440,7 +459,8 @@ class TaskBuffer:
                 tmpRetI = proxy.insertNewJob(job, user, serNum, weight, priorityOffset, userVO, groupJobSerialNum,
                                              toPending, origEsJob, eventServiceInfo, oldPandaIDs=jobOldPandaIDs,
                                              relationType=relationType, fileIDPool=fileIDPool,
-                                             origSpecialHandling=origSH, unprocessedMap=unprocessedMap)
+                                             origSpecialHandling=origSH, unprocessedMap=unprocessedMap,
+                                             prio_reduction=prio_reduction)
                 if unprocessedMap is not None:
                     tmpRetI, unprocessedMap = tmpRetI
                 if not tmpRetI:
@@ -485,13 +505,12 @@ class TaskBuffer:
                     # cannot use 'thr =' because it may trigger garbage collector
                     Setupper(self,newJobs,pandaDDM=usePandaDDM,forkRun=forkSetupper,resetLocation=resetLocInSetupper).start()
             # return jobIDs
-            _logger.debug("storeJobs : end for %s succeeded" % user)
+            tmpLog.debug("end successfully")
             if getEsJobsetMap:
                 return (ret, esJobsetMap, unprocessedMap)
             return ret
-        except Exception:
-            errType,errValue = sys.exc_info()[:2]
-            _logger.error("storeJobs : %s %s" % (errType,errValue))
+        except Exception as e:
+            tmpLog.error("{} {}".format(str(e), traceback.format_exc()))
             errStr = "ERROR: ServerError with storeJobs"
             if getEsJobsetMap:
                 return (errStr, None, unprocessedMap)
