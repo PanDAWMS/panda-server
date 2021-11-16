@@ -24499,7 +24499,7 @@ class DBProxy:
                 workers_to_sync.setdefault(harvester_id, [])
                 workers_to_sync[harvester_id].append({'worker_id': worker_id, 'status': pilot_status})
 
-            tmp_log.debug('Done with {0} workers')
+            tmp_log.debug('Done')
             return workers_to_sync
         except Exception:
             # roll back
