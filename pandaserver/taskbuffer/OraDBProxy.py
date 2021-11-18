@@ -388,7 +388,7 @@ class DBProxy:
             job.prodUserID = user
         # compact user name
         job.prodUserName = self.cleanUserID(job.prodUserID)
-        if job.prodUserName in ['','NULL']:
+        if job.prodUserName in ['', 'NULL']:
             # use prodUserID as compact user name
             job.prodUserName = job.prodUserID
         # VO
@@ -691,7 +691,7 @@ class DBProxy:
                     else:
                         varMap[':PandaID'] = file.PandaID
                     varMap[':jobsetID'] = job.jobsetID
-                    sqlJediFile  = "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents SET status=:status,PandaID=:PandaID,jobsetID=:jobsetID"
+                    sqlJediFile  = "UPDATE /*+ INDEX_RS_ASC(JEDI_DATASET_CONTENTS (JEDI_DATASET_CONTENTS.JEDITASKID JEDI_DATASET_CONTENTS.DATASETID JEDI_DATASET_CONTENTS.FILEID)) */ ATLAS_PANDA.JEDI_Dataset_Contents SET status=:status,PandaID=:PandaID,jobsetID=:jobsetID"
                     if file.type in ['output','log']:
                         sqlJediFile += ",outPandaID=:PandaID"
                     if isFileForWaitingCoJumbo:
