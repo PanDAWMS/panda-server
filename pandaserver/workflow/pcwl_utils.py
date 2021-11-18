@@ -8,6 +8,8 @@ from urllib.parse import urlparse
 
 from .workflow_utils import Node, ConditionItem
 
+WORKFLOW_NAMES = ['prun', 'phpo', 'junction', 'reana']
+
 
 # extract id
 def extract_id(id_str):
@@ -84,23 +86,26 @@ def parse_workflow_file(workflow_file, log_stream, in_loop=False):
     for step in root_obj.steps:
         cwl_name = os.path.basename(step.run)
         # check cwl command
-        if not cwl_name.endswith('.cwl') and cwl_name not in ['prun', 'phpo', 'junction']:
+        if not cwl_name.endswith('.cwl') and cwl_name not in WORKFLOW_NAMES:
             log_stream.error("Unknown workflow {}".format(step.run))
             return False, None
         serial_id += 1
         workflow_name = step.id.split('#')[-1]
         # leaf workflow and sub-workflow
-        if cwl_name in ['prun.cwl', 'prun']:
+        if cwl_name == 'prun.cwl':
             node = Node(serial_id, 'prun', None, True, workflow_name)
-        elif cwl_name in ['phpo.cwl', 'phpo']:
+        elif cwl_name == 'phpo.cwl':
             node = Node(serial_id, 'phpo', None, True, workflow_name)
-        elif cwl_name in ['junction']:
-            node = Node(serial_id, 'junction', None, True, workflow_name)
+        elif cwl_name in WORKFLOW_NAMES:
+            node = Node(serial_id, cwl_name, None, True, workflow_name)
         else:
             node = Node(serial_id, 'workflow', None, False, workflow_name)
         node.inputs = {extract_id(s.id): {'default': s.default, 'source': extract_id(s.source)}
                        for s in step.in_}
         node.outputs = {extract_id(s): {} for s in step.out}
+        # add outDS if no output is defined
+        if not node.outputs:
+            node.outputs = {extract_id(step.id + '/outDS'): {}}
         output_map.update({name: serial_id for name in node.outputs})
         if step.scatter:
             node.scatter = [extract_id(s) for s in step.scatter]

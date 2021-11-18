@@ -133,13 +133,17 @@ class Node (object):
             for k in ['opt_exec', 'opt_args']:
                 test_str = dict_inputs.get(k)
                 if test_str:
-                    m = re.search(r'%%DS\d+%%', test_str)
+                    m = re.search(r'%{DS\d+}', test_str)
                     if m:
                         return False, '{} is unresolved in {}'.format(m.group(0), k)
             if self.type == 'prun':
                 for k in dict_inputs:
                     if k not in ['opt_inDS', 'opt_inDsType', 'opt_secondaryDSs', 'opt_secondaryDsTypes',
                                  'opt_args', 'opt_exec', 'opt_useAthenaPackages', 'opt_containerImage']:
+                        return False, 'unknown input parameter {}'.format(k)
+            elif self.type in ['junction', 'reana']:
+                for k in dict_inputs:
+                    if k not in ['opt_inDS', 'opt_inDsType', 'opt_args', 'opt_exec', 'opt_containerImage']:
                         return False, 'unknown input parameter {}'.format(k)
             elif self.type == 'phpo':
                 for k in dict_inputs:
@@ -184,7 +188,7 @@ class Node (object):
                                 break
                 # resolve secondary dataset names
                 for ds_name, ds_type in zip(dict_inputs['opt_secondaryDSs'], dict_inputs['opt_secondaryDsTypes']):
-                    src = "%%DS{}%%".format(idx)
+                    src = "%{{DS{}}}".format(idx)
                     dst = "{}.{}".format(ds_name, ds_type)
                     dict_inputs['opt_exec'] = re.sub(src, dst, dict_inputs['opt_exec'])
                     dict_inputs['opt_args'] = re.sub(src, dst, dict_inputs['opt_args'])
@@ -204,11 +208,12 @@ class Node (object):
         for k, v in six.iteritems(self.outputs):
             task_name = v['value']
             break
-        if self.type == 'prun':
+        if self.type in ['prun', 'junction', 'reana']:
             dict_inputs = self.convert_dict_inputs(skip_suppressed=True)
             # check type
             use_athena = False
-            if 'opt_useAthenaPackages' in dict_inputs and dict_inputs['opt_useAthenaPackages']:
+            if 'opt_useAthenaPackages' in dict_inputs and dict_inputs['opt_useAthenaPackages'] \
+                    and self.type != 'reana':
                 use_athena = True
             container_image = None
             if 'opt_containerImage' in dict_inputs and dict_inputs['opt_containerImage']:
@@ -219,8 +224,14 @@ class Node (object):
                 task_params = copy.deepcopy(task_template['container'])
             task_params['taskName'] = task_name
             # cli params
-            com = ['prun', '--exec', dict_inputs['opt_exec'], *shlex.split(dict_inputs['opt_args'])]
-            in_ds_str = None
+            com = ['prun']
+            if self.type == 'junction':
+                # add default output for junction
+                if 'opt_args' not in dict_inputs:
+                    dict_inputs['opt_args'] = ''
+                if '--outputs' not in dict_inputs['opt_args']:
+                    dict_inputs['opt_args'] += ' --outputs results.json'
+            com += shlex.split(dict_inputs['opt_args'])
             if 'opt_inDS' in dict_inputs and dict_inputs['opt_inDS']:
                 if isinstance(dict_inputs['opt_inDS'], list):
                     is_list_in_ds = True
@@ -245,12 +256,28 @@ class Node (object):
                 else:
                     in_ds_suffix = dict_inputs['opt_inDsType']
                 if is_list_in_ds:
-                    in_ds_str = ','.join(['{}_{}/'.format(s1, s2) if s2 else s1 for s1, s2
-                                          in zip(dict_inputs['opt_inDS'], in_ds_suffix)])
+                    list_in_ds = ['{}_{}/'.format(s1, s2) if s2 else s1 for s1, s2
+                                  in zip(dict_inputs['opt_inDS'], in_ds_suffix)]
                 else:
-                    in_ds_str = '{}_{}/'.format(dict_inputs['opt_inDS'], in_ds_suffix) if in_ds_suffix \
-                        else dict_inputs['opt_inDS']
-                com += ['--inDS', in_ds_str, '--notExpandInDS', '--notExpandSecDSs']
+                    list_in_ds = ['{}_{}/'.format(dict_inputs['opt_inDS'], in_ds_suffix) if in_ds_suffix \
+                                      else dict_inputs['opt_inDS']]
+                if self.type not in ['junction', 'reana']:
+                    in_ds_str = ','.join(list_in_ds)
+                    com += ['--inDS', in_ds_str, '--notExpandInDS', '--notExpandSecDSs']
+                else:
+                    # replace placeholders in opt_exec and opt_args
+                    for idx, dst in enumerate(list_in_ds):
+                        src = "%{{DS{}}}".format(idx)
+                        if 'opt_exec' in dict_inputs:
+                            dict_inputs['opt_exec'] = re.sub(src, dst, dict_inputs['opt_exec'])
+                        if 'opt_args' in dict_inputs:
+                            dict_inputs['opt_args'] = re.sub(src, dst, dict_inputs['opt_args'])
+                    for k, v in six.iteritems(self.inputs):
+                        if k.endswith('opt_exec'):
+                            v['value'] = dict_inputs['opt_exec']
+                        elif k.endswith('opt_args'):
+                            v['value'] = dict_inputs['opt_args']
+            com += ['--exec', dict_inputs['opt_exec']]
             com += ['--outDS', task_name]
             if container_image:
                 com += ['--containerImage', container_image]
@@ -323,6 +350,9 @@ class Node (object):
             # notification
             if not self.is_workflow_output:
                 task_params['noEmail'] = True
+            # use instant PQs
+            if self.type in ['junction', 'reana']:
+                pass
             # return
             return task_params
         elif self.type == 'phpo':
