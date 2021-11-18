@@ -12815,7 +12815,7 @@ class DBProxy:
                     varMap[':status'] = 'ready'
                      # update metadata
                     updateMetadata = True
-            sqlFile = "UPDATE ATLAS_PANDA.JEDI_Dataset_Contents SET status=:status,is_waiting=NULL"
+            sqlFile = "UPDATE /*+ INDEX_RS_ASC(JEDI_DATASET_CONTENTS (JEDI_DATASET_CONTENTS.JEDITASKID JEDI_DATASET_CONTENTS.DATASETID JEDI_DATASET_CONTENTS.FILEID)) */ ATLAS_PANDA.JEDI_Dataset_Contents SET status=:status,is_waiting=NULL"
             # attempt number
             if updateAttemptNr is True:
                 # increment attemptNr for next attempt
