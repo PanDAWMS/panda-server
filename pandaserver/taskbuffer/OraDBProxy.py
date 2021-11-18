@@ -2442,7 +2442,7 @@ class DBProxy:
                             sqlJediFP  = "SELECT datasetID,fileID,attemptNr FROM ATLAS_PANDA.filesTable4 "
                             sqlJediFP += "WHERE PandaID=:pandaID AND type IN (:type1,:type2) ORDER BY datasetID,fileID "
                             # SQL to check JEDI files
-                            sqlJediFJ  = "SELECT 1 FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+                            sqlJediFJ  = "SELECT /*+ INDEX_RS_ASC(JEDI_DATASET_CONTENTS (JEDI_DATASET_CONTENTS.JEDITASKID JEDI_DATASET_CONTENTS.DATASETID JEDI_DATASET_CONTENTS.FILEID)) */ 1 FROM ATLAS_PANDA.JEDI_Dataset_Contents "
                             sqlJediFJ += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                             sqlJediFJ += "AND attemptNr=:attemptNr AND status=:status AND keepTrack=:keepTrack "
                             # get file list
@@ -2651,7 +2651,7 @@ class DBProxy:
                             job.lockedby == 'jedi' and self.checkTaskStatusJEDI(job.jediTaskID,self.cur):
                         useJEDI = True
                     # SQL to check JEDI files
-                    sqlJediFJ  = "SELECT 1 FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+                    sqlJediFJ  = "SELECT /*+ INDEX_RS_ASC(JEDI_DATASET_CONTENTS (JEDI_DATASET_CONTENTS.JEDITASKID JEDI_DATASET_CONTENTS.DATASETID JEDI_DATASET_CONTENTS.FILEID)) */ 1 FROM ATLAS_PANDA.JEDI_Dataset_Contents "
                     sqlJediFJ += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
                     sqlJediFJ += "AND attemptNr=:attemptNr AND status=:status AND keepTrack=:keepTrack "
                     datasetContentsStat = {}
