@@ -125,14 +125,14 @@ class MyProxyInterface(object):
         isOK = False
         if os.path.isfile(proxy_path):
             log_stream.info('proxy is there. Need to check validity')
-            cmd = "voms-proxy-info -exists -hours 72 -file %s" % proxy_path
+            cmd = "voms-proxy-info -exists -hours 94 -file %s" % proxy_path
             stdout, stderr, status = execute(cmd, log_stream)
             if stdout:
                 log_stream.info('stdout is %s ' % stdout)
             if stderr:
                 log_stream.info('stderr is %s ' %stderr)
             if status == 1:
-                log_stream.info('proxy expires in 3 days or less. We need to renew proxy!')
+                log_stream.info('proxy expires in 94h or less. We need to renew proxy!')
                 ret = self.store(user_dn, self.__cred_name, production, role=role, log_stream=log_stream)
                 if ret == 0:
                     log_stream.info('proxy retrieval successful')
@@ -163,7 +163,7 @@ class MyProxyInterface(object):
 
     def checkValidity(self, proxy_path, log_stream):
         log_stream.info('Need to check validity and expiry!')
-        datechecks = [24, 72, 168]
+        datechecks = [24, 94, 168]
         #datechecks = [1,2,3,4]
         status = 0
         for i in datechecks:
