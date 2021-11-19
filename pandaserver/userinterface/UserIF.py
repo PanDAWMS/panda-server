@@ -1029,6 +1029,18 @@ class UserIF:
         # return
         return ret
 
+    # set user secret
+    def set_user_secret(self, owner, key, value):
+        ret = self.taskBuffer.set_user_secret(owner, key, value)
+        # return
+        return ret
+
+    # get user secrets
+    def get_user_secrets(self, owner):
+        ret = self.taskBuffer.get_user_secrets(owner)
+        # return
+        return ret
+
 
 # Singleton
 userIF = UserIF()
@@ -2612,7 +2624,7 @@ def execute_idds_workflow_command(req, command_name, kwargs=None):
             if not dn:
                 tmpMsg = 'SSL_CLIENT_S_DN is missing in HTTP request'
                 tmpLog.error(tmpMsg)
-                return json.dumps((False, ))
+                return json.dumps((False, tmpMsg))
             requester = clean_user_id(dn)
             # get request_id
             request_id = kwargs.get('request_id')
@@ -2649,5 +2661,30 @@ def send_command_to_job(req, panda_id, com):
     prod_role = _isProdRoleATLAS(req)
     if not prod_role:
         return json.dumps((False, "production or pilot role required"))
-
     return json.dumps(userIF.send_command_to_job(panda_id, com))
+
+
+# set user secret
+def set_user_secret(req, key=None, value=None):
+    tmpLog = LogWrapper(_logger, 'set_user_secret-{}'.format(datetime.datetime.utcnow().isoformat('/')))
+    # get owner
+    dn = req.subprocess_env.get('SSL_CLIENT_S_DN')
+    if not dn:
+        tmpMsg = 'SSL_CLIENT_S_DN is missing in HTTP request'
+        tmpLog.error(tmpMsg)
+        return json.dumps((False, tmpMsg))
+    owner = clean_user_id(dn)
+    return json.dumps(userIF.set_user_secret(owner, key, value))
+
+
+# get user secrets
+def get_user_secrets(req):
+    tmpLog = LogWrapper(_logger, 'get_user_secrets-{}'.format(datetime.datetime.utcnow().isoformat('/')))
+    # get owner
+    dn = req.subprocess_env.get('SSL_CLIENT_S_DN')
+    if not dn:
+        tmpMsg = 'SSL_CLIENT_S_DN is missing in HTTP request'
+        tmpLog.error(tmpMsg)
+        return json.dumps((False, tmpMsg))
+    owner = clean_user_id(dn)
+    return json.dumps(userIF.get_user_secrets(owner))

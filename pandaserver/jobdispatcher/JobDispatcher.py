@@ -204,7 +204,9 @@ class JobDipatcher:
         if isinstance(tmpWrapper.result, list):
             jobs = jobs + tmpWrapper.result
         # make response
+        secrets_map = {}
         if len(jobs) > 0:
+            secrets_map = jobs.pop()
             proxyKey = jobs[-1]
             nSent = jobs[-2]
             jobs = jobs[:-2]
@@ -227,6 +229,9 @@ class JobDipatcher:
                 # set proxy key
                 if getProxyKey:
                     response.setProxyKey(proxyKey)
+                # set secrets
+                if tmpJob.prodUserName in secrets_map and secrets_map[tmpJob.prodUserName]:
+                    response.appendNode('secrets', secrets_map[tmpJob.prodUserName])
                 # check if proxy cache is used
                 if hasattr(panda_config,'useProxyCache') and panda_config.useProxyCache is True:
                     self.specialDispatchParams.update()

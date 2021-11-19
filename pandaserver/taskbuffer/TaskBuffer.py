@@ -825,8 +825,20 @@ class TaskBuffer:
             proxyKey = proxy.getProxyKey(jobs[0].prodUserID)
             # release proxy
             self.proxyPool.putProxy(proxy)
+        # get secret
+        secrets_map = {}
+        for job in jobs:
+            if job.prodUserName not in secrets_map:
+                if not job.use_secrets():
+                    secret = None
+                else:
+                    # get secret
+                    proxy = self.proxyPool.getProxy()
+                    tmpS, secret = proxy.get_user_secrets(job.prodUserName)
+                    self.proxyPool.putProxy(proxy)
+                secrets_map[job.prodUserName] = secret
         # return
-        return jobs+[nSent,proxyKey]
+        return jobs + [nSent, proxyKey, secrets_map]
 
 
     # run task assignment
@@ -4096,6 +4108,20 @@ class TaskBuffer:
     def get_workers_to_synchronize(self):
         proxy = self.proxyPool.getProxy()
         ret = proxy.get_workers_to_synchronize()
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    # set user secret
+    def set_user_secret(self, owner, key, value):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.set_user_secret(owner, key, value)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    # get user secrets
+    def get_user_secrets(self, owner):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.get_user_secrets(owner)
         self.proxyPool.putProxy(proxy)
         return ret
 

@@ -80,6 +80,7 @@ class JobSpec(object):
                  'jobCloning'         : 'sc',
                  'scoutJob'           : 'sj',
                  'usePrefetcher'      : 'up',
+                 'useSecrets'         : 'us',
                  'useZipToPin'        : 'uz',
                  'writeInputToFile'   : 'wf',
                  }
@@ -669,7 +670,21 @@ class JobSpec(object):
             items.append(self._tagForSH['useZipToPin'])
         self.specialHandling = ','.join(items)
 
+    # use secrets
+    def use_secrets(self):
+        if self.specialHandling is not None:
+            return self._tagForSH['useSecrets'] in self.specialHandling.split(',')
+        return False
 
+    # set to use secrets
+    def set_use_secrets(self):
+        if self.specialHandling is not None:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if self._tagForSH['useSecrets'] not in items:
+            items.append(self._tagForSH['useSecrets'])
+        self.specialHandling = ','.join(items)
 
     # not discard events
     def notDiscardEvents(self):

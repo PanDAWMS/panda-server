@@ -24558,3 +24558,85 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger, methodName)
             return {}
+
+    # set user secret
+    def set_user_secret(self, owner, key, value):
+        comment = ' /* DBProxy.set_user_secret */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += ' < owner={} key={} >'.format(owner, key)
+        try:
+            # get configs
+            tmpLog = LogWrapper(_logger, methodName)
+            # sql to check data
+            sqlC = "SELECT data FROM ATLAS_PANDA.Secrets WHERE owner=:owner "
+            # sql to insert dummy
+            sqlI = "INSERT INTO ATLAS_PANDA.Secrets (owner, updated_at) "\
+                   "VALUES(:owner,CURRENT_TIMESTAMP) "
+            # sql to update data
+            sqlU = "UPDATE ATLAS_PANDA.Secrets SET updated_at=CURRENT_TIMESTAMP,data=:data "\
+                   "WHERE owner=:owner "
+            # start transaction
+            self.conn.begin()
+            # check
+            varMap = {}
+            varMap[':owner'] = owner
+            tmpS, tmpR = self.getClobObj(sqlC, varMap, use_commit=False)
+            if not tmpR:
+                # insert dummy for new entry
+                self.cur.execute(sqlI + comment, varMap)
+                data = {}
+            else:
+                data = json.loads(tmpR[0][0])
+            # update
+            if key is None:
+                # delete all
+                data == {}
+            elif value is None:
+                # delete key
+                if key in data:
+                    del data[key]
+            else:
+                data[key] = value
+            varMap = {}
+            varMap[':owner'] = owner
+            varMap[':data'] = json.dumps(data)
+            self.cur.execute(sqlU + comment, varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            tmpLog.debug("done")
+            return True, 'OK'
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, methodName)
+            return False, 'database error'
+
+    # get user secrets
+    def get_user_secrets(self, owner, use_commit=True):
+        comment = ' /* DBProxy.get_user_secrets */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += ' < owner={} >'.format(owner)
+        try:
+            # get configs
+            tmpLog = LogWrapper(_logger, methodName)
+            # sql to get data
+            sqlC = "SELECT data FROM ATLAS_PANDA.Secrets WHERE owner=:owner "
+            # check
+            varMap = {}
+            varMap[':owner'] = owner
+            tmpS, tmpR = self.getClobObj(sqlC, varMap, use_commit=use_commit)
+            if not tmpR:
+                data = ''
+            else:
+                data = tmpR[0][0]
+            tmpLog.debug("got {} char data".format(len(data)))
+            return True, data
+        except Exception:
+            # roll back
+            if use_commit:
+                self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, methodName)
+            return False, 'database error'

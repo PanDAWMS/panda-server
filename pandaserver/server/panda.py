@@ -49,7 +49,8 @@ from pandaserver.userinterface.UserIF import submitJobs, getJobStatus, queryPand
      reportWorkerStats, reportWorkerStats_jobtype, addHarvesterDialogs, \
      getJobStatisticsPerSiteResource, setNumSlotsForWP, reloadInput, enableJumboJobs, updateServiceMetrics, \
      getUserJobMetadata, getJumboJobDatasets, getGShareStatus,\
-     sweepPQ,get_job_statistics_per_site_label_resource, relay_idds_command, send_command_to_job, execute_idds_workflow_command
+     sweepPQ,get_job_statistics_per_site_label_resource, relay_idds_command, send_command_to_job,\
+     execute_idds_workflow_command, set_user_secret, get_user_secrets
 
 # import error
 import pandaserver.taskbuffer.ErrorCode
@@ -111,7 +112,7 @@ allowedMethods += ['submitJobs', 'getJobStatus', 'queryPandaIDs', 'killJobs', 'r
                    'getJobStatisticsPerSiteResource', 'setNumSlotsForWP', 'reloadInput', 'enableJumboJobs',
                    'updateServiceMetrics', 'getUserJobMetadata', 'getJumboJobDatasets',
                    'getGShareStatus', 'sweepPQ', 'get_job_statistics_per_site_label_resource', 'relay_idds_command',
-                   'send_command_to_job','execute_idds_workflow_command']
+                   'send_command_to_job','execute_idds_workflow_command', 'set_user_secret', 'get_user_secrets']
 
 
 # FastCGI/WSGI entry
