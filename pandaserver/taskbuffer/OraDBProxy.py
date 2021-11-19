@@ -24590,7 +24590,7 @@ class DBProxy:
             # update
             if key is None:
                 # delete all
-                data == {}
+                data = {}
             elif value is None:
                 # delete key
                 if key in data:
