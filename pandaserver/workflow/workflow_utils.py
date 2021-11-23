@@ -149,6 +149,12 @@ class Node (object):
                 for k in dict_inputs:
                     if k not in ['opt_trainingDS', 'opt_trainingDsType', 'opt_args']:
                         return False, 'unknown input parameter {}'.format(k)
+        elif self.type == 'workflow':
+            reserved_params = ['i']
+            global_params = self.get_global_parameters()
+            for k in reserved_params:
+                if k in global_params:
+                    return False, 'parameter {} cannot be used since it is reserved by the system'.format(k)
         return True, ''
 
     # string representation
@@ -300,7 +306,7 @@ class Node (object):
             for p_key, p_value in six.iteritems(parsed_params):
                 if p_key in ['buildSpec']:
                     continue
-                if p_key not in task_params:
+                if p_key not in task_params or p_key in ['log']:
                     task_params[p_key] = p_value
                 elif p_key == 'architecture':
                     task_params[p_key] = p_value
@@ -322,13 +328,20 @@ class Node (object):
             # global parameters
             if workflow_node:
                 tmp_global = workflow_node.get_global_parameters()
+                src_dst_list = []
                 if tmp_global:
                     for k in tmp_global:
                         tmp_src = '%25%7B{}%7D'.format(k)
                         tmp_dst = '___idds___user_{}___'.format(k)
-                        for tmp_item in task_params['jobParameters']:
-                            if tmp_item['type'] == 'constant':
-                                tmp_item['value'] = re.sub(tmp_src, tmp_dst, tmp_item['value'])
+                        src_dst_list.append((tmp_src, tmp_dst))
+                # iteration count
+                tmp_src = '%25%7Bi%7D'
+                tmp_dst = '___idds__num_run___'
+                src_dst_list.append((tmp_src, tmp_dst))
+                for tmp_src, tmp_dst in src_dst_list:
+                    for tmp_item in task_params['jobParameters']:
+                        if tmp_item['type'] == 'constant':
+                            tmp_item['value'] = re.sub(tmp_src, tmp_dst, tmp_item['value'])
             # container
             if not container_image:
                 if 'container_name' in task_params:

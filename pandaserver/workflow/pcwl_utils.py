@@ -263,7 +263,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                     tmp_data['value'] = "{}_{:03d}_{}".format(out_ds_name, sc_node.id, sc_node.name)
                     # add loop count for nodes in a loop
                     if sc_node.in_loop:
-                        tmp_data['value'] += '.___i___'
+                        tmp_data['value'] += '.___idds__num_run___'
 
     # return tails
     tail_nodes = []
