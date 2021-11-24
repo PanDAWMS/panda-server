@@ -819,7 +819,10 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                     iJob += nJob
 
     # reassign defined jobs in defined table
-    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
+    timeoutValue = taskBuffer.getConfigValue('job_timeout', 'TIMEOUT_defined', 'pandaserver')
+    if not timeoutValue:
+        timeoutValue = 4 * 60
+    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=timeoutValue)
     # get PandaIDs
     status,res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsDefined4",
                                                 timeLimit, ['defined'],
@@ -835,7 +838,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             else:
                 jobs.append(id)
     # reassign
-    _logger.debug('reassignJobs for defined jobs -> #%s' % len(jobs))
+    _logger.debug('reassignJobs for defined jobs with timeout={}min -> {} jobs'.format(timeoutValue, len(jobs)))
     if len(jobs) > 0:
         nJob = 100
         iJob = 0
