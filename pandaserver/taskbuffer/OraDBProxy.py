@@ -13796,7 +13796,8 @@ class DBProxy:
                                                   'cliParams','nFilesPerJob','nFiles','nEvents',
                                                   'nGBPerJob','fixedSandbox','ignoreMissingInDS',
                                                   'currentPriority', 'priority', 'nMaxFilesPerJob',
-                                                  'ramCount', 'noLoopingCheck', 'loopingCheck']:
+                                                  'ramCount', 'noLoopingCheck', 'loopingCheck',
+                                                  'avoidVP']:
                                 if tmpKey == 'priority':
                                     tmpKey = 'currentPriority'
                                 if tmpKey == 'loopingCheck':
