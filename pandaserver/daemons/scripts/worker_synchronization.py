@@ -9,6 +9,14 @@ from pandaserver.config import panda_config
 _logger = PandaLogger().getLogger('worker_sync')
 
 
+def translate_status_to_command(pilot_status):
+    if pilot_status == "running":
+        return "SYNC_WORKERS_ACTIVATE"
+    if pilot_status == "finished":
+        return "SYNC_WORKERS_KILL"
+    return None
+
+
 class WorkerSync(object):
     def __init__(self, tbuf):
         self._logger = _logger
@@ -25,6 +33,7 @@ class WorkerSync(object):
         time_start = time.time()
         self._logger.debug('Start.')
 
+        # variables for the harvester command
         status = 'new'
         ack_requested = False
         lock_interval = None
@@ -32,15 +41,15 @@ class WorkerSync(object):
 
         try:
             stale_workers_per_harvester = self.tbuf.get_workers_to_synchronize()
-            # variables for the harvester command
-            command = '{0}'.format('WORKER_SYNC')
-
             for harvester_id in stale_workers_per_harvester:
-                workers_instance = stale_workers_per_harvester[harvester_id]
-                self._logger.debug('Processing harvester: {0}. Workers to update: {1}'.format(harvester_id,
-                                                                                              len(workers_instance)))
-                self.tbuf.commandToHarvester(harvester_id, command, ack_requested, status,
-                                             lock_interval, com_interval, workers_instance)
+                for pilot_status in stale_workers_per_harvester[harvester_id]:
+                    command = translate_status_to_action(pilot_status)
+                    if command:
+                        workers = stale_workers_per_harvester[harvester_id][pilot_status]
+                        self._logger.debug('Processing harvester_id={0} pilot_status={1}. Workers to update: {2}'.
+                                           format(harvester_id, pilot_status, workers))
+                        self.tbuf.commandToHarvester(harvester_id, command, ack_requested, status,
+                                                     lock_interval, com_interval, workers)
         except Exception:
             self._logger.error(traceback.format_exc())
 
