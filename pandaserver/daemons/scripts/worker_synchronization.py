@@ -43,7 +43,7 @@ class WorkerSync(object):
             stale_workers_per_harvester = self.tbuf.get_workers_to_synchronize()
             for harvester_id in stale_workers_per_harvester:
                 for pilot_status in stale_workers_per_harvester[harvester_id]:
-                    command = translate_status_to_action(pilot_status)
+                    command = translate_status_to_command(pilot_status)
                     if command:
                         workers = stale_workers_per_harvester[harvester_id][pilot_status]
                         self._logger.debug('Processing harvester_id={0} pilot_status={1}. Workers to update: {2}'.
