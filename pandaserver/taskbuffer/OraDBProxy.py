@@ -24475,29 +24475,36 @@ class DBProxy:
         tmp_log = LogWrapper(_logger, method_name)
         try:
             tmp_log.debug('Starting')
+            
+            grace_period = datetime.datetime.utcnow()- datetime.timedelta(minutes=60)  # give harvester a chance to discover the status change itself 
+            
             # Select workers where the status is more advanced according to the pilot than to harvester
             sql = """
-            SELECT harvesterID, workerID, pilotStatus FROM ATLAS_PANDA.harvester_workers
-            WHERE (status in ('submitted', 'ready') AND pilotStatus='running')
-            OR (status in ('submitted', 'ready', 'running') AND pilotStatus='finished')
-            AND lastupdate > sysdate - interval '14' day
+            SELECT /*+ INDEX_RS_ASC(harvester_workers HARVESTER_WORKERS_STATUS_IDX) */ harvesterID, workerID, pilotStatus 
+            FROM ATLAS_PANDA.harvester_workers
+            WHERE (status in ('submitted', 'ready') AND pilotStatus='running' AND pilotStartTime<:grace_period)
+            OR (status in ('submitted', 'ready', 'running') AND pilotStatus='finished' AND pilotEndTime<:grace_period)
+            AND lastupdate > sysdate - interval '7' day
             AND submittime > sysdate - interval '14' day
             """
+            var_map = {':grace_period': grace_period}
 
             # run query to select workers
             self.conn.begin()
             self.cur.arraysize = 10000
-            self.cur.execute(sql + comment)
+            self.cur.execute(sql + comment, var_map)
             db_workers = self.cur.fetchall()           
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
             
-            # prepare workers and separate by harvester instance
+            # prepare workers and separate by harvester instance and site
             workers_to_sync = {}
             for harvester_id, worker_id, pilot_status in db_workers:
-                workers_to_sync.setdefault(harvester_id, [])
-                workers_to_sync[harvester_id].append({'worker_id': worker_id, 'status': pilot_status})
+                workers_to_sync.setdefault(harvester_id, {})
+                workers_to_sync[harvester_id].setdefault(pilot_status, [])
+                
+                workers_to_sync[harvester_id][pilot_status].append(worker_id)
 
             tmp_log.debug('Done')
             return workers_to_sync
