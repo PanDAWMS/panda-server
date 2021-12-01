@@ -24477,35 +24477,59 @@ class DBProxy:
         try:
             tmp_log.debug('Starting')
             
-            grace_period = datetime.datetime.utcnow()- datetime.timedelta(minutes=60)  # give harvester a chance to discover the status change itself 
+            # give harvester a chance to discover the status change itself
+            discovery_period = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)
+            # don't repeat the same workers in each cycle
+            retry_period = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
             
             # Select workers where the status is more advanced according to the pilot than to harvester
-            sql = """
+            sql_select = """
             SELECT /*+ INDEX_RS_ASC(harvester_workers HARVESTER_WORKERS_STATUS_IDX) */ harvesterID, workerID, pilotStatus 
             FROM ATLAS_PANDA.harvester_workers
-            WHERE (status in ('submitted', 'ready') AND pilotStatus='running' AND pilotStartTime<:grace_period)
-            OR (status in ('submitted', 'ready', 'running') AND pilotStatus='finished' AND pilotEndTime<:grace_period)
+            WHERE (status in ('submitted', 'ready') AND pilotStatus='running' AND pilotStartTime < :discovery_period)
+            OR (status in ('submitted', 'ready', 'running') AND pilotStatus='finished' AND pilotEndTime < :discovery_period)
             AND lastupdate > sysdate - interval '7' day
             AND submittime > sysdate - interval '14' day
+            AND (pilotStatusSyncTime > :retry_period OR pilotStatusSyncTime IS NULL) 
+            FOR UPDATE
             """
-            var_map = {':grace_period': grace_period}
+            var_map = {':discovery_period': discovery_period,
+                       ':retry_period': retry_period}
+
+            now_ts = datetime.datetime.utcnow()
+            sql_update = """
+            UPDATE ATLAS_PANDA.harvester_workers
+            SET pilotStatusSyncTime = :lastSync
+            WHERE harvesterID= :harvesterID
+            AND workerID= :workerID
+            """
 
             # run query to select workers
             self.conn.begin()
             self.cur.arraysize = 10000
-            self.cur.execute(sql + comment, var_map)
-            db_workers = self.cur.fetchall()           
-            # commit
-            if not self._commit():
-                raise RuntimeError('Commit error')
-            
+            self.cur.execute(sql_select + comment, var_map)
+            db_workers = self.cur.fetchall()
+
             # prepare workers and separate by harvester instance and site
             workers_to_sync = {}
+            var_maps = {}
             for harvester_id, worker_id, pilot_status in db_workers:
                 workers_to_sync.setdefault(harvester_id, {})
                 workers_to_sync[harvester_id].setdefault(pilot_status, [])
                 
+                # organization for harvester commands
                 workers_to_sync[harvester_id][pilot_status].append(worker_id)
+                # organization to set lastSync
+                var_maps.append({":workerID": worker_id,
+                                 ":harvesterID": harvester_id,
+                                 ":lastSync": now_ts})
+
+            self.cur.executemany(sql_update + comment, var_maps)
+
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+
 
             tmp_log.debug('Done')
             return workers_to_sync

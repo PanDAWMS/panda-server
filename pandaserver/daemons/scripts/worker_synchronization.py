@@ -3,6 +3,7 @@ import traceback
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.config import panda_config
+from pandaserver.taskbuffer.Utils import create_shards
 
 
 # logger
@@ -46,10 +47,11 @@ class WorkerSync(object):
                     command = translate_status_to_command(pilot_status)
                     if command:
                         workers = stale_workers_per_harvester[harvester_id][pilot_status]
-                        self._logger.debug('Processing harvester_id={0} pilot_status={1}. Workers to update: {2}'.
-                                           format(harvester_id, pilot_status, workers))
-                        self.tbuf.commandToHarvester(harvester_id, command, ack_requested, status,
-                                                     lock_interval, com_interval, workers)
+                        for worker_shard in create_shards(workers, 100):
+                            self._logger.debug('Processing harvester_id={0} pilot_status={1}. Workers to update: {2}'.
+                                               format(harvester_id, pilot_status, worker_shard))
+                            self.tbuf.commandToHarvester(harvester_id, command, ack_requested, status,
+                                                         lock_interval, com_interval, worker_shard)
         except Exception:
             self._logger.error(traceback.format_exc())
 
