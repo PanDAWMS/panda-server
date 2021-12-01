@@ -266,6 +266,33 @@ class DBProxy:
             return -1,None
 
 
+    # execute an SQL return with executemany
+    def executemanySQL(self, sql, varMaps, arraySize=1000):
+        comment = ' /* DBProxy.executemanySQL */'
+        try:
+            # begin transaction
+            self.conn.begin()
+            self.cur.arraysize = arraySize
+            ret = self.cur.executemany(sql+comment, varMaps)
+            if ret:
+                ret = True
+            if sql.startswith('INSERT') or sql.startswith('UPDATE') or \
+                   sql.startswith('DELETE'):
+                res = self.cur.rowcount
+            else:
+                raise RuntimeError('Operation unsupported. Only INSERT, UPDATE, DELETE are allowed')
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            return res
+        except Exception as e:
+            # roll back
+            self._rollback(self.useOtherError)
+            _logger.error("executemanySQL : %s %s" % (sql, str(varMaps)))
+            _logger.error("executemanySQL : %s" % str(e))
+            return None
+
+
     # get CLOB
     def getClobObj(self, sql, varMap, arraySize=10000, use_commit=True):
         comment = ' /* DBProxy.getClobObj */'
@@ -2819,7 +2846,7 @@ class DBProxy:
         comment = ' /* DBProxy.updateWorkerPilotStatus */'
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmp_logger = LogWrapper(_logger, method_name + '< harvesterID={0} workerID={1} >'.format(harvesterID, workerID))
-        
+
         timestamp_utc = datetime.datetime.utcnow()
         var_map = {':status': status, ':harvesterID': harvesterID, ':workerID': workerID}
         sql = "UPDATE ATLAS_PANDA.harvester_workers SET pilotStatus=:status "
@@ -16437,7 +16464,7 @@ class DBProxy:
         methodName += " <user={0} group={1}>".format(prodUserName, workingGroup)
         tmpLog = LogWrapper(_logger,methodName)
         tmpLog.debug("start")
-        try:           
+        try:
             # sql to get tasks
             sqlT  = 'SELECT /*+ INDEX_RS_ASC(tab JOBSACTIVE4_PRODUSERNAMEST_IDX) */ '
             sqlT += 'distinct jediTaskID '
@@ -24476,36 +24503,60 @@ class DBProxy:
         tmp_log = LogWrapper(_logger, method_name)
         try:
             tmp_log.debug('Starting')
-            
-            grace_period = datetime.datetime.utcnow()- datetime.timedelta(minutes=60)  # give harvester a chance to discover the status change itself 
-            
+
+            # give harvester a chance to discover the status change itself
+            discovery_period = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)
+            # don't repeat the same workers in each cycle
+            retry_period = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
+
             # Select workers where the status is more advanced according to the pilot than to harvester
-            sql = """
-            SELECT /*+ INDEX_RS_ASC(harvester_workers HARVESTER_WORKERS_STATUS_IDX) */ harvesterID, workerID, pilotStatus 
+            sql_select = """
+            SELECT /*+ INDEX_RS_ASC(harvester_workers HARVESTER_WORKERS_STATUS_IDX) */ harvesterID, workerID, pilotStatus
             FROM ATLAS_PANDA.harvester_workers
-            WHERE (status in ('submitted', 'ready') AND pilotStatus='running' AND pilotStartTime<:grace_period)
-            OR (status in ('submitted', 'ready', 'running') AND pilotStatus='finished' AND pilotEndTime<:grace_period)
+            WHERE (status in ('submitted', 'ready') AND pilotStatus='running' AND pilotStartTime < :discovery_period)
+            OR (status in ('submitted', 'ready', 'running') AND pilotStatus='finished' AND pilotEndTime < :discovery_period)
             AND lastupdate > sysdate - interval '7' day
             AND submittime > sysdate - interval '14' day
+            AND (pilotStatusSyncTime > :retry_period OR pilotStatusSyncTime IS NULL)
+            FOR UPDATE
             """
-            var_map = {':grace_period': grace_period}
+            var_map = {':discovery_period': discovery_period,
+                       ':retry_period': retry_period}
+
+            now_ts = datetime.datetime.utcnow()
+            sql_update = """
+            UPDATE ATLAS_PANDA.harvester_workers
+            SET pilotStatusSyncTime = :lastSync
+            WHERE harvesterID= :harvesterID
+            AND workerID= :workerID
+            """
 
             # run query to select workers
             self.conn.begin()
             self.cur.arraysize = 10000
-            self.cur.execute(sql + comment, var_map)
-            db_workers = self.cur.fetchall()           
-            # commit
-            if not self._commit():
-                raise RuntimeError('Commit error')
-            
+            self.cur.execute(sql_select + comment, var_map)
+            db_workers = self.cur.fetchall()
+
             # prepare workers and separate by harvester instance and site
             workers_to_sync = {}
+            var_maps = {}
             for harvester_id, worker_id, pilot_status in db_workers:
                 workers_to_sync.setdefault(harvester_id, {})
                 workers_to_sync[harvester_id].setdefault(pilot_status, [])
-                
+
+                # organization for harvester commands
                 workers_to_sync[harvester_id][pilot_status].append(worker_id)
+                # organization to set lastSync
+                var_maps.append({":workerID": worker_id,
+                                 ":harvesterID": harvester_id,
+                                 ":lastSync": now_ts})
+
+            self.cur.executemany(sql_update + comment, var_maps)
+
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+
 
             tmp_log.debug('Done')
             return workers_to_sync
