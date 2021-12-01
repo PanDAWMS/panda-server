@@ -22,8 +22,8 @@ main_logger = PandaLogger().getLogger('metric_collector')
 
 # list of metrics in FetchData to fetch data and update to DB. Format: (metric, type, period_minutes)
 metric_list = [
-    ('analy_pmerge_jobs_wait_time', 'site', 30),
     ('gshare_preference', 'gshare', 20),
+    ('analy_pmerge_jobs_wait_time', 'site', 30),
 ]
 
 
@@ -55,7 +55,7 @@ class MetricsDB(object):
             return _wrapped_method
         return _decorator(method)
 
-    def update(self, key, value, site, gshare):
+    def update_old(self, key, value, site, gshare):
         tmp_log = logger_utils.make_logger(main_logger, 'MetricsDB')
         # tmp_log.debug('start key={0} site={1}, gshare={2}'.format(key, site, gshare))
         # sql
@@ -105,10 +105,81 @@ class MetricsDB(object):
         # done
         # tmp_log.debug('done key={0} site={1}, gshare={2}'.format(key, site, gshare))
 
-    def update_site(self, key, value, site):
+    def update(self, metric, update_type, entity_dict):
+        tmp_log = logger_utils.make_logger(main_logger, 'MetricsDB')
+        # tmp_log.debug('start key={0} site={1}, gshare={2}'.format(key, site, gshare))
+        # sql
+        sql_update = (
+            """UPDATE ATLAS_PANDA.Metrics SET """
+                """value_json = json_mergepatch(value_json, :patch_value_json), """
+                """timestamp = :timestamp """
+            """WHERE computingSite=:site AND gshare=:gshare AND metric = :metric """
+        )
+        sql_insert = (
+            """INSERT INTO ATLAS_PANDA.Metrics """
+                """VALUES ( """
+                    """:site, :gshare, :metric, :patch_value_json, :timestamp """
+                """) """
+        )
+        # now
+        now_time = datetime.datetime.utcnow()
+        # var map template
+        varMap_template = {
+            ':site': None,
+            ':gshare': None,
+            ':metric': metric,
+            ':timestamp': now_time,
+            ':patch_value_json': None
+        }
+        # make var map list
+        varMap_list = []
+        for entity, v in entity_dict.items():
+            # values to json string
+            try:
+                patch_value_json = json.dumps(v)
+            except Exception:
+                tmp_log.error(traceback.format_exc() + ' ' + str(v))
+                return
+            # initialize varMap
+            varMap = varMap_template.copy()
+            varMap[':patch_value_json'] = patch_value_json
+            # update varMap according to update_type
+            if update_type == 'site':
+                varMap.update({
+                        ':site': entity,
+                        ':gshare': 'NULL',
+                    })
+            elif update_type == 'gshare':
+                varMap.update({
+                        ':site': 'NULL',
+                        ':gshare': entity,
+                    })
+            elif update_type == 'both':
+                varMap.update({
+                        ':site': entity[0],
+                        ':gshare': entity[1],
+                    })
+            # append to the list
+            varMap_list.append(varMap)
+        # update
+        n_row = self.tbuf.executemanySQL(sql_update, varMap_list)
+        # try insert if no row updated
+        if n_row == 0:
+            try:
+                tmp_log.debug('no row to update about site={site}, gshare={gshare} ; trying insert'.format(site=site, gshare=gshare))
+                self.tbuf.executemanySQL(sql_insert, varMap_list)
+                tmp_log.debug('inserted site={site}, gshare={gshare}'.format(site=site, gshare=gshare))
+            except Exception:
+                tmp_log.warning('failed to insert site={site}, gshare={gshare}'.format(site=site, gshare=gshare))
+        else:
+            tmp_log.debug('updated site={site}, gshare={gshare}'.format(site=site, gshare=gshare))
+        # done
+        # tmp_log.debug('done key={0} site={1}, gshare={2}'.format(key, site, gshare))
+
+    def update_site_old(self, key, value, site):
         return self.update(key, value, site=site, gshare='NULL')
 
-    def update_gshare(self, key, value, gshare):
+    def update_gshare_old(self, key, value, gshare):
         return self.update(key, value, site='NULL', gshare=gshare)
 
 
@@ -131,6 +202,7 @@ class FetchData(object):
             "WHERE prodSourceLabel='user' "
                 "AND jobStatus='finished' "
                 "AND processingType='pmerge' "
+                "AND modificationTime>:modificationTime "
         )
         sql_get_latest_job_mtime_status = (
             "SELECT jobStatus, MIN(modificationTime) "
@@ -142,7 +214,10 @@ class FetchData(object):
             # initialize
             tmp_site_dict = dict()
             # get user jobs
-            jobs_list = self.tbuf.querySQL(sql_get_jobs, {})
+            varMap = {
+                    ':modificationTime': datetime.datetime.utcnow() - datetime.timedelta(days=4),
+                }
+            jobs_list = self.tbuf.querySQL(sql_get_jobs, varMap)
             n_tot_jobs = len(jobs_list)
             tmp_log.debug('got total {0} jobs'.format(n_tot_jobs))
             # loop over jobs to get modificationTime when activated and running
@@ -268,15 +343,16 @@ def main(tbuf=None, **kwargs):
         if fetched_data is None:
             main_logger.warning('{metric_name} got no valid data'.format(metric_name=metric_name))
             continue
-        if update_type == 'site':
-            for site, v in fetched_data.items():
-                mdb.update_site(key=metric_name, value=v, site=site)
-        elif update_type == 'gshare':
-            for gshare, v in fetched_data.items():
-                mdb.update_gshare(key=metric_name, value=v, gshare=gshare)
-        elif update_type == 'both':
-            for (site, gshare), v in fetched_data.items():
-                mdb.update(key=metric_name, value=v, site=site, gshare=gshare)
+        # if update_type == 'site':
+        #     for site, v in fetched_data.items():
+        #         mdb.update_site(key=metric_name, value=v, site=site)
+        # elif update_type == 'gshare':
+        #     for gshare, v in fetched_data.items():
+        #         mdb.update_gshare(key=metric_name, value=v, gshare=gshare)
+        # elif update_type == 'both':
+        #     for (site, gshare), v in fetched_data.items():
+        #         mdb.update(key=metric_name, value=v, site=site, gshare=gshare)
+        mdb.update(metric=metric_name, update_type=update_type, entity_dict=fetched_data)
         main_logger.debug('done {metric_name}'.format(metric_name=metric_name))
 
 # run
