@@ -29,7 +29,7 @@ class NucleusSpec(object):
                 # add endpoints
                 for scope in ddmSpecDictForInput:
                     ddmSpec = ddmSpecDictForInput[scope]
-                    for localEndPoint in ddmSpec.getLocalEndPoints():
+                    for localEndPoint in ddmSpec.getAllEndPoints():
                         if localEndPoint not in self.all_ddm_endpoints_in:
                             self.all_ddm_endpoints_in[localEndPoint] = ddmSpec.getEndPoint(localEndPoint)
 
