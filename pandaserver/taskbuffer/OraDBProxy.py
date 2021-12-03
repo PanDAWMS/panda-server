@@ -24514,7 +24514,7 @@ class DBProxy:
             SELECT /*+ INDEX_RS_ASC(harvester_workers HARVESTER_WORKERS_STATUS_IDX) */ harvesterID, workerID, pilotStatus
             FROM ATLAS_PANDA.harvester_workers
             WHERE (status in ('submitted', 'ready') AND pilotStatus='running' AND pilotStartTime < :discovery_period)
-            OR (status in ('submitted', 'ready', 'running') AND pilotStatus='finished' AND pilotEndTime < :discovery_period)
+            OR (status in ('submitted', 'ready', 'running', 'idle') AND pilotStatus='finished' AND pilotEndTime < :discovery_period)
             AND lastupdate > sysdate - interval '7' day
             AND submittime > sysdate - interval '14' day
             AND (pilotStatusSyncTime > :retry_period OR pilotStatusSyncTime IS NULL)
