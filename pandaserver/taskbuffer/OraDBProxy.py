@@ -24539,7 +24539,7 @@ class DBProxy:
 
             # prepare workers and separate by harvester instance and site
             workers_to_sync = {}
-            var_maps = {}
+            var_maps = []
             for harvester_id, worker_id, pilot_status in db_workers:
                 workers_to_sync.setdefault(harvester_id, {})
                 workers_to_sync[harvester_id].setdefault(pilot_status, [])
