@@ -257,7 +257,7 @@ def put_workflow_request(req, data, check=False):
             tmpLog.debug('checking')
             from pandaserver.taskbuffer.workflow_processor import WorkflowProcessor
             processor = WorkflowProcessor(log_stream=_logger)
-            ret = processor.process(evpFileName, True, True, True)
+            ret = processor.process(evpFileName, True, True, True, True)
             if os.path.exists(evpFileName):
                 try:
                     os.remove(evpFileName)

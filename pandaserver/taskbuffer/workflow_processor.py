@@ -120,7 +120,7 @@ class WorkflowProcessor(object):
                                     dump_str = 'failed to submit the workflow with {}'.format(str(e))
                                     tmpLog.error('{} {}'.format(dump_str, traceback.format_exc()))
                                 if dump_workflow:
-                                    tmpLog.debug(''.join(dump_str_list))
+                                    tmpLog.debug('\n' + ''.join(dump_str_list))
                 os.chdir(cur_dir)
                 if not get_log:
                     if is_OK:

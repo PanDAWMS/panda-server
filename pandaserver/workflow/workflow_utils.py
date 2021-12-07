@@ -9,6 +9,7 @@ from pandaclient import PhpoScript
 
 from idds.workflowv2.workflow import Workflow, Condition, AndCondition, OrCondition
 from idds.atlas.workflowv2.atlaspandawork import ATLASPandaWork
+from idds.atlas.workflowv2.atlaslocalpandawork import ATLASLocalPandaWork
 
 
 # extract argument value from execution string
@@ -336,7 +337,7 @@ class Node (object):
                         src_dst_list.append((tmp_src, tmp_dst))
                 # iteration count
                 tmp_src = '%25%7Bi%7D'
-                tmp_dst = '___idds__num_run___'
+                tmp_dst = '___idds___num_run___'
                 src_dst_list.append((tmp_src, tmp_dst))
                 for tmp_src, tmp_dst in src_dst_list:
                     for tmp_item in task_params['jobParameters']:
@@ -365,7 +366,7 @@ class Node (object):
                 task_params['noEmail'] = True
             # use instant PQs
             if self.type in ['junction', 'reana']:
-                pass
+                task_params['runOnInstant'] = True
             # return
             return task_params
         elif self.type == 'phpo':
@@ -544,8 +545,7 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None):
         if node.is_leaf:
             # work
             if node.type == 'junction':
-                # FIXME
-                work = ATLASPandaWork(task_parameters=node.task_params)
+                work = ATLASLocalPandaWork(task_parameters=node.task_params)
             else:
                 work = ATLASPandaWork(task_parameters=node.task_params)
             workflow.add_work(work)
