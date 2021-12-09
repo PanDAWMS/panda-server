@@ -2547,9 +2547,12 @@ def decode_idds_enum(d):
 
 # relay iDDS command
 def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None):
+    tmpLog = LogWrapper(_logger, 'relay_idds_command-{}'.format(datetime.datetime.utcnow().isoformat('/')))
     # check security
     if not isSecure(req):
-        return json.dumps((False, "SSL is required"))
+        tmpStr = "SSL is required"
+        tmpLog.error(tmpStr)
+        return json.dumps((False, tmpStr))
     try:
         if manager is not True:
             manager = False
@@ -2562,19 +2565,22 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None):
         else:
             c = iDDS_Client(idds_host)
         if not hasattr(c, command_name):
-            return json.dumps((False, "{} is not a command of iDDS {}".format(
-                command_name, c.__class__.__name__)))
+            tmpStr = "{} is not a command of iDDS {}".format(command_name, c.__class__.__name__)
+            tmpLog.error(tmpStr)
+            return json.dumps((False, tmpStr))
         if args:
             try:
                 args = idds.common.utils.json_loads(args)
-            except Exception:
+            except Exception as e:
+                tmpLog.warning('failed to load args json with {}'.format(str(e)))
                 args = json.loads(args, object_hook=decode_idds_enum)
         else:
             args = []
         if kwargs:
             try:
                 kwargs = idds.common.utils.json_loads(kwargs)
-            except Exception:
+            except Exception as e:
+                tmpLog.warning('failed to load kwargs json with {}'.format(str(e)))
                 kwargs = json.loads(kwargs, object_hook=decode_idds_enum)
         else:
             kwargs = {}
@@ -2583,13 +2589,18 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None):
             dn = req.subprocess_env.get('SSL_CLIENT_S_DN')
             if dn:
                 kwargs['username'] = clean_user_id(dn)
-        _logger.debug("relay_idds_command : class={} com={} host={} args={} kwargs={}".format(
-            c.__class__.__name__, command_name, idds_host, str(args), str(kwargs)))
+        tmpLog.debug("execute: class={} com={} host={} args={} kwargs={}".format(
+            c.__class__.__name__, command_name, idds_host, str(args)[:200], str(kwargs)[:200]))
         ret = getattr(c, command_name)(*args, **kwargs)
-        return json.dumps((True, ret))
+        tmpLog.debug("ret: {}".format(str(ret)[:200]))
+        try:
+            return json.dumps((True, ret))
+        except Exception:
+            return idds.common.utils.json_dumps((True, ret))
     except Exception as e:
-        _logger.error("relay_idds_command : %s %s" % (str(e), traceback.format_exc()))
-        return json.dumps((False, 'server failed with {}'.format(str(e))))
+        tmpStr = 'failed to execute command with {}'.format(str(e))
+        tmpLog.error("{} {}".format(tmpStr, traceback.format_exc()))
+        return json.dumps((False, tmpStr))
 
 
 # relay iDDS workflow command with ownership check

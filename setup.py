@@ -252,6 +252,8 @@ setup(
                       'idds-common',
                       'idds-client',
                       'idds-workflow',
+                      'idds-doma',
+                      'idds-atlas',
                       'ruamel.yaml',
                       'cwl-utils'
                       ],
@@ -261,7 +263,7 @@ setup(
         'postgres': ['psycopg2-binary'],
         'rucio': ['rucio-clients'],
         'elasticsearch': ['elasticsearch'],
-        'atlasprod': ['cx_Oracle', 'rucio-clients', 'elasticsearch', 'idds-atlas'],
+        'atlasprod': ['cx_Oracle', 'rucio-clients', 'elasticsearch'],
     },
     packages=[ 'pandaserver',
                'pandaserver.brokerage',
