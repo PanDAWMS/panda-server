@@ -48,7 +48,8 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
     parser.add_argument('--force', action='store_const', const=True, dest='force', default=False,
                         help='force retry even if no lost files')
     parser.add_argument('--reproduceParent', action='store_const', const=True, dest='reproduceParent',
-                        default=False, help='reproduce the input files from which the lost files were produced')
+                        default=False, help='reproduce the input files from which the lost files were produced. '
+                        'Typically useful to recover merged files when unmerged files were already deleted')
     # parse options
     if taskBuffer:
         if args_list:
