@@ -18083,7 +18083,7 @@ class DBProxy:
 
 
     # reset files in JEDI
-    def resetFileStatusInJEDI(self,dn,prodManager,datasetName,lostFiles,lostInputDatasets,simul):
+    def resetFileStatusInJEDI(self,dn,prodManager,datasetName,lostFiles,recoverParent,simul):
         comment = ' /* DBProxy.resetFileStatusInJEDI */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <datasetName={0}>".format(datasetName)
@@ -18091,7 +18091,7 @@ class DBProxy:
         tmpLog.debug("start")
         try:
             # list of lost input files
-            lostInputFiles = set()
+            lostInputFiles = {}
             # get compact DN
             compactDN = self.cleanUserID(dn)
             if compactDN in ['','NULL',None]:
@@ -18278,11 +18278,12 @@ class DBProxy:
                         else:
                             newResAI.append(tmpItem)
                     for tmpFileID,tmpDatasetID,tmpLFN,tmpOutPandaID in newResAI:
-                        # skip if dataset was already deleted
-                        if tmpDatasetID in lostInputDatasets:
-                            if tmpDatasetID == masterID:
-                                lostInputFiles.add(tmpLFN)
-                            continue
+                        # collect if dataset was already deleted
+                        is_lost = False
+                        if recoverParent and tmpDatasetID == masterID:
+                                lostInputFiles.setdefault(inputDatasets[tmpDatasetID], [])
+                                lostInputFiles[inputDatasets[tmpDatasetID]].append(tmpLFN)
+                                is_lost = True
                         # reset file status
                         if tmpDatasetID not in datasetCountMap:
                             datasetCountMap[tmpDatasetID] = 0
@@ -18290,7 +18291,10 @@ class DBProxy:
                         varMap[':jediTaskID'] = jediTaskID
                         varMap[':datasetID'] = tmpDatasetID
                         varMap[':fileID'] = tmpFileID
-                        varMap[':newStatus'] = 'ready'
+                        if is_lost:
+                            varMap[':newStatus'] = 'lost'
+                        else:
+                            varMap[':newStatus'] = 'ready'
                         varMap[':oldStatus'] = 'finished'
                         if not simul:
                             self.cur.execute(sqlUFI+comment,varMap)
@@ -18343,13 +18347,13 @@ class DBProxy:
             if not self._commit():
                 raise RuntimeError('Commit error')
             tmpLog.debug("done")
-            return True,jediTaskID
+            return True, jediTaskID, lostInputFiles
         except Exception:
             # roll back
             self._rollback()
             # error
             self.dumpErrorMessage(_logger,methodName)
-            return False,None
+            return False, None, None
 
 
 

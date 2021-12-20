@@ -28,7 +28,7 @@ def get_files_from_rucio(ds_name, log_stream):
 
 
 # main
-def main(taskBuffer=None, exec_options=None, log_stream=None):
+def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
     # options
     parser = argparse.ArgumentParser()
     if taskBuffer:
@@ -47,11 +47,19 @@ def main(taskBuffer=None, exec_options=None, log_stream=None):
                         help='dry run')
     parser.add_argument('--force', action='store_const', const=True, dest='force', default=False,
                         help='force retry even if no lost files')
+    parser.add_argument('--reproduceParent', action='store_const', const=True, dest='reproduceParent',
+                        default=False, help='reproduce the input files from which the lost files were produced')
     # parse options
     if taskBuffer:
-        options, unknown = parser.parse_known_args()
+        if args_list:
+            options = parser.parse_args(args_list)
+        else:
+            options, unknown = parser.parse_known_args()
     else:
-        options = parser.parse_args()
+        if args_list:
+            options = parser.parse_args(args_list)
+        else:
+            options = parser.parse_args()
 
     # executed via command-line
     givenTaskID = None
@@ -144,15 +152,28 @@ def main(taskBuffer=None, exec_options=None, log_stream=None):
     for tmpDS in ds_files:
         files = ds_files[tmpDS]
         if dn:
-            ts, jediTaskID = taskBuffer.resetFileStatusInJEDI(dn, False, tmpDS, files, [], options.dryRun)
+            ts, jediTaskID, lostInputFiles = taskBuffer.resetFileStatusInJEDI(dn, False, tmpDS,
+                                                                              files, options.reproduceParent,
+                                                                              options.dryRun)
         else:
-            ts, jediTaskID = taskBuffer.resetFileStatusInJEDI('', True, tmpDS, files, [], options.dryRun)
+            ts, jediTaskID, lostInputFiles = taskBuffer.resetFileStatusInJEDI('', True, tmpDS,
+                                                                              files, options.reproduceParent,
+                                                                              options.dryRun)
         msgStr = 'reset file status for {} in the DB: done with {} for jediTaskID={}'.format(tmpDS, ts, jediTaskID)
         if log_stream:
             log_stream.info(msgStr)
         else:
             print(msgStr)
         s |= ts
+        # recover parent
+        if options.reproduceParent:
+            # reproduce input
+            for lostDS in lostInputFiles:
+                com_args = ['--ds', lostDS, '--noChildRetry', '--resurrectDS']
+                if options.dryRun:
+                    com_args.append('--dryRun')
+                com_args += ['--files', ','.join(lostInputFiles[lostDS])]
+            main(taskBuffer=taskBuffer, log_stream=log_stream, args_list=com_args)
 
     # go ahead
     if options.dryRun:
@@ -176,7 +197,10 @@ def main(taskBuffer=None, exec_options=None, log_stream=None):
                             rc.set_metadata(scope, name, 'lifetime', None)
                         except Exception:
                             pass
-        msgStr = Client.retryTask(jediTaskID, noChildRetry=options.noChildRetry)[-1][-1]
+        if not options.reproduceParent:
+            msgStr = Client.retryTask(jediTaskID, noChildRetry=options.noChildRetry)[-1][-1]
+        else:
+            msgStr = Client.reloadInput(jediTaskID)[-1][-1]
         if log_stream:
             log_stream.info("Retried task with {}".format(msgStr))
             log_stream.info("Done")
