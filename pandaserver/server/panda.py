@@ -16,6 +16,7 @@ import gzip
 
 # config file
 from pandaserver.config import panda_config
+from pandaserver.srvcore import CoreUtils
 
 from pandaserver.taskbuffer.Initializer import initializer
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
@@ -50,7 +51,9 @@ from pandaserver.userinterface.UserIF import submitJobs, getJobStatus, queryPand
      getJobStatisticsPerSiteResource, setNumSlotsForWP, reloadInput, enableJumboJobs, updateServiceMetrics, \
      getUserJobMetadata, getJumboJobDatasets, getGShareStatus,\
      sweepPQ,get_job_statistics_per_site_label_resource, relay_idds_command, send_command_to_job,\
-     execute_idds_workflow_command, set_user_secret, get_user_secrets
+     execute_idds_workflow_command, set_user_secret, get_user_secrets, get_ban_users
+
+from pandaserver.userinterface import Client
 
 # import error
 import pandaserver.taskbuffer.ErrorCode
@@ -112,7 +115,8 @@ allowedMethods += ['submitJobs', 'getJobStatus', 'queryPandaIDs', 'killJobs', 'r
                    'getJobStatisticsPerSiteResource', 'setNumSlotsForWP', 'reloadInput', 'enableJumboJobs',
                    'updateServiceMetrics', 'getUserJobMetadata', 'getJumboJobDatasets',
                    'getGShareStatus', 'sweepPQ', 'get_job_statistics_per_site_label_resource', 'relay_idds_command',
-                   'send_command_to_job','execute_idds_workflow_command', 'set_user_secret', 'get_user_secrets']
+                   'send_command_to_job','execute_idds_workflow_command', 'set_user_secret', 'get_user_secrets',
+                   'get_ban_users']
 
 
 # FastCGI/WSGI entry
@@ -133,6 +137,13 @@ if panda_config.useFastCGI or panda_config.useWSGI:
     # logger
     _logger = PandaLogger().getLogger('Entry')
 
+    # ban list
+    if panda_config.nDBConnection != 0:
+        # get ban list directly from the database
+        ban_user_list = CoreUtils.CachedObject('ban_list', 600, taskBuffer.get_ban_users, _logger)
+    else:
+        # get ban list from remote
+        ban_user_list = CoreUtils.CachedObject('ban_list', 600, Client.get_ban_users, _logger)
 
     # dummy request object
     class DummyReq:
@@ -252,6 +263,20 @@ if panda_config.useFastCGI or panda_config.useWSGI:
             else:
                 body = b''
                 try:
+                    # dummy request object
+                    dummyReq = DummyReq(environ, tmpLog)
+                    if not dummyReq.authenticated:
+                        start_response('403 Forbidden', [('Content-Type', 'text/plain')])
+                        return ["ERROR : token-based authentication failed on the server side with {}".format(
+                            dummyReq.message).encode()]
+                    username = dummyReq.subprocess_env.get('SSL_CLIENT_S_DN', None)
+                    if username:
+                        username = CoreUtils.clean_user_id(username)
+                        if username in ban_user_list:
+                            errMsg = '{} is ban'.format(username)
+                            tmpLog.error(errMsg)
+                            return ["ERROR : {}".format(errMsg).encode()]
+                    # read contents
                     while cont_length > 0:
                         chunk = environ['wsgi.input'].read(min(cont_length, 1024*1024))
                         if not chunk:
@@ -281,12 +306,6 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         params = json.loads(body)
                     if panda_config.entryVerbose:
                         tmpLog.debug("with %s" % str(list(params)))
-                    # dummy request object
-                    dummyReq = DummyReq(environ, tmpLog)
-                    if not dummyReq.authenticated:
-                        start_response('403 Forbidden', [('Content-Type', 'text/plain')])
-                        return ["ERROR : token-based authentication failed on the server side with {}".format(
-                            dummyReq.message).encode()]
                     param_list = [dummyReq]
                     # exec
                     exeRes = tmpMethod(*param_list, **params)

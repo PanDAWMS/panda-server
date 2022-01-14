@@ -609,6 +609,11 @@ class UserIF:
         # return
         return ret
 
+    # get ban users
+    def get_ban_users(self):
+        ret = self.taskBuffer.get_ban_users()
+        # return
+        return json.dumps(ret)
 
     # get client version
     def getPandaClientVer(self):
@@ -1484,6 +1489,10 @@ def getCachePrefixes(req):
 # get list of cmtConfig
 def getCmtConfigList(self,relaseVer):
     return userIF.getCmtConfigList(relaseVer)
+
+# get ban users
+def get_ban_users(req):
+    return userIF.get_ban_users()
 
 # get client version
 def getPandaClientVer(req):

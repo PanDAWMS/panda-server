@@ -1,5 +1,7 @@
 import re
+import datetime
 import subprocess
+from threading import Lock
 
 
 # replacement for commands
@@ -58,3 +60,60 @@ def clean_user_id(id):
         return username
     except Exception:
         return id
+
+
+# cached object
+class CachedObject:
+    # constructor
+    def __init__(self, name, time_interval, update_func, log_stream):
+        # name
+        self.name = name
+        # cached object
+        self.cachedObj = None
+        # datetime of last updated
+        self.lastUpdated = datetime.datetime.utcnow()
+        # update frequency
+        self.timeInterval = datetime.timedelta(seconds=time_interval)
+        # lock
+        self.lock = Lock()
+        # function to update object
+        self.updateFunc = update_func
+        # log
+        self.log_stream = log_stream
+
+    # update obj
+    def update(self):
+        # lock
+        self.lock.acquire()
+        # get current datetime
+        current = datetime.datetime.utcnow()
+        # update if old
+        if self.cachedObj is None or current-self.lastUpdated > self.timeInterval:
+            self.log_stream.debug('renewing {} cache'.format(self.name))
+            try:
+                tmp_stat, tmp_out = self.updateFunc()
+                self.log_stream.debug('got for {} {} {}'.format(self.name, tmp_stat, str(tmp_out)))
+                if tmp_stat:
+                    self.cachedObj = tmp_out
+            except Exception as e:
+                self.log_stream.error('failed to renew {} due to {}'.format(self.name, str(e)))
+            self.lastUpdated = current
+        # release
+        self.lock.release()
+        # return
+        return
+
+    # contains
+    def __contains__(self, item):
+        self.update()
+        contains = False
+        try:
+            contains = item in self.cachedObj
+        except TypeError:
+            pass
+        return contains
+
+    # get item
+    def __getitem__(self,name):
+        self.update()
+        return self.cachedObj[name]

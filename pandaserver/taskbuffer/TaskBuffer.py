@@ -2399,6 +2399,16 @@ class TaskBuffer:
         # return
         return ret
 
+    # get ban users
+    def get_ban_users(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get
+        ret = proxy.get_ban_users()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
 
     # get client version
     def getPandaClientVer(self):

@@ -34,12 +34,16 @@ def isAlive(req):
 
 
 # upload file
-def putFile(req,file):
+def putFile(req, file):
+    tmpLog = LogWrapper(_logger, 'putFile-{}'.format(datetime.datetime.utcnow().isoformat('/')))
     if not Protocol.isSecure(req):
+        tmpLog.error('No SSL_CLIENT_S_DN')
         return False
     if '/CN=limited proxy' in req.subprocess_env['SSL_CLIENT_S_DN']:
         return False
-    _logger.debug("putFile : start %s %s" % (req.subprocess_env['SSL_CLIENT_S_DN'],file.filename))
+    # user name
+    username = CoreUtils.clean_user_id(req.subprocess_env['SSL_CLIENT_S_DN'])
+    tmpLog.debug("start %s %s" % (username, file.filename))
     # size check
     fullSizeLimit = 768*1024*1024
     if not file.filename.startswith('sources.'):
@@ -54,18 +58,18 @@ def putFile(req,file):
         contentLength = long(req.headers_in["content-length"])
     except Exception:
         if "content-length" in req.headers_in:
-            _logger.error("cannot get CL : %s" % req.headers_in["content-length"])
+            tmpLog.error("cannot get CL : %s" % req.headers_in["content-length"])
         else:
-            _logger.error("no CL")
-    _logger.debug("size %s" % contentLength)
+            tmpLog.error("no CL")
+    tmpLog.debug("size %s" % contentLength)
     if contentLength > sizeLimit:
         errStr = "ERROR : Upload failure. Exceeded size limit %s>%s." % (contentLength,sizeLimit)
         if noBuild:
             errStr += " Please submit the job without --noBuild/--libDS since those options impose a tighter size limit"
         else:
             errStr += " Please remove redundant files from your workarea"
-        _logger.error(errStr)
-        _logger.debug("putFile : end")
+        tmpLog.error(errStr)
+        tmpLog.debug("end")
         return errStr
     try:
         fileName = file.filename.split('/')[-1]
@@ -77,8 +81,8 @@ def putFile(req,file):
             os.utime(fileFullPath,None)
             # send error message
             errStr = "ERROR : Cannot overwrite file"
-            _logger.debug('putFile : cannot overwrite file %s' % fileName)
-            _logger.debug("putFile : end")
+            tmpLog.debug('cannot overwrite file %s' % fileName)
+            tmpLog.debug("end")
             return errStr
         # write
         fo = open(fileFullPath,'wb')
@@ -90,15 +94,15 @@ def putFile(req,file):
         fo.close()
     except Exception:
         errStr = "ERROR : Cannot write file"
-        _logger.error(errStr)
-        _logger.debug("putFile : end")
+        tmpLog.error(errStr)
+        tmpLog.debug("end")
         return errStr
     # checksum
     try:
         # decode Footer
         footer = fileContent[-8:]
         checkSum,isize = struct.unpack("II",footer)
-        _logger.debug("CRC from gzip Footer %s" % checkSum)
+        tmpLog.debug("CRC from gzip Footer %s" % checkSum)
     except Exception:
         # calculate on the fly
         """
@@ -107,24 +111,22 @@ def putFile(req,file):
         """
         # use None to avoid delay for now
         checkSum = None
-        _logger.debug("CRC calculated %s" % checkSum)
+        tmpLog.debug("CRC calculated %s" % checkSum)
     # file size
     fileSize = len(fileContent)
-    # user name
-    username = CoreUtils.clean_user_id(req.subprocess_env['SSL_CLIENT_S_DN'])
-    _logger.debug("putFile : written dn=%s file=%s size=%s crc=%s" % \
-                  (username,file.filename,fileSize,checkSum))
+    tmpLog.debug("written dn=%s file=%s size=%s crc=%s" % \
+                  (username, fileFullPath, fileSize, checkSum))
     # put file info to DB
     if panda_config.record_sandbox_info:
         statClient,outClient = Client.insertSandboxFileInfo(username,file.filename,
                                                             fileSize,checkSum)
         if statClient != 0 or outClient.startswith("ERROR"):
-            _logger.error("putFile : failed to put sandbox to DB with %s %s" % (statClient,outClient))
+            tmpLog.error("failed to put sandbox to DB with %s %s" % (statClient,outClient))
             #_logger.debug("putFile : end")
             #return "ERROR : Cannot insert sandbox to DB"
         else:
-            _logger.debug("putFile : inserted sandbox to DB with %s" % outClient)
-    _logger.debug("putFile : %s end" % file.filename)
+            tmpLog.debug("putFile : inserted sandbox to DB with %s" % outClient)
+    tmpLog.debug("end")
     return True
 
 

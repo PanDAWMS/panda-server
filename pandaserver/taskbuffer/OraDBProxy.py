@@ -11634,6 +11634,34 @@ class DBProxy:
             self.dumpErrorMessage(_logger,methodName)
             return False
 
+    # get ban users
+    def get_ban_users(self):
+        comment = ' /* DBProxy.get_ban_user */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName)
+        tmpLog.debug('start')
+        # sql
+        sql = "SELECT name FROM ATLAS_PANDAMETA.users WHERE status=:status "
+        try:
+            # set autocommit on
+            self.conn.begin()
+            varMap = {}
+            varMap[':status'] = 'disabled'
+            self.cur.execute(sql+comment, varMap)
+            self.cur.arraysize = 10
+            res = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            retVal = {name: False for name, in res}
+            tmpLog.debug("got {}".format(retVal))
+            return True, retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, methodName)
+            return False, None
 
     # get client version
     def getPandaClientVer(self):

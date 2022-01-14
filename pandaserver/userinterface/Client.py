@@ -2532,3 +2532,32 @@ def send_command_to_job(panda_id, com):
     except Exception as e:
         err_str = "ERROR send_command_to_job : {}".format(str(e))
         return EC_Failed, '{0}\n{1}'.format(output, err_str)
+
+
+# get ban list
+def get_ban_users(verbose=False):
+    """Get ban user list
+
+       args:
+           verbose: set True to see what's going on
+       returns:
+           status code
+                 True: communication succeeded to the panda server
+                 False: communication failure
+
+
+    """
+    # instantiate curl
+    curl = _Curl()
+    curl.verbose = verbose
+    # execute
+    url = baseURL + '/get_ban_users'
+    output = None
+    try:
+        status, output = curl.post(url, {})
+        if status == 0:
+            return json.loads(output)
+        else:
+            return False, "bad response: {}".format(output)
+    except Exception:
+        return False, "broken response: {}".format(output)
