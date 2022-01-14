@@ -293,13 +293,6 @@ def getActivityForOut(prodSourceLabel):
     return activity
 
 
-# cleanup DN
-def cleanupDN(realDN):
-    tmpRealDN = re.sub('/CN=limited proxy', '', realDN)
-    tmpRealDN = re.sub('/CN=proxy', '', tmpRealDN)
-    return tmpRealDN
-
-
 def select_scope(site_spec, prodsourcelabel, job_label):
     """
     Select the scopes of the activity for input and output. The scope was introduced for prod-analy queues

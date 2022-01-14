@@ -788,11 +788,9 @@ class AdderAtlasPlugin (AdderPluginBase):
                         tmpTopDatasets[tmpTopName].append(dq2ID)
             # remove redundant CN from DN
             tmpDN = self.job.prodUserID
-            tmpDN = rucioAPI.parse_dn(tmpDN)
             # send request
             if tmpTopDatasets != {} and self.jobStatus == 'finished':
                 try:
-                    tmpDN = rucioAPI.parse_dn(tmpDN)
                     status,userInfo = rucioAPI.finger(tmpDN)
                     if not status:
                         raise RuntimeError('user info not found for {0} with {1}'.format(tmpDN,userInfo))

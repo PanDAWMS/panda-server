@@ -13,6 +13,7 @@ from rucio.common.exception import UnsupportedOperation,DataIdentifierNotFound,\
     FileAlreadyExists,Duplicate,DataIdentifierAlreadyExists,DuplicateRule,\
     DuplicateContent
 
+from pandaserver.srvcore import CoreUtils
 
 # rucio
 class RucioAPI:
@@ -681,27 +682,34 @@ class RucioAPI:
             result[guid] = datasets
         return result
 
-
-
     # finger
-    def finger(self, userName):
+    def finger(self, dn):
         try:
             # get rucio API
             client = RucioClient()
             userInfo = None
             retVal = False
+            x509_user_name = CoreUtils.get_bare_dn(dn)
+            oidc_user_name = CoreUtils.get_id_from_dn(dn)
+            if oidc_user_name == x509_user_name:
+                oidc_user_name = None
+            else:
+                x509_user_name = None
             for accType in ['USER', 'GROUP']:
-                for i in client.list_accounts(account_type=accType, identity=userName):
-                    userInfo = {'nickname':i['account'],
-                                'email':i['email']}
-                    break
-                if userInfo is None:
-                    # remove /CN=\d
-                    userName = re.sub('(/CN=\d+)+$','',userName)
+                if x509_user_name is not None:
+                    userName = x509_user_name
                     for i in client.list_accounts(account_type=accType, identity=userName):
                         userInfo = {'nickname':i['account'],
                                     'email':i['email']}
                         break
+                    if userInfo is None:
+                        userName = CoreUtils.get_bare_dn(dn, keep_digits=False)
+                        for i in client.list_accounts(account_type=accType, identity=userName):
+                            userInfo = {'nickname':i['account'],
+                                        'email':i['email']}
+                            break
+                else:
+                    userName = oidc_user_name
                 try:
                     if userInfo is None:
                         i = client.get_account(userName)
@@ -751,16 +759,6 @@ class RucioAPI:
                     except DuplicateContent:
                         pass
         return True
-
-
-
-    # get a parsed certificate DN
-    def parse_dn(self,tmpDN):
-        if tmpDN is not None:
-            tmpDN = re.sub('/CN=limited proxy','',tmpDN)
-            tmpDN = re.sub('(/CN=proxy)+$', '', tmpDN)
-            #tmpDN = re.sub('(/CN=\d+)+$', '', tmpDN)
-        return tmpDN
 
 
 # instantiate

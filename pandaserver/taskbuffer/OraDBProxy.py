@@ -11171,8 +11171,7 @@ class DBProxy:
                     res = self.cur.fetchone()
                     if res is not None:
                         userDN, = res
-                        userDN = re.sub('/CN=limited proxy','',userDN)
-                        userDN = re.sub('(/CN=proxy)+','',userDN)
+                        userDN = CoreUtils.get_bare_dn(userDN)
                         tmpRet[siteID] = {'dn':userDN,'role':role}
             retMap['proxyCacheSites'] = tmpRet
             _logger.debug("{0} got {1} proxyCache sites".format(methodName,len(retMap['proxyCacheSites'])))

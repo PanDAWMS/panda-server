@@ -16,6 +16,7 @@ from pandaserver.dataservice.Notifier import Notifier
 from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.taskbuffer import JobUtils
 from pandaserver.userinterface import Client
+from pandaserver.srvcore import CoreUtils
 
 from pandaserver.dataservice.DDM import rucioAPI
 from pandaserver.dataservice.DataServiceUtils import select_scope
@@ -199,9 +200,7 @@ class EventPicker:
                         tmpAllFiles.append(tmpFile)
                 allFiles = tmpAllFiles
             # remove redundant CN from DN
-            tmpDN = self.userDN
-            tmpDN = re.sub('/CN=limited proxy','',tmpDN)
-            tmpDN = re.sub('(/CN=proxy)+$','',tmpDN)
+            tmpDN = CoreUtils.get_id_from_dn(self.userDN)
             # make dataset container
             tmpRet = self.pd2p.registerDatasetContainerWithDatasets(self.userDatasetName, allFiles,
                                                                     locationMap,
@@ -266,11 +265,6 @@ class EventPicker:
                     self.putLog("site -> %s" % tmpJob.computingSite)
                     # send transfer request
                     try:
-                        tmpDN = rucioAPI.parse_dn(tmpDN)
-                        tmpStatus,userInfo = rucioAPI.finger(tmpDN)
-                        if not tmpStatus:
-                            raise RuntimeError('user info not found for {0} with {1}'.format(tmpDN,userInfo))
-                        tmpDN = userInfo['nickname']
                         tmpSiteSpec = self.siteMapper.getSite(tmpJob.computingSite)
                         scope_input, scope_output = select_scope(tmpSiteSpec, JobUtils.PROD_PS, JobUtils.PROD_PS)
                         tmpDQ2ID = tmpSiteSpec.ddm_output[scope_output]

@@ -1,4 +1,5 @@
 import re
+import os
 import datetime
 import subprocess
 from threading import Lock
@@ -42,6 +43,7 @@ def clean_user_id(id):
         username = username.replace('/CN=limited proxy', '')
         username = username.replace('limited proxy', '')
         username = re.sub('/CN=Robot:[^/]+', '', username)
+        username = re.sub('/CN=nickname:[^/]+', '', username)
         pat = re.compile('.*/CN=([^\/]+)/CN=([^\/]+)')
         mat = pat.match(username)
         if mat:
@@ -60,6 +62,26 @@ def clean_user_id(id):
         return username
     except Exception:
         return id
+
+
+# extract bare string from DN
+def get_bare_dn(dn, keep_proxy=False, keep_digits=True):
+    dn = re.sub('/CN=limited proxy', '', dn)
+    if keep_proxy:
+        dn = re.sub('/CN=proxy(/CN=proxy)+', '/CN=proxy', dn)
+    else:
+        dn = re.sub('(/CN=proxy)+', '', dn)
+    if not keep_digits:
+        dn = re.sub(r'(/CN=\d+)+$', '', dn)
+    return dn
+
+
+# extract id string from DN
+def get_id_from_dn(dn, keep_proxy=False, keep_digits=True):
+    m = re.search('/CN=nickname:([^/]+)', dn)
+    if m:
+        return m.group(1)
+    return get_bare_dn(dn, keep_proxy, keep_digits)
 
 
 # cached object
@@ -89,14 +111,16 @@ class CachedObject:
         current = datetime.datetime.utcnow()
         # update if old
         if self.cachedObj is None or current-self.lastUpdated > self.timeInterval:
-            self.log_stream.debug('renewing {} cache'.format(self.name))
+            self.log_stream.debug('PID={} renewing {} cache'.format(os.getpid(), self.name))
             try:
                 tmp_stat, tmp_out = self.updateFunc()
-                self.log_stream.debug('got for {} {} {}'.format(self.name, tmp_stat, str(tmp_out)))
+                self.log_stream.debug('PID={} got for {} {} {}'.format(os.getpid(),
+                                                                       self.name, tmp_stat, str(tmp_out)))
                 if tmp_stat:
                     self.cachedObj = tmp_out
             except Exception as e:
-                self.log_stream.error('failed to renew {} due to {}'.format(self.name, str(e)))
+                self.log_stream.error('PID={} failed to renew {} due to {}'.format(os.getpid(),
+                                                                                   self.name, str(e)))
             self.lastUpdated = current
         # release
         self.lock.release()

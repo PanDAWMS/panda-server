@@ -206,6 +206,9 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                             if 'name' in token:
                                 self.subprocess_env['SSL_CLIENT_S_DN'] = ' '.join(
                                     [t[:1].upper() + t[1:].lower() for t in str(token['name']).split()])
+                                if 'preferred_username' in token:
+                                    self.subprocess_env['SSL_CLIENT_S_DN'] += \
+                                        '/CN=nickname:{}'.format(token['preferred_username'])
                             else:
                                 self.subprocess_env['SSL_CLIENT_S_DN'] = str(token['sub'])
                             i = 0

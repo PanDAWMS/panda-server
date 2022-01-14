@@ -721,8 +721,7 @@ class DynDataDistributer:
     def registerDatasetContainerWithDatasets(self,containerName,files,replicaMap,nSites=1,owner=None):
         # parse DN
         if owner is not None:
-            out = rucioAPI.parse_dn(owner)
-            status,userInfo = rucioAPI.finger(out)
+            status, userInfo = rucioAPI.finger(owner)
             if not status:
                 self.putLog('failed to finger: {0}'.format(userInfo))
             else:

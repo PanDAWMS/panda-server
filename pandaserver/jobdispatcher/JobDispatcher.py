@@ -22,6 +22,7 @@ from pandaserver.jobdispatcher import DispatcherUtils
 from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.proxycache import panda_proxy_cache
+from pandaserver.srvcore import CoreUtils
 
 # logger
 _logger = PandaLogger().getLogger('JobDispatcher')
@@ -156,9 +157,7 @@ class JobDipatcher:
             if realDN is None:
                 realDN = response.data['prodUserID']
             # remove redundant extensions
-            realDN = re.sub('/CN=limited proxy','',realDN)
-            realDN = re.sub('(/CN=proxy)+','',realDN)
-            realDN = re.sub('(/CN=\d+)+$','',realDN)
+            realDN = CoreUtils.get_bare_dn(realDN, keep_digits=False)
             pIF = panda_proxy_cache.MyProxyInterface()
             tmpOut = pIF.retrieve(realDN,role=role)
             # not found
@@ -685,12 +684,13 @@ class JobDipatcher:
     def getProxy(self, realDN, role, targetDN):
         if targetDN is None:
             targetDN = realDN
-        tmpMsg = "getProxy DN={0} role={1} target={2} ".format(realDN, role, targetDN)
-        _logger.debug(tmpMsg)
+        tmpLog = LogWrapper(_logger, 'getProxy PID={}'.format(os.getpid()))
+        tmpMsg = 'start DN="{}" role={} target="{}" '.format(realDN, role, targetDN)
+        tmpLog.debug(tmpMsg)
         if realDN is None:
             # cannot extract DN
             tmpMsg += "failed since DN cannot be extracted"
-            _logger.debug(tmpMsg)
+            tmpLog.debug(tmpMsg)
             response = Protocol.Response(Protocol.SC_Perms,'Cannot extract DN from proxy. not HTTPS?')
         else:
             # get compact DN
@@ -706,18 +706,18 @@ class JobDipatcher:
                 tmpMsg += "failed since '{0}' not in the authorized user list who have 'p' in {1}.USERS.GRIDPREF ".format(compactDN,
                                                                                                                           panda_config.schemaMETA)
                 tmpMsg += "to get proxy"
-                _logger.debug(tmpMsg)
+                tmpLog.debug(tmpMsg)
                 response = Protocol.Response(Protocol.SC_Perms,tmpMsg)
             else:
                 # get proxy
                 response = Protocol.Response(Protocol.SC_Success,'')
                 tmpStat,tmpMsg = self.setUserProxy(response, targetDN, role)
                 if not tmpStat:
-                    _logger.debug(tmpMsg)
+                    tmpLog.debug(tmpMsg)
                     response.appendNode('StatusCode',Protocol.SC_ProxyError)
                 else:
-                    tmpMsg = "sent proxy"
-                    _logger.debug(tmpMsg)
+                    tmpMsg = "successful sent proxy"
+                    tmpLog.debug(tmpMsg)
         # return
         return response.encode(True)
 
@@ -837,8 +837,7 @@ def _getDN(req):
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
         realDN = req.subprocess_env['SSL_CLIENT_S_DN']
         # remove redundant CN
-        realDN = re.sub('/CN=limited proxy','',realDN)
-        realDN = re.sub('/CN=proxy(/CN=proxy)+','/CN=proxy',realDN)
+        realDN = CoreUtils.get_bare_dn(realDN, keep_proxy=True)
     # return
     return realDN
 

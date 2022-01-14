@@ -4,6 +4,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandaserver.config import panda_config
 from pandaserver.proxycache import panda_proxy_cache
+from pandaserver.srvcore import CoreUtils
 
 
 # logger
@@ -39,9 +40,7 @@ def main(tbuf=None, **kwargs):
     for realDN, in tmpRes:
         if realDN is None:
             continue
-        realDN = re.sub('/CN=limited proxy','',realDN)
-        realDN = re.sub('(/CN=proxy)+','',realDN)
-        realDN = re.sub('(/CN=\d+)+$','',realDN)
+        realDN = CoreUtils.get_bare_dn(realDN, keep_digits=False)
         name = taskBuffer.cleanUserID(realDN)
         # check proxy
         tmpLog.debug("check proxy cache for {}".format(name))

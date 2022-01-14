@@ -387,10 +387,8 @@ Report Panda problems of any sort to
             else:
                 return mailAddrInDB.split(':')[-1]
         # get email from DQ2
-        realDN = re.sub('/CN=limited proxy','',dn)
-        realDN = re.sub('(/CN=proxy)+','',realDN)
         try:
-            tmpStatus,userInfo = rucioAPI.finger(realDN)
+            tmpStatus,userInfo = rucioAPI.finger(dn)
             if tmpStatus:
                 mailAddr = userInfo['email']
                 _logger.debug("email from DDM : '%s'" % mailAddr)

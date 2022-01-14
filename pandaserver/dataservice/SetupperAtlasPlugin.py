@@ -941,7 +941,6 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                         if job.prodSourceLabel in ['user','panda']:
                             optShare = "production"
                             optActivity = "Analysis Input"
-                            #optOwner = DataServiceUtils.cleanupDN(job.prodUserID)
                             optOwner = None
                         else:
                             optShare = "production"

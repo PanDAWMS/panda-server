@@ -18,6 +18,7 @@ from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.taskbuffer import PrioUtil, JobUtils
 from pandaserver.dataservice.DDM import rucioAPI
 from pandaserver.config import panda_config
+from pandaserver.srvcore import CoreUtils
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -480,11 +481,9 @@ class UserIF:
         try:
             if useMailAsID:
                 _logger.debug("killJob : getting mail address for %s" % user)
-                realDN = re.sub('/CN=limited proxy','',user)
-                realDN = re.sub('(/CN=proxy)+','',realDN)
                 nTry = 3
                 for iDDMTry in range(nTry):
-                    status,userInfo = rucioAPI.finger(realDN)
+                    status,userInfo = rucioAPI.finger(user)
                     if status:
                         _logger.debug("killJob : %s is converted to %s" % (user,userInfo['email']))
                         user = userInfo['email']
@@ -1079,10 +1078,8 @@ def _getFQAN(req):
 def _getDN(req):
     realDN = ''
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
-        realDN = req.subprocess_env['SSL_CLIENT_S_DN']
         # remove redundant CN
-        realDN = re.sub('/CN=limited proxy','',realDN)
-        realDN = re.sub('/CN=proxy(/CN=proxy)+','/CN=proxy',realDN)
+        realDN = CoreUtils.get_bare_dn(req.subprocess_env['SSL_CLIENT_S_DN'], keep_proxy=True)
     return realDN
 
 
