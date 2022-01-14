@@ -274,7 +274,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         username = CoreUtils.clean_user_id(username)
                         if username in ban_user_list:
                             errMsg = '{} is ban'.format(username)
-                            tmpLog.error(errMsg)
+                            tmpLog.warning(errMsg)
                             return ["ERROR : {}".format(errMsg).encode()]
                     # read contents
                     while cont_length > 0:
