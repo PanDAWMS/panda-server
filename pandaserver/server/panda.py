@@ -275,6 +275,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         if username in ban_user_list:
                             errMsg = '{} is banned'.format(username)
                             tmpLog.warning(errMsg)
+                            start_response('403 Forbidden', [('Content-Type', 'text/plain')])
                             return ["ERROR : {}".format(errMsg).encode()]
                     # read contents
                     while cont_length > 0:
