@@ -307,7 +307,8 @@ class Node (object):
             for p_key, p_value in six.iteritems(parsed_params):
                 if p_key in ['buildSpec']:
                     continue
-                if p_key not in task_params or p_key in ['log', 'container_name', "multiStepExec"]:
+                if p_key not in task_params or p_key in ['log', 'container_name', "multiStepExec",
+                                                         "site", "excludedSite", "includedSite"]:
                     task_params[p_key] = p_value
                 elif p_key == 'architecture':
                     task_params[p_key] = p_value
