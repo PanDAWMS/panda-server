@@ -1084,7 +1084,7 @@ def _getDN(req):
 
 
 # check role
-def _isProdRoleATLAS(req):
+def _hasProdRole(req):
     # check DN
     user = _getDN(req)
     for sdn in panda_config.production_dns:
@@ -1095,8 +1095,10 @@ def _isProdRoleATLAS(req):
     # loop over all FQANs
     for fqan in fqans:
         # check production role
-        for rolePat in ['/atlas/usatlas/Role=production','/atlas/Role=production']:
+        for rolePat in ['/atlas/usatlas/Role=production', '/atlas/Role=production', '^/[^/]+/Role=production$']:
             if fqan.startswith(rolePat):
+                return True
+            if re.search(rolePat, fqan):
                 return True
     return False
 
@@ -1149,7 +1151,7 @@ def submitJobs(req,jobs,toPending=None):
     # hostname
     host = req.get_remote_host()
     # production Role
-    prodRole = _isProdRoleATLAS(req)
+    prodRole = _hasProdRole(req)
     # to pending
     if toPending == 'True':
         toPending = True
@@ -1210,7 +1212,7 @@ def setCloudTaskByUser(req,tid,cloud='',status=''):
         return "ERROR: SSL connection is required"
     user = _getDN(req)
     # check role
-    if not _isProdRoleATLAS(req):
+    if not _hasProdRole(req):
         return "ERROR: production role is required"
     return userIF.setCloudTaskByUser(user,tid,cloud,status)
 
@@ -1222,7 +1224,7 @@ def setDebugMode(req,pandaID,modeOn):
         return "ERROR: SSL connection is required"
     user = _getDN(req)
     # check role
-    prodManager = _isProdRoleATLAS(req)
+    prodManager = _hasProdRole(req)
     # mode
     if modeOn == 'True':
         modeOn = True
@@ -1241,7 +1243,7 @@ def insertSandboxFileInfo(req,userName,fileName,fileSize,checkSum):
         return "ERROR: SSL connection is required"
     user = _getDN(req)
     # check role
-    prodManager = _isProdRoleATLAS(req)
+    prodManager = _hasProdRole(req)
     if not prodManager:
         return "ERROR: missing role"
     # hostname
@@ -1403,7 +1405,7 @@ def killJobs(req,ids,code=None,useMailAsID=None,killOpts=None):
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
         user = _getDN(req)
     # check role
-    prodManager = _isProdRoleATLAS(req)
+    prodManager = _hasProdRole(req)
     # get FQANs
     fqans = _getFQAN(req)
     # use email address as ID
@@ -1463,7 +1465,7 @@ def changeJobPriorities(req,newPrioMap=None):
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
         user = _getDN(req)
     # check role
-    prodRole = _isProdRoleATLAS(req)
+    prodRole = _hasProdRole(req)
     ret = userIF.changeJobPriorities(user,prodRole,newPrioMap)
     return WrappedPickle.dumps(ret)
 
@@ -1799,7 +1801,7 @@ def insertTaskParams(req, taskParams=None, properErrorCode=None, parent_tid=None
         tmpLog.debug(tmpMsg)
         return WrappedPickle.dumps((False, tmpMsg))
     # check role
-    prodRole = _isProdRoleATLAS(req)
+    prodRole = _hasProdRole(req)
     # get FQANs
     fqans = _getFQAN(req)
 
@@ -1830,7 +1832,7 @@ def killTask(req,jediTaskID=None,properErrorCode=None):
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
         user = _getDN(req)
     # check role
-    prodRole = _isProdRoleATLAS(req)
+    prodRole = _hasProdRole(req)
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
@@ -1874,7 +1876,7 @@ def retryTask(req,jediTaskID,properErrorCode=None,newParams=None,noChildRetry=No
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
         user = _getDN(req)
     # check role
-    prodRole = _isProdRoleATLAS(req)
+    prodRole = _hasProdRole(req)
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
@@ -1899,7 +1901,7 @@ def reassignTask(req,jediTaskID,site=None,cloud=None,nucleus=None,soft=None,mode
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
         user = _getDN(req)
     # check role
-    prodRole = _isProdRoleATLAS(req)
+    prodRole = _hasProdRole(req)
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
@@ -1942,7 +1944,7 @@ def finishTask(req,jediTaskID=None,properErrorCode=None,soft=None):
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
         user = _getDN(req)
     # check role
-    prodRole = _isProdRoleATLAS(req)
+    prodRole = _hasProdRole(req)
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
@@ -1973,7 +1975,7 @@ def reloadInput(req, jediTaskID, properErrorCode=None):
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
         user = _getDN(req)
     # check role
-    prodRole = _isProdRoleATLAS(req)
+    prodRole = _hasProdRole(req)
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
@@ -2015,7 +2017,7 @@ def changeTaskPriority(req,jediTaskID=None,newPriority=None):
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
         user = _getDN(req)
     # check role
-    prodRole = _isProdRoleATLAS(req)
+    prodRole = _hasProdRole(req)
     # only prod managers can use this method
     if not prodRole:
         return "Failed : production or pilot role required"
@@ -2044,7 +2046,7 @@ def increaseAttemptNrPanda(req,jediTaskID,increasedNr):
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
         user = _getDN(req)
     # check role
-    prodRole = _isProdRoleATLAS(req)
+    prodRole = _hasProdRole(req)
     # only prod managers can use this method
     ret = None
     if not prodRole:
@@ -2081,7 +2083,7 @@ def changeTaskAttributePanda(req,jediTaskID,attrName,attrValue):
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
         user = _getDN(req)
     # check role
-    prodRole = _isProdRoleATLAS(req)
+    prodRole = _hasProdRole(req)
     # only prod managers can use this method
     if not prodRole:
         return WrappedPickle.dumps((False,"production or pilot role required"))
@@ -2108,7 +2110,7 @@ def changeTaskSplitRulePanda(req,jediTaskID,attrName,attrValue):
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
         user = _getDN(req)
     # check role
-    prodRole = _isProdRoleATLAS(req)
+    prodRole = _hasProdRole(req)
     # only prod managers can use this method
     if not prodRole:
         return WrappedPickle.dumps((False,"production or pilot role required"))
@@ -2135,7 +2137,7 @@ def pauseTask(req,jediTaskID):
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
         user = _getDN(req)
     # check role
-    prodRole = _isProdRoleATLAS(req)
+    prodRole = _hasProdRole(req)
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
@@ -2155,7 +2157,7 @@ def resumeTask(req,jediTaskID):
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
         user = _getDN(req)
     # check role
-    prodRole = _isProdRoleATLAS(req)
+    prodRole = _hasProdRole(req)
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
@@ -2175,7 +2177,7 @@ def avalancheTask(req,jediTaskID):
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
         user = _getDN(req)
     # check role
-    prodRole = _isProdRoleATLAS(req)
+    prodRole = _hasProdRole(req)
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
@@ -2233,7 +2235,7 @@ def changeTaskModTimePanda(req,jediTaskID,diffValue):
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
         user = _getDN(req)
     # check role
-    prodRole = _isProdRoleATLAS(req)
+    prodRole = _hasProdRole(req)
     # only prod managers can use this method
     if not prodRole:
         return WrappedPickle.dumps((False,"production or pilot role required"))
@@ -2302,7 +2304,7 @@ def reassignShare(req, jedi_task_ids_pickle, share, reassign_running):
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
         user = _getDN(req)
     # check role
-    prod_role = _isProdRoleATLAS(req)
+    prod_role = _hasProdRole(req)
     if not prod_role:
         return WrappedPickle.dumps((False,"production or pilot role required"))
 
@@ -2328,7 +2330,7 @@ def listTasksInShare(req, gshare, status):
     if 'SSL_CLIENT_S_DN' in req.subprocess_env:
         user = _getDN(req)
     # check role
-    prod_role = _isProdRoleATLAS(req)
+    prod_role = _hasProdRole(req)
     if not prod_role:
         return WrappedPickle.dumps((False,"production or pilot role required"))
 
@@ -2462,7 +2464,7 @@ def setNumSlotsForWP(req, pandaQueueName, numSlots, gshare=None, resourceType=No
     if not isSecure(req):
         return json.dumps((100, "SSL is required"))
     # check role
-    if not _isProdRoleATLAS(req):
+    if not _hasProdRole(req):
         return json.dumps((101, "production role is required in the certificate"))
     # convert
     try:
@@ -2479,7 +2481,7 @@ def enableJumboJobs(req, jediTaskID, nJumboJobs, nJumboPerSite=None):
     if not isSecure(req):
         return json.dumps((100, "SSL is required"))
     # check role
-    if not _isProdRoleATLAS(req):
+    if not _hasProdRole(req):
         return json.dumps((101, "production role is required in the certificate"))
     # convert
     try:
@@ -2532,7 +2534,7 @@ def sweepPQ(req, panda_queue, status_list, ce_list, submission_host_list):
     if not isSecure(req):
         return json.dumps((False,"SSL is required"))
     # check role
-    prod_role = _isProdRoleATLAS(req)
+    prod_role = _hasProdRole(req)
     if not prod_role:
         return json.dumps((False, "production or pilot role required"))
 
@@ -2675,7 +2677,7 @@ def send_command_to_job(req, panda_id, com):
     if not isSecure(req):
         return json.dumps((False,"SSL is required"))
     # check role
-    prod_role = _isProdRoleATLAS(req)
+    prod_role = _hasProdRole(req)
     if not prod_role:
         return json.dumps((False, "production or pilot role required"))
     return json.dumps(userIF.send_command_to_job(panda_id, com))

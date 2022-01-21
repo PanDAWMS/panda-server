@@ -173,20 +173,37 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         token = oidc_utils.deserialize_token(serialized_token, panda_config.auth_config,
                                                              vo)
                     # check with auth policies
+                    role = None
                     if panda_config.token_authType == 'oidc':
                         self.authenticated = False
-                        vo = token[ "vo"]
+                        # extract role
+                        if vo:
+                            vo = token["vo"].split(':')[0]
+                            if vo != token["vo"]:
+                                role = token["vo"].split(':')[-1]
+                        # check vo
                         if vo not in panda_config.auth_policies:
                             self.message = 'unknown vo : {}'.format(vo)
                             tmpLog.error('{} - {}'.format(self.message, env['HTTP_AUTHORIZATION']))
                         else:
-                            for memberStr, memberInfo in panda_config.auth_policies[vo]:
-                                if memberStr in token["groups"]:
+                            # check role
+                            if role:
+                                if '{}/{}'.format(vo, role) not in token["groups"]:
+                                    self.message = 'not in the {}/{} group'.format(vo, role)
+                                    tmpLog.error('{} - {}'.format(self.message, env['HTTP_AUTHORIZATION']))
+                                else:
                                     self.subprocess_env['PANDA_OIDC_VO'] = vo
-                                    self.subprocess_env['PANDA_OIDC_GROUP'] = memberInfo['group']
-                                    self.subprocess_env['PANDA_OIDC_ROLE'] = memberInfo['role']
+                                    self.subprocess_env['PANDA_OIDC_GROUP'] = role
+                                    self.subprocess_env['PANDA_OIDC_ROLE'] = role
                                     self.authenticated = True
-                                    break
+                            else:
+                                for memberStr, memberInfo in panda_config.auth_policies[vo]:
+                                    if memberStr in token["groups"]:
+                                        self.subprocess_env['PANDA_OIDC_VO'] = vo
+                                        self.subprocess_env['PANDA_OIDC_GROUP'] = memberInfo['group']
+                                        self.subprocess_env['PANDA_OIDC_ROLE'] = memberInfo['role']
+                                        self.authenticated = True
+                                        break
                             if not self.authenticated:
                                 self.message = 'invalid member in {}'.format(vo)
                                 tmpLog.error('{} - {}'.format(self.message, env['HTTP_AUTHORIZATION']))
@@ -214,8 +231,13 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                             i = 0
                             for scope in token.get('scope', '').split():
                                 if scope.startswith('role:'):
-                                    self.subprocess_env['GRST_CRED_AUTH_TOKEN_{0}'.format(i)] = 'VOMS ' + str(scope.split(':')[-1])
+                                    self.subprocess_env['GRST_CRED_AUTH_TOKEN_{0}'.format(i)] = \
+                                        'VOMS ' + str(scope.split(':')[-1])
                                     i += 1
+                            if role:
+                                self.subprocess_env['GRST_CRED_AUTH_TOKEN_{0}'.format(i)] = \
+                                    'VOMS /{}/Role={}'.format(vo, role)
+                                i += 1
             except Exception as e:
                 self.message = 'invalid token: {}'.format(str(e))
                 tmpLog.error('{} - {}'.format(self.message, env['HTTP_AUTHORIZATION']))
