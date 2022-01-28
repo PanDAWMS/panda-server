@@ -62,6 +62,7 @@ class JobSpec(object):
                  'allOkEvents'        : 'at',
                  'notDiscardEvents'   : 'de',
                  'decAttOnFailedES'   : 'df',
+                 'debugMode'          : 'dm',
                  'dynamicNumEvents'   : 'dy',
                  'encJobParams'       : 'ej',
                  'fakeJobToIgnore'    : 'fake',
@@ -882,4 +883,20 @@ class JobSpec(object):
             items = []
         if self._tagForSH['encJobParams'] not in items:
             items.append(self._tagForSH['encJobParams'])
+        self.specialHandling = ','.join(items)
+
+    # check if debug mode
+    def is_debug_mode(self):
+        if self.specialHandling is not None:
+            return self._tagForSH['debugMode'] in self.specialHandling.split(',')
+        return False
+
+    # set debug mode
+    def set_debug_mode(self):
+        if self.specialHandling:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if self._tagForSH['debugMode'] not in items:
+            items.append(self._tagForSH['debugMode'])
         self.specialHandling = ','.join(items)

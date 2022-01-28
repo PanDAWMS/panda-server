@@ -187,10 +187,8 @@ class TaskBuffer:
                         if nExpressJobs > 0:
                             useExpress = True
                 # debug mode
-                if 'debug' in jobs[0].specialHandling:
-                    debugJobList = proxy.getActiveDebugJobs(user)
-                    if len(debugJobList) < ProcessGroups.maxDebugJobs:
-                        useDebugMode = True
+                if 'debug' in jobs[0].specialHandling or jobs[0].is_debug_mode() or jobs[-1].is_debug_mode():
+                    useDebugMode = True
                 # release proxy
                 self.proxyPool.putProxy(proxy)
 
@@ -357,7 +355,7 @@ class TaskBuffer:
                     if checkSpecialHandling:
                         specialHandling = ''
                         # debug mode
-                        if useDebugMode and nRunJob == 0 and job.prodSourceLabel == 'user':
+                        if useDebugMode and job.prodSourceLabel == 'user':
                             specialHandling += 'debug,'
                         # express mode
                         if useExpress and (nRunJob < nExpressJobs or job.prodSourceLabel == 'panda'):
