@@ -782,7 +782,7 @@ def _checkRole(fqans,dn,jdCore,withVomsPatch=True,site='',hostname=''):
                      '/atlas/Role=production',
                      '/atlas/Role=pilot',
                      '/osg/Role=pilot',
-                     '/cms/Role=pilot',
+                     '^/[^/]+/Role=production$',
                      '/ams/Role=pilot',
                      '/Engage/LBNE/Role=pilot',
                      ]
@@ -795,6 +795,9 @@ def _checkRole(fqans,dn,jdCore,withVomsPatch=True,site='',hostname=''):
             # check atlas/usatlas production role
             for rolePat in prodAttrs:
                 if fqan.startswith(rolePat):
+                    prodManager = True
+                    break
+                if re.search(rolePat, fqan):
                     prodManager = True
                     break
             # escape
