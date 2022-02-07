@@ -236,8 +236,14 @@ class Node (object):
                 # add default output for junction
                 if 'opt_args' not in dict_inputs:
                     dict_inputs['opt_args'] = ''
+                results_json = "results.json"
                 if '--outputs' not in dict_inputs['opt_args']:
-                    dict_inputs['opt_args'] += ' --outputs results.json'
+                    dict_inputs['opt_args'] += ' --outputs {}'.format(results_json)
+                else:
+                    m = re.search('(--outputs)( +|=)([^ ]+)', dict_inputs['opt_args'])
+                    if results_json not in m.group(3):
+                        tmp_dst = m.group(1) + '=' + m.group(3) + ',' + results_json
+                        dict_inputs['opt_args'] = re.sub(m.group(0), tmp_dst, dict_inputs['opt_args'])
             com += shlex.split(dict_inputs['opt_args'])
             if 'opt_inDS' in dict_inputs and dict_inputs['opt_inDS']:
                 if isinstance(dict_inputs['opt_inDS'], list):
