@@ -10297,13 +10297,23 @@ class DBProxy:
             endpoint_dict[tmp_endpoint['ddm_endpoint_name']] = tmp_endpoint
 
         # get relationship between panda sites and ddm endpoints
-        sql_panda_ddm = """
-               SELECT pdr.panda_site_name, pdr.ddm_endpoint_name, pdr.is_local, de.ddm_spacetoken_name,
-                      de.is_tape, pdr.default_read, pdr.default_write, pdr.roles, pdr.order_read, pdr.order_write,
-                      nvl(pdr.scope, 'default') as scope, de.blacklisted_read
-               FROM ATLAS_PANDA.panda_ddm_relation pdr, ATLAS_PANDA.ddm_endpoint de
-               WHERE pdr.ddm_endpoint_name = de.ddm_endpoint_name
-               """
+        if self.backend == 'oracle':
+            sql_panda_ddm = """
+                   SELECT pdr.panda_site_name, pdr.ddm_endpoint_name, pdr.is_local, de.ddm_spacetoken_name,
+                          de.is_tape, pdr.default_read, pdr.default_write, pdr.roles, pdr.order_read, pdr.order_write,
+                          nvl(pdr.scope, 'default') as scope, de.blacklisted_read
+                   FROM ATLAS_PANDA.panda_ddm_relation pdr, ATLAS_PANDA.ddm_endpoint de
+                   WHERE pdr.ddm_endpoint_name = de.ddm_endpoint_name
+                   """
+        else:
+            sql_panda_ddm = """
+                   SELECT pdr.panda_site_name, pdr.ddm_endpoint_name, pdr.is_local, de.ddm_spacetoken_name,
+                          de.is_tape, pdr.default_read, pdr.default_write, pdr.roles, pdr.order_read, pdr.order_write,
+                          ifnull(pdr.scope, 'default') as scope, de.blacklisted
+                   FROM ATLAS_PANDA.panda_ddm_relation pdr, ATLAS_PANDA.ddm_endpoint de
+                   WHERE pdr.ddm_endpoint_name = de.ddm_endpoint_name
+                   """
+
         self.cur.execute('{0}{1}'.format(sql_panda_ddm, comment))
         results_panda_ddm = self.cur.fetchall()
         column_names = [i[0].lower() for i in self.cur.description]
