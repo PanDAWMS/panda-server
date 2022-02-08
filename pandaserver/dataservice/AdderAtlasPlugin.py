@@ -591,9 +591,9 @@ class AdderAtlasPlugin (AdderPluginBase):
             regStart = datetime.datetime.utcnow()
             try:
                 if not self.useCentralLFC():
-                    regMsgStr = "DQ2 registraion for %s files " % regNumFiles
+                    regMsgStr = "File registraion for %s files " % regNumFiles
                 else:
-                    regMsgStr = "LFC+DQ2 registration with backend={0} for {1} files ".format(self.ddmBackEnd,
+                    regMsgStr = "File registration with backend={0} for {1} files ".format(self.ddmBackEnd,
                                                                                              regNumFiles)
                 if len(zipFiles) > 0:
                     self.logger.debug('{0} {1}'.format('registerZipFiles',str(zipFiles)))

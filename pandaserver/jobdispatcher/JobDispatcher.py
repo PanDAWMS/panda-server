@@ -143,10 +143,10 @@ class JobDipatcher:
             self.allowedNodes = self.taskBuffer.getAllowedNodes()
         # special dipatcher parameters
         if self.specialDispatchParams is None:
-            self.specialDispatchParams = CachedObject(60*30, self.taskBuffer.getSpecialDispatchParams)
+            self.specialDispatchParams = CachedObject(60*10, self.taskBuffer.getSpecialDispatchParams)
         # site mapper cache
         if self.siteMapperCache is None:
-            self.siteMapperCache = CachedObject(60*30, self.getSiteMapper)
+            self.siteMapperCache = CachedObject(60*10, self.getSiteMapper)
         # release
         self.lock.release()
 
@@ -179,7 +179,7 @@ class JobDipatcher:
     def getJob(self, siteName, prodSourceLabel, cpu, mem, diskSpace, node, timeout, computingElement,
                atlasRelease, prodUserID, getProxyKey, countryGroup, workingGroup, allowOtherCountry,
                realDN, taskID, nJobs, acceptJson, background, resourceType, harvester_id, worker_id,
-               schedulerID, jobType):
+               schedulerID, jobType, tmpLog):
 
         t_getJob_start = time.time()
         jobs = []
@@ -193,6 +193,13 @@ class JobDipatcher:
 
         self.siteMapperCache.update()
         is_gu = self.siteMapperCache.cachedObj.getSite(siteName).is_grandly_unified()
+        in_test = self.siteMapperCache.cachedObj.getSite(siteName).status == 'test'
+
+        # change label
+        if in_test and prodSourceLabel in ['user', 'managed', 'unified']:
+            new_label = 'test'
+            tmpLog.debug("prodSourceLabel changed {} -> {}".format(prodSourceLabel, new_label))
+            prodSourceLabel = new_label
 
         # wrapper function for timeout
         tmpWrapper = _TimedMethod(self.taskBuffer.getJobs, timeout)
@@ -217,10 +224,9 @@ class JobDipatcher:
                 try:
                     response=Protocol.Response(Protocol.SC_Success)
                     response.appendJob(tmpJob, self.siteMapperCache)
-                except Exception:
-                    errtype, errvalue = sys.exc_info()[:2]
-                    tmpMsg = "getJob failed with {0} {1}".format(errtype.__name__, errvalue)
-                    _logger.error(tmpMsg + '\n' + traceback.format_exc())
+                except Exception as e:
+                    tmpMsg = "failed to get jobs with {0}".format(str(e))
+                    tmpLog.error(tmpMsg + '\n' + traceback.format_exc())
                     raise
 
                 # append nSent
@@ -252,8 +258,8 @@ class JobDipatcher:
                         else:
                             allowProxy = self.specialDispatchParams['allowProxy']
                         if compactDN not in allowProxy:
-                            _logger.warning("getJob : %s %s '%s' no permission to retrive user proxy" % (siteName,node,
-                                                                                                         compactDN))
+                            tmpLog.warning("%s %s '%s' no permission to retrieve user proxy" % (siteName, node,
+                                                                                                compactDN))
                         else:
                             if useProxyCache:
                                 tmpStat,tmpOut = self.setUserProxy(response,
@@ -262,24 +268,22 @@ class JobDipatcher:
                             else:
                                 tmpStat,tmpOut = self.setUserProxy(response)
                             if not tmpStat:
-                                _logger.warning("getJob : %s %s failed to get user proxy : %s" % (siteName,node,
-                                                                                                  tmpOut))
-                    except Exception:
-                        errtype,errvalue = sys.exc_info()[:2]
-                        _logger.warning("getJob : %s %s failed to get user proxy with %s:%s" % (siteName,node,
-                                                                                                errtype.__name__, errvalue))
+                                tmpLog.warning("%s %s failed to get user proxy : %s" % (siteName, node,
+                                                                                        tmpOut))
+                    except Exception as e:
+                        tmpLog.warning("%s %s failed to get user proxy with %s" % (siteName, node, str(e)))
                 # panda proxy
                 if 'pandaProxySites' in self.specialDispatchParams and siteName in self.specialDispatchParams['pandaProxySites'] \
                         and (EventServiceUtils.isEventServiceJob(tmpJob) or EventServiceUtils.isEventServiceMerge(tmpJob)):
                     # get secret key
                     tmpSecretKey,tmpErrMsg = DispatcherUtils.getSecretKey(tmpJob.PandaID)
                     if tmpSecretKey is None:
-                        _logger.warning("getJob : PandaID=%s site=%s failed to get panda proxy secret key : %s" % (tmpJob.PandaID,
-                                                                                                                   siteName,
-                                                                                                                   tmpErrMsg))
+                        tmpLog.warning("PandaID=%s site=%s failed to get panda proxy secret key : %s" % (tmpJob.PandaID,
+                                                                                                         siteName,
+                                                                                                         tmpErrMsg))
                     else:
                         # set secret key
-                        _logger.debug("getJob : PandaID=%s key=%s" % (tmpJob.PandaID,tmpSecretKey))
+                        tmpLog.debug("PandaID=%s set key=%s" % (tmpJob.PandaID, tmpSecretKey))
                         response.setPandaProxySecretKey(tmpSecretKey)
                 # add
                 responseList.append(response.data)
@@ -291,10 +295,9 @@ class JobDipatcher:
                         response.appendNode('jobs',json.dumps(responseList))
                     else:
                         response.appendNode('jobs',responseList)
-                except Exception:
-                    errtype, errvalue = sys.exc_info()[:2]
-                    tmpMsg = "getJob failed with {0} {1}".format(errtype.__name__, errvalue)
-                    _logger.error(tmpMsg + '\n' + traceback.format_exc())
+                except Exception as e:
+                    tmpMsg = "failed to make response with {0}".format(str(e))
+                    tmpLog.error(tmpMsg + '\n' + traceback.format_exc())
                     raise
 
         else:
@@ -312,11 +315,12 @@ class JobDipatcher:
                     response = Protocol.Response(Protocol.SC_NoJobs)
                 _pilotReqLogger.info('method=noJob,site=%s,node=%s,type=%s' % (siteName, node, prodSourceLabel))
         # return
-        _logger.debug("getJob : %s %s ret -> %s" % (siteName, node, response.encode(acceptJson)))
+        tmpLog.debug("%s %s ret -> %s" % (siteName, node, response.encode(acceptJson)))
 
         t_getJob_end = time.time()
         t_getJob_spent = t_getJob_end - t_getJob_start
-        _logger.info("getJob : siteName={0} took timing={1}s".format(siteName, t_getJob_spent))
+        tmpLog.info("siteName={0} took timing={1}s in_test={2}".format(siteName, t_getJob_spent,
+                                                                       in_test))
         return response.encode(acceptJson)
 
 
@@ -866,7 +870,8 @@ def getJob(req, siteName, token=None, timeout=60, cpu=None, mem=None, diskSpace=
            computingElement=None, AtlasRelease=None, prodUserID=None, getProxyKey=None, countryGroup=None,
            workingGroup=None, allowOtherCountry=None, taskID=None, nJobs=None, background=None, resourceType=None,
            harvester_id=None, worker_id=None, schedulerID=None, jobType=None):
-    _logger.debug("getJob(%s)" % siteName)
+    tmpLog = LogWrapper(_logger, 'getJob {}'.format(datetime.datetime.utcnow().isoformat('/')))
+    tmpLog.debug(siteName)
     # get DN
     realDN = _getDN(req)
     # get FQANs
@@ -905,12 +910,13 @@ def getJob(req, siteName, token=None, timeout=60, cpu=None, mem=None, diskSpace=
         background = True
     else:
         background = False
-    _logger.debug("getJob(%s,nJobs=%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,taskID=%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s,json:%s,bg=%s,rt=%s," \
-                      "harvester_id=%s,worker_id=%s,schedulerID=%s,jobType=%s" \
-                  % (siteName, nJobs, cpu, mem, diskSpace, prodSourceLabel, node,
-                     computingElement, AtlasRelease, prodUserID, getProxyKey, countryGroup, workingGroup,
-                     allowOtherCountry, taskID, realDN, prodManager, token, validToken, str(fqans), req.acceptJson(),
-                     background, resourceType, harvester_id, worker_id, schedulerID, jobType))
+    tmpLog.debug("%s,nJobs=%s,cpu=%s,mem=%s,disk=%s,source_label=%s,node=%s,ce=%s,rel=%s,user=%s,proxy=%s,c_group=%s,"
+                 "w_group=%s,%s,taskID=%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s,json:%s,bg=%s,rt=%s,"
+                 "harvester_id=%s,worker_id=%s,schedulerID=%s,jobType=%s"
+                 % (siteName, nJobs, cpu, mem, diskSpace, prodSourceLabel, node,
+                    computingElement, AtlasRelease, prodUserID, getProxyKey, countryGroup, workingGroup,
+                    allowOtherCountry, taskID, realDN, prodManager, token, validToken, str(fqans), req.acceptJson(),
+                    background, resourceType, harvester_id, worker_id, schedulerID, jobType))
     try:
         dummyNumSlots = int(nJobs)
     except Exception:
@@ -922,7 +928,7 @@ def getJob(req, siteName, token=None, timeout=60, cpu=None, mem=None, diskSpace=
         _pilotReqLogger.info('method=getJob,site=%s,node=%s,type=%s' % (siteName,node,prodSourceLabel))
     # invalid role
     if (not prodManager) and (prodSourceLabel not in ['user']):
-        _logger.warning("getJob(%s) : invalid role" % siteName)
+        tmpLog.warning("invalid role")
         if req.acceptJson():
             tmpMsg = 'no production/pilot role in VOMS FQANs or non pilot owner'
         else:
@@ -930,13 +936,14 @@ def getJob(req, siteName, token=None, timeout=60, cpu=None, mem=None, diskSpace=
         return Protocol.Response(Protocol.SC_Role, tmpMsg).encode(req.acceptJson())
     # invalid token
     if not validToken:
-        _logger.warning("getJob(%s) : invalid token" % siteName)
+        tmpLog.warning("invalid token")
         return Protocol.Response(Protocol.SC_Invalid).encode(req.acceptJson())
     # invoke JD
     return jobDispatcher.getJob(siteName, prodSourceLabel, cpu, mem, diskSpace, node, int(timeout),
                                 computingElement, AtlasRelease, prodUserID, getProxyKey, countryGroup,
                                 workingGroup, allowOtherCountry, realDN, taskID, nJobs, req.acceptJson(),
-                                background, resourceType, harvester_id, worker_id, schedulerID, jobType)
+                                background, resourceType, harvester_id, worker_id, schedulerID, jobType,
+                                tmpLog)
 
 
 # update job status
