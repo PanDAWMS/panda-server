@@ -166,13 +166,13 @@ class MetricsDB(object):
         # try insert if no row updated
         if n_row == 0:
             try:
-                tmp_log.debug('no row to update about site={site}, gshare={gshare} ; trying insert'.format(site=site, gshare=gshare))
+                tmp_log.debug('no row to update for metric={metric} ; trying insert'.format(metric=metric))
                 self.tbuf.executemanySQL(sql_insert, varMap_list)
-                tmp_log.debug('inserted site={site}, gshare={gshare}'.format(site=site, gshare=gshare))
+                tmp_log.debug('inserted for metric={metric}'.format(metric=metric))
             except Exception:
-                tmp_log.warning('failed to insert site={site}, gshare={gshare}'.format(site=site, gshare=gshare))
+                tmp_log.warning('failed to insert for metric={metric}'.format(metric=metric))
         else:
-            tmp_log.debug('updated site={site}, gshare={gshare}'.format(site=site, gshare=gshare))
+            tmp_log.debug('updated for metric={metric}'.format(metric=metric))
         # done
         # tmp_log.debug('done key={0} site={1}, gshare={2}'.format(key, site, gshare))
 
