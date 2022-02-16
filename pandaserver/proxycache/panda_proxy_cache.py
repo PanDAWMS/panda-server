@@ -16,6 +16,7 @@ def execute(program, log_stream):
     """Run a program on the command line. Return stderr, stdout and status."""
     log_stream.info("executable: %s" % program)
     pipe = subprocess.Popen(program, bufsize=-1, shell=True, close_fds=False,
+                            cwd='/tmp',
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = pipe.communicate()
     return stdout, stderr, pipe.wait()
