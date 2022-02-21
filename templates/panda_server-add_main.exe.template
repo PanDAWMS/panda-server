@@ -1,6 +1,0 @@
-#!/bin/bash
-
-# import env vars from sysconfig
-source @@virtual_env@@/etc/sysconfig/panda_server
-
-python @@install_purelib@@/pandaserver/daemons/scripts/add_main.py
