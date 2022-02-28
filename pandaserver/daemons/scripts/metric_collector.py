@@ -8,12 +8,16 @@ import traceback
 import copy
 import statistics
 
+import numpy as np
+
 from zlib import adler32
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger import logger_utils
 
 from pandaserver.config import panda_config
+
+from scipy import stats
 
 
 # logger
@@ -36,6 +40,14 @@ def get_now_time_str():
     return ts_str
 
 
+def conf_interval_upper(n, mean, stdev, cl=0.95):
+    """
+    Get estimated confidence level
+    """
+    ciu = stats.t.ppf(cl, (n-1), loc=mean, scale=stdev)
+    return ciu
+
+
 class MetricsDB(object):
     """
     Proxy to access the metrics table in DB
@@ -54,56 +66,6 @@ class MetricsDB(object):
                     pass
             return _wrapped_method
         return _decorator(method)
-
-    def update_old(self, key, value, site, gshare):
-        tmp_log = logger_utils.make_logger(main_logger, 'MetricsDB')
-        # tmp_log.debug('start key={0} site={1}, gshare={2}'.format(key, site, gshare))
-        # sql
-        sql_update_tmp = (
-            """UPDATE ATLAS_PANDA.Metrics SET """
-                """metric = :metric , """
-                """value_json = json_mergepatch(value_json, '{patch_value_json}'), """
-                """timestamp = :timestamp """
-            """WHERE computingSite=:site AND gshare=:gshare """
-        )
-        sql_insert_tmp = (
-            """INSERT INTO ATLAS_PANDA.Metrics """
-                """VALUES ( """
-                    """:site, :gshare, :metric, '{patch_value_json}', :timestamp """
-                """) """
-        )
-        # now
-        now_time = datetime.datetime.utcnow()
-        # var map
-        varMap = {
-            ':site': site,
-            ':gshare': gshare,
-            ':metric': key,
-            ':timestamp': now_time,
-        }
-        # json string evaluated
-        try:
-            patch_value_json = json.dumps(value)
-        except Exception:
-            tmp_log.error(traceback.format_exc())
-            return
-        # json in sql
-        sql_update = sql_update_tmp.format(patch_value_json=patch_value_json)
-        sql_insert = sql_insert_tmp.format(patch_value_json=patch_value_json)
-        # update
-        n_row = self.tbuf.querySQL(sql_update, varMap)
-        # try insert if no row updated
-        if n_row == 0:
-            try:
-                tmp_log.debug('no row to update about site={site}, gshare={gshare} ; trying insert'.format(site=site, gshare=gshare))
-                self.tbuf.querySQL(sql_insert, varMap)
-                tmp_log.debug('inserted site={site}, gshare={gshare}'.format(site=site, gshare=gshare))
-            except Exception:
-                tmp_log.warning('failed to insert site={site}, gshare={gshare}'.format(site=site, gshare=gshare))
-        else:
-            tmp_log.debug('updated site={site}, gshare={gshare}'.format(site=site, gshare=gshare))
-        # done
-        # tmp_log.debug('done key={0} site={1}, gshare={2}'.format(key, site, gshare))
 
     def update(self, metric, update_type, entity_dict):
         tmp_log = logger_utils.make_logger(main_logger, 'MetricsDB')
@@ -175,12 +137,6 @@ class MetricsDB(object):
             tmp_log.debug('updated for metric={metric}'.format(metric=metric))
         # done
         # tmp_log.debug('done key={0} site={1}, gshare={2}'.format(key, site, gshare))
-
-    def update_site_old(self, key, value, site):
-        return self.update(key, value, site=site, gshare='NULL')
-
-    def update_gshare_old(self, key, value, gshare):
-        return self.update(key, value, site='NULL', gshare=gshare)
 
 
 class FetchData(object):
@@ -268,12 +224,14 @@ class FetchData(object):
                 # except statistics.StatisticsError:
                 #     quantiles = None
                 # update
+                cl95upp = conf_interval_upper(n=n_jobs, mean=mean, stdev=stdev, cl=0.95)
                 site_dict[site].update({
                         'n': n_jobs,
                         'mean': mean,
                         'stdev': stdev,
                         'med': median,
                         # 'quantiles': quantiles,
+                        'cl95upp': cl95upp,
                     })
                 # log
                 try:
@@ -281,7 +239,12 @@ class FetchData(object):
                     stdev_str = '{0:.3f}'.format(stdev)
                 except TypeError:
                     stdev_str = str(stdev)
-                tmp_log.debug('site={site}, n={n}, mean={mean:.3f}, stdev={stdev_str}, med={med:.3f}'.format(site=site, stdev_str=stdev_str, **site_dict[site]))
+                tmp_log.debug('site={site}, n={n}, mean={mean:.3f}, stdev={stdev_str}, med={med:.3f}, cl95upp={cl95upp:.3f}'.format(
+                                site=site, stdev_str=stdev_str, **site_dict[site]))
+                # turn nan into None
+                for key in site_dict[site]:
+                    if np.isnan(site_dict[site][key]):
+                        site_dict[site][key] = None
             # return
             return site_dict
         except Exception:

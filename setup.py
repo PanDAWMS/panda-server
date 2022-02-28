@@ -249,6 +249,8 @@ setup(
                       'pyyaml',
                       'pyjwt',
                       'requests',
+                      'numpy',
+                      'scipy',
                       'idds-common',
                       'idds-client',
                       'idds-workflow',
