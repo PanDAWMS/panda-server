@@ -23,6 +23,8 @@ from scipy import stats
 # logger
 main_logger = PandaLogger().getLogger('metric_collector')
 
+# dry run
+DRY_RUN = False
 
 # list of metrics in FetchData to fetch data and update to DB. Format: (metric, type, period_minutes)
 metric_list = [
@@ -224,7 +226,7 @@ class FetchData(object):
                 # except statistics.StatisticsError:
                 #     quantiles = None
                 # update
-                cl95upp = conf_interval_upper(n=n_jobs, mean=mean, stdev=stdev, cl=0.95)
+                cl95upp = conf_interval_upper(n=n_jobs, mean=mean, stdev=stdev, cl=0.95) if stdev else None
                 site_dict[site].update({
                         'n': n_jobs,
                         'mean': mean,
@@ -235,16 +237,21 @@ class FetchData(object):
                     })
                 # log
                 try:
-                    # stdev can be None
+                    # some values can be None
                     stdev_str = '{0:.3f}'.format(stdev)
                 except TypeError:
                     stdev_str = str(stdev)
-                tmp_log.debug('site={site}, n={n}, mean={mean:.3f}, stdev={stdev_str}, med={med:.3f}, cl95upp={cl95upp:.3f}'.format(
-                                site=site, stdev_str=stdev_str, **site_dict[site]))
+                try:
+                    # some values can be None
+                    cl95upp_str = '{0:.3f}'.format(cl95upp)
+                except TypeError:
+                    cl95upp_str = str(cl95upp)
+                tmp_log.debug('site={site}, n={n}, mean={mean:.3f}, stdev={stdev_str}, med={med:.3f}, cl95upp={cl95upp_str}'.format(
+                                site=site, stdev_str=stdev_str, cl95upp_str=cl95upp_str, **site_dict[site]))
                 # turn nan into None
-                for key in site_dict[site]:
-                    if np.isnan(site_dict[site][key]):
-                        site_dict[site][key] = None
+                # for key in site_dict[site]:
+                #     if np.isnan(site_dict[site][key]):
+                #         site_dict[site][key] = None
             # return
             return site_dict
         except Exception:
@@ -285,38 +292,45 @@ def main(tbuf=None, **kwargs):
     # pid
     my_pid = os.getpid()
     my_full_pid = '{0}-{1}-{2}'.format(socket.getfqdn().split('.')[0], os.getpgrp(), my_pid)
-    # instantiate
-    mdb = MetricsDB(taskBuffer)
-    fetcher = FetchData(taskBuffer)
-    # loop over all fetch data methods to run and update to DB
-    for metric_name, update_type, period in metric_list:
-        # metric lock
-        lock_component_name = 'pandaMetr.{0:.30}.{1:0x}'.format(metric_name, adler32(metric_name.encode('utf-8')))
-        # try to get lock
-        got_lock = taskBuffer.lockProcess_PANDA(component=lock_component_name, pid=my_full_pid, time_limit=period)
-        if got_lock:
-            main_logger.debug('got lock of {metric_name}'.format(metric_name=metric_name))
-        else:
-            main_logger.debug('{metric_name} locked by other process; skipped...'.format(metric_name=metric_name))
-            continue
-        main_logger.debug('start {metric_name}'.format(metric_name=metric_name))
-        # fetch data and update DB
-        the_method = getattr(fetcher, metric_name)
-        fetched_data = the_method()
-        if fetched_data is None:
-            main_logger.warning('{metric_name} got no valid data'.format(metric_name=metric_name))
-            continue
-        # if update_type == 'site':
-        #     for site, v in fetched_data.items():
-        #         mdb.update_site(key=metric_name, value=v, site=site)
-        # elif update_type == 'gshare':
-        #     for gshare, v in fetched_data.items():
-        #         mdb.update_gshare(key=metric_name, value=v, gshare=gshare)
-        # elif update_type == 'both':
-        #     for (site, gshare), v in fetched_data.items():
-        #         mdb.update(key=metric_name, value=v, site=site, gshare=gshare)
-        mdb.update(metric=metric_name, update_type=update_type, entity_dict=fetched_data)
-        main_logger.debug('done {metric_name}'.format(metric_name=metric_name))
+    # go
+    if DRY_RUN:
+        # dry run, regardless of lock, not update DB
+        fetcher = FetchData(taskBuffer)
+        # loop over all fetch data methods to run and update to DB
+        for metric_name, update_type, period in metric_list:
+            main_logger.debug('(dry-run) start {metric_name}'.format(metric_name=metric_name))
+            # fetch data and update DB
+            the_method = getattr(fetcher, metric_name)
+            fetched_data = the_method()
+            if fetched_data is None:
+                main_logger.warning('(dry-run) {metric_name} got no valid data'.format(metric_name=metric_name))
+                continue
+            main_logger.debug('(dry-run) done {metric_name}'.format(metric_name=metric_name))
+    else:
+        # real run, will update DB
+        # instantiate
+        mdb = MetricsDB(taskBuffer)
+        fetcher = FetchData(taskBuffer)
+        # loop over all fetch data methods to run and update to DB
+        for metric_name, update_type, period in metric_list:
+            # metric lock
+            lock_component_name = 'pandaMetr.{0:.30}.{1:0x}'.format(metric_name, adler32(metric_name.encode('utf-8')))
+            # try to get lock
+            got_lock = taskBuffer.lockProcess_PANDA(component=lock_component_name, pid=my_full_pid, time_limit=period)
+            if got_lock:
+                main_logger.debug('got lock of {metric_name}'.format(metric_name=metric_name))
+            else:
+                main_logger.debug('{metric_name} locked by other process; skipped...'.format(metric_name=metric_name))
+                continue
+            main_logger.debug('start {metric_name}'.format(metric_name=metric_name))
+            # fetch data and update DB
+            the_method = getattr(fetcher, metric_name)
+            fetched_data = the_method()
+            if fetched_data is None:
+                main_logger.warning('{metric_name} got no valid data'.format(metric_name=metric_name))
+                continue
+            mdb.update(metric=metric_name, update_type=update_type, entity_dict=fetched_data)
+            main_logger.debug('done {metric_name}'.format(metric_name=metric_name))
 
 # run
 if __name__ == '__main__':
