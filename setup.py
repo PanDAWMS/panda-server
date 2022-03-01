@@ -263,7 +263,7 @@ setup(
         'postgres': ['psycopg2-binary'],
         'rucio': ['rucio-clients'],
         'elasticsearch': ['elasticsearch'],
-        'atlasprod': ['cx_Oracle', 'rucio-clients', 'elasticsearch'],
+        'atlasprod': ['cx_Oracle', 'rucio-clients', 'elasticsearch', 'numpy', 'scipy'],
     },
     packages=[ 'pandaserver',
                'pandaserver.brokerage',

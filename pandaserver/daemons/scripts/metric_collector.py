@@ -8,6 +8,8 @@ import traceback
 import copy
 import statistics
 
+import numpy as np
+
 from zlib import adler32
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -15,10 +17,14 @@ from pandacommon.pandalogger import logger_utils
 
 from pandaserver.config import panda_config
 
+from scipy import stats
+
 
 # logger
 main_logger = PandaLogger().getLogger('metric_collector')
 
+# dry run
+DRY_RUN = False
 
 # list of metrics in FetchData to fetch data and update to DB. Format: (metric, type, period_minutes)
 metric_list = [
@@ -34,6 +40,14 @@ def get_now_time_str():
     now_time = datetime.datetime.utcnow()
     ts_str = now_time.strftime('%Y-%m-%d %H:%M:%S')
     return ts_str
+
+
+def conf_interval_upper(n, mean, stdev, cl=0.95):
+    """
+    Get estimated confidence level
+    """
+    ciu = stats.t.ppf(cl, (n-1), loc=mean, scale=stdev)
+    return ciu
 
 
 class MetricsDB(object):
@@ -54,56 +68,6 @@ class MetricsDB(object):
                     pass
             return _wrapped_method
         return _decorator(method)
-
-    def update_old(self, key, value, site, gshare):
-        tmp_log = logger_utils.make_logger(main_logger, 'MetricsDB')
-        # tmp_log.debug('start key={0} site={1}, gshare={2}'.format(key, site, gshare))
-        # sql
-        sql_update_tmp = (
-            """UPDATE ATLAS_PANDA.Metrics SET """
-                """metric = :metric , """
-                """value_json = json_mergepatch(value_json, '{patch_value_json}'), """
-                """timestamp = :timestamp """
-            """WHERE computingSite=:site AND gshare=:gshare """
-        )
-        sql_insert_tmp = (
-            """INSERT INTO ATLAS_PANDA.Metrics """
-                """VALUES ( """
-                    """:site, :gshare, :metric, '{patch_value_json}', :timestamp """
-                """) """
-        )
-        # now
-        now_time = datetime.datetime.utcnow()
-        # var map
-        varMap = {
-            ':site': site,
-            ':gshare': gshare,
-            ':metric': key,
-            ':timestamp': now_time,
-        }
-        # json string evaluated
-        try:
-            patch_value_json = json.dumps(value)
-        except Exception:
-            tmp_log.error(traceback.format_exc())
-            return
-        # json in sql
-        sql_update = sql_update_tmp.format(patch_value_json=patch_value_json)
-        sql_insert = sql_insert_tmp.format(patch_value_json=patch_value_json)
-        # update
-        n_row = self.tbuf.querySQL(sql_update, varMap)
-        # try insert if no row updated
-        if n_row == 0:
-            try:
-                tmp_log.debug('no row to update about site={site}, gshare={gshare} ; trying insert'.format(site=site, gshare=gshare))
-                self.tbuf.querySQL(sql_insert, varMap)
-                tmp_log.debug('inserted site={site}, gshare={gshare}'.format(site=site, gshare=gshare))
-            except Exception:
-                tmp_log.warning('failed to insert site={site}, gshare={gshare}'.format(site=site, gshare=gshare))
-        else:
-            tmp_log.debug('updated site={site}, gshare={gshare}'.format(site=site, gshare=gshare))
-        # done
-        # tmp_log.debug('done key={0} site={1}, gshare={2}'.format(key, site, gshare))
 
     def update(self, metric, update_type, entity_dict):
         tmp_log = logger_utils.make_logger(main_logger, 'MetricsDB')
@@ -175,12 +139,6 @@ class MetricsDB(object):
             tmp_log.debug('updated for metric={metric}'.format(metric=metric))
         # done
         # tmp_log.debug('done key={0} site={1}, gshare={2}'.format(key, site, gshare))
-
-    def update_site_old(self, key, value, site):
-        return self.update(key, value, site=site, gshare='NULL')
-
-    def update_gshare_old(self, key, value, gshare):
-        return self.update(key, value, site='NULL', gshare=gshare)
 
 
 class FetchData(object):
@@ -268,20 +226,32 @@ class FetchData(object):
                 # except statistics.StatisticsError:
                 #     quantiles = None
                 # update
+                cl95upp = conf_interval_upper(n=n_jobs, mean=mean, stdev=stdev, cl=0.95) if stdev else None
                 site_dict[site].update({
                         'n': n_jobs,
                         'mean': mean,
                         'stdev': stdev,
                         'med': median,
                         # 'quantiles': quantiles,
+                        'cl95upp': cl95upp,
                     })
                 # log
                 try:
-                    # stdev can be None
+                    # some values can be None
                     stdev_str = '{0:.3f}'.format(stdev)
                 except TypeError:
                     stdev_str = str(stdev)
-                tmp_log.debug('site={site}, n={n}, mean={mean:.3f}, stdev={stdev_str}, med={med:.3f}'.format(site=site, stdev_str=stdev_str, **site_dict[site]))
+                try:
+                    # some values can be None
+                    cl95upp_str = '{0:.3f}'.format(cl95upp)
+                except TypeError:
+                    cl95upp_str = str(cl95upp)
+                tmp_log.debug('site={site}, n={n}, mean={mean:.3f}, stdev={stdev_str}, med={med:.3f}, cl95upp={cl95upp_str}'.format(
+                                site=site, stdev_str=stdev_str, cl95upp_str=cl95upp_str, **site_dict[site]))
+                # turn nan into None
+                # for key in site_dict[site]:
+                #     if np.isnan(site_dict[site][key]):
+                #         site_dict[site][key] = None
             # return
             return site_dict
         except Exception:
@@ -322,38 +292,45 @@ def main(tbuf=None, **kwargs):
     # pid
     my_pid = os.getpid()
     my_full_pid = '{0}-{1}-{2}'.format(socket.getfqdn().split('.')[0], os.getpgrp(), my_pid)
-    # instantiate
-    mdb = MetricsDB(taskBuffer)
-    fetcher = FetchData(taskBuffer)
-    # loop over all fetch data methods to run and update to DB
-    for metric_name, update_type, period in metric_list:
-        # metric lock
-        lock_component_name = 'pandaMetr.{0:.30}.{1:0x}'.format(metric_name, adler32(metric_name.encode('utf-8')))
-        # try to get lock
-        got_lock = taskBuffer.lockProcess_PANDA(component=lock_component_name, pid=my_full_pid, time_limit=period)
-        if got_lock:
-            main_logger.debug('got lock of {metric_name}'.format(metric_name=metric_name))
-        else:
-            main_logger.debug('{metric_name} locked by other process; skipped...'.format(metric_name=metric_name))
-            continue
-        main_logger.debug('start {metric_name}'.format(metric_name=metric_name))
-        # fetch data and update DB
-        the_method = getattr(fetcher, metric_name)
-        fetched_data = the_method()
-        if fetched_data is None:
-            main_logger.warning('{metric_name} got no valid data'.format(metric_name=metric_name))
-            continue
-        # if update_type == 'site':
-        #     for site, v in fetched_data.items():
-        #         mdb.update_site(key=metric_name, value=v, site=site)
-        # elif update_type == 'gshare':
-        #     for gshare, v in fetched_data.items():
-        #         mdb.update_gshare(key=metric_name, value=v, gshare=gshare)
-        # elif update_type == 'both':
-        #     for (site, gshare), v in fetched_data.items():
-        #         mdb.update(key=metric_name, value=v, site=site, gshare=gshare)
-        mdb.update(metric=metric_name, update_type=update_type, entity_dict=fetched_data)
-        main_logger.debug('done {metric_name}'.format(metric_name=metric_name))
+    # go
+    if DRY_RUN:
+        # dry run, regardless of lock, not update DB
+        fetcher = FetchData(taskBuffer)
+        # loop over all fetch data methods to run and update to DB
+        for metric_name, update_type, period in metric_list:
+            main_logger.debug('(dry-run) start {metric_name}'.format(metric_name=metric_name))
+            # fetch data and update DB
+            the_method = getattr(fetcher, metric_name)
+            fetched_data = the_method()
+            if fetched_data is None:
+                main_logger.warning('(dry-run) {metric_name} got no valid data'.format(metric_name=metric_name))
+                continue
+            main_logger.debug('(dry-run) done {metric_name}'.format(metric_name=metric_name))
+    else:
+        # real run, will update DB
+        # instantiate
+        mdb = MetricsDB(taskBuffer)
+        fetcher = FetchData(taskBuffer)
+        # loop over all fetch data methods to run and update to DB
+        for metric_name, update_type, period in metric_list:
+            # metric lock
+            lock_component_name = 'pandaMetr.{0:.30}.{1:0x}'.format(metric_name, adler32(metric_name.encode('utf-8')))
+            # try to get lock
+            got_lock = taskBuffer.lockProcess_PANDA(component=lock_component_name, pid=my_full_pid, time_limit=period)
+            if got_lock:
+                main_logger.debug('got lock of {metric_name}'.format(metric_name=metric_name))
+            else:
+                main_logger.debug('{metric_name} locked by other process; skipped...'.format(metric_name=metric_name))
+                continue
+            main_logger.debug('start {metric_name}'.format(metric_name=metric_name))
+            # fetch data and update DB
+            the_method = getattr(fetcher, metric_name)
+            fetched_data = the_method()
+            if fetched_data is None:
+                main_logger.warning('{metric_name} got no valid data'.format(metric_name=metric_name))
+                continue
+            mdb.update(metric=metric_name, update_type=update_type, entity_dict=fetched_data)
+            main_logger.debug('done {metric_name}'.format(metric_name=metric_name))
 
 # run
 if __name__ == '__main__':
