@@ -350,7 +350,7 @@ class RucioAPI:
         try:
             # get dids
             client = RucioClient()
-            for name in client.list_dids(scope, filters, type=collection):
+            for name in client.list_dids(scope, filters, collection):
                 vuid = hashlib.md5((scope + ':' + name).encode()).hexdigest()
                 vuid = '%s-%s-%s-%s-%s' % (vuid[0:8], vuid[8:12], vuid[12:16], vuid[16:20], vuid[20:32])
                 duid = vuid
