@@ -72,6 +72,10 @@ if 'endpoint_mapfile' not in tmpSelf.__dict__:
 if 'record_sandbox_info' not in tmpSelf.__dict__:
     tmpSelf.__dict__['record_sandbox_info'] = True
 
+# secrets
+if 'pilot_secrets' not in tmpSelf.__dict__:
+    tmpSelf.__dict__['pilot_secrets'] = 'pilot secrets'
+
 # schemas
 if 'schemaPANDA' not in tmpSelf.__dict__:
     tmpSelf.__dict__['schemaPANDA'] = 'ATLAS_PANDA'

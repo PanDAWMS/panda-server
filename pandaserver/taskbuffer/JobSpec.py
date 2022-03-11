@@ -888,7 +888,8 @@ class JobSpec(object):
     # check if debug mode
     def is_debug_mode(self):
         if self.specialHandling is not None:
-            return self._tagForSH['debugMode'] in self.specialHandling.split(',')
+            items = self.specialHandling.split(',')
+            return self._tagForSH['debugMode'] in items or 'debug' in items
         return False
 
     # set debug mode

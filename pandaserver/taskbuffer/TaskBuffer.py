@@ -16,6 +16,7 @@ from pandaserver.dataservice.Setupper import Setupper
 from pandaserver.dataservice.Closer import Closer
 from pandaserver.dataservice.ProcessLimiter import ProcessLimiter
 from pandaserver.srvcore import CoreUtils
+from pandaserver.config import panda_config
 
 # logger
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -187,7 +188,7 @@ class TaskBuffer:
                         if nExpressJobs > 0:
                             useExpress = True
                 # debug mode
-                if 'debug' in jobs[0].specialHandling or jobs[0].is_debug_mode() or jobs[-1].is_debug_mode():
+                if jobs[0].is_debug_mode() or jobs[-1].is_debug_mode():
                     useDebugMode = True
                 # release proxy
                 self.proxyPool.putProxy(proxy)
@@ -836,8 +837,19 @@ class TaskBuffer:
                     # get secret
                     proxy = self.proxyPool.getProxy()
                     tmpS, secret = proxy.get_user_secrets(job.prodUserName)
+                    if not tmpS:
+                        secret = None
                     self.proxyPool.putProxy(proxy)
                 secrets_map[job.prodUserName] = secret
+            if job.is_debug_mode():
+                if panda_config.pilot_secrets not in secrets_map:
+                    # get secret
+                    proxy = self.proxyPool.getProxy()
+                    tmpS, secret = proxy.get_user_secrets(panda_config.pilot_secrets)
+                    if not tmpS:
+                        secret = None
+                    self.proxyPool.putProxy(proxy)
+                    secrets_map[panda_config.pilot_secrets] = secret
         # return
         return jobs + [nSent, proxyKey, secrets_map]
 
