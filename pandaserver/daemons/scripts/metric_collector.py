@@ -6,7 +6,6 @@ import json
 import functools
 import traceback
 import copy
-import statistics
 
 import numpy as np
 
@@ -48,6 +47,17 @@ def conf_interval_upper(n, mean, stdev, cl=0.95):
     """
     ciu = stats.t.ppf(cl, (n-1), loc=mean, scale=stdev)
     return ciu
+
+
+def weighted_stats(values, weights):
+    """
+    Return sum of weights, weighted mean and standard deviation
+    """
+    sum_of_weights = np.sum(weights)
+    mean = np.average(values, weights=weights)
+    variance = np.average((values - mean)**2, weights=weights)
+    stdev = np.sqrt(variance)
+    return sum_of_weights, mean, stdev
 
 
 class MetricsDB(object):
@@ -171,9 +181,11 @@ class FetchData(object):
         try:
             # initialize
             tmp_site_dict = dict()
+            # now time
+            now_time = datetime.datetime.utcnow()
             # get user jobs
             varMap = {
-                    ':modificationTime': datetime.datetime.utcnow() - datetime.timedelta(days=4),
+                    ':modificationTime': now_time - datetime.timedelta(days=4),
                 }
             jobs_list = self.tbuf.querySQL(sql_get_jobs, varMap)
             n_tot_jobs = len(jobs_list)
@@ -193,8 +205,13 @@ class FetchData(object):
                 if wait_time_sec < 0:
                     tmp_log.warning('job {0} has negative wait time'.format(pandaID))
                     continue
-                tmp_site_dict.setdefault(site, [])
-                tmp_site_dict[site].append(wait_time_sec)
+                run_age_sec = int((now_time - status_mtime_dict['running']).total_seconds())
+                if run_age_sec < 0:
+                    tmp_log.warning('job {0} has negative run age'.format(pandaID))
+                    continue
+                tmp_site_dict.setdefault(site, {'wait_time': [], 'run_age': []})
+                tmp_site_dict[site]['wait_time'].append(wait_time_sec)
+                tmp_site_dict[site]['run_age'].append(run_age_sec)
                 # log message
                 if cc > 0 and cc % 5000 == 0:
                     tmp_log.debug('... queried {0:9d} jobs ...'.format(cc))
@@ -202,31 +219,36 @@ class FetchData(object):
             tmp_log.debug('queried {0} jobs'.format(cc))
             # evaluate stats
             site_dict = dict()
-            for site, data_list in tmp_site_dict.items():
+            for site, data_dict in tmp_site_dict.items():
                 site_dict.setdefault(site, {})
-                n_jobs = len(data_list)
-                try:
-                    mean = statistics.mean(data_list)
-                except statistics.StatisticsError:
-                    mean = None
-                try:
-                    stdev = statistics.stdev(data_list)
-                except statistics.StatisticsError:
-                    stdev = None
-                try:
-                    stdev = statistics.stdev(data_list)
-                except statistics.StatisticsError:
-                    stdev = None
-                try:
-                    median = statistics.median(data_list)
-                except statistics.StatisticsError:
-                    median = median
-                # try:
-                #     quantiles = statistics.quantiles(data_list, n=4, method='inclusive')
-                # except statistics.StatisticsError:
-                #     quantiles = None
+                n_jobs = len(data_dict['wait_time'])
+                # init with nan
+                mean = np.nan
+                stdev = np.nan
+                median = np.nan
+                cl95upp = np.nan
+                sum_of_weights = np.nan
+                w_mean = np.nan
+                w_stdev = np.nan
+                w_cl95upp = np.nan
+                # fill the stats values
+                if n_jobs > 0:
+                    wait_time_array = np.array(data_dict['wait_time'])
+                    run_age_array = np.array(data_dict['run_age'])
+                    # stats
+                    mean = np.mean(wait_time_array)
+                    stdev = np.std(wait_time_array)
+                    median = np.median(wait_time_array)
+                    # try:
+                    #     quantiles = statistics.quantiles(data_list, n=4, method='inclusive')
+                    # except statistics.StatisticsError:
+                    #     quantiles = None
+                    cl95upp = conf_interval_upper(n=n_jobs, mean=mean, stdev=stdev, cl=0.95)
+                    # weighted by run age (weight halves every 24 hours)
+                    weight_array = np.exp2(-run_age_array/(24*60*60))
+                    sum_of_weights, w_mean, w_stdev = weighted_stats(wait_time_array, weight_array)
+                    w_cl95upp = conf_interval_upper(n=sum_of_weights+1, mean=w_mean, stdev=w_stdev, cl=0.95)
                 # update
-                cl95upp = conf_interval_upper(n=n_jobs, mean=mean, stdev=stdev, cl=0.95) if stdev else None
                 site_dict[site].update({
                         'n': n_jobs,
                         'mean': mean,
@@ -234,24 +256,20 @@ class FetchData(object):
                         'med': median,
                         # 'quantiles': quantiles,
                         'cl95upp': cl95upp,
+                        'sum_of_weights': sum_of_weights,
+                        'w_mean': w_mean,
+                        'w_stdev': w_stdev,
+                        'w_cl95upp': w_cl95upp,
                     })
                 # log
-                try:
-                    # some values can be None
-                    stdev_str = '{0:.3f}'.format(stdev)
-                except TypeError:
-                    stdev_str = str(stdev)
-                try:
-                    # some values can be None
-                    cl95upp_str = '{0:.3f}'.format(cl95upp)
-                except TypeError:
-                    cl95upp_str = str(cl95upp)
-                tmp_log.debug('site={site}, n={n}, mean={mean:.3f}, stdev={stdev_str}, med={med:.3f}, cl95upp={cl95upp_str}'.format(
-                                site=site, stdev_str=stdev_str, cl95upp_str=cl95upp_str, **site_dict[site]))
+                tmp_log.debug(('site={site}, n={n}, '
+                                'mean={mean:.3f}, stdev={stdev:.3f}, med={med:.3f}, cl95upp={cl95upp:.3f}, '
+                                'sum_of_weights={sum_of_weights:.3f}, w_mean={w_mean:.3f}, w_stdev={w_stdev:.3f}, w_cl95upp={w_cl95upp:.3f} '
+                                ).format(site=site, **site_dict[site]))
                 # turn nan into None
-                # for key in site_dict[site]:
-                #     if np.isnan(site_dict[site][key]):
-                #         site_dict[site][key] = None
+                for key in site_dict[site]:
+                    if np.isnan(site_dict[site][key]):
+                        site_dict[site][key] = None
             # return
             return site_dict
         except Exception:
