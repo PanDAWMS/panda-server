@@ -615,9 +615,11 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None):
                         cond_function = p_work.is_finished
                     else:
                         cond_function = p_work.is_started
-                    cond_func_list.append(cond_function)
-                    cond_dump_str += '    Default Link ID:{} {} -> ID:{}\n'.format(str_p_id, cond_function.__name__,
-                                                                                   node.id)
+                    if cond_function not in cond_func_list:
+                        cond_func_list.append(cond_function)
+                        cond_dump_str += '    Default Link ID:{} {} -> ID:{}\n'.format(str_p_id,
+                                                                                       cond_function.__name__,
+                                                                                       node.id)
                 cond = AndCondition(true_works=[c_work], conditions=cond_func_list)
                 workflow.add_condition(cond)
             else:
@@ -650,7 +652,7 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None):
                         base_cond_map[tmp_idx] = cond
                         str_func = "AND ".join(str_func_list)
                         str_cond_map[tmp_idx] = str_func
-                        cond_dump_str += '    Unary Ops  {} ({}) for ID:{}\n'.format(
+                        cond_dump_str += '    Unary Ops {}({}) -> ID:{}\n'.format(
                             cond.__class__.__name__, str_func, node.id)
                         root_condition = cond
                     else:
@@ -698,7 +700,7 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None):
                         else:
                             cond = OrCondition(conditions=[l_cond.is_condition_true, r_cond.is_condition_true])
                         base_cond_map[tmp_idx] = cond
-                        cond_dump_str += '    Binary Ops {} ({}) ({}) for ID:{}\n'.format(
+                        cond_dump_str += '    Binary Ops {}({}, {}) for ID:{}\n'.format(
                             cond.__class__.__name__,
                             l_str_func,
                             r_str_func,
