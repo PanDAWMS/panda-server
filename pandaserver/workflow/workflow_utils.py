@@ -134,7 +134,7 @@ class Node (object):
             for k in ['opt_exec', 'opt_args']:
                 test_str = dict_inputs.get(k)
                 if test_str:
-                    m = re.search(r'%{DS\d+}', test_str)
+                    m = re.search(r'%{DS(\d+|\*)}', test_str)
                     if m:
                         return False, '{} is unresolved in {}'.format(m.group(0), k)
             if self.type == 'prun':
@@ -152,10 +152,11 @@ class Node (object):
                         return False, 'unknown input parameter {}'.format(k)
         elif self.type == 'workflow':
             reserved_params = ['i']
-            global_params = self.get_global_parameters()
-            for k in reserved_params:
-                if k in global_params:
-                    return False, 'parameter {} cannot be used since it is reserved by the system'.format(k)
+            loop_global, workflow_global = self.get_global_parameters()
+            if loop_global:
+                for k in reserved_params:
+                    if k in loop_global:
+                        return False, 'parameter {} cannot be used since it is reserved by the system'.format(k)
         return True, ''
 
     # string representation
@@ -285,11 +286,43 @@ class Node (object):
                             dict_inputs['opt_exec'] = re.sub(src, dst, dict_inputs['opt_exec'])
                         if 'opt_args' in dict_inputs:
                             dict_inputs['opt_args'] = re.sub(src, dst, dict_inputs['opt_args'])
+                    if list_in_ds:
+                        src = r"%{DS\*}"
+                        if 'opt_exec' in dict_inputs:
+                            dict_inputs['opt_exec'] = re.sub(src, ','.join(list_in_ds), dict_inputs['opt_exec'])
+                        if 'opt_args' in dict_inputs:
+                            dict_inputs['opt_args'] = re.sub(src, ','.join(list_in_ds), dict_inputs['opt_args'])
                     for k, v in six.iteritems(self.inputs):
                         if k.endswith('opt_exec'):
                             v['value'] = dict_inputs['opt_exec']
                         elif k.endswith('opt_args'):
                             v['value'] = dict_inputs['opt_args']
+            # global parameters
+            if workflow_node:
+                tmp_global, tmp_workflow_global = workflow_node.get_global_parameters()
+                src_dst_list = []
+                # looping globals
+                if tmp_global:
+                    for k in tmp_global:
+                        tmp_src = '%{{{}}}'.format(k)
+                        tmp_dst = '___idds___user_{}___'.format(k)
+                        src_dst_list.append((tmp_src, tmp_dst))
+                # workflow globls
+                if tmp_workflow_global:
+                    for k, v in six.iteritems(tmp_workflow_global):
+                        tmp_src = '%{{{}}}'.format(k)
+                        tmp_dst = '{}'.format(v)
+                        src_dst_list.append((tmp_src, tmp_dst))
+                # iteration count
+                tmp_src = '%{i}'
+                tmp_dst = '___idds___num_run___'
+                src_dst_list.append((tmp_src, tmp_dst))
+                # replace
+                for tmp_src, tmp_dst in src_dst_list:
+                    if 'opt_exec' in dict_inputs:
+                        dict_inputs['opt_exec'] = re.sub(tmp_src, tmp_dst, dict_inputs['opt_exec'])
+                    if 'opt_args' in dict_inputs:
+                        dict_inputs['opt_args'] = re.sub(tmp_src, tmp_dst, dict_inputs['opt_args'])
             com += ['--exec', dict_inputs['opt_exec']]
             com += ['--outDS', task_name]
             if container_image:
@@ -333,23 +366,6 @@ class Node (object):
             for tmp_item in task_params['jobParameters']:
                 if tmp_item['type'] == 'template' and tmp_item["param_type"] == "output":
                     self.output_types.append(re.search(r'}\.(.+)$', tmp_item["value"]).group(1))
-            # global parameters
-            if workflow_node:
-                tmp_global = workflow_node.get_global_parameters()
-                src_dst_list = []
-                if tmp_global:
-                    for k in tmp_global:
-                        tmp_src = '%25%7B{}%7D'.format(k)
-                        tmp_dst = '___idds___user_{}___'.format(k)
-                        src_dst_list.append((tmp_src, tmp_dst))
-                # iteration count
-                tmp_src = '%25%7Bi%7D'
-                tmp_dst = '___idds___num_run___'
-                src_dst_list.append((tmp_src, tmp_dst))
-                for tmp_src, tmp_dst in src_dst_list:
-                    for tmp_item in task_params['jobParameters']:
-                        if tmp_item['type'] == 'constant':
-                            tmp_item['value'] = re.sub(tmp_src, tmp_dst, tmp_item['value'])
             # container
             if not container_image:
                 if 'container_name' in task_params:
@@ -420,14 +436,17 @@ class Node (object):
         else:
             root_inputs = self.root_inputs
         if root_inputs is None:
-            return None
-        params = {}
+            return None, None
+        loop_params = {}
+        workflow_params = {}
         for k, v in six.iteritems(root_inputs):
             param = k.split('#')[-1]
             m = re.search(r'^param_(.+)', param)
             if m:
-                params[m.group(1)] = v
-        return params
+                loop_params[m.group(1)] = v
+            else:
+                workflow_params[param] = v
+        return loop_params, workflow_params
 
     # get all sub node IDs
     def get_all_sub_node_ids(self, all_ids=None):
@@ -692,11 +711,14 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None):
                     #workflow.add_condition(root_condition)
     # global parameters
     if workflow_node:
-        tmp_global = workflow_node.get_global_parameters()
+        tmp_global, tmp_workflow_global = workflow_node.get_global_parameters()
         if tmp_global:
             workflow.set_global_parameters({'user_' + k: tmp_global[k] for k in tmp_global})
-            cond_dump_str += '\n  Globals\n'
+            cond_dump_str += '\n  Looping Globals\n'
             cond_dump_str += '    {}\n'.format(tmp_global)
+        if tmp_workflow_global:
+            cond_dump_str += '\n  Workflow Globals\n'
+            cond_dump_str += '    {}\n'.format(tmp_workflow_global)
     # dump strings
     dump_str_list.insert(0, class_dump_str+'\n'+cond_dump_str+'\n\n')
     # return
