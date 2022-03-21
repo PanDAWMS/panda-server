@@ -150,6 +150,10 @@ def parsePluginConf(modConfigName):
             vos          = items[0].split('|')
             moduleName   = items[1]
             className    = items[2]
+            if len(items) > 3:
+                group = items[3]
+            else:
+                group = None
             for vo in vos:
                 # import
                 mod = __import__(moduleName)
@@ -157,19 +161,28 @@ def parsePluginConf(modConfigName):
                     mod = getattr(mod,subModuleName)
                 # get class
                 cls = getattr(mod,className)
-                g_pluginMap[modConfigName][vo] = cls
+                if group:
+                    vo_key = '{}_{}'.format(vo, group)
+                else:
+                    vo_key = vo
+                g_pluginMap[modConfigName][vo_key] = cls
     except Exception:
         pass
 
 
 # accessor for plugin
-def getPlugin(modConfigName,vo):
+def getPlugin(modConfigName, vo, group=None):
     if modConfigName not in g_pluginMap:
         return None
-    elif vo in g_pluginMap[modConfigName]:
+    if group:
+        vo_group = '{}_{}'.format(vo, group)
+        if vo_group in g_pluginMap[modConfigName]:
+            # VO+group specified
+            return g_pluginMap[modConfigName][vo_group]
+    if vo in g_pluginMap[modConfigName]:
         # VO specified
         return g_pluginMap[modConfigName][vo]
-    elif 'any' in g_pluginMap[modConfigName]:
+    if 'any' in g_pluginMap[modConfigName]:
         # catch all
         return g_pluginMap[modConfigName]['any']
     # undefined

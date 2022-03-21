@@ -82,9 +82,9 @@ class AdderGen(object):
 
 
     # get plugin class
-    def getPluginClass(self, tmpVO):
+    def getPluginClass(self, tmpVO, tmpGroup):
         # instantiate concrete plugin
-        adderPluginClass = panda_config.getPlugin('adder_plugins',tmpVO)
+        adderPluginClass = panda_config.getPlugin('adder_plugins', tmpVO, tmpGroup)
         if adderPluginClass is None:
             # use ATLAS plugin by default
             from pandaserver.dataservice.AdderAtlasPlugin import AdderAtlasPlugin
@@ -118,7 +118,7 @@ class AdderGen(object):
             #     self.logger.error(errMsg)
             elif self.jobStatus == EventServiceUtils.esRegStatus:
                 # instantiate concrete plugin
-                adderPluginClass = self.getPluginClass(self.job.VO)
+                adderPluginClass = self.getPluginClass(self.job.VO, self.job.cloud)
                 adderPlugin = adderPluginClass(self.job,
                                                taskBuffer=self.taskBuffer,
                                                siteMapper=self.siteMapper,
@@ -179,10 +179,10 @@ class AdderGen(object):
                 # parse XML
                 parseResult = self.parseXML()
                 if parseResult < 2:
-                    # intraction with DDM
+                    # interaction with DDM
                     try:
                         # instantiate concrete plugin
-                        adderPluginClass = self.getPluginClass(self.job.VO)
+                        adderPluginClass = self.getPluginClass(self.job.VO, self.job.cloud)
                         adderPlugin = adderPluginClass(self.job,
                                                        taskBuffer=self.taskBuffer,
                                                        siteMapper=self.siteMapper,
