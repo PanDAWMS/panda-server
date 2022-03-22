@@ -660,6 +660,11 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # update DB and buffer
         ret = proxy.updateJobStatus(jobID,jobStatus,param,updateStateChange,attemptNr)
+        # get secrets for debug mode
+        if isinstance(ret, str) and 'debug' in ret:
+            tmpS, secrets = proxy.get_user_secrets(panda_config.pilot_secrets)
+            if tmpS and secrets:
+                ret = {'command': ret, 'secrets': secrets}
         # release proxy
         self.proxyPool.putProxy(proxy)
         return ret

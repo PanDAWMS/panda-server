@@ -372,13 +372,21 @@ class JobDipatcher:
             if tmpWrapper.result:
                 # succeed
                 response=Protocol.Response(Protocol.SC_Success)
+                result = tmpWrapper.result
+                secrets = None
+                if isinstance(result, dict):
+                    if 'secrets' in result:
+                        secrets = result['secrets']
+                    result = result['command']
                 # set command
-                if isinstance(tmpWrapper.result, str):
-                    response.appendNode('command',tmpWrapper.result)
+                if isinstance(result, str):
+                    response.appendNode('command', result)
+                    if secrets:
+                        response.appendNode('pilotSecrets', secrets)
                 else:
-                    response.appendNode('command','NULL')
+                    response.appendNode('command', 'NULL')
                 # add output to dataset
-                if tmpWrapper.result not in ["badattemptnr","alreadydone"] and (jobStatus == 'failed' or jobStatus == 'finished'):
+                if result not in ["badattemptnr", "alreadydone"] and (jobStatus == 'failed' or jobStatus == 'finished'):
                     adder_gen = AdderGen(self.taskBuffer, jobID, jobStatus, attemptNr)
                     adder_gen.dumpFileReport(xml, attemptNr)
                     del adder_gen

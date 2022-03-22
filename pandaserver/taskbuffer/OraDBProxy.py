@@ -2336,7 +2336,7 @@ class DBProxy:
                     if ret == '':
                         ret = 'NULL'
                     if oldJobStatus == 'failed' and jobStatus in ['holding','transferring','starting','running']:
-                        _logger.debug("updateJobStatus : PandaID=%s skip to set %s since it is alredy %s" \
+                        _logger.debug("updateJobStatus : PandaID=%s skip to set %s since it is already %s" \
                                           % (pandaID,jobStatus,oldJobStatus))
                         ret = 'alreadydone'
                     elif oldJobStatus == 'transferring' and jobStatus == 'holding' and jobDispatcherErrorDiag in [None,'']:
@@ -24733,9 +24733,6 @@ class DBProxy:
             tmpLog.debug("got {} char data".format(len(data)))
             return True, data
         except Exception:
-            # roll back
-            if use_commit:
-                self._rollback()
             # error
             self.dumpErrorMessage(_logger, methodName)
             return False, 'database error'
