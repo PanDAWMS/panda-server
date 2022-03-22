@@ -74,6 +74,7 @@ class JobSpec(object):
                  'noLoopingCheck'     : 'lc',
                  'mergeAtOs'          : 'mo',
                  'noExecStrCnv'       : 'nc',
+                 'pushStatusChanges'  : 'pc',
                  'putLogToOS'         : 'po',
                  'registerEsFiles'    : 're',
                  'resurrectConsumers' : 'rs',
@@ -901,3 +902,27 @@ class JobSpec(object):
         if self._tagForSH['debugMode'] not in items:
             items.append(self._tagForSH['debugMode'])
         self.specialHandling = ','.join(items)
+
+    # set push status changes
+    def set_push_status_changes(self):
+        if self.specialHandling:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if self._tagForSH['pushStatusChanges'] not in items:
+            items.append(self._tagForSH['pushStatusChanges'])
+        self.specialHandling = ','.join(items)
+
+    # check if to push status changes
+    def push_status_changes(self):
+        return push_status_changes(self.specialHandling)
+
+
+# utils
+
+# check if to push status changes without class instance
+def push_status_changes(special_handling):
+    if special_handling is not None:
+        items = special_handling.split(',')
+        return JobSpec._tagForSH['pushStatusChanges'] in items
+    return False

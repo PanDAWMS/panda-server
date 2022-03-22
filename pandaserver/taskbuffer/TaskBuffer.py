@@ -367,6 +367,7 @@ class TaskBuffer:
                         isScout = job.isScoutJob()
                         no_looping_check = job.is_no_looping_check()
                         use_secrets = job.use_secrets()
+                        push_changes = job.push_status_changes()
                         # reset specialHandling
                         specialHandling = specialHandling[:-1]
                         job.specialHandling = specialHandling
@@ -378,6 +379,8 @@ class TaskBuffer:
                             job.disable_looping_check()
                         if use_secrets:
                             job.set_use_secrets()
+                        if push_changes:
+                            job.set_push_status_changes()
                         # set DDM backend
                         if ddmBackEnd is not None:
                             job.setDdmBackEnd(ddmBackEnd)
