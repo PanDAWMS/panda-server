@@ -782,17 +782,15 @@ class TaskBuffer:
         # check the number of debug jobs
         hitLimit = False
         if modeOn is True:
-            limitNum = None
             if prodManager:
-                jobList = proxy.getActiveDebugJobs(prodRole=True)
-                limitNum = ProcessGroups.maxDebugProdJobs
+                limitNum = None
             elif workingGroup is not None:
                 jobList = proxy.getActiveDebugJobs(workingGroup=workingGroup)
                 limitNum = ProcessGroups.maxDebugWgJobs
             else:
                 jobList = proxy.getActiveDebugJobs(dn=dn)
                 limitNum = ProcessGroups.maxDebugJobs
-            if len(jobList) >= limitNum:
+            if limitNum and len(jobList) >= limitNum:
                 # exceeded
                 retStr  = 'You already hit the limit on the maximum number of debug subjobs '
                 retStr += '(%s jobs). ' % limitNum
