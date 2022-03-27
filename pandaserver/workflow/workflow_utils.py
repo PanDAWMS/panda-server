@@ -709,8 +709,7 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None):
                 # set root condition
                 if root_condition:
                     root_condition.true_works = [c_work]
-                    # FIXME
-                    #workflow.add_condition(root_condition)
+                    workflow.add_condition(root_condition)
     # global parameters
     if workflow_node:
         tmp_global, tmp_workflow_global = workflow_node.get_global_parameters()
