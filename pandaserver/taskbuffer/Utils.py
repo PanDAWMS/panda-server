@@ -28,6 +28,9 @@ except NameError:
 # logger
 _logger = PandaLogger().getLogger('Utils')
 
+
+IGNORED_SUFFIX = ['.out']
+
 # check if server is alive
 def isAlive(req):
     return "alive=yes"
@@ -118,14 +121,22 @@ def putFile(req, file):
                   (username, fileFullPath, fileSize, checkSum))
     # put file info to DB
     if panda_config.record_sandbox_info:
-        statClient,outClient = Client.insertSandboxFileInfo(username,file.filename,
-                                                            fileSize,checkSum)
-        if statClient != 0 or outClient.startswith("ERROR"):
-            tmpLog.error("failed to put sandbox to DB with %s %s" % (statClient,outClient))
-            #_logger.debug("putFile : end")
-            #return "ERROR : Cannot insert sandbox to DB"
+        to_insert = True
+        for patt in IGNORED_SUFFIX:
+            if file.filename.endswith(patt):
+                to_insert = False
+                break
+        if not to_insert:
+            tmpLog.debug("skipped to insert to DB")
         else:
-            tmpLog.debug("putFile : inserted sandbox to DB with %s" % outClient)
+            statClient,outClient = Client.insertSandboxFileInfo(username,file.filename,
+                                                                fileSize,checkSum)
+            if statClient != 0 or outClient.startswith("ERROR"):
+                tmpLog.error("failed to put sandbox to DB with %s %s" % (statClient,outClient))
+                #_logger.debug("putFile : end")
+                #return "ERROR : Cannot insert sandbox to DB"
+            else:
+                tmpLog.debug("inserted sandbox to DB with %s" % outClient)
     tmpLog.debug("end")
     return True
 
