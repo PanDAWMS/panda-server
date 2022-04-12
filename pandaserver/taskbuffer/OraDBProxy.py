@@ -18618,6 +18618,8 @@ class DBProxy:
                 params_dict = dict((key, value) for (key, value) in params_list)
             except AttributeError:
                 params_dict = {}
+            except ValueError:
+                params_dict = {}
 
             #Calculate if action and error combination should be active
             if e_active == 'Y' and a_active == 'Y':
