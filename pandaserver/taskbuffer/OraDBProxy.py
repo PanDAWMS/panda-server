@@ -18587,8 +18587,10 @@ class DBProxy:
     def getRetrialRules(self):
         #Logging
         comment = ' /* DBProxy.getRetrialRules */'
-        methodName = comment.split(' ')[-2].split('.')[-1]
-        _logger.debug("%s start"%methodName)
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        
+        tmp_logger = LogWrapper(_logger, method_name)
+        tmp_logger.debug("start")
 
         # SQL to extract the error definitions
         sql  = """
@@ -18598,13 +18600,13 @@ class DBProxy:
         AND (CURRENT_TIMESTAMP > re.expiration_date or re.expiration_date IS NULL)
         """
         self.cur.execute(sql+comment, {})
-        definitions = self.cur.fetchall()   #example of output: [('pilotErrorCode', 1, None, None, None, None, 'no_retry', 'Y', 'Y'),...]
+        definitions = self.cur.fetchall()  # example of output: [('pilotErrorCode', 1, None, None, None, None, 'no_retry', 'Y', 'Y'),...]
 
         # commit
         if not self._commit():
             raise RuntimeError('Commit error')
 
-        _logger.debug("definitions %s"%(definitions))
+        tmp_logger.debug("definitions %s"%(definitions))
 
         retrial_rules = {}
         for definition in definitions:
@@ -18612,20 +18614,20 @@ class DBProxy:
 
             #Convert the parameter string into a dictionary
             try:
-                #1. Convert a string like "key1=value1&key2=value2" into [[key1, value1],[key2,value2]]
+                # 1. Convert a string like "key1=value1&key2=value2" into [[key1, value1],[key2,value2]]
                 params_list = map(lambda key_value_pair: key_value_pair.split("="), parameters.split("&"))
-                #2. Convert a list [[key1, value1],[key2,value2]] into {key1: value1, key2: value2}
+                # 2. Convert a list [[key1, value1],[key2,value2]] into {key1: value1, key2: value2}
                 params_dict = dict((key, value) for (key, value) in params_list)
             except AttributeError:
                 params_dict = {}
             except ValueError:
                 params_dict = {}
 
-            #Calculate if action and error combination should be active
+            # Calculate if action and error combination should be active
             if e_active == 'Y' and a_active == 'Y':
-                active = True #Apply the action for this error
+                active = True  # Apply the action for this error
             else:
-                active = False #Do not apply the action for this error, only log
+                active = False  # Do not apply the action for this error, only log
 
             retrial_rules.setdefault(error_source,{})
             retrial_rules[error_source].setdefault(error_code,[])
@@ -18637,7 +18639,7 @@ class DBProxy:
                                                             'release': release,
                                                             'wqid': wqid,
                                                             'active': active})
-        _logger.debug("Loaded retrial rules from DB: %s" %retrial_rules)
+        tmp_logger.debug("Loaded retrial rules from DB: %s" %retrial_rules)
         return retrial_rules
 
 
