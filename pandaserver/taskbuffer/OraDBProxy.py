@@ -86,6 +86,19 @@ _lockGetSN   = open(panda_config.lockfile_getSN, 'w')
 _lockSetDS   = open(panda_config.lockfile_setDS, 'w')
 _lockGetCT   = open(panda_config.lockfile_getCT, 'w')
 
+
+# get mb proxies used in DBProxy methods
+def get_mb_proxy_dict():
+    if hasattr(panda_config, 'mbproxy') and hasattr(panda_config.mbproxy, 'configFile') \
+            and panda_config.mbproxy.configFile:
+        # delay import to open logger file inside python daemon
+        from pandaserver.taskbuffer.PanDAMsgProcessor import MsgProcAgent
+        out_q_list = ['panda_jobstatus']
+        mp_agent = MsgProcAgent(config_file=panda_config.mbproxy.configFile)
+        mb_proxy_dict = mp_agent.start_passive_mode(out_q_list=out_q_list)
+        return mb_proxy_dict
+
+
 # proxy
 class DBProxy:
 
@@ -127,6 +140,9 @@ class DBProxy:
 
         # keep type
         self.__orig_type = type
+
+        # mb proxy
+        self.mb_proxy_dict = None
 
         # self.__reload_shares()
         # self.__reload_hs_distribution()
@@ -10312,7 +10328,7 @@ class DBProxy:
                FROM ATLAS_PANDA.panda_ddm_relation pdr, ATLAS_PANDA.ddm_endpoint de
                WHERE pdr.ddm_endpoint_name = de.ddm_endpoint_name
                """
-        
+
         self.cur.execute('{0}{1}'.format(sql_panda_ddm, comment))
         results_panda_ddm = self.cur.fetchall()
         column_names = [i[0].lower() for i in self.cur.description]
@@ -12721,6 +12737,29 @@ class DBProxy:
             _logger.error("recordStatusChange %s %s: %s %s" % (pandaID,jobStatus,errType,errValue))
             if not useCommit:
                 raise RuntimeError('recordStatusChange failed')
+        else:
+            # push job status change
+            try:
+                now_time = datetime.datetime.utcnow()
+                now_ts = int(now_time.timestamp())
+                msg_dict = {
+                        'msg_type': 'job_status',
+                        'jobid': pandaID,
+                        'status': jobStatus,
+                        'timestamp': now_ts,
+                    }
+                msg = json.dumps(msg_dict)
+                if self.mb_proxy_dict is None:
+                    self.mb_proxy_dict = get_mb_proxy_dict()
+                    if self.mb_proxy_dict is None:
+                        _logger.warning('recordStatusChange push job status: Failed to get mb_proxy. Skipped ')
+                mb_proxy = self.mb_proxy_dict['out']['panda_jobstatus']
+                if mb_proxy.got_disconnected:
+                    mb_proxy.restart()
+                mb_proxy.send(msg)
+            except Exception:
+                errType,errValue = sys.exc_info()[:2]
+                _logger.error("recordStatusChange push job status %s %s: %s %s" % (pandaID,jobStatus,errType,errValue))
         return
 
 
@@ -18588,7 +18627,7 @@ class DBProxy:
         #Logging
         comment = ' /* DBProxy.getRetrialRules */'
         method_name = comment.split(' ')[-2].split('.')[-1]
-        
+
         tmp_logger = LogWrapper(_logger, method_name)
         tmp_logger.debug("start")
 
