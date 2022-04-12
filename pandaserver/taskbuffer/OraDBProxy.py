@@ -28,7 +28,7 @@ from pandaserver.taskbuffer import JobUtils
 from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.taskbuffer import GlobalShares
 from pandaserver.taskbuffer.DdmSpec  import DdmSpec
-from pandaserver.taskbuffer.JobSpec  import JobSpec
+from pandaserver.taskbuffer.JobSpec  import JobSpec, push_status_changes
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.WorkerSpec import WorkerSpec
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
@@ -1005,6 +1005,7 @@ class DBProxy:
                 self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
             except Exception:
                 _logger.error('recordStatusChange in insertNewJob')
+            self.push_job_status_message(job, job.PandaID, job.jobStatus)
             if unprocessedMap is not None:
                 return (True, unprocessedMap)
             return True
@@ -1293,6 +1294,7 @@ class DBProxy:
                         self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
                 except Exception:
                     _logger.error('recordStatusChange in activateJob')
+                self.push_job_status_message(job, job.PandaID, job.jobStatus)
                 return True
             except Exception:
                 # roll back
@@ -1360,6 +1362,7 @@ class DBProxy:
                 try:
                     if updatedFlag:
                         self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
+                        self.push_job_status_message(job, job.PandaID, job.jobStatus)
                 except Exception:
                     _logger.error('recordStatusChange in keepJob')
                 return True
@@ -2039,6 +2042,7 @@ class DBProxy:
                 try:
                     for tmpJob in updatedJobList:
                         self.recordStatusChange(tmpJob.PandaID,tmpJobStatus,jobInfo=tmpJob,useCommit=useCommit)
+                        self.push_job_status_message(tmpJob, tmpJob.PandaID, tmpJobStatus)
                 except Exception:
                     _logger.error('recordStatusChange in archiveJob')
                 _logger.debug("archiveJob : %s done" % job.PandaID)
@@ -2620,6 +2624,8 @@ class DBProxy:
                             _logger.debug("updateJobStatus : succeeded to update CE from harvester table for pandaID {0} (rowcount={1})".format(pandaID, nRow))
                         except Exception:
                             _logger.error("updateJobStatus : failed to update CE from harvester table with {0} for PanDAID {1}".format(traceback.format_exc(), pandaID))
+                    # push status change
+                    self.push_job_status_message(None, pandaID, jobStatus, jediTaskID, specialHandling)
                 else:
                     _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s notFound" % (pandaID,attemptNr))
                     # already deleted or bad attempt number
@@ -2843,6 +2849,7 @@ class DBProxy:
                 try:
                     if updatedFlag:
                         self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
+                        self.push_job_status_message(job, job.PandaID, job.jobStatus)
                 except Exception:
                     _logger.error('recordStatusChange in updateJob')
                 return True
@@ -3213,6 +3220,7 @@ class DBProxy:
                     try:
                         if updatedFlag:
                             self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
+                            self.push_job_status_message(job, job.PandaID, job.jobStatus)
                     except Exception:
                         tmpLog.error('recordStatusChange in retryJob')
                 return retValue
@@ -3994,6 +4002,7 @@ class DBProxy:
                     self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
                 except Exception:
                     tmpLog.error('recordStatusChange in getJobs')
+                self.push_job_status_message(job, job.PandaID, job.jobStatus)
             return retJobs, nSent
         except Exception as e:
             errStr = "getJobs : {} {}".format(str(e), traceback.format_exc())
@@ -4150,6 +4159,7 @@ class DBProxy:
                 self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
             except Exception:
                 _logger.error('recordStatusChange in resetJobs')
+            self.push_job_status_message(job, job.PandaID, job.jobStatus)
             if getOldSubs:
                 return job,oldSubList
             tmpLog.debug('done')
@@ -4261,6 +4271,7 @@ class DBProxy:
             try:
                 if updatedFlag:
                     self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
+                    self.push_job_status_message(job, job.PandaID, job.jobStatus)
             except Exception:
                 _logger.error('recordStatusChange in resetDefinedJobs')
             if getOldSubs:
@@ -4571,6 +4582,7 @@ class DBProxy:
             try:
                 if updatedFlag:
                     self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
+                    self.push_job_status_message(job, job.PandaID, job.jobStatus)
             except Exception:
                 tmpLog.error('recordStatusChange in killJob')
             if getUserInfo:
@@ -12737,30 +12749,57 @@ class DBProxy:
             _logger.error("recordStatusChange %s %s: %s %s" % (pandaID,jobStatus,errType,errValue))
             if not useCommit:
                 raise RuntimeError('recordStatusChange failed')
-        else:
+        return
+
+    def push_job_status_message(self, job_spec, panda_id, status, jedi_task_id=None, special_handling=None):
+        to_push = False
+        if job_spec is not None:
+            to_push = job_spec.push_status_changes()
+        elif special_handling is not None:
+            to_push = push_status_changes(special_handling)
+        # only run if to push status change
+        if not to_push:
+            return
+        # skip statuses unnecessary to push
+        if status in ['sent', 'holding', 'merging']:
+            return
+        # skip if no mb to push to
+        if self.mb_proxy_dict is None:
+            self.mb_proxy_dict = get_mb_proxy_dict()
+            if self.mb_proxy_dict is None:
+                _logger.debug('push_job_status_message: Failed to get mb_proxy. Skipped ')
+                return
+        if to_push:
             # push job status change
             try:
                 now_time = datetime.datetime.utcnow()
                 now_ts = int(now_time.timestamp())
+                # task id
+                if jedi_task_id is None and job_spec is not None:
+                    jedi_task_id = job_spec.jediTaskID
+                # inputs
+                inputs = []
+                if job_spec is not None and job_spec.Files is not None:
+                    for file_spec in job_spec.Files:
+                        if file_spec.type in ['input', 'pseudo_input']:
+                            inputs.append(file_spec.lfn)
+                # message
                 msg_dict = {
                         'msg_type': 'job_status',
-                        'jobid': pandaID,
-                        'status': jobStatus,
+                        'jobid': panda_id,
+                        'taskid': jedi_task_id,
+                        'status': status,
+                        'inputs': inputs if inputs else None,
                         'timestamp': now_ts,
                     }
                 msg = json.dumps(msg_dict)
-                if self.mb_proxy_dict is None:
-                    self.mb_proxy_dict = get_mb_proxy_dict()
-                    if self.mb_proxy_dict is None:
-                        _logger.warning('recordStatusChange push job status: Failed to get mb_proxy. Skipped ')
                 mb_proxy = self.mb_proxy_dict['out']['panda_jobstatus']
                 if mb_proxy.got_disconnected:
                     mb_proxy.restart()
                 mb_proxy.send(msg)
             except Exception:
                 errType,errValue = sys.exc_info()[:2]
-                _logger.error("recordStatusChange push job status %s %s: %s %s" % (pandaID,jobStatus,errType,errValue))
-        return
+                _logger.error("push_job_status_message %s %s: %s %s" % (pandaID,jobStatus,errType,errValue))
 
 
     # propagate result to JEDI
@@ -16061,6 +16100,7 @@ class DBProxy:
             try:
                 if not noNewJob:
                     self.recordStatusChange(jobSpec.PandaID,jobSpec.jobStatus,jobInfo=jobSpec,useCommit=useCommit)
+                    self.push_job_status_message(jobSpec, jobSpec.PandaID, jobSpec.jobStatus)
             except Exception:
                 _logger.error('recordStatusChange in ppEventServiceJob')
             _logger.debug('{0} done for doMergeing={1}'.format(methodName,doMerging))
@@ -23256,6 +23296,7 @@ class DBProxy:
             varMap[':param']   = jobSpec.jobParameters
             self.cur.execute(sqlJob+comment, varMap)
             self.recordStatusChange(jobSpec.PandaID, jobSpec.jobStatus, jobInfo=jobSpec, useCommit=False)
+            self.push_job_status_message(jobSpec, jobSpec.PandaID, jobSpec.jobStatus)
             # return
             tmp_log.debug("done")
             return 1
