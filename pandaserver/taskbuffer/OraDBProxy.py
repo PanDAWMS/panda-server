@@ -17988,21 +17988,13 @@ class DBProxy:
                 if taskBaseRamCount in [0, None, 'NULL']:
                     taskBaseRamCount = 0
 
-                # get site core count
-                varMap = {}
-                varMap[':site'] = job.computingSite
-                sqlSCC  = """
-                          SELECT sc.corecount FROM ATLAS_PANDAMETA.Schedconfig sc
-                          WHERE siteId=:site
-                          """
-                self.cur.execute(sqlSCC+comment,varMap)
-                siteCoreCount, = self.cur.fetchone()
+                coreCount = job.coreCount 
 
-                if siteCoreCount in [0, None, 'NULL']:
-                    siteCoreCount = 1
+                if coreCount in [0, None, 'NULL']:
+                    coreCount = 1
 
                 _logger.debug("{0} : RAM limit task={1}{2} cores={3} baseRamCount={4} job={5}{6} jobPSS={7}kB"
-                              .format(methodName, taskRamCount, taskRamUnit, siteCoreCount, taskBaseRamCount,
+                              .format(methodName, taskRamCount, taskRamUnit, coreCount, taskBaseRamCount,
                                       jobRamCount, job.minRamUnit, job.maxPSS))
 
                 # If more than x% of the task's jobs needed a memory increase, increase the task's memory instead
@@ -18036,14 +18028,14 @@ class DBProxy:
                 try:
                     normalizedJobRamCount = (jobRamCount - taskBaseRamCount) * 1.0
                     if taskRamUnit in ['MBPerCore','MBPerCoreFixed'] and job.minRamUnit in ('MB', None, 'NULL'):
-                        normalizedJobRamCount  = normalizedJobRamCount / siteCoreCount
+                        normalizedJobRamCount  = normalizedJobRamCount / coreCount
                 except TypeError:
                     normalizedJobRamCount = 0
 
                 try:
                     normalizedMaxPSS = (job.maxPSS - taskBaseRamCount) / 1024.0
                     if taskRamUnit in ['MBPerCore','MBPerCoreFixed']:
-                        normalizedMaxPSS  = normalizedMaxPSS / siteCoreCount
+                        normalizedMaxPSS  = normalizedMaxPSS / coreCount
                 except TypeError:
                     normalizedMaxPSS = 0
 
