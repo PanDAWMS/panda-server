@@ -17968,7 +17968,7 @@ class DBProxy:
         _logger.debug("{0} : start".format(methodName))
 
         # RAM limit
-        limitList = [1000,2000,3000,4000,6000,8000]
+        limitList = [1000, 2000, 3000, 4000, 6000, 8000]
         # Files defined as input types
         input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log','trn_output')
 
@@ -18063,7 +18063,7 @@ class DBProxy:
                     dbgStr  = "no change "
                     dbgStr += "since job RAM limit ({0}) is larger than or equal to the highest limit ({1})".\
                         format(normalizedJobRamCount, limitList[-1])
-                    _logger.debug("{0} : {1}".format(methodName,dbgStr))
+                    _logger.debug("{0} : {1}".format(methodName, dbgStr))
                 else:
                     #If maxPSS is present, then jump all the levels until the one above
                     if normalizedMaxPSS>normalizedJobRamCount:
@@ -18095,7 +18095,8 @@ class DBProxy:
                         sqlRL += "AND pandaID=:pandaID AND fileID=:fileID AND attemptNr=:attemptNr"
 
                         self.cur.execute(sqlRL+comment,varMap)
-                        _logger.debug("{0} : increased RAM limit to {1} from {2} for PandaID {3} fileID {4}".format(methodName, nextLimit, normalizedJobRamCount, job.PandaID, fileId))
+                        _logger.debug("{0} : increased RAM limit to {1} from {2} for PandaID {3} fileID {4} attemptNr {5} jediTaskID {6} datasetID {7}".format(
+                            methodName, nextLimit, normalizedJobRamCount, job.PandaID, fileId, attemptNr, job.jediTaskID, datasetID))
                 # commit
                 if not self._commit():
                     raise RuntimeError('Commit error')
@@ -18106,7 +18107,7 @@ class DBProxy:
             # roll back
             self._rollback()
             # error
-            self.dumpErrorMessage(_logger,methodName)
+            self.dumpErrorMessage(_logger, methodName)
             return False
 
 
