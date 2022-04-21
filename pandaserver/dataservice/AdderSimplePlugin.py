@@ -43,6 +43,11 @@ class AdderSimplePlugin(AdderPluginBase):
                              'size': fsize,
                              'checksum': fileSpec.checksum,
                              'ds': fileSpec.destinationDBlock}
+                if self.extraInfo:
+                    if 'surl' in self.extraInfo and fileSpec.lfn in self.extraInfo['surl']:
+                        fileAttrs['surl'] = self.extraInfo['surl'][fileSpec.lfn]
+                    if 'nevents' in self.extraInfo and fileSpec.lfn in self.extraInfo['nevents']:
+                        fileAttrs['events'] = self.extraInfo['nevents'][fileSpec.lfn]
                 fileMap.setdefault(fileSpec.destinationDBlock, [])
                 fileMap[fileSpec.destinationDBlock].append(fileAttrs)
             # register files
@@ -72,7 +77,8 @@ class AdderSimplePlugin(AdderPluginBase):
                         isFailed = True
                     except Exception as e:
                         # unknown errors
-                        out = 'failed with {}\n {}'.format(str(e), traceback.format_exc())
+                        isFailed = True
+                        out = 'failed with unknown error: {}\n {}'.format(str(e), traceback.format_exc())
                         if 'value too large for column' in out or \
                                 'unique constraint (ATLAS_RUCIO.DIDS_GUID_IDX) violate' in out or \
                                 'unique constraint (ATLAS_RUCIO.DIDS_PK) violated' in out or \
