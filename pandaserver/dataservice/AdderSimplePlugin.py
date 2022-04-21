@@ -11,7 +11,7 @@ from pandaserver.dataservice.DDM import rucioAPI
 
 from rucio.common.exception import FileConsistencyMismatch,DataIdentifierNotFound,UnsupportedOperation,\
 InvalidPath,RSENotFound,InsufficientAccountLimit,RSEProtocolNotSupported,InvalidRSEExpression,\
-InvalidObject
+InvalidObject, RSEFileNameNotSupported
 
 
 class AdderSimplePlugin(AdderPluginBase):
@@ -70,6 +70,7 @@ class AdderSimplePlugin(AdderPluginBase):
                             RSENotFound,
                             RSEProtocolNotSupported,
                             InvalidRSEExpression,
+                            RSEFileNameNotSupported,
                             KeyError) as e:
                         # fatal errors
                         out = 'failed with {}\n {}'.format(str(e), traceback.format_exc())
