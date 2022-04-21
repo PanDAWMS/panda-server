@@ -3,6 +3,7 @@
 import time
 import traceback
 import datetime
+import uuid
 
 from .AdderPluginBase import AdderPluginBase
 from pandaserver.dataservice import ErrorCode
@@ -38,6 +39,9 @@ class AdderSimplePlugin(AdderPluginBase):
                     fsize = int(fileSpec.fsize)
                 except Exception:
                     fsize = None
+                # set GUID if empty
+                if not fileSpec.GUID:
+                    fileSpec.GUID = str(uuid.uuid4())
                 fileAttrs = {'guid': fileSpec.GUID,
                              'lfn': fileSpec.lfn,
                              'size': fsize,
