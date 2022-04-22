@@ -17968,41 +17968,34 @@ class DBProxy:
         _logger.debug("{0} : start".format(methodName))
 
         # RAM limit
-        limitList = [1000,2000,3000,4000,6000,8000]
+        limitList = [1000, 2000, 3000, 4000, 6000, 8000]
         # Files defined as input types
-        input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log','trn_output')
+        input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log', 'trn_output')
 
         try:
             #If no task associated to job don't take any action
             if job.jediTaskID in [None, 0, 'NULL']:
-                _logger.debug("No task(%s) associated to job(%s). Skipping increase of RAM limit"%(job.jediTaskID, job.PandaID))
+                _logger.debug("No task({0}) associated to job({1}). Skipping increase of RAM limit"                              
+                              .format(job.jediTaskID, job.PandaID))
             else:
                 # get current task Ram info
                 varMap = {}
                 varMap[':jediTaskID'] = jediTaskID
                 sqlUE  = "SELECT ramCount, ramUnit, baseRamCount FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
                 sqlUE += "WHERE jediTaskID=:jediTaskID "
-                self.cur.execute(sqlUE+comment,varMap)
+                self.cur.execute(sqlUE+comment, varMap)
                 taskRamCount, taskRamUnit, taskBaseRamCount = self.cur.fetchone()
 
                 if taskBaseRamCount in [0, None, 'NULL']:
                     taskBaseRamCount = 0
 
-                # get site core count
-                varMap = {}
-                varMap[':site'] = job.computingSite
-                sqlSCC  = """
-                          SELECT sc.corecount FROM ATLAS_PANDAMETA.Schedconfig sc
-                          WHERE siteId=:site
-                          """
-                self.cur.execute(sqlSCC+comment,varMap)
-                siteCoreCount, = self.cur.fetchone()
+                coreCount = job.coreCount 
 
-                if siteCoreCount in [0, None, 'NULL']:
-                    siteCoreCount = 1
+                if coreCount in [0, None, 'NULL']:
+                    coreCount = 1
 
                 _logger.debug("{0} : RAM limit task={1}{2} cores={3} baseRamCount={4} job={5}{6} jobPSS={7}kB"
-                              .format(methodName, taskRamCount, taskRamUnit, siteCoreCount, taskBaseRamCount,
+                              .format(methodName, taskRamCount, taskRamUnit, coreCount, taskBaseRamCount,
                                       jobRamCount, job.minRamUnit, job.maxPSS))
 
                 # If more than x% of the task's jobs needed a memory increase, increase the task's memory instead
@@ -18035,15 +18028,15 @@ class DBProxy:
                 # normalize the job ramcounts by base ram count and number of cores
                 try:
                     normalizedJobRamCount = (jobRamCount - taskBaseRamCount) * 1.0
-                    if taskRamUnit in ['MBPerCore','MBPerCoreFixed'] and job.minRamUnit in ('MB', None, 'NULL'):
-                        normalizedJobRamCount  = normalizedJobRamCount / siteCoreCount
+                    if taskRamUnit in ['MBPerCore', 'MBPerCoreFixed'] and job.minRamUnit in ('MB', None, 'NULL'):
+                        normalizedJobRamCount  = normalizedJobRamCount / coreCount
                 except TypeError:
                     normalizedJobRamCount = 0
 
                 try:
                     normalizedMaxPSS = (job.maxPSS - taskBaseRamCount) / 1024.0
-                    if taskRamUnit in ['MBPerCore','MBPerCoreFixed']:
-                        normalizedMaxPSS  = normalizedMaxPSS / siteCoreCount
+                    if taskRamUnit in ['MBPerCore', 'MBPerCoreFixed']:
+                        normalizedMaxPSS  = normalizedMaxPSS / coreCount
                 except TypeError:
                     normalizedMaxPSS = 0
 
@@ -18054,9 +18047,10 @@ class DBProxy:
                     if normalizedJobRamCount and normalizedJobRamCount > minimumRam:
                         minimumRam = normalizedJobRamCount
                     if max_task > minimumRam:
-                        minimumRam = max_task - 1 # otherwise we go over the max_task step
+                        minimumRam = max_task - 1  # otherwise we go over the max_task step
                     if minimumRam:
-                        _logger.debug("{0} : calling increaseRamLimitJEDI with minimumRam {1}".format(methodName, minimumRam))
+                        _logger.debug("{0} : calling increaseRamLimitJEDI with minimumRam {1}"
+                                      .format(methodName, minimumRam))
                         return self.increaseRamLimitJEDI(jediTaskID, minimumRam)
 
 
@@ -18071,10 +18065,10 @@ class DBProxy:
                     dbgStr  = "no change "
                     dbgStr += "since job RAM limit ({0}) is larger than or equal to the highest limit ({1})".\
                         format(normalizedJobRamCount, limitList[-1])
-                    _logger.debug("{0} : {1}".format(methodName,dbgStr))
+                    _logger.debug("{0} : {1}".format(methodName, dbgStr))
                 else:
                     #If maxPSS is present, then jump all the levels until the one above
-                    if normalizedMaxPSS>normalizedJobRamCount:
+                    if normalizedMaxPSS > normalizedJobRamCount:
                         minimumRam = normalizedMaxPSS
                     else:
                         minimumRam = normalizedJobRamCount
@@ -18103,7 +18097,8 @@ class DBProxy:
                         sqlRL += "AND pandaID=:pandaID AND fileID=:fileID AND attemptNr=:attemptNr"
 
                         self.cur.execute(sqlRL+comment,varMap)
-                        _logger.debug("{0} : increased RAM limit to {1} from {2} for PandaID {3} fileID {4}".format(methodName, nextLimit, normalizedJobRamCount, job.PandaID, fileId))
+                        _logger.debug("{0} : increased RAM limit to {1} from {2} for PandaID {3} fileID {4} attemptNr {5} jediTaskID {6} datasetID {7}"
+                            .format(methodName, nextLimit, normalizedJobRamCount, job.PandaID, fileId, attemptNr, job.jediTaskID, datasetID))
                 # commit
                 if not self._commit():
                     raise RuntimeError('Commit error')
@@ -18114,7 +18109,7 @@ class DBProxy:
             # roll back
             self._rollback()
             # error
-            self.dumpErrorMessage(_logger,methodName)
+            self.dumpErrorMessage(_logger, methodName)
             return False
 
 
