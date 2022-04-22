@@ -3,6 +3,7 @@
 import time
 import traceback
 import datetime
+import uuid
 
 from .AdderPluginBase import AdderPluginBase
 from pandaserver.dataservice import ErrorCode
@@ -11,7 +12,7 @@ from pandaserver.dataservice.DDM import rucioAPI
 
 from rucio.common.exception import FileConsistencyMismatch,DataIdentifierNotFound,UnsupportedOperation,\
 InvalidPath,RSENotFound,InsufficientAccountLimit,RSEProtocolNotSupported,InvalidRSEExpression,\
-InvalidObject
+InvalidObject, RSEFileNameNotSupported
 
 
 class AdderSimplePlugin(AdderPluginBase):
@@ -38,11 +39,19 @@ class AdderSimplePlugin(AdderPluginBase):
                     fsize = int(fileSpec.fsize)
                 except Exception:
                     fsize = None
+                # set GUID if empty
+                if not fileSpec.GUID:
+                    fileSpec.GUID = str(uuid.uuid4())
                 fileAttrs = {'guid': fileSpec.GUID,
                              'lfn': fileSpec.lfn,
                              'size': fsize,
                              'checksum': fileSpec.checksum,
                              'ds': fileSpec.destinationDBlock}
+                if self.extraInfo:
+                    if 'surl' in self.extraInfo and fileSpec.lfn in self.extraInfo['surl']:
+                        fileAttrs['surl'] = self.extraInfo['surl'][fileSpec.lfn]
+                    if 'nevents' in self.extraInfo and fileSpec.lfn in self.extraInfo['nevents']:
+                        fileAttrs['events'] = self.extraInfo['nevents'][fileSpec.lfn]
                 fileMap.setdefault(fileSpec.destinationDBlock, [])
                 fileMap[fileSpec.destinationDBlock].append(fileAttrs)
             # register files
@@ -65,6 +74,7 @@ class AdderSimplePlugin(AdderPluginBase):
                             RSENotFound,
                             RSEProtocolNotSupported,
                             InvalidRSEExpression,
+                            RSEFileNameNotSupported,
                             KeyError) as e:
                         # fatal errors
                         out = 'failed with {}\n {}'.format(str(e), traceback.format_exc())
@@ -72,7 +82,8 @@ class AdderSimplePlugin(AdderPluginBase):
                         isFailed = True
                     except Exception as e:
                         # unknown errors
-                        out = 'failed with {}\n {}'.format(str(e), traceback.format_exc())
+                        isFailed = True
+                        out = 'failed with unknown error: {}\n {}'.format(str(e), traceback.format_exc())
                         if 'value too large for column' in out or \
                                 'unique constraint (ATLAS_RUCIO.DIDS_GUID_IDX) violate' in out or \
                                 'unique constraint (ATLAS_RUCIO.DIDS_PK) violated' in out or \

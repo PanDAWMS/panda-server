@@ -1,3 +1,5 @@
+import uuid
+
 from pandaserver.dataservice.SetupperPluginBase import SetupperPluginBase
 
 
@@ -8,11 +10,13 @@ class SetupperDummyPlugin (SetupperPluginBase):
         defaultMap = {}
         SetupperPluginBase.__init__(self,taskBuffer,jobs,logger,params,defaultMap)
 
-
     # main
     def run(self):
-        pass
-
+        for jobSpec in self.jobs:
+            for fileSpec in jobSpec.Files:
+                if fileSpec.type == 'log':
+                    # generate GUID
+                    fileSpec.GUID = str(uuid.uuid4())
 
     # post run
     def postRun(self):
