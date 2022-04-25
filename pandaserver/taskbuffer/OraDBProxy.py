@@ -89,12 +89,12 @@ _lockGetCT   = open(panda_config.lockfile_getCT, 'w')
 
 # get mb proxies used in DBProxy methods
 def get_mb_proxy_dict():
-    if hasattr(panda_config, 'mbproxy') and hasattr(panda_config.mbproxy, 'configFile') \
-            and panda_config.mbproxy.configFile:
+    if hasattr(panda_config, 'mbproxy_configFile') \
+            and panda_config.mbproxy_configFile:
         # delay import to open logger file inside python daemon
         from pandaserver.taskbuffer.PanDAMsgProcessor import MsgProcAgent
         out_q_list = ['panda_jobstatus']
-        mp_agent = MsgProcAgent(config_file=panda_config.mbproxy.configFile)
+        mp_agent = MsgProcAgent(config_file=panda_config.mbproxy_configFile)
         mb_proxy_dict = mp_agent.start_passive_mode(out_q_list=out_q_list)
         return mb_proxy_dict
 
@@ -12752,6 +12752,9 @@ class DBProxy:
         return
 
     def push_job_status_message(self, job_spec, panda_id, status, jedi_task_id=None, special_handling=None):
+        if not (hasattr(panda_config, 'mbproxy_configFile') and panda_config.mbproxy_configFile):
+            # skip if not configured
+            return
         to_push = False
         if job_spec is not None:
             to_push = job_spec.push_status_changes()
@@ -18054,7 +18057,7 @@ class DBProxy:
         try:
             #If no task associated to job don't take any action
             if job.jediTaskID in [None, 0, 'NULL']:
-                _logger.debug("No task({0}) associated to job({1}). Skipping increase of RAM limit"                              
+                _logger.debug("No task({0}) associated to job({1}). Skipping increase of RAM limit"
                               .format(job.jediTaskID, job.PandaID))
             else:
                 # get current task Ram info
@@ -18068,7 +18071,7 @@ class DBProxy:
                 if taskBaseRamCount in [0, None, 'NULL']:
                     taskBaseRamCount = 0
 
-                coreCount = job.coreCount 
+                coreCount = job.coreCount
 
                 if coreCount in [0, None, 'NULL']:
                     coreCount = 1
