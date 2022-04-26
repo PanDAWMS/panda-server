@@ -12756,10 +12756,10 @@ class DBProxy:
             # skip if not configured
             return
         to_push = False
-        if job_spec is not None:
-            to_push = job_spec.push_status_changes()
-        elif special_handling is not None:
+        if special_handling is not None:
             to_push = push_status_changes(special_handling)
+        elif job_spec is not None:
+            to_push = job_spec.push_status_changes()
         # only run if to push status change
         if not to_push:
             return
@@ -12800,6 +12800,7 @@ class DBProxy:
                 if mb_proxy.got_disconnected:
                     mb_proxy.restart()
                 mb_proxy.send(msg)
+                _logger.debug('push_job_status_message: sent message: {1}'.format(msg))
             except Exception:
                 errType,errValue = sys.exc_info()[:2]
                 _logger.error("push_job_status_message %s %s: %s %s" % (pandaID,jobStatus,errType,errValue))
