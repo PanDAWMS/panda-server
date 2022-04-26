@@ -95,7 +95,7 @@ def get_mb_proxy_dict():
         from pandaserver.taskbuffer.PanDAMsgProcessor import MsgProcAgent
         out_q_list = ['panda_jobstatus']
         mp_agent = MsgProcAgent(config_file=panda_config.mbproxy_configFile)
-        mb_proxy_dict = mp_agent.start_passive_mode(out_q_list=out_q_list)
+        mb_proxy_dict = mp_agent.start_passive_mode(in_q_list=[], out_q_list=out_q_list)
         return mb_proxy_dict
 
 
@@ -1005,7 +1005,7 @@ class DBProxy:
                 self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
             except Exception:
                 _logger.error('recordStatusChange in insertNewJob')
-            self.push_job_status_message(job, job.PandaID, job.jobStatus)
+            self.push_job_status_message(job, job.PandaID, job.jobStatus, job.jediTaskID, origSpecialHandling)
             if unprocessedMap is not None:
                 return (True, unprocessedMap)
             return True
