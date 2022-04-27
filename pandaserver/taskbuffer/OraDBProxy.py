@@ -12800,10 +12800,10 @@ class DBProxy:
                 if mb_proxy.got_disconnected:
                     mb_proxy.restart()
                 mb_proxy.send(msg)
-                _logger.debug('push_job_status_message: sent message: {1}'.format(msg))
+                _logger.debug('push_job_status_message: sent message: {0}'.format(msg))
             except Exception:
-                errType,errValue = sys.exc_info()[:2]
-                _logger.error("push_job_status_message %s %s: %s %s" % (pandaID,jobStatus,errType,errValue))
+                errType, errValue = sys.exc_info()[:2]
+                _logger.error("push_job_status_message %s %s: %s %s" % (panda_id, status, errType, errValue))
 
 
     # propagate result to JEDI
