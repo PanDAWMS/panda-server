@@ -18056,7 +18056,7 @@ class DBProxy:
         input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log', 'trn_output')
 
         try:
-            #If no task associated to job don't take any action
+            # If no task associated to job don't take any action
             if job.jediTaskID in [None, 0, 'NULL']:
                 _logger.debug("No task({0}) associated to job({1}). Skipping increase of RAM limit"
                               .format(job.jediTaskID, job.PandaID))
@@ -18163,7 +18163,6 @@ class DBProxy:
                     # update RAM limit
                     varMap = {}
                     varMap[':jediTaskID'] = job.jediTaskID
-                    varMap[':pandaID'] = job.PandaID
                     varMap[':ramCount'] = nextLimit
                     input_files = filter(lambda pandafile: pandafile.type in input_types, job.Files)
                     input_tuples = [(input_file.datasetID, input_file.fileID, input_file.attemptNr) for input_file in input_files]
@@ -18172,12 +18171,11 @@ class DBProxy:
                         datasetID, fileId, attemptNr = entry
                         varMap[':datasetID'] = datasetID
                         varMap[':fileID'] = fileId
-                        varMap[':attemptNr'] = attemptNr
 
                         sqlRL  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
                         sqlRL += "SET ramCount=:ramCount "
-                        sqlRL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-                        sqlRL += "AND pandaID=:pandaID AND fileID=:fileID AND attemptNr=:attemptNr"
+                        sqlRL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                        sqlRL += "AND ramCount<:ramCount "
 
                         self.cur.execute(sqlRL+comment,varMap)
                         _logger.debug("{0} : increased RAM limit to {1} from {2} for PandaID {3} fileID {4} attemptNr {5} jediTaskID {6} datasetID {7}"
