@@ -393,8 +393,6 @@ auth_policies = /opt/panda/etc/panda/auth_policies.json
 # Message Broker Proxies
 #
 
-[mbproxy]
-
 # json config file of message broker proxies
 #configFile = /etc/panda/panda_mbproxy_config.json
 
