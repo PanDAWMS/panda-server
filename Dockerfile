@@ -30,6 +30,7 @@ RUN mkdir -p /var/log/panda/wsgisocks
 RUN chmod -R a+w /var/log/panda
 RUN chown -R atlpan:zp /var/log/panda
 RUN chmod -R 777 /run/httpd
+RUN chmod -R 777 /home/atlpan
 
 CMD exec /bin/bash -c "trap : TERM INT; sleep infinity & wait"
 
