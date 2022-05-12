@@ -9,7 +9,7 @@ RUN /opt/panda/bin/pip install -U setuptools
 RUN adduser atlpan
 RUN groupadd zp
 RUN usermod -a -G zp atlpan
-RUN /opt/panda/bin/pip install "git+git://github.com/PanDAWMS/panda-server.git#egg=panda-server[postgres]"
+RUN /opt/panda/bin/pip install "git+https://github.com/PanDAWMS/panda-server.git#egg=panda-server[postgres]"
 RUN /opt/panda/bin/pip install rucio-clients
 RUN ln -s /opt/panda/lib/python*/site-packages/mod_wsgi/server/mod_wsgi*.so /etc/httpd/modules/mod_wsgi.so
 
