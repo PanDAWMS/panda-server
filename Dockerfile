@@ -30,7 +30,7 @@ RUN mkdir -p /var/log/panda/wsgisocks
 RUN chown -R atlpan:zp /var/log/panda
 
 # to run with non-root PID
-RUN chmod -R a+w /var/log/panda
+RUN chmod -R 777 /var/log/panda
 RUN chmod -R 777 /run/httpd
 RUN chmod -R 777 /home/atlpan
 
