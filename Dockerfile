@@ -27,8 +27,10 @@ RUN ln -s /opt/panda/etc/rc.d/init.d/panda_server /etc/rc.d/init.d/httpd-pandasr
 
 RUN mkdir -p /data/atlpan
 RUN mkdir -p /var/log/panda/wsgisocks
-RUN chmod -R a+w /var/log/panda
 RUN chown -R atlpan:zp /var/log/panda
+
+# to run with non-root PID
+RUN chmod -R a+w /var/log/panda
 RUN chmod -R 777 /run/httpd
 RUN chmod -R 777 /home/atlpan
 
