@@ -20554,7 +20554,11 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
-            tmpLog.debug('task {0} has status: {1} '.format(jediTaskID, res[0]))
+            if res:
+                tmpLog.debug('task {0} has status: {1} '.format(jediTaskID, res[0]))
+            else:
+                res = []
+                tmpLog.debug('task {0} not found'.format(jediTaskID))
             return res
         except Exception:
             # roll back

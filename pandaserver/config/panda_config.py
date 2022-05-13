@@ -133,6 +133,9 @@ try:
 except Exception:
     tmpSelf.__dict__['auth_policies'] = {}
 
+# password via env
+if 'PANDA_SERVER_CONF_PASSWORD' in os.environ:
+    tmpSelf.dbpasswd = os.environ['PANDA_SERVER_CONF_PASSWORD']
 
 # dict for plugins
 g_pluginMap = {}    

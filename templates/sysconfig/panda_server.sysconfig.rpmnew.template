@@ -65,3 +65,11 @@ fi
 if [[ -z "${PANDA_SERVER_CONF_NUM_WSGI}" ]]; then
   export PANDA_SERVER_CONF_NUM_WSGI=12
 fi
+
+# port
+if [[ -z "${PANDA_SERVER_CONF_PORT}" ]]; then
+  export PANDA_SERVER_CONF_PORT=25080
+fi
+if [[ -z "${PANDA_SERVER_CONF_PORT_SSL}" ]]; then
+  export PANDA_SERVER_CONF_PORT_SSL=25443
+fi

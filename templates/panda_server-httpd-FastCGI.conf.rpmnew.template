@@ -88,8 +88,8 @@ Alias /auth/ "/opt/panda/etc/panda/auth/"
 </IfModule>
 
 
-Listen 25080
-<VirtualHost *:25080>
+Listen ${PANDA_SERVER_CONF_PORT}
+<VirtualHost *:${PANDA_SERVER_CONF_PORT}>
 
 RewriteEngine on
 RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)
@@ -124,8 +124,8 @@ RewriteRule ^/cscache/(.*)$ /server/panda/getFile?fileName=$1 [PT,L]
 
 </VirtualHost>
 
-Listen 25443
-<VirtualHost *:25443>
+Listen ${PANDA_SERVER_CONF_PORT_SSL}
+<VirtualHost *:${PANDA_SERVER_CONF_PORT_SSL}>
 
 RewriteEngine on
 RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)
