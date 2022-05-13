@@ -86,19 +86,22 @@ home_dir_cwd = /home/atlpan
 #
 
 # host
-dbhost = ADCR_PANDA
+#dbhost = ADCR_PANDA
+dbhost = panda-database
 
 # port if non-standard
-# dbport = 12345
+dbport = 5432
 
 # user
-dbuser = ATLAS_PANDA_WRITER
+#dbuser = ATLAS_PANDA_WRITER
+dbuser = panda
 
 # password
 dbpasswd = FIXME
 
 # database name
-dbname = PandaDB
+#dbname = PandaDB
+dbname = panda_db
 
 # database backend
 # backend = postgres
@@ -132,12 +135,11 @@ cursor_dump = False
 #
 #backend = mysql
 
-#schemaPANDA = ATLAS_PANDA
-#schemaMETA = ATLAS_PANDAMETA
-#schemaGRISLI = ATLAS_GRISLI
-#schemaPANDAARCH = ATLAS_PANDAARCH
-#schemaJEDI = ATLAS_PANDA
-#schemaDEFT = ATLAS_DEFT
+schemaPANDA = DOMA_PANDA
+schemaMETA = DOMA_PANDAMETA
+schemaPANDAARCH = DOMA_PANDAARCH
+schemaJEDI = DOMA_PANDA
+schemaDEFT = DOMA_DEFT
 
 #dbhostmysql = pandawms.org
 #dbportmysql = 23306
