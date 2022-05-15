@@ -137,7 +137,7 @@ except Exception:
 if 'PANDA_DBHOST' in os.environ:
     tmpSelf.dbhost = os.environ['PANDA_DBHOST']
 if 'PANDA_PASSWORD' in os.environ:
-    tmpSelf.dbpasswd = os.environ['PANDA__PASSWORD']
+    tmpSelf.dbpasswd = os.environ['PANDA_PASSWORD']
 
 # dict for plugins
 g_pluginMap = {}    
