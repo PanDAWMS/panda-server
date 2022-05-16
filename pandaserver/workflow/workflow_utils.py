@@ -197,7 +197,7 @@ class Node (object):
                 # resolve secondary dataset names
                 for ds_name, ds_type in zip(dict_inputs['opt_secondaryDSs'], dict_inputs['opt_secondaryDsTypes']):
                     src = "%{{DS{}}}".format(idx)
-                    dst = "{}.{}".format(ds_name, ds_type)
+                    dst = "{}_{}/".format(ds_name, ds_type)
                     dict_inputs['opt_exec'] = re.sub(src, dst, dict_inputs['opt_exec'])
                     dict_inputs['opt_args'] = re.sub(src, dst, dict_inputs['opt_args'])
                     idx += 1
