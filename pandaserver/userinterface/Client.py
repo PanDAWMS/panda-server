@@ -114,6 +114,11 @@ def _x509():
     return ''
 
 
+# check if https
+def is_https(url):
+    return url.startswith('https://')
+
+
 # curl class
 class _Curl:
     # constructor
@@ -135,6 +140,7 @@ class _Curl:
 
     # GET method
     def get(self,url,data):
+        use_https = is_https(url)
         # make command
         com = '%s --silent --get' % self.path
         if not self.verifyHost:
@@ -145,10 +151,13 @@ class _Curl:
             com += ' --capath /etc/grid-security/certificates'
         if self.compress:
             com += ' --compressed'
-        if self.sslCert != '':
+        if use_https:
+            if not self.sslCert:
+                self.sslCert = _x509()
             com += ' --cert %s' % self.sslCert
             com += ' --cacert %s' % self.sslCert
-        if self.sslKey != '':
+            if not self.sslKey:
+                self.sslKey = _x509()
             com += ' --key %s' % self.sslKey
         # timeout
         com += ' -m 600'
@@ -186,6 +195,7 @@ class _Curl:
 
     # POST method
     def post(self, url, data, via_file=False):
+        use_https = is_https(url)
         # make command
         com = '%s --silent' % self.path
         if not self.verifyHost:
@@ -196,10 +206,13 @@ class _Curl:
             com += ' --capath /etc/grid-security/certificates'
         if self.compress:
             com += ' --compressed'
-        if self.sslCert != '':
+        if use_https:
+            if not self.sslCert:
+                self.sslCert = _x509()
             com += ' --cert %s' % self.sslCert
             com += ' --cacert %s' % self.sslCert
-        if self.sslKey != '':
+            if not self.sslKey:
+                self.sslKey = _x509()
             com += ' --key %s' % self.sslKey
         # timeout
         com += ' -m 600'
@@ -246,6 +259,7 @@ class _Curl:
 
     # PUT method
     def put(self,url,data):
+        use_https = is_https(url)
         # make command
         com = '%s --silent' % self.path
         if not self.verifyHost:
@@ -256,10 +270,13 @@ class _Curl:
             com += ' --capath /etc/grid-security/certificates'
         if self.compress:
             com += ' --compressed'
-        if self.sslCert != '':
+        if use_https:
+            if not self.sslCert:
+                self.sslCert = _x509()
             com += ' --cert %s' % self.sslCert
             com += ' --cacert %s' % self.sslCert
-        if self.sslKey != '':
+            if not self.sslKey:
+                self.sslKey = _x509()
             com += ' --key %s' % self.sslKey
         # emulate PUT
         for key in data:
