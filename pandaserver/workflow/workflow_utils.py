@@ -196,6 +196,9 @@ class Node (object):
                                 break
                 # resolve secondary dataset names
                 for ds_name, ds_type in zip(dict_inputs['opt_secondaryDSs'], dict_inputs['opt_secondaryDsTypes']):
+                    if '*' in ds_type:
+                        ds_type = ds_type.replace('*', 'XYZ')
+                        ds_type += '.tgz'
                     src = "%{{DS{}}}".format(idx)
                     dst = "{}_{}/".format(ds_name, ds_type)
                     dict_inputs['opt_exec'] = re.sub(src, dst, dict_inputs['opt_exec'])
@@ -269,6 +272,8 @@ class Node (object):
                                 break
                 else:
                     in_ds_suffix = dict_inputs['opt_inDsType']
+                    if '*' in in_ds_suffix:
+                        in_ds_suffix = in_ds_suffix.replace('*', 'XYZ') + '.tgz'
                 if is_list_in_ds:
                     list_in_ds = ['{}_{}/'.format(s1, s2) if s2 else s1 for s1, s2
                                   in zip(dict_inputs['opt_inDS'], in_ds_suffix)]
