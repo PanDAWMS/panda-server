@@ -39,8 +39,12 @@ export HOME=~@@panda_user@@
 export X509_USER_PROXY=/data/atlpan/x509up_u25606
 
 # panda server URLs
-export PANDA_URL="http://`hostname --fqdn`:25080/server/panda"
-export PANDA_URL_SSL="https://`hostname --fqdn`:25443/server/panda"
+if [[ -z "${PANDA_URL}" ]]; then
+  export PANDA_URL="http://`hostname --fqdn`:25080/server/panda"
+fi
+if [[ -z "${PANDA_URL_SSL}" ]]; then
+  export PANDA_URL_SSL="https://`hostname --fqdn`:25443/server/panda"
+fi
 export PANDA_URL_MAP=CERN,$PANDA_URL,$PANDA_URL_SSL
 
 
