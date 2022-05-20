@@ -126,7 +126,10 @@ class _Curl:
         # path to curl
         self.path = 'curl'
         # verification of the host certificate
-        self.verifyHost = True
+        if 'PANDA_VERIFY_HOST' in os.environ and os.environ['PANDA_VERIFY_HOST'] == 'off':
+            self.verifyHost = False
+        else:
+            self.verifyHost = True
         # request a compressed response
         self.compress = True
         # SSL cert/key
@@ -136,10 +139,22 @@ class _Curl:
         self.verbose = False
         # use json
         self.use_json = False
-
+        # OIDC
+        if 'PANDA_AUTH' in os.environ and os.environ['PANDA_AUTH'] == 'oidc':
+            self.oidc = True
+            if 'PANDA_AUTH_VO' in os.environ:
+                self.authVO = os.environ['PANDA_AUTH_VO']
+            else:
+                self.authVO = None
+            if 'PANDA_AUTH_ID_TOKEN' in os.environ:
+                self.idToken = os.environ['PANDA_AUTH_ID_TOKEN']
+            else:
+                self.idToken = None
+        else:
+            self.oidc = False
 
     # GET method
-    def get(self,url,data):
+    def get(self, url, data):
         use_https = is_https(url)
         # make command
         com = '%s --silent --get' % self.path
@@ -151,7 +166,10 @@ class _Curl:
             com += ' --capath /etc/grid-security/certificates'
         if self.compress:
             com += ' --compressed'
-        if use_https:
+        if self.oidc:
+            com += ' -H "Authorization: Bearer {0}"'.format(self.idToken)
+            com += ' -H "Origin: {0}"'.format(self.authVO)
+        elif use_https:
             if not self.sslCert:
                 self.sslCert = _x509()
             com += ' --cert %s' % self.sslCert
@@ -192,7 +210,6 @@ class _Curl:
             print(ret)
         return ret
 
-
     # POST method
     def post(self, url, data, via_file=False):
         use_https = is_https(url)
@@ -206,7 +223,10 @@ class _Curl:
             com += ' --capath /etc/grid-security/certificates'
         if self.compress:
             com += ' --compressed'
-        if use_https:
+        if self.oidc:
+            com += ' -H "Authorization: Bearer {0}"'.format(self.idToken)
+            com += ' -H "Origin: {0}"'.format(self.authVO)
+        elif use_https:
             if not self.sslCert:
                 self.sslCert = _x509()
             com += ' --cert %s' % self.sslCert
@@ -256,9 +276,8 @@ class _Curl:
             print(ret)
         return ret
 
-
     # PUT method
-    def put(self,url,data):
+    def put(self, url, data):
         use_https = is_https(url)
         # make command
         com = '%s --silent' % self.path
@@ -270,7 +289,10 @@ class _Curl:
             com += ' --capath /etc/grid-security/certificates'
         if self.compress:
             com += ' --compressed'
-        if use_https:
+        if self.oidc:
+            com += ' -H "Authorization: Bearer {0}"'.format(self.idToken)
+            com += ' -H "Origin: {0}"'.format(self.authVO)
+        elif use_https:
             if not self.sslCert:
                 self.sslCert = _x509()
             com += ' --cert %s' % self.sslCert

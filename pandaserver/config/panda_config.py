@@ -111,27 +111,34 @@ if 'token_authType' not in tmpSelf.__dict__:
     tmpSelf.__dict__['token_authType'] = 'oidc'
 if 'auth_config' not in tmpSelf.__dict__:
     tmpSelf.__dict__['auth_config'] = '/opt/panda/etc/panda/auth/'
-if 'auth_policies' not in tmpSelf.__dict__:
-    tmpSelf.__dict__['auth_policies'] = '/opt/panda/etc/panda/auth_policies.json'
 if 'token_audience' not in tmpSelf.__dict__:
     tmpSelf.__dict__['token_audience'] = 'https://pandaserver.cern.ch'
 if 'token_issuers' not in tmpSelf.__dict__:
     tmpSelf.__dict__['token_issuers'] = ''
 tmpSelf.__dict__['production_dns'] = [x for x in tmpSelf.__dict__.get('production_dns', '').split(',') if x]
+tmpSelf.__dict__['auth_policies'] = {}
 try:
     data_dict = {}
+    policy_dict = {}
     for name in glob.glob(os.path.join(tmpSelf.__dict__['auth_config'], '*_auth_config.json')):
         with open(name) as f:
             data = json.load(f)
             data_dict[data['client_id']] = data
+        m = re.search('^(.+)_auth_config.json', os.path.basename(name))
+        if m:
+            tmp_vo_group = m.group(1)
+            if ':' in tmp_vo_group:
+                tmp_vo, tmp_group = tmp_vo_group.split(':')[:2]
+            elif '.' in tmp_vo_group:
+                tmp_vo, tmp_group = tmp_vo_group.split('.')[:2]
+            else:
+                tmp_vo, tmp_group = tmp_vo_group, 'user'
+            policy_dict.setdefault(tmp_vo, [])
+            policy_dict[tmp_vo].append([tmp_vo, {"group": tmp_group, "role": tmp_group}])
     tmpSelf.__dict__['auth_config'] = data_dict
+    tmpSelf.__dict__['auth_policies'] = policy_dict
 except Exception:
     tmpSelf.__dict__['auth_config'] = {}
-try:
-    with open(tmpSelf.__dict__['auth_policies']) as f:
-        tmpSelf.__dict__['auth_policies'] = json.load(f)
-except Exception:
-    tmpSelf.__dict__['auth_policies'] = {}
 
 # database info via env
 if 'PANDA_DB_HOST' in os.environ:

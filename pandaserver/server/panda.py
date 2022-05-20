@@ -179,8 +179,10 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         # extract role
                         if vo:
                             vo = token["vo"].split(':')[0]
+                            vo = vo.split('.')[0]
                             if vo != token["vo"]:
                                 role = token["vo"].split(':')[-1]
+                                role = role.split('.')[-1]
                         # check vo
                         if vo not in panda_config.auth_policies:
                             self.message = 'unknown vo : {}'.format(vo)

@@ -385,8 +385,6 @@ token_audience = https://pandaserver.cern.ch
 # directory where OIDC authentication config files are placed
 auth_config = /opt/panda/etc/panda/auth/
 
-# json filename where OIDC authentication policies are described
-auth_policies = /opt/panda/etc/panda/auth_policies.json
 
 
 
