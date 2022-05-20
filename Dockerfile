@@ -36,6 +36,7 @@ RUN chown -R atlpan:zp /var/log/panda
 RUN chmod -R 777 /var/log/panda
 RUN chmod -R 777 /run/httpd
 RUN chmod -R 777 /home/atlpan
+RUN chmod -R 777 /var/lock
 
 CMD exec /bin/bash -c "trap : TERM INT; sleep infinity & wait"
 
