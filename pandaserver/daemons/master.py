@@ -47,8 +47,12 @@ def main():
     parser.add_argument('-P', '--pidfile', action='store', dest='pidfile',
                         default=None, help='pid filename')
     options = parser.parse_args()
-    uname = getattr(daemon_config, 'uname', 'nobody')
-    gname = getattr(daemon_config, 'gname', 'nobody')
+    if 'PANDA_NO_ROOT' in os.environ:
+        uname = None
+        gname = None
+    else:
+        uname = getattr(daemon_config, 'uname', 'nobody')
+        gname = getattr(daemon_config, 'gname', 'nobody')
     uid = pwd.getpwnam(uname).pw_uid
     gid = grp.getgrnam(gname).gr_gid
     n_workers = getattr(daemon_config, 'n_proc', 1)
