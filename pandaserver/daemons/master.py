@@ -48,13 +48,13 @@ def main():
                         default=None, help='pid filename')
     options = parser.parse_args()
     if 'PANDA_NO_ROOT' in os.environ:
-        uname = None
-        gname = None
+        uid = None
+        gid = None
     else:
         uname = getattr(daemon_config, 'uname', 'nobody')
         gname = getattr(daemon_config, 'gname', 'nobody')
-    uid = pwd.getpwnam(uname).pw_uid
-    gid = grp.getgrnam(gname).gr_gid
+        uid = pwd.getpwnam(uname).pw_uid
+        gid = grp.getgrnam(gname).gr_gid
     n_workers = getattr(daemon_config, 'n_proc', 1)
     n_dbconn = getattr(daemon_config, 'n_dbconn', 1)
     worker_lifetime = getattr(daemon_config, 'proc_lifetime', 28800)
