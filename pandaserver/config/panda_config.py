@@ -140,6 +140,10 @@ try:
 except Exception:
     tmpSelf.__dict__['auth_config'] = {}
 
+# use cert in configurator
+if 'configurator_use_cert' not in tmpSelf.__dict__:
+    tmpSelf.__dict__['configurator_use_cert'] = True
+
 # database info via env
 if 'PANDA_DB_HOST' in os.environ:
     tmpSelf.dbhost = os.environ['PANDA_DB_HOST']
