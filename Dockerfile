@@ -30,6 +30,7 @@ RUN ln -s /opt/panda/etc/rc.d/init.d/panda_server /etc/rc.d/init.d/httpd-pandasr
 RUN mkdir -p /data/atlpan
 RUN mkdir -p /var/log/panda/wsgisocks
 RUN mkdir -p /run/httpd/wsgisocks
+RUN mkdir -p /var/cache/pandaserver
 RUN chown -R atlpan:zp /var/log/panda
 
 # to run with non-root PID
@@ -37,6 +38,7 @@ RUN chmod -R 777 /var/log/panda
 RUN chmod -R 777 /run/httpd
 RUN chmod -R 777 /home/atlpan
 RUN chmod -R 777 /var/lock
+RUN chmod -R 777 /var/cache/pandaserver
 
 CMD exec /bin/bash -c "trap : TERM INT; sleep infinity & wait"
 

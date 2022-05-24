@@ -18902,7 +18902,7 @@ class DBProxy:
                 WHEN sc.corecount IS NULL THEN 1
                 ELSE sc.corecount
             END as corecount
-        FROM atlas_pandameta.schedconfig sc
+        FROM ATLAS_PANDAMETA.schedconfig sc
         WHERE siteid=:siteid
         """
         varMap={"siteid": siteid}
@@ -22292,7 +22292,7 @@ class DBProxy:
         ups_queues = []
         # TODO: the pilot manager column is not available in schedconfig and something needs to be implemented
         sql = """
-              SELECT siteid FROM atlas_pandameta.schedconfig
+              SELECT siteid FROM ATLAS_PANDAMETA.schedconfig
               WHERE (catchall LIKE '%unifiedPandaQueue%' OR capability='ucore')
               AND (catchall LIKE '%Pull%' OR workflow = 'pull_ups')
               """
