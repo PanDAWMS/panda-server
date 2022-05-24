@@ -426,7 +426,7 @@ proc_lifetime = 14400
 
 # configuration in json about daemons
 # of the form {"daemon_name": {"module": <module_name>, "period": <period>, ...}, ...}
-config = config = {
+config = {
     "dummy_test": {
         "enable": false, "period": 120},
     "add_main": {
