@@ -22318,7 +22318,7 @@ class DBProxy:
         # get current pilot distribution in harvester for the queue
         sql = """
               SELECT computingsite, harvester_id, jobType, resourceType, status, n_workers
-              FROM atlas_panda.harvester_worker_stats
+              FROM ATLAS_PANDA.harvester_worker_stats
               WHERE lastupdate > :time_limit
               """
         var_map = {}
@@ -22441,7 +22441,7 @@ class DBProxy:
         for share in sorted_shares:
             var_map = {':queue': queue, ':gshare': share.name}
             sql = """
-                  SELECT gshare, prodsourcelabel, resource_type FROM atlas_panda.jobsactive4
+                  SELECT gshare, prodsourcelabel, resource_type FROM ATLAS_PANDA.jobsactive4
                   WHERE jobstatus = 'activated'
                      AND computingsite=:queue
                      AND gshare=:gshare
@@ -23494,7 +23494,7 @@ class DBProxy:
         try:
 
             sql = """
-                  INSERT INTO atlas_panda.agis_dump (panda_site, update_time, json_data)
+                  INSERT INTO ATLAS_PANDA.agis_dump (panda_site, update_time, json_data)
                   VALUES (:panda_site, current_date, :json_data)
                   """
 
