@@ -1,5 +1,8 @@
 Release Notes
 
+* 5/25/2022
+  * 0.0.30 for containerization
+
 * 2/18/2020
   * added use_only_local_data
 
