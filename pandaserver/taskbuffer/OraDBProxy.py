@@ -21196,7 +21196,7 @@ class DBProxy:
                        ':status': 'new'}
 
             sql = None
-            if self.backend == 'oracle':
+            if self.backend in ['oracle', 'postgres']:
                 sql = """
                       SELECT command_id, command, params, ack_requested, creation_date FROM
                           (SELECT command_id, command, params, ack_requested, creation_date FROM ATLAS_PANDA.HARVESTER_COMMANDS
