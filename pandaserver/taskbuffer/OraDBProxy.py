@@ -21565,9 +21565,10 @@ class DBProxy:
             # update
             varMap = dict()
             varMap[':harvesterID'] = harvesterID
-            varMap[':owner'] = self.cleanUserID(user)
+            owner = self.cleanUserID(user)
+            varMap[':owner'] = owner
             varMap[':hostName'] = host
-            sqlC  = "UPDATE ATLAS_PANDA.Harvester_Instances SET owner=:owner,hostName=:hostName,lastUpdate=CURRENT_DATE"
+            sqlC = "UPDATE ATLAS_PANDA.Harvester_Instances SET owner=:owner,hostName=:hostName,lastUpdate=CURRENT_DATE"
             for tmpKey in data:
                 tmpVal = data[tmpKey]
                 if tmpKey == 'commands':
@@ -21581,6 +21582,17 @@ class DBProxy:
             self.conn.begin()
             self.cur.execute(sqlC + comment, varMap)
             nRow = self.cur.rowcount
+            if nRow == 0:
+                # insert instance info
+                varMap = dict()
+                varMap[':harvesterID'] = harvesterID
+                varMap[':owner'] = owner
+                varMap[':hostName'] = host
+                varMap[':descr'] = 'automatic'
+                sqlI = "INSERT INTO ATLAS_PANDA.Harvester_Instances "\
+                       "(harvester_ID,owner,hostName,lastUpdate,description) " \
+                       "VALUES(:harvesterID,:owner,:hostName,CURRENT_DATE,:descr) "
+                self.cur.execute(sqlI + comment, varMap)
             # insert command locks
             if 'commands' in data:
                 for item in data['commands']:
