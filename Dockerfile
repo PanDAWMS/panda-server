@@ -24,6 +24,7 @@ RUN mv /opt/panda/etc/panda/panda_server.cfg.rpmnew /etc/panda/panda_server.cfg
 RUN mv /opt/panda/etc/panda/panda_server.sysconfig.rpmnew /etc/sysconfig/panda_server
 RUN mv /opt/panda/etc/panda/panda_server-httpd-FastCGI.conf.rpmnew /opt/panda/etc/panda/panda_server-httpd.conf
 
+# make a wrapper script to launch services and periodic jobs in non-root container
 RUN echo $'#!/bin/bash \n\
 set -m \n\
 while true do /opt/cacheschedconfig/bin/cacheSC.sh >> /var/log/panda/cacheSC.out; sleep 1200; done & \n\
