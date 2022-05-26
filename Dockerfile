@@ -27,7 +27,7 @@ RUN mv /opt/panda/etc/panda/panda_server-httpd-FastCGI.conf.rpmnew /opt/panda/et
 # make a wrapper script to launch services and periodic jobs in non-root container
 RUN echo $'#!/bin/bash \n\
 set -m \n\
-while true do; /opt/cacheschedconfig/bin/cacheSC.sh >> /var/log/panda/cacheSC.out; sleep 1200; done & \n\
+while true; do /opt/cacheschedconfig/bin/cacheSC.sh >> /var/log/panda/cacheSC.out; sleep 1200; done & \n\
 /etc/rc.d/init.d/httpd-pandasrv start \n ' > /etc/rc.d/init.d/run-panda-services
 
 RUN chmod +x /etc/rc.d/init.d/run-panda-services
