@@ -50,7 +50,7 @@ RUN chown -R atlpan:zp /var/log/panda
 RUN mkdir -p /etc/grid-security/certificates
 RUN chmod -R 777 /etc/grid-security/certificates
 RUN chmod -R 777 /data/panda
-RUN chmod -R 777 /data/atlpanda
+RUN chmod -R 777 /data/atlpan
 RUN chmod -R 777 /var/log/panda
 RUN chmod -R 777 /run/httpd
 RUN chmod -R 777 /home/atlpan
