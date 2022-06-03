@@ -142,6 +142,7 @@ SSLEngine               on
 SSLCertificateFile      /etc/grid-security/hostcert.pem
 SSLCertificateKeyFile   /etc/grid-security/hostkey.pem
 SSLCertificateChainFile /etc/grid-security/chain.pem
+SSLCACertificatePath    /etc/grid-security/certificates
 SSLVerifyClient         optional
 SSLVerifyDepth          10
 SSLOptions              +ExportCertData +StdEnvVars +LegacyDNStringFormat
