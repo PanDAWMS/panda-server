@@ -34,6 +34,7 @@ RUN chmod +x /etc/rc.d/init.d/run-panda-services
 
 RUN ln -fs /opt/panda/etc/cert/hostkey.pem /etc/grid-security/hostkey.pem
 RUN ln -fs /opt/panda/etc/cert/hostcert.pem /etc/grid-security/hostcert.pem
+RUN ln -fs /opt/panda/etc/cert/chain.pem /etc/grid-security/chain.pem
 RUN ln -s /opt/panda/etc/rc.d/init.d/panda_server /etc/rc.d/init.d/httpd-pandasrv
 
 RUN mkdir -p /data/atlpan

@@ -141,7 +141,7 @@ SSLHonorCipherOrder on
 SSLEngine               on
 SSLCertificateFile      /etc/grid-security/hostcert.pem
 SSLCertificateKeyFile   /etc/grid-security/hostkey.pem
-#SSLCACertificatePath    /etc/grid-security/certificates
+SSLCertificateChainFile /etc/grid-security/chain.pem
 SSLVerifyClient         optional
 SSLVerifyDepth          10
 SSLOptions              +ExportCertData +StdEnvVars +LegacyDNStringFormat
