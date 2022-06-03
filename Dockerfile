@@ -27,7 +27,8 @@ RUN mv /opt/panda/etc/panda/panda_server-httpd-FastCGI.conf.rpmnew /opt/panda/et
 # make a wrapper script to launch services and periodic jobs in non-root container
 RUN echo $'#!/bin/bash \n\
 set -m \n\
-while true; do /opt/cacheschedconfig/bin/cacheSC.sh >> /var/log/panda/cacheSC.out; sleep 60; done & \n\
+/data/panda/init-panda \n\
+/data/panda/run-panda-crons & \n\
 /etc/rc.d/init.d/httpd-pandasrv start \n ' > /etc/rc.d/init.d/run-panda-services
 
 RUN chmod +x /etc/rc.d/init.d/run-panda-services
@@ -37,13 +38,19 @@ RUN ln -fs /opt/panda/etc/cert/hostcert.pem /etc/grid-security/hostcert.pem
 RUN ln -fs /opt/panda/etc/cert/chain.pem /etc/grid-security/chain.pem
 RUN ln -s /opt/panda/etc/rc.d/init.d/panda_server /etc/rc.d/init.d/httpd-pandasrv
 
+RUN mkdir -p /data/panda
 RUN mkdir -p /data/atlpan
 RUN mkdir -p /var/log/panda/wsgisocks
 RUN mkdir -p /run/httpd/wsgisocks
-RUN mkdir -p /var/cache/pandaserver
+RUN mkdir -p /var/cache/pandaserver/jedilog
+
 RUN chown -R atlpan:zp /var/log/panda
 
 # to run with non-root PID
+RUN mkdir -p /etc/grid-security/certificates
+RUN chmod -R 777 /etc/grid-security/certificates
+RUN chmod -R 777 /data/panda
+RUN chmod -R 777 /data/atlpanda
 RUN chmod -R 777 /var/log/panda
 RUN chmod -R 777 /run/httpd
 RUN chmod -R 777 /home/atlpan
