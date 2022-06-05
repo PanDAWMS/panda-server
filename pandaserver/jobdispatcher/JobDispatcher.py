@@ -837,7 +837,7 @@ def _checkRole(fqans,dn,jdCore,withVomsPatch=True,site='',hostname=''):
                 tmpPilotOwners = jdCore.pilotOwners[None].union(jdCore.pilotOwners[site])
             else:
                 tmpPilotOwners = jdCore.pilotOwners[None]
-            for owner in tmpPilotOwners + panda_config.production_dns:
+            for owner in set(panda_config.production_dns).union(tmpPilotOwners):
                 if not owner:
                     continue
                 # check
