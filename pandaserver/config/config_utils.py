@@ -6,8 +6,8 @@ import json
 def load_config_map(section, target_dict):
     if 'PANDA_HOME' not in os.environ:
         return
-    config_map_name = 'panda_server_configmap.json'
-    config_map_path = os.path.join(os.environ['PANDA_HOME'], 'etc/configmap', config_map_name)
+    config_map_name = 'panda_server_config.json'
+    config_map_path = os.path.join(os.environ['PANDA_HOME'], 'etc/config_json', config_map_name)
     if os.path.exists(config_map_path):
         with open(config_map_path) as f:
             tmp_data = json.load(f)
