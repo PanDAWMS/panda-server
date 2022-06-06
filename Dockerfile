@@ -20,6 +20,7 @@ RUN mkdir -p /etc/panda
 RUN mkdir -p /etc/idds
 RUN mv /opt/panda/etc/panda/panda_common.cfg.rpmnew /etc/panda/panda_common.cfg
 RUN mv /opt/panda/etc/panda/panda_server.cfg.rpmnew /etc/panda/panda_server.cfg
+RUN mv /opt/panda/etc/idds/idds.cfg.client.template /data/panda/idds.cfg
 RUN mv /opt/panda/etc/panda/panda_server.sysconfig.rpmnew /etc/sysconfig/panda_server
 RUN mv /opt/panda/etc/panda/panda_server-httpd-FastCGI.conf.rpmnew /opt/panda/etc/panda/panda_server-httpd.conf
 
@@ -38,7 +39,6 @@ RUN ln -fs /opt/panda/etc/cert/chain.pem /etc/grid-security/chain.pem
 RUN ln -s /opt/panda/etc/rc.d/init.d/panda_server /etc/rc.d/init.d/httpd-pandasrv
 RUN ln -fs /data/panda/idds.cfg /opt/panda/etc/idds/idds.cfg
 RUN ln -fs /data/panda/rucio.cfg /opt/panda/etc/rucio.cfg
-RUN ln -fs /data/panda/rucio.cfg /opt/rucio/etc/rucio.cfg
 
 RUN mkdir -p /data/panda
 RUN mkdir -p /data/atlpan
