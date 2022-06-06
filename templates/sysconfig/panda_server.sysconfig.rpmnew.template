@@ -17,7 +17,11 @@ unset LD_LIBRARY_PATH
 
 # for DQ2
 export X509_CERT_DIR=/etc/grid-security/certificates
-export RUCIO_ACCOUNT=panda
+if [[ -z "${PANDA_RUCIO_ACCOUNT}" ]]; then
+  export RUCIO_ACCOUNT=panda
+else
+  export RUCIO_ACCOUNT=${PANDA_RUCIO_ACCOUNT}
+fi
 export RUCIO_APPID=pandasrv
 
 # panda home
