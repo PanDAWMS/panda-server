@@ -1982,7 +1982,7 @@ class DBProxy:
                     self.updateUnmergedJobs(job)
                 # overwrite job status
                 tmpJobStatus = job.jobStatus
-                sqlPRE = "SELECT scj.data.pledgedcpu FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.data.siteid=:siteID "
+                sqlPRE = "SELECT scj.data.pledgedcpu FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:siteID "
 
                 sqlOJS = "UPDATE ATLAS_PANDA.jobsArchived4 SET jobStatus=:jobStatus,jobSubStatus=:jobSubStatus WHERE PandaID=:PandaID "
                 if oldJobSubStatus in ['pilot_failed', 'es_heartbeat'] or \
@@ -3056,7 +3056,7 @@ class DBProxy:
                                     varMap = {}
                                     varMap[':siteID'] = tmpLongSite
                                     varMap[':status'] = 'online'
-                                    sqlSite = "SELECT COUNT(*) FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.data.siteid=:siteID AND scj.data.status=:status"
+                                    sqlSite = "SELECT COUNT(*) FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:siteID AND scj.data.status=:status"
                                     self.cur.execute(sqlSite+comment, varMap)
                                     resSite = self.cur.fetchone()
                                     if resSite is not None and resSite[0] > 0:
@@ -9202,7 +9202,7 @@ class DBProxy:
                 sql0 += tmpKey
                 sql0 += ','
             sql0 = sql0[:-1]
-            sql0 += ") AND tab.computingSite=tabS.data.siteid GROUP BY tab.jobStatus, tabS.data.cloud"
+            sql0 += ") AND tab.computingSite=tabS.panda_queue GROUP BY tab.jobStatus, tabS.data.cloud"
             sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus, COUNT(*), tabS.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
             sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
             for tmpLabel in JobUtils.list_ptest_prod_sources:
@@ -9210,7 +9210,7 @@ class DBProxy:
                 sqlA += tmpKey
                 sqlA += ','
             sqlA = sqlA[:-1]
-            sqlA += ") AND tab.computingSite=tabS.data.siteid "
+            sqlA += ") AND tab.computingSite=tabS.panda_queue "
         sqlA+= "AND modificationTime>:modificationTime GROUP BY tab.jobStatus,tabS.data.cloud"
         # sql for materialized view
         sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)', sql0)
@@ -9278,7 +9278,7 @@ class DBProxy:
                 sqlN += tmpKey
                 sqlN += ','
             sqlN = sqlN[:-1]
-            sqlN += ") AND computingSite=tabS.data.siteid "
+            sqlN += ") AND computingSite=tabS.panda_queue "
             sqlN += "GROUP BY jobStatus,tabS.data.cloud,processingType "
 
             sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*), tabS.data.cloud, processingType "
@@ -9290,7 +9290,7 @@ class DBProxy:
                 sqlA += ','
             sqlA = sqlA[:-1]
             sqlA += ") AND modificationTime>:modificationTime "
-            sqlA += "AND computingSite=tabS.data.siteid "
+            sqlA += "AND computingSite=tabS.panda_queue "
             sqlA += "GROUP BY jobStatus,tabS.data.cloud,processingType"
         
         else:
@@ -11800,7 +11800,7 @@ class DBProxy:
                 return 'No request for %s:%s' % (siteid,userName)
             # get cloud
             varMap = {':pandasite':siteid}
-            sql = 'SELECT scj.data.cloud, scj.data.dn FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.data.siteid=:pandasite AND rownum<=1'
+            sql = 'SELECT scj.data.cloud, scj.data.dn FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:pandasite AND rownum<=1'
             self.cur.execute(sql+comment,varMap)
             res = self.cur.fetchall()
             if res is None or len(res) == 0:
@@ -15732,7 +15732,7 @@ class DBProxy:
                 
                 sqlCore = "SELECT scj.data.corecount, scj.data.status, scj.data.jobseed " \
                           "FROM ATLAS_PANDA.schedconfig_json scj " \
-                          "WHERE scj.data.siteid=:siteid "
+                          "WHERE scj.panda_queue=:siteid "
 
                 varMap = {}
                 varMap[':siteid'] = jobSpec.computingSite
@@ -15964,7 +15964,7 @@ class DBProxy:
         lookForMergeSite = True
         sqlWM  = "SELECT scj.data.catchall, scj.data.objectstores " \
                  "FROM ATLAS_PANDA.schedconfig_json scj " \
-                 "WHERE scj.data.siteid=:siteid "
+                 "WHERE scj.panda_queue=:siteid "
         
         varMap = {}
         varMap[':siteid'] = jobSpec.computingSite
@@ -16046,7 +16046,7 @@ class DBProxy:
             # get sites in the nucleus associated to the site to run merge jobs in the same nucleus
             sqlSN  = "SELECT dr.panda_site_name, dr.ddm_endpoint_name "
             sqlSN += "FROM ATLAS_PANDA.panda_site ps1, ATLAS_PANDA.panda_site ps2, ATLAS_PANDA.schedconfig_json sc, ATLAS_PANDA.panda_ddm_relation dr "
-            sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.data.siteid=ps2.panda_site_name "
+            sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.panda_queue=ps2.panda_site_name "
             sqlSN += "AND dr.panda_site_name=ps2.panda_site_name "
             sqlSN += "AND (sc.data.corecount IS NULL OR sc.data.corecount=1 OR sc.data.capability=:capability) "
             sqlSN += "AND (sc.data.maxtime=0 OR sc.data.maxtime>=86400) "
@@ -16103,7 +16103,7 @@ class DBProxy:
                 # get sites in a nucleus
                 sqlSN  = "SELECT dr.panda_site_name, dr.ddm_endpoint_name "
                 sqlSN += "FROM ATLAS_PANDA.panda_site ps, ATLAS_PANDA.schedconfig_json sc, ATLAS_PANDA.panda_ddm_relation dr "
-                sqlSN += "WHERE site_name=:nucleus AND sc.data.siteid=ps.panda_site_name "
+                sqlSN += "WHERE site_name=:nucleus AND sc.panda_queue=ps.panda_site_name "
                 sqlSN += "AND dr.panda_site_name=ps.panda_site_name "
                 sqlSN += "AND (sc.data.corecount IS NULL OR sc.data.corecount=1 OR sc.data.capability=:capability) "
                 sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
@@ -16129,7 +16129,7 @@ class DBProxy:
         if lookForMergeSite and (isFakeCJ or 'useJumboJobs' in catchAll or len(resSN + resSN_back) == 0):
             sqlSN  = "SELECT dr.panda_site_name, dr.ddm_endpoint_name "
             sqlSN += "FROM ATLAS_PANDA.panda_site ps, ATLAS_PANDA.schedconfig_json sc, ATLAS_PANDA.panda_ddm_relation dr "
-            sqlSN += "WHERE sc.data.siteid=ps.panda_site_name "
+            sqlSN += "WHERE sc.panda_queue=ps.panda_site_name "
             sqlSN += "AND dr.panda_site_name=ps.panda_site_name "
             sqlSN += "AND (sc.data.corecount IS NULL OR sc.data.corecount=1 OR sc.data.capability=:capability) "
             sqlSN += "AND (sc.data.maxtime=0 OR sc.data.maxtime>=86400) "
@@ -16210,7 +16210,7 @@ class DBProxy:
         # get score PQ in the nucleus associated to the site to run the small ES job
         sqlSN  = "SELECT ps2.panda_site_name "
         sqlSN += "FROM ATLAS_PANDA.panda_site ps1, ATLAS_PANDA.panda_site ps2, ATLAS_PANDA.schedconfig_json sc "
-        sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.data.siteid=ps2.panda_site_name "
+        sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.panda_queue=ps2.panda_site_name "
         sqlSN += "AND (sc.data.corecount IS NULL OR sc.data.corecount=1 OR sc.data.capability=:capability) "
         sqlSN += "AND (sc.data.jobseed IS NULL OR sc.data.jobseed<>'std') "
         sqlSN += "AND sc.data.status=:siteStatus "
@@ -18753,7 +18753,7 @@ class DBProxy:
                 ELSE sc.data.corecount
             END as corecount
         FROM ATLAS_PANDA.schedconfig_json sc
-        WHERE sc.data.siteid=:siteid
+        WHERE sc.panda_queue=:siteid
         """
         varMap={"siteid": siteid}
         self.cur.execute(sql+comment, varMap)
@@ -22141,7 +22141,7 @@ class DBProxy:
 
         ups_queues = []
         sql = """
-              SELECT scj.data.siteid FROM ATLAS_PANDA.schedconfig_json scj
+              SELECT scj.panda_queue FROM ATLAS_PANDA.schedconfig_json scj
               WHERE scj.data.capability='ucore' AND scj.data.workflow = 'pull_ups'
               """
 
