@@ -168,6 +168,7 @@ class FetchData(object):
             "SELECT pandaID, computingSite "
             "FROM ATLAS_PANDA.jobsArchived4 "
             "WHERE prodSourceLabel='user' "
+                "AND gshare='User Analysis' "
                 "AND jobStatus='finished' "
                 "AND processingType='pmerge' "
                 "AND modificationTime>:modificationTime "
