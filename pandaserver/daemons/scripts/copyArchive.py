@@ -290,7 +290,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     _logger.debug("Watcher session")
 
     # get the list of workflows
-    sql = "SELECT DISTINCT workflow FROM ATLAS_PANDAMETA.schedconfig WHERE status='online' "
+    sql = "SELECT DISTINCT workflow FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.data.status='online' "
     status, res = taskBuffer.querySQLS(sql, {})
     workflow_timeout_map = {}
     for workflow, in res + [('production',), ('analysis',)]:
