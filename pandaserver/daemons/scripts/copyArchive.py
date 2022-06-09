@@ -267,7 +267,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # get sites to skip various timeout
     varMap = {}
     varMap[':status'] = 'paused'
-    sql = "SELECT queue_name FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.data.status=:status "
+    sql = "SELECT panda_queue FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.data.status=:status "
     sitesToSkipTO = set()
     status,res = taskBuffer.querySQLS(sql,varMap)
     for siteid, in res:
@@ -290,7 +290,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     _logger.debug("Watcher session")
 
     # get the list of workflows
-    sql = "SELECT DISTINCT workflow FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.data.status='online' "
+    sql = "SELECT DISTINCT scj.data.workflow FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.data.status='online' "
     status, res = taskBuffer.querySQLS(sql, {})
     workflow_timeout_map = {}
     for workflow, in res + [('production',), ('analysis',)]:
