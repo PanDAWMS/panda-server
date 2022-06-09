@@ -115,9 +115,7 @@ class JobDipatcher:
         self.timeInterval = datetime.timedelta(seconds=180)
         # pilot owners
         self.pilotOwners = None
-        # hostnames for authorization at grid-free sites
-        self.allowedNodes = None
-        # special dipatcher parameters
+        # special dispatcher parameters
         self.specialDispatchParams = None
         # site mapper cache
         self.siteMapperCache = None
@@ -138,9 +136,6 @@ class JobDipatcher:
         # get pilot owners
         if self.pilotOwners is None:
             self.pilotOwners = self.taskBuffer.getPilotOwners()
-        # get allowed nodes
-        if self.allowedNodes is None:
-            self.allowedNodes = self.taskBuffer.getAllowedNodes()
         # special dipatcher parameters
         if self.specialDispatchParams is None:
             self.specialDispatchParams = CachedObject(60*10, self.taskBuffer.getSpecialDispatchParams)
@@ -824,13 +819,6 @@ def _checkRole(fqans,dn,jdCore,withVomsPatch=True,site='',hostname=''):
                 if dn.startswith(tmpSub):
                     prodManager = True
                     break
-        # grid-free authorization
-        if not prodManager:
-            if hostname != '' and site in jdCore.allowedNodes:
-                for tmpPat in jdCore.allowedNodes[site]:
-                    if re.search(tmpPat,hostname) is not None:
-                        prodManager = True
-                        break
         # check DN with pilotOwners
         if (not prodManager) and (dn not in [None]):
             if site in jdCore.pilotOwners:

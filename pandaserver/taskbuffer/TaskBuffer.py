@@ -911,12 +911,12 @@ class TaskBuffer:
         return res
 
 
-    # get fareshare policy
-    def getFaresharePolicy(self):
+    # get fairshare policy
+    def getFairsharePolicy(self):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # run
-        res = proxy.getFaresharePolicy(True)
+        res = proxy.getFairsharePolicy(True)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -1151,19 +1151,6 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # return
         return ret
-
-
-    # get beyond pledge resource ratio
-    # ! this method is not thread-safe
-    def getPledgeResourceRatio(self):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.getPledgeResourceRatio()
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return proxy.beyondPledgeRatio
 
 
     # get the number of waiting jobs with a dataset
@@ -2271,18 +2258,6 @@ class TaskBuffer:
         return ret
 
 
-    # get site list
-    def getSiteList(self):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get site info
-        ret = proxy.getSiteList()
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-
     # get site info
     def getSiteInfo(self):
         # get DBproxy
@@ -2362,18 +2337,6 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # get pilot owners
         ret = proxy.getPilotOwners()
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-
-    # get allowed nodes
-    def getAllowedNodes(self):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.getAllowedNodes()
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
