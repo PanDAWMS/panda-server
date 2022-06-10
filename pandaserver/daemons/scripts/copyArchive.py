@@ -441,45 +441,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             thr.start()
             thr.join()
 
-    # check heartbeat for production jobs with internal stage-out
-    sql = "SELECT PandaID, jobStatus, jobSubStatus FROM ATLAS_PANDA.jobsActive4 j, ATLAS_PANDA.schedconfig_json s "
-    sql += "WHERE j.computingSite=s.panda_queue AND jobStatus=:jobStatus1 AND jobSubStatus IS NOT NULL AND modificationTime<:modificationTime "
-    for workflow in workflows:
-        if workflow == 'analysis':
-            continue
-        varMap = {}
-        varMap[':modificationTime'] = timeLimit
-        varMap[':jobStatus1'] = 'transferring'
-        sqlX = sql
-        if workflow == 'production':
-            if len(workflows) > 2:
-                sqlX += "AND (s.data.workflow IS NULL OR s.data.workflow NOT IN ("
-                for ng_workflow in workflows:
-                    if ng_workflow in ['production', 'analysis']:
-                        continue
-                    tmp_key = ':w_{0}'.format(ng_workflow)
-                    varMap[tmp_key] = ng_workflow
-                    sqlX += '{0},'.format(tmp_key)
-                sqlX = sqlX[:-1]
-                sqlX += ")) "
-        else:
-            tmp_key = ':w_{0}'.format(workflow)
-            sqlX += "AND s.data.workflow={0} ".format(tmp_key)
-            varMap[tmp_key] = workflow
-        timeOutVal = workflow_timeout_map[workflow]
-        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeOutVal)
-        varMap[':modificationTime'] = timeLimit
-        status,res = taskBuffer.querySQLS(sqlX, varMap)
-        if res is None:
-            _logger.debug("# of Internal Staging Watcher with workflow={0}: {1}".format(workflow, res))
-        else:
-            _logger.debug("# of Internal Staging Watcher with workflow={0}: {1}".format(workflow, len(res)))
-            for pandaID, jobStatus, jobSubStatus in res:
-                _logger.debug("Internal Staging  Watcher %s %s:%s" % (pandaID, jobStatus, jobSubStatus))
-                thr = Watcher(taskBuffer,pandaID,single=True,sleepTime=60*timeOutVal,sitemapper=siteMapper)
-                thr.start()
-                thr.join()
-
     # check heartbeat for production jobs
     sql = "SELECT PandaID,jobStatus, j.computingSite FROM ATLAS_PANDA.jobsActive4 j "\
           "LEFT JOIN ATLAS_PANDA.schedconfig_json s ON j.computingSite=s.panda_queue "\
