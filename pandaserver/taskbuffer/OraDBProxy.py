@@ -9193,7 +9193,7 @@ class DBProxy:
             sql0 = "SELECT jobStatus,COUNT(*), cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1, :prodSourceLabel2) GROUP BY jobStatus, cloud"
 
             sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
-            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.computingSite=tabS.siteid "
+            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.computingSite=tabS.panda_queue "
         else:
             sql0  = "SELECT tab.jobStatus, COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
             sql0 += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
@@ -9281,7 +9281,7 @@ class DBProxy:
             sqlN += ") AND computingSite=tabS.panda_queue "
             sqlN += "GROUP BY jobStatus,tabS.data.cloud,processingType "
 
-            sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*), tabS.data.cloud, processingType "
+            sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus, COUNT(*), tabS.data.cloud, processingType "
             sqlA += "FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
             sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
             for tmpLabel in JobUtils.list_ptest_prod_sources:
@@ -10568,7 +10568,7 @@ class DBProxy:
             sql  = "SELECT scj.data.siteid, scj.data.fairsharepolicy, scj.data.cloud "
             sql += "FROM ATLAS_PANDA.schedconfig_json scj "
             sql += "WHERE scj.data.type != 'analysis' "
-            sql += "GROUP BY scj.data.siteid, scj.data.fairsharepolicy, scj.data.cloud"
+            sql += "GROUP BY scj.panda_queue, scj.data.fairsharepolicy, scj.data.cloud"
 
             self.cur.execute(sql+comment)
             res = self.cur.fetchall()
