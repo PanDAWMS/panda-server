@@ -10054,7 +10054,10 @@ class DBProxy:
 
                         siteid, queue_data_json, pandasite, role = resTmp
                         try:
-                            queue_data = json.loads(queue_data_json)
+                            if isinstance(queue_data_json, dict):
+                                queue_data = queue_data_json
+                            else:
+                                queue_data = json.loads(queue_data_json)
                         except Exception:
                             _logger.error("loading json for queue {0} excepted. json was: {1}".format(siteid, queue_data_json))
                             continue
