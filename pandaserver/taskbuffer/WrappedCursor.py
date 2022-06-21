@@ -47,6 +47,72 @@ def convert_query_in_printf_format(sql, var_dict):
     sql = re.sub(r'\(SELECT\s+level\s+FROM\s+dual\s+CONNECT\s+BY\s+level\s*<=\s*(:[^ \)]+)\)*',
                  r'GENERATE_SERIES(1,\1)',
                  sql, flags=re.IGNORECASE)
+    # json
+    if '/* use_json_type */' in sql:
+        # remove \n to make regexp easier
+        sql = re.sub(r'\n', r' ', sql)
+        # collect table names
+        table_names = set()
+        for item in re.findall(r'( |\n)FROM( |\n)(.+)(WHERE)*', sql, flags=re.IGNORECASE):
+            table_strs = item[2].split(',')
+            table_names.update([t.strip().lower() for table_str in table_strs for t in table_str.split() if t.strip()])
+        # look for a.b(.c)*
+        for item in re.findall(r'(\w+\.\w+\.*\w*)', sql):
+            item_l = item.lower()
+            # ignore tables
+            if item_l in table_names:
+                continue
+            # ignore float
+            if item.replace('.', '', 1).isdigit():
+                continue
+            to_skip = False
+            new_pat = None
+            # check if table.column.field
+            for table_name in table_names:
+                if item_l.startswith(table_name):
+                    item_body = re.sub(r'^' + table_name + r'\.', '', item, flags=re.IGNORECASE)
+                    # no json field
+                    if item_body.count('.') == 0:
+                        to_skip = True
+                        break
+                    # convert . to ->>''
+                    new_body = re.sub(r'\.(?P<pat>\w+)', r"->>'\1'", item_body)
+                    # prepend the table name
+                    new_pat = '.'.join(item.split('.')[:-(1+item_body.count('.'))]) + '.' + new_body
+                    break
+            # ignore table.column
+            if to_skip:
+                continue
+            old_pat = item
+            # colum.field
+            if not new_pat:
+                new_pat = re.sub(r'\.(?P<pat>\w+)', r"->>'\1'", item)
+            # guess type
+            right_vals = re.findall(old_pat + r'\s*[=<>!]+\s*([\w:\']+)', sql)
+            for right_val in right_vals:
+                # string
+                if "'" in right_val:
+                    break
+                # integer
+                if right_val.isdigit():
+                    new_pat = "CAST({} AS integer)".format(new_pat)
+                    break
+                # float
+                if right_val.replace('.', '', 1).isdigit():
+                    new_pat = "CAST({} AS float)".format(new_pat)
+                    break
+                # bind variable
+                if right_val.startswith(':'):
+                    if right_val not in var_dict:
+                        raise KeyError('{0} is missing to guess data type'.format(right_val))
+                    if isinstance(var_dict[right_val], int):
+                        new_pat = "CAST({} AS integer)".format(new_pat)
+                        break
+                    if isinstance(var_dict[right_val], float):
+                        new_pat = "CAST({} AS float)".format(new_pat)
+                        break
+            # replace
+            sql = sql.replace(old_pat, new_pat)
     # extract placeholders
     paramList = []
     items = re.findall(r':[^ $,)\n]+', sql)
