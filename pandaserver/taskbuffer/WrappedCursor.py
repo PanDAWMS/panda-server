@@ -21,98 +21,104 @@ _logger = PandaLogger().getLogger('WrappedCursor')
 
 
 # convert SQL and parameters in_printf format
-def convert_query_in_printf_format(sql, var_dict):
-    # %
-    sql = re.sub(r'%', r'%%', sql)
-    # current date except for being used for interval
-    if re.search(r'CURRENT_DATE\s*[\+-]', sql, flags=re.IGNORECASE) is None:
-        sql = re.sub(r'CURRENT_DATE', r'CURRENT_TIMESTAMP', sql, flags=re.IGNORECASE)
-    # sequence
-    sql = re.sub(r"""([^ $,()]+).currval""", r"currval('\1')", sql, flags=re.IGNORECASE)
-    sql = re.sub(r"""([^ $,()]+).nextval""", r"nextval('\1')", sql, flags=re.IGNORECASE)
-    # returning
-    sql = re.sub(r"(RETURNING\s+\S+\s+)INTO\s+\S+", r"\1", sql, flags=re.IGNORECASE)
-    # sub query + rownum
-    sql = re.sub(r"\)\s+WHERE\s+rownum", r") tmp_sub WHERE rownum", sql, flags=re.IGNORECASE)
-    # sub query + GROUP BY
-    if re.search(r'FROM\s+\(SELECT', sql, flags=re.IGNORECASE):
-        sql = re.sub(r"\)\s+GROUP\s+BY", r") tmp_sub GROUP BY", sql, flags=re.IGNORECASE)
-    # rownum
-    sql = re.sub(r"(WHERE|AND)\s+rownum[^\d:]+(\d+|:[^ \)]+)", r" LIMIT \2", sql, flags=re.IGNORECASE)
-    # NVL
-    sql = re.sub(r"NVL\(", r"COALESCE(", sql, flags=re.IGNORECASE)
-    # random
-    sql = re.sub(r"DBMS_RANDOM.value", r"RANDOM()", sql, flags=re.IGNORECASE)
-    # GENERATE_SERIES
-    sql = re.sub(r'\(SELECT\s+level\s+FROM\s+dual\s+CONNECT\s+BY\s+level\s*<=\s*(:[^ \)]+)\)*',
-                 r'GENERATE_SERIES(1,\1)',
-                 sql, flags=re.IGNORECASE)
-    # json
-    if '/* use_json_type */' in sql:
-        # remove \n to make regexp easier
-        sql = re.sub(r'\n', r' ', sql)
-        # collect table names
-        table_names = set()
-        for item in re.findall(r'( |\n)FROM( |\n)(.+)(WHERE)*', sql, flags=re.IGNORECASE):
-            table_strs = item[2].split(',')
-            table_names.update([t.strip().lower() for table_str in table_strs for t in table_str.split() if t.strip()])
-        # look for a.b(.c)*
-        for item in re.findall(r'(\w+\.\w+\.*\w*)', sql):
-            item_l = item.lower()
-            # ignore tables
-            if item_l in table_names:
-                continue
-            # ignore float
-            if item.replace('.', '', 1).isdigit():
-                continue
-            to_skip = False
-            new_pat = None
-            # check if table.column.field
-            for table_name in table_names:
-                if item_l.startswith(table_name):
-                    item_body = re.sub(r'^' + table_name + r'\.', '', item, flags=re.IGNORECASE)
-                    # no json field
-                    if item_body.count('.') == 0:
-                        to_skip = True
+def convert_query_in_printf_format(sql, var_dict, sql_conv_map):
+    if sql in sql_conv_map:
+        sql = sql_conv_map[sql]
+    else:
+        old_sql = sql
+        # %
+        sql = re.sub(r'%', r'%%', sql)
+        # current date except for being used for interval
+        if re.search(r'CURRENT_DATE\s*[\+-]', sql, flags=re.IGNORECASE) is None:
+            sql = re.sub(r'CURRENT_DATE', r'CURRENT_TIMESTAMP', sql, flags=re.IGNORECASE)
+        # sequence
+        sql = re.sub(r"""([^ $,()]+).currval""", r"currval('\1')", sql, flags=re.IGNORECASE)
+        sql = re.sub(r"""([^ $,()]+).nextval""", r"nextval('\1')", sql, flags=re.IGNORECASE)
+        # returning
+        sql = re.sub(r"(RETURNING\s+\S+\s+)INTO\s+\S+", r"\1", sql, flags=re.IGNORECASE)
+        # sub query + rownum
+        sql = re.sub(r"\)\s+WHERE\s+rownum", r") tmp_sub WHERE rownum", sql, flags=re.IGNORECASE)
+        # sub query + GROUP BY
+        if re.search(r'FROM\s+\(SELECT', sql, flags=re.IGNORECASE):
+            sql = re.sub(r"\)\s+GROUP\s+BY", r") tmp_sub GROUP BY", sql, flags=re.IGNORECASE)
+        # rownum
+        sql = re.sub(r"(WHERE|AND)\s+rownum[^\d:]+(\d+|:[^ \)]+)", r" LIMIT \2", sql, flags=re.IGNORECASE)
+        # NVL
+        sql = re.sub(r"NVL\(", r"COALESCE(", sql, flags=re.IGNORECASE)
+        # random
+        sql = re.sub(r"DBMS_RANDOM.value", r"RANDOM()", sql, flags=re.IGNORECASE)
+        # GENERATE_SERIES
+        sql = re.sub(r'\(SELECT\s+level\s+FROM\s+dual\s+CONNECT\s+BY\s+level\s*<=\s*(:[^ \)]+)\)*',
+                     r'GENERATE_SERIES(1,\1)',
+                     sql, flags=re.IGNORECASE)
+        # json
+        if '/* use_json_type */' in sql:
+            # remove \n to make regexp easier
+            sql = re.sub(r'\n', r' ', sql)
+            # collect table names
+            table_names = set()
+            for item in re.findall(r' FROM (.+) WHERE', sql, flags=re.IGNORECASE):
+                table_strs = item.split(',')
+                table_names.update([t.strip().lower() for table_str in table_strs for t in table_str.split() if t.strip()])
+            # look for a.b(.c)*
+            for item in re.findall(r'(\w+\.\w+\.*\w*)', sql):
+                item_l = item.lower()
+                # ignore tables
+                if item_l in table_names:
+                    continue
+                # ignore float
+                if item.replace('.', '', 1).isdigit():
+                    continue
+                to_skip = False
+                new_pat = None
+                # check if table.column.field
+                for table_name in table_names:
+                    if item_l.startswith(table_name):
+                        item_body = re.sub(r'^' + table_name + r'\.', '', item, flags=re.IGNORECASE)
+                        # no json field
+                        if item_body.count('.') == 0:
+                            to_skip = True
+                            break
+                        # convert . to ->>''
+                        new_body = re.sub(r'\.(?P<pat>\w+)', r"->>'\1'", item_body)
+                        # prepend the table name
+                        new_pat = '.'.join(item.split('.')[:-(1+item_body.count('.'))]) + '.' + new_body
                         break
-                    # convert . to ->>''
-                    new_body = re.sub(r'\.(?P<pat>\w+)', r"->>'\1'", item_body)
-                    # prepend the table name
-                    new_pat = '.'.join(item.split('.')[:-(1+item_body.count('.'))]) + '.' + new_body
-                    break
-            # ignore table.column
-            if to_skip:
-                continue
-            old_pat = item
-            # colum.field
-            if not new_pat:
-                new_pat = re.sub(r'\.(?P<pat>\w+)', r"->>'\1'", item)
-            # guess type
-            right_vals = re.findall(old_pat + r'\s*[=<>!]+\s*([\w:\']+)', sql)
-            for right_val in right_vals:
-                # string
-                if "'" in right_val:
-                    break
-                # integer
-                if right_val.isdigit():
-                    new_pat = "CAST({} AS integer)".format(new_pat)
-                    break
-                # float
-                if right_val.replace('.', '', 1).isdigit():
-                    new_pat = "CAST({} AS float)".format(new_pat)
-                    break
-                # bind variable
-                if right_val.startswith(':'):
-                    if right_val not in var_dict:
-                        raise KeyError('{0} is missing to guess data type'.format(right_val))
-                    if isinstance(var_dict[right_val], int):
+                # ignore table.column
+                if to_skip:
+                    continue
+                old_pat = item
+                # colum.field
+                if not new_pat:
+                    new_pat = re.sub(r'\.(?P<pat>\w+)', r"->>'\1'", item)
+                # guess type
+                right_vals = re.findall(old_pat + r'\s*[=<>!]+\s*([\w:\']+)', sql)
+                for right_val in right_vals:
+                    # string
+                    if "'" in right_val:
+                        break
+                    # integer
+                    if right_val.isdigit():
                         new_pat = "CAST({} AS integer)".format(new_pat)
                         break
-                    if isinstance(var_dict[right_val], float):
+                    # float
+                    if right_val.replace('.', '', 1).isdigit():
                         new_pat = "CAST({} AS float)".format(new_pat)
                         break
-            # replace
-            sql = sql.replace(old_pat, new_pat)
+                    # bind variable
+                    if right_val.startswith(':'):
+                        if right_val not in var_dict:
+                            raise KeyError('{0} is missing to guess data type'.format(right_val))
+                        if isinstance(var_dict[right_val], int):
+                            new_pat = "CAST({} AS integer)".format(new_pat)
+                            break
+                        if isinstance(var_dict[right_val], float):
+                            new_pat = "CAST({} AS float)".format(new_pat)
+                            break
+                # replace
+                sql = sql.replace(old_pat, new_pat)
+            # cache
+            sql_conv_map[old_sql] = sql
     # extract placeholders
     paramList = []
     items = re.findall(r':[^ $,)\n]+', sql)
@@ -144,7 +150,8 @@ class WrappedCursor(object):
             self.dump = True
         else:
             self.dump = False
-
+        # SQL conversion map
+        self.sql_conv_map = {}
 
     # __iter__
     def __iter__(self):
@@ -213,7 +220,7 @@ class WrappedCursor(object):
         elif self.backend == 'postgres':
             if self.dump:
                 _logger.debug('OLD: {} {}'.format(sql, str(varDict)))
-            sql, varList = convert_query_in_printf_format(sql, varDict)
+            sql, varList = convert_query_in_printf_format(sql, varDict, self.sql_conv_map)
             if self.dump:
                 _logger.debug('NEW: {} {}'.format(sql, str(varList)))
             ret = cur.execute(sql, varList)
