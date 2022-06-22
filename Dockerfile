@@ -48,7 +48,7 @@ RUN ln -fs /opt/panda/etc/cert/chain.pem /etc/grid-security/chain.pem
 RUN ln -s /opt/panda/etc/rc.d/init.d/panda_server /etc/rc.d/init.d/httpd-pandasrv
 RUN ln -fs /data/panda/idds.cfg /opt/panda/etc/idds/idds.cfg
 RUN ln -fs /data/panda/rucio.cfg /opt/panda/etc/rucio.cfg
-RUN ln -fs /data/panda/panda_mbproxy_config.json /etc/panda/panda_mbproxy_config.json
+RUN ln -fs /data/panda/panda_mbproxy_config.json /opt/panda/etc/panda/panda_mbproxy_config.json
 RUN ln -s /etc/sysconfig/panda_server /opt/panda/etc/panda/panda_server.sysconfig
 
 RUN chown -R atlpan:zp /var/log/panda
