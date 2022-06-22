@@ -38,12 +38,9 @@ RUN chmod +x /etc/rc.d/init.d/run-panda-services
 RUN mkdir -p /data/panda
 RUN mkdir -p /data/atlpan
 RUN mkdir -p /var/log/panda/wsgisocks
+RUN mkdir -p /var/log/panda/pandacache
 RUN mkdir -p /run/httpd/wsgisocks
 RUN mkdir -p /var/cache/pandaserver/jedilog
-
-
-#RUN mv /opt/panda/etc/rucio.cfg.template /data/panda/rucio.cfg
-RUN mv /opt/panda/etc/idds/idds.cfg.client.template /data/panda/idds.cfg
 
 RUN ln -fs /opt/panda/etc/cert/hostkey.pem /etc/grid-security/hostkey.pem
 RUN ln -fs /opt/panda/etc/cert/hostcert.pem /etc/grid-security/hostcert.pem
@@ -51,6 +48,7 @@ RUN ln -fs /opt/panda/etc/cert/chain.pem /etc/grid-security/chain.pem
 RUN ln -s /opt/panda/etc/rc.d/init.d/panda_server /etc/rc.d/init.d/httpd-pandasrv
 RUN ln -fs /data/panda/idds.cfg /opt/panda/etc/idds/idds.cfg
 RUN ln -fs /data/panda/rucio.cfg /opt/panda/etc/rucio.cfg
+RUN ln -fs /data/panda/panda_mbproxy_config.json /etc/panda/panda_mbproxy_config.json
 RUN ln -s /etc/sysconfig/panda_server /opt/panda/etc/panda/panda_server.sysconfig
 
 RUN chown -R atlpan:zp /var/log/panda
@@ -65,6 +63,7 @@ RUN chmod -R 777 /run/httpd
 RUN chmod -R 777 /home/atlpan
 RUN chmod -R 777 /var/lock
 RUN chmod -R 777 /var/cache/pandaserver
+RUN chmod -R 777 /var/log/panda/pandacache
 
 CMD exec /bin/bash -c "trap : TERM INT; sleep infinity & wait"
 
