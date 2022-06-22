@@ -41,7 +41,8 @@ RUN mkdir -p /var/log/panda/wsgisocks
 RUN mkdir -p /run/httpd/wsgisocks
 RUN mkdir -p /var/cache/pandaserver/jedilog
 
-RUN mv /opt/panda/etc/rucio.cfg.template /data/panda/rucio.cfg
+
+#RUN mv /opt/panda/etc/rucio.cfg.template /data/panda/rucio.cfg
 RUN mv /opt/panda/etc/idds/idds.cfg.client.template /data/panda/idds.cfg
 
 RUN ln -fs /opt/panda/etc/cert/hostkey.pem /etc/grid-security/hostkey.pem
