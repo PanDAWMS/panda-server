@@ -19,6 +19,7 @@ import datetime
 import traceback
 import warnings
 import operator
+import atexit
 from pandaserver.taskbuffer import ErrorCode
 from pandaserver.taskbuffer import SiteSpec
 from pandaserver.taskbuffer import CloudSpec
@@ -202,11 +203,22 @@ class DBProxy:
             except Exception:
                 pass
             self.hostname = self.cur.initialize()
+            if not reconnect:
+                atexit.register(self.close_connection)
             _logger.debug("connect : re=%s ready" % reconnect)
             return True
         except Exception as e:
             _logger.error("connect : %s" % str(e))
             return False
+
+    # close connection
+    def close_connection(self):
+        if self.conn:
+            try:
+                self.conn.close()
+            except Exception:
+                pass
+        return
 
     def getvalue_corrector(self, value):
         """
