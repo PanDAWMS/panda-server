@@ -10,6 +10,7 @@ import time
 import math
 import random
 import datetime
+import uuid
 
 from pandaserver.dataservice.DDM import rucioAPI
 from pandaserver.dataservice.DataServiceUtils import select_scope
@@ -709,7 +710,7 @@ class DynDataDistributer:
         # return
         for tmpLFN in g_filesInDsMap[datasetName]:
             tmpVal = g_filesInDsMap[datasetName][tmpLFN]
-            if tmpVal['guid'] == guid:
+            if uuid.UUID(tmpVal['guid']) == uuid.UUID(guid):
                 retMap = tmpVal
                 retMap['lfn'] = tmpLFN
                 retMap['dataset'] = datasetName
