@@ -267,7 +267,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # get sites to skip various timeout
     varMap = {}
     varMap[':status'] = 'paused'
-    sql = "SELECT panda_queue FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.data.status=:status "
+    sql = "SELECT /* use_json_type */ panda_queue FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.data.status=:status "
     sitesToSkipTO = set()
     status,res = taskBuffer.querySQLS(sql,varMap)
     for siteid, in res:
@@ -290,7 +290,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     _logger.debug("Watcher session")
 
     # get the list of workflows
-    sql = "SELECT DISTINCT scj.data.workflow FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.data.status='online' "
+    sql = "SELECT /* use_json_type */ DISTINCT scj.data.workflow FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.data.status='online' "
     status, res = taskBuffer.querySQLS(sql, {})
     workflow_timeout_map = {}
     for workflow, in res + [('production',), ('analysis',)]:
@@ -442,7 +442,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             thr.join()
 
     # check heartbeat for production jobs
-    sql = "SELECT PandaID,jobStatus, j.computingSite FROM ATLAS_PANDA.jobsActive4 j "\
+    sql = "SELECT /* use_json_type */ PandaID,jobStatus, j.computingSite FROM ATLAS_PANDA.jobsActive4 j "\
           "LEFT JOIN ATLAS_PANDA.schedconfig_json s ON j.computingSite=s.panda_queue "\
           "WHERE jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4) "\
           "AND modificationTime<:modificationTime "

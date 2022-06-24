@@ -1994,7 +1994,7 @@ class DBProxy:
                     self.updateUnmergedJobs(job)
                 # overwrite job status
                 tmpJobStatus = job.jobStatus
-                sqlPRE = "SELECT scj.data.pledgedcpu FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:siteID "
+                sqlPRE = "SELECT /* use_json_type */ scj.data.pledgedcpu FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:siteID "
 
                 sqlOJS = "UPDATE ATLAS_PANDA.jobsArchived4 SET jobStatus=:jobStatus,jobSubStatus=:jobSubStatus WHERE PandaID=:PandaID "
                 if oldJobSubStatus in ['pilot_failed', 'es_heartbeat'] or \
@@ -3068,7 +3068,7 @@ class DBProxy:
                                     varMap = {}
                                     varMap[':siteID'] = tmpLongSite
                                     varMap[':status'] = 'online'
-                                    sqlSite = "SELECT COUNT(*) FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:siteID AND scj.data.status=:status"
+                                    sqlSite = "SELECT /* use_json_type */ COUNT(*) FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:siteID AND scj.data.status=:status"
                                     self.cur.execute(sqlSite+comment, varMap)
                                     resSite = self.cur.fetchone()
                                     if resSite is not None and resSite[0] > 0:
@@ -9204,10 +9204,10 @@ class DBProxy:
         if sourcetype == 'analysis':
             sql0 = "SELECT jobStatus,COUNT(*), cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1, :prodSourceLabel2) GROUP BY jobStatus, cloud"
 
-            sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
+            sqlA  = "SELECT /* use_json_type */ /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
             sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.computingSite=tabS.panda_queue "
         else:
-            sql0  = "SELECT tab.jobStatus, COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
+            sql0  = "SELECT /* use_json_type */ tab.jobStatus, COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
             sql0 += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
             for tmpLabel in JobUtils.list_ptest_prod_sources:
                 tmpKey = ':prodSourceLabel_{0}'.format(tmpLabel)
@@ -9215,7 +9215,7 @@ class DBProxy:
                 sql0 += ','
             sql0 = sql0[:-1]
             sql0 += ") AND tab.computingSite=tabS.panda_queue GROUP BY tab.jobStatus, tabS.data.cloud"
-            sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus, COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
+            sqlA  = "SELECT /* use_json_type */ /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus, COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
             sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
             for tmpLabel in JobUtils.list_ptest_prod_sources:
                 tmpKey = ':prodSourceLabel_{0}'.format(tmpLabel)
@@ -9282,7 +9282,7 @@ class DBProxy:
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
         _logger.debug("getJobStatisticsPerProcessingType()")
         if useMorePG is False:
-            sqlN  = "SELECT jobStatus, COUNT(*), tabS.data.cloud, processingType "
+            sqlN  = "SELECT /* use_json_type */ jobStatus, COUNT(*), tabS.data.cloud, processingType "
             sqlN += "FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
             sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
             for tmpLabel in JobUtils.list_ptest_prod_sources:
@@ -9293,7 +9293,7 @@ class DBProxy:
             sqlN += ") AND computingSite=tabS.panda_queue "
             sqlN += "GROUP BY jobStatus,tabS.data.cloud,processingType "
 
-            sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus, COUNT(*), tabS.data.cloud, processingType "
+            sqlA  = "SELECT /* use_json_type */ /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus, COUNT(*), tabS.data.cloud, processingType "
             sqlA += "FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
             sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
             for tmpLabel in JobUtils.list_ptest_prod_sources:
@@ -9994,7 +9994,7 @@ class DBProxy:
 
             # sql to get site spec
             sql = """
-                   SELECT panda_queue, data, b.site_name, c.role
+                   SELECT /* use_json_type */ panda_queue, data, b.site_name, c.role
                    FROM (ATLAS_PANDA.schedconfig_json a
                    LEFT JOIN ATLAS_PANDA.panda_site b ON a.panda_queue = b.panda_site_name)
                    LEFT JOIN ATLAS_PANDA.site c ON b.site_name = c.site_name
@@ -10580,7 +10580,7 @@ class DBProxy:
                 if cloudShare not in ['',None]:
                     cloudShareMap[cloudName] = cloudShare
             # get share per site
-            sql  = "SELECT scj.data.siteid, scj.data.fairsharepolicy, scj.data.cloud "
+            sql  = "SELECT /* use_json_type */ scj.data.siteid, scj.data.fairsharepolicy, scj.data.cloud "
             sql += "FROM ATLAS_PANDA.schedconfig_json scj "
             sql += "WHERE scj.data.type != 'analysis' "
             sql += "GROUP BY scj.panda_queue, scj.data.fairsharepolicy, scj.data.cloud"
@@ -11061,7 +11061,7 @@ class DBProxy:
                         if tmpOwner != '':
                             ret[None].add(tmpOwner)
 
-            sql = "SELECT scj.data.siteid, scj.data.dn FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.data.dn IS NOT NULL "
+            sql = "SELECT /* use_json_type */ scj.data.siteid, scj.data.dn FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.data.dn IS NOT NULL "
             self.cur.execute(sql+comment)
             resList = self.cur.fetchall()
             for tmpSiteID,tmpItem in resList:
@@ -11815,7 +11815,7 @@ class DBProxy:
                 return 'No request for %s:%s' % (siteid,userName)
             # get cloud
             varMap = {':pandasite':siteid}
-            sql = 'SELECT scj.data.cloud, scj.data.dn FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:pandasite AND rownum<=1'
+            sql = 'SELECT /* use_json_type */ scj.data.cloud, scj.data.dn FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:pandasite AND rownum<=1'
             self.cur.execute(sql+comment,varMap)
             res = self.cur.fetchall()
             if res is None or len(res) == 0:
@@ -15745,7 +15745,7 @@ class DBProxy:
             if not doMerging:
                 minUnprocessed = self.getConfigValue('dbproxy', 'AES_MINEVENTSFORMCORE')
                 
-                sqlCore = "SELECT scj.data.corecount, scj.data.status, scj.data.jobseed " \
+                sqlCore = "SELECT /* use_json_type */ scj.data.corecount, scj.data.status, scj.data.jobseed " \
                           "FROM ATLAS_PANDA.schedconfig_json scj " \
                           "WHERE scj.panda_queue=:siteid "
 
@@ -15977,7 +15977,7 @@ class DBProxy:
         isMergeAtOS = EventServiceUtils.isMergeAtOS(jobSpec.specialHandling)
         # check where merge is done
         lookForMergeSite = True
-        sqlWM  = "SELECT scj.data.catchall, scj.data.objectstores " \
+        sqlWM  = "SELECT /* use_json_type */ scj.data.catchall, scj.data.objectstores " \
                  "FROM ATLAS_PANDA.schedconfig_json scj " \
                  "WHERE scj.panda_queue=:siteid "
         
@@ -16059,7 +16059,7 @@ class DBProxy:
             lookForMergeSite = False
         else:
             # get sites in the nucleus associated to the site to run merge jobs in the same nucleus
-            sqlSN  = "SELECT dr.panda_site_name, dr.ddm_endpoint_name "
+            sqlSN  = "SELECT /* use_json_type */ dr.panda_site_name, dr.ddm_endpoint_name "
             sqlSN += "FROM ATLAS_PANDA.panda_site ps1, ATLAS_PANDA.panda_site ps2, ATLAS_PANDA.schedconfig_json sc, ATLAS_PANDA.panda_ddm_relation dr "
             sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.panda_queue=ps2.panda_site_name "
             sqlSN += "AND dr.panda_site_name=ps2.panda_site_name "
@@ -16116,7 +16116,7 @@ class DBProxy:
                     tmpNucleus = jobSpec.destinationSE.split(':')[-1]
                     _logger.info('{0} look for merge sites in destination nucleus:{1}'.format(methodName,tmpNucleus))
                 # get sites in a nucleus
-                sqlSN  = "SELECT dr.panda_site_name, dr.ddm_endpoint_name "
+                sqlSN  = "SELECT /* use_json_type */ dr.panda_site_name, dr.ddm_endpoint_name "
                 sqlSN += "FROM ATLAS_PANDA.panda_site ps, ATLAS_PANDA.schedconfig_json sc, ATLAS_PANDA.panda_ddm_relation dr "
                 sqlSN += "WHERE site_name=:nucleus AND sc.panda_queue=ps.panda_site_name "
                 sqlSN += "AND dr.panda_site_name=ps.panda_site_name "
@@ -16142,7 +16142,7 @@ class DBProxy:
         # last resort for jumbo
         resSN_all = []
         if lookForMergeSite and (isFakeCJ or 'useJumboJobs' in catchAll or len(resSN + resSN_back) == 0):
-            sqlSN  = "SELECT dr.panda_site_name, dr.ddm_endpoint_name "
+            sqlSN  = "SELECT /* use_json_type */ dr.panda_site_name, dr.ddm_endpoint_name "
             sqlSN += "FROM ATLAS_PANDA.panda_site ps, ATLAS_PANDA.schedconfig_json sc, ATLAS_PANDA.panda_ddm_relation dr "
             sqlSN += "WHERE sc.panda_queue=ps.panda_site_name "
             sqlSN += "AND dr.panda_site_name=ps.panda_site_name "
@@ -16223,7 +16223,7 @@ class DBProxy:
         _logger.debug('{0} looking for SCORE site'.format(methodName))
 
         # get score PQ in the nucleus associated to the site to run the small ES job
-        sqlSN  = "SELECT ps2.panda_site_name "
+        sqlSN  = "SELECT /* use_json_type */ ps2.panda_site_name "
         sqlSN += "FROM ATLAS_PANDA.panda_site ps1, ATLAS_PANDA.panda_site ps2, ATLAS_PANDA.schedconfig_json sc "
         sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.panda_queue=ps2.panda_site_name "
         sqlSN += "AND (sc.data.corecount IS NULL OR sc.data.corecount=1 OR sc.data.capability=:capability) "
@@ -18762,7 +18762,7 @@ class DBProxy:
 
         #1. Get the site information from schedconfig
         sql = """
-        SELECT sc.data.maxtime, sc.data.corepower,
+        SELECT /* use_json_type */ sc.data.maxtime, sc.data.corepower,
             CASE
                 WHEN sc.data.corecount IS NULL THEN 1
                 ELSE sc.data.corecount
@@ -20269,7 +20269,7 @@ class DBProxy:
         tmpLog = LogWrapper(_logger, methodName + " <siteid={}>".format(site_id))
         tmpLog.debug("start")
         
-        sqlS = "SELECT scj.data.corepower FROM ATLAS_PANDA.schedconfig_json "
+        sqlS = "SELECT /* use_json_type */ scj.data.corepower FROM ATLAS_PANDA.schedconfig_json "
         sqlS += "WHERE panda_queue=:siteid "
 
         varMap = {':siteid': site_id}
@@ -20772,7 +20772,7 @@ class DBProxy:
         tmpLog.debug('start')
         try:
             var_map = {':site': site}
-            sql = 'SELECT scj.data.resource_type FROM ATLAS_PANDA.schedconfig_json scj WHERE panda_queue=:site '
+            sql = 'SELECT /* use_json_type */ scj.data.resource_type FROM ATLAS_PANDA.schedconfig_json scj WHERE panda_queue=:site '
 
             # start transaction
             self.conn.begin()
@@ -22156,7 +22156,7 @@ class DBProxy:
 
         ups_queues = []
         sql = """
-              SELECT scj.panda_queue FROM ATLAS_PANDA.schedconfig_json scj
+              SELECT /* use_json_type */ scj.panda_queue FROM ATLAS_PANDA.schedconfig_json scj
               WHERE scj.data.capability='ucore' AND scj.data.workflow = 'pull_ups'
               """
 
@@ -23525,7 +23525,7 @@ class DBProxy:
         tmpLog.debug("start")
         try:
             # sql to get workers
-            sqlC = "SELECT panda_queue FROM ATLAS_PANDA.schedconfig_json"
+            sqlC = "SELECT /* use_json_type */ panda_queue FROM ATLAS_PANDA.schedconfig_json"
             # start transaction
             self.conn.begin()
             self.cur.execute(sqlC + comment)
