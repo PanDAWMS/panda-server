@@ -132,7 +132,8 @@ if panda_config.useFastCGI or panda_config.useWSGI:
     elif panda_config.token_authType == 'scitokens':
         import scitokens
     else:
-        from pandaserver.srvcore import oidc_utils
+        from pandaserver.srvcore.oidc_utils import TokenDecoder
+        token_decoder = TokenDecoder()
 
     # logger
     _logger = PandaLogger().getLogger('Entry')
@@ -170,8 +171,8 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                             vo = env['HTTP_ORIGIN']
                         else:
                             vo = None
-                        token = oidc_utils.deserialize_token(serialized_token, panda_config.auth_config,
-                                                             vo)
+                        token = token_decoder.deserialize_token(serialized_token, panda_config.auth_config,
+                                                                vo, tmpLog)
                     # check with auth policies
                     role = None
                     if panda_config.token_authType == 'oidc':
@@ -185,13 +186,13 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                                 role = role.split('.')[-1]
                         # check vo
                         if vo not in panda_config.auth_policies:
-                            self.message = 'unknown vo : {}'.format(vo)
+                            self.message = 'Unknown vo : {}'.format(vo)
                             tmpLog.error('{} - {}'.format(self.message, env['HTTP_AUTHORIZATION']))
                         else:
                             # check role
                             if role:
                                 if '{}/{}'.format(vo, role) not in token["groups"]:
-                                    self.message = 'not in the {}/{} group'.format(vo, role)
+                                    self.message = 'Not a member of the {}/{} group'.format(vo, role)
                                     tmpLog.error('{} - {}'.format(self.message, env['HTTP_AUTHORIZATION']))
                                 else:
                                     self.subprocess_env['PANDA_OIDC_VO'] = vo
@@ -207,11 +208,11 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                                         self.authenticated = True
                                         break
                             if not self.authenticated:
-                                self.message = 'invalid member in {}'.format(vo)
+                                self.message = 'Not a member of the {} group'.format(vo)
                                 tmpLog.error('{} - {}'.format(self.message, env['HTTP_AUTHORIZATION']))
                     # check issuer
                     if 'iss' not in token:
-                        self.message = 'issuer is undefined in the token'
+                        self.message = 'Issuer is undefined in the token'
                         tmpLog.error(self.message)
                     else:
                         if panda_config.token_authType == 'scitokens':
@@ -241,7 +242,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                                     'VOMS /{}/Role={}'.format(vo, role)
                                 i += 1
             except Exception as e:
-                self.message = 'invalid token: {}'.format(str(e))
+                self.message = 'Corrupted token. {}'.format(str(e))
                 tmpLog.error('{} - {}'.format(self.message, env['HTTP_AUTHORIZATION']))
 
         # get remote host
@@ -294,7 +295,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                     dummyReq = DummyReq(environ, tmpLog)
                     if not dummyReq.authenticated:
                         start_response('403 Forbidden', [('Content-Type', 'text/plain')])
-                        return ["ERROR : token-based authentication failed on the server side with {}".format(
+                        return ["ERROR : Token authentication failed on the server side. {}".format(
                             dummyReq.message).encode()]
                     username = dummyReq.subprocess_env.get('SSL_CLIENT_S_DN', None)
                     if username:

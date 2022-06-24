@@ -1,6 +1,8 @@
 import jwt
 import base64
 import requests
+import datetime
+from threading import Lock
 from jwt.exceptions import InvalidTokenError
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicNumbers
 from cryptography.hazmat.backends import default_backend
@@ -30,32 +32,56 @@ def get_jwk(kid, jwks):
     raise InvalidTokenError('JWK not found for kid={0}'.format(kid, str(jwks)))
 
 
-# decode and verify JWT token
-def deserialize_token(token, auth_config, vo):
-    try:
-        # check audience
-        unverified = jwt.decode(token, verify=False, options={"verify_signature": False})
-        audience = unverified['aud']
-        discovery_endpoint = auth_config[audience]['oidc_config_url']
-        # decode headers
-        headers = jwt.get_unverified_header(token)
-        # get key id
-        if headers is None or 'kid' not in headers:
-            raise jwt.exceptions.InvalidTokenError('cannot extract kid from headers')
-        kid = headers['kid']
-        # retrieve OIDC configuration and and JWK set
-        oidc_config = requests.get(discovery_endpoint).json()
-        jwks = requests.get(oidc_config['jwks_uri']).json()
-        # get JWK and public key
-        jwk = get_jwk(kid, jwks)
-        public_key = rsa_pem_from_jwk(jwk)
-        # decode token only with RS256
-        decoded = jwt.decode(token, public_key, verify=True, algorithms='RS256',
-                             audience=audience, issuer=oidc_config['issuer'])
-        if vo is not None:
-            decoded['vo'] = vo
-        else:
-            decoded['vo'] = auth_config[audience]['vo']
-        return decoded
-    except Exception:
-        raise
+# token decoder
+class TokenDecoder:
+    # constructor
+    def __init__(self, refresh_interval=10):
+        self.lock = Lock()
+        self.data = {}
+        self.refresh_interval = refresh_interval
+
+    # get cached data
+    def get_data(self, url, log_stream):
+        try:
+            with self.lock:
+                if url not in self.data or \
+                        datetime.datetime.utcnow() - self.data[url]['last_update'] > \
+                        datetime.timedelta(minutes=self.refresh_interval):
+                    log_stream.debug('to refresh {}'.format(url))
+                    tmp_data = requests.get(url).json()
+                    log_stream.debug('refreshed')
+                    self.data[url] = {'data': tmp_data, 'last_update': datetime.datetime.utcnow()}
+                return self.data[url]['data']
+        except Exception as e:
+            log_stream.error('failed to refresh with {}'.format(str(e)))
+            raise
+
+    # decode and verify JWT token
+    def deserialize_token(self, token, auth_config, vo, log_stream):
+        try:
+            # check audience
+            unverified = jwt.decode(token, verify=False, options={"verify_signature": False})
+            audience = unverified['aud']
+            discovery_endpoint = auth_config[audience]['oidc_config_url']
+            # decode headers
+            headers = jwt.get_unverified_header(token)
+            # get key id
+            if headers is None or 'kid' not in headers:
+                raise jwt.exceptions.InvalidTokenError('cannot extract kid from headers')
+            kid = headers['kid']
+            # retrieve OIDC configuration and and JWK set
+            oidc_config = self.get_data(discovery_endpoint, log_stream)
+            jwks = self.get_data(oidc_config['jwks_uri'], log_stream)
+            # get JWK and public key
+            jwk = get_jwk(kid, jwks)
+            public_key = rsa_pem_from_jwk(jwk)
+            # decode token only with RS256
+            decoded = jwt.decode(token, public_key, verify=True, algorithms='RS256',
+                                 audience=audience, issuer=oidc_config['issuer'])
+            if vo is not None:
+                decoded['vo'] = vo
+            else:
+                decoded['vo'] = auth_config[audience]['vo']
+            return decoded
+        except Exception:
+            raise

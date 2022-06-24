@@ -45,7 +45,7 @@ lockfile_getUU = %(logdir)s/getUU.lock
 #
 
 # cache space
-cache_dir = /var/cache/pandaserver
+cache_dir = /var/log/panda/pandacache
 
 
 
