@@ -10552,7 +10552,7 @@ class DBProxy:
 
 
     # get fairshare policy
-    def getFairsharePolicy(self,getNewMap=False):
+    def getFairsharePolicy(self, getNewMap=False):
         comment = ' /* DBProxy.getFairsharePolicy */'
         # check utime
         if not getNewMap and self.updateTimeForFairsharePolicy is not None and \
@@ -10580,7 +10580,7 @@ class DBProxy:
                 if cloudShare not in ['',None]:
                     cloudShareMap[cloudName] = cloudShare
             # get share per site
-            sql  = "SELECT /* use_json_type */ scj.data.siteid, scj.data.fairsharepolicy, scj.data.cloud "
+            sql  = "SELECT /* use_json_type */ scj.panda_queue, scj.data.fairsharepolicy, scj.data.cloud "
             sql += "FROM ATLAS_PANDA.schedconfig_json scj "
             sql += "WHERE scj.data.type != 'analysis' "
             sql += "GROUP BY scj.panda_queue, scj.data.fairsharepolicy, scj.data.cloud"
@@ -18806,7 +18806,7 @@ class DBProxy:
                      format(taskID, cputime, walltime, basewalltime, cpuefficiency, cputimeunit))
 
         #2. Get the file information
-        input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log','trn_output')
+        input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log', 'trn_output')
         input_files = list(filter(lambda pandafile: pandafile.type in input_types
                                                and re.search('DBRelease', pandafile.lfn) is None, files))
         input_fileIDs = [input_file.fileID for input_file in input_files]
@@ -20269,7 +20269,7 @@ class DBProxy:
         tmpLog = LogWrapper(_logger, methodName + " <siteid={}>".format(site_id))
         tmpLog.debug("start")
         
-        sqlS = "SELECT /* use_json_type */ scj.data.corepower FROM ATLAS_PANDA.schedconfig_json "
+        sqlS = "SELECT /* use_json_type */ scj.data.corepower FROM ATLAS_PANDA.schedconfig_json scj "
         sqlS += "WHERE panda_queue=:siteid "
 
         varMap = {':siteid': site_id}
@@ -23672,7 +23672,7 @@ class DBProxy:
 
     def get_config_for_pq(self, pq_name):
         """
-        Get the AGIS json configuration for a particular queue
+        Get the CRIC json configuration for a particular queue
         """
 
         comment = ' /* DBProxy.get_config_for_pq */'
