@@ -3396,11 +3396,11 @@ class TaskBuffer:
 
 
     # reactivate task
-    def reactivateTask(self,jediTaskID):
+    def reactivateTask(self, jediTaskID, keep_attempt_nr=False, trigger_job_generation=False):
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        res = proxy.reactivateTask(jediTaskID)
+        res = proxy.reactivateTask(jediTaskID, keep_attempt_nr, trigger_job_generation)
         # release DB proxy
         self.proxyPool.putProxy(proxy)
         # return
