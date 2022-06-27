@@ -221,6 +221,13 @@ class DBProxy:
                 pass
         return
 
+    # cleanup
+    def cleanup(self):
+        _logger.debug("cleanup start")
+        self.close_connection()
+        atexit.unregister(self.close_connection)
+        _logger.debug("cleanup done")
+
     def getvalue_corrector(self, value):
         """
         Needed to support old and new versions of cx_Oracle

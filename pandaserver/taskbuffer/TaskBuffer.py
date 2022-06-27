@@ -53,6 +53,11 @@ class TaskBuffer:
         # release
         self.lock.release()
 
+    # cleanup
+    def cleanup(self):
+        if self.proxyPool:
+            self.proxyPool.cleanup()
+
     # get number of database connections
     def get_num_connections(self):
         return self.nDBConection
