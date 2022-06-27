@@ -2003,7 +2003,7 @@ class DBProxy:
                     isPreemptable = False
                     varMap = {}
                     varMap[':siteID'] = job.computingSite
-                    self.cur.execute(sqlPRE+comment,varMap)
+                    self.cur.execute(sqlPRE+comment, varMap)
                     resPRE = self.cur.fetchone()
                     if resPRE is not None:
                         try:
@@ -15754,8 +15754,9 @@ class DBProxy:
                 self.cur.execute(sqlCore+comment, varMap)
                 resCore = self.cur.fetchone()
                 if resCore is not None:
-                    coreCount,tmpState,tmpJobSeed = resCore
+                    coreCount, tmpState, tmpJobSeed = resCore
                     if coreCount is not None:
+                        coreCount = int(coreCount)
                         if minUnprocessed is None:
                             minUnprocessed = coreCount
                         else:
@@ -18782,6 +18783,8 @@ class DBProxy:
         if (not maxtime) or (not corepower) or (not corecount):
             tmpLog.debug("One or more site parameters are not defined for {0}... nothing to do".format(siteid))
             return None
+        else:
+            (maxtime, corepower, corecount) = (int(maxtime), float(corepower), int(corecount))
 
         #2. Get the task information
         sql = """
@@ -20280,6 +20283,7 @@ class DBProxy:
             core_power = None
             if resS is not None:
                 core_power, = resS
+                core_power = float(core_power)
             tmpLog.debug('got {}'.format(core_power))
             return core_power, None
         

@@ -442,7 +442,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             thr.join()
 
     # check heartbeat for production jobs
-    sql = "SELECT /* use_json_type */ PandaID,jobStatus, j.computingSite FROM ATLAS_PANDA.jobsActive4 j "\
+    sql = "SELECT /* use_json_type */ PandaID, jobStatus, j.computingSite FROM ATLAS_PANDA.jobsActive4 j "\
           "LEFT JOIN ATLAS_PANDA.schedconfig_json s ON j.computingSite=s.panda_queue "\
           "WHERE jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4) "\
           "AND modificationTime<:modificationTime "
