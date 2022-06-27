@@ -94,10 +94,11 @@ def get_mb_proxy_dict():
             and panda_config.mbproxy_configFile:
         # delay import to open logger file inside python daemon
         from pandaserver.taskbuffer.PanDAMsgProcessor import MsgProcAgent
-        out_q_list = ['panda_jobstatus']
+        out_q_list = ['panda_jobstatus', 'panda_jedi', 'panda_pilot']
         mp_agent = MsgProcAgent(config_file=panda_config.mbproxy_configFile)
         mb_proxy_dict = mp_agent.start_passive_mode(in_q_list=[], out_q_list=out_q_list)
         return mb_proxy_dict
+    return {}
 
 
 # proxy
@@ -12787,6 +12788,8 @@ class DBProxy:
             if self.mb_proxy_dict is None:
                 _logger.debug('push_job_status_message: Failed to get mb_proxy. Skipped ')
                 return
+        if not self.mb_proxy_dict or 'panda_jobstatus' not in self.mb_proxy_dict['out']:
+            return
         if to_push:
             # push job status change
             try:
