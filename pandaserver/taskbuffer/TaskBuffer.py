@@ -53,6 +53,11 @@ class TaskBuffer:
         # release
         self.lock.release()
 
+    # cleanup
+    def cleanup(self):
+        if self.proxyPool:
+            self.proxyPool.cleanup()
+
     # get number of database connections
     def get_num_connections(self):
         return self.nDBConection
@@ -3359,11 +3364,11 @@ class TaskBuffer:
 
 
     # reactivate task
-    def reactivateTask(self,jediTaskID):
+    def reactivateTask(self, jediTaskID, keep_attempt_nr=False, trigger_job_generation=False):
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        res = proxy.reactivateTask(jediTaskID)
+        res = proxy.reactivateTask(jediTaskID, keep_attempt_nr, trigger_job_generation)
         # release DB proxy
         self.proxyPool.putProxy(proxy)
         # return

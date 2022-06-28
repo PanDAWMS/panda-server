@@ -94,10 +94,11 @@ def get_mb_proxy_dict():
             and panda_config.mbproxy_configFile:
         # delay import to open logger file inside python daemon
         from pandaserver.taskbuffer.PanDAMsgProcessor import MsgProcAgent
-        out_q_list = ['panda_jobstatus']
+        out_q_list = ['panda_jobstatus', 'panda_jedi', 'panda_pilot']
         mp_agent = MsgProcAgent(config_file=panda_config.mbproxy_configFile)
         mb_proxy_dict = mp_agent.start_passive_mode(in_q_list=[], out_q_list=out_q_list)
         return mb_proxy_dict
+    return {}
 
 
 # proxy
@@ -219,6 +220,13 @@ class DBProxy:
             except Exception:
                 pass
         return
+
+    # cleanup
+    def cleanup(self):
+        _logger.debug("cleanup start")
+        self.close_connection()
+        atexit.unregister(self.close_connection)
+        _logger.debug("cleanup done")
 
     def getvalue_corrector(self, value):
         """
@@ -12612,11 +12620,9 @@ class DBProxy:
         if status in ['sent', 'holding', 'merging']:
             return
         # skip if no mb to push to
-        if self.mb_proxy_dict is None:
-            self.mb_proxy_dict = get_mb_proxy_dict()
-            if self.mb_proxy_dict is None:
-                _logger.debug('push_job_status_message: Failed to get mb_proxy. Skipped ')
-                return
+        mb_proxy = self.get_mb_proxy('panda_jobstatus')
+        if not mb_proxy:
+            return
         if to_push:
             # push job status change
             try:
@@ -12641,7 +12647,6 @@ class DBProxy:
                         'timestamp': now_ts,
                     }
                 msg = json.dumps(msg_dict)
-                mb_proxy = self.mb_proxy_dict['out']['panda_jobstatus']
                 if mb_proxy.got_disconnected:
                     mb_proxy.restart()
                 mb_proxy.send(msg)
@@ -20425,11 +20430,8 @@ class DBProxy:
             self.dumpErrorMessage(tmpLog,methodName)
             return []
 
-
-
-
-    #reactivate task
-    def reactivateTask(self,jediTaskID):
+    # reactivate task
+    def reactivateTask(self, jediTaskID, keep_attempt_nr=False, trigger_job_generation=False):
         comment = ' /* DBProxy.reactivateTask */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <jediTaskID={0}>".format(jediTaskID)
@@ -20445,7 +20447,10 @@ class DBProxy:
             sqlM += 'WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2,:type3) '
             # sql to increase attempt numbers and update status
             sqlAB  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
-            sqlAB += "SET status=:status,attemptNr=0 "
+            if keep_attempt_nr:
+                sqlAB += "SET status=:status "
+            else:
+                sqlAB += "SET status=:status,attemptNr=0 "
             sqlAB += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
             # sql to update datasets
             sqlD  = "UPDATE {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
@@ -20473,9 +20478,8 @@ class DBProxy:
                 varMap[':jediTaskID'] = jediTaskID
                 varMap[':datasetID'] = datasetID
                 varMap[':status'] = 'ready'
-                nFiles = 0
 
-                #update status and attempt number for datasets
+                # update status and attempt number for datasets
                 self.cur.execute(sqlAB+comment, varMap)
                 nFiles = self.cur.rowcount
 
@@ -20487,14 +20491,27 @@ class DBProxy:
                     varMap[':status'] = 'ready'
                     tmpLog.debug(sqlD+comment+str(varMap))
                     self.cur.execute(sqlD+comment, varMap)
+                    total_nFiles += nFiles
 
-            tmpMsg = "increased attemptNr for {0} inputs and task {1} was reactivated ".format(nFiles,jediTaskID)
+            tmpMsg = "updated {0} inputs and task {1} was reactivated ".format(total_nFiles,jediTaskID)
             tmpLog.debug(tmpMsg)
             tmpLog.sendMsg(tmpMsg,'jedi','pandasrv')
             retVal = 0,tmpMsg
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
+            # send message
+            if trigger_job_generation:
+                # message
+                msg_dict = {
+                    'msg_type': 'generate_job',
+                    'taskid': jediTaskID,
+                    'timestamp': int(datetime.datetime.utcnow().timestamp())
+                    }
+                msg = json.dumps(msg_dict)
+                mb_proxy = self.get_mb_proxy('panda_jedi')
+                mb_proxy.send(msg)
+                tmpLog.debug('sent generate_job message: {}'.format(msg))
             tmpLog.debug("done")
             return retVal
         except Exception:
@@ -24688,3 +24705,11 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger, methodName)
             return False, 'database error'
+
+    # get mb proxy
+    def get_mb_proxy(self, channel):
+        if self.mb_proxy_dict is None:
+            self.mb_proxy_dict = get_mb_proxy_dict()
+        if not self.mb_proxy_dict or channel not in self.mb_proxy_dict['out']:
+            return None
+        return self.mb_proxy_dict['out'][channel]

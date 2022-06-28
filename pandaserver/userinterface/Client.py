@@ -2226,11 +2226,13 @@ def getPandaIDsWithTaskID(jediTaskID):
 
 
 # reactivate task
-def reactivateTask(jediTaskID):
+def reactivateTask(jediTaskID, keep_attempt_nr=False, trigger_job_generation=False):
     """Reactivate task
 
        args:
            jediTaskID: jediTaskID of the task to be reactivated
+           keep_attempt_nr: not to reset attempt numbers when being reactivated
+           trigger_job_generation: trigger job generation once being reactivated
        returns:
            status code
                  0: communication succeeded to the panda server
@@ -2247,6 +2249,10 @@ def reactivateTask(jediTaskID):
     # execute
     url = baseURLSSL + '/reactivateTask'
     data = {'jediTaskID':jediTaskID}
+    if keep_attempt_nr:
+        data['keep_attempt_nr'] = True
+    if trigger_job_generation:
+        data['trigger_job_generation'] = True
     status,output = curl.post(url,data)
     try:
         return status,pickle_loads(output)
