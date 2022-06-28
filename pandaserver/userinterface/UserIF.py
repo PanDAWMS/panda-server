@@ -904,9 +904,9 @@ class UserIF:
 
 
     # reactivate task
-    def reactivateTask(self,jediTaskID):
+    def reactivateTask(self,jediTaskID, keep_attempt_nr, trigger_job_generation):
         # update datasets and task status
-        ret = self.taskBuffer.reactivateTask(jediTaskID)
+        ret = self.taskBuffer.reactivateTask(jediTaskID, keep_attempt_nr, trigger_job_generation)
         return ret
 
 
@@ -2269,16 +2269,29 @@ def getPandaIDsWithTaskID(req,jediTaskID):
 
 
 # reactivate Task
-def reactivateTask(req,jediTaskID):
+def reactivateTask(req,jediTaskID, keep_attempt_nr=None, trigger_job_generation=None):
     # check security
     if not isSecure(req):
         return WrappedPickle.dumps((False,'secure connection is required'))
-
+    # check role
+    prodManager = _hasProdRole(req)
+    if not prodManager:
+        msg = 'production role is required'
+        _logger.error("reactivateTask: "+msg)
+        return WrappedPickle.dumps((False, msg))
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
         return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
-    ret = userIF.reactivateTask(jediTaskID)
+    if keep_attempt_nr == 'True':
+        keep_attempt_nr = True
+    else:
+        keep_attempt_nr = False
+    if trigger_job_generation == 'True':
+        trigger_job_generation = True
+    else:
+        trigger_job_generation = False
+    ret = userIF.reactivateTask(jediTaskID, keep_attempt_nr, trigger_job_generation)
 
     return WrappedPickle.dumps(ret)
 

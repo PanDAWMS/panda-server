@@ -79,6 +79,7 @@ class TaskBufferInterface:
     def __init__(self):
         # make manager to create shared objects
         self.manager = multiprocessing.Manager()
+        self.taskBuffer = None
 
     # main loop
     def run(self, taskBuffer, commDict, comLock, resLock, to_stop):
@@ -120,6 +121,7 @@ class TaskBufferInterface:
         self.commDict = dict()
         self.comLock = dict()
         self.resLock = dict()
+        self.taskBuffer = taskBuffer
         self.to_stop = multiprocessing.Value('i', 0)
         for i in range(taskBuffer.get_num_connections()):
             self.childlock.put(i)
@@ -146,6 +148,7 @@ class TaskBufferInterface:
             self.to_stop.value = 1
         while self.process.is_alive():
             time.sleep(1)
+        self.taskBuffer.cleanup()
 
 
     # kill
