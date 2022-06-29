@@ -164,12 +164,20 @@ class FetchData(object):
     def analy_pmerge_jobs_wait_time(self):
         tmp_log = logger_utils.make_logger(main_logger, 'FetchData')
         #sql
-        sql_get_jobs = (
+        sql_get_jobs_archived4 = (
             "SELECT pandaID, computingSite "
             "FROM ATLAS_PANDA.jobsArchived4 "
             "WHERE prodSourceLabel='user' "
                 "AND gshare='User Analysis' "
-                "AND jobStatus='finished' "
+                "AND processingType='pmerge' "
+                "AND modificationTime>:modificationTime "
+        )
+        sql_get_jobs_active4 = (
+            "SELECT pandaID, computingSite "
+            "FROM ATLAS_PANDA.jobsActive4 "
+            "WHERE prodSourceLabel='user' "
+                "AND gshare='User Analysis' "
+                "AND jobStatus IN ('running', 'holding', 'merging', 'transferring', 'finished', 'failed', 'closed', 'cancelled') "
                 "AND processingType='pmerge' "
                 "AND modificationTime>:modificationTime "
         )
@@ -188,12 +196,16 @@ class FetchData(object):
             varMap = {
                     ':modificationTime': now_time - datetime.timedelta(days=4),
                 }
-            jobs_list = self.tbuf.querySQL(sql_get_jobs, varMap)
-            n_tot_jobs = len(jobs_list)
+            all_jobs_set = set()
+            archived4_jobs_list = self.tbuf.querySQL(sql_get_jobs_archived4, varMap)
+            active4_jobs_list = self.tbuf.querySQL(sql_get_jobs_active4, varMap)
+            all_jobs_set.update(archived4_jobs_list)
+            all_jobs_set.update(active4_jobs_list)
+            n_tot_jobs = len(all_jobs_set)
             tmp_log.debug('got total {0} jobs'.format(n_tot_jobs))
             # loop over jobs to get modificationTime when activated and running
             cc = 0
-            for pandaID, site in jobs_list:
+            for pandaID, site in all_jobs_set:
                 if not site:
                     continue
                 varMap = {':pandaID': pandaID}
@@ -245,8 +257,8 @@ class FetchData(object):
                     # except statistics.StatisticsError:
                     #     quantiles = None
                     cl95upp = conf_interval_upper(n=n_jobs, mean=mean, stdev=stdev, cl=0.95)
-                    # weighted by run age (weight halves every 24 hours)
-                    weight_array = np.exp2(-run_age_array/(24*60*60))
+                    # weighted by run age (weight halves every 12 hours - 1/256)
+                    weight_array = (np.exp2(-run_age_array/(12*60*60)) - np.exp2(-8)).clip(min=0)
                     sum_of_weights, w_mean, w_stdev = weighted_stats(wait_time_array, weight_array)
                     w_cl95upp = conf_interval_upper(n=sum_of_weights+1, mean=w_mean, stdev=w_stdev, cl=0.95)
                 # update
