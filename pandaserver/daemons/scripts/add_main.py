@@ -169,10 +169,12 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
         # adder consumer processes
         _n_thr_with_tbuf = 0
+        tbuf_list = []
         tmpLog.debug("got {} job reports".format(len(jor_lists)))
         for i in range(nThr):
             if i < _n_thr_with_tbuf:
                 tbuf = TaskBuffer()
+                tbuf_list.append(tbuf)
                 tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
                 thr = AdderThread(tbuf, aSiteMapper, jor_lists)
             else:
@@ -188,6 +190,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         for thr in adderThrList:
             # thr.join()
             thr.proc_join()
+        [tbuf.cleanup() for tbuf in tbuf_list]
         end_time = datetime.datetime.utcnow()
         sleep_time = interval - (end_time - start_time).seconds
         if sleep_time > 0 and iLoop+1 < nLoop:

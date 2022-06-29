@@ -28,6 +28,7 @@ class DBProxyPool:
         # create Proxies
         _logger.debug("init")
         self.proxyList = Queue(nConnection)
+        self.connList = []
         for i in range(nConnection):
             _logger.debug("connect -> %s " % i)
             if dbProxyClass is not None:
@@ -37,6 +38,7 @@ class DBProxyPool:
                 proxy = ConBridge()
             else:
                 proxy = DBProxy.DBProxy()
+                self.connList.append(proxy)
             iTry = 0    
             while True:
                 if proxy.connect(dbhost,dbpasswd,dbtimeout=60):
@@ -48,26 +50,12 @@ class DBProxyPool:
             time.sleep(1)
         # get PID    
         self.pid = os.getpid()    
-        _logger.debug("ready")            
+        _logger.debug("ready")
 
     # return a free proxy. this method blocks until a proxy is available
     def getProxy(self):
-        """
-        # get caller
-        caller = inspect.stack()[1][3]
-        _logger.debug("PID=%s %s getting proxy used by %s" % (self.pid,caller,str(self.callers)))
-        """
         # get proxy
         proxy = self.proxyList.get()
-        """
-        # lock
-        self.lock.acquire()
-        # append
-        self.callers.append(caller)
-        # release    
-        self.lock.release()                            
-        _logger.debug("PID=%s %s got proxy used by %s" % (self.pid,caller,str(self.callers)))
-        """
         # wake up connection
         proxy.wakeUp()
         # return
@@ -75,18 +63,10 @@ class DBProxyPool:
 
     # put back a proxy
     def putProxy(self,proxy):
-        """
-        # get caller
-        caller = inspect.stack()[1][3]
-        _logger.debug("PID=%s %s releasing. used by %s" % (self.pid,caller,str(self.callers)))
-        """
         self.proxyList.put(proxy)
-        """
-        # lock
-        self.lock.acquire()
-        # append
-        self.callers.remove(caller)
-        # release    
-        self.lock.release()                            
-        _logger.debug("PID=%s %s released. used by %s" % (self.pid,caller,str(self.callers)))
-        """
+
+    # cleanup
+    def cleanup(self):
+        _logger.debug("cleanup start")
+        [c.cleanup() for c in self.connList]
+        _logger.debug("cleanup done")

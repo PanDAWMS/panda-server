@@ -74,6 +74,7 @@ class ConBridge (object):
         self.isMaster  = False
         self.mysock    = None
         self.consock   = None
+        self.proxy = None
         self.pid       = os.getpid()
         # timeout
         if hasattr(panda_config,'dbtimeout'):
@@ -295,8 +296,12 @@ class ConBridge (object):
     # termination of child
     def bridge_childExit(self,exitCode=1):
         if not self.isMaster:
-            _logger.debug("child  %s closing sockets" % self.pid)
+            # close database connection
+            _logger.debug("child  %s closing database connection" % self.pid)
+            if self.proxy:
+                self.proxy.cleanup()
             # close sockets
+            _logger.debug("child  %s closing sockets" % self.pid)
             try:
                 self.mysock.shutdown(socket.SHUT_RDWR)
             except Exception:
