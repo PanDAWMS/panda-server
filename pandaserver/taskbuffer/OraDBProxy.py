@@ -121,10 +121,10 @@ class DBProxy:
         self.beyondPledgeRatio = {}
         # update time for pledge resource ratio
         self.updateTimeForPledgeRatio = None
-        # fareshare policy
-        self.faresharePolicy = {}
-        # update time for fareshare policy
-        self.updateTimeForFaresharePolicy = None
+        # fairshare policy
+        self.fairsharePolicy = {}
+        # update time for fairshare policy
+        self.updateTimeForFairsharePolicy = None
         # hostname
         self.myHostName = socket.getfqdn()
         self.backend = panda_config.backend
@@ -2002,7 +2002,8 @@ class DBProxy:
                     self.updateUnmergedJobs(job)
                 # overwrite job status
                 tmpJobStatus = job.jobStatus
-                sqlPRE = "SELECT pledgedCPU FROM ATLAS_PANDAMETA.schedconfig WHERE siteID=:siteID "
+                sqlPRE = "SELECT /* use_json_type */ scj.data.pledgedcpu FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:siteID "
+
                 sqlOJS = "UPDATE ATLAS_PANDA.jobsArchived4 SET jobStatus=:jobStatus,jobSubStatus=:jobSubStatus WHERE PandaID=:PandaID "
                 if oldJobSubStatus in ['pilot_failed', 'es_heartbeat'] or \
                         oldJobSubStatus == 'pilot_killed' and job.jobSubStatus in ['es_noevent', 'es_inaction']:
@@ -2010,7 +2011,7 @@ class DBProxy:
                     isPreemptable = False
                     varMap = {}
                     varMap[':siteID'] = job.computingSite
-                    self.cur.execute(sqlPRE+comment,varMap)
+                    self.cur.execute(sqlPRE+comment, varMap)
                     resPRE = self.cur.fetchone()
                     if resPRE is not None:
                         try:
@@ -3075,7 +3076,7 @@ class DBProxy:
                                     varMap = {}
                                     varMap[':siteID'] = tmpLongSite
                                     varMap[':status'] = 'online'
-                                    sqlSite = "SELECT COUNT(*) FROM ATLAS_PANDAMETA.schedconfig WHERE siteID=:siteID AND status=:status"
+                                    sqlSite = "SELECT /* use_json_type */ COUNT(*) FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:siteID AND scj.data.status=:status"
                                     self.cur.execute(sqlSite+comment, varMap)
                                     resSite = self.cur.fetchone()
                                     if resSite is not None and resSite[0] > 0:
@@ -9209,33 +9210,35 @@ class DBProxy:
         _logger.debug("getJobStatisticsForExtIF()")
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
         if sourcetype == 'analysis':
-            sql0 = "SELECT jobStatus,COUNT(*),cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) GROUP BY jobStatus,cloud"
-            sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),tabS.cloud FROM %s tab,ATLAS_PANDAMETA.schedconfig tabS "
-            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.computingSite=tabS.siteid "
+            sql0 = "SELECT jobStatus,COUNT(*), cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1, :prodSourceLabel2) GROUP BY jobStatus, cloud"
+
+            sqlA  = "SELECT /* use_json_type */ /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
+            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.computingSite=tabS.panda_queue "
         else:
-            sql0  = "SELECT tab.jobStatus,COUNT(*),tabS.cloud FROM %s tab,ATLAS_PANDAMETA.schedconfig tabS "
+            sql0  = "SELECT /* use_json_type */ tab.jobStatus, COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
             sql0 += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
             for tmpLabel in JobUtils.list_ptest_prod_sources:
                 tmpKey = ':prodSourceLabel_{0}'.format(tmpLabel)
                 sql0 += tmpKey
                 sql0 += ','
             sql0 = sql0[:-1]
-            sql0 += ") AND tab.computingSite=tabS.siteid GROUP BY tab.jobStatus,tabS.cloud"
-            sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),tabS.cloud FROM %s tab,ATLAS_PANDAMETA.schedconfig tabS "
+            sql0 += ") AND tab.computingSite=tabS.panda_queue GROUP BY tab.jobStatus, tabS.data.cloud"
+            sqlA  = "SELECT /* use_json_type */ /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus, COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
             sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
             for tmpLabel in JobUtils.list_ptest_prod_sources:
                 tmpKey = ':prodSourceLabel_{0}'.format(tmpLabel)
                 sqlA += tmpKey
                 sqlA += ','
             sqlA = sqlA[:-1]
-            sqlA += ") AND tab.computingSite=tabS.siteid "
-        sqlA+= "AND modificationTime>:modificationTime GROUP BY tab.jobStatus,tabS.cloud"
+            sqlA += ") AND tab.computingSite=tabS.panda_queue "
+        sqlA+= "AND modificationTime>:modificationTime GROUP BY tab.jobStatus,tabS.data.cloud"
         # sql for materialized view
-        sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sql0)
-        sqlMV = re.sub('SELECT ','SELECT /*+ RESULT_CACHE */ ',sqlMV)
+        sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)', sql0)
+        sqlMV = re.sub('SELECT ','SELECT /*+ RESULT_CACHE */ ', sqlMV)
         ret = {}
         try:
-            for table in ('ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsArchived4','ATLAS_PANDA.jobsDefined4'):
+            for table in ('ATLAS_PANDA.jobsActive4', 'ATLAS_PANDA.jobsWaiting4',
+                          'ATLAS_PANDA.jobsArchived4', 'ATLAS_PANDA.jobsDefined4'):
                 # start transaction
                 self.conn.begin()
                 # select
@@ -9287,18 +9290,19 @@ class DBProxy:
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
         _logger.debug("getJobStatisticsPerProcessingType()")
         if useMorePG is False:
-            sqlN  = "SELECT jobStatus,COUNT(*),tabS.cloud,processingType "
-            sqlN += "FROM %s tab, ATLAS_PANDAMETA.schedconfig tabS "
+            sqlN  = "SELECT /* use_json_type */ jobStatus, COUNT(*), tabS.data.cloud, processingType "
+            sqlN += "FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
             sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
             for tmpLabel in JobUtils.list_ptest_prod_sources:
                 tmpKey = ':prodSourceLabel_{0}'.format(tmpLabel)
                 sqlN += tmpKey
                 sqlN += ','
             sqlN = sqlN[:-1]
-            sqlN += ") AND computingSite=tabS.siteid "
-            sqlN += "GROUP BY jobStatus,tabS.cloud,processingType "
-            sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*),tabS.cloud,processingType "
-            sqlA += "FROM %s tab,ATLAS_PANDAMETA.schedconfig tabS "
+            sqlN += ") AND computingSite=tabS.panda_queue "
+            sqlN += "GROUP BY jobStatus,tabS.data.cloud,processingType "
+
+            sqlA  = "SELECT /* use_json_type */ /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus, COUNT(*), tabS.data.cloud, processingType "
+            sqlA += "FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
             sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
             for tmpLabel in JobUtils.list_ptest_prod_sources:
                 tmpKey = ':prodSourceLabel_{0}'.format(tmpLabel)
@@ -9306,10 +9310,11 @@ class DBProxy:
                 sqlA += ','
             sqlA = sqlA[:-1]
             sqlA += ") AND modificationTime>:modificationTime "
-            sqlA += "AND computingSite=tabS.siteid "
-            sqlA += "GROUP BY jobStatus,tabS.cloud,processingType"
+            sqlA += "AND computingSite=tabS.panda_queue "
+            sqlA += "GROUP BY jobStatus,tabS.data.cloud,processingType"
+        
         else:
-            sqlN  = "SELECT jobStatus,COUNT(*),cloud,processingType,coreCount,workingGroup FROM %s "
+            sqlN  = "SELECT jobStatus,COUNT(*), cloud, processingType, coreCount, workingGroup FROM %s "
             sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
             for tmpLabel in JobUtils.list_ptest_prod_sources:
                 tmpKey = ':prodSourceLabel_{0}'.format(tmpLabel)
@@ -9317,9 +9322,10 @@ class DBProxy:
                 sqlN += ','
             sqlN = sqlN[:-1]
             sqlN += ") "
-            sqlN += "GROUP BY jobStatus,cloud,processingType,coreCount,workingGroup"
+            sqlN += "GROUP BY jobStatus, cloud, processingType, coreCount, workingGroup"
+            
             sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ "
-            sqlA += "jobStatus,COUNT(*),cloud,processingType,coreCount,workingGroup FROM %s tab "
+            sqlA += "jobStatus, COUNT(*), cloud, processingType, coreCount, workingGroup FROM %s tab "
             sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
             for tmpLabel in JobUtils.list_ptest_prod_sources:
                 tmpKey = ':prodSourceLabel_{0}'.format(tmpLabel)
@@ -9327,13 +9333,15 @@ class DBProxy:
                 sqlA += ','
             sqlA = sqlA[:-1]
             sqlA += ") AND modificationTime>:modificationTime "
-            sqlA += "GROUP BY jobStatus,cloud,processingType,coreCount,workingGroup"
+            sqlA += "GROUP BY jobStatus, cloud, processingType, coreCount, workingGroup"
+        
         # sql for materialized view
         sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sqlN)
         sqlMV = re.sub('SELECT ','SELECT /*+ RESULT_CACHE */ ',sqlMV)
         ret = {}
         try:
-            for table in ('ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsWaiting4','ATLAS_PANDA.jobsArchived4','ATLAS_PANDA.jobsDefined4'):
+            for table in ('ATLAS_PANDA.jobsActive4', 'ATLAS_PANDA.jobsWaiting4',
+                          'ATLAS_PANDA.jobsArchived4', 'ATLAS_PANDA.jobsDefined4'):
                 # start transaction
                 self.conn.begin()
                 # select
@@ -9970,41 +9978,6 @@ class DBProxy:
             _logger.error("getnRunningInSiteData : %s %s" % (type,value))
             return {}
 
-
-    # get list of site
-    def getSiteList(self):
-        _logger.debug("getSiteList start")
-        try:
-            # set autocommit on
-            self.conn.begin()
-            # select
-            sql = "SELECT siteid,nickname FROM ATLAS_PANDAMETA.schedconfig WHERE siteid IS NOT NULL"
-            self.cur.arraysize = 10000
-            self.cur.execute(sql)
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError('Commit error')
-            retMap = {}
-            if res is not None and len(res) != 0:
-                for siteid,nickname in res:
-                    # skip invalid siteid
-                    if siteid in [None,'']:
-                        continue
-                    # append
-                    if siteid not in retMap:
-                        retMap[siteid] = []
-                    retMap[siteid].append(nickname)
-            _logger.debug("getSiteList done")
-            return retMap
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error("getSiteList : %s %s" % (type,value))
-            # roll back
-            self._rollback()
-            return {}
-
-
     # get site info
     def getSiteInfo(self):
         comment = ' /* DBProxy.getSiteInfo */'
@@ -10029,7 +10002,7 @@ class DBProxy:
 
             # sql to get site spec
             sql = """
-                   SELECT panda_queue, data, b.site_name, c.role
+                   SELECT /* use_json_type */ panda_queue, data, b.site_name, c.role
                    FROM (ATLAS_PANDA.schedconfig_json a
                    LEFT JOIN ATLAS_PANDA.panda_site b ON a.panda_queue = b.panda_site_name)
                    LEFT JOIN ATLAS_PANDA.site c ON b.site_name = c.site_name
@@ -10585,84 +10558,25 @@ class DBProxy:
             self._rollback()
             return ret_empty
 
-    # get beyond pledge resource ratio
-    def getPledgeResourceRatio(self):
-        comment = ' /* DBProxy.getPledgeResourceRatio */'
-        # check utime
-        if self.updateTimeForPledgeRatio is not None and (datetime.datetime.utcnow()-self.updateTimeForPledgeRatio) < datetime.timedelta(hours=3):
-            return
-        # update utime
-        self.updateTimeForPledgeRatio = datetime.datetime.utcnow()
-        _logger.debug("getPledgeResourceRatio")
-        try:
-            # set autocommit on
-            self.conn.begin()
-            # select
-            sql  = "SELECT siteid,countryGroup,availableCPU,availableStorage,pledgedCPU,pledgedStorage "
-            if self.backend == 'oracle':
-                sql += "FROM ATLAS_PANDAMETA.schedconfig WHERE countryGroup IS NOT NULL AND siteid LIKE 'ANALY_%' "
-            else:
-                sql += "FROM ATLAS_PANDAMETA.schedconfig WHERE countryGroup IS NOT NULL AND siteid LIKE 'ANALY_%%' "
-            self.cur.arraysize = 100000
-            self.cur.execute(sql+comment)
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError('Commit error')
-            # update ratio
-            self.beyondPledgeRatio = {}
-            if res is not None and len(res) != 0:
-                for siteid,countryGroup,tmp_availableCPU,tmp_availableStorage,tmp_pledgedCPU,tmp_pledgedStorage in res:
-                    # ignore when countryGroup is undefined
-                    if countryGroup in ['',None]:
-                        continue
-                    # append
-                    self.beyondPledgeRatio[siteid] = {}
-                    self.beyondPledgeRatio[siteid]['countryGroup'] = countryGroup
-                    # convert to float
-                    try:
-                        availableCPU = float(tmp_availableCPU)
-                    except Exception:
-                        availableCPU = 0
-                    try:
-                        pledgedCPU = float(tmp_pledgedCPU)
-                    except Exception:
-                        pledgedCPU = 0
-                    # calculate ratio
-                    if availableCPU == 0 or pledgedCPU == 0:
-                        # set 0% when CPU ratio is undefined
-                        self.beyondPledgeRatio[siteid]['ratio'] = 0
-                    else:
-                        # ratio = (availableCPU-pledgedCPU)/availableCPU*(1-storageTerm)
-                        self.beyondPledgeRatio[siteid]['ratio'] = (availableCPU-pledgedCPU)/availableCPU
-            _logger.debug("getPledgeResourceRatio -> %s" % str(self.beyondPledgeRatio))
-            return
-        except Exception:
-            errtype,errvalue = sys.exc_info()[:2]
-            _logger.error("getPledgeResourceRatio : %s %s" % (errtype,errvalue))
-            # roll back
-            self._rollback()
-            return
 
-
-    # get fareshare policy
-    def getFaresharePolicy(self,getNewMap=False):
-        comment = ' /* DBProxy.getFaresharePolicy */'
+    # get fairshare policy
+    def getFairsharePolicy(self, getNewMap=False):
+        comment = ' /* DBProxy.getFairsharePolicy */'
         # check utime
-        if not getNewMap and self.updateTimeForFaresharePolicy is not None and \
-               (datetime.datetime.utcnow()-self.updateTimeForFaresharePolicy) < datetime.timedelta(minutes=15):
+        if not getNewMap and self.updateTimeForFairsharePolicy is not None and \
+               (datetime.datetime.utcnow()-self.updateTimeForFairsharePolicy) < datetime.timedelta(minutes=15):
             return
         if not getNewMap:
             # update utime
-            self.updateTimeForFaresharePolicy = datetime.datetime.utcnow()
-        _logger.debug("getFaresharePolicy")
+            self.updateTimeForFairsharePolicy = datetime.datetime.utcnow()
+        _logger.debug("getFairsharePolicy")
         try:
             # set autocommit on
             self.conn.begin()
             # get default share
             cloudShareMap = {}
             cloudTier1Map = {}
-            sqlD = "SELECT name,fairshare,tier1 FROM ATLAS_PANDAMETA.cloudconfig"
+            sqlD = "SELECT name, fairshare, tier1 FROM ATLAS_PANDAMETA.cloudconfig"
             self.cur.arraysize = 100000
             self.cur.execute(sqlD+comment)
             res = self.cur.fetchall()
@@ -10674,31 +10588,34 @@ class DBProxy:
                 if cloudShare not in ['',None]:
                     cloudShareMap[cloudName] = cloudShare
             # get share per site
-            sql  = "SELECT siteid,fairsharePolicy,cloud "
-            sql += "FROM ATLAS_PANDAMETA.schedconfig WHERE NOT siteid LIKE 'ANALY_%' GROUP BY siteid,fairsharePolicy,cloud"
+            sql  = "SELECT /* use_json_type */ scj.panda_queue, scj.data.fairsharepolicy, scj.data.cloud "
+            sql += "FROM ATLAS_PANDA.schedconfig_json scj "
+            sql += "WHERE scj.data.type != 'analysis' "
+            sql += "GROUP BY scj.panda_queue, scj.data.fairsharepolicy, scj.data.cloud"
+
             self.cur.execute(sql+comment)
             res = self.cur.fetchall()
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
             # update policy
-            faresharePolicy = {}
-            for siteid,faresharePolicyStr,cloudName in res:
+            fairsharePolicy = {}
+            for siteid, fairsharePolicyStr, cloudName in res:
                 try:
                     # consolidate to WORLD
                     cloudName = 'WORLD'
                     # share is undefined
                     usingCloudShare = ''
-                    if faresharePolicyStr in ['',None,' None']:
+                    if fairsharePolicyStr in ['', None, ' None']:
                         # skip if share is not defined at site or cloud
                         if cloudName not in cloudShareMap:
                             continue
                         # use cloud share
-                        faresharePolicyStr = cloudShareMap[cloudName]
+                        fairsharePolicyStr = cloudShareMap[cloudName]
                         usingCloudShare = cloudName
                     # decompose
                     hasNonPrioPolicy = False
-                    for tmpItem in faresharePolicyStr.split(','):
+                    for tmpItem in fairsharePolicyStr.split(','):
                         # skip empty
                         tmpItem = tmpItem.strip()
                         if tmpItem == '':
@@ -10747,9 +10664,9 @@ class DBProxy:
                         # share
                         tmpPolicy['share'] = tmpItem.split(':')[-1]
                         # append
-                        if siteid not in faresharePolicy:
-                            faresharePolicy[siteid] = {'policyList':[]}
-                        faresharePolicy[siteid]['policyList'].append(tmpPolicy)
+                        if siteid not in fairsharePolicy:
+                            fairsharePolicy[siteid] = {'policyList':[]}
+                        fairsharePolicy[siteid]['policyList'].append(tmpPolicy)
                     # add any:any if only priority policies
                     if not hasNonPrioPolicy:
                         tmpPolicy = {'name'          : 'type=any',
@@ -10759,69 +10676,69 @@ class DBProxy:
                                      'priority'      : None,
                                      'prioCondition' : None,
                                      'share'         : '100%'}
-                        faresharePolicy[siteid]['policyList'].append(tmpPolicy)
+                        fairsharePolicy[siteid]['policyList'].append(tmpPolicy)
                     # some translation
-                    faresharePolicy[siteid]['usingGroup'] = False
-                    faresharePolicy[siteid]['usingType']  = False
-                    faresharePolicy[siteid]['usingID']    = False
-                    faresharePolicy[siteid]['usingPrio']  = False
-                    faresharePolicy[siteid]['usingCloud'] = usingCloudShare
-                    faresharePolicy[siteid]['groupList']  = []
-                    faresharePolicy[siteid]['typeList']   = {}
-                    faresharePolicy[siteid]['idList']     = []
-                    faresharePolicy[siteid]['groupListWithPrio']  = []
-                    faresharePolicy[siteid]['typeListWithPrio']   = {}
-                    faresharePolicy[siteid]['idListWithPrio']     = []
-                    for tmpDefItem in faresharePolicy[siteid]['policyList']:
+                    fairsharePolicy[siteid]['usingGroup'] = False
+                    fairsharePolicy[siteid]['usingType']  = False
+                    fairsharePolicy[siteid]['usingID']    = False
+                    fairsharePolicy[siteid]['usingPrio']  = False
+                    fairsharePolicy[siteid]['usingCloud'] = usingCloudShare
+                    fairsharePolicy[siteid]['groupList']  = []
+                    fairsharePolicy[siteid]['typeList']   = {}
+                    fairsharePolicy[siteid]['idList']     = []
+                    fairsharePolicy[siteid]['groupListWithPrio']  = []
+                    fairsharePolicy[siteid]['typeListWithPrio']   = {}
+                    fairsharePolicy[siteid]['idListWithPrio']     = []
+                    for tmpDefItem in fairsharePolicy[siteid]['policyList']:
                         # using WG
                         if tmpDefItem['group'] is not None:
-                            faresharePolicy[siteid]['usingGroup'] = True
+                            fairsharePolicy[siteid]['usingGroup'] = True
                         # using PG
                         if tmpDefItem['type'] is not None:
-                            faresharePolicy[siteid]['usingType'] = True
+                            fairsharePolicy[siteid]['usingType'] = True
                         # using workqueue_ID
                         if tmpDefItem['id'] is not None:
-                            faresharePolicy[siteid]['usingID'] = True
+                            fairsharePolicy[siteid]['usingID'] = True
                         # using prio
                         if tmpDefItem['priority'] is not None:
-                            faresharePolicy[siteid]['usingPrio'] = True
+                            fairsharePolicy[siteid]['usingPrio'] = True
                         # get list of WG and PG with/without priority
                         if tmpDefItem['priority'] is None:
                             # get list of woringGroups
-                            if tmpDefItem['group'] is not None and not tmpDefItem['group'] in faresharePolicy[siteid]['groupList']:
-                                faresharePolicy[siteid]['groupList'].append(tmpDefItem['group'])
+                            if tmpDefItem['group'] is not None and not tmpDefItem['group'] in fairsharePolicy[siteid]['groupList']:
+                                fairsharePolicy[siteid]['groupList'].append(tmpDefItem['group'])
                             # get list of processingGroups
-                            if tmpDefItem['group'] not in faresharePolicy[siteid]['typeList']:
-                                faresharePolicy[siteid]['typeList'][tmpDefItem['group']] = []
-                            if tmpDefItem['type'] is not None and not tmpDefItem['type'] in faresharePolicy[siteid]['typeList'][tmpDefItem['group']]:
-                                faresharePolicy[siteid]['typeList'][tmpDefItem['group']].append(tmpDefItem['type'])
+                            if tmpDefItem['group'] not in fairsharePolicy[siteid]['typeList']:
+                                fairsharePolicy[siteid]['typeList'][tmpDefItem['group']] = []
+                            if tmpDefItem['type'] is not None and not tmpDefItem['type'] in fairsharePolicy[siteid]['typeList'][tmpDefItem['group']]:
+                                fairsharePolicy[siteid]['typeList'][tmpDefItem['group']].append(tmpDefItem['type'])
                             # get list of workqueue_ids
-                            if tmpDefItem['id'] is not None and not tmpDefItem['id'] in faresharePolicy[siteid]['idList']:
-                                faresharePolicy[siteid]['idList'].append(tmpDefItem['id'])
+                            if tmpDefItem['id'] is not None and not tmpDefItem['id'] in fairsharePolicy[siteid]['idList']:
+                                fairsharePolicy[siteid]['idList'].append(tmpDefItem['id'])
                         else:
                             # get list of woringGroups
-                            if tmpDefItem['group'] is not None and not tmpDefItem['group'] in faresharePolicy[siteid]['groupListWithPrio']:
-                                faresharePolicy[siteid]['groupListWithPrio'].append(tmpDefItem['group'])
+                            if tmpDefItem['group'] is not None and not tmpDefItem['group'] in fairsharePolicy[siteid]['groupListWithPrio']:
+                                fairsharePolicy[siteid]['groupListWithPrio'].append(tmpDefItem['group'])
                             # get list of processingGroups
-                            if tmpDefItem['group'] not in faresharePolicy[siteid]['typeListWithPrio']:
-                                faresharePolicy[siteid]['typeListWithPrio'][tmpDefItem['group']] = []
-                            if tmpDefItem['type'] is not None and not tmpDefItem['type'] in faresharePolicy[siteid]['typeListWithPrio'][tmpDefItem['group']]:
-                                faresharePolicy[siteid]['typeListWithPrio'][tmpDefItem['group']].append(tmpDefItem['type'])
+                            if tmpDefItem['group'] not in fairsharePolicy[siteid]['typeListWithPrio']:
+                                fairsharePolicy[siteid]['typeListWithPrio'][tmpDefItem['group']] = []
+                            if tmpDefItem['type'] is not None and not tmpDefItem['type'] in fairsharePolicy[siteid]['typeListWithPrio'][tmpDefItem['group']]:
+                                fairsharePolicy[siteid]['typeListWithPrio'][tmpDefItem['group']].append(tmpDefItem['type'])
                             # get list of workqueue_ids
-                            if tmpDefItem['id'] is not None and not tmpDefItem['id'] in faresharePolicy[siteid]['idListWithPrio']:
-                                faresharePolicy[siteid]['idListWithPrio'].append(tmpDefItem['id'])
+                            if tmpDefItem['id'] is not None and not tmpDefItem['id'] in fairsharePolicy[siteid]['idListWithPrio']:
+                                fairsharePolicy[siteid]['idListWithPrio'].append(tmpDefItem['id'])
                 except Exception:
                     errtype,errvalue = sys.exc_info()[:2]
-                    _logger.warning("getFaresharePolicy : wrong definition '%s' for %s : %s %s" % (faresharePolicy, siteid, errtype, errvalue))
-            _logger.debug("getFaresharePolicy -> %s" % str(faresharePolicy))
+                    _logger.warning("getFairsharePolicy : wrong definition '%s' for %s : %s %s" % (fairsharePolicy, siteid, errtype, errvalue))
+            _logger.debug("getFairsharePolicy -> %s" % str(fairsharePolicy))
             if not getNewMap:
-                self.faresharePolicy = faresharePolicy
+                self.fairsharePolicy = fairsharePolicy
                 return
             else:
-                return faresharePolicy
+                return fairsharePolicy
         except Exception:
             errtype,errvalue = sys.exc_info()[:2]
-            _logger.error("getFaresharePolicy : %s %s" % (errtype,errvalue))
+            _logger.error("getFairsharePolicy : %s %s" % (errtype,errvalue))
             # roll back
             self._rollback()
             if not getNewMap:
@@ -11142,7 +11059,7 @@ class DBProxy:
             # set autocommit on
             self.conn.begin()
             # select
-            sql  = "SELECT pilotowners FROM ATLAS_PANDAMETA.cloudconfig "
+            sql = "SELECT pilotowners FROM ATLAS_PANDAMETA.cloudconfig "
             self.cur.arraysize = 10000
             self.cur.execute(sql+comment)
             resList = self.cur.fetchall()
@@ -11151,7 +11068,8 @@ class DBProxy:
                     for tmpOwner in tmpItem.split('|'):
                         if tmpOwner != '':
                             ret[None].add(tmpOwner)
-            sql  = "SELECT siteid,dn FROM ATLAS_PANDAMETA.schedconfig WHERE dn IS NOT NULL "
+
+            sql = "SELECT /* use_json_type */ scj.data.siteid, scj.data.dn FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.data.dn IS NOT NULL "
             self.cur.execute(sql+comment)
             resList = self.cur.fetchall()
             for tmpSiteID,tmpItem in resList:
@@ -11175,7 +11093,7 @@ class DBProxy:
             return ret
 
 
-    # get special dipatcher parameters
+    # get special dispatcher parameters
     def getSpecialDispatchParams(self):
         comment = ' /* DBProxy.getSpecialDispatchParams */'
         methodName = comment.split(' ')[-2].split('.')[-1]
@@ -11184,72 +11102,15 @@ class DBProxy:
             retMap = {}
             # set autocommit on
             self.conn.begin()
-            # select for glexec
-            sql  = "SELECT DISTINCT siteID,glexec FROM ATLAS_PANDAMETA.schedconfig WHERE glexec IN (:stat1,:stat2) "
-            varMap = {}
-            varMap[':stat1'] = 'True'
-            varMap[':stat2'] = 'test'
-            self.cur.arraysize = 10000
-            self.cur.execute(sql+comment,varMap)
-            resList = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError('Commit error')
-            tmpRet = {}
-            for siteID,glexec in resList:
-                tmpRet[siteID] = glexec
-            retMap['glexecSites'] = tmpRet
-            _logger.debug("{0} got {1} glexec sites".format(methodName,len(retMap['glexecSites'])))
-            # set autocommit on
-            self.conn.begin()
-            # select for proxy cache and panda proxy
-            sql = "SELECT DISTINCT siteID,catchAll FROM ATLAS_PANDAMETA.schedconfig WHERE catchAll IS NOT NULL "
-            varMap = {}
-            self.cur.arraysize = 10000
-            self.cur.execute(sql+comment,varMap)
-            resList = self.cur.fetchall()
-            tmpRet = {}
-            tmpPandaProxy = set()
-            # FIXME
-            tmpPandaProxy.add('AGLT2_SL6')
-            tmpPandaProxy.add('CERN-P1_preprod_MCORE')
-            sql = "SELECT dn FROM ATLAS_PANDAMETA.users WHERE name=:name "
-            for siteID,catchAll in resList:
-                try:
-                    if 'PandaProxy' in catchAll.split(','):
-                        tmpPandaProxy.add(siteID)
-                except Exception:
-                    pass
-                # extract username
-                tmpMatch = re.search('proxyCache=([^,]+)',catchAll)
-                if tmpMatch is not None:
-                    userName,role = tmpMatch.group(1).split(':')
-                    # get DN
-                    varMap = {}
-                    varMap[':name'] = userName
-                    self.cur.execute(sql+comment,varMap)
-                    res = self.cur.fetchone()
-                    if res is not None:
-                        userDN, = res
-                        userDN = CoreUtils.get_bare_dn(userDN)
-                        tmpRet[siteID] = {'dn':userDN,'role':role}
-            retMap['proxyCacheSites'] = tmpRet
-            _logger.debug("{0} got {1} proxyCache sites".format(methodName,len(retMap['proxyCacheSites'])))
-            retMap['pandaProxySites'] = tmpPandaProxy
-            _logger.debug("{0} got {1} pandaProxy sites".format(methodName,len(retMap['pandaProxySites'])))
-            # commit
-            if not self._commit():
-                raise RuntimeError('Commit error')
-            # set autocommit on
-            self.conn.begin()
             # select to get the list of authorized users
             allowKey = []
             allowProxy = []
-            sql  = "SELECT DISTINCT name,gridpref FROM ATLAS_PANDAMETA.users WHERE (status IS NULL OR status<>:ngStatus) AND gridpref IS NOT NULL "
+            sql = "SELECT DISTINCT name, gridpref FROM ATLAS_PANDAMETA.users " \
+                  "WHERE (status IS NULL OR status<>:ngStatus) AND gridpref IS NOT NULL "
             varMap = {}
             varMap[':ngStatus'] = 'disabled'
             self.cur.arraysize = 100000
-            self.cur.execute(sql+comment,varMap)
+            self.cur.execute(sql+comment, varMap)
             resList = self.cur.fetchall()
             # commit
             if not self._commit():
@@ -11289,36 +11150,6 @@ class DBProxy:
             self.dumpErrorMessage(_logger,methodName)
             return {}
 
-
-    # get allowed nodes
-    def getAllowedNodes(self):
-        comment = ' /* DBProxy.getAllowedNodes */'
-        _logger.debug("getAllowedNodes")
-        try:
-            # set autocommit on
-            self.conn.begin()
-            # select
-            sql  = "SELECT siteid,allowedNode FROM ATLAS_PANDAMETA.schedconfig "
-            sql += "WHERE siteid IS NOT NULL AND allowedNode IS NOT NULL"
-            self.cur.arraysize = 1000
-            self.cur.execute(sql+comment)
-            resList = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError('Commit error')
-            ret = {}
-            for tmpSiteID,tmpAllowedNode in resList:
-                if tmpSiteID not in ret:
-                    ret[tmpSiteID] = tmpAllowedNode.split(',')
-            _logger.debug("getAllowedNodes -> %s" % str(ret))
-            return ret
-        except Exception:
-            # roll back
-            self._rollback()
-            tmpType,tmpValue = sys.exc_info()[:2]
-            _logger.error("getAllowedNodes : %s %s" % (tmpType,tmpValue))
-            return {}
-
     # extract name from DN
     def cleanUserID(self, id):
         return CoreUtils.clean_user_id(id)
@@ -11346,7 +11177,7 @@ class DBProxy:
             self.conn.begin()
             # select
             name = self.cleanUserID(dn)
-            sql = "SELECT cpua1,cpua7,cpua30,quotaa1,quotaa7,quotaa30 FROM ATLAS_PANDAMETA.users WHERE name=:name"
+            sql = "SELECT cpua1, cpua7, cpua30, quotaa1, quotaa7, quotaa30 FROM ATLAS_PANDAMETA.users WHERE name=:name"
             varMap = {}
             varMap[':name'] = name
             self.cur.arraysize = 10
@@ -11392,7 +11223,6 @@ class DBProxy:
             # roll back
             self._rollback()
             return 0.0
-
 
 
     # check if super user
@@ -11972,7 +11802,7 @@ class DBProxy:
     # update site access
     def updateSiteAccess(self,method,siteid,requesterDN,userName,attrValue):
         comment = ' /* DBProxy.updateSiteAccess */'
-        _logger.debug("updateSiteAccess %s:%s:%s:%s:%s" % (method,siteid,requesterDN,userName,attrValue))
+        _logger.debug("updateSiteAccess %s:%s:%s:%s:%s" % (method, siteid, requesterDN, userName, attrValue))
         try:
             # set autocommit on
             self.conn.begin()
@@ -11993,7 +11823,7 @@ class DBProxy:
                 return 'No request for %s:%s' % (siteid,userName)
             # get cloud
             varMap = {':pandasite':siteid}
-            sql = 'SELECT cloud,dn FROM ATLAS_PANDAMETA.schedconfig WHERE siteid=:pandasite AND rownum<=1'
+            sql = 'SELECT /* use_json_type */ scj.data.cloud, scj.data.dn FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:pandasite AND rownum<=1'
             self.cur.execute(sql+comment,varMap)
             res = self.cur.fetchall()
             if res is None or len(res) == 0:
@@ -15919,14 +15749,19 @@ class DBProxy:
             closedInBadStatus = False
             if not doMerging:
                 minUnprocessed = self.getConfigValue('dbproxy', 'AES_MINEVENTSFORMCORE')
-                sqlCore = "SELECT coreCount,status,jobseed FROM ATLAS_PANDAMETA.schedconfig WHERE siteid=:siteid "
+                
+                sqlCore = "SELECT /* use_json_type */ scj.data.corecount, scj.data.status, scj.data.jobseed " \
+                          "FROM ATLAS_PANDA.schedconfig_json scj " \
+                          "WHERE scj.panda_queue=:siteid "
+
                 varMap = {}
                 varMap[':siteid'] = jobSpec.computingSite
                 self.cur.execute(sqlCore+comment, varMap)
                 resCore = self.cur.fetchone()
                 if resCore is not None:
-                    coreCount,tmpState,tmpJobSeed = resCore
+                    coreCount, tmpState, tmpJobSeed = resCore
                     if coreCount is not None:
+                        coreCount = int(coreCount)
                         if minUnprocessed is None:
                             minUnprocessed = coreCount
                         else:
@@ -16148,14 +15983,17 @@ class DBProxy:
         isMergeAtOS = EventServiceUtils.isMergeAtOS(jobSpec.specialHandling)
         # check where merge is done
         lookForMergeSite = True
-        sqlWM  = "SELECT catchAll,objectstores FROM ATLAS_PANDAMETA.schedconfig WHERE siteid=:siteid "
+        sqlWM  = "SELECT /* use_json_type */ scj.data.catchall, scj.data.objectstores " \
+                 "FROM ATLAS_PANDA.schedconfig_json scj " \
+                 "WHERE scj.panda_queue=:siteid "
+        
         varMap = {}
         varMap[':siteid'] = jobSpec.computingSite
         self.cur.execute(sqlWM+comment, varMap)
         resWM = self.cur.fetchone()
         resSN = []
         resSN_back = []
-        catchAll,objectstores = None,None
+        catchAll, objectstores = None, None
         if resWM is not None:
             catchAll,objectstores = resWM
         if catchAll is None:
@@ -16227,22 +16065,25 @@ class DBProxy:
             lookForMergeSite = False
         else:
             # get sites in the nucleus associated to the site to run merge jobs in the same nucleus
-            sqlSN  = "SELECT dr.panda_site_name,dr.ddm_endpoint_name "
-            sqlSN += "FROM ATLAS_PANDA.panda_site ps1,ATLAS_PANDA.panda_site ps2,ATLAS_PANDAMETA.schedconfig sc,ATLAS_PANDA.panda_ddm_relation dr "
-            sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.siteid=ps2.panda_site_name "
+            sqlSN  = "SELECT /* use_json_type */ dr.panda_site_name, dr.ddm_endpoint_name "
+            sqlSN += "FROM ATLAS_PANDA.panda_site ps1, ATLAS_PANDA.panda_site ps2, ATLAS_PANDA.schedconfig_json sc, ATLAS_PANDA.panda_ddm_relation dr "
+            sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.panda_queue=ps2.panda_site_name "
             sqlSN += "AND dr.panda_site_name=ps2.panda_site_name "
-            sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%' OR sc.capability=:capability) "
-            sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
-            sqlSN += "AND (sc.maxrss IS NULL OR sc.minrss=0) "
-            sqlSN += "AND (sc.jobseed IS NULL OR sc.jobseed<>'es') "
-            sqlSN += "AND NOT sc.siteid LIKE 'ANALY_%' "
+            sqlSN += "AND (sc.data.corecount IS NULL OR sc.data.corecount=1 OR sc.data.capability=:capability) "
+            sqlSN += "AND (sc.data.maxtime=0 OR sc.data.maxtime>=86400) "
+            sqlSN += "AND (sc.data.maxrss IS NULL OR sc.data.minrss=0) "
+            sqlSN += "AND (sc.data.jobseed IS NULL OR sc.data.jobseed<>'es') "
+            sqlSN += "AND sc.data.type != 'analysis' "
+            
             if 'localEsMerge' in catchAll and 'useBrokerOff' in catchAll:
-                sqlSN += "AND sc.status IN (:siteStatus1,:siteStatus2) "
+                sqlSN += "AND sc.data.status IN (:siteStatus1,:siteStatus2) "
             else:
-                sqlSN += "AND sc.status=:siteStatus "
+                sqlSN += "AND sc.data.status=:siteStatus "
+            
             sqlSN += "AND dr.default_write ='Y' "
-            sqlSN += "AND (scope = 'default' OR scope IS NULL) " # skip endpoints with analysis roles
-            sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity LIKE :wc1) "
+            sqlSN += "AND (scope = 'default' OR scope IS NULL) "  # skip endpoints with analysis roles
+            sqlSN += "AND (sc.data.wnconnectivity IS NULL OR sc.data.wnconnectivity LIKE :wc1) "
+            
             varMap = {}
             varMap[':site'] = jobSpec.computingSite
             if 'localEsMerge' in catchAll and 'useBrokerOff' in catchAll:
@@ -16281,19 +16122,20 @@ class DBProxy:
                     tmpNucleus = jobSpec.destinationSE.split(':')[-1]
                     _logger.info('{0} look for merge sites in destination nucleus:{1}'.format(methodName,tmpNucleus))
                 # get sites in a nucleus
-                sqlSN  = "SELECT dr.panda_site_name,dr.ddm_endpoint_name "
-                sqlSN += "FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDAMETA.schedconfig sc,ATLAS_PANDA.panda_ddm_relation dr "
-                sqlSN += "WHERE site_name=:nucleus AND sc.siteid=ps.panda_site_name "
+                sqlSN  = "SELECT /* use_json_type */ dr.panda_site_name, dr.ddm_endpoint_name "
+                sqlSN += "FROM ATLAS_PANDA.panda_site ps, ATLAS_PANDA.schedconfig_json sc, ATLAS_PANDA.panda_ddm_relation dr "
+                sqlSN += "WHERE site_name=:nucleus AND sc.panda_queue=ps.panda_site_name "
                 sqlSN += "AND dr.panda_site_name=ps.panda_site_name "
-                sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%' OR sc.capability=:capability) "
+                sqlSN += "AND (sc.data.corecount IS NULL OR sc.data.corecount=1 OR sc.data.capability=:capability) "
                 sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
                 sqlSN += "AND (sc.maxrss IS NULL OR sc.minrss=0) "
                 sqlSN += "AND (sc.jobseed IS NULL OR sc.jobseed<>'es') "
-                sqlSN += "AND NOT sc.siteid LIKE 'ANALY_%' "
-                sqlSN += "AND sc.status=:siteStatus "
+                sqlSN += "AND sc.data.type != 'analysis' "
+                sqlSN += "AND sc.data.status=:siteStatus "
                 sqlSN += "AND dr.default_write='Y' "
-                sqlSN += "AND (scope = 'default' OR scope IS NULL) "  # skip endpoints with analysis roles
-                sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity LIKE :wc1) "
+                sqlSN += "AND (dr.scope = 'default' OR dr.scope IS NULL) "  # skip endpoints with analysis roles
+                sqlSN += "AND (sc.data.wnconnectivity IS NULL OR sc.data.wnconnectivity LIKE :wc1) "
+                
                 varMap = {}
                 varMap[':nucleus'] = tmpNucleus
                 varMap[':siteStatus'] = 'online'
@@ -16302,37 +16144,43 @@ class DBProxy:
                 # get sites
                 self.cur.execute(sqlSN+comment,varMap)
                 resSN = self.cur.fetchall()
+        
         # last resort for jumbo
         resSN_all = []
         if lookForMergeSite and (isFakeCJ or 'useJumboJobs' in catchAll or len(resSN + resSN_back) == 0):
-            sqlSN  = "SELECT dr.panda_site_name,dr.ddm_endpoint_name "
-            sqlSN += "FROM ATLAS_PANDA.panda_site ps,ATLAS_PANDAMETA.schedconfig sc,ATLAS_PANDA.panda_ddm_relation dr "
-            sqlSN += "WHERE sc.siteid=ps.panda_site_name "
+            sqlSN  = "SELECT /* use_json_type */ dr.panda_site_name, dr.ddm_endpoint_name "
+            sqlSN += "FROM ATLAS_PANDA.panda_site ps, ATLAS_PANDA.schedconfig_json sc, ATLAS_PANDA.panda_ddm_relation dr "
+            sqlSN += "WHERE sc.panda_queue=ps.panda_site_name "
             sqlSN += "AND dr.panda_site_name=ps.panda_site_name "
-            sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%' OR sc.capability=:capability) "
-            sqlSN += "AND (sc.maxtime=0 OR sc.maxtime>=86400) "
-            sqlSN += "AND (sc.maxrss IS NULL OR sc.minrss=0) "
-            sqlSN += "AND (sc.jobseed IS NULL OR sc.jobseed<>'es') "
-            sqlSN += "AND NOT sc.siteid LIKE 'ANALY_%' "
-            sqlSN += "AND sc.status=:siteStatus "
+            sqlSN += "AND (sc.data.corecount IS NULL OR sc.data.corecount=1 OR sc.data.capability=:capability) "
+            sqlSN += "AND (sc.data.maxtime=0 OR sc.data.maxtime>=86400) "
+            sqlSN += "AND (sc.data.maxrss IS NULL OR sc.data.minrss=0) "
+            sqlSN += "AND (sc.data.jobseed IS NULL OR sc.data.jobseed<>'es') "
+            sqlSN += "AND sc.data.type != 'analysis' "
+            sqlSN += "AND sc.data.status=:siteStatus "
             sqlSN += "AND dr.default_write='Y' "
-            sqlSN += "AND (scope = 'default' OR scope IS NULL) " # skip endpoints with analysis roles
-            sqlSN += "AND (sc.wnconnectivity IS NULL OR sc.wnconnectivity LIKE :wc1) "
+            sqlSN += "AND (dr.scope = 'default' OR dr.scope IS NULL) " # skip endpoints with analysis roles
+            sqlSN += "AND (sc.data.wnconnectivity IS NULL OR sc.data.wnconnectivity LIKE :wc1) "
+            
             varMap = {}
             varMap[':siteStatus'] = 'online'
             varMap[':wc1'] = 'full%'
             varMap[':capability'] = 'ucore'
+            
             # get sites
             self.cur.execute(sqlSN+comment,varMap)
             resSN_all = self.cur.fetchall()
+        
         # look for a site for merging
         if lookForMergeSite:
             # compare number of pilot requests
             maxNumPilot = 0
             sqlUG  = "SELECT updateJob+getJob FROM ATLAS_PANDAMETA.sitedata "
             sqlUG += "WHERE site=:panda_site AND HOURS=:hours AND FLAG=:flag "
+            
             sqlRJ  = "SELECT SUM(num_of_jobs) FROM ATLAS_PANDA.MV_JOBSACTIVE4_STATS "
             sqlRJ += "WHERE computingSite=:panda_site AND jobStatus=:jobStatus "
+            
             newSiteName = None
             for resItem in [resSN, resSN_back, resSN_all]:
                 for tmp_panda_site_name,tmp_ddm_endpoint in resItem:
@@ -16379,17 +16227,20 @@ class DBProxy:
     # set score site to ES job
     def setScoreSiteToEs(self, jobSpec, methodName, comment):
         _logger.debug('{0} looking for SCORE site'.format(methodName))
+
         # get score PQ in the nucleus associated to the site to run the small ES job
-        sqlSN  = "SELECT ps2.panda_site_name "
-        sqlSN += "FROM ATLAS_PANDA.panda_site ps1,ATLAS_PANDA.panda_site ps2,ATLAS_PANDAMETA.schedconfig sc "
-        sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.siteid=ps2.panda_site_name "
-        sqlSN += "AND (sc.corecount IS NULL OR sc.corecount=1 OR sc.catchall LIKE '%unifiedPandaQueue%' OR sc.capability=:capability) "
-        sqlSN += "AND (sc.jobseed IS NULL OR sc.jobseed<>'std') "
-        sqlSN += "AND sc.status=:siteStatus "
+        sqlSN  = "SELECT /* use_json_type */ ps2.panda_site_name "
+        sqlSN += "FROM ATLAS_PANDA.panda_site ps1, ATLAS_PANDA.panda_site ps2, ATLAS_PANDA.schedconfig_json sc "
+        sqlSN += "WHERE ps1.panda_site_name=:site AND ps1.site_name=ps2.site_name AND sc.panda_queue=ps2.panda_site_name "
+        sqlSN += "AND (sc.data.corecount IS NULL OR sc.data.corecount=1 OR sc.data.capability=:capability) "
+        sqlSN += "AND (sc.data.jobseed IS NULL OR sc.data.jobseed<>'std') "
+        sqlSN += "AND sc.data.status=:siteStatus "
+
         varMap = {}
         varMap[':site'] = jobSpec.computingSite
         varMap[':siteStatus'] = 'online'
         varMap[':capability'] = 'ucore'
+
         # get sites
         self.cur.execute(sqlSN+comment,varMap)
         resSN = self.cur.fetchall()
@@ -18916,14 +18767,14 @@ class DBProxy:
         tmpLog.debug("start")
 
         #1. Get the site information from schedconfig
-        sql  = """
-        SELECT sc.maxtime, sc.corepower,
+        sql = """
+        SELECT /* use_json_type */ sc.data.maxtime, sc.data.corepower,
             CASE
-                WHEN sc.corecount IS NULL THEN 1
-                ELSE sc.corecount
+                WHEN sc.data.corecount IS NULL THEN 1
+                ELSE sc.data.corecount
             END as corecount
-        FROM ATLAS_PANDAMETA.schedconfig sc
-        WHERE siteid=:siteid
+        FROM ATLAS_PANDA.schedconfig_json sc
+        WHERE sc.panda_queue=:siteid
         """
         varMap={"siteid": siteid}
         self.cur.execute(sql+comment, varMap)
@@ -18937,6 +18788,8 @@ class DBProxy:
         if (not maxtime) or (not corepower) or (not corecount):
             tmpLog.debug("One or more site parameters are not defined for {0}... nothing to do".format(siteid))
             return None
+        else:
+            (maxtime, corepower, corecount) = (int(maxtime), float(corepower), int(corecount))
 
         #2. Get the task information
         sql = """
@@ -18961,7 +18814,7 @@ class DBProxy:
                      format(taskID, cputime, walltime, basewalltime, cpuefficiency, cputimeunit))
 
         #2. Get the file information
-        input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log','trn_output')
+        input_types = ('input', 'pseudo_input', 'pp_input', 'trn_log', 'trn_output')
         input_files = list(filter(lambda pandafile: pandafile.type in input_types
                                                and re.search('DBRelease', pandafile.lfn) is None, files))
         input_fileIDs = [input_file.fileID for input_file in input_files]
@@ -20423,32 +20276,22 @@ class DBProxy:
         methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger, methodName + " <siteid={}>".format(site_id))
         tmpLog.debug("start")
-        # sql to get site attributes
-        sqlS  = "SELECT corePower FROM ATLAS_PANDAMETA.schedconfig "
-        sqlS += "WHERE siteid=:siteid "
-        # sql to get site json attributes
-        sqlSJ  = "SELECT data FROM ATLAS_PANDA.schedconfig_json "
-        sqlSJ += "WHERE panda_queue=:siteid "
+        
+        sqlS = "SELECT /* use_json_type */ scj.data.corepower FROM ATLAS_PANDA.schedconfig_json scj "
+        sqlS += "WHERE panda_queue=:siteid "
+
+        varMap = {':siteid': site_id}
+
         try:
-            # read schedconfig
-            varMap = {}
-            varMap[':siteid'] = site_id
             self.cur.execute(sqlS + comment, varMap)
             resS = self.cur.fetchone()
             core_power = None
             if resS is not None:
                 core_power, = resS
-            # read schedconfig json
-            if core_power is None:
-                retS, resS = self.getClobObj(sqlSJ, varMap, use_commit=False)
-                if retS is None or not resS:
-                    msg = 'site={} not found'.format(site_id)
-                    tmpLog.debug(msg)
-                    return None, msg
-                data = json.loads(resS[0][0])
-                core_power = data['corepower']
+                core_power = float(core_power)
             tmpLog.debug('got {}'.format(core_power))
             return core_power, None
+        
         except Exception:
             # error
             self.dumpErrorMessage(_logger, methodName)
@@ -20942,16 +20785,15 @@ class DBProxy:
 
         return node
 
-    # get the rtype of a site
+    # get the resource type of a site
     def get_rtype_site(self, site):
         comment = ' /* DBProxy.get_rtype_site */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger,methodName+' <site={0} >'.format(site))
         tmpLog.debug('start')
         try:
-            # sql to update input file status
             var_map = {':site': site}
-            sql  = 'SELECT resource_type FROM ATLAS_PANDAMETA.schedconfig WHERE siteid=:site '
+            sql = 'SELECT /* use_json_type */ scj.data.resource_type FROM ATLAS_PANDA.schedconfig_json scj WHERE panda_queue=:site '
 
             # start transaction
             self.conn.begin()
@@ -22334,11 +22176,9 @@ class DBProxy:
         tmpLog.debug('start')
 
         ups_queues = []
-        # TODO: the pilot manager column is not available in schedconfig and something needs to be implemented
         sql = """
-              SELECT siteid FROM ATLAS_PANDAMETA.schedconfig
-              WHERE (catchall LIKE '%unifiedPandaQueue%' OR capability='ucore')
-              AND (catchall LIKE '%Pull%' OR workflow = 'pull_ups')
+              SELECT /* use_json_type */ scj.panda_queue FROM ATLAS_PANDA.schedconfig_json scj
+              WHERE scj.data.capability='ucore' AND scj.data.workflow = 'pull_ups'
               """
 
         self.cur.execute(sql + comment)
@@ -23706,7 +23546,7 @@ class DBProxy:
         tmpLog.debug("start")
         try:
             # sql to get workers
-            sqlC = "SELECT panda_queue FROM ATLAS_PANDA.schedconfig_json"
+            sqlC = "SELECT /* use_json_type */ panda_queue FROM ATLAS_PANDA.schedconfig_json"
             # start transaction
             self.conn.begin()
             self.cur.execute(sqlC + comment)
@@ -23853,7 +23693,7 @@ class DBProxy:
 
     def get_config_for_pq(self, pq_name):
         """
-        Get the AGIS json configuration for a particular queue
+        Get the CRIC json configuration for a particular queue
         """
 
         comment = ' /* DBProxy.get_config_for_pq */'

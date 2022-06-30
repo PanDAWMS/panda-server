@@ -437,7 +437,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 break
 
         # get statistics
-        faresharePolicy = {}
+        fairsharePolicy = {}
         newJobStatWithPrio = {}
         jobStatBrokerClouds = {}
         jobStatBrokerCloudsWithPrio = {}
@@ -457,7 +457,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             if not forAnalysis:
                 jobStatBroker = {}
                 jobStatBrokerClouds = taskBuffer.getJobStatisticsBrokerage()
-                faresharePolicy = taskBuffer.getFaresharePolicy()
+                fairsharePolicy = taskBuffer.getFairsharePolicy()
             else:
                 if minPriority is None:
                     jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage()
@@ -966,8 +966,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 # production share
                                 skipDueToShare = False
                                 try:
-                                    if not forAnalysis and prevSourceLabel in ['managed'] and site in faresharePolicy:
-                                        for tmpPolicy in faresharePolicy[site]['policyList']:
+                                    if not forAnalysis and prevSourceLabel in ['managed'] and site in fairsharePolicy:
+                                        for tmpPolicy in fairsharePolicy[site]['policyList']:
                                             # ignore priority policy
                                             if tmpPolicy['priority'] is not None:
                                                 continue
@@ -987,7 +987,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                                         continue
                                             else:
                                                 # catch all except WGs used by other policies
-                                                groupInDefList = faresharePolicy[site]['groupList']
+                                                groupInDefList = fairsharePolicy[site]['groupList']
                                                 usedByAnother = False
                                                 # loop over all groups
                                                 for groupInDefItem in groupInDefList:
@@ -1011,7 +1011,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                                     break
                                             else:
                                                 # catch all except PGs used by other policies
-                                                typeInDefList  = faresharePolicy[site]['typeList'][tmpPolicy['group']]
+                                                typeInDefList  = fairsharePolicy[site]['typeList'][tmpPolicy['group']]
                                                 usedByAnother = False
                                                 for typeInDefItem in typeInDefList:
                                                     if typeInDefItem == tmpProGroup:
