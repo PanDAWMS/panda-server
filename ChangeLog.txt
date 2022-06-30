@@ -1312,9 +1312,9 @@ Release Notes
   * fixed the bulk OK file lookup in the brokerge for multiple ddm endpoints
   * increased the number of PandaMover channels to 15
   * using DATADISK for MCP T1 input at CERN
-  * using a default fareshare defined per cloud if T2 doesn't define share
+  * using a default fairshare defined per cloud if T2 doesn't define share
   * added a protection against overwriting of dataset status by datasetMgr
-  * implemented a nested fareshare management mechanism
+  * implemented a nested fairshare management mechanism
   * fixed the brokerage message when release is missing for repro
   * fixed TA since replicas at T1 non DATADISK prevented T2 replicas from being used
   * using DATADISK for MCP T1 input at ND,ES,DE,NL,TW
