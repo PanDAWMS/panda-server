@@ -45,7 +45,9 @@ def conf_interval_upper(n, mean, stdev, cl=0.95):
     """
     Get estimated confidence level
     """
+    max_value = 999999
     ciu = stats.t.ppf(cl, (n-1), loc=mean, scale=stdev)
+    ciu = min(ciu, max_value)
     return ciu
 
 
@@ -164,12 +166,20 @@ class FetchData(object):
     def analy_pmerge_jobs_wait_time(self):
         tmp_log = logger_utils.make_logger(main_logger, 'FetchData')
         #sql
-        sql_get_jobs = (
+        sql_get_jobs_archived4 = (
             "SELECT pandaID, computingSite "
             "FROM ATLAS_PANDA.jobsArchived4 "
             "WHERE prodSourceLabel='user' "
                 "AND gshare='User Analysis' "
-                "AND jobStatus='finished' "
+                "AND processingType='pmerge' "
+                "AND modificationTime>:modificationTime "
+        )
+        sql_get_jobs_active4 = (
+            "SELECT pandaID, computingSite "
+            "FROM ATLAS_PANDA.jobsActive4 "
+            "WHERE prodSourceLabel='user' "
+                "AND gshare='User Analysis' "
+                "AND jobStatus IN ('running', 'holding', 'merging', 'transferring', 'finished', 'failed', 'closed', 'cancelled') "
                 "AND processingType='pmerge' "
                 "AND modificationTime>:modificationTime "
         )
@@ -178,6 +188,16 @@ class FetchData(object):
             "FROM ATLAS_PANDA.jobs_StatusLog "
             "WHERE pandaID=:pandaID "
             "GROUP BY jobStatus "
+        )
+        sql_get_long_queuing_job_wait_time = (
+            "SELECT COUNT(*), AVG(CURRENT_DATE-creationtime) "
+            "FROM ATLAS_PANDA.jobsActive4 "
+            "WHERE prodSourceLabel='user' "
+                "AND gshare='User Analysis' "
+                "AND jobStatus IN ('activated', 'sent', 'starting') "
+                "AND processingType='pmerge' "
+                "AND computingSite=:computingSite "
+                "AND (CURRENT_DATE-creationtime)>:w_mean "
         )
         try:
             # initialize
@@ -188,12 +208,16 @@ class FetchData(object):
             varMap = {
                     ':modificationTime': now_time - datetime.timedelta(days=4),
                 }
-            jobs_list = self.tbuf.querySQL(sql_get_jobs, varMap)
-            n_tot_jobs = len(jobs_list)
+            archived4_jobs_list = self.tbuf.querySQL(sql_get_jobs_archived4, varMap)
+            active4_jobs_list = self.tbuf.querySQL(sql_get_jobs_active4, varMap)
+            all_jobs_set = set()
+            all_jobs_set.update(archived4_jobs_list)
+            all_jobs_set.update(active4_jobs_list)
+            n_tot_jobs = len(all_jobs_set)
             tmp_log.debug('got total {0} jobs'.format(n_tot_jobs))
             # loop over jobs to get modificationTime when activated and running
             cc = 0
-            for pandaID, site in jobs_list:
+            for pandaID, site in all_jobs_set:
                 if not site:
                     continue
                 varMap = {':pandaID': pandaID}
@@ -232,6 +256,8 @@ class FetchData(object):
                 w_mean = np.nan
                 w_stdev = np.nan
                 w_cl95upp = np.nan
+                long_q_n = np.nan
+                long_q_mean = np.nan
                 # fill the stats values
                 if n_jobs > 0:
                     wait_time_array = np.array(data_dict['wait_time'])
@@ -245,10 +271,22 @@ class FetchData(object):
                     # except statistics.StatisticsError:
                     #     quantiles = None
                     cl95upp = conf_interval_upper(n=n_jobs, mean=mean, stdev=stdev, cl=0.95)
-                    # weighted by run age (weight halves every 24 hours)
-                    weight_array = np.exp2(-run_age_array/(24*60*60))
+                    # weighted by run age (weight halves every 12 hours)
+                    weight_array = np.exp2(-run_age_array/(12*60*60))
                     sum_of_weights, w_mean, w_stdev = weighted_stats(wait_time_array, weight_array)
                     w_cl95upp = conf_interval_upper(n=sum_of_weights+1, mean=w_mean, stdev=w_stdev, cl=0.95)
+                    # current long queuing jobs
+                    if w_mean:
+                        varMap = {
+                                ':computingSite': site,
+                                ':w_mean': w_mean/(24*60*60),
+                            }
+                        (long_q_n, long_q_mean_day) = self.tbuf.querySQL(sql_get_long_queuing_job_wait_time, varMap)[0]
+                        if long_q_mean_day:
+                            long_q_mean = long_q_mean_day*(24*60*60)
+                        else:
+                            long_q_mean = w_mean
+                            long_q_n = 0
                 # update
                 site_dict[site].update({
                         'n': n_jobs,
@@ -261,11 +299,15 @@ class FetchData(object):
                         'w_mean': w_mean,
                         'w_stdev': w_stdev,
                         'w_cl95upp': w_cl95upp,
+                        'long_q_n': long_q_n,
+                        'long_q_mean': long_q_mean,
                     })
                 # log
                 tmp_log.debug(('site={site}, n={n}, '
                                 'mean={mean:.3f}, stdev={stdev:.3f}, med={med:.3f}, cl95upp={cl95upp:.3f}, '
-                                'sum_of_weights={sum_of_weights:.3f}, w_mean={w_mean:.3f}, w_stdev={w_stdev:.3f}, w_cl95upp={w_cl95upp:.3f} '
+                                'sum_of_weights={sum_of_weights:.3f}, '
+                                'w_mean={w_mean:.3f}, w_stdev={w_stdev:.3f}, w_cl95upp={w_cl95upp:.3f}, '
+                                'long_q_n={long_q_n}, long_q_mean={long_q_mean:.3f} '
                                 ).format(site=site, **site_dict[site]))
                 # turn nan into None
                 for key in site_dict[site]:
