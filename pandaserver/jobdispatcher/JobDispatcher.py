@@ -1366,7 +1366,7 @@ def updateWorkerPilotStatus(req, site, workerID, harvesterID, status, timeout=60
     # validate the state passed by the pilot
     valid_states = ('started', 'finished')
     if status not in valid_states:
-        message = 'Invalid worker state. The worker state has to be in {0}'.format(valid_worker_states)
+        message = 'Invalid worker state. The worker state has to be in {0}'.format(valid_states)
         tmp_log.debug(message)
         return message
 

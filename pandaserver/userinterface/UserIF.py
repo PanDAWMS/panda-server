@@ -744,21 +744,21 @@ class UserIF:
         # return
         return ret
 
-
     # kill task
-    def killTask(self,jediTaskID,user,prodRole,properErrorCode):
+    def killTask(self, jediTaskID, user, prodRole, properErrorCode, broadcast):
         # kill
-        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'kill',properErrorCode=properErrorCode)
+        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'kill',properErrorCode=properErrorCode,
+                                                   broadcast=broadcast)
         # return
         return ret
 
-
     # finish task
-    def finishTask(self,jediTaskID,user,prodRole,properErrorCode,qualifier):
+    def finishTask(self, jediTaskID, user, prodRole, properErrorCode, qualifier, broadcast):
         # kill
         ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'finish',
                                                    properErrorCode=properErrorCode,
-                                                   comQualifier=qualifier)
+                                                   comQualifier=qualifier,
+                                                   broadcast=broadcast)
         # return
         return ret
 
@@ -1816,11 +1816,15 @@ def insertTaskParams(req, taskParams=None, properErrorCode=None, parent_tid=None
 
 
 # kill task
-def killTask(req,jediTaskID=None,properErrorCode=None):
+def killTask(req, jediTaskID=None, properErrorCode=None, broadcast=None):
     if properErrorCode == 'True':
         properErrorCode = True
     else:
         properErrorCode = False
+    if broadcast == 'True':
+        broadcast = True
+    else:
+        broadcast = False
     # check security
     if not isSecure(req):
         if properErrorCode:
@@ -1841,7 +1845,7 @@ def killTask(req,jediTaskID=None,properErrorCode=None):
             return WrappedPickle.dumps((101,'jediTaskID must be an integer'))
         else:
             return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
-    ret = userIF.killTask(jediTaskID,user,prodRole,properErrorCode)
+    ret = userIF.killTask(jediTaskID, user, prodRole, properErrorCode, broadcast)
     return WrappedPickle.dumps(ret)
 
 
@@ -1925,7 +1929,7 @@ def reassignTask(req,jediTaskID,site=None,cloud=None,nucleus=None,soft=None,mode
 
 
 # finish task
-def finishTask(req,jediTaskID=None,properErrorCode=None,soft=None):
+def finishTask(req,jediTaskID=None,properErrorCode=None,soft=None, broadcast=None):
     if properErrorCode == 'True':
         properErrorCode = True
     else:
@@ -1933,6 +1937,10 @@ def finishTask(req,jediTaskID=None,properErrorCode=None,soft=None):
     qualifier = None
     if soft == 'True':
         qualifier = 'soft'
+    if broadcast == 'True':
+        broadcast = True
+    else:
+        broadcast = False
     # check security
     if not isSecure(req):
         if properErrorCode:
@@ -1954,7 +1962,7 @@ def finishTask(req,jediTaskID=None,properErrorCode=None,soft=None):
         else:
             return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
     ret = userIF.finishTask(jediTaskID,user,prodRole,properErrorCode,
-                            qualifier)
+                            qualifier, broadcast)
     return WrappedPickle.dumps(ret)
 
 

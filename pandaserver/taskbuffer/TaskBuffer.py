@@ -2676,12 +2676,12 @@ class TaskBuffer:
 
     # send command to task
     def sendCommandTaskPanda(self,jediTaskID,dn,prodRole,comStr,comComment=None,useCommit=True,properErrorCode=False,
-                             comQualifier=None):
+                             comQualifier=None, broadcast=False):
         # query an SQL return Status
         proxy = self.proxyPool.getProxy()
         # exec
         ret = proxy.sendCommandTaskPanda(jediTaskID,dn,prodRole,comStr,comComment,useCommit,
-                                         properErrorCode,comQualifier)
+                                         properErrorCode, comQualifier, broadcast)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

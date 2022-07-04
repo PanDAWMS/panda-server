@@ -13945,18 +13945,18 @@ class DBProxy:
 
     # send command to task through DEFT
     def sendCommandTaskPanda(self,jediTaskID,dn,prodRole,comStr,comComment=None,useCommit=True,properErrorCode=False,
-                             comQualifier=None):
+                             comQualifier=None, broadcast=False):
         comment = ' /* JediDBProxy.sendCommandTaskPanda */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += ' < jediTaskID={0} >'.format(jediTaskID)
+        tmpLog = LogWrapper(_logger, methodName)
         try:
             # get compact DN
             compactDN = self.cleanUserID(dn)
             if compactDN in ['','NULL',None]:
                 compactDN = dn
-            _logger.debug("{0} start com={1} DN={2} prod={3} comment={4} qualifier={5}".format(methodName,comStr,compactDN,
-                                                                                               prodRole,comComment,
-                                                                                               comQualifier))
+            tmpLog.debug("start com={} DN={} prod={} comment={} qualifier={} broadcast={}".format(
+                comStr, compactDN, prodRole, comComment, comQualifier, broadcast))
             # sql to check status and owner
             sqlTC  = "SELECT status,userName,prodSourceLabel FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
             sqlTC += "WHERE jediTaskID=:jediTaskID FOR UPDATE "
@@ -13970,6 +13970,7 @@ class DBProxy:
             goForward = True
             retStr = ''
             retCode = 0
+            sendMsgToPilot = False
             # begin transaction
             if useCommit:
                 self.conn.begin()
@@ -13996,6 +13997,7 @@ class DBProxy:
             # check task status
             if goForward:
                 if comStr in ['kill','finish']:
+                    sendMsgToPilot = broadcast
                     if taskStatus in ['finished','done','prepared','broken','aborted','aborted','toabort','aborting','failed','finishing']:
                         goForward = False
                 if comStr == 'retry':
@@ -14044,11 +14046,19 @@ class DBProxy:
                     varMap[':comm_comment'] = comComment
                 self.cur.execute(sqlC+comment,varMap)
                 retStr = 'command={0} is registered. will be executed in a few minutes'.format(comStr)
-                _logger.info('{0} {1}'.format(methodName, retStr))
+                tmpLog.info('{}'.format(retStr))
             # commit
             if useCommit:
                 if not self._commit():
                     raise RuntimeError('Commit error')
+            # send command to the pilot
+            if sendMsgToPilot:
+                mb_proxy_topic = self.get_mb_proxy('panda_pilot_topic')
+                if mb_proxy_topic:
+                    tmpLog.debug('push {}'.format(comStr))
+                    srv_msg_utils.send_task_message(mb_proxy_topic, comStr, jediTaskID)
+                else:
+                    tmpLog.debug('message topic not configured')
             if properErrorCode:
                 return retCode,retStr
             else:
@@ -14061,7 +14071,7 @@ class DBProxy:
             if useCommit:
                 self._rollback()
             # error
-            self.dumpErrorMessage(_logger,methodName)
+            self.dumpErrorMessage(_logger, methodName)
             if properErrorCode:
                 return 1,'failed to register command'
             else:

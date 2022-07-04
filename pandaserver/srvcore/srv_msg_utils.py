@@ -30,3 +30,11 @@ def delete_job_message(msg_queue, job_id, time_out=10):
     msg_queue.add_remover(headers, time_out)
     # delete old removers
     msg_queue.purge_removers()
+
+
+# send a task message
+def send_task_message(msg_topic, command_str, task_id):
+    # make message
+    msg = make_message('{}_task'.format(command_str), taskid=task_id)
+    # send message to topic
+    msg_topic.send(msg)
