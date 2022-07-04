@@ -75,6 +75,7 @@ class JobSpec(object):
                  'mergeAtOs'          : 'mo',
                  'noExecStrCnv'       : 'nc',
                  'pushStatusChanges'  : 'pc',
+                 'pushJob'            : 'pj',
                  'putLogToOS'         : 'po',
                  'registerEsFiles'    : 're',
                  'resurrectConsumers' : 'rs',
@@ -917,6 +918,22 @@ class JobSpec(object):
     def push_status_changes(self):
         return push_status_changes(self.specialHandling)
 
+    # set push job
+    def set_push_job(self):
+        if self.specialHandling:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        if self._tagForSH['pushJob'] not in items:
+            items.append(self._tagForSH['pushJob'])
+        self.specialHandling = ','.join(items)
+
+    # check if to push job
+    def is_push_job(self):
+        if self.specialHandling is not None:
+            items = self.specialHandling.split(',')
+            return self._tagForSH['pushJob'] in items
+        return False
 
 # utils
 

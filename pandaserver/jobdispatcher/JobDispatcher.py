@@ -174,7 +174,7 @@ class JobDipatcher:
     def getJob(self, siteName, prodSourceLabel, cpu, mem, diskSpace, node, timeout, computingElement,
                atlasRelease, prodUserID, getProxyKey, countryGroup, workingGroup, allowOtherCountry,
                realDN, taskID, nJobs, acceptJson, background, resourceType, harvester_id, worker_id,
-               schedulerID, jobType, tmpLog):
+               schedulerID, jobType, via_topic, tmpLog):
 
         t_getJob_start = time.time()
         jobs = []
@@ -200,7 +200,8 @@ class JobDipatcher:
         tmpWrapper = _TimedMethod(self.taskBuffer.getJobs, timeout)
         tmpWrapper.run(tmpNumJobs, siteName, prodSourceLabel, cpu, mem, diskSpace, node, timeout, computingElement,
                        atlasRelease, prodUserID, getProxyKey, countryGroup, workingGroup, allowOtherCountry,
-                       taskID, background, resourceType, harvester_id, worker_id, schedulerID, jobType, is_gu)
+                       taskID, background, resourceType, harvester_id, worker_id, schedulerID, jobType, is_gu,
+                       via_topic)
 
         if isinstance(tmpWrapper.result, list):
             jobs = jobs + tmpWrapper.result
@@ -869,7 +870,7 @@ web service interface
 def getJob(req, siteName, token=None, timeout=60, cpu=None, mem=None, diskSpace=None, prodSourceLabel=None, node=None,
            computingElement=None, AtlasRelease=None, prodUserID=None, getProxyKey=None, countryGroup=None,
            workingGroup=None, allowOtherCountry=None, taskID=None, nJobs=None, background=None, resourceType=None,
-           harvester_id=None, worker_id=None, schedulerID=None, jobType=None):
+           harvester_id=None, worker_id=None, schedulerID=None, jobType=None, viaTopic=None):
     tmpLog = LogWrapper(_logger, 'getJob {}'.format(datetime.datetime.utcnow().isoformat('/')))
     tmpLog.debug(siteName)
     # get DN
@@ -910,13 +911,17 @@ def getJob(req, siteName, token=None, timeout=60, cpu=None, mem=None, diskSpace=
         background = True
     else:
         background = False
+    if viaTopic == 'True':
+        viaTopic = True
+    else:
+        viaTopic = False
     tmpLog.debug("%s,nJobs=%s,cpu=%s,mem=%s,disk=%s,source_label=%s,node=%s,ce=%s,rel=%s,user=%s,proxy=%s,c_group=%s,"
                  "w_group=%s,%s,taskID=%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s,json:%s,bg=%s,rt=%s,"
-                 "harvester_id=%s,worker_id=%s,schedulerID=%s,jobType=%s"
+                 "harvester_id=%s,worker_id=%s,schedulerID=%s,jobType=%s,viaTopic=%s"
                  % (siteName, nJobs, cpu, mem, diskSpace, prodSourceLabel, node,
                     computingElement, AtlasRelease, prodUserID, getProxyKey, countryGroup, workingGroup,
                     allowOtherCountry, taskID, realDN, prodManager, token, validToken, str(fqans), req.acceptJson(),
-                    background, resourceType, harvester_id, worker_id, schedulerID, jobType))
+                    background, resourceType, harvester_id, worker_id, schedulerID, jobType, viaTopic))
     try:
         dummyNumSlots = int(nJobs)
     except Exception:
@@ -943,7 +948,7 @@ def getJob(req, siteName, token=None, timeout=60, cpu=None, mem=None, diskSpace=
                                 computingElement, AtlasRelease, prodUserID, getProxyKey, countryGroup,
                                 workingGroup, allowOtherCountry, realDN, taskID, nJobs, req.acceptJson(),
                                 background, resourceType, harvester_id, worker_id, schedulerID, jobType,
-                                tmpLog)
+                                viaTopic, tmpLog)
 
 
 # update job status
@@ -1361,7 +1366,7 @@ def updateWorkerPilotStatus(req, site, workerID, harvesterID, status, timeout=60
     # validate the state passed by the pilot
     valid_states = ('started', 'finished')
     if status not in valid_states:
-        message = 'Invalid worker state. The worker state has to be in {0}'.format(valid_worker_states)
+        message = 'Invalid worker state. The worker state has to be in {0}'.format(valid_states)
         tmp_log.debug(message)
         return message
 

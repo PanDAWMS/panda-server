@@ -42,7 +42,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.SupErrors import SupErrors
-from pandaserver.srvcore import CoreUtils
+from pandaserver.srvcore import CoreUtils, srv_msg_utils
 
 try:
     from idds.client.client import Client as iDDS_Client
@@ -94,7 +94,7 @@ def get_mb_proxy_dict():
             and panda_config.mbproxy_configFile:
         # delay import to open logger file inside python daemon
         from pandaserver.taskbuffer.PanDAMsgProcessor import MsgProcAgent
-        out_q_list = ['panda_jobstatus', 'panda_jedi', 'panda_pilot']
+        out_q_list = ['panda_jobstatus', 'panda_jedi', 'panda_pilot_topic', 'panda_pilot_queue']
         mp_agent = MsgProcAgent(config_file=panda_config.mbproxy_configFile)
         mb_proxy_dict = mp_agent.start_passive_mode(in_q_list=[], out_q_list=out_q_list)
         return mb_proxy_dict
@@ -1207,11 +1207,17 @@ class DBProxy:
     # activate job. move job from jobsDefined to jobsActive
     def activateJob(self,job):
         comment = ' /* DBProxy.activateJob */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        if job is None:
+            tmp_id = None
+        else:
+            tmp_id = job.PandaID
+        tmpLog = LogWrapper(_logger, methodName + " < PandaID={} >".format(tmp_id))
         updatedFlag = False
         if job is None:
-            _logger.debug("activateJob : None")
+            tmpLog.debug('skip job=None')
             return True
-        _logger.debug("activateJob : %s" % job.PandaID)
+        tmpLog.debug("start")
         sql0 = "SELECT row_ID FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type AND NOT status IN (:status1,:status2) "
         sql1 = "DELETE FROM ATLAS_PANDA.jobsDefined4 "
         sql1+= "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2) AND commandToPilot IS NULL"
@@ -1223,6 +1229,7 @@ class DBProxy:
         if job.jobStatus in ['defined']:
             job.stateChangeTime = job.modificationTime
         nTry=3
+        to_push = False
         for iTry in range(nTry):
             try:
                 # check if all files are ready
@@ -1255,7 +1262,7 @@ class DBProxy:
                     n = self.cur.rowcount
                     if n==0:
                         # already killed or activated
-                        _logger.debug("activateJob : Not found %s" % job.PandaID)
+                        tmpLog.debug("Job not found to activate")
                     else:
                         # insert
                         self.cur.execute(sql2+comment, job.valuesMap())
@@ -1275,6 +1282,7 @@ class DBProxy:
                         varMap[':param']   = job.jobParameters
                         self.cur.execute(sqlJob+comment, varMap)
                         updatedFlag = True
+                        to_push = job.is_push_job()
                 else:
                     # update job
                     sqlJ = ("UPDATE ATLAS_PANDA.jobsDefined4 SET %s " % job.bindUpdateChangesExpression()) + \
@@ -1288,7 +1296,7 @@ class DBProxy:
                     n = self.cur.rowcount
                     if n==0:
                         # already killed or activated
-                        _logger.debug("activateJob : Not found %s" % job.PandaID)
+                        tmpLog.debug("Job not found to update")
                     else:
                         # update files
                         for file in job.Files:
@@ -1313,18 +1321,28 @@ class DBProxy:
                     if updatedFlag:
                         self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
                 except Exception:
-                    _logger.error('recordStatusChange in activateJob')
+                    tmpLog.error('recordStatusChange failed')
                 self.push_job_status_message(job, job.PandaID, job.jobStatus)
+                # push job
+                if to_push:
+                    mb_proxy_queue = self.get_mb_proxy('panda_pilot_queue')
+                    mb_proxy_topic = self.get_mb_proxy('panda_pilot_topic')
+                    if mb_proxy_queue and mb_proxy_topic:
+                        tmpLog.debug('push job')
+                        srv_msg_utils.send_job_message(mb_proxy_queue, mb_proxy_topic,
+                                                       job.jediTaskID, job.PandaID)
+                    else:
+                        tmpLog.debug('message queue/topic not configured')
+                tmpLog.debug('done')
                 return True
-            except Exception:
+            except Exception as e:
                 # roll back
                 self._rollback()
                 if iTry+1 < nTry:
-                    _logger.debug("activateJob : %s retry : %s" % (job.PandaID,iTry))
+                    tmpLog.debug("retry: {}".format(iTry))
                     time.sleep(random.randint(10,20))
                     continue
-                type, value, traceBack = sys.exc_info()
-                _logger.error("activateJob : %s %s" % (type,value))
+                tmpLog.error("failed with {}".format(str(e)))
                 return False
 
 
@@ -3406,7 +3424,7 @@ class DBProxy:
     # get jobs
     def getJobs(self, nJobs, siteName, prodSourceLabel, cpu, mem, diskSpace, node, timeout, computingElement,
                 atlasRelease, prodUserID, countryGroup, workingGroup, allowOtherCountry, taskID, background,
-                resourceType, harvester_id, worker_id, schedulerID, jobType, is_gu):
+                resourceType, harvester_id, worker_id, schedulerID, jobType, is_gu, via_topic):
         """
         1. Construct where clause (sql1) based on applicable filters for request
         2. Select n jobs with the highest priorities and the lowest pandaids
@@ -4024,6 +4042,10 @@ class DBProxy:
                 except Exception:
                     tmpLog.error('recordStatusChange in getJobs')
                 self.push_job_status_message(job, job.PandaID, job.jobStatus)
+                if via_topic and job.is_push_job():
+                    tmpLog.debug('delete job message')
+                    mb_proxy_queue = self.get_mb_proxy('panda_pilot_queue')
+                    srv_msg_utils.delete_job_message(mb_proxy_queue, job.PandaID)
             return retJobs, nSent
         except Exception as e:
             errStr = "getJobs : {} {}".format(str(e), traceback.format_exc())
@@ -13923,18 +13945,18 @@ class DBProxy:
 
     # send command to task through DEFT
     def sendCommandTaskPanda(self,jediTaskID,dn,prodRole,comStr,comComment=None,useCommit=True,properErrorCode=False,
-                             comQualifier=None):
+                             comQualifier=None, broadcast=False):
         comment = ' /* JediDBProxy.sendCommandTaskPanda */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += ' < jediTaskID={0} >'.format(jediTaskID)
+        tmpLog = LogWrapper(_logger, methodName)
         try:
             # get compact DN
             compactDN = self.cleanUserID(dn)
             if compactDN in ['','NULL',None]:
                 compactDN = dn
-            _logger.debug("{0} start com={1} DN={2} prod={3} comment={4} qualifier={5}".format(methodName,comStr,compactDN,
-                                                                                               prodRole,comComment,
-                                                                                               comQualifier))
+            tmpLog.debug("start com={} DN={} prod={} comment={} qualifier={} broadcast={}".format(
+                comStr, compactDN, prodRole, comComment, comQualifier, broadcast))
             # sql to check status and owner
             sqlTC  = "SELECT status,userName,prodSourceLabel FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
             sqlTC += "WHERE jediTaskID=:jediTaskID FOR UPDATE "
@@ -13948,6 +13970,7 @@ class DBProxy:
             goForward = True
             retStr = ''
             retCode = 0
+            sendMsgToPilot = False
             # begin transaction
             if useCommit:
                 self.conn.begin()
@@ -13974,6 +13997,7 @@ class DBProxy:
             # check task status
             if goForward:
                 if comStr in ['kill','finish']:
+                    sendMsgToPilot = broadcast
                     if taskStatus in ['finished','done','prepared','broken','aborted','aborted','toabort','aborting','failed','finishing']:
                         goForward = False
                 if comStr == 'retry':
@@ -14022,11 +14046,19 @@ class DBProxy:
                     varMap[':comm_comment'] = comComment
                 self.cur.execute(sqlC+comment,varMap)
                 retStr = 'command={0} is registered. will be executed in a few minutes'.format(comStr)
-                _logger.info('{0} {1}'.format(methodName, retStr))
+                tmpLog.info('{}'.format(retStr))
             # commit
             if useCommit:
                 if not self._commit():
                     raise RuntimeError('Commit error')
+            # send command to the pilot
+            if sendMsgToPilot:
+                mb_proxy_topic = self.get_mb_proxy('panda_pilot_topic')
+                if mb_proxy_topic:
+                    tmpLog.debug('push {}'.format(comStr))
+                    srv_msg_utils.send_task_message(mb_proxy_topic, comStr, jediTaskID)
+                else:
+                    tmpLog.debug('message topic not configured')
             if properErrorCode:
                 return retCode,retStr
             else:
@@ -14039,7 +14071,7 @@ class DBProxy:
             if useCommit:
                 self._rollback()
             # error
-            self.dumpErrorMessage(_logger,methodName)
+            self.dumpErrorMessage(_logger, methodName)
             if properErrorCode:
                 return 1,'failed to register command'
             else:
@@ -17502,90 +17534,90 @@ class DBProxy:
                 retVal = 1,tmpMsg
             else:
                 taskStatus,oldStatus = resT
-            # check task status
-            okStatusList = ['running','scouting','ready']
-            if taskStatus not in okStatusList and oldStatus not in okStatusList:
-                tmpMsg = "command rejected since status={0} or oldStatus={1} not in {2}".format(taskStatus,
-                                                                                                oldStatus,
-                                                                                                str(okStatusList))
-                tmpLog.debug(tmpMsg)
-                retVal = 2,tmpMsg
-            else:
-                # sql to get datasetIDs for master
-                sqlM  = 'SELECT datasetID FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
-                sqlM += 'WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) '
-                # sql to increase attempt numbers
-                sqlAB  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
-                sqlAB += "SET maxAttempt=CASE WHEN maxAttempt > attemptNr THEN maxAttempt+:increasedNr ELSE attemptNr+:increasedNr END "
-                sqlAB += ",proc_status=CASE WHEN maxAttempt > attemptNr AND maxFailure > failedAttempt THEN proc_status ELSE :proc_status END "
-                sqlAB += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status AND keepTrack=:keepTrack "
-                # sql to increase attempt numbers and failure counts
-                sqlAF  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
-                sqlAF += "SET maxAttempt=CASE WHEN maxAttempt > attemptNr THEN maxAttempt+:increasedNr ELSE attemptNr+:increasedNr END "
-                sqlAF += ",maxFailure=maxFailure+:increasedNr "
-                sqlAF += ",proc_status=CASE WHEN maxAttempt > attemptNr AND maxFailure > failedAttempt THEN proc_status ELSE :proc_status END "
-                sqlAF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status AND keepTrack=:keepTrack "
-                # sql to update datasets
-                sqlD  = "UPDATE {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
-                sqlD += "SET nFilesUsed=nFilesUsed-:nFilesReset,nFilesFailed=nFilesFailed-:nFilesReset "
-                sqlD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
-                # get datasetIDs for master
-                varMap = {}
-                varMap[':jediTaskID'] = jediTaskID
-                varMap[':type1'] = 'input'
-                varMap[':type2'] = 'pseudo_input'
-                self.cur.execute(sqlM+comment, varMap)
-                resM = self.cur.fetchall()
-                total_nFilesIncreased = 0
-                total_nFilesReset = 0
-                for datasetID, in resM:
-                    # increase attempt numbers
+                # check task status
+                okStatusList = ['running','scouting','ready']
+                if taskStatus not in okStatusList and oldStatus not in okStatusList:
+                    tmpMsg = "command rejected since status={0} or oldStatus={1} not in {2}".format(taskStatus,
+                                                                                                    oldStatus,
+                                                                                                    str(okStatusList))
+                    tmpLog.debug(tmpMsg)
+                    retVal = 2,tmpMsg
+                else:
+                    # sql to get datasetIDs for master
+                    sqlM  = 'SELECT datasetID FROM {0}.JEDI_Datasets '.format(panda_config.schemaJEDI)
+                    sqlM += 'WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) '
+                    # sql to increase attempt numbers
+                    sqlAB  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+                    sqlAB += "SET maxAttempt=CASE WHEN maxAttempt > attemptNr THEN maxAttempt+:increasedNr ELSE attemptNr+:increasedNr END "
+                    sqlAB += ",proc_status=CASE WHEN maxAttempt > attemptNr AND maxFailure > failedAttempt THEN proc_status ELSE :proc_status END "
+                    sqlAB += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status AND keepTrack=:keepTrack "
+                    # sql to increase attempt numbers and failure counts
+                    sqlAF  = "UPDATE {0}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+                    sqlAF += "SET maxAttempt=CASE WHEN maxAttempt > attemptNr THEN maxAttempt+:increasedNr ELSE attemptNr+:increasedNr END "
+                    sqlAF += ",maxFailure=maxFailure+:increasedNr "
+                    sqlAF += ",proc_status=CASE WHEN maxAttempt > attemptNr AND maxFailure > failedAttempt THEN proc_status ELSE :proc_status END "
+                    sqlAF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND status=:status AND keepTrack=:keepTrack "
+                    # sql to update datasets
+                    sqlD  = "UPDATE {0}.JEDI_Datasets ".format(panda_config.schemaJEDI)
+                    sqlD += "SET nFilesUsed=nFilesUsed-:nFilesReset,nFilesFailed=nFilesFailed-:nFilesReset "
+                    sqlD += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+                    # get datasetIDs for master
                     varMap = {}
                     varMap[':jediTaskID'] = jediTaskID
-                    varMap[':datasetID'] = datasetID
-                    varMap[':status'] = 'ready'
-                    varMap[':proc_status'] = 'ready'
-                    varMap[':keepTrack']  = 1
-                    varMap[':increasedNr'] = increasedNr
-                    nFilesIncreased = 0
-                    nFilesReset = 0
-                    # still active and maxFailure is undefined
-                    sqlA = sqlAB + "AND maxAttempt>attemptNr AND maxFailure IS NULL "
-                    self.cur.execute(sqlA+comment, varMap)
-                    nRow = self.cur.rowcount
-                    nFilesIncreased += nRow
-                    # still active and maxFailure is defined
-                    sqlA = sqlAF + "AND maxAttempt>attemptNr AND (maxFailure IS NOT NULL AND maxFailure>failedAttempt) "
-                    self.cur.execute(sqlA+comment, varMap)
-                    nRow = self.cur.rowcount
-                    nFilesIncreased += nRow
-                    # already done and maxFailure is undefined
-                    sqlA = sqlAB + "AND maxAttempt<=attemptNr AND maxFailure IS NULL "
-                    self.cur.execute(sqlA+comment, varMap)
-                    nRow = self.cur.rowcount
-                    nFilesReset += nRow
-                    nFilesIncreased += nRow
-                    # already done and maxFailure is defined
-                    sqlA = sqlAF + "AND (maxAttempt<=attemptNr OR (maxFailure IS NOT NULL AND maxFailure=failedAttempt)) "
-                    self.cur.execute(sqlA+comment, varMap)
-                    nRow = self.cur.rowcount
-                    nFilesReset += nRow
-                    nFilesIncreased += nRow
-                    # update dataset
-                    if nFilesReset > 0:
+                    varMap[':type1'] = 'input'
+                    varMap[':type2'] = 'pseudo_input'
+                    self.cur.execute(sqlM+comment, varMap)
+                    resM = self.cur.fetchall()
+                    total_nFilesIncreased = 0
+                    total_nFilesReset = 0
+                    for datasetID, in resM:
+                        # increase attempt numbers
                         varMap = {}
                         varMap[':jediTaskID'] = jediTaskID
                         varMap[':datasetID'] = datasetID
-                        varMap[':nFilesReset'] = nFilesReset
-                        tmpLog.debug(sqlD+comment+str(varMap))
-                        self.cur.execute(sqlD+comment, varMap)
-                    total_nFilesIncreased += nFilesIncreased
-                    total_nFilesReset += nFilesReset
-                tmpMsg = "increased attemptNr for {0} inputs ({1} reactivated)".format(total_nFilesIncreased,
-                                                                                       total_nFilesReset)
-                tmpLog.debug(tmpMsg)
-                tmpLog.sendMsg(tmpMsg,'jedi','pandasrv')
-                retVal = 0,tmpMsg
+                        varMap[':status'] = 'ready'
+                        varMap[':proc_status'] = 'ready'
+                        varMap[':keepTrack']  = 1
+                        varMap[':increasedNr'] = increasedNr
+                        nFilesIncreased = 0
+                        nFilesReset = 0
+                        # still active and maxFailure is undefined
+                        sqlA = sqlAB + "AND maxAttempt>attemptNr AND maxFailure IS NULL "
+                        self.cur.execute(sqlA+comment, varMap)
+                        nRow = self.cur.rowcount
+                        nFilesIncreased += nRow
+                        # still active and maxFailure is defined
+                        sqlA = sqlAF + "AND maxAttempt>attemptNr AND (maxFailure IS NOT NULL AND maxFailure>failedAttempt) "
+                        self.cur.execute(sqlA+comment, varMap)
+                        nRow = self.cur.rowcount
+                        nFilesIncreased += nRow
+                        # already done and maxFailure is undefined
+                        sqlA = sqlAB + "AND maxAttempt<=attemptNr AND maxFailure IS NULL "
+                        self.cur.execute(sqlA+comment, varMap)
+                        nRow = self.cur.rowcount
+                        nFilesReset += nRow
+                        nFilesIncreased += nRow
+                        # already done and maxFailure is defined
+                        sqlA = sqlAF + "AND (maxAttempt<=attemptNr OR (maxFailure IS NOT NULL AND maxFailure=failedAttempt)) "
+                        self.cur.execute(sqlA+comment, varMap)
+                        nRow = self.cur.rowcount
+                        nFilesReset += nRow
+                        nFilesIncreased += nRow
+                        # update dataset
+                        if nFilesReset > 0:
+                            varMap = {}
+                            varMap[':jediTaskID'] = jediTaskID
+                            varMap[':datasetID'] = datasetID
+                            varMap[':nFilesReset'] = nFilesReset
+                            tmpLog.debug(sqlD+comment+str(varMap))
+                            self.cur.execute(sqlD+comment, varMap)
+                        total_nFilesIncreased += nFilesIncreased
+                        total_nFilesReset += nFilesReset
+                    tmpMsg = "increased attemptNr for {0} inputs ({1} reactivated)".format(total_nFilesIncreased,
+                                                                                           total_nFilesReset)
+                    tmpLog.debug(tmpMsg)
+                    tmpLog.sendMsg(tmpMsg,'jedi','pandasrv')
+                    retVal = 0,tmpMsg
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
@@ -20503,15 +20535,13 @@ class DBProxy:
             # send message
             if trigger_job_generation:
                 # message
-                msg_dict = {
-                    'msg_type': 'generate_job',
-                    'taskid': jediTaskID,
-                    'timestamp': int(datetime.datetime.utcnow().timestamp())
-                    }
-                msg = json.dumps(msg_dict)
+                msg = srv_msg_utils.make_message('generate_job', taskid=jediTaskID)
                 mb_proxy = self.get_mb_proxy('panda_jedi')
-                mb_proxy.send(msg)
-                tmpLog.debug('sent generate_job message: {}'.format(msg))
+                if mb_proxy:
+                    mb_proxy.send(msg)
+                    tmpLog.debug('sent generate_job message: {}'.format(msg))
+                else:
+                    tmpLog.debug('message queue is not configured')
             tmpLog.debug("done")
             return retVal
         except Exception:

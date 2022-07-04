@@ -373,6 +373,7 @@ class TaskBuffer:
                         no_looping_check = job.is_no_looping_check()
                         use_secrets = job.use_secrets()
                         push_changes = job.push_status_changes()
+                        is_push_job = job.is_push_job()
                         # reset specialHandling
                         specialHandling = specialHandling[:-1]
                         job.specialHandling = specialHandling
@@ -386,6 +387,8 @@ class TaskBuffer:
                             job.set_use_secrets()
                         if push_changes:
                             job.set_push_status_changes()
+                        if is_push_job:
+                            job.set_push_job()
                         # set DDM backend
                         if ddmBackEnd is not None:
                             job.setDdmBackEnd(ddmBackEnd)
@@ -815,14 +818,16 @@ class TaskBuffer:
     # get jobs
     def getJobs(self, nJobs, siteName, prodSourceLabel, cpu, mem, diskSpace, node, timeout, computingElement,
                 atlasRelease, prodUserID, getProxyKey, countryGroup, workingGroup, allowOtherCountry,
-                taskID, background, resourceType, harvester_id, worker_id, schedulerID, jobType, is_gu):
+                taskID, background, resourceType, harvester_id, worker_id, schedulerID, jobType, is_gu,
+                via_topic):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get waiting jobs
         t_before = time.time()
         jobs,nSent = proxy.getJobs(nJobs, siteName, prodSourceLabel, cpu, mem, diskSpace, node, timeout, computingElement,
                                    atlasRelease ,prodUserID, countryGroup, workingGroup, allowOtherCountry,
-                                   taskID, background, resourceType, harvester_id, worker_id, schedulerID, jobType, is_gu)
+                                   taskID, background, resourceType, harvester_id, worker_id, schedulerID, jobType,
+                                   is_gu, via_topic)
         t_after = time.time()
         t_total = t_after - t_before
         _logger.debug("getJobs : took {0}s for {1} nJobs={2} prodSourceLabel={3}"
@@ -2671,12 +2676,12 @@ class TaskBuffer:
 
     # send command to task
     def sendCommandTaskPanda(self,jediTaskID,dn,prodRole,comStr,comComment=None,useCommit=True,properErrorCode=False,
-                             comQualifier=None):
+                             comQualifier=None, broadcast=False):
         # query an SQL return Status
         proxy = self.proxyPool.getProxy()
         # exec
         ret = proxy.sendCommandTaskPanda(jediTaskID,dn,prodRole,comStr,comComment,useCommit,
-                                         properErrorCode,comQualifier)
+                                         properErrorCode, comQualifier, broadcast)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

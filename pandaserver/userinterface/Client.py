@@ -1413,11 +1413,12 @@ def insertTaskParams(taskParams):
 
 
 # kill task
-def killTask(jediTaskID):
+def killTask(jediTaskID, broadcast=False):
     """Kill a task
 
        args:
            jediTaskID: jediTaskID of the task to be killed
+           broadcast: True to push the message to the pilot subscribing the MB
        returns:
            status code
                  0: communication succeeded to the panda server
@@ -1439,6 +1440,7 @@ def killTask(jediTaskID):
     url = baseURLSSL + '/killTask'
     data = {'jediTaskID':jediTaskID}
     data['properErrorCode'] = True
+    data['broadcast'] = broadcast
     status,output = curl.post(url,data)
     try:
         return status,pickle_loads(output)
@@ -1448,9 +1450,8 @@ def killTask(jediTaskID):
         return EC_Failed,output+'\n'+errStr
 
 
-
 # finish task
-def finishTask(jediTaskID,soft=False):
+def finishTask(jediTaskID, soft=False, broadcast=False):
     """Finish a task
 
        args:
@@ -1459,6 +1460,7 @@ def finishTask(jediTaskID,soft=False):
                  finihsed once all remaining jobs are done.
                  If False, all remaining jobs are killed and then the
                  task is finished
+           broadcast: True to push the message to the pilot subscribing the MB
        returns:
            status code
                  0: communication succeeded to the panda server
@@ -1480,6 +1482,7 @@ def finishTask(jediTaskID,soft=False):
     url = baseURLSSL + '/finishTask'
     data = {'jediTaskID':jediTaskID}
     data['properErrorCode'] = True
+    data['broadcast'] = broadcast
     if soft:
         data['soft'] = True
     status,output = curl.post(url,data)
