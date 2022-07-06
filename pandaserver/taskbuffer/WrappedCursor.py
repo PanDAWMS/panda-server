@@ -59,7 +59,7 @@ def convert_query_in_printf_format(sql, var_dict, sql_conv_map):
             table_names = set()
             for item in re.findall(r' FROM (.+?)(WHERE|$)', sql, flags=re.IGNORECASE):
                 table_strs = item[0].split(',')
-                table_names.update([t.strip().lower() for table_str in table_strs for t in table_str.split() if t.strip()])
+                table_names.update([re.sub(r'\(|\)', '', t.strip().lower()) for table_str in table_strs for t in table_str.split() if t.strip()])
             # look for a.b(.c)*
             for item in re.findall(r'(\w+\.\w+\.*\w*)', sql):
                 item_l = item.lower()
