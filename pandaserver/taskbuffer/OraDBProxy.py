@@ -24712,10 +24712,10 @@ class DBProxy:
             return False, 'database error'
 
     # get user secrets
-    def get_user_secrets(self, owner, use_commit=True):
+    def get_user_secrets(self, owner, keys=None, get_json=False, use_commit=True):
         comment = ' /* DBProxy.get_user_secrets */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        methodName += ' < owner={} >'.format(owner)
+        methodName += ' < owner={} keys={} >'.format(owner, keys)
         try:
             # get configs
             tmpLog = LogWrapper(_logger, methodName)
@@ -24726,10 +24726,24 @@ class DBProxy:
             varMap[':owner'] = owner
             tmpS, tmpR = self.getClobObj(sqlC, varMap, use_commit=use_commit)
             if not tmpR:
-                data = ''
+                data = {}
+                if not get_json:
+                    data = json.dumps({})
             else:
                 data = tmpR[0][0]
-            tmpLog.debug("got {} char data".format(len(data)))
+                # return only interesting keys
+                if keys:
+                    keys = set(keys.split(','))
+                    data = json.loads(data)
+                    for k in list(data):
+                        if k not in keys:
+                            data.pop(k)
+                    if not get_json:
+                        data = json.dumps(data)
+                else:
+                    if get_json:
+                        data = json.loads(data)
+            tmpLog.debug("got data with length={}".format(len(data)))
             return True, data
         except Exception:
             # error

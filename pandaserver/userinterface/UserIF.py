@@ -1040,8 +1040,8 @@ class UserIF:
         return ret
 
     # get user secrets
-    def get_user_secrets(self, owner):
-        ret = self.taskBuffer.get_user_secrets(owner)
+    def get_user_secrets(self, owner, keys, get_json):
+        ret = self.taskBuffer.get_user_secrets(owner, keys, get_json)
         # return
         return ret
 
@@ -2718,13 +2718,17 @@ def set_user_secret(req, key=None, value=None):
 
 
 # get user secrets
-def get_user_secrets(req):
+def get_user_secrets(req, keys=None, get_json=None):
     tmpLog = LogWrapper(_logger, 'get_user_secrets-{}'.format(datetime.datetime.utcnow().isoformat('/')))
     # get owner
     dn = req.subprocess_env.get('SSL_CLIENT_S_DN')
+    if get_json == 'True':
+        get_json = True
+    else:
+        get_json = False
     if not dn:
         tmpMsg = 'SSL_CLIENT_S_DN is missing in HTTP request'
         tmpLog.error(tmpMsg)
         return json.dumps((False, tmpMsg))
     owner = clean_user_id(dn)
-    return json.dumps(userIF.get_user_secrets(owner))
+    return json.dumps(userIF.get_user_secrets(owner, keys, get_json))

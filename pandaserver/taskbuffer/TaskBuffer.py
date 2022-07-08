@@ -4133,9 +4133,9 @@ class TaskBuffer:
         return ret
 
     # get user secrets
-    def get_user_secrets(self, owner):
+    def get_user_secrets(self, owner, keys=None, get_json=False):
         proxy = self.proxyPool.getProxy()
-        ret = proxy.get_user_secrets(owner)
+        ret = proxy.get_user_secrets(owner, keys, get_json)
         self.proxyPool.putProxy(proxy)
         return ret
 
