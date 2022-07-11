@@ -10123,7 +10123,6 @@ class DBProxy:
                         ret.pandasite_state = 'ACTIVE'
                         ret.fairsharePolicy = queue_data.get('fairsharepolicy')
                         ret.priorityoffset = queue_data.get('priorityoffset')
-                        ret.allowedgroups  = queue_data.get('allowedgroups')
                         ret.defaulttoken   = queue_data.get('defaulttoken')
 
                         ret.direct_access_lan = (queue_data.get('direct_access_lan') is True)

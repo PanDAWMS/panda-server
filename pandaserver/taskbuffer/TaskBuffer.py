@@ -200,22 +200,6 @@ class TaskBuffer:
 
                 # get site spec
                 tmpSiteSpec = siteMapper.getSite(jobs[0].computingSite)
-                # check allowed groups
-                if userStatus and hasattr(tmpSiteSpec, 'allowedgroups') and (tmpSiteSpec.allowedgroups not in ['', None]):
-                    # set status to False when allowedgroups is defined
-                    userStatus = False
-                    # loop over all groups
-                    for tmpGroup in tmpSiteSpec.allowedgroups.split(','):
-                        if tmpGroup == '':
-                            continue
-                        # loop over all FQANs
-                        for tmpFQAN in fqans:
-                            if re.search('^%s' % tmpGroup,tmpFQAN) is not None:
-                                userStatus = True
-                                break
-                        # escape
-                        if userStatus:
-                            break
 
                 # get priority offset
                 if hasattr(tmpSiteSpec,'priorityoffset') and (tmpSiteSpec.priorityoffset not in ['',None]):
