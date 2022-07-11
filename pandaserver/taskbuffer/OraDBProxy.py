@@ -608,8 +608,6 @@ class DBProxy:
             # insert job
             varMap = job.valuesMap(useSeq=True)
             varMap[':newPandaID'] = self.cur.var(varNUMBER)
-            tmp_log.debug("SQL: {0}".format(sql1))
-            tmp_log.debug("VarMap: {0}".format(varMap))
             retI = self.cur.execute(sql1+comment, varMap)
             
             # set PandaID
