@@ -10078,7 +10078,6 @@ class DBProxy:
 
                         ret.type = queue_data.get('type', 'production')
                         ret.nickname = queue_data.get('nickname')
-                        ret.dq2url = queue_data.get('dq2url')
                         try:
                             ret.ddm = queue_data.get('ddm', '').split(',')[0]
                         except AttributeError:

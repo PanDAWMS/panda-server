@@ -76,43 +76,43 @@ def _checkRelease(jobRels,siteRels):
 def _getOkFiles(v_ce, v_files, allLFNs, allOkFilesMap, prodsourcelabel, job_label, tmpLog=None, allScopeList=None):
 
     scope_association_input, scope_association_output = select_scope(v_ce, prodsourcelabel, job_label)
-    dq2IDs = list(v_ce.setokens_input[scope_association_input].values())
+    rucio_sites = list(v_ce.setokens_input[scope_association_input].values())
     try:
-        dq2IDs.remove('')
+        rucio_sites.remove('')
     except Exception:
         pass
-    dq2IDs.sort()
-    if dq2IDs == []:
-        dq2ID = v_ce.ddm_input[scope_association_input]
+    rucio_sites.sort()
+    if rucio_sites == []:
+        rucio_site = v_ce.ddm_input[scope_association_input]
     else:
-        dq2ID = ''
-        for tmpID in dq2IDs:
-            dq2ID += '%s,' % tmpID
-        dq2ID = dq2ID[:-1]
+        rucio_site = ''
+        for tmpID in rucio_sites:
+            rucio_site += '%s,' % tmpID
+        rucio_site = rucio_site[:-1]
     # set LFC and SE name
-    dq2URL = 'rucio://atlas-rucio.cern.ch:/grid/atlas'
+    rucio_url = 'rucio://atlas-rucio.cern.ch:/grid/atlas'
     tmpSE = v_ce.ddm_endpoints_input[scope_association_input].getAllEndPoints()
     if tmpLog is not None:
-        tmpLog.debug('getOkFiles for %s with dq2ID:%s,LFC:%s,SE:%s' % (v_ce.sitename,dq2ID,dq2URL,str(tmpSE)))
+        tmpLog.debug('getOkFiles for %s with rucio_site:%s, LFC:%s, SE:%s' % (v_ce.sitename, rucio_site, rucio_url, str(tmpSE)))
     anyID = 'any'
     # use bulk lookup
     if allLFNs != []:
         # get all replicas
-        if dq2URL not in allOkFilesMap:
-            allOkFilesMap[dq2URL] = {}
+        if rucio_url not in allOkFilesMap:
+            allOkFilesMap[rucio_url] = {}
             tmpStat,tmpAvaFiles = rucioAPI.listFileReplicas(allScopeList, allLFNs, tmpSE)
             if not tmpStat and tmpLog is not None:
                 tmpLog.debug('getOkFile failed to get file replicas')
                 tmpAvaFiles = {}
-            allOkFilesMap[dq2URL][anyID] = tmpAvaFiles
-        # get files for each dq2ID
-        if dq2ID not in allOkFilesMap[dq2URL]:
-            allOkFilesMap[dq2URL][dq2ID] = allOkFilesMap[dq2URL][anyID]
+            allOkFilesMap[rucio_url][anyID] = tmpAvaFiles
+        # get files for each rucio_site
+        if rucio_site not in allOkFilesMap[rucio_url]:
+            allOkFilesMap[rucio_url][rucio_site] = allOkFilesMap[rucio_url][anyID]
         # make return map
         retMap = {}
         for tmpLFN in v_files:
-            if tmpLFN in allOkFilesMap[dq2URL][dq2ID]:
-                retMap[tmpLFN] = allOkFilesMap[dq2URL][dq2ID][tmpLFN]
+            if tmpLFN in allOkFilesMap[rucio_url][rucio_site]:
+                retMap[tmpLFN] = allOkFilesMap[rucio_url][rucio_site][tmpLFN]
         tmpLog.debug('getOkFiles done')
         # return
         return retMap

@@ -18,7 +18,6 @@ _logger = PandaLogger().getLogger('SiteMapper')
 defSite = SiteSpec()
 defSite.sitename   = panda_config.def_sitename
 defSite.nickname   = panda_config.def_nickname
-defSite.dq2url     = panda_config.def_dq2url
 defSite.ddm_input  = {'default': panda_config.def_ddm}
 defSite.ddm_output = {'default': panda_config.def_ddm}
 defSite.type       = panda_config.def_type
