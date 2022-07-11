@@ -223,12 +223,6 @@ class TaskBuffer:
                                     priorityOffset = tmpOffset
                                 break
 
-                # check site access
-                if hasattr(tmpSiteSpec,'accesscontrol') and tmpSiteSpec.accesscontrol == 'grouplist':
-                    if userSiteAccess == {} or userSiteAccess['status'] != 'approved':
-                        # user is not allowed
-                        userStatus = False
-
                 # set priority offset
                 if userStatus:
                     if 'poffset' in userSiteAccess and userSiteAccess['poffset'] > priorityOffset:

@@ -729,11 +729,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 if (not forAnalysis) and (not tmpSiteSpec.runs_production()):
                                     continue
                                 # check status
-                                if tmpSiteSpec.status in ['offline','brokeroff'] and computingSite in ['NULL',None,'']:
-                                    if forAnalysis and tmpSiteSpec.status == 'brokeroff' and tmpSiteSpec.accesscontrol == 'grouplist':
-                                        # ignore brokeroff for grouplist site
-                                        pass
-                                    elif forAnalysis and  prevProType in ['hammercloud','gangarobot','gangarobot-squid']:
+                                if tmpSiteSpec.status in ['offline', 'brokeroff'] and computingSite in ['NULL', None, '']:
+                                    if forAnalysis and prevProType in ['hammercloud', 'gangarobot', 'gangarobot-squid']:
                                         # ignore site status for HC
                                         pass
                                     else:
