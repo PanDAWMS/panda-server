@@ -11,7 +11,7 @@ class SiteSpec(object):
                    'releases', 'memory', 'maxtime', 'status', 'space', 'retry', 'setokens_input', 'setokens_output',
                    'glexec', 'priorityoffset', 'defaulttoken', 'localqueue', 'validatedreleases',
                    'maxinputsize', 'cachedse', 'comment', 'cloudlist', 'statusmodtime', 'countryGroup',
-                   'availableCPU', 'pledgedCPU', 'coreCount', 'reliabilityLevel', 'iscvmfs', 'transferringlimit',
+                   'pledgedCPU', 'coreCount', 'reliabilityLevel', 'iscvmfs', 'transferringlimit',
                    'maxwdir', 'fairsharePolicy', 'mintime', 'allowfax', 'wansourcelimit', 'wansinklimit', 'pandasite',
                    'corepower', 'wnconnectivity', 'catchall', 'role', 'pandasite_state',
                    'ddm_endpoints_input', 'ddm_endpoints_output', 'maxrss', 'minrss',

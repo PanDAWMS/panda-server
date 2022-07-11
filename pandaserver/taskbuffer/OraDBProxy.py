@@ -10166,14 +10166,6 @@ class DBProxy:
                         else:
                             ret.countryGroup = []
 
-                        # available CPUs
-                        ret.availableCPU = 0
-                        if queue_data.get('availablecpu') not in ['', None]:
-                            try:
-                                ret.availableCPU = int(queue_data['availablecpu'])
-                            except Exception:
-                                pass
-
                         # pledged CPUs
                         ret.pledgedCPU = 0
                         if queue_data.get('pledgedcpu') not in ['', None]:

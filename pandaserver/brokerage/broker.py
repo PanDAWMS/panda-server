@@ -581,9 +581,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     tmpLog.debug('  goToT2         %s' % prevGoToT2Flag)
                     tmpLog.debug('  DDM            %s' % prevDDM)
                 # brokerage decisions
-                resultsForAnal   = {'rel':[],'pilot':[],'disk':[],'status':[],'weight':[],'memory':[],
-                                    'share':[],'transferring':[],'prefcountry':[],'cpucore':[],
-                                    'reliability':[],'maxtime':[],'scratch':[]}
+                resultsForAnal = {'rel': [], 'pilot': [], 'disk': [], 'status': [], 'weight': [], 'memory': [],
+                                  'share': [], 'transferring': [], 'cpucore': [],
+                                  'reliability': [], 'maxtime': [], 'scratch': []}
                 # determine site
                 if (iJob == 0 or chosen_ce != 'TOBEDONE') and prevBrokergageSiteList in [None,[]]:
                      # file scan for pre-assigned jobs
@@ -1104,20 +1104,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         continue
                                 # get ratio of running jobs = run(cloud)/run(all) for multi cloud (disabled)
                                 multiCloudFactor = 1
-                                # country preference
-                                preferredCountryWeight = 1.0
-                                preferredCountryWeightStr = ''
-                                if forAnalysis:
-                                    if preferredCountries != [] and tmpSiteSpec.countryGroup != []:
-                                        for tmpCountry in preferredCountries:
-                                            if tmpCountry in tmpSiteSpec.countryGroup:
-                                                # avoid negative weight or zero-divide
-                                                if tmpSiteSpec.availableCPU >= tmpSiteSpec.pledgedCPU and tmpSiteSpec.pledgedCPU > 0:
-                                                    preferredCountryWeight = float(tmpSiteSpec.availableCPU) / float(tmpSiteSpec.pledgedCPU)
-                                                    preferredCountryWeightStr = "*(%s/%s)" % (tmpSiteSpec.availableCPU,tmpSiteSpec.pledgedCPU)
-                                                    resultsForAnal['prefcountry'].append((site,tmpCountry))
-                                                break
-                                    tmpLog.debug('   country preference=%s' % preferredCountryWeightStr[1:])
+
                                 # calculate weight
                                 if specialWeight != {}:
                                     if not pd2pT1:
@@ -1175,8 +1162,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             foundOneCandidate = True
                             tmpLog.debug('Site:%s 1/Weight:%s' % (site, winv))
                             if forAnalysis and trustIS and reportLog:
-                                resultsForAnal['weight'].append((site,'(1+%s/%s)*%s/%s%s' % (nPilotsGet,1+nPilotsUpdate,1+nRunningMap[site],
-                                                                                             nAssJobs+nActJobs,preferredCountryWeightStr)))
+                                resultsForAnal['weight'].append((site, '(1+%s/%s)*%s/%s' % (nPilotsGet, 1+nPilotsUpdate,
+                                                                                            1+nRunningMap[site],
+                                                                                            nAssJobs+nActJobs)))
                             # choose largest nMinSites weights
                             minSites[site] = winv
                             if len(minSites) > nMinSites:
