@@ -10108,7 +10108,6 @@ class DBProxy:
                         ret.maxtime = queue_data.get('maxtime')
                         ret.status = queue_data.get('status')
                         ret.space = queue_data.get('space')
-                        ret.localqueue = queue_data.get('localqueue')
                         ret.maxinputsize = queue_data.get('maxinputsize')
                         ret.comment = queue_data.get('comment_')
                         ret.statusmodtime = queue_data.get('lastmod')

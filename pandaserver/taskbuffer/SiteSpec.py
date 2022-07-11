@@ -9,7 +9,7 @@ class SiteSpec(object):
     # attributes
     _attributes = ('sitename', 'nickname', 'dq2url', 'cloud', 'ddm', 'ddm_input', 'ddm_output', 'type',
                    'releases', 'memory', 'maxtime', 'status', 'space', 'retry', 'setokens_input', 'setokens_output',
-                   'priorityoffset', 'defaulttoken', 'localqueue', 'validatedreleases',
+                   'priorityoffset', 'defaulttoken', 'validatedreleases',
                    'maxinputsize', 'comment', 'cloudlist', 'statusmodtime',
                    'pledgedCPU', 'coreCount', 'reliabilityLevel', 'iscvmfs', 'transferringlimit',
                    'maxwdir', 'fairsharePolicy', 'mintime', 'allowfax', 'wansourcelimit', 'wansinklimit', 'pandasite',
