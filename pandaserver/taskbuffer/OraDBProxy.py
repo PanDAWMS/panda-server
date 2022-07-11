@@ -10109,7 +10109,6 @@ class DBProxy:
                         ret.space = queue_data.get('space')
                         ret.glexec = queue_data.get('glexec')
                         ret.localqueue = queue_data.get('localqueue')
-                        ret.cachedse = queue_data.get('cachedse')
                         ret.maxinputsize = queue_data.get('maxinputsize')
                         ret.comment = queue_data.get('comment_')
                         ret.statusmodtime = queue_data.get('lastmod')
