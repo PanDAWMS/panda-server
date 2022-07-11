@@ -109,15 +109,15 @@ class Setupper (threading.Thread):
                     import cPickle as pickle
                 except ImportError:
                     import pickle
-                outFileName = '%s/set.%s_%s' % (panda_config.logdir,self.jobs[0].PandaID,str(uuid.uuid4()))
+                outFileName = '%s/set.%s_%s' % (panda_config.logdir, self.jobs[0].PandaID, str(uuid.uuid4()))
                 outFile = open(outFileName, 'wb')
                 pickle.dump(self.jobs, outFile, protocol=0)
                 outFile.close()
                 # run main procedure in another process because python doesn't release memory
-                com =  'cd %s > /dev/null 2>&1; export HOME=%s; ' % (panda_config.home_dir_cwd,panda_config.home_dir_cwd)
+                com =  'cd %s > /dev/null 2>&1; export HOME=%s; ' % (panda_config.home_dir_cwd, panda_config.home_dir_cwd)
                 com += 'env PYTHONPATH=%s:%s %s/python -Wignore %s/dataservice/forkSetupper.py -i %s' % \
-                       (panda_config.pandaCommon_dir,panda_config.pandaPython_dir,panda_config.native_python,
-                        panda_config.pandaPython_dir,outFileName)
+                       (panda_config.pandaCommon_dir, panda_config.pandaPython_dir, panda_config.native_python,
+                        panda_config.pandaPython_dir, outFileName)
                 if self.onlyTA:
                     com += " -t"
                 if not self.firstSubmission:
