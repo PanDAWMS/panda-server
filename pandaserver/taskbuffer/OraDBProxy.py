@@ -8489,21 +8489,7 @@ class DBProxy:
                 tmpGroupMap[tmpWGkey] = tmpWG
                 idxWG += 1
             sqlGroups = sqlGroups[:-1] + ") "
-        # country group
-        if countryGroup != '':
-            if useWhereInSQL:
-                sqlGroups += "AND countryGroup IN ("
-            else:
-                sqlGroups += "WHERE countryGroup IN ("
-                useWhereInSQL = True
-            # loop over all groups
-            idxCG = 1
-            for tmpCG in countryGroup.split(','):
-                tmpCGkey = ':countryGroup%s' % idxCG
-                sqlGroups += "%s," % tmpCGkey
-                tmpGroupMap[tmpCGkey] = tmpCG
-                idxCG += 1
-            sqlGroups = sqlGroups[:-1] + ") "
+
         sql0 += sqlGroups
         # minimum priority
         sqlPrio = ''
@@ -10159,12 +10145,6 @@ class DBProxy:
                         # reliability
                         ret.reliabilityLevel = None
 
-                        # contry groups
-                        if queue_data.get('countrygroup') not in ['', None]:
-                            ret.countryGroup = queue_data['countrygroup'].split(',')
-                        else:
-                            ret.countryGroup = []
-
                         # pledged CPUs
                         ret.pledgedCPU = 0
                         if queue_data.get('pledgedcpu') not in ['', None]:
@@ -10380,90 +10360,6 @@ class DBProxy:
         _logger.debug("{0} done".format(methodName))
         return panda_endpoint_map
 
-
-
-    # check if countryGroup is used for beyond-pledge
-    def checkCountryGroupForBeyondPledge(self,siteName):
-        comment = ' /* DBProxy.checkCountryGroupForBeyondPledge */'
-        _logger.debug("checkCountryGroupForBeyondPledge %s" % siteName)
-        try:
-            # counties for beyond-pledge
-            countryForBeyondPledge = self.beyondPledgeRatio[siteName]['countryGroup'].split(',')
-            # set autocommit on
-            self.conn.begin()
-            # check if countryGroup has activated jobs
-            varMap = {}
-            varMap[':jobStatus'] = 'activated'
-            varMap[':computingSite'] = siteName
-            varMap[':prodSourceLabel1'] = 'user'
-            varMap[':prodSourceLabel2'] = 'panda'
-            sql  = "SELECT PandaID "
-            sql += "FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus "
-            sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
-            sql += "AND computingSite=:computingSite "
-            sql += "AND countryGroup IN ("
-            for idxCountry,tmptmpCountry in enumerate(countryForBeyondPledge):
-                tmpKey = ":countryGroup%s" % idxCountry
-                sql += "%s," % tmpKey
-                varMap[tmpKey] = tmptmpCountry
-            sql = sql[:-1]
-            sql += ") AND rownum <= 1"
-            self.cur.arraysize = 10
-            self.cur.execute(sql+comment,varMap)
-            res = self.cur.fetchall()
-            # no activated jobs
-            if res is None or len(res) == 0:
-                # commit
-                if not self._commit():
-                    raise RuntimeError('Commit error')
-                _logger.debug("checkCountryGroupForBeyondPledge : ret=False - no activated")
-                return False
-            # get ratio
-            varMap = {}
-            varMap[':jobStatus1'] = 'running'
-            varMap[':jobStatus2'] = 'sent'
-            varMap[':computingSite'] = siteName
-            varMap[':prodSourceLabel1'] = 'user'
-            varMap[':prodSourceLabel2'] = 'panda'
-            sql  = "SELECT COUNT(*),countryGroup "
-            sql += "FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus IN (:jobStatus1,:jobStatus2) "
-            sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
-            sql += "AND computingSite=:computingSite "
-            sql += "GROUP BY countryGroup "
-            self.cur.arraysize = 1000
-            self.cur.execute(sql+comment,varMap)
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError('Commit error')
-            beyondCount = 0
-            totalCount  = 0
-            if res is not None and len(res) != 0:
-                for cnt,countryGroup in res:
-                    totalCount += cnt
-                    # counties for beyond pledge
-                    if countryGroup in countryForBeyondPledge:
-                        beyondCount += cnt
-            # no running
-            if totalCount == 0:
-                _logger.debug("checkCountryGroupForBeyondPledge : ret=False - no running")
-                return False
-            # check ratio
-            ratioVal = float(beyondCount)/float(totalCount)
-            if ratioVal < self.beyondPledgeRatio[siteName]['ratio']:
-                retVal = True
-            else:
-                retVal = False
-            _logger.debug("checkCountryGroupForBeyondPledge : ret=%s - %s/total=%s/%s=%s thr=%s" % \
-                          (retVal,self.beyondPledgeRatio[siteName]['countryGroup'],beyondCount,totalCount,
-                           ratioVal,self.beyondPledgeRatio[siteName]['ratio']))
-            return retVal
-        except Exception:
-            errtype,errvalue = sys.exc_info()[:2]
-            _logger.error("checkCountryGroupForBeyondPledge : %s %s" % (errtype,errvalue))
-            # roll back
-            self._rollback()
-            return
 
     # get dispatch sorting criteria
     def getSortingCriteria(self, site_name, max_jobs):
@@ -13567,24 +13463,6 @@ class DBProxy:
         return None
 
 
-
-    # get country working
-    def getCountryGroup(self,fqans):
-        # extract country group
-        for tmpFQAN in fqans:
-            match = re.search('^/atlas/([^/]+)/',tmpFQAN)
-            if match is not None:
-                tmpCountry = match.group(1)
-                # use country code or usatlas
-                if len(tmpCountry) == 2:
-                    return tmpCountry
-                # usatlas
-                if tmpCountry in ['usatlas']:
-                    return 'us'
-        return None
-
-
-
     # insert TaskParams
     def insertTaskParamsPanda(self,taskParams,dn,prodRole,fqans,parent_tid,properErrorCode=False,
                               allowActiveTask=False):
@@ -13624,10 +13502,7 @@ class DBProxy:
                     workingGroup = self.getWorkingGroup(fqans)
                     if workingGroup is not None:
                         taskParamsJson['workingGroup'] = workingGroup
-                # extract country group
-                countryGroup = self.getCountryGroup(fqans)
-                if countryGroup is not None:
-                    taskParamsJson['countryGroup'] = countryGroup
+
             _logger.debug('{0} taskName={1}'.format(methodName,taskParamsJson['taskName']))
             schemaDEFT = self.getSchemaDEFT()
             # sql to check task duplication for user

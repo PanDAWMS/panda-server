@@ -1531,13 +1531,13 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 if jobs[0].prodSourceLabel == 'panda':
                     tmpNumJobs -= 1
                 tmpMsg = 'nJobs=%s ' % tmpNumJobs
-                if jobs[0].countryGroup in ['NULL','',None]:
+                if jobs[0].countryGroup in ['NULL', '', None]:
                     tmpMsg += 'countryGroup=None'
                 else:
                     tmpMsg += 'countryGroup=%s' % jobs[0].countryGroup
                 tmpMsgList.append(tmpMsg)
                 # send log
-                sendMsgToLoggerHTTP(tmpMsgList,jobs[0])
+                sendMsgToLoggerHTTP(tmpMsgList, jobs[0])
         # finished
         tmpLog.debug('N lookup for prio : {0}'.format(len(jobStatBrokerCloudsWithPrio)))
         tmpLog.debug('finished')

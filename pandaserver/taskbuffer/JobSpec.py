@@ -26,7 +26,7 @@ class JobSpec(object):
                    'nEvents','grid','cloud','cpuConversion','sourceSite','destinationSite','transferType',
                    'taskID','cmtConfig','stateChangeTime','prodDBUpdateTime','lockedby','relocationFlag',
                    'jobExecutionID','VO','pilotTiming','workingGroup','processingType','prodUserName',
-                   'nInputFiles','countryGroup','batchID','parentID','specialHandling','jobsetID',
+                   'nInputFiles','batchID','parentID','specialHandling','jobsetID',
                    'coreCount','nInputDataFiles','inputFileType','inputFileProject','inputFileBytes',
                    'nOutputDataFiles','outputFileBytes','jobMetrics','workQueue_ID','jediTaskID',
                    'jobSubStatus','actualCoreCount','reqID','maxRSS','maxVMEM','maxSWAP','maxPSS',
