@@ -11,7 +11,7 @@ class SiteSpec(object):
                    'releases', 'memory', 'maxtime', 'status', 'space', 'setokens_input', 'setokens_output',
                    'priorityoffset', 'defaulttoken', 'validatedreleases', 'maxinputsize', 'comment', 'cloudlist',
                    'statusmodtime', 'pledgedCPU', 'coreCount', 'reliabilityLevel', 'iscvmfs', 'transferringlimit',
-                   'maxwdir', 'fairsharePolicy', 'mintime', 'allowfax', 'wansourcelimit', 'wansinklimit', 'pandasite',
+                   'maxwdir', 'fairsharePolicy', 'mintime', 'allowfax', 'pandasite',
                    'corepower', 'wnconnectivity', 'catchall', 'role', 'pandasite_state',
                    'ddm_endpoints_input', 'ddm_endpoints_output', 'maxrss', 'minrss',
                    'direct_access_lan', 'direct_access_wan', 'tier', 'objectstores', 'is_unified', 'unified_name',

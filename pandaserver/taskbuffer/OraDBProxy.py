@@ -10220,13 +10220,6 @@ class DBProxy:
                         except Exception:
                             pass
 
-                        ret.wansourcelimit = 0
-                        if queue_data.get('wansourcelimit') not in [None,'']:
-                            ret.wansourcelimit = queue_data['wansourcelimit']
-                        ret.wansinklimit = 0
-                        if queue_data.get('wansinklimit') not in [None,'']:
-                            ret.wansinklimit = queue_data['wansinklimit']
-
                         # DDM endpoints
                         ret.ddm_endpoints_input = {}
                         ret.ddm_endpoints_output = {}
