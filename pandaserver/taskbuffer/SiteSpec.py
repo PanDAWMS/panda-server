@@ -8,10 +8,9 @@ import re
 class SiteSpec(object):
     # attributes
     _attributes = ('sitename', 'nickname', 'dq2url', 'cloud', 'ddm', 'ddm_input', 'ddm_output', 'type',
-                   'releases', 'memory', 'maxtime', 'status', 'space', 'retry', 'setokens_input', 'setokens_output',
-                   'priorityoffset', 'defaulttoken', 'validatedreleases',
-                   'maxinputsize', 'comment', 'cloudlist', 'statusmodtime',
-                   'pledgedCPU', 'coreCount', 'reliabilityLevel', 'iscvmfs', 'transferringlimit',
+                   'releases', 'memory', 'maxtime', 'status', 'space', 'setokens_input', 'setokens_output',
+                   'priorityoffset', 'defaulttoken', 'validatedreleases', 'maxinputsize', 'comment', 'cloudlist',
+                   'statusmodtime', 'pledgedCPU', 'coreCount', 'reliabilityLevel', 'iscvmfs', 'transferringlimit',
                    'maxwdir', 'fairsharePolicy', 'mintime', 'allowfax', 'wansourcelimit', 'wansinklimit', 'pandasite',
                    'corepower', 'wnconnectivity', 'catchall', 'role', 'pandasite_state',
                    'ddm_endpoints_input', 'ddm_endpoints_output', 'maxrss', 'minrss',

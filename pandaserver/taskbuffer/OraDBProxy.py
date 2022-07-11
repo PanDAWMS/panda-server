@@ -10182,11 +10182,6 @@ class DBProxy:
                         else:
                             ret.cloudlist = []
 
-                        # job recovery
-                        ret.retry = True
-                        if queue_data.get('retry') is False:
-                            ret.retry = False
-
                         # convert releases to list
                         ret.releases = []
                         if queue_data.get('releases'):
