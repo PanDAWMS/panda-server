@@ -1,6 +1,6 @@
 import re
 import sys
-from pandacommon.liveconfigparser.LiveConfigParser import LiveConfigParser
+from pandacommon.liveconfigparser.LiveConfigParser import LiveConfigParser, expand_values
 from . import config_utils
 
 # get ConfigParser
@@ -17,17 +17,7 @@ config_utils.load_config_map('daemon', tmpDict)
 
 # expand all values
 tmpSelf = sys.modules[ __name__ ]
-for tmpKey in tmpDict:
-    tmpVal = tmpDict[tmpKey]
-    # convert string to bool/int
-    if tmpVal == 'True':
-        tmpVal = True
-    elif tmpVal == 'False':
-        tmpVal = False
-    elif isinstance(tmpVal, str) and re.match('^\d+$', tmpVal):
-        tmpVal = int(tmpVal)
-    # update dict
-    tmpSelf.__dict__[tmpKey] = tmpVal
+expand_values(tmpSelf, tmpDict)
 
 # default values
 if 'enable' not in tmpSelf.__dict__:

@@ -4,7 +4,7 @@ import sys
 import json
 import socket
 import glob
-from pandacommon.liveconfigparser.LiveConfigParser import LiveConfigParser
+from pandacommon.liveconfigparser.LiveConfigParser import LiveConfigParser, expand_values
 from . import config_utils
 
 # get ConfigParser
@@ -21,19 +21,7 @@ config_utils.load_config_map('server', tmpDict)
 
 # expand all values
 tmpSelf = sys.modules[ __name__ ]
-for tmpKey in tmpDict:
-    tmpVal = tmpDict[tmpKey]
-    # convert string to bool/int
-    if tmpVal == 'True':
-        tmpVal = True
-    elif tmpVal == 'False':
-        tmpVal = False
-    elif tmpVal == 'None':
-        tmpVal = None
-    elif isinstance(tmpVal, str) and re.match('^\d+$',tmpVal):
-        tmpVal = int(tmpVal)
-    # update dict
-    tmpSelf.__dict__[tmpKey] = tmpVal
+expand_values(tmpSelf, tmpDict)
 
 # set hostname
 if 'pserverhost' not in tmpSelf.__dict__:
@@ -143,12 +131,6 @@ except Exception:
 # use cert in configurator
 if 'configurator_use_cert' not in tmpSelf.__dict__:
     tmpSelf.__dict__['configurator_use_cert'] = True
-
-# database info via env
-if 'PANDA_DB_HOST' in os.environ:
-    tmpSelf.dbhost = os.environ['PANDA_DB_HOST']
-if 'PANDA_DB_PASSWORD' in os.environ:
-    tmpSelf.dbpasswd = os.environ['PANDA_DB_PASSWORD']
 
 # dict for plugins
 g_pluginMap = {}    
