@@ -3,45 +3,41 @@ dataset specification
 
 """
 
+
 class DatasetSpec(object):
     # attributes
-    _attributes = ('vuid','name','version','type','status','numberfiles','currentfiles','creationdate',
-                   'modificationdate','MoverID','transferStatus','subType')
+    _attributes = ('vuid', 'name', 'version', 'type', 'status', 'numberfiles', 'currentfiles', 'creationdate',
+                   'modificationdate', 'MoverID', 'transferStatus', 'subType')
 
     # attributes which have 0 by default
-    _zeroAttrs = ('MoverID','transferStatus')
-
-    
+    _zeroAttrs = ('MoverID', 'transferStatus')
 
     # constructor
     def __init__(self):
         # install attributes
         for attr in self._attributes:
-            setattr(self,attr,None)
-
+            setattr(self, attr, None)
 
     # override __getattribute__ for SQL
-    def __getattribute__(self,name):
-        ret = object.__getattribute__(self,name)
+    def __getattribute__(self, name):
+        ret = object.__getattribute__(self, name)
         if ret is None:
             return "NULL"
         return ret
-
 
     # return a tuple of values
     def values(self):
         ret = []
         for attr in self._attributes:
-            val = getattr(self,attr)
+            val = getattr(self, attr)
             ret.append(val)
         return tuple(ret)
-
 
     # return map of values
     def valuesMap(self):
         ret = {}
         for attr in self._attributes:
-            val = getattr(self,attr)
+            val = getattr(self, attr)
             if val == 'NULL':
                 if attr in self._zeroAttrs:
                     val = 0
@@ -50,14 +46,12 @@ class DatasetSpec(object):
             ret[':%s' % attr] = val
         return ret
 
-    
     # pack tuple into DatasetSpec
-    def pack(self,values):
+    def pack(self, values):
         for i in range(len(self._attributes)):
-            attr= self._attributes[i]
+            attr = self._attributes[i]
             val = values[i]
-            setattr(self,attr,val)
-
+            setattr(self, attr, val)
 
     # return column names for INSERT
     def columnNames(cls):
@@ -67,20 +61,20 @@ class DatasetSpec(object):
                 ret += ','
             ret += attr
         return ret
-    columnNames = classmethod(columnNames)
 
+    columnNames = classmethod(columnNames)
 
     # return expression of values for INSERT
     def valuesExpression(cls):
         ret = "VALUES("
         for attr in cls._attributes:
             ret += "%s"
-            if attr != cls._attributes[len(cls._attributes)-1]:
+            if attr != cls._attributes[len(cls._attributes) - 1]:
                 ret += ","
-        ret += ")"            
+        ret += ")"
         return ret
-    valuesExpression = classmethod(valuesExpression)
 
+    valuesExpression = classmethod(valuesExpression)
 
     # return expression of bind values for INSERT
     def bindValuesExpression(cls):
@@ -88,27 +82,28 @@ class DatasetSpec(object):
         for attr in cls._attributes:
             ret += ":%s," % attr
         ret = ret[:-1]
-        ret += ")"            
+        ret += ")"
         return ret
+
     bindValuesExpression = classmethod(bindValuesExpression)
 
-    
     # return an expression for UPDATE
     def updateExpression(cls):
         ret = ""
         for attr in cls._attributes:
             ret = ret + attr + "=%s"
-            if attr != cls._attributes[len(cls._attributes)-1]:
+            if attr != cls._attributes[len(cls._attributes) - 1]:
                 ret += ","
         return ret
-    updateExpression = classmethod(updateExpression)
 
+    updateExpression = classmethod(updateExpression)
 
     # return an expression of bind variables for UPDATE
     def bindUpdateExpression(cls):
         ret = ""
         for attr in cls._attributes:
-            ret += '%s=:%s,' % (attr,attr)
+            ret += '%s=:%s,' % (attr, attr)
         ret = ret[:-1]
         return ret
+
     bindUpdateExpression = classmethod(bindUpdateExpression)
