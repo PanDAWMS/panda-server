@@ -29,6 +29,7 @@ DRY_RUN = False
 metric_list = [
     ('gshare_preference', 'gshare', 20),
     ('analy_pmerge_jobs_wait_time', 'site', 30),
+    ('analy_site_eval', 'site', 60),
 ]
 
 
@@ -433,9 +434,9 @@ class FetchData(object):
             # log
             tmp_log.debug(('class_A ({}) : {} ; class_B ({}) : {} ; class_C ({}) : {}'
                             ).format(
-                                len(class_A_set), ','.join(list(class_A_set)),
-                                len(class_B_set), ','.join(list(class_B_set)),
-                                len(class_C_set), ','.join(list(class_C_set)),
+                                len(class_A_set), ','.join(sorted(list(class_A_set))),
+                                len(class_B_set), ','.join(sorted(list(class_B_set))),
+                                len(class_C_set), ','.join(sorted(list(class_C_set))),
                             ))
             # return
             return site_dict
