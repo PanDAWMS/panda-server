@@ -435,6 +435,8 @@ config = {
         "enable": true, "period": 240},
     "evpPD2P": {
         "enable": true, "period": 600},
+    "process_workflow_files_daemon": {
+        "enable": true, "period": 60},
     "copyArchive": {
         "enable": true, "period": 2400, "sync": true},
     "datasetManager": {
