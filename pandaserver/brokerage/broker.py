@@ -76,43 +76,43 @@ def _checkRelease(jobRels,siteRels):
 def _getOkFiles(v_ce, v_files, allLFNs, allOkFilesMap, prodsourcelabel, job_label, tmpLog=None, allScopeList=None):
 
     scope_association_input, scope_association_output = select_scope(v_ce, prodsourcelabel, job_label)
-    dq2IDs = list(v_ce.setokens_input[scope_association_input].values())
+    rucio_sites = list(v_ce.setokens_input[scope_association_input].values())
     try:
-        dq2IDs.remove('')
+        rucio_sites.remove('')
     except Exception:
         pass
-    dq2IDs.sort()
-    if dq2IDs == []:
-        dq2ID = v_ce.ddm_input[scope_association_input]
+    rucio_sites.sort()
+    if rucio_sites == []:
+        rucio_site = v_ce.ddm_input[scope_association_input]
     else:
-        dq2ID = ''
-        for tmpID in dq2IDs:
-            dq2ID += '%s,' % tmpID
-        dq2ID = dq2ID[:-1]
+        rucio_site = ''
+        for tmpID in rucio_sites:
+            rucio_site += '%s,' % tmpID
+        rucio_site = rucio_site[:-1]
     # set LFC and SE name
-    dq2URL = 'rucio://atlas-rucio.cern.ch:/grid/atlas'
+    rucio_url = 'rucio://atlas-rucio.cern.ch:/grid/atlas'
     tmpSE = v_ce.ddm_endpoints_input[scope_association_input].getAllEndPoints()
     if tmpLog is not None:
-        tmpLog.debug('getOkFiles for %s with dq2ID:%s,LFC:%s,SE:%s' % (v_ce.sitename,dq2ID,dq2URL,str(tmpSE)))
+        tmpLog.debug('getOkFiles for %s with rucio_site:%s, LFC:%s, SE:%s' % (v_ce.sitename, rucio_site, rucio_url, str(tmpSE)))
     anyID = 'any'
     # use bulk lookup
     if allLFNs != []:
         # get all replicas
-        if dq2URL not in allOkFilesMap:
-            allOkFilesMap[dq2URL] = {}
+        if rucio_url not in allOkFilesMap:
+            allOkFilesMap[rucio_url] = {}
             tmpStat,tmpAvaFiles = rucioAPI.listFileReplicas(allScopeList, allLFNs, tmpSE)
             if not tmpStat and tmpLog is not None:
                 tmpLog.debug('getOkFile failed to get file replicas')
                 tmpAvaFiles = {}
-            allOkFilesMap[dq2URL][anyID] = tmpAvaFiles
-        # get files for each dq2ID
-        if dq2ID not in allOkFilesMap[dq2URL]:
-            allOkFilesMap[dq2URL][dq2ID] = allOkFilesMap[dq2URL][anyID]
+            allOkFilesMap[rucio_url][anyID] = tmpAvaFiles
+        # get files for each rucio_site
+        if rucio_site not in allOkFilesMap[rucio_url]:
+            allOkFilesMap[rucio_url][rucio_site] = allOkFilesMap[rucio_url][anyID]
         # make return map
         retMap = {}
         for tmpLFN in v_files:
-            if tmpLFN in allOkFilesMap[dq2URL][dq2ID]:
-                retMap[tmpLFN] = allOkFilesMap[dq2URL][dq2ID][tmpLFN]
+            if tmpLFN in allOkFilesMap[rucio_url][rucio_site]:
+                retMap[tmpLFN] = allOkFilesMap[rucio_url][rucio_site][tmpLFN]
         tmpLog.debug('getOkFiles done')
         # return
         return retMap
@@ -581,9 +581,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     tmpLog.debug('  goToT2         %s' % prevGoToT2Flag)
                     tmpLog.debug('  DDM            %s' % prevDDM)
                 # brokerage decisions
-                resultsForAnal   = {'rel':[],'pilot':[],'disk':[],'status':[],'weight':[],'memory':[],
-                                    'share':[],'transferring':[],'prefcountry':[],'cpucore':[],
-                                    'reliability':[],'maxtime':[],'scratch':[]}
+                resultsForAnal = {'rel': [], 'pilot': [], 'disk': [], 'status': [], 'weight': [], 'memory': [],
+                                  'share': [], 'transferring': [], 'cpucore': [],
+                                  'reliability': [], 'maxtime': [], 'scratch': []}
                 # determine site
                 if (iJob == 0 or chosen_ce != 'TOBEDONE') and prevBrokergageSiteList in [None,[]]:
                      # file scan for pre-assigned jobs
@@ -729,11 +729,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                 if (not forAnalysis) and (not tmpSiteSpec.runs_production()):
                                     continue
                                 # check status
-                                if tmpSiteSpec.status in ['offline','brokeroff'] and computingSite in ['NULL',None,'']:
-                                    if forAnalysis and tmpSiteSpec.status == 'brokeroff' and tmpSiteSpec.accesscontrol == 'grouplist':
-                                        # ignore brokeroff for grouplist site
-                                        pass
-                                    elif forAnalysis and  prevProType in ['hammercloud','gangarobot','gangarobot-squid']:
+                                if tmpSiteSpec.status in ['offline', 'brokeroff'] and computingSite in ['NULL', None, '']:
+                                    if forAnalysis and prevProType in ['hammercloud', 'gangarobot', 'gangarobot-squid']:
                                         # ignore site status for HC
                                         pass
                                     else:
@@ -1107,20 +1104,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         continue
                                 # get ratio of running jobs = run(cloud)/run(all) for multi cloud (disabled)
                                 multiCloudFactor = 1
-                                # country preference
-                                preferredCountryWeight = 1.0
-                                preferredCountryWeightStr = ''
-                                if forAnalysis:
-                                    if preferredCountries != [] and tmpSiteSpec.countryGroup != []:
-                                        for tmpCountry in preferredCountries:
-                                            if tmpCountry in tmpSiteSpec.countryGroup:
-                                                # avoid negative weight or zero-divide
-                                                if tmpSiteSpec.availableCPU >= tmpSiteSpec.pledgedCPU and tmpSiteSpec.pledgedCPU > 0:
-                                                    preferredCountryWeight = float(tmpSiteSpec.availableCPU) / float(tmpSiteSpec.pledgedCPU)
-                                                    preferredCountryWeightStr = "*(%s/%s)" % (tmpSiteSpec.availableCPU,tmpSiteSpec.pledgedCPU)
-                                                    resultsForAnal['prefcountry'].append((site,tmpCountry))
-                                                break
-                                    tmpLog.debug('   country preference=%s' % preferredCountryWeightStr[1:])
+
                                 # calculate weight
                                 if specialWeight != {}:
                                     if not pd2pT1:
@@ -1178,8 +1162,9 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             foundOneCandidate = True
                             tmpLog.debug('Site:%s 1/Weight:%s' % (site, winv))
                             if forAnalysis and trustIS and reportLog:
-                                resultsForAnal['weight'].append((site,'(1+%s/%s)*%s/%s%s' % (nPilotsGet,1+nPilotsUpdate,1+nRunningMap[site],
-                                                                                             nAssJobs+nActJobs,preferredCountryWeightStr)))
+                                resultsForAnal['weight'].append((site, '(1+%s/%s)*%s/%s' % (nPilotsGet, 1+nPilotsUpdate,
+                                                                                            1+nRunningMap[site],
+                                                                                            nAssJobs+nActJobs)))
                             # choose largest nMinSites weights
                             minSites[site] = winv
                             if len(minSites) > nMinSites:
@@ -1546,13 +1531,13 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                 if jobs[0].prodSourceLabel == 'panda':
                     tmpNumJobs -= 1
                 tmpMsg = 'nJobs=%s ' % tmpNumJobs
-                if jobs[0].countryGroup in ['NULL','',None]:
+                if jobs[0].countryGroup in ['NULL', '', None]:
                     tmpMsg += 'countryGroup=None'
                 else:
                     tmpMsg += 'countryGroup=%s' % jobs[0].countryGroup
                 tmpMsgList.append(tmpMsg)
                 # send log
-                sendMsgToLoggerHTTP(tmpMsgList,jobs[0])
+                sendMsgToLoggerHTTP(tmpMsgList, jobs[0])
         # finished
         tmpLog.debug('N lookup for prio : {0}'.format(len(jobStatBrokerCloudsWithPrio)))
         tmpLog.debug('finished')

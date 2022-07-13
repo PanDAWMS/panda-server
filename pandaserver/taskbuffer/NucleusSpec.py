@@ -5,10 +5,11 @@ nucleus specification
 
 import re
 
+
 class NucleusSpec(object):
 
     # constructor
-    def __init__(self,name):
+    def __init__(self, name):
         self.name = name
         self.allPandaSites = []
         self.allDdmEndPoints = {}
@@ -34,13 +35,11 @@ class NucleusSpec(object):
                             self.all_ddm_endpoints_in[localEndPoint] = ddmSpec.getEndPoint(localEndPoint)
 
     # check if associated panda site
-    def isAssociatedPandaSite(self,siteName):
+    def isAssociatedPandaSite(self, siteName):
         return siteName in self.allPandaSites
 
-
-
     # check if associated DDM endpoint
-    def isAssociatedEndpoint(self,endPoint):
+    def isAssociatedEndpoint(self, endPoint):
         return endPoint in self.allDdmEndPoints
 
     # check if associated endpoint for input
@@ -48,7 +47,7 @@ class NucleusSpec(object):
         return endpoint in self.all_ddm_endpoints_in
 
     # get associated DDM endpoint
-    def getEndpoint(self,endPoint):
+    def getEndpoint(self, endPoint):
         try:
             if endPoint in self.allDdmEndPoints:
                 return self.allDdmEndPoints[endPoint]
@@ -57,7 +56,7 @@ class NucleusSpec(object):
             None
 
     # get associated DDM endpoint
-    def getAssociatedEndpoint(self,patt):
+    def getAssociatedEndpoint(self, patt):
         patt = patt.split('/')[-1]
         if patt.startswith('dst:'):
             patt = patt.split(':')[-1]
@@ -68,15 +67,13 @@ class NucleusSpec(object):
             # if self.allDdmEndPoints[endPointName]['type'] in ['TEST','SPECIAL']:
             #    continue
             # check name
-            if re.search(patt,endPointName) is not None:
+            if re.search(patt, endPointName) is not None:
                 return self.allDdmEndPoints[endPointName]
             # check type
-            pattwoVO = re.sub('ATLAS','',patt)
+            pattwoVO = re.sub('ATLAS', '', patt)
             if self.allDdmEndPoints[endPointName]['type'] == pattwoVO:
                 return self.allDdmEndPoints[endPointName]
         return None
-
-
 
     # get one panda site
     def getOnePandaSite(self):

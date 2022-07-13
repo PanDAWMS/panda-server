@@ -422,40 +422,47 @@ class DBProxy:
                      origSpecialHandling=None, unprocessedMap=None, prio_reduction=True):
         comment = ' /* DBProxy.insertNewJob */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        methodName += ' <JediTaskID={0} idPool={1}>'.format(job.jediTaskID,len(fileIDPool))
+        methodName += ' <JediTaskID={0} idPool={1}>'.format(job.jediTaskID, len(fileIDPool))
+        tmp_log = LogWrapper(_logger, methodName)
+
         if not toPending:
             sql1 = "INSERT INTO ATLAS_PANDA.jobsDefined4 (%s) " % JobSpec.columnNames()
         else:
             sql1 = "INSERT INTO ATLAS_PANDA.jobsWaiting4 (%s) " % JobSpec.columnNames()
-        sql1+= JobSpec.bindValuesExpression(useSeq=True)
-        sql1+= " RETURNING PandaID INTO :newPandaID"
+        sql1 += JobSpec.bindValuesExpression(useSeq=True)
+        sql1 += " RETURNING PandaID INTO :newPandaID"
+
         # make sure PandaID is NULL
         job.PandaID = None
         # job status
         if not toPending:
-            job.jobStatus='defined'
+            job.jobStatus = 'defined'
         else:
             if job.computingSite == EventServiceUtils.siteIdForWaitingCoJumboJobs:
                 # put waiting co-jumbo jobs to waiting
-                job.jobStatus='waiting'
+                job.jobStatus = 'waiting'
             else:
-                job.jobStatus='pending'
+                job.jobStatus = 'pending'
+        
         # host and time information
         job.modificationHost = self.hostname
-        job.creationTime     = datetime.datetime.utcnow()
+        job.creationTime = datetime.datetime.utcnow()
         job.modificationTime = job.creationTime
-        job.stateChangeTime  = job.creationTime
+        job.stateChangeTime = job.creationTime
         job.prodDBUpdateTime = job.creationTime
         # DN
-        if job.prodUserID == "NULL" or job.prodSourceLabel in ['user','panda']:
+        if job.prodUserID == "NULL" or job.prodSourceLabel in ['user', 'panda']:
             job.prodUserID = user
+        
         # compact user name
         job.prodUserName = self.cleanUserID(job.prodUserID)
         if job.prodUserName in ['', 'NULL']:
             # use prodUserID as compact user name
             job.prodUserName = job.prodUserID
+        
         # VO
         job.VO = userVO
+        
         # priority
         if job.assignedPriority != 'NULL':
             job.currentPriority = job.assignedPriority
@@ -464,7 +471,7 @@ class DBProxy:
         elif job.prodUserName in ['artprod'] and job.prodSourceLabel in ['user', 'panda']:
             job.currentPriority = 7000
         elif job.prodSourceLabel == 'user':
-            if job.processingType in ['usermerge','pmerge'] and job.currentPriority not in ['NULL',None]:
+            if job.processingType in ['usermerge', 'pmerge'] and job.currentPriority not in ['NULL', None]:
                 # avoid prio reduction for merge jobs
                 pass
             else:
@@ -472,8 +479,8 @@ class DBProxy:
                     job.currentPriority = priorityOffset
                     if job.isScoutJob():
                         job.currentPriority += 1
-                elif job.currentPriority not in ['NULL',None] and \
-                    (job.isScoutJob() or job.currentPriority >= JobUtils.priorityTasksToJumpOver):
+                elif job.currentPriority not in ['NULL', None] and \
+                     (job.isScoutJob() or job.currentPriority >= JobUtils.priorityTasksToJumpOver):
                     pass
                 else:
                     job.currentPriority = PrioUtil.calculatePriority(priorityOffset,serNum,weight)
@@ -483,16 +490,18 @@ class DBProxy:
             job.currentPriority = 2000 + priorityOffset
             if 'express' in job.specialHandling:
                 job.currentPriority = 6500
+
         # usergroup
         if job.prodSourceLabel == 'regional':
-            job.computingSite= "BNLPROD"
+            job.computingSite = "BNLPROD"
+
         # group job SN
         groupJobSN = "%05d" % groupJobSN
         # set attempt numbers
-        if job.prodSourceLabel in ['user','panda'] + JobUtils.list_ptest_prod_sources:
-            if job.attemptNr in [None,'NULL','']:
+        if job.prodSourceLabel in ['user', 'panda'] + JobUtils.list_ptest_prod_sources:
+            if job.attemptNr in [None, 'NULL', '']:
                 job.attemptNr = 0
-            if job.maxAttempt in [None,'NULL','']:
+            if job.maxAttempt in [None, 'NULL', '']:
                 job.maxAttempt = 0
             # set maxAttempt to attemptNr to disable server/pilot retry
             if job.maxAttempt == -1:
@@ -505,26 +514,28 @@ class DBProxy:
         # obtain the share and resource type
         if job.gshare in ('NULL', None, ''):
             job.gshare = self.get_share_for_job(job)
-        _logger.debug('resource_type is set to {0}'.format(job.resource_type))
-        _logger.debug("insertNewJob : jediTaskID={0} SH={1} origEsJob={2} eInfo={3}".format(job.jediTaskID, origSpecialHandling, origEsJob,
-                                                                                            eventServiceInfo))
+        tmp_log.debug('resource_type is set to {0}'.format(job.resource_type))
+        tmp_log.debug("jediTaskID={0} SH={1} origEsJob={2} eInfo={3}".format(job.jediTaskID, origSpecialHandling,
+                                                                                            origEsJob, eventServiceInfo))
         if job.resource_type in ('NULL', None, ''):
             try:
                 job.resource_type = self.get_resource_type_job(job)
-                _logger.debug('reset resource_type to {0}'.format(job.resource_type))
+                tmp_log.debug('reset resource_type to {0}'.format(job.resource_type))
             except Exception:
                 job.resource_type = 'Undefined'
-                _logger.error('reset resource_type excepted with: {0}'.format(traceback.format_exc()))
+                tmp_log.error('reset resource_type excepted with: {0}'.format(traceback.format_exc()))
 
         try:
             # use JEDI
-            if hasattr(panda_config,'useJEDI') and panda_config.useJEDI is True and \
+            if hasattr(panda_config, 'useJEDI') and panda_config.useJEDI is True and \
                     job.lockedby == 'jedi':
                 useJEDI = True
             else:
                 useJEDI = False
+            
             # begin transaction
             self.conn.begin()
+            
             # get jobsetID for event service
             if origEsJob:
                 if self.backend == 'oracle':
@@ -541,6 +552,7 @@ class DBProxy:
                     sql2 = """ SELECT LAST_INSERT_ID() """
                     self.cur.execute(sql2 + comment, {})
                     job.jobsetID, = self.cur.fetchone()
+
             # check input
             if useJEDI:
                 allInputOK = True
@@ -558,13 +570,13 @@ class DBProxy:
                             continue
                         varMap = {}
                         varMap[':fileID'] = file.fileID
-                        varMap[':datasetID']  = file.datasetID
+                        varMap[':datasetID'] = file.datasetID
                         varMap[':jediTaskID'] = file.jediTaskID
                         self.cur.execute(sqlCheckJediFile+comment, varMap)
                         retFC = self.cur.fetchone()
                         if retFC is None:
                             allInputOK = False
-                            _logger.debug("insertNewJob : input check failed - missing jediTaskID:%s datasetID=%s fileID=%s" % (file.jediTaskID,file.datasetID,file.fileID))
+                            tmp_log.debug("input check failed - missing jediTaskID:%s datasetID=%s fileID=%s" % (file.jediTaskID, file.datasetID, file.fileID))
                             break
                         tmpStatus,tmpKeepTrack,tmpAttemptNr,tmpType = retFC
                         # only keep track
@@ -576,14 +588,14 @@ class DBProxy:
                         # check attemptNr
                         if tmpAttemptNr != file.attemptNr:
                             allInputOK = False
-                            _logger.debug("insertNewJob : input check failed - bad attemptNr %s:%s jediTaskID:%s datasetID=%s fileID=%s" % (tmpAttemptNr,file.attemptNr,
-                                                                                                                                            file.jediTaskID,file.datasetID,file.fileID))
+                            tmp_log.debug("input check failed - bad attemptNr %s:%s jediTaskID:%s datasetID=%s fileID=%s" % (tmpAttemptNr, file.attemptNr,
+                                                                                                                             file.jediTaskID, file.datasetID, file.fileID))
                             break
                         # check status
                         if tmpStatus != 'picked':
                             allInputOK = False
-                            _logger.debug("insertNewJob : input check failed - bad status %s jediTaskID:%s datasetID=%s fileID=%s" % (tmpStatus,
-                                                                                                                                      file.jediTaskID,file.datasetID,file.fileID))
+                            tmp_log.debug("input check failed - bad status %s jediTaskID:%s datasetID=%s fileID=%s" % (tmpStatus, file.jediTaskID,
+                                                                                                                       file.datasetID, file.fileID))
                             break
                 if not allInputOK:
                     # commit
@@ -592,15 +604,18 @@ class DBProxy:
                     if unprocessedMap is not None:
                         return (False, unprocessedMap)
                     return False
+            
             # insert job
             varMap = job.valuesMap(useSeq=True)
             varMap[':newPandaID'] = self.cur.var(varNUMBER)
             retI = self.cur.execute(sql1+comment, varMap)
+            
             # set PandaID
             val = self.getvalue_corrector(self.cur.getvalue(varMap[':newPandaID']))
             job.PandaID = long(val)
+            
             # get jobsetID
-            if job.jobsetID in [None,'NULL',-1]:
+            if job.jobsetID in [None, 'NULL', -1]:
                 jobsetID = 0
             else:
                 jobsetID = job.jobsetID
@@ -609,6 +624,7 @@ class DBProxy:
                 strJediTaskID = str(job.jediTaskID)
             except Exception:
                 strJediTaskID = ''
+            
             # get originPandaID
             originPandaID = None
             if oldPandaIDs is not None and len(oldPandaIDs) > 0:
@@ -648,15 +664,15 @@ class DBProxy:
             # reset changed attribute list
             job.resetChangedList()
             # insert files
-            _logger.debug("insertNewJob : inserted %s label:%s prio:%s jediTaskID:%s" % (job.PandaID,job.prodSourceLabel,
+            tmp_log.debug("inserted %s label:%s prio:%s jediTaskID:%s" % (job.PandaID,job.prodSourceLabel,
                                                                                          job.currentPriority,
                                                                                          job.jediTaskID))
             # sql with SEQ
             sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
-            sqlFile+= FileSpec.bindValuesExpression(useSeq=True)
-            sqlFile+= " RETURNING row_ID INTO :newRowID"
+            sqlFile += FileSpec.bindValuesExpression(useSeq=True)
+            sqlFile += " RETURNING row_ID INTO :newRowID"
             # sql without SEQ
-            sqlFileW  = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
+            sqlFileW = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
             sqlFileW += FileSpec.bindValuesExpression(useSeq=False)
             dynNumEvents = EventServiceUtils.isDynNumEventsSH(job.specialHandling)
             dynFileMap = {}
@@ -811,7 +827,7 @@ class DBProxy:
                         varMap[':esSent']      = EventServiceUtils.ST_sent
                         varMap[':esRunning']   = EventServiceUtils.ST_running
                         varMap[':isJumbo'] = EventServiceUtils.eventTableIsJumbo
-                        _logger.debug(sqlJediCEvt+comment+str(varMap))
+                        tmp_log.debug(sqlJediCEvt+comment+str(varMap))
                         self.cur.execute(sqlJediCEvt+comment, varMap)
                         # unset processed_upto for old failed events
                         sqlJediFEvt  = "UPDATE /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
@@ -824,7 +840,7 @@ class DBProxy:
                         varMap[':datasetID']   = file.datasetID
                         varMap[':fileID']      = file.fileID
                         varMap[':esFailed']    = EventServiceUtils.ST_failed
-                        _logger.debug(sqlJediFEvt+comment+str(varMap))
+                        tmp_log.debug(sqlJediFEvt+comment+str(varMap))
                         self.cur.execute(sqlJediFEvt+comment, varMap)
                         # event range with offset
                         withOffset = False
@@ -888,10 +904,10 @@ class DBProxy:
                                 continue
                             varMaps.append(varMap)
                             nEventsToProcess += 1
-                        _logger.debug("insertNewJob : %s insert %s event ranges jediTaskID:%s" % (job.PandaID,len(varMaps),
+                        tmp_log.debug("%s insert %s event ranges jediTaskID:%s" % (job.PandaID,len(varMaps),
                                                                                                   job.jediTaskID))
                         self.cur.executemany(sqlJediEvent+comment, varMaps)
-                        _logger.debug("insertNewJob : %s inserted %s event ranges jediTaskID:%s" % (job.PandaID,len(varMaps),
+                        tmp_log.debug("%s inserted %s event ranges jediTaskID:%s" % (job.PandaID,len(varMaps),
                                                                                                     job.jediTaskID))
                         totalInputEvents += eventServiceInfo[file.lfn]['nEvents']
             if job.notDiscardEvents() and origEsJob and nEventsToProcess == 0:
@@ -917,7 +933,7 @@ class DBProxy:
                             self.setScoreSiteToEs(job, "insertNewJob : {0}".format(job.PandaID), comment)
             # bulk insert files
             if len(varMapsForFile) > 0:
-                _logger.debug("insertNewJob : {0} bulk insert {1} files for jediTaskID:{2}".format(job.PandaID,len(varMapsForFile),
+                tmp_log.debug("{0} bulk insert {1} files for jediTaskID:{2}".format(job.PandaID,len(varMapsForFile),
                                                                                                    job.jediTaskID))
                 self.cur.executemany(sqlFileW+comment,varMapsForFile)
             # update nFilesWaiting
@@ -957,7 +973,7 @@ class DBProxy:
                         varMap[':lastEvent'] = 0
                         varMaps.append(varMap)
                 self.cur.executemany(sqlJediEvent+comment, varMaps)
-                _logger.debug("insertNewJob : %s inserted %s dyn events jediTaskID:%s" % (job.PandaID,len(varMaps),
+                tmp_log.debug("%s inserted %s dyn events jediTaskID:%s" % (job.PandaID,len(varMaps),
                                                                                           job.jediTaskID))
             # update t_task
             if useJEDI and job.prodSourceLabel not in ['panda'] and job.processingType != 'pmerge':
@@ -967,18 +983,18 @@ class DBProxy:
                 sqlTtask  = "UPDATE {0}.T_TASK ".format(schemaDEFT)
                 sqlTtask += "SET total_req_jobs=total_req_jobs+1,timestamp=CURRENT_DATE "
                 sqlTtask += "WHERE taskid=:jediTaskID "
-                _logger.debug(sqlTtask+comment+str(varMap))
+                tmp_log.debug(sqlTtask+comment+str(varMap))
                 self.cur.execute(sqlTtask+comment,varMap)
-                _logger.debug("insertNewJob : %s updated T_TASK jediTaskID:%s" % (job.PandaID,job.jediTaskID))
+                tmp_log.debug("%s updated T_TASK jediTaskID:%s" % (job.PandaID,job.jediTaskID))
             # metadata
             if job.prodSourceLabel in ['user','panda'] and job.metadata != '':
                 sqlMeta = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData) VALUES (:PandaID,:metaData)"
                 varMap = {}
                 varMap[':PandaID']  = job.PandaID
                 varMap[':metaData'] = job.metadata
-                _logger.debug("insertNewJob : %s inserting meta jediTaskID:%s" % (job.PandaID,job.jediTaskID))
+                tmp_log.debug("%s inserting meta jediTaskID:%s" % (job.PandaID,job.jediTaskID))
                 self.cur.execute(sqlMeta+comment, varMap)
-                _logger.debug("insertNewJob : %s inserted meta jediTaskID:%s" % (job.PandaID,job.jediTaskID))
+                tmp_log.debug("%s inserted meta jediTaskID:%s" % (job.PandaID,job.jediTaskID))
             # job parameters
             if job.prodSourceLabel not in ['managed']:
                 job.jobParameters = re.sub('\$JOBSETID', jobsetID, job.jobParameters)
@@ -991,18 +1007,18 @@ class DBProxy:
             varMap = {}
             varMap[':PandaID'] = job.PandaID
             varMap[':param']   = job.jobParameters
-            _logger.debug("insertNewJob : %s inserting jobParam jediTaskID:%s" % (job.PandaID,job.jediTaskID))
+            tmp_log.debug("%s inserting jobParam jediTaskID:%s" % (job.PandaID,job.jediTaskID))
             self.cur.execute(sqlJob+comment, varMap)
-            _logger.debug("insertNewJob : %s inserted jobParam jediTaskID:%s" % (job.PandaID,job.jediTaskID))
+            tmp_log.debug("%s inserted jobParam jediTaskID:%s" % (job.PandaID,job.jediTaskID))
             # update input
             if useJEDI and not EventServiceUtils.isJumboJob(job) and job.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs and \
                     not (EventServiceUtils.isEventServiceJob(job) and not origEsJob):
                 self.updateInputStatusJedi(job.jediTaskID, job.PandaID, 'queued')
             # record retry history
             if oldPandaIDs is not None and len(oldPandaIDs) > 0:
-                _logger.debug("insertNewJob : %s recording history nOld=%s jediTaskID:%s" % (job.PandaID,len(oldPandaIDs),job.jediTaskID))
+                tmp_log.debug("%s recording history nOld=%s jediTaskID:%s" % (job.PandaID,len(oldPandaIDs),job.jediTaskID))
                 self.recordRetryHistoryJEDI(job.jediTaskID,job.PandaID,oldPandaIDs,relationType)
-                _logger.debug("insertNewJob : %s recorded history jediTaskID:%s" % (job.PandaID,job.jediTaskID))
+                tmp_log.debug("%s recorded history jediTaskID:%s" % (job.PandaID,job.jediTaskID))
             # record jobset
             if origEsJob:
                 self.recordRetryHistoryJEDI(job.jediTaskID,job.PandaID,[job.jobsetID],EventServiceUtils.relationTypeJS_ID)
@@ -1019,23 +1035,23 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
-            _logger.debug("insertNewJob : %s all OK jediTaskID:%s" % (job.PandaID,job.jediTaskID))
+            tmp_log.debug("%s all OK jediTaskID:%s" % (job.PandaID,job.jediTaskID))
             # record status change
             try:
-                self.recordStatusChange(job.PandaID,job.jobStatus,jobInfo=job)
+                self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)
             except Exception:
-                _logger.error('recordStatusChange in insertNewJob')
+                tmp_log.error('recordStatusChange in insertNewJob')
             self.push_job_status_message(job, job.PandaID, job.jobStatus, job.jediTaskID, origSpecialHandling)
             if unprocessedMap is not None:
-                return (True, unprocessedMap)
+                return True, unprocessedMap
             return True
         except Exception:
             # roll back
             self._rollback()
             # error
-            self.dumpErrorMessage(_logger,methodName)
+            self.dumpErrorMessage(_logger, methodName)
             if unprocessedMap is not None:
-                return (False, unprocessedMap)
+                return False, unprocessedMap
             return False
 
 
@@ -8489,21 +8505,7 @@ class DBProxy:
                 tmpGroupMap[tmpWGkey] = tmpWG
                 idxWG += 1
             sqlGroups = sqlGroups[:-1] + ") "
-        # country group
-        if countryGroup != '':
-            if useWhereInSQL:
-                sqlGroups += "AND countryGroup IN ("
-            else:
-                sqlGroups += "WHERE countryGroup IN ("
-                useWhereInSQL = True
-            # loop over all groups
-            idxCG = 1
-            for tmpCG in countryGroup.split(','):
-                tmpCGkey = ':countryGroup%s' % idxCG
-                sqlGroups += "%s," % tmpCGkey
-                tmpGroupMap[tmpCGkey] = tmpCG
-                idxCG += 1
-            sqlGroups = sqlGroups[:-1] + ") "
+
         sql0 += sqlGroups
         # minimum priority
         sqlPrio = ''
@@ -10092,7 +10094,6 @@ class DBProxy:
 
                         ret.type = queue_data.get('type', 'production')
                         ret.nickname = queue_data.get('nickname')
-                        ret.dq2url = queue_data.get('dq2url')
                         try:
                             ret.ddm = queue_data.get('ddm', '').split(',')[0]
                         except AttributeError:
@@ -10107,10 +10108,6 @@ class DBProxy:
                         ret.maxtime = queue_data.get('maxtime')
                         ret.status = queue_data.get('status')
                         ret.space = queue_data.get('space')
-                        ret.glexec = queue_data.get('glexec')
-                        ret.localqueue = queue_data.get('localqueue')
-                        ret.cachedse = queue_data.get('cachedse')
-                        ret.accesscontrol = queue_data.get('accesscontrol')
                         ret.maxinputsize = queue_data.get('maxinputsize')
                         ret.comment = queue_data.get('comment_')
                         ret.statusmodtime = queue_data.get('lastmod')
@@ -10123,7 +10120,6 @@ class DBProxy:
                         ret.pandasite_state = 'ACTIVE'
                         ret.fairsharePolicy = queue_data.get('fairsharepolicy')
                         ret.priorityoffset = queue_data.get('priorityoffset')
-                        ret.allowedgroups  = queue_data.get('allowedgroups')
                         ret.defaulttoken   = queue_data.get('defaulttoken')
 
                         ret.direct_access_lan = (queue_data.get('direct_access_lan') is True)
@@ -10162,20 +10158,6 @@ class DBProxy:
                         # reliability
                         ret.reliabilityLevel = None
 
-                        # contry groups
-                        if queue_data.get('countrygroup') not in ['', None]:
-                            ret.countryGroup = queue_data['countrygroup'].split(',')
-                        else:
-                            ret.countryGroup = []
-
-                        # available CPUs
-                        ret.availableCPU = 0
-                        if queue_data.get('availablecpu') not in ['', None]:
-                            try:
-                                ret.availableCPU = int(queue_data['availablecpu'])
-                            except Exception:
-                                pass
-
                         # pledged CPUs
                         ret.pledgedCPU = 0
                         if queue_data.get('pledgedcpu') not in ['', None]:
@@ -10199,11 +10181,6 @@ class DBProxy:
                                 ret.cloudlist += queue_data['multicloud'].split(',')
                         else:
                             ret.cloudlist = []
-
-                        # job recovery
-                        ret.retry = True
-                        if queue_data.get('retry') is False:
-                            ret.retry = False
 
                         # convert releases to list
                         ret.releases = []
@@ -10242,13 +10219,6 @@ class DBProxy:
                                 ret.allowfax = True
                         except Exception:
                             pass
-
-                        ret.wansourcelimit = 0
-                        if queue_data.get('wansourcelimit') not in [None,'']:
-                            ret.wansourcelimit = queue_data['wansourcelimit']
-                        ret.wansinklimit = 0
-                        if queue_data.get('wansinklimit') not in [None,'']:
-                            ret.wansinklimit = queue_data['wansinklimit']
 
                         # DDM endpoints
                         ret.ddm_endpoints_input = {}
@@ -10391,90 +10361,6 @@ class DBProxy:
         _logger.debug("{0} done".format(methodName))
         return panda_endpoint_map
 
-
-
-    # check if countryGroup is used for beyond-pledge
-    def checkCountryGroupForBeyondPledge(self,siteName):
-        comment = ' /* DBProxy.checkCountryGroupForBeyondPledge */'
-        _logger.debug("checkCountryGroupForBeyondPledge %s" % siteName)
-        try:
-            # counties for beyond-pledge
-            countryForBeyondPledge = self.beyondPledgeRatio[siteName]['countryGroup'].split(',')
-            # set autocommit on
-            self.conn.begin()
-            # check if countryGroup has activated jobs
-            varMap = {}
-            varMap[':jobStatus'] = 'activated'
-            varMap[':computingSite'] = siteName
-            varMap[':prodSourceLabel1'] = 'user'
-            varMap[':prodSourceLabel2'] = 'panda'
-            sql  = "SELECT PandaID "
-            sql += "FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus "
-            sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
-            sql += "AND computingSite=:computingSite "
-            sql += "AND countryGroup IN ("
-            for idxCountry,tmptmpCountry in enumerate(countryForBeyondPledge):
-                tmpKey = ":countryGroup%s" % idxCountry
-                sql += "%s," % tmpKey
-                varMap[tmpKey] = tmptmpCountry
-            sql = sql[:-1]
-            sql += ") AND rownum <= 1"
-            self.cur.arraysize = 10
-            self.cur.execute(sql+comment,varMap)
-            res = self.cur.fetchall()
-            # no activated jobs
-            if res is None or len(res) == 0:
-                # commit
-                if not self._commit():
-                    raise RuntimeError('Commit error')
-                _logger.debug("checkCountryGroupForBeyondPledge : ret=False - no activated")
-                return False
-            # get ratio
-            varMap = {}
-            varMap[':jobStatus1'] = 'running'
-            varMap[':jobStatus2'] = 'sent'
-            varMap[':computingSite'] = siteName
-            varMap[':prodSourceLabel1'] = 'user'
-            varMap[':prodSourceLabel2'] = 'panda'
-            sql  = "SELECT COUNT(*),countryGroup "
-            sql += "FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus IN (:jobStatus1,:jobStatus2) "
-            sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
-            sql += "AND computingSite=:computingSite "
-            sql += "GROUP BY countryGroup "
-            self.cur.arraysize = 1000
-            self.cur.execute(sql+comment,varMap)
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError('Commit error')
-            beyondCount = 0
-            totalCount  = 0
-            if res is not None and len(res) != 0:
-                for cnt,countryGroup in res:
-                    totalCount += cnt
-                    # counties for beyond pledge
-                    if countryGroup in countryForBeyondPledge:
-                        beyondCount += cnt
-            # no running
-            if totalCount == 0:
-                _logger.debug("checkCountryGroupForBeyondPledge : ret=False - no running")
-                return False
-            # check ratio
-            ratioVal = float(beyondCount)/float(totalCount)
-            if ratioVal < self.beyondPledgeRatio[siteName]['ratio']:
-                retVal = True
-            else:
-                retVal = False
-            _logger.debug("checkCountryGroupForBeyondPledge : ret=%s - %s/total=%s/%s=%s thr=%s" % \
-                          (retVal,self.beyondPledgeRatio[siteName]['countryGroup'],beyondCount,totalCount,
-                           ratioVal,self.beyondPledgeRatio[siteName]['ratio']))
-            return retVal
-        except Exception:
-            errtype,errvalue = sys.exc_info()[:2]
-            _logger.error("checkCountryGroupForBeyondPledge : %s %s" % (errtype,errvalue))
-            # roll back
-            self._rollback()
-            return
 
     # get dispatch sorting criteria
     def getSortingCriteria(self, site_name, max_jobs):
@@ -13578,24 +13464,6 @@ class DBProxy:
         return None
 
 
-
-    # get country working
-    def getCountryGroup(self,fqans):
-        # extract country group
-        for tmpFQAN in fqans:
-            match = re.search('^/atlas/([^/]+)/',tmpFQAN)
-            if match is not None:
-                tmpCountry = match.group(1)
-                # use country code or usatlas
-                if len(tmpCountry) == 2:
-                    return tmpCountry
-                # usatlas
-                if tmpCountry in ['usatlas']:
-                    return 'us'
-        return None
-
-
-
     # insert TaskParams
     def insertTaskParamsPanda(self,taskParams,dn,prodRole,fqans,parent_tid,properErrorCode=False,
                               allowActiveTask=False):
@@ -13635,10 +13503,7 @@ class DBProxy:
                     workingGroup = self.getWorkingGroup(fqans)
                     if workingGroup is not None:
                         taskParamsJson['workingGroup'] = workingGroup
-                # extract country group
-                countryGroup = self.getCountryGroup(fqans)
-                if countryGroup is not None:
-                    taskParamsJson['countryGroup'] = countryGroup
+
             _logger.debug('{0} taskName={1}'.format(methodName,taskParamsJson['taskName']))
             schemaDEFT = self.getSchemaDEFT()
             # sql to check task duplication for user

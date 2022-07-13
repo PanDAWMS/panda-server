@@ -5,14 +5,14 @@ site specification
 
 import re
 
+
 class SiteSpec(object):
     # attributes
     _attributes = ('sitename', 'nickname', 'dq2url', 'cloud', 'ddm', 'ddm_input', 'ddm_output', 'type',
-                   'releases', 'memory', 'maxtime', 'status', 'space', 'retry', 'setokens_input', 'setokens_output',
-                   'glexec', 'priorityoffset', 'allowedgroups', 'defaulttoken', 'localqueue', 'validatedreleases',
-                   'accesscontrol', 'maxinputsize', 'cachedse', 'comment', 'cloudlist', 'statusmodtime', 'countryGroup',
-                   'availableCPU', 'pledgedCPU', 'coreCount', 'reliabilityLevel', 'iscvmfs', 'transferringlimit',
-                   'maxwdir', 'fairsharePolicy', 'mintime', 'allowfax', 'wansourcelimit', 'wansinklimit', 'pandasite',
+                   'releases', 'memory', 'maxtime', 'status', 'space', 'setokens_input', 'setokens_output',
+                   'priorityoffset', 'defaulttoken', 'validatedreleases', 'maxinputsize', 'comment', 'cloudlist',
+                   'statusmodtime', 'pledgedCPU', 'coreCount', 'reliabilityLevel', 'iscvmfs', 'transferringlimit',
+                   'maxwdir', 'fairsharePolicy', 'mintime', 'allowfax', 'pandasite',
                    'corepower', 'wnconnectivity', 'catchall', 'role', 'pandasite_state',
                    'ddm_endpoints_input', 'ddm_endpoints_output', 'maxrss', 'minrss',
                    'direct_access_lan', 'direct_access_wan', 'tier', 'objectstores', 'is_unified', 'unified_name',
@@ -22,15 +22,14 @@ class SiteSpec(object):
     def __init__(self):
         # install attributes
         for attr in self._attributes:
-            setattr(self,attr,None)
+            setattr(self, attr, None)
 
     # serialize
     def __str__(self):
         str = ''
         for attr in self._attributes:
-            str += '%s:%s ' % (attr,getattr(self,attr))
+            str += '%s:%s ' % (attr, getattr(self, attr))
         return str
-
 
     # check if direct IO is used when tasks allow it
     def isDirectIO(self):
@@ -45,8 +44,6 @@ class SiteSpec(object):
         if self.coreCount > 1:
             return "MCORE"
         return "SCORE"
-                       
-
 
     # check what type of jobs are allowed
     def getJobSeed(self):
@@ -55,48 +52,37 @@ class SiteSpec(object):
             return 'std'
         return tmpVal
 
-
-
     # get value from catchall
-    def getValueFromCatchall(self,key):
+    def getValueFromCatchall(self, key):
         if self.catchall is None:
             return None
         for tmpItem in self.catchall.split(','):
-            tmpMatch = re.search('^{0}=(.+)'.format(key),tmpItem)
+            tmpMatch = re.search('^{0}=(.+)'.format(key), tmpItem)
             if tmpMatch is not None:
                 return tmpMatch.group(1)
         return None
 
-
-
     # has value in catchall
-    def hasValueInCatchall(self,key):
+    def hasValueInCatchall(self, key):
         if self.catchall is None:
             return False
         for tmpItem in self.catchall.split(','):
-            tmpMatch = re.search('^{0}(=|)*'.format(key),tmpItem)
+            tmpMatch = re.search('^{0}(=|)*'.format(key), tmpItem)
             if tmpMatch is not None:
                 return True
         return False
-
-
 
     # allow WAN input access
     def allowWanInputAccess(self):
         return self.direct_access_lan is True and self.direct_access_wan is True
 
-
-
     # use jumbo jobs
     def useJumboJobs(self):
         return self.hasValueInCatchall('useJumboJobs')
 
-
-
     # GPU
     def isGPU(self):
         return self.hasValueInCatchall('gpu')
-        
 
     def is_grandly_unified(self):
         if self.hasValueInCatchall('grandly_unified') or self.type == 'unified':
@@ -119,16 +105,12 @@ class SiteSpec(object):
             return self.sitename
         return self.unified_name
 
-
-
     # get number of simulated events for dynamic number of events
     def get_n_sim_events(self):
         tmpVal = self.getValueFromCatchall('nSimEvents')
         if tmpVal is None:
             return None
         return int(tmpVal)
-
-
 
     # get minimum of remainig events for jumbo jobs
     def getMinEventsForJumbo(self):
@@ -137,13 +119,9 @@ class SiteSpec(object):
             return None
         return int(tmpVal)
 
-
-
     # check if opportunistic
     def is_opportunistic(self):
         return self.pledgedCPU == -1
-
-
 
     # get number of jobs for standby
     def getNumStandby(self, sw_id, resource_type):

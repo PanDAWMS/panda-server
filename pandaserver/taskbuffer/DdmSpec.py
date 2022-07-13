@@ -126,10 +126,6 @@ class DdmSpec(object):
             elif mode == 'output':
                 order = tmp_ddm_endpoint_dict['order_write']
 
-            #print 'ddm_endpoint_name: {0}'.format(tmp_ddm_endpoint_name)
-            #print 'self.default_read: {0}'.format(self.default_read)
-            #print 'self.default_write: {0}'.format(self.default_write)
-
             # map already contains this token
             if token in ret_map and orders[token] < order:
                 continue

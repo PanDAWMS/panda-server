@@ -23,9 +23,9 @@ class ResourceSpec(object):
 
     def match_task_basic(self, corecount, ramcount, base_ramcount, ram_unit):
         # Default parameters
-        if corecount is None: # corecount None is also used for 1
+        if corecount is None:  # corecount None is also used for 1
             corecount = 1
-        elif corecount == 0: # corecount 0 means it can be anything. We will use 8 as a standard MCORE default
+        elif corecount == 0:  # corecount 0 means it can be anything. We will use 8 as a standard MCORE default
             corecount = 8
 
         if ramcount is None:
@@ -60,14 +60,14 @@ class ResourceSpec(object):
 
     def match_job(self, job_spec):
         # Default parameters
-        if job_spec.coreCount in (None, 'NULL'): # corecount None is also used for 1
+        if job_spec.coreCount in (None, 'NULL'):  # corecount None is also used for 1
             corecount = 1
-        elif job_spec.coreCount == 0: # corecount 0 means it can be anything. We will use 8 as a standard MCORE default
+        elif job_spec.coreCount == 0:  # corecount 0 means it can be anything. We will use 8 as a standard MCORE default
             corecount = 8
         else:
             corecount = job_spec.coreCount
 
-        if job_spec.minRamCount in (None, 'NULL'): # jobs come with ram already pre-calculated and in MB
+        if job_spec.minRamCount in (None, 'NULL'):  # jobs come with ram already pre-calculated and in MB
             ramcount = 0
         else:
             ramcount = job_spec.minRamCount
@@ -103,4 +103,5 @@ class ResourceSpec(object):
             ret += '{0},'.format(attr)
         ret = ret[:-1]
         return ret
+
     column_names = classmethod(column_names)
