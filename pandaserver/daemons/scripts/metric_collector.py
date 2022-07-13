@@ -25,10 +25,11 @@ main_logger = PandaLogger().getLogger('metric_collector')
 # dry run
 DRY_RUN = False
 
-# list of metrics in FetchData to fetch data and update to DB. Format: (metric, type, period_minutes)
+# list of metrics in FetchData to fetch data and update to DB. Format: (metric, key_type, period_minutes)
 metric_list = [
     ('gshare_preference', 'gshare', 20),
     ('analy_pmerge_jobs_wait_time', 'site', 30),
+    ('analy_site_eval', 'site', 60),
 ]
 
 
@@ -81,8 +82,8 @@ class MetricsDB(object):
             return _wrapped_method
         return _decorator(method)
 
-    def update(self, metric, update_type, entity_dict):
-        tmp_log = logger_utils.make_logger(main_logger, 'MetricsDB')
+    def update(self, metric, key_type, entity_dict):
+        tmp_log = logger_utils.make_logger(main_logger, 'MetricsDB.update')
         # tmp_log.debug('start key={0} site={1}, gshare={2}'.format(key, site, gshare))
         # sql
         sql_update = (
@@ -119,18 +120,18 @@ class MetricsDB(object):
             # initialize varMap
             varMap = varMap_template.copy()
             varMap[':patch_value_json'] = patch_value_json
-            # update varMap according to update_type
-            if update_type == 'site':
+            # update varMap according to key_type
+            if key_type == 'site':
                 varMap.update({
                         ':site': entity,
                         ':gshare': 'NULL',
                     })
-            elif update_type == 'gshare':
+            elif key_type == 'gshare':
                 varMap.update({
                         ':site': 'NULL',
                         ':gshare': entity,
                     })
-            elif update_type == 'both':
+            elif key_type == 'both':
                 varMap.update({
                         ':site': entity[0],
                         ':gshare': entity[1],
@@ -152,6 +153,51 @@ class MetricsDB(object):
         # done
         # tmp_log.debug('done key={0} site={1}, gshare={2}'.format(key, site, gshare))
 
+    def get_metrics(self, metric, key_type=None, fresher_than_minutes_ago=120):
+        tmp_log = logger_utils.make_logger(main_logger, 'MetricsDB.update')
+        # tmp_log.debug('start key={0} site={1}, gshare={2}'.format(key, site, gshare))
+        # sql
+        sql_query = (
+            """SELECT computingSite, gshare, value_json """
+            """FROM ATLAS_PANDA.Metrics """
+            """WHERE metric = :metric """
+                """AND timestamp >= :min_timestamp """
+        )
+        # now
+        now_time = datetime.datetime.utcnow()
+        # var map
+        varMap = {
+            ':metric': metric,
+            ':min_timestamp': now_time - datetime.timedelta(minutes=fresher_than_minutes_ago),
+        }
+        # query
+        res = self.tbuf.querySQL(sql_query, varMap)
+        if res is None:
+            tmp_log.warning('failed to query metric={metric}'.format(metric=metric))
+            return
+        # key type default
+        if key_type is None:
+            key = { x[0]: x[1] for x in metric_list }.get(metric, 'both')
+        # return map
+        ret_map = {}
+        for (computingSite, gshare, value_json) in res:
+            key = (computingSite, gshare)
+            if key_type == 'site':
+                key = computingSite
+            elif key_type == 'gshare':
+                key = gshare
+            try:
+                value_dict = json.loads(value_json)
+            except Exception:
+                tmp_log.error(traceback.format_exc() + ' ' + str(value_json))
+                continue
+            else:
+                ret_map[key] = value_dict
+        # return
+        return ret_map
+
+
+
 
 class FetchData(object):
     """
@@ -171,7 +217,7 @@ class FetchData(object):
             "FROM ATLAS_PANDA.jobsArchived4 "
             "WHERE prodSourceLabel='user' "
                 "AND gshare='User Analysis' "
-                "AND processingType='pmerge' "
+                "AND (processingType='pmerge' OR prodUserName='gangarbt') "
                 "AND modificationTime>:modificationTime "
         )
         sql_get_jobs_active4 = (
@@ -180,7 +226,7 @@ class FetchData(object):
             "WHERE prodSourceLabel='user' "
                 "AND gshare='User Analysis' "
                 "AND jobStatus IN ('running', 'holding', 'merging', 'transferring', 'finished', 'failed', 'closed', 'cancelled') "
-                "AND processingType='pmerge' "
+                "AND (processingType='pmerge' OR prodUserName='gangarbt') "
                 "AND modificationTime>:modificationTime "
         )
         sql_get_latest_job_mtime_status = (
@@ -195,7 +241,7 @@ class FetchData(object):
             "WHERE prodSourceLabel='user' "
                 "AND gshare='User Analysis' "
                 "AND jobStatus IN ('activated', 'sent', 'starting') "
-                "AND processingType='pmerge' "
+                "AND (processingType='pmerge' OR prodUserName='gangarbt') "
                 "AND computingSite=:computingSite "
                 "AND (CURRENT_DATE-creationtime)>:w_mean "
         )
@@ -266,10 +312,6 @@ class FetchData(object):
                     mean = np.mean(wait_time_array)
                     stdev = np.std(wait_time_array)
                     median = np.median(wait_time_array)
-                    # try:
-                    #     quantiles = statistics.quantiles(data_list, n=4, method='inclusive')
-                    # except statistics.StatisticsError:
-                    #     quantiles = None
                     cl95upp = conf_interval_upper(n=n_jobs, mean=mean, stdev=stdev, cl=0.95)
                     # weighted by run age (weight halves every 12 hours)
                     weight_array = np.exp2(-run_age_array/(12*60*60))
@@ -293,7 +335,6 @@ class FetchData(object):
                         'mean': mean,
                         'stdev': stdev,
                         'med': median,
-                        # 'quantiles': quantiles,
                         'cl95upp': cl95upp,
                         'sum_of_weights': sum_of_weights,
                         'w_mean': w_mean,
@@ -341,6 +382,67 @@ class FetchData(object):
         except Exception:
             tmp_log.error(traceback.format_exc())
 
+    def analy_site_eval(self):
+        tmp_log = logger_utils.make_logger(main_logger, 'FetchData')
+        try:
+            # initialize
+            site_dict = dict()
+            class_A_set = set()
+            class_B_set = set()
+            class_C_set = set()
+            # MetricsDB
+            mdb = MetricsDB(self.tbuf)
+            # get analysis jobs wait time stats
+            apjwt_dict = mdb.get_metrics('analy_pmerge_jobs_wait_time', 'site')
+            # evaluate derived values from stats
+            # max of w_cl95upp and long_q_mean for ranking
+            ranking_wait_time_list = [ np.maximum(v['w_cl95upp'], v['long_q_mean']) for v in apjwt_dict.values() ]
+            first_one_third_wait_time = np.nanquantile(np.array(ranking_wait_time_list), 0.333)
+            last_one_third_wait_time = np.nanquantile(np.array(ranking_wait_time_list), 0.667)
+            # for each site
+            for site in apjwt_dict:
+                # initialize
+                site_dict[site] = dict()
+                # from wait time stats
+                # TODO: to consider failure rate, site fullness, etc.
+                v = apjwt_dict[site]
+                # evaluate derived values
+                v['ranking_wait_time'] = np.maximum(v['w_cl95upp'], v['long_q_mean'])
+                v['is_slowing_down'] = (v['long_q_mean'] > v['w_cl95upp'] and v['long_q_n'] >= 3)
+                # classify
+                if v['ranking_wait_time'] <= first_one_third_wait_time \
+                        or (v['w_cl95upp'] <= 3600 and not v['is_slowing_down']):
+                    # class A (1)
+                    site_dict[site]['class'] = 1
+                    class_A_set.add(site)
+                elif v['ranking_wait_time'] > last_one_third_wait_time \
+                        and v['w_cl95upp'] >= 10800:
+                    # class C (-1)
+                    site_dict[site]['class'] = -1
+                    class_C_set.add(site)
+                else:
+                    # class B (0)
+                    site_dict[site]['class'] = 0
+                    class_B_set.add(site)
+                # log
+                tmp_log.debug(('site={site}, class={class} '
+                                ).format(site=site, **site_dict[site]))
+                # turn nan into None
+                for key in site_dict[site]:
+                    if np.isnan(site_dict[site][key]):
+                        site_dict[site][key] = None
+            # log
+            tmp_log.debug(('class_A ({}) : {} ; class_B ({}) : {} ; class_C ({}) : {}'
+                            ).format(
+                                len(class_A_set), ','.join(sorted(list(class_A_set))),
+                                len(class_B_set), ','.join(sorted(list(class_B_set))),
+                                len(class_C_set), ','.join(sorted(list(class_C_set))),
+                            ))
+            # return
+            return site_dict
+        except Exception:
+            tmp_log.error(traceback.format_exc())
+
 
 # main
 def main(tbuf=None, **kwargs):
@@ -358,7 +460,7 @@ def main(tbuf=None, **kwargs):
         # dry run, regardless of lock, not update DB
         fetcher = FetchData(taskBuffer)
         # loop over all fetch data methods to run and update to DB
-        for metric_name, update_type, period in metric_list:
+        for metric_name, key_type, period in metric_list:
             main_logger.debug('(dry-run) start {metric_name}'.format(metric_name=metric_name))
             # fetch data and update DB
             the_method = getattr(fetcher, metric_name)
@@ -373,7 +475,7 @@ def main(tbuf=None, **kwargs):
         mdb = MetricsDB(taskBuffer)
         fetcher = FetchData(taskBuffer)
         # loop over all fetch data methods to run and update to DB
-        for metric_name, update_type, period in metric_list:
+        for metric_name, key_type, period in metric_list:
             # metric lock
             lock_component_name = 'pandaMetr.{0:.30}.{1:0x}'.format(metric_name, adler32(metric_name.encode('utf-8')))
             # try to get lock
@@ -390,7 +492,7 @@ def main(tbuf=None, **kwargs):
             if fetched_data is None:
                 main_logger.warning('{metric_name} got no valid data'.format(metric_name=metric_name))
                 continue
-            mdb.update(metric=metric_name, update_type=update_type, entity_dict=fetched_data)
+            mdb.update(metric=metric_name, key_type=key_type, entity_dict=fetched_data)
             main_logger.debug('done {metric_name}'.format(metric_name=metric_name))
 
 # run
