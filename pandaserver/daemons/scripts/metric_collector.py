@@ -29,7 +29,7 @@ DRY_RUN = False
 metric_list = [
     ('gshare_preference', 'gshare', 20),
     ('analy_pmerge_jobs_wait_time', 'site', 30),
-    ('analy_site_eval', 'site', 60),
+    ('analy_site_eval', 'site', 30),
 ]
 
 
@@ -90,7 +90,7 @@ class MetricsDB(object):
             """UPDATE ATLAS_PANDA.Metrics SET """
                 """value_json = json_mergepatch(value_json, :patch_value_json), """
                 """timestamp = :timestamp """
-            """WHERE computingSite=:site AND gshare=:gshare AND metric = :metric """
+            """WHERE computingSite=:site AND gshare=:gshare AND metric=:metric """
         )
         sql_insert = (
             """INSERT INTO ATLAS_PANDA.Metrics """
@@ -140,11 +140,13 @@ class MetricsDB(object):
             varMap_list.append(varMap)
         # update
         n_row = self.tbuf.executemanySQL(sql_update, varMap_list)
-        # try insert if no row updated
-        if n_row == 0:
+        # try insert if not all rows updated
+        if n_row < len(varMap_list):
             try:
-                tmp_log.debug('no row to update for metric={metric} ; trying insert'.format(metric=metric))
-                self.tbuf.executemanySQL(sql_insert, varMap_list)
+                tmp_log.debug('only {n_row}/{len_list} rows updated for metric={metric} ; trying insert'.format(
+                                n_row=n_row, len_list=len(varMap_list), metric=metric))
+                for varMap in varMap_list:
+                    self.tbuf.querySQLS(sql_insert, varMap)
                 tmp_log.debug('inserted for metric={metric}'.format(metric=metric))
             except Exception:
                 tmp_log.warning('failed to insert for metric={metric}'.format(metric=metric))
