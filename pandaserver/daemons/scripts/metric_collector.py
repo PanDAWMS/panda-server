@@ -216,7 +216,7 @@ class FetchData(object):
             "FROM ATLAS_PANDA.jobsArchived4 "
             "WHERE prodSourceLabel='user' "
                 "AND gshare='User Analysis' "
-                "AND processingType='pmerge' "
+                "AND (processingType='pmerge' OR prodUserName='gangarbt') "
                 "AND modificationTime>:modificationTime "
         )
         sql_get_jobs_active4 = (
@@ -225,7 +225,7 @@ class FetchData(object):
             "WHERE prodSourceLabel='user' "
                 "AND gshare='User Analysis' "
                 "AND jobStatus IN ('running', 'holding', 'merging', 'transferring', 'finished', 'failed', 'closed', 'cancelled') "
-                "AND processingType='pmerge' "
+                "AND (processingType='pmerge' OR prodUserName='gangarbt') "
                 "AND modificationTime>:modificationTime "
         )
         sql_get_latest_job_mtime_status = (
@@ -240,7 +240,7 @@ class FetchData(object):
             "WHERE prodSourceLabel='user' "
                 "AND gshare='User Analysis' "
                 "AND jobStatus IN ('activated', 'sent', 'starting') "
-                "AND processingType='pmerge' "
+                "AND (processingType='pmerge' OR prodUserName='gangarbt') "
                 "AND computingSite=:computingSite "
                 "AND (CURRENT_DATE-creationtime)>:w_mean "
         )
