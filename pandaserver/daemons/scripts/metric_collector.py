@@ -410,15 +410,13 @@ class FetchData(object):
                 v = apjwt_dict[site]
                 # evaluate derived values
                 v['ranking_wait_time'] = np.maximum(v['w_cl95upp'], v['long_q_mean'])
-                v['is_slowing_down'] = (v['long_q_mean'] > v['w_cl95upp'] and v['long_q_n'] >= 3)
+                # v['is_slowing_down'] = (v['long_q_mean'] > v['w_cl95upp'] and v['long_q_n'] >= 3)
                 # classify
-                if v['ranking_wait_time'] <= first_one_third_wait_time \
-                        or (v['w_cl95upp'] <= 3600 and not v['is_slowing_down']):
+                if v['ranking_wait_time'] <= max(first_one_third_wait_time, 3600):
                     # class A (1)
                     site_dict[site]['class'] = 1
                     class_A_set.add(site)
-                elif v['ranking_wait_time'] > last_one_third_wait_time \
-                        and v['w_cl95upp'] >= 10800:
+                elif v['ranking_wait_time'] > max(last_one_third_wait_time, 10800):
                     # class C (-1)
                     site_dict[site]['class'] = -1
                     class_C_set.add(site)
