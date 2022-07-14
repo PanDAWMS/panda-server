@@ -255,7 +255,7 @@ setup(
                       'idds-doma',
                       'idds-atlas',
                       'ruamel.yaml',
-                      'cwl-utils'
+                      'cwl-utils>=0.13'
                       ],
     extras_require={
         'oracle': ['cx_Oracle'],
