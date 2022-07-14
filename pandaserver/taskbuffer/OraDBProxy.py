@@ -6853,7 +6853,7 @@ class DBProxy:
             varMap = {}
             varMap[':userName'] = compactDN
             varMap[':fileSize'] = fileSize
-            varMap[':checkSum'] = checkSum
+            varMap[':checkSum'] = str(checkSum)
             varMap[':ngHostName'] = 'localhost.localdomain'
             self.cur.arraysize = 10
             self.cur.execute(sqlC+comment, varMap)

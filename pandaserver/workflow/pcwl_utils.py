@@ -3,7 +3,6 @@ import re
 import six
 import os.path
 from pathlib import Path
-from ruamel import yaml
 from urllib.parse import urlparse
 
 from .workflow_utils import Node, ConditionItem
@@ -50,27 +49,11 @@ def top_sort(list_data, visited):
 def parse_workflow_file(workflow_file, log_stream, in_loop=False):
     # read the file from yaml
     cwl_file = Path(os.path.abspath(workflow_file))
-    with open(cwl_file, "r") as cwl_h:
-        yaml_obj = yaml.main.round_trip_load(cwl_h, preserve_quotes=True)
 
-    # Check CWLVersion
-    if 'cwlVersion' not in list(yaml_obj.keys()):
-        log_stream.error("could not get the cwlVersion in {}".format(cwl_file.as_uri()))
-        return False, None
-
-    # Import parser based on CWL Version
-    if yaml_obj['cwlVersion'] == 'v1.0':
-        from cwl_utils import parser_v1_0 as parser
-    elif yaml_obj['cwlVersion'] == 'v1.1':
-        from cwl_utils import parser_v1_1 as parser
-    elif yaml_obj['cwlVersion'] == 'v1.2':
-        from cwl_utils import parser_v1_2 as parser
-    else:
-        log_stream.error("Version error. Did not recognise {} as a CWL version".format(yaml_obj["CWLVersion"]))
-        return False, None
+    from cwl_utils.parser import load_document_by_uri
 
     # Import CWL Object
-    root_obj = parser.load_document_by_yaml(yaml_obj, cwl_file.as_uri())
+    root_obj = load_document_by_uri(cwl_file)
 
     # root inputs
     root_inputs = {extract_id(s.id): s.default for s in root_obj.inputs}

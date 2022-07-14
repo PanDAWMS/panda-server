@@ -1247,7 +1247,10 @@ def insertSandboxFileInfo(req,userName,fileName,fileSize,checkSum):
     if not prodManager:
         return "ERROR: missing role"
     # hostname
-    hostName = req.get_remote_host()
+    if hasattr(panda_config, 'sandboxHostname') and panda_config.sandboxHostname:
+        hostName = panda_config.sandboxHostname
+    else:
+        hostName = req.get_remote_host()
     # exec
     return userIF.insertSandboxFileInfo(userName,hostName,fileName,fileSize,checkSum)
 
