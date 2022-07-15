@@ -10008,19 +10008,6 @@ class DBProxy:
         _logger.debug("getSiteInfo start")
         methodName = comment.split(' ')[-2].split('.')[-1]
         try:
-            # set autocommit on
-            self.conn.begin()
-            # get CVMFS availability
-            sqlCVMFS  = "SELECT distinct siteid FROM ATLAS_PANDAMETA.installedSW WHERE `release`=:release"
-            self.cur.execute(sqlCVMFS, {':release': 'CVMFS'})
-            tmpList = self.cur.fetchall()
-            cvmfsSites = []
-            for tmpItem, in tmpList:
-                if tmpItem not in cvmfsSites:
-                    cvmfsSites.append(tmpItem)
-            if not self._commit():
-                raise RuntimeError('Commit error')
-
             # get DDM endpoints
             pandaEndpointMap = self.getDdmEndpoints()
 
@@ -10125,6 +10112,8 @@ class DBProxy:
                         ret.direct_access_lan = (queue_data.get('direct_access_lan') is True)
                         ret.direct_access_wan = (queue_data.get('direct_access_wan') is True)
 
+                        ret.iscvmfs = (queue_data.get('is_cvmfs') is True)
+
                         if queue_data.get('corepower') is None:
                             ret.corepower = 0
                         else:
@@ -10195,12 +10184,6 @@ class DBProxy:
                                 tmpRel = tmpRel.strip()
                                 if tmpRel != '':
                                     ret.validatedreleases.append(tmpRel)
-
-                        # CVMFS
-                        if siteid in cvmfsSites:
-                            ret.iscvmfs = True
-                        else:
-                            ret.iscvmfs = False
 
                         # limit of the number of transferring jobs
                         ret.transferringlimit = 0
