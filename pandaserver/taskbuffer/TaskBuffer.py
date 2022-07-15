@@ -2282,19 +2282,6 @@ class TaskBuffer:
         # return
         return ret
 
-
-    # get sites with release/cache in cloud
-    def getSitesWithReleaseInCloud(self,cloud,releases=None,caches=None,validation=False):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # check
-        ret = proxy.getSitesWithReleaseInCloud(cloud,releases,caches,validation)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-
     # get list of cache prefix
     def getCachePrefixes(self):
         # get DBproxy
