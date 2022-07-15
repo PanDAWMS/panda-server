@@ -32,9 +32,6 @@ _disableLRCcheck = []
 # lock for uuidgen
 _lockGetUU   = open(panda_config.lockfile_getUU, 'w')
 
-# short-long mapping
-shortLongMap = {'ANALY_BNL_SHORT': 'ANALY_BNL_LONG'}
-
 # processingType to skip brokerage
 skipBrokerageProTypes = ['prod_test']
 
@@ -93,7 +90,7 @@ def _getOkFiles(v_ce, v_files, allLFNs, allOkFilesMap, prodsourcelabel, job_labe
     rucio_url = 'rucio://atlas-rucio.cern.ch:/grid/atlas'
     tmpSE = v_ce.ddm_endpoints_input[scope_association_input].getAllEndPoints()
     if tmpLog is not None:
-        tmpLog.debug('getOkFiles for %s with rucio_site:%s, LFC:%s, SE:%s' % (v_ce.sitename, rucio_site, rucio_url, str(tmpSE)))
+        tmpLog.debug('getOkFiles for %s with rucio_site:%s, rucio_url:%s, SE:%s' % (v_ce.sitename, rucio_site, rucio_url, str(tmpSE)))
     anyID = 'any'
     # use bulk lookup
     if allLFNs != []:
@@ -550,7 +547,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                    or prodDBlock != job.prodDBlock or job.computingSite != computingSite or iJob > nJob \
                    or previousCloud != job.getCloud() or prevRelease != job.AtlasRelease \
                    or prevCmtConfig != job.cmtConfig \
-                   or (computingSite in ['RAL_REPRO','INFN-T1_REPRO'] and len(fileList)>=2) \
                    or (prevProType in skipBrokerageProTypes and iJob > 0) \
                    or prevDirectAcc != job.transferType \
                    or (prevMemory != job.minRamCount and not isJEDI) \
@@ -621,12 +617,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     else:
                         # use given sites
                         scanSiteList = setScanSiteList
-                        # add long queue
-                        for tmpShortQueue in shortLongMap:
-                            tmpLongQueue = shortLongMap[tmpShortQueue]
-                            if tmpShortQueue in scanSiteList:
-                                if tmpLongQueue not in scanSiteList:
-                                    scanSiteList.append(tmpLongQueue)
+
                     # the number/size of inputs per job
                     nFilesPerJob    = float(totalNumInputs)/float(iJob)
                     inputSizePerJob = float(totalInputSize)/float(iJob)
@@ -1064,19 +1055,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     if forAnalysis and 'defined' in jobStatBroker[site][tmpProGroup]:
                                         nAssJobs += jobStatBroker[site][tmpProGroup]['defined']
                                     nActJobs = jobStatBroker[site][tmpProGroup]['activated']
-                                # number of jobs per node
-                                if site not in nWNmap:
-                                    nJobsPerNode = 1
-                                elif jobStatistics[site]['running']==0 or nWNmap[site]['updateJob']==0:
-                                    nJobsPerNode = 1
-                                else:
-                                    if nRunJobsPerGroup is None:
-                                        nJobsPerNode = float(jobStatistics[site]['running'])/float(nWNmap[site]['updateJob'])
-                                    else:
-                                        if nRunJobsPerGroup == 0:
-                                            nJobsPerNode = 1.0/float(nWNmap[site]['updateJob'])
-                                        else:
-                                            nJobsPerNode = float(nRunJobsPerGroup)/float(nWNmap[site]['updateJob'])
+
                                 # limit of the number of transferring jobs
                                 if tmpSiteSpec.transferringlimit == 0:
                                     maxTransferring   = 2000
@@ -1145,7 +1124,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     # send jobs to T1 when they require many or large inputs
                                     if _isTooManyInput(nFilesPerJob,inputSizePerJob):
                                         if site == siteMapper.getCloud(previousCloud)['source'] or \
-                                           (site=='NIKHEF-ELPROD' and previousCloud=='NL' and prevProType=='reprocessing') or \
                                            (previousCloud in hospitalQueueMap and site in hospitalQueueMap[previousCloud]):
                                             cloudT1Weight = 2.0
                                             # use weight in cloudconfig
@@ -1457,9 +1435,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                     else:
                         destSE = siteMapper.getCloud(job.getCloud())['dest']
                     job.destinationSE = destSE
-            # use CERN-PROD_EOSDATADISK for CERN-EOS jobs
-            if job.computingSite in ['CERN-EOS']:
-                overwriteSite = True
+
             if overwriteSite:
                 # overwrite SE for analysis jobs which set non-existing sites
                 destSE = job.computingSite
