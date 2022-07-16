@@ -1781,7 +1781,7 @@ def updateSiteAccess(req,method,siteid,userName,attrValue=''):
 # insert task params
 def insertTaskParams(req, taskParams=None, properErrorCode=None, parent_tid=None):
     tmpLog = LogWrapper(_logger, 'insertTaskParams-{}'.format(datetime.datetime.utcnow().isoformat('/')))
-    tmpLog.debug(f'start {properErrorCode}')
+    tmpLog.debug('start')
     if properErrorCode == 'True':
         properErrorCode = True
     else:
@@ -1808,9 +1808,7 @@ def insertTaskParams(req, taskParams=None, properErrorCode=None, parent_tid=None
     # get FQANs
     fqans = _getFQAN(req)
 
-    tmpLog.debug("user={} prodRole={} FQAN:{} parent_tid={} properErrorCode={}".format(user, prodRole,
-                                                                                       str(fqans), parent_tid,
-                                                                                       properErrorCode))
+    tmpLog.debug("user={} prodRole={} FQAN:{} parent_tid={}".format(user, prodRole, str(fqans), parent_tid))
     ret = userIF.insertTaskParams(taskParams, user, prodRole, fqans, properErrorCode, parent_tid)
     try:
         tmpLog.debug(ret[1])

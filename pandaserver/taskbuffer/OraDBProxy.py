@@ -13475,8 +13475,7 @@ class DBProxy:
             if compactDN in ['','NULL',None]:
                 compactDN = dn
             methodName += ' <{0}>'.format(compactDN)
-            tmpLog = LogWrapper(_logger, methodName)
-            tmpLog.debug(f'start prodRole={prodRole} parent_tid={parent_tid} properErrorCode={properErrorCode}')
+            _logger.debug('{0} start'.format(methodName))
             # decode json
             taskParamsJson = PrioUtil.decodeJSON(taskParams)
             # set user name
@@ -13489,12 +13488,12 @@ class DBProxy:
                 if not parent_tid:
                     tmpMsg = 'failed to find parent with user="{}" name={}'.format(taskParamsJson['userName'],
                                                                                    taskParamsJson['parentTaskName'])
-                    tmpLog.debug(tmpMsg)
+                    _logger.debug('{} {}'.format(methodName, tmpMsg))
                     return 11, tmpMsg
                 else:
-                    tmpLog.debug('found parent {} with user="{}" name={}'.format(parent_tid,
-                                                                                 taskParamsJson['userName'],
-                                                                                 taskParamsJson['parentTaskName']))
+                    _logger.debug('{} found parent {} with user="{}" name={}'.format(methodName, parent_tid,
+                                                                                     taskParamsJson['userName'],
+                                                                                     taskParamsJson['parentTaskName']))
             # set task type
             if not prodRole or 'taskType' not in taskParamsJson:
                 taskParamsJson['taskType']   = 'anal'
@@ -13505,7 +13504,7 @@ class DBProxy:
                     if workingGroup is not None:
                         taskParamsJson['workingGroup'] = workingGroup
 
-            tmpLog.debug('taskName={}'.format(taskParamsJson['taskName']))
+            _logger.debug('{0} taskName={1}'.format(methodName,taskParamsJson['taskName']))
             schemaDEFT = self.getSchemaDEFT()
             # sql to check task duplication for user
             sqlTDU  = "SELECT jediTaskID,status FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
@@ -13590,7 +13589,7 @@ class DBProxy:
                         raise RuntimeError('Commit error')
                     tmpMsg = "Too many active tasks for {} {}>{}".format(taskParamsJson['userName'],
                                                                          resTOT[0], max_n_tasks)
-                    tmpLog.debug(tmpMsg)
+                    _logger.debug('{} {}'.format(methodName, tmpMsg))
                     return 10, tmpMsg
             # check duplication
             goForward = True
@@ -13635,20 +13634,19 @@ class DBProxy:
                     if resCD is not None:
                         # task is already in DEFT
                         jediTaskID, = resCD
-                        tmpLog.debug('old jediTaskID={} with taskName={} in DEFT table'.format(jediTaskID,
-                                                                                               varMap[':taskName']))
+                        _logger.debug('{0} old jediTaskID={1} with taskName={2} in DEFT table'.format(methodName,jediTaskID,
+                                                                                                      varMap[':taskName']))
                         goForward = False
                         retVal  = 'jediTaskID={0} is already queued for outDS={1}. '.format(jediTaskID,
                                                                                             taskParamsJson['taskName'])
                         retVal += 'You cannot submit duplicated tasks. '
-                        tmpLog.debug('skip since old task is already queued in DEFT')
+                        _logger.debug('{0} skip since old task is already queued in DEFT'.format(methodName))
                         errorCode = 1
                 else:
                     # task is already in JEDI table
                     jediTaskID,taskStatus = resDT
-                    tmpLog.debug('old jediTaskID={} with taskName={} in status={}'.format(jediTaskID,
-                                                                                          varMap[':taskName'],
-                                                                                          taskStatus))
+                    _logger.debug('{0} old jediTaskID={1} with taskName={2} in status={3}'.format(methodName,jediTaskID,
+                                                                                                  varMap[':taskName'],taskStatus))
                     # check task status
                     if taskStatus not in ['finished','failed','aborted','done', 'exhausted'] and \
                             not (allowActiveTask and taskStatus in ['running','scouting','pending'] and taskParamsJson['prodSourceLabel'] in ['user']):
@@ -13662,7 +13660,7 @@ class DBProxy:
                         retVal += 'Or you can retry the task once it goes into running/finished/failed/done. '
                         retVal += 'Note that retry != resubmission accoring to '
                         retVal += 'https://twiki.cern.ch/twiki/bin/view/PanDA/PandaJEDI#Task_retry_and_resubmission '
-                        tmpLog.debug('skip since old task is not yet finalized')
+                        _logger.debug('{0} skip since old task is not yet finalized'.format(methodName))
                         errorCode = 2
                     else:
                         # extract several params for incremental execution
@@ -13725,12 +13723,11 @@ class DBProxy:
                             varMap[':comm_owner']  = 'DEFT'
                             varMap[':comm_parameters'] = json.dumps(newTaskParams)
                             self.cur.execute(sqlIC+comment,varMap)
-                            tmpLog.info('{} jediTaskID={} with {}'.format(varMap[':comm_cmd'],
-                                                                          jediTaskID, str(newTaskParams)))
-                            retVal = 'reactivation accepted. '
-                            retVal += 'jediTaskID={} (currently in {} state) '\
-                                      'will be re-executed with old and/or new input'.format(jediTaskID,
-                                                                                             taskStatus)
+                            _logger.info('{0} {1} jediTaskID={2} with {3}'.format(methodName,varMap[':comm_cmd'],
+                                                                                  jediTaskID,str(newTaskParams)))
+                            retVal  = 'reactivation accepted. '
+                            retVal += 'jediTaskID={0} (currently in {1} state) will be re-executed with old and/or new input'.format(jediTaskID,
+                                                                                                                                    taskStatus)
                             errorCode = 3
                         else:
                             # sql to read task params
@@ -13758,9 +13755,9 @@ class DBProxy:
                             varMap[':jediTaskID'] = jediTaskID
                             varMap[':taskParams'] = json.dumps(taskParamsJson)
                             self.cur.execute(sqlTU+comment,varMap)
-                            tmpLog.debug('add new params for jediTaskID={} with {}'.format(jediTaskID,
-                                                                                           str(newTaskParams)))
-                            retVal = '{0}. new tasks params have been set to jediTaskID={1}. '.format(taskStatus,jediTaskID)
+                            _logger.debug('{0} add new params for jediTaskID={1} with {2}'.format(methodName,
+                                                                                                  jediTaskID,str(newTaskParams)))
+                            retVal  = '{0}. new tasks params have been set to jediTaskID={1}. '.format(taskStatus,jediTaskID)
                             errorCode = 5
                         goForward = False
                         retFlag = True
@@ -13789,12 +13786,12 @@ class DBProxy:
                     retVal = "succeeded. new jediTaskID={0}".format(jediTaskID)
                 else:
                     retVal = jediTaskID
-                tmpLog.debug('inserted new jediTaskID={}'.format(jediTaskID))
+                _logger.debug('{0} inserted new jediTaskID={1}'.format(methodName,jediTaskID))
                 retFlag = True
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
-            tmpLog.debug('done')
+            _logger.debug('{0} done'.format(methodName))
             if properErrorCode:
                 return errorCode,retVal
             return retFlag,retVal
@@ -13802,7 +13799,7 @@ class DBProxy:
             # roll back
             self._rollback()
             # error
-            self.dumpErrorMessage(_logger, methodName)
+            self.dumpErrorMessage(_logger,methodName)
             errorCode = 4
             retVal = 'failed to register task'
             if properErrorCode:
