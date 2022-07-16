@@ -1119,6 +1119,16 @@ def _getWGwithPR(req):
     return None
 
 
+# resolve bool
+def resolve_bool(param):
+    if isinstance(param, bool):
+        return param
+    if param == 'True':
+        return True
+    if param == 'False':
+        return False
+    return param
+
 
 """
 web service interface
@@ -2586,6 +2596,7 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None):
         tmpLog.error(tmpStr)
         return json.dumps((False, tmpStr))
     try:
+        manager = resolve_bool(manager)
         if manager is not True:
             manager = False
         if '+' in command_name:
