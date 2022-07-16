@@ -1,5 +1,8 @@
 FROM docker.io/centos:7
 
+ENV LANG en_US.UTF-8
+ENV LC_ALL en_US.UTF-8
+
 RUN yum update -y
 RUN yum install -y epel-release
 RUN yum install -y python3 python3-devel httpd httpd-devel gcc gridsite less git psmisc wget
