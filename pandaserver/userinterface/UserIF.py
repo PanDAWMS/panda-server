@@ -2597,7 +2597,7 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None):
         return json.dumps((False, tmpStr))
     try:
         manager = resolve_bool(manager)
-        if manager is not True:
+        if not manager:
             manager = False
         if '+' in command_name:
             command_name, idds_host = command_name.split('+')
