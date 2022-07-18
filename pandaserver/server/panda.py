@@ -333,6 +333,12 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         # json
                         body = gzip.decompress(body)
                         params = json.loads(body)
+                        # patch for True/False
+                        for k in list(params):
+                            if params[k] is True:
+                                params[k] = 'True'
+                            elif params[k] is False:
+                                params[k] = 'False'
                     if panda_config.entryVerbose:
                         tmpLog.debug("with %s" % str(list(params)))
                     param_list = [dummyReq]

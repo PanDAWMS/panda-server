@@ -13,7 +13,7 @@ import traceback
 import pandaserver.jobdispatcher.Protocol as Protocol
 import pandaserver.taskbuffer.ProcessGroups
 from pandaserver.taskbuffer.WrappedPickle import WrappedPickle
-from pandaserver.srvcore.CoreUtils import clean_user_id
+from pandaserver.srvcore.CoreUtils import clean_user_id, resolve_bool
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.taskbuffer import PrioUtil, JobUtils
 from pandaserver.dataservice.DDM import rucioAPI
@@ -1117,7 +1117,6 @@ def _getWGwithPR(req):
     except Exception:
         pass
     return None
-
 
 
 """
@@ -2586,7 +2585,8 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None):
         tmpLog.error(tmpStr)
         return json.dumps((False, tmpStr))
     try:
-        if manager is not True:
+        manager = resolve_bool(manager)
+        if not manager:
             manager = False
         if '+' in command_name:
             command_name, idds_host = command_name.split('+')
