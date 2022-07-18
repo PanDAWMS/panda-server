@@ -398,19 +398,29 @@ class FetchData(object):
             apjwt_dict = mdb.get_metrics('analy_pmerge_jobs_wait_time', 'site')
             # evaluate derived values from stats
             # max of w_cl95upp and long_q_mean for ranking
-            ranking_wait_time_list = [ np.maximum(v['w_cl95upp'], v['long_q_mean']) for v in apjwt_dict.values() ]
+            ranking_wait_time_list = []
+            for v in apjwt_dict.values():
+                try:
+                    ranking_wait_time = np.maximum(v['w_cl95upp'], v['long_q_mean'])
+                    ranking_wait_time_list.append(ranking_wait_time)
+                except KeyError:
+                    continue
             first_one_third_wait_time = np.nanquantile(np.array(ranking_wait_time_list), 0.333)
             last_one_third_wait_time = np.nanquantile(np.array(ranking_wait_time_list), 0.667)
             # for each site
             for site in apjwt_dict:
-                # initialize
-                site_dict[site] = dict()
                 # from wait time stats
                 # TODO: to consider failure rate, site fullness, etc.
                 v = apjwt_dict[site]
                 # evaluate derived values
-                v['ranking_wait_time'] = np.maximum(v['w_cl95upp'], v['long_q_mean'])
-                # v['is_slowing_down'] = (v['long_q_mean'] > v['w_cl95upp'] and v['long_q_n'] >= 3)
+                try:
+                    v['ranking_wait_time'] = np.maximum(v['w_cl95upp'], v['long_q_mean'])
+                    # v['is_slowing_down'] = (v['long_q_mean'] > v['w_cl95upp'] and v['long_q_n'] >= 3)
+                except KeyError as e:
+                    tmp_log.warning(('site={site} misses value, skipped : {err} ').format(site=site, err=e))
+                    continue
+                # initialize
+                site_dict[site] = dict()
                 # classify
                 if v['ranking_wait_time'] <= max(first_one_third_wait_time, 3600):
                     # class A (1)
