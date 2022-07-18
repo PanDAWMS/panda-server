@@ -13,7 +13,7 @@ import traceback
 import pandaserver.jobdispatcher.Protocol as Protocol
 import pandaserver.taskbuffer.ProcessGroups
 from pandaserver.taskbuffer.WrappedPickle import WrappedPickle
-from pandaserver.srvcore.CoreUtils import clean_user_id
+from pandaserver.srvcore.CoreUtils import clean_user_id, resolve_bool
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.taskbuffer import PrioUtil, JobUtils
 from pandaserver.dataservice.DDM import rucioAPI
@@ -1117,17 +1117,6 @@ def _getWGwithPR(req):
     except Exception:
         pass
     return None
-
-
-# resolve bool
-def resolve_bool(param):
-    if isinstance(param, bool):
-        return param
-    if param == 'True':
-        return True
-    if param == 'False':
-        return False
-    return param
 
 
 """

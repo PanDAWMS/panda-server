@@ -84,6 +84,17 @@ def get_id_from_dn(dn, keep_proxy=False, keep_digits=True):
     return get_bare_dn(dn, keep_proxy, keep_digits)
 
 
+# resolve string bool
+def resolve_bool(param):
+    if isinstance(param, bool):
+        return param
+    if param == 'True':
+        return True
+    if param == 'False':
+        return False
+    return param
+
+
 # cached object
 class CachedObject:
     # constructor
