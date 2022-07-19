@@ -6,7 +6,7 @@ from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 from pandaserver.configurator import db_interface as dbif
 from pandacommon.pandalogger import logger_utils
 from pandaserver.configurator import Configurator as configurator_module
-from pandaserver.configurator.Configurator import Configurator, NetworkConfigurator, JsonDumper
+from pandaserver.configurator.Configurator import Configurator, NetworkConfigurator, SchedconfigJsonDumper
 
 
 # logger
@@ -46,9 +46,9 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
     # If --json_dump
     elif len(argv) == 2 and argv[1].lower() == '--json_dump':
-        _logger = logger_utils.make_logger(base_logger, 'JsonDumper')
+        _logger = logger_utils.make_logger(base_logger, 'SchedconfigJsonDumper')
         t1 = time.time()
-        json_dumper = JsonDumper(taskBuffer=taskBuffer, session=session)
+        json_dumper = SchedconfigJsonDumper(taskBuffer=taskBuffer, session=session)
         out_msg = json_dumper.run()
         _logger.debug('Json_dumper finished with {0}'.format(out_msg))
         t2 = time.time()
