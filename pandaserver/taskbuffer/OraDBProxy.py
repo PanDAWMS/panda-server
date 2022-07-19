@@ -23181,35 +23181,6 @@ class DBProxy:
             self.dumpErrorMessage(_logger,methodName)
             return []
 
-    def insert_pq_json(self, pq, data):
-        """
-        Insert json for a panda queue
-        """
-        comment = ' /* DBProxy.insert_pq_json */'
-        methodName = comment.split(' ')[-2].split('.')[-1]
-        tmpLog = LogWrapper(_logger, methodName)
-        try:
-
-            sql = """
-                  INSERT INTO ATLAS_PANDA.agis_dump (panda_site, update_time, json_data)
-                  VALUES (:panda_site, current_date, :json_data)
-                  """
-
-            # generate the entries for the DB
-            var_maps = {':panda_site': pq,
-                        ':json_data': data}
-
-            # run the SQL
-            self.cur.execute(sql + comment, var_maps)
-            if not self._commit():
-                raise RuntimeError('Commit error')
-            tmpLog.debug('done')
-            return [True]
-        except Exception:
-            # roll back
-            self._rollback()
-            self.dumpErrorMessage(tmpLog, methodName)
-            return None
 
     # get user job metadata
     def getUserJobMetadata(self, jediTaskID):

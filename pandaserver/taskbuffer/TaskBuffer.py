@@ -3916,17 +3916,6 @@ class TaskBuffer:
         return ret
 
 
-    # store json dump for a panda queue
-    def insert_pq_json(self, pq, json_data):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        ret = proxy.insert_pq_json(pq, json_data)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
     # get user job metadata
     def getUserJobMetadata(self, jediTaskID):
         # get DBproxy
