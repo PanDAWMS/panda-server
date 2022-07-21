@@ -23551,7 +23551,7 @@ class DBProxy:
             for pq in sw_tags:
                 for key in sw_tags[pq]:
                     for row in sw_tags[pq][key]:
-                        if key == 'tags':
+                        if key in ['tags', 'vetotags']:
                             data = row["tag"].strip('VO-atlas')
                             var_map_tags.append({':pq': pq,
                                                  'key': key,
