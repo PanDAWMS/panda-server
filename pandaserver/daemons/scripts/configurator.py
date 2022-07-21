@@ -63,6 +63,16 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         t2 = time.time()
         _logger.debug(' run took {0}s'.format(t2-t1))
 
+    # If --sw_tags_flat
+    elif len(argv) == 2 and argv[1].lower() == '--sw_tags_flat':
+        _logger = logger_utils.make_logger(base_logger, 'FlatTagsDumper')
+        t1 = time.time()
+        sw_tag_collector = FlatTagsDumper(taskBuffer=taskBuffer, session=session)
+        out_msg = sw_tag_collector.run()
+        _logger.debug('sw_tag_collector finished with {0}'.format(out_msg))
+        t2 = time.time()
+        _logger.debug(' run took {0}s'.format(t2-t1))
+
     else:
         _logger.error('Configurator being called with wrong arguments. Use either no arguments or --network or --json_dump')
 

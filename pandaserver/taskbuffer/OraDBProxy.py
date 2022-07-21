@@ -23533,6 +23533,54 @@ class DBProxy:
             self.dumpErrorMessage(_logger, method_name)
             return 'ERROR'
 
+    # update queues
+    def loadSWTagsFlat(self, sw_tags):
+        comment = ' /* DBProxy.loadSWTagsFlat */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+
+        if not sw_tags:
+            tmp_log.error("empty sw tag dump")
+            return 'ERROR'
+
+            var_map_insert = []
+            utc_now = datetime.datetime.utcnow()
+            for pq in sw_tags:
+                for key in sw_tags[pq]:
+                    for row in sw_tags[pq][key]:
+                        if key == 'tags':
+                            value = row["tag"].strip('VO-atlas')
+                        else:
+                            value = row
+                        var_map_insert.append({':pq': pq, 'key': key, ':value': value, ':last_update': utc_now})
+
+            # start transaction
+            # delete everything in the table to start every time from a clean table
+            # cleaning and filling needs to be done within the same transaction
+            self.conn.begin()
+
+            sql_delete = "DELETE FROM ATLAS_PANDA.SW_TAGS_FLAT"
+            tmp_log.debug("start cleaning up table")
+            self.cur.execute(sql_delete + comment)
+            tmp_log.debug("done cleaning up table")
+            
+            sql_insert = "INSERT INTO ATLAS_PANDA.SW_TAGS_FLAT (panda_queue, key, data, last_update)"\
+                         "VALUES (:pq, :key, :data, :last_update)"
+
+            if not self._commit():
+                raise RuntimeError('Commit error')
+
+            tmp_log.debug("done")
+            return 'OK'
+
+        except Exception:
+            # roll back
+            self._rollback()
+            self.dumpErrorMessage(_logger, method_name)
+            return 'ERROR'
+
+
 
     # update queues
     def sweepPQ(self, panda_queue_des, status_list_des, ce_list_des, submission_host_list_des):
