@@ -23544,6 +23544,7 @@ class DBProxy:
             tmp_log.error("empty sw tag dump")
             return 'ERROR'
 
+        try:
             var_map_insert = []
             utc_now = datetime.datetime.utcnow()
             for pq in sw_tags:
