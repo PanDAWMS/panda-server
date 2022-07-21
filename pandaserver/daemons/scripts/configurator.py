@@ -74,7 +74,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         _logger.debug(' run took {0}s'.format(t2-t1))
 
     else:
-        _logger.error('Configurator being called with wrong arguments. Use either no arguments or --network or --json_dump')
+        base_logger.error('Configurator being called with wrong arguments. Use either no arguments or --network or --json_dump')
 
     # dbif session close
     session.close()
