@@ -23565,11 +23565,13 @@ class DBProxy:
             tmp_log.debug("start cleaning up table")
             self.cur.execute(sql_delete + comment)
             tmp_log.debug("done cleaning up table")
-            
+
             sql_insert = "INSERT INTO ATLAS_PANDA.SW_TAGS_FLAT (panda_queue, key, data, last_update)"\
                          "VALUES (:pq, :key, :data, :last_update)"
-            tmp_log.debug("start filling up table with: {0}".format(var_map_insert))
-            self.cur.executemany(sql_insert + comment, var_map_insert)
+            tmp_log.debug("start filling up table with")
+            for shard in create_shards(data, 100):
+                tmp_log.debug("shard: {0}".format(shard))
+                self.cur.executemany(sql_insert + comment, var_map_insert)
             tmp_log.debug("done filling up table")
             if not self._commit():
                 raise RuntimeError('Commit error')
