@@ -23568,7 +23568,9 @@ class DBProxy:
             
             sql_insert = "INSERT INTO ATLAS_PANDA.SW_TAGS_FLAT (panda_queue, key, data, last_update)"\
                          "VALUES (:pq, :key, :data, :last_update)"
-
+            tmp_log.debug("start filling up table")
+            self.cur.executemany(sql_insert + comment, var_map_insert)
+            tmp_log.debug("done filling up table")
             if not self._commit():
                 raise RuntimeError('Commit error')
 
