@@ -23575,9 +23575,9 @@ class DBProxy:
             self.conn.begin()
 
             sql_delete = "DELETE FROM ATLAS_PANDA.SW_TAGS_FLAT"
-            tmp_log.debug("start cleaning up table")
+            tmp_log.debug("start cleaning up SW_TAGS_FLAT table")
             self.cur.execute(sql_delete + comment)
-            tmp_log.debug("done cleaning up table")
+            tmp_log.debug("done cleaning up SW_TAGS_FLAT table")
 
             sql_insert = "INSERT INTO ATLAS_PANDA.SW_TAGS_FLAT (panda_queue, key, data, last_update)"\
                          "VALUES (:pq, :key, :data, :last_update)"
@@ -23595,16 +23595,16 @@ class DBProxy:
             self.conn.begin()
 
             sql_delete = "DELETE FROM ATLAS_PANDA.ARCHITECTURES_JSON"
-            tmp_log.debug("start cleaning up table")
+            tmp_log.debug("start cleaning up ARCHITECTURES_JSON table")
             self.cur.execute(sql_delete + comment)
-            tmp_log.debug("done cleaning up table")
+            tmp_log.debug("done cleaning up ARCHITECTURES_JSON table")
 
             sql_insert = "INSERT INTO ATLAS_PANDA.ARCHITECTURES_JSON (panda_queue, data, last_update)"\
                          "VALUES (:pq, :data, :last_update)"
             tmp_log.debug("start filling up ARCHITECTURES_JSON table")
             for entry in var_map_archs:
                 tmp_log.debug("entering {0}".format(entry))
-                self.cur.executemany(sql_insert + comment, entry)
+                self.cur.execute(sql_insert + comment, entry)
             tmp_log.debug("done filling up ARCHITECTURES_JSON table")
             if not self._commit():
                 raise RuntimeError('Commit error')
