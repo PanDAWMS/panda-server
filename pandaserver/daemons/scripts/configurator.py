@@ -5,7 +5,7 @@ from pandaserver.config import panda_config
 from pandaserver.configurator import db_interface as dbif
 from pandacommon.pandalogger import logger_utils
 from pandaserver.configurator import Configurator as configurator_module
-from pandaserver.configurator.Configurator import Configurator, NetworkConfigurator, SchedconfigJsonDumper, TagsJsonDumper
+from pandaserver.configurator.Configurator import Configurator, NetworkConfigurator, SchedconfigJsonDumper, TagsJsonDumper, FlatTagsDumper
 
 
 # logger
