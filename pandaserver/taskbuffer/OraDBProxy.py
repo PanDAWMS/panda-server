@@ -23558,6 +23558,7 @@ class DBProxy:
                                                  ':data': data,
                                                  ':last_update': utc_now})
                         elif key == 'architectures':
+                            data = row
                             var_map_archs.append({':pq': pq,
                                                   ':data': json.dumps(data),
                                                   ':last_update': utc_now})
