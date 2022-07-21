@@ -23554,7 +23554,7 @@ class DBProxy:
                             value = row["tag"].strip('VO-atlas')
                         else:
                             value = row
-                        var_map_insert.append({':pq': pq, 'key': key, ':value': value, ':last_update': utc_now})
+                        var_map_insert.append({':pq': pq, 'key': key, ':data': value, ':last_update': utc_now})
 
             # start transaction
             # delete everything in the table to start every time from a clean table
@@ -23568,7 +23568,7 @@ class DBProxy:
             
             sql_insert = "INSERT INTO ATLAS_PANDA.SW_TAGS_FLAT (panda_queue, key, data, last_update)"\
                          "VALUES (:pq, :key, :data, :last_update)"
-            tmp_log.debug("start filling up table")
+            tmp_log.debug("start filling up table with: {0}".format(var_map_insert))
             self.cur.executemany(sql_insert + comment, var_map_insert)
             tmp_log.debug("done filling up table")
             if not self._commit():
