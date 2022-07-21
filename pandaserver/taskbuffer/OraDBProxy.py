@@ -23545,18 +23545,31 @@ class DBProxy:
             return 'ERROR'
 
         try:
-            var_map_insert = []
+            var_map_tags = []
+            var_map_archs = []
             utc_now = datetime.datetime.utcnow()
             for pq in sw_tags:
                 for key in sw_tags[pq]:
                     for row in sw_tags[pq][key]:
                         if key == 'tags':
                             data = row["tag"].strip('VO-atlas')
+                            var_map_tags.append({':pq': pq,
+                                                 'key': key,
+                                                 ':data': data,
+                                                 ':last_update': utc_now})
+                        elif key == 'architectures':
+                            var_map_archs.append({':pq': pq,
+                                                  ':data': json.dumps(data),
+                                                  ':last_update': utc_now})
                         else:
                             data = row
-                        var_map_insert.append({':pq': pq, 'key': key, ':data': json.dumps(data), ':last_update': utc_now})
+                            var_map_tags.append({':pq': pq,
+                                                 'key': key,
+                                                 ':data': data,
+                                                 ':last_update': utc_now})
 
-            # start transaction
+
+            # start transaction on SW_TAGS_FLAT table
             # delete everything in the table to start every time from a clean table
             # cleaning and filling needs to be done within the same transaction
             self.conn.begin()
@@ -23568,11 +23581,29 @@ class DBProxy:
 
             sql_insert = "INSERT INTO ATLAS_PANDA.SW_TAGS_FLAT (panda_queue, key, data, last_update)"\
                          "VALUES (:pq, :key, :data, :last_update)"
-            tmp_log.debug("start filling up table with")
-            for entry in var_map_insert:
-                tmp_log.debug("entering {0}".format(entry))
-                self.cur.execute(sql_insert + comment, entry)
+            tmp_log.debug("start filling up SW_TAGS_FLAT table")
+            self.cur.executemany(sql_insert + comment, var_map_tags)
             tmp_log.debug("done filling up table")
+            if not self._commit():
+                raise RuntimeError('Commit error')
+
+            # start transaction on ARCHITECTURES_JSON table
+            # delete everything in the table to start every time from a clean table
+            # cleaning and filling needs to be done within the same transaction
+            self.conn.begin()
+
+            sql_delete = "DELETE FROM ATLAS_PANDA.ARCHITECTURES_JSON"
+            tmp_log.debug("start cleaning up table")
+            self.cur.execute(sql_delete + comment)
+            tmp_log.debug("done cleaning up table")
+
+            sql_insert = "INSERT INTO ATLAS_PANDA.ARCHITECTURES_JSON (panda_queue, data, last_update)"\
+                         "VALUES (:pq, :data, :last_update)"
+            tmp_log.debug("start filling up ARCHITECTURES_JSON table")
+            for entry in var_map_archs:
+                tmp_log.debug("entering {0}".format(entry))
+                self.cur.executemany(sql_insert + comment, entry)
+            tmp_log.debug("done filling up ARCHITECTURES_JSON table")
             if not self._commit():
                 raise RuntimeError('Commit error')
 
