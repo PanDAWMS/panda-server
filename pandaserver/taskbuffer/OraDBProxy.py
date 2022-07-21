@@ -23551,10 +23551,10 @@ class DBProxy:
                 for key in sw_tags[pq]:
                     for row in sw_tags[pq][key]:
                         if key == 'tags':
-                            value = row["tag"].strip('VO-atlas')
+                            data = row["tag"].strip('VO-atlas')
                         else:
-                            value = row
-                        var_map_insert.append({':pq': pq, 'key': key, ':data': value, ':last_update': utc_now})
+                            data = row
+                        var_map_insert.append({':pq': pq, 'key': key, ':data': json.dumps(data), ':last_update': utc_now})
 
             # start transaction
             # delete everything in the table to start every time from a clean table
