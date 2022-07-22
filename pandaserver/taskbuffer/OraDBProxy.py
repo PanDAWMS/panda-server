@@ -23453,18 +23453,19 @@ class DBProxy:
                                                  'key': key,
                                                  ':data': data,
                                                  ':last_update': utc_now})
+                        elif key in ['cvmfs', 'cmtconfigs', 'containers']:
+                            data = row
+                            var_map_tags.append({':pq': pq,
+                                                 'key': key,
+                                                 ':data': data,
+                                                 ':last_update': utc_now})
                         elif key == 'architectures':
                             data = row
                             var_map_archs.append({':pq': pq,
                                                   ':data': json.dumps(data),
                                                   ':last_update': utc_now})
                         else:
-                            data = row
-                            var_map_tags.append({':pq': pq,
-                                                 'key': key,
-                                                 ':data': data,
-                                                 ':last_update': utc_now})
-
+                            tmp_log.warning("we don't know how to handle key: {0}".format(key))
 
             # start transaction on SW_TAGS_FLAT table
             # delete everything in the table to start every time from a clean table
@@ -23479,9 +23480,9 @@ class DBProxy:
             sql_insert = "INSERT INTO ATLAS_PANDA.SW_TAGS_FLAT (panda_queue, key, data, last_update)"\
                          "VALUES (:pq, :key, :data, :last_update)"
             tmp_log.debug("start filling up SW_TAGS_FLAT table")
-            for entry in var_map_tags:
-                tmp_log.debug(entry)
-                self.cur.execute(sql_insert + comment, entry)
+            for shard in create_shards(var_map_tags, 100):  # insert in batches of 100 rows
+                tmp_log.debug(shard)
+                self.cur.executemany(sql_insert + comment, shard)
             tmp_log.debug("done filling up table")
             if not self._commit():
                 raise RuntimeError('Commit error')
@@ -23499,9 +23500,9 @@ class DBProxy:
             sql_insert = "INSERT INTO ATLAS_PANDA.ARCHITECTURES_JSON (panda_queue, data, last_update)"\
                          "VALUES (:pq, :data, :last_update)"
             tmp_log.debug("start filling up ARCHITECTURES_JSON table")
-            for entry in var_map_archs:
-                tmp_log.debug("entering {0}".format(entry))
-                self.cur.execute(sql_insert + comment, entry)
+            for shard in create_shards(var_map_archs, 100):  # insert in batches of 100 rows
+                tmp_log.debug(shard)
+                self.cur.executemany(sql_insert + comment, shard)
             tmp_log.debug("done filling up ARCHITECTURES_JSON table")
             if not self._commit():
                 raise RuntimeError('Commit error')
