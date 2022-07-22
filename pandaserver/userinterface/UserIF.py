@@ -558,14 +558,6 @@ class UserIF:
         return WrappedPickle.dumps(siteMapper.cloudSpec)
 
 
-    # get list of cache prefix
-    def getCachePrefixes(self):
-        # get
-        ret = self.taskBuffer.getCachePrefixes()
-        # serialize
-        return WrappedPickle.dumps(ret)
-
-
     # get list of cmtConfig
     def getCmtConfigList(self,relaseVer):
         # get
@@ -1482,10 +1474,6 @@ def getSiteSpecs(req,siteType=None):
 # get list of cloud spec
 def getCloudSpecs(req):
     return userIF.getCloudSpecs()
-
-# get list of cache prefix
-def getCachePrefixes(req):
-    return userIF.getCachePrefixes()
 
 # get list of cmtConfig
 def getCmtConfigList(self,relaseVer):

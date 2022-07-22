@@ -37,7 +37,7 @@ from pandaserver.userinterface.UserIF import submitJobs, getJobStatus, queryPand
      getJobIDsInTimeRange, getPandIDsWithJobID, getFullJobStatus, getJobStatisticsForBamboo,\
      getNUserJobs, addSiteAccess, listSiteAccess, getFilesInUseForAnal, updateSiteAccess,\
      getPandaClientVer, getSlimmedFileInfoPandaIDs, getQueuedAnalJobs, getHighestPrioJobStat,\
-     getActiveDatasets, setCloudTaskByUser, getSerialNumberForGroupJob, getCachePrefixes,\
+     getActiveDatasets, setCloudTaskByUser, getSerialNumberForGroupJob,\
      checkMergeGenerationStatus, getNumPilots, retryFailedJobsInActive,\
      getJobStatisticsWithLabel, getPandaIDwithJobExeID, getJobStatisticsPerUserSite,\
      getDisInUseForAnal, getLFNsInUseForAnal, getScriptOfflineRunning, setDebugMode,\
@@ -101,7 +101,7 @@ allowedMethods += ['submitJobs', 'getJobStatus', 'queryPandaIDs', 'killJobs', 'r
                    'getJobStatisticsForBamboo', 'getNUserJobs', 'addSiteAccess', 'listSiteAccess',
                    'getFilesInUseForAnal', 'updateSiteAccess', 'getPandaClientVer', 'getSlimmedFileInfoPandaIDs',
                    'getQueuedAnalJobs', 'getHighestPrioJobStat', 'getActiveDatasets', 'setCloudTaskByUser',
-                   'getSerialNumberForGroupJob', 'getCachePrefixes', 'checkMergeGenerationStatus', 'getNumPilots',
+                   'getSerialNumberForGroupJob', 'checkMergeGenerationStatus', 'getNumPilots',
                    'retryFailedJobsInActive', 'getJobStatisticsWithLabel', 'getPandaIDwithJobExeID',
                    'getJobStatisticsPerUserSite', 'getDisInUseForAnal', 'getLFNsInUseForAnal', 'getScriptOfflineRunning',
                    'setDebugMode', 'insertSandboxFileInfo', 'checkSandboxFile', 'changeJobPriorities',

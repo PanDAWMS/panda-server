@@ -10885,40 +10885,6 @@ class DBProxy:
             return []
 
 
-    # get list of cache prefix
-    def getCachePrefixes(self):
-        comment = ' /* DBProxy.getCachePrefixes */'
-        try:
-            _logger.debug("getCachePrefixes")
-            # select
-            sql  = "SELECT distinct cache FROM ATLAS_PANDAMETA.installedSW WHERE cache IS NOT NULL"
-            # start transaction
-            self.conn.begin()
-            self.cur.arraysize = 10000
-            # execute
-            self.cur.execute(sql+comment, {})
-            resList = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError('Commit error')
-            # append
-            tmpList = []
-            for tmpItem, in resList:
-                match = re.search('^([^-]+)-',tmpItem)
-                if match is not None:
-                    tmpPrefix = match.group(1)
-                    if tmpPrefix not in tmpList:
-                        tmpList.append(tmpPrefix)
-            _logger.debug("getCachePrefixes -> %s" % tmpList)
-            return tmpList
-        except Exception:
-            # roll back
-            self._rollback()
-            type,value,traceBack = sys.exc_info()
-            _logger.error("getCachePrefixes : %s %s" % (type,value))
-            return []
-
-
     # get list of cmtConfig
     def getCmtConfigList(self, relaseVer):
         comment = ' /* DBProxy.getCmtConfigList */'

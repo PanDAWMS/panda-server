@@ -2295,17 +2295,6 @@ class TaskBuffer:
         return ret
 
 
-    # get list of cache prefix
-    def getCachePrefixes(self):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # check
-        ret = proxy.getCachePrefixes()
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
 
     # get list of cmtConfig
     def getCmtConfigList(self,relaseVer):
