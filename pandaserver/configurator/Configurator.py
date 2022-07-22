@@ -766,4 +766,4 @@ class SWTagsDumper(threading.Thread):
             _logger.critical("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_TAGS))
             return False
 
-        return self.taskBuffer.loadSWTagsFlat(self.tags_dump)
+        return self.taskBuffer.loadSWTags(self.tags_dump)

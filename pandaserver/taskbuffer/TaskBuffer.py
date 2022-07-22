@@ -3975,11 +3975,11 @@ class TaskBuffer:
         return ret
 
     # update/insert SW tag information
-    def loadSWTagsFlat(self, sw_tags):
+    def loadSWTags(self, sw_tags):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.loadSWTagsFlat(sw_tags)
+        ret = proxy.loadSWTags(sw_tags)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

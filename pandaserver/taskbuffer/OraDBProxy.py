@@ -23430,8 +23430,8 @@ class DBProxy:
 
 
     # update queues
-    def loadSWTagsFlat(self, sw_tags):
-        comment = ' /* DBProxy.loadSWTagsFlat */'
+    def loadSWTags(self, sw_tags):
+        comment = ' /* DBProxy.loadSWTags */'
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")
@@ -23467,19 +23467,19 @@ class DBProxy:
                         else:
                             tmp_log.warning("we don't know how to handle key: {0}".format(key))
 
-            # start transaction on SW_TAGS_FLAT table
+            # start transaction on SW_TAGS table
             # delete everything in the table to start every time from a clean table
             # cleaning and filling needs to be done within the same transaction
             self.conn.begin()
 
-            sql_delete = "DELETE FROM ATLAS_PANDA.SW_TAGS_FLAT"
-            tmp_log.debug("start cleaning up SW_TAGS_FLAT table")
+            sql_delete = "DELETE FROM ATLAS_PANDA.SW_TAGS"
+            tmp_log.debug("start cleaning up SW_TAGS table")
             self.cur.execute(sql_delete + comment)
-            tmp_log.debug("done cleaning up SW_TAGS_FLAT table")
+            tmp_log.debug("done cleaning up SW_TAGS table")
 
-            sql_insert = "INSERT INTO ATLAS_PANDA.SW_TAGS_FLAT (panda_queue, key, data, last_update)"\
+            sql_insert = "INSERT INTO ATLAS_PANDA.SW_TAGS (panda_queue, key, data, last_update)"\
                          "VALUES (:pq, :key, :data, :last_update)"
-            tmp_log.debug("start filling up SW_TAGS_FLAT table")
+            tmp_log.debug("start filling up SW_TAGS table")
             for shard in create_shards(var_map_tags, 100):  # insert in batches of 100 rows
                 #tmp_log.debug(shard)
                 self.cur.executemany(sql_insert + comment, shard)
