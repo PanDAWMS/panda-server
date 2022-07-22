@@ -452,7 +452,5 @@ config = {
     "schedconfig_json": {
         "enable": true, "module": "configurator", "arguments": ["--json_dump"], "period": 200, "sync": true},
     "sw_tags": {
-        "enable": true, "module": "configurator", "arguments": ["--sw_tags"], "period": 200, "sync": true},
-    "sw_tags_flat": {
-        "enable": true, "module": "configurator", "arguments": ["--sw_tags_flat"], "period": 200, "sync": true}
+        "enable": true, "module": "configurator", "arguments": ["--sw_tags"], "period": 200, "sync": true}
   }

@@ -5,7 +5,7 @@ from pandaserver.config import panda_config
 from pandaserver.configurator import db_interface as dbif
 from pandacommon.pandalogger import logger_utils
 from pandaserver.configurator import Configurator as configurator_module
-from pandaserver.configurator.Configurator import Configurator, NetworkConfigurator, SchedconfigJsonDumper, TagsJsonDumper, FlatTagsDumper
+from pandaserver.configurator.Configurator import Configurator, NetworkConfigurator, SchedconfigJsonDumper, SWTagsDumper
 
 
 # logger
@@ -55,19 +55,9 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
     # If --sw_tags
     elif len(argv) == 2 and argv[1].lower() == '--sw_tags':
-        _logger = logger_utils.make_logger(base_logger, 'TagsJsonDumper')
+        _logger = logger_utils.make_logger(base_logger, 'SWTagsDumper')
         t1 = time.time()
-        sw_tag_collector = TagsJsonDumper(taskBuffer=taskBuffer, session=session)
-        out_msg = sw_tag_collector.run()
-        _logger.debug('sw_tag_collector finished with {0}'.format(out_msg))
-        t2 = time.time()
-        _logger.debug(' run took {0}s'.format(t2-t1))
-
-    # If --sw_tags_flat
-    elif len(argv) == 2 and argv[1].lower() == '--sw_tags_flat':
-        _logger = logger_utils.make_logger(base_logger, 'FlatTagsDumper')
-        t1 = time.time()
-        sw_tag_collector = FlatTagsDumper(taskBuffer=taskBuffer, session=session)
+        sw_tag_collector = SWTagsDumper(taskBuffer=taskBuffer, session=session)
         out_msg = sw_tag_collector.run()
         _logger.debug('sw_tag_collector finished with {0}'.format(out_msg))
         t2 = time.time()

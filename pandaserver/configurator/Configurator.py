@@ -735,40 +735,8 @@ class SchedconfigJsonDumper(threading.Thread):
 
         return self.taskBuffer.upsertQueuesInJSONSchedconfig(self.schedconfig_dump)
 
-class TagsJsonDumper(threading.Thread):
-    """
-    Downloads the CRIC tags dump and stores it in the DB, one row per queue
-    """
-    def __init__(self, taskBuffer, session):
-        """
-        Initialization and configuration
-        """
-        threading.Thread.__init__(self)
 
-        self.taskBuffer = taskBuffer
-        self.session = session
-
-        if hasattr(panda_config, 'CRIC_URL_SCHEDCONFIG'):
-            self.CRIC_URL_TAGS = panda_config.CRIC_URL_TAGS
-        else:
-            self.CRIC_URL_TAGS = 'https://atlas-cric.cern.ch/api/atlas/pandaqueue/query/?json&preset=tags'
-
-        _logger.debug('Getting tags dump...')
-        self.tags_dump = aux.get_dump(self.CRIC_URL_TAGS)
-        _logger.debug('Done')
-
-    def run(self):
-        """
-        Principal function
-        """
-        if self.tags_dump is None:
-            _logger.critical("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_TAGS))
-            return False
-
-        return self.taskBuffer.upsertSWTags(self.tags_dump)
-
-
-class FlatTagsDumper(threading.Thread):
+class SWTagsDumper(threading.Thread):
     """
     Downloads the CRIC tags dump, flattens it out and stores it in the DB, one row per queue
     """
