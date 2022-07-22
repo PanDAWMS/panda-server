@@ -82,12 +82,6 @@ for hdr in _loggerFiltered.handlers:
     _logger.addHandler(hdr)
     _loggerFiltered.removeHandler(hdr)
 
-# lock file
-_lockGetSN   = open(panda_config.lockfile_getSN, 'w')
-_lockSetDS   = open(panda_config.lockfile_setDS, 'w')
-_lockGetCT   = open(panda_config.lockfile_getCT, 'w')
-
-
 # get mb proxies used in DBProxy methods
 def get_mb_proxy_dict():
     if hasattr(panda_config, 'mbproxy_configFile') \

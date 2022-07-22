@@ -21,9 +21,6 @@ import pandaserver.taskbuffer.ErrorCode
 # logger
 _logger = PandaLogger().getLogger('Notifier')
 
-# lock file
-_lockGetMail = open(panda_config.lockfile_getMail, 'w')
-
 # ignored DN
 _ignoreList = [
     'Nurcan Ozturk',
