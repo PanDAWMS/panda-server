@@ -48,6 +48,7 @@ RUN mkdir -p /var/log/panda/wsgisocks
 RUN mkdir -p /var/log/panda/pandacache
 RUN mkdir -p /run/httpd/wsgisocks
 RUN mkdir -p /var/cache/pandaserver/jedilog
+RUN mkdir -p /var/run/panda
 
 RUN ln -fs /opt/panda/etc/cert/hostkey.pem /etc/grid-security/hostkey.pem
 RUN ln -fs /opt/panda/etc/cert/hostcert.pem /etc/grid-security/hostcert.pem
@@ -71,6 +72,7 @@ RUN chmod -R 777 /home/atlpan
 RUN chmod -R 777 /var/lock
 RUN chmod -R 777 /var/cache/pandaserver
 RUN chmod -R 777 /var/log/panda/pandacache
+RUN chmod -R 777 /var/run/panda
 
 CMD exec /bin/bash -c "trap : TERM INT; sleep infinity & wait"
 
