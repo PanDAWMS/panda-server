@@ -23481,7 +23481,7 @@ class DBProxy:
                          "VALUES (:pq, :key, :data, :last_update)"
             tmp_log.debug("start filling up SW_TAGS_FLAT table")
             for shard in create_shards(var_map_tags, 100):  # insert in batches of 100 rows
-                tmp_log.debug(shard)
+                #tmp_log.debug(shard)
                 self.cur.executemany(sql_insert + comment, shard)
             tmp_log.debug("done filling up table")
             if not self._commit():
@@ -23501,7 +23501,7 @@ class DBProxy:
                          "VALUES (:pq, :data, :last_update)"
             tmp_log.debug("start filling up ARCHITECTURES_JSON table")
             for shard in create_shards(var_map_archs, 100):  # insert in batches of 100 rows
-                tmp_log.debug(shard)
+                #tmp_log.debug(shard)
                 self.cur.executemany(sql_insert + comment, shard)
             tmp_log.debug("done filling up ARCHITECTURES_JSON table")
             if not self._commit():
