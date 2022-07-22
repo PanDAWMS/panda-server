@@ -29,9 +29,6 @@ _allSites = []
 # non LRC checking
 _disableLRCcheck = []
 
-# lock for uuidgen
-_lockGetUU   = open(panda_config.lockfile_getUU, 'w')
-
 # short-long mapping
 shortLongMap = {'ANALY_BNL_SHORT': 'ANALY_BNL_LONG'}
 
@@ -1500,12 +1497,8 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         file.destinationSE = destSE
                 # pre-assign GUID to log
                 if file.type == 'log':
-                    # get lock
-                    fcntl.flock(_lockGetUU.fileno(), fcntl.LOCK_EX)
                     # generate GUID
                     file.GUID = str(uuid.uuid4())
-                    # release lock
-                    fcntl.flock(_lockGetUU.fileno(), fcntl.LOCK_UN)
         # send log messages
         try:
             for  message in loggerMessages:

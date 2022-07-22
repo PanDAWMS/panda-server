@@ -1267,45 +1267,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             except Exception:
                 pass
 
-
-    # update email DB
-    _memoryCheck("email")
-    _logger.debug("Update emails")
-
-    # lock file
-    _lockGetMail = open(panda_config.lockfile_getMail, 'w')
-    # lock email DB
-    fcntl.flock(_lockGetMail.fileno(), fcntl.LOCK_EX)
-    # open email DB
-    pDB = shelve.open(panda_config.emailDB)
-    # read
-    mailMap = {}
-    for name in pDB:
-        addr = pDB[name]
-        mailMap[name] = addr
-    # close DB
-    pDB.close()
-    # release file lock
-    fcntl.flock(_lockGetMail.fileno(), fcntl.LOCK_UN)
-    # set email address
-    for name in mailMap:
-        addr = mailMap[name]
-        # remove _
-        name = re.sub('_$','',name)
-        status,res = taskBuffer.querySQLS("SELECT email FROM ATLAS_PANDAMETA.users WHERE name=:name",{':name':name})
-        # failed or not found
-        if status == -1 or len(res) == 0:
-            _logger.error("%s not found in user DB" % name)
-            continue
-        # already set
-        if res[0][0] not in ['','None',None]:
-            continue
-        # update email
-        _logger.debug("set '%s' to %s" % (name,addr))
-        status,res = taskBuffer.querySQLS("UPDATE ATLAS_PANDAMETA.users SET email=:addr WHERE name=:name",{':addr':addr,':name':name})
-
-
-
     # sandbox
     _logger.debug("Touch sandbox")
     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=1)
