@@ -42,7 +42,7 @@ from pandaserver.userinterface.UserIF import submitJobs, getJobStatus, queryPand
      getJobStatisticsWithLabel, getPandaIDwithJobExeID, getJobStatisticsPerUserSite,\
      getDisInUseForAnal, getLFNsInUseForAnal, getScriptOfflineRunning, setDebugMode,\
      insertSandboxFileInfo, checkSandboxFile, changeJobPriorities, insertTaskParams,\
-     killTask, finishTask, getCmtConfigList, getJediTasksInTimeRange, getJediTaskDetails,\
+     killTask, finishTask, getJediTasksInTimeRange, getJediTaskDetails,\
      retryTask, getRetryHistory, changeTaskPriority, reassignTask, changeTaskAttributePanda,\
      pauseTask, resumeTask, increaseAttemptNrPanda, killUnfinishedJobs, changeTaskSplitRulePanda,\
      changeTaskModTimePanda, avalancheTask, getPandaIDsWithTaskID, reactivateTask, getTaskStatus, \
@@ -105,7 +105,7 @@ allowedMethods += ['submitJobs', 'getJobStatus', 'queryPandaIDs', 'killJobs', 'r
                    'retryFailedJobsInActive', 'getJobStatisticsWithLabel', 'getPandaIDwithJobExeID',
                    'getJobStatisticsPerUserSite', 'getDisInUseForAnal', 'getLFNsInUseForAnal', 'getScriptOfflineRunning',
                    'setDebugMode', 'insertSandboxFileInfo', 'checkSandboxFile', 'changeJobPriorities',
-                   'insertTaskParams', 'killTask', 'finishTask', 'getCmtConfigList', 'getJediTasksInTimeRange',
+                   'insertTaskParams', 'killTask', 'finishTask', 'getJediTasksInTimeRange',
                    'getJediTaskDetails', 'retryTask', 'getRetryHistory', 'changeTaskPriority', 'reassignTask',
                    'changeTaskAttributePanda', 'pauseTask', 'resumeTask', 'increaseAttemptNrPanda',
                    'killUnfinishedJobs', 'changeTaskSplitRulePanda', 'changeTaskModTimePanda', 'avalancheTask',

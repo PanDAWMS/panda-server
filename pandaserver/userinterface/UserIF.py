@@ -558,14 +558,6 @@ class UserIF:
         return WrappedPickle.dumps(siteMapper.cloudSpec)
 
 
-    # get list of cmtConfig
-    def getCmtConfigList(self,relaseVer):
-        # get
-        ret = self.taskBuffer.getCmtConfigList(relaseVer)
-        # serialize
-        return WrappedPickle.dumps(ret)
-
-
     # get nPilots
     def getNumPilots(self):
         # get nPilots
@@ -1475,9 +1467,6 @@ def getSiteSpecs(req,siteType=None):
 def getCloudSpecs(req):
     return userIF.getCloudSpecs()
 
-# get list of cmtConfig
-def getCmtConfigList(self,relaseVer):
-    return userIF.getCmtConfigList(relaseVer)
 
 # get ban users
 def get_ban_users(req):

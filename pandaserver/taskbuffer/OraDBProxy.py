@@ -10885,39 +10885,6 @@ class DBProxy:
             return []
 
 
-    # get list of cmtConfig
-    def getCmtConfigList(self, relaseVer):
-        comment = ' /* DBProxy.getCmtConfigList */'
-        try:
-            methodName = "getCmtConfigList"
-            _logger.debug("{0} for {1}".format(methodName,relaseVer))
-            # select
-            sql  = "SELECT distinct cmtConfig FROM ATLAS_PANDAMETA.installedSW WHERE release=:release"
-            # start transaction
-            self.conn.begin()
-            self.cur.arraysize = 10
-            # execute
-            varMap = {}
-            varMap[':release'] = relaseVer
-            self.cur.execute(sql+comment, varMap)
-            resList = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError('Commit error')
-            # append
-            tmpList = []
-            for tmpItem, in resList:
-                tmpList.append(tmpItem)
-            _logger.debug("{0} -> {1}".format(methodName,str(tmpList)))
-            return tmpList
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger,methodName)
-            return []
-
-
     # get pilot owners
     def getPilotOwners(self):
         comment = ' /* DBProxy.getPilotOwners */'
