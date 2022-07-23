@@ -36,6 +36,7 @@ RUN mv /opt/panda/etc/panda/panda_server-httpd-FastCGI.conf.rpmnew /opt/panda/et
 # make a wrapper script to launch services and periodic jobs in non-root container
 RUN echo $'#!/bin/bash \n\
 set -m \n\
+chmod -R 777 /var/log/panda \n\
 /data/panda/init-panda \n\
 /data/panda/run-panda-crons & \n\
 /etc/rc.d/init.d/httpd-pandasrv stop & \n\
