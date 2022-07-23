@@ -39,7 +39,6 @@ set -m \n\
 chmod -R 777 /var/log/panda \n\
 /data/panda/init-panda \n\
 /data/panda/run-panda-crons & \n\
-/etc/rc.d/init.d/httpd-pandasrv stop & \n\
 /etc/rc.d/init.d/httpd-pandasrv start \n ' > /etc/rc.d/init.d/run-panda-services
 
 RUN chmod +x /etc/rc.d/init.d/run-panda-services
