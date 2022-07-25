@@ -36,7 +36,6 @@ RUN mv /opt/panda/etc/panda/panda_server-httpd-FastCGI.conf.rpmnew /opt/panda/et
 # make a wrapper script to launch services and periodic jobs in non-root container
 RUN echo $'#!/bin/bash \n\
 set -m \n\
-chmod -R 777 /var/log/panda \n\
 /data/panda/init-panda \n\
 /data/panda/run-panda-crons & \n\
 /etc/rc.d/init.d/httpd-pandasrv start \n ' > /etc/rc.d/init.d/run-panda-services
@@ -74,6 +73,9 @@ RUN chmod -R 777 /var/lock
 RUN chmod -R 777 /var/cache/pandaserver
 RUN chmod -R 777 /var/log/panda/pandacache
 RUN chmod -R 777 /var/run/panda
+
+ENV PANDA_LOCK_DIR /var/run/panda
+RUN mkdir -p ${PANDA_LOCK_DIR} && chmod 777 ${PANDA_LOCK_DIR}
 
 CMD exec /bin/bash -c "trap : TERM INT; sleep infinity & wait"
 
