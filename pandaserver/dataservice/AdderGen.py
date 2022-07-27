@@ -639,17 +639,20 @@ class AdderGen(object):
             self.logger.error("failed to copy files for variable number of outputs")
             return 2
         # check files
+        lfns_set = set(lfns)
         fileList = []
         for file in self.job.Files:
             fileList.append(file.lfn)
             if file.type == 'input':
-                if file.lfn in lfns:
-                    if self.job.prodSourceLabel in ['user','panda']:
+                if file.lfn in lfns_set:
+                    if self.job.prodSourceLabel in ['user','panda'] or self.job.is_on_site_merging():
                         # skipped file
                         file.status = 'skipped'
+                        self.logger.debug(f'skipped input : {file.lfn}')
                     elif self.job.prodSourceLabel in ['managed','test'] + JobUtils.list_ptest_prod_sources:
                         # failed by pilot
                         file.status = 'failed'
+                        self.logger.debug(f'failed input : {file.lfn}')
             elif file.type == 'output' or file.type == 'log':
                 # add only log file for failed jobs
                 if self.jobStatus == 'failed' and file.type != 'log':
