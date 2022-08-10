@@ -482,7 +482,8 @@ class FetchData(object):
                 site_dict[site]['strr_6h'] = site_6h_strr
                 site_dict[site]['strr_1d'] = site_1d_strr
                 # classify
-                if v['ranking_wait_time'] <= max(first_one_third_wait_time, 3600):
+                if v['ranking_wait_time'] <= max(first_one_third_wait_time, 3600) \
+                        and site_1d_strr > 0:
                     # class A (1)
                     site_dict[site]['class'] = 1
                     class_A_set.add(site)
