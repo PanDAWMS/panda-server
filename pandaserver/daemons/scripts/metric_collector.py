@@ -41,7 +41,6 @@ def get_now_time_str():
     ts_str = now_time.strftime('%Y-%m-%d %H:%M:%S')
     return ts_str
 
-
 def conf_interval_upper(n, mean, stdev, cl=0.95):
     """
     Get estimated confidence level
@@ -50,7 +49,6 @@ def conf_interval_upper(n, mean, stdev, cl=0.95):
     ciu = stats.t.ppf(cl, (n-1), loc=mean, scale=stdev)
     ciu = min(ciu, max_value)
     return ciu
-
 
 def weighted_stats(values, weights):
     """
@@ -61,6 +59,56 @@ def weighted_stats(values, weights):
     variance = np.average((values - mean)**2, weights=weights)
     stdev = np.sqrt(variance)
     return sum_of_weights, mean, stdev
+
+# get site slot to-running rate statistics
+def get_site_strr_stats(tbuf, time_window=21600, cutoff=300):
+    """
+    :param time_window: float, time window in hours to compute slot to-running rate
+    """
+    # log
+    tmp_log = logger_utils.make_logger(main_logger, 'get_site_strr_stats')
+    # timestamps
+    current_time = datetime.datetime.utcnow()
+    starttime_max = current_time - datetime.timedelta(seconds=cutoff)
+    starttime_min = current_time - datetime.timedelta(seconds=time_window)
+    # rounded with 10 minutes
+    starttime_max_rounded = starttime_max.replace(minute=starttime_max.minute//10*10, second=0, microsecond=0)
+    starttime_min_rounded = starttime_min.replace(minute=starttime_min.minute//10*10, second=0, microsecond=0)
+    real_interval_hours = (starttime_max_rounded - starttime_min_rounded).total_seconds()/3600
+    # define the var map of query parameters
+    var_map = { ':startTimeMin': starttime_min_rounded,
+                ':startTimeMax': starttime_max_rounded}
+    # sql to query on jobs-tables (jobsactive4 and jobsdefined4)
+    sql_jt = """
+           SELECT computingSite, actualCoreCount, COUNT(*) FROM %s
+           WHERE vo='atlas'
+           AND startTime IS NOT NULL AND startTime>=:startTimeMin AND startTime<:startTimeMax
+           AND jobStatus IN ('running', 'holding', 'transferring', 'finished', 'cancelled')
+           """
+    sql_jt += """
+           GROUP BY computingSite, actualCoreCount
+           """
+    # job tables
+    tables = ['ATLAS_PANDA.jobsActive4', 'ATLAS_PANDA.jobsDefined4']
+    # get
+    return_map = {}
+    try:
+        for table in tables:
+            sql_exe = (sql_jt) % table
+            res = tbuf.querySQL(sql_exe, var_map)
+            # create map
+            for panda_site, core_count, n_count in res:
+                # add site
+                return_map.setdefault(panda_site, 0)
+                # increase to-running rate
+                to_running_rate = n_count*core_count/real_interval_hours if real_interval_hours > 0 else 0
+                return_map[panda_site] += to_running_rate
+        # end loop
+        tmp_log.debug('done')
+        return True, return_map
+    except Exception as e:
+        tmp_log.error('Exception {0}: {1}'.format(e.__class__.__name__, e))
+        return False, {}
 
 
 class MetricsDB(object):
@@ -407,6 +455,13 @@ class FetchData(object):
                     continue
             first_one_third_wait_time = np.nanquantile(np.array(ranking_wait_time_list), 0.333)
             last_one_third_wait_time = np.nanquantile(np.array(ranking_wait_time_list), 0.667)
+            # get to-running rate of sites
+            tmp_st, site_6h_strr_map = get_site_strr_stats(self.tbuf, time_window=60*60*6)
+            if not tmp_st:
+                tmp_log.error('failed to get 6h-slot-to-running-rate')
+            tmp_st, site_1d_strr_map = get_site_strr_stats(self.tbuf, time_window=60*60*24)
+            if not tmp_st:
+                tmp_log.error('failed to get 1d-slot-to-running-rate')
             # for each site
             for site in apjwt_dict:
                 # from wait time stats
@@ -421,8 +476,14 @@ class FetchData(object):
                     continue
                 # initialize
                 site_dict[site] = dict()
+                # to-running rate
+                site_6h_strr = site_6h_strr_map.get(site, 0)
+                site_1d_strr = site_1d_strr_map.get(site, 0)
+                site_dict[site]['strr_6h'] = site_6h_strr
+                site_dict[site]['strr_1d'] = site_1d_strr
                 # classify
-                if v['ranking_wait_time'] <= max(first_one_third_wait_time, 3600):
+                if v['ranking_wait_time'] <= max(first_one_third_wait_time, 3600) \
+                        and site_1d_strr > 0:
                     # class A (1)
                     site_dict[site]['class'] = 1
                     class_A_set.add(site)
@@ -435,7 +496,7 @@ class FetchData(object):
                     site_dict[site]['class'] = 0
                     class_B_set.add(site)
                 # log
-                tmp_log.debug(('site={site}, class={class} '
+                tmp_log.debug(('site={site}, class={class}, strr_6h={strr_6h:.3f}, strr_1d={strr_1d:.3f} '
                                 ).format(site=site, **site_dict[site]))
                 # turn nan into None
                 for key in site_dict[site]:
