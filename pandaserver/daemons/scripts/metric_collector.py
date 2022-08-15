@@ -78,18 +78,18 @@ def get_site_strr_stats(tbuf, time_window=21600, cutoff=300):
     # define the var map of query parameters
     var_map = { ':startTimeMin': starttime_min_rounded,
                 ':startTimeMax': starttime_max_rounded}
-    # sql to query on jobs-tables (jobsactive4 and jobsdefined4)
+    # sql to query on jobs-tables (jobsactive4 and jobsArchived4)
     sql_jt = """
-           SELECT computingSite, actualCoreCount, COUNT(*) FROM %s
+           SELECT computingSite, coreCount, COUNT(*) FROM %s
            WHERE vo='atlas'
            AND startTime IS NOT NULL AND startTime>=:startTimeMin AND startTime<:startTimeMax
            AND jobStatus IN ('running', 'holding', 'transferring', 'finished', 'cancelled')
            """
     sql_jt += """
-           GROUP BY computingSite, actualCoreCount
+           GROUP BY computingSite, coreCount
            """
     # job tables
-    tables = ['ATLAS_PANDA.jobsActive4', 'ATLAS_PANDA.jobsDefined4']
+    tables = ['ATLAS_PANDA.jobsActive4', 'ATLAS_PANDA.jobsArchived4', ]
     # get
     return_map = {}
     try:
