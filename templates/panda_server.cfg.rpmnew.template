@@ -14,30 +14,6 @@ loggername = prod
 
 
 
-##########################
-#
-# Transaction parameters
-#
-
-# lock file for getJobs
-lockfile_getJobs = %(logdir)s/getJobs.lock
-
-# lock file for getSerialNumber
-lockfile_getSN = %(logdir)s/getSN.lock
-
-# lock file for accessing email DB
-lockfile_getMail = %(logdir)s/getMail.lock
-
-# lock file for updateDatasetStatus
-lockfile_setDS = %(logdir)s/setDS.lock
-
-# lock file for getCloudTask
-lockfile_getCT = %(logdir)s/getCT.lock
-
-# lock file for uuidgen
-lockfile_getUU = %(logdir)s/getUU.lock
-
-
 
 ##########################
 #

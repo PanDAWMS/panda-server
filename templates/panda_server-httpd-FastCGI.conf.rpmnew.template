@@ -35,7 +35,7 @@ RedirectMatch 403 "/panda.py$"
 </Directory>
 
 Alias /trf/ "/var/trf/"
-Alias /cache/ "/var/cache/pandaserver/"
+Alias /cache/ "/var/log/panda/pandacache/"
 Alias /appdir/ "/var/appdir/"
 Alias /auth/ "/opt/panda/etc/panda/auth/"
 
@@ -177,6 +177,6 @@ LogFormat "%{User-agent}i" agent
 CustomLog /var/log/panda/panda_server_access_log common
 ErrorLog /var/log/panda/panda_server_error_log
 
-PidFile /var/lock/subsys/panda_server_httpd.pid
+PidFile /var/run/panda/panda_server_httpd.pid
 
 TypesConfig /etc/mime.types
