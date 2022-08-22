@@ -100,11 +100,14 @@ def get_site_strr_stats(tbuf, time_window=21600, cutoff=300):
             for panda_site, core_count, n_count in res:
                 # add site
                 return_map.setdefault(panda_site, 0)
+                # skip null coreCount
+                if core_count is None or not core_count:
+                    continue
                 # increase to-running rate
                 to_running_rate = n_count*core_count/real_interval_hours if real_interval_hours > 0 else 0
                 return_map[panda_site] += to_running_rate
         # end loop
-        tmp_log.debug('done')
+        # tmp_log.debug('done')
         return True, return_map
     except Exception as e:
         tmp_log.error('Exception {0}: {1}'.format(e.__class__.__name__, e))
@@ -482,8 +485,9 @@ class FetchData(object):
                 site_dict[site]['strr_6h'] = site_6h_strr
                 site_dict[site]['strr_1d'] = site_1d_strr
                 # classify
-                if v['ranking_wait_time'] <= max(first_one_third_wait_time, 3600) \
-                        and site_1d_strr > 0:
+                if (v['ranking_wait_time'] <= max(first_one_third_wait_time, 3600) \
+                        or (v['w_cl95upp'] <= max(first_one_third_wait_time, 3600) and v['long_q_n'] <= 3)
+                        ) and site_1d_strr > 0:
                     # class A (1)
                     site_dict[site]['class'] = 1
                     class_A_set.add(site)
