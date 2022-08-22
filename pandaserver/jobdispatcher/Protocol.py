@@ -364,7 +364,9 @@ class Response:
             scope_input, scope_output = DataServiceUtils.select_scope(siteSpec, job.prodSourceLabel, job.job_label)
             if siteSpec.use_vp(scope_input):
                 self.data['useVP'] = 'True'
-
+        # on-site merging
+        if job.is_on_site_merging():
+            self.data['onSiteMerging'] = 'True'
 
     # set proxy key
     def setProxyKey(self,proxyKey):

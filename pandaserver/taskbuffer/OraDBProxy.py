@@ -10002,19 +10002,6 @@ class DBProxy:
         _logger.debug("getSiteInfo start")
         methodName = comment.split(' ')[-2].split('.')[-1]
         try:
-            # set autocommit on
-            self.conn.begin()
-            # get CVMFS availability
-            sqlCVMFS  = "SELECT distinct siteid FROM ATLAS_PANDAMETA.installedSW WHERE `release`=:release"
-            self.cur.execute(sqlCVMFS, {':release': 'CVMFS'})
-            tmpList = self.cur.fetchall()
-            cvmfsSites = []
-            for tmpItem, in tmpList:
-                if tmpItem not in cvmfsSites:
-                    cvmfsSites.append(tmpItem)
-            if not self._commit():
-                raise RuntimeError('Commit error')
-
             # get DDM endpoints
             pandaEndpointMap = self.getDdmEndpoints()
 
@@ -10119,6 +10106,8 @@ class DBProxy:
                         ret.direct_access_lan = (queue_data.get('direct_access_lan') is True)
                         ret.direct_access_wan = (queue_data.get('direct_access_wan') is True)
 
+                        ret.iscvmfs = (queue_data.get('is_cvmfs') is True)
+
                         if queue_data.get('corepower') is None:
                             ret.corepower = 0
                         else:
@@ -10189,12 +10178,6 @@ class DBProxy:
                                 tmpRel = tmpRel.strip()
                                 if tmpRel != '':
                                     ret.validatedreleases.append(tmpRel)
-
-                        # CVMFS
-                        if siteid in cvmfsSites:
-                            ret.iscvmfs = True
-                        else:
-                            ret.iscvmfs = False
 
                         # limit of the number of transferring jobs
                         ret.transferringlimit = 0
@@ -10818,70 +10801,6 @@ class DBProxy:
             self._rollback()
             type,value,traceBack = sys.exc_info()
             _logger.error("checkSitesWithRelease : %s %s" % (type,value))
-            return []
-
-
-    # get sites with release/cache in cloud
-    def getSitesWithReleaseInCloud(self,cloud,releases,caches,validation):
-        comment = ' /* DBProxy.getSitesWithReleaseInCloud */'
-        try:
-            relStr = releases
-            if releases is not None:
-                relStr = releases.replace('\n',' ')
-            caStr = caches
-            if caches is not None:
-                caStr = caches.replace('\n',' ')
-            _logger.debug("getSitesWithReleaseInCloud(%s,%s,%s,%s)" % (cloud,relStr,caStr,validation))
-            # select
-            sql  = "SELECT distinct siteid FROM ATLAS_PANDAMETA.InstalledSW WHERE cloud=:cloud AND "
-            varMap = {}
-            varMap[':cloud'] = cloud
-            if caches not in ['','NULL',None]:
-                loopKey = ':cache'
-                loopValues = caches.split('\n')
-                sql += "cache=:cache "
-            else:
-                loopKey = ':release'
-                loopValues = releases.split('\n')
-                sql += "`release`=:release AND cache='None' "
-            # validation
-            if validation:
-                sql += "validation=:validation "
-                varMap[':validation'] = 'validated'
-            # start transaction
-            self.conn.begin()
-            self.cur.arraysize = 100
-            # loop over all releases/caches
-            retSites = None
-            for loopVal in loopValues:
-                # remove Atlas-
-                loopVal = re.sub('^Atlas-','',loopVal)
-                varMap[loopKey] = loopVal
-                # execute
-                _logger.debug(sql+comment+str(varMap))
-                self.cur.execute(sql+comment, varMap)
-                resList = self.cur.fetchall()
-                # append
-                tmpRetSites = []
-                for tmpItem, in resList:
-                    if retSites is None or (tmpItem in retSites):
-                        tmpRetSites.append(tmpItem)
-                # set
-                retSites = tmpRetSites
-            # commit
-            if not self._commit():
-                raise RuntimeError('Commit error')
-            # append
-            retSites = []
-            for tmpItem, in resList:
-                retSites.append(tmpItem)
-            _logger.debug("getSitesWithReleaseInCloud -> %s" % retSites)
-            return retSites
-        except Exception:
-            # roll back
-            self._rollback()
-            type,value,traceBack = sys.exc_info()
-            _logger.error("getSitesWithReleaseInCloud : %s %s" % (type,value))
             return []
 
 
@@ -12617,7 +12536,8 @@ class DBProxy:
             if fileSpec.type in ['input','pseudo_input']:
                 hasInput = True
                 updateAttemptNr = True
-                if jobSpec.jobStatus == 'finished' and not jobSpec.is_hpo_workflow():
+                if jobSpec.jobStatus == 'finished' and not jobSpec.is_hpo_workflow() \
+                        and fileSpec.status != 'skipped':
                     varMap[':status'] = 'finished'
                     if fileSpec.type in ['input','pseudo_input']:
                          updateNumEvents = True
@@ -23190,35 +23110,6 @@ class DBProxy:
             self.dumpErrorMessage(_logger,methodName)
             return []
 
-    def insert_pq_json(self, pq, data):
-        """
-        Insert json for a panda queue
-        """
-        comment = ' /* DBProxy.insert_pq_json */'
-        methodName = comment.split(' ')[-2].split('.')[-1]
-        tmpLog = LogWrapper(_logger, methodName)
-        try:
-
-            sql = """
-                  INSERT INTO ATLAS_PANDA.agis_dump (panda_site, update_time, json_data)
-                  VALUES (:panda_site, current_date, :json_data)
-                  """
-
-            # generate the entries for the DB
-            var_maps = {':panda_site': pq,
-                        ':json_data': data}
-
-            # run the SQL
-            self.cur.execute(sql + comment, var_maps)
-            if not self._commit():
-                raise RuntimeError('Commit error')
-            tmpLog.debug('done')
-            return [True]
-        except Exception:
-            # roll back
-            self._rollback()
-            self.dumpErrorMessage(tmpLog, methodName)
-            return None
 
     # get user job metadata
     def getUserJobMetadata(self, jediTaskID):
@@ -23465,6 +23356,96 @@ class DBProxy:
             self._rollback()
             self.dumpErrorMessage(_logger, method_name)
             return 'ERROR'
+
+
+    # update queues
+    def loadSWTags(self, sw_tags):
+        comment = ' /* DBProxy.loadSWTags */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+
+        if not sw_tags:
+            tmp_log.error("empty sw tag dump")
+            return 'ERROR'
+
+        try:
+            var_map_tags = []
+            var_map_archs = []
+            utc_now = datetime.datetime.utcnow()
+            for pq in sw_tags:
+                for key in sw_tags[pq]:
+                    for row in sw_tags[pq][key]:
+                        if key in ['tags', 'vetotags']:
+                            data = row["tag"].strip('VO-atlas')
+                            var_map_tags.append({':pq': pq,
+                                                 'key': key,
+                                                 ':data': data,
+                                                 ':last_update': utc_now})
+                        elif key in ['cvmfs', 'cmtconfigs', 'containers']:
+                            data = row
+                            var_map_tags.append({':pq': pq,
+                                                 'key': key,
+                                                 ':data': data,
+                                                 ':last_update': utc_now})
+                        elif key == 'architectures':
+                            data = row
+                            var_map_archs.append({':pq': pq,
+                                                  ':data': json.dumps(data),
+                                                  ':last_update': utc_now})
+                        else:
+                            tmp_log.warning("we don't know how to handle key: {0}".format(key))
+
+            # start transaction on SW_TAGS table
+            # delete everything in the table to start every time from a clean table
+            # cleaning and filling needs to be done within the same transaction
+            self.conn.begin()
+
+            sql_delete = "DELETE FROM ATLAS_PANDA.SW_TAGS"
+            tmp_log.debug("start cleaning up SW_TAGS table")
+            self.cur.execute(sql_delete + comment)
+            tmp_log.debug("done cleaning up SW_TAGS table")
+
+            sql_insert = "INSERT INTO ATLAS_PANDA.SW_TAGS (panda_queue, key, data, last_update)"\
+                         "VALUES (:pq, :key, :data, :last_update)"
+            tmp_log.debug("start filling up SW_TAGS table")
+            for shard in create_shards(var_map_tags, 100):  # insert in batches of 100 rows
+                #tmp_log.debug(shard)
+                self.cur.executemany(sql_insert + comment, shard)
+            tmp_log.debug("done filling up table")
+            if not self._commit():
+                raise RuntimeError('Commit error')
+
+            # start transaction on ARCHITECTURES_JSON table
+            # delete everything in the table to start every time from a clean table
+            # cleaning and filling needs to be done within the same transaction
+            self.conn.begin()
+
+            sql_delete = "DELETE FROM ATLAS_PANDA.ARCHITECTURES_JSON"
+            tmp_log.debug("start cleaning up ARCHITECTURES_JSON table")
+            self.cur.execute(sql_delete + comment)
+            tmp_log.debug("done cleaning up ARCHITECTURES_JSON table")
+
+            sql_insert = "INSERT INTO ATLAS_PANDA.ARCHITECTURES_JSON (panda_queue, data, last_update)"\
+                         "VALUES (:pq, :data, :last_update)"
+            tmp_log.debug("start filling up ARCHITECTURES_JSON table")
+            for shard in create_shards(var_map_archs, 100):  # insert in batches of 100 rows
+                #tmp_log.debug(shard)
+                self.cur.executemany(sql_insert + comment, shard)
+            tmp_log.debug("done filling up ARCHITECTURES_JSON table")
+            if not self._commit():
+                raise RuntimeError('Commit error')
+
+            tmp_log.debug("done")
+            return 'OK'
+
+        except Exception:
+            # roll back
+            self._rollback()
+            self.dumpErrorMessage(_logger, method_name)
+            return 'ERROR'
+
+
 
     # update queues
     def sweepPQ(self, panda_queue_des, status_list_des, ce_list_des, submission_host_list_des):

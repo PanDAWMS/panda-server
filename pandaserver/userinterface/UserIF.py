@@ -2593,11 +2593,10 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None):
                 kwargs = json.loads(kwargs, object_hook=decode_idds_enum)
         else:
             kwargs = {}
-        # set user name
-        if manager and command_name in ['submit']:
-            dn = req.subprocess_env.get('SSL_CLIENT_S_DN')
-            if dn:
-                kwargs['username'] = clean_user_id(dn)
+        # set original username
+        dn = req.subprocess_env.get('SSL_CLIENT_S_DN')
+        if dn:
+            c.set_original_user(user_name=clean_user_id(dn))
         tmpLog.debug("execute: class={} com={} host={} args={} kwargs={}".format(
             c.__class__.__name__, command_name, idds_host, str(args)[:200], str(kwargs)[:200]))
         ret = getattr(c, command_name)(*args, **kwargs)
@@ -2615,7 +2614,7 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None):
 # relay iDDS workflow command with ownership check
 def execute_idds_workflow_command(req, command_name, kwargs=None):
     try:
-        tmpLog = LogWrapper(_logger, 'relay_idds_user_command-{}'.format(datetime.datetime.utcnow().isoformat('/')))
+        tmpLog = LogWrapper(_logger, 'execute_idds_workflow_command-{}'.format(datetime.datetime.utcnow().isoformat('/')))
         if kwargs:
             try:
                 kwargs = idds.common.utils.json_loads(kwargs)
@@ -2663,6 +2662,10 @@ def execute_idds_workflow_command(req, command_name, kwargs=None):
                 tmpMsg = 'request {} is not owned by {}'.format(request_id, requester)
                 tmpLog.error(tmpMsg)
                 return json.dumps((False, tmpMsg))
+        # set original username
+        dn = req.subprocess_env.get('SSL_CLIENT_S_DN')
+        if dn:
+            c.set_original_user(user_name=clean_user_id(dn))
         # execute command
         tmpLog.debug('com={} host={} kwargs={}'.format(command_name, idds_host, str(kwargs)))
         ret = getattr(c, command_name)(**kwargs)

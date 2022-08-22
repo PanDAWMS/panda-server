@@ -6,7 +6,7 @@
 # processname: httpd
 # config: /etc/panda/panda_server-httpd.conf
 # config: /etc/sysconfig/httpd-pandasrv
-# pidfile: /var/run/httpd-pandasrv.pid
+# pidfile: /var/run/panda/httpd-pandasrv.pid
 #
 # Copyright 2000-2004 The Apache Software Foundation
 #
@@ -52,7 +52,7 @@ HTTPD='/usr/sbin/httpd'
 
 # PID
 PID_OLD=/var/log/panda/panda_server_httpd.pid
-PID_NEW=/var/lock/subsys/panda_server_httpd.pid
+PID_NEW=/var/run/panda/panda_server_httpd.pid
 #
 # a command that outputs a formatted text version of the HTML at the
 # url given on the command line.  Designed for lynx, however other

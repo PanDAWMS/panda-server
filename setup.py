@@ -251,7 +251,7 @@ setup(
                       'requests',
                       'idds-common',
                       'idds-client',
-                      'idds-workflow',
+                      'idds-workflow>=0.11.14',
                       'idds-doma',
                       'idds-atlas',
                       'ruamel.yaml',
@@ -317,6 +317,7 @@ setup(
                              'templates/panda_server-configurator.exe.template',
                              'templates/panda_server-network_configurator.exe.template',
                              'templates/panda_server-schedconfig_json.exe.template',
+                             'templates/panda_server-sw_tags.exe.template',
                              'templates/panda_server-esPreemption.exe.template',
                              'templates/panda_server-pilot_streaming.exe.template',
                              'templates/panda_server-frontier_retagging.exe.template'

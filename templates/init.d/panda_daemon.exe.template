@@ -24,8 +24,13 @@ ARGV="$@"
 PROGNAME='python -u @@install_purelib@@/pandaserver/daemons/master.py'
 
 # pid and lock files
-PIDFILE='/var/lock/subsys/panda_daemon.pid'
-LOCKFILE='/var/lock/subsys/panda_daemon'
+if [[ -z "${PANDA_LOCK_DIR}" ]]; then
+    PIDFILE='/var/log/panda/panda_daemon.pid'
+    LOCKFILE='/var/lock/subsys/panda_daemon'
+else
+    PIDFILE=${PANDA_LOCK_DIR}'/panda_daemon.pid'
+    LOCKFILE=${PANDA_LOCK_DIR}'/panda_daemon.lock'
+fi
 
 # log files
 LOGSTDOUT='/var/log/panda/panda_daemon_stdout.log'

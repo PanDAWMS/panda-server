@@ -2283,19 +2283,6 @@ class TaskBuffer:
         return ret
 
 
-    # get sites with release/cache in cloud
-    def getSitesWithReleaseInCloud(self,cloud,releases=None,caches=None,validation=False):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # check
-        ret = proxy.getSitesWithReleaseInCloud(cloud,releases,caches,validation)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-
-
     # get pilot owners
     def getPilotOwners(self):
         # get DBproxy
@@ -3906,17 +3893,6 @@ class TaskBuffer:
         return ret
 
 
-    # store json dump for a panda queue
-    def insert_pq_json(self, pq, json_data):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        ret = proxy.insert_pq_json(pq, json_data)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
     # get user job metadata
     def getUserJobMetadata(self, jediTaskID):
         # get DBproxy
@@ -3970,6 +3946,17 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # exec
         ret = proxy.upsertQueuesInJSONSchedconfig(schedconfig_dump)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+    # update/insert SW tag information
+    def loadSWTags(self, sw_tags):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        ret = proxy.loadSWTags(sw_tags)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
