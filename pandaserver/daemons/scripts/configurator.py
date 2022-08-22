@@ -2,11 +2,10 @@ import sys
 import time
 
 from pandaserver.config import panda_config
-from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 from pandaserver.configurator import db_interface as dbif
 from pandacommon.pandalogger import logger_utils
 from pandaserver.configurator import Configurator as configurator_module
-from pandaserver.configurator.Configurator import Configurator, NetworkConfigurator, JsonDumper
+from pandaserver.configurator.Configurator import Configurator, NetworkConfigurator, SchedconfigJsonDumper, SWTagsDumper
 
 
 # logger
@@ -46,15 +45,26 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
     # If --json_dump
     elif len(argv) == 2 and argv[1].lower() == '--json_dump':
-        _logger = logger_utils.make_logger(base_logger, 'JsonDumper')
+        _logger = logger_utils.make_logger(base_logger, 'SchedconfigJsonDumper')
         t1 = time.time()
-        json_dumper = JsonDumper(taskBuffer=taskBuffer, session=session)
+        json_dumper = SchedconfigJsonDumper(taskBuffer=taskBuffer, session=session)
         out_msg = json_dumper.run()
         _logger.debug('Json_dumper finished with {0}'.format(out_msg))
         t2 = time.time()
         _logger.debug(' run took {0}s'.format(t2-t1))
+
+    # If --sw_tags
+    elif len(argv) == 2 and argv[1].lower() == '--sw_tags':
+        _logger = logger_utils.make_logger(base_logger, 'SWTagsDumper')
+        t1 = time.time()
+        sw_tag_collector = SWTagsDumper(taskBuffer=taskBuffer, session=session)
+        out_msg = sw_tag_collector.run()
+        _logger.debug('sw_tag_collector finished with {0}'.format(out_msg))
+        t2 = time.time()
+        _logger.debug(' run took {0}s'.format(t2-t1))
+
     else:
-        _logger.error('Configurator being called with wrong arguments. Use either no arguments or --network or --json_dump')
+        base_logger.error('Configurator being called with wrong arguments. Use either no arguments or --network or --json_dump')
 
     # dbif session close
     session.close()
