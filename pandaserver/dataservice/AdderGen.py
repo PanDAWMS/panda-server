@@ -659,7 +659,7 @@ class AdderGen(object):
                     file.status = 'failed'
                     continue
                 # set failed if it is missing in XML
-                if file.lfn not in lfns:
+                if file.lfn not in lfns_set:
                     if (self.job.jobStatus == 'finished' and EventServiceUtils.isEventServiceJob(self.job)) \
                             or EventServiceUtils.isJumboJob(self.job):
                         # unset file status for ES jobs
