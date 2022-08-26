@@ -23442,7 +23442,7 @@ class DBProxy:
             for pq in sw_tags:
                 data = sw_tags[pq]
                 var_map_tags.append({':pq': pq,
-                                     ':data': data,
+                                     ':data': json.dumps(data),
                                      ':last_update': utc_now})
 
             # start transaction on SW_TAGS table
