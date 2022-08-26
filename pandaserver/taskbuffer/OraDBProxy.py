@@ -23440,11 +23440,11 @@ class DBProxy:
 
             utc_now = datetime.datetime.utcnow()
             for pq in sw_tags:
-                for key in sw_tags[pq]:
-                    var_map_tags.append({':pq': pq,
-                                         'key': key,
-                                         ':data': data,
-                                         ':last_update': utc_now})
+                data = sw_tags[pq]
+                var_map_tags.append({':pq': pq,
+                                     'key': key,
+                                     ':data': data,
+                                     ':last_update': utc_now})
 
             # start transaction on SW_TAGS table
             # delete everything in the table to start every time from a clean table
