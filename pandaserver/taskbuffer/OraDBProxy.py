@@ -28,8 +28,8 @@ from pandaserver.taskbuffer import ProcessGroups
 from pandaserver.taskbuffer import JobUtils
 from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.taskbuffer import GlobalShares
-from pandaserver.taskbuffer.DdmSpec  import DdmSpec
-from pandaserver.taskbuffer.JobSpec  import JobSpec, push_status_changes
+from pandaserver.taskbuffer.DdmSpec import DdmSpec
+from pandaserver.taskbuffer.JobSpec import JobSpec, push_status_changes
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.WorkerSpec import WorkerSpec
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
@@ -10802,73 +10802,6 @@ class DBProxy:
             type,value,traceBack = sys.exc_info()
             _logger.error("checkSitesWithRelease : %s %s" % (type,value))
             return []
-
-    # get list of cache prefix
-    def getCachePrefixes(self):
-        comment = ' /* DBProxy.getCachePrefixes */'
-        try:
-            _logger.debug("getCachePrefixes")
-            # select
-            sql  = "SELECT distinct cache FROM ATLAS_PANDAMETA.installedSW WHERE cache IS NOT NULL"
-            # start transaction
-            self.conn.begin()
-            self.cur.arraysize = 10000
-            # execute
-            self.cur.execute(sql+comment, {})
-            resList = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError('Commit error')
-            # append
-            tmpList = []
-            for tmpItem, in resList:
-                match = re.search('^([^-]+)-',tmpItem)
-                if match is not None:
-                    tmpPrefix = match.group(1)
-                    if tmpPrefix not in tmpList:
-                        tmpList.append(tmpPrefix)
-            _logger.debug("getCachePrefixes -> %s" % tmpList)
-            return tmpList
-        except Exception:
-            # roll back
-            self._rollback()
-            type,value,traceBack = sys.exc_info()
-            _logger.error("getCachePrefixes : %s %s" % (type,value))
-            return []
-
-
-    # get list of cmtConfig
-    def getCmtConfigList(self, relaseVer):
-        comment = ' /* DBProxy.getCmtConfigList */'
-        try:
-            methodName = "getCmtConfigList"
-            _logger.debug("{0} for {1}".format(methodName,relaseVer))
-            # select
-            sql  = "SELECT distinct cmtConfig FROM ATLAS_PANDAMETA.installedSW WHERE release=:release"
-            # start transaction
-            self.conn.begin()
-            self.cur.arraysize = 10
-            # execute
-            varMap = {}
-            varMap[':release'] = relaseVer
-            self.cur.execute(sql+comment, varMap)
-            resList = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError('Commit error')
-            # append
-            tmpList = []
-            for tmpItem, in resList:
-                tmpList.append(tmpItem)
-            _logger.debug("{0} -> {1}".format(methodName,str(tmpList)))
-            return tmpList
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger,methodName)
-            return []
-
 
     # get pilot owners
     def getPilotOwners(self):
