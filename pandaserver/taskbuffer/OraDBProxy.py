@@ -10803,32 +10803,6 @@ class DBProxy:
             _logger.error("checkSitesWithRelease : %s %s" % (type,value))
             return []
 
-    def get_architectures(self):
-        comment = ' /* DBProxy.get_architectures */'
-        method_name = comment.split(' ')[-2].split('.')[-1]
-        tmp_log = LogWrapper(_logger, methodName)
-
-        sql = "SELECT PANDA_QUEUE, DATA FROM ATLAS_PANDA.ARCHITECTURES_JSON"
-
-        try:
-            self.cur.execute(sql + comment)
-            res_list = self.cur.fetchall()
-
-            arch_dict = {}
-            for panda_queue, data_str in res_list:
-                try:
-                    data = json.loads(data_str)
-                    processor_type = data["type"]  # cpu or gpu
-                    arch_dict.setdefault(panda_queue, {})
-                    arch_dict[panda_queue][processor_type] = data
-                except (KeyError, ValueError):
-                    pass
-            return arch_dict
-        except Exception:
-            exc_type, value, tb = sys.exc_info()
-            tmp_log.error("{0} {1}".format(exc_type, value))
-            return ret
-
     # get pilot owners
     def getPilotOwners(self):
         comment = ' /* DBProxy.getPilotOwners */'
