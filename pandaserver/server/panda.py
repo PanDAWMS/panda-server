@@ -37,12 +37,12 @@ from pandaserver.userinterface.UserIF import submitJobs, getJobStatus, queryPand
      getJobIDsInTimeRange, getPandIDsWithJobID, getFullJobStatus, getJobStatisticsForBamboo,\
      getNUserJobs, addSiteAccess, listSiteAccess, getFilesInUseForAnal, updateSiteAccess,\
      getPandaClientVer, getSlimmedFileInfoPandaIDs, getQueuedAnalJobs, getHighestPrioJobStat,\
-     getActiveDatasets, setCloudTaskByUser, getSerialNumberForGroupJob, getCachePrefixes,\
+     getActiveDatasets, setCloudTaskByUser, getSerialNumberForGroupJob,\
      checkMergeGenerationStatus, getNumPilots, retryFailedJobsInActive,\
      getJobStatisticsWithLabel, getPandaIDwithJobExeID, getJobStatisticsPerUserSite,\
      getDisInUseForAnal, getLFNsInUseForAnal, getScriptOfflineRunning, setDebugMode,\
      insertSandboxFileInfo, checkSandboxFile, changeJobPriorities, insertTaskParams,\
-     killTask, finishTask, getCmtConfigList, getJediTasksInTimeRange, getJediTaskDetails,\
+     killTask, finishTask, getJediTasksInTimeRange, getJediTaskDetails,\
      retryTask, getRetryHistory, changeTaskPriority, reassignTask, changeTaskAttributePanda,\
      pauseTask, resumeTask, increaseAttemptNrPanda, killUnfinishedJobs, changeTaskSplitRulePanda,\
      changeTaskModTimePanda, avalancheTask, getPandaIDsWithTaskID, reactivateTask, getTaskStatus, \
@@ -101,11 +101,11 @@ allowedMethods += ['submitJobs', 'getJobStatus', 'queryPandaIDs', 'killJobs', 'r
                    'getJobStatisticsForBamboo', 'getNUserJobs', 'addSiteAccess', 'listSiteAccess',
                    'getFilesInUseForAnal', 'updateSiteAccess', 'getPandaClientVer', 'getSlimmedFileInfoPandaIDs',
                    'getQueuedAnalJobs', 'getHighestPrioJobStat', 'getActiveDatasets', 'setCloudTaskByUser',
-                   'getSerialNumberForGroupJob', 'getCachePrefixes', 'checkMergeGenerationStatus', 'getNumPilots',
+                   'getSerialNumberForGroupJob', 'checkMergeGenerationStatus', 'getNumPilots',
                    'retryFailedJobsInActive', 'getJobStatisticsWithLabel', 'getPandaIDwithJobExeID',
                    'getJobStatisticsPerUserSite', 'getDisInUseForAnal', 'getLFNsInUseForAnal', 'getScriptOfflineRunning',
                    'setDebugMode', 'insertSandboxFileInfo', 'checkSandboxFile', 'changeJobPriorities',
-                   'insertTaskParams', 'killTask', 'finishTask', 'getCmtConfigList', 'getJediTasksInTimeRange',
+                   'insertTaskParams', 'killTask', 'finishTask', 'getJediTasksInTimeRange',
                    'getJediTaskDetails', 'retryTask', 'getRetryHistory', 'changeTaskPriority', 'reassignTask',
                    'changeTaskAttributePanda', 'pauseTask', 'resumeTask', 'increaseAttemptNrPanda',
                    'killUnfinishedJobs', 'changeTaskSplitRulePanda', 'changeTaskModTimePanda', 'avalancheTask',
