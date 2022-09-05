@@ -69,15 +69,21 @@ class TokenDecoder:
             if headers is None or 'kid' not in headers:
                 raise jwt.exceptions.InvalidTokenError('cannot extract kid from headers')
             kid = headers['kid']
-            # retrieve OIDC configuration and and JWK set
+            # retrieve OIDC configuration and JWK set
             oidc_config = self.get_data(discovery_endpoint, log_stream)
             jwks = self.get_data(oidc_config['jwks_uri'], log_stream)
             # get JWK and public key
             jwk = get_jwk(kid, jwks)
             public_key = rsa_pem_from_jwk(jwk)
             # decode token only with RS256
+            if unverified['iss'] and unverified['iss'] != oidc_config['issuer'] and \
+                    oidc_config['issuer'].startswith(unverified['iss']):
+                # iss is missing the last '/' in access tokens
+                issuer = unverified['iss']
+            else:
+                issuer = oidc_config['issuer']
             decoded = jwt.decode(token, public_key, verify=True, algorithms='RS256',
-                                 audience=audience, issuer=oidc_config['issuer'])
+                                 audience=audience, issuer=issuer)
             if vo is not None:
                 decoded['vo'] = vo
             else:
