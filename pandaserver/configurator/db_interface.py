@@ -146,30 +146,6 @@ def write_panda_ddm_relation_db(session, relation_list):
         _logger.critical('write_panda_ddm_relation_db: Could not persist information --> {0}'.format(sys.exc_info()))
 
 
-def read_panda_ddm_relation_schedconfig(session):
-    """
-    Read the PanDA - DDM relationships from schedconfig
-    """
-    try:
-        _logger.debug("Starting read_panda_ddm_relation_schedconfig")
-        schedconfig = session.query(Schedconfig.site, Schedconfig.siteid, Schedconfig.ddm).all()
-        relationship_tuples = []
-        for entry in schedconfig:
-            site = entry.site
-            panda_site = entry.siteid
-            # Schedconfig stores DDM endpoints as a comma separated string. Strip just in case
-            if entry.ddm:
-                ddm_endpoints = [ddm_endpoint.strip() for ddm_endpoint in entry.ddm.split(',')]
-            # Return the tuples and let the caller mingle it the way he wants
-            relationship_tuples.append((site, panda_site, ddm_endpoints))
-        _logger.debug("Done with read_panda_ddm_relation_schedconfig")
-        return relationship_tuples
-    except exc.SQLAlchemyError:
-        session.rollback()
-        _logger.critical('read_panda_ddm_relation_schedconfig excepted --> {0}'.format(sys.exc_info()))
-        return []
-
-
 def read_configurator_sites(session):
     """
     Read the site names from the configurator tables
@@ -248,25 +224,6 @@ def read_schedconfig_panda_sites(session):
         session.rollback()
         _logger.critical('read_schedconfig_panda_sites excepted --> {0}'.format(sys.exc_info()))
         return set()
-
-
-def update_storage(session, ddm_endpoint_name, rse_usage):
-    """
-    Updates the storage of a DDM endpoint
-    """
-    try:
-        _logger.debug("Starting update_storage for {0} with usage {1}".format(ddm_endpoint_name, rse_usage))
-        ddm_endpoint = session.query(DdmEndpoint).filter(DdmEndpoint.ddm_endpoint_name==ddm_endpoint_name).one()
-        ddm_endpoint.space_total = rse_usage['total']
-        ddm_endpoint.space_free = rse_usage['free']
-        ddm_endpoint.space_used = rse_usage['used']
-        ddm_endpoint.space_expired = rse_usage['expired']
-        ddm_endpoint.space_timestamp = rse_usage['space_timestamp']
-        session.commit()
-        _logger.debug("Done with update_storage")
-    except exc.SQLAlchemyError:
-        session.rollback()
-        _logger.critical('update_storage excepted --> {0}'.format(sys.exc_info()))
 
 
 def delete_sites(session, sites_to_delete):
