@@ -61,8 +61,16 @@ class TokenDecoder:
         try:
             # check audience
             unverified = jwt.decode(token, verify=False, options={"verify_signature": False})
-            audience = unverified['aud']
-            discovery_endpoint = auth_config[audience]['oidc_config_url']
+            conf_key = None
+            audience = None
+            if 'aud' in unverified:
+                audience = unverified['aud']
+                if audience in auth_config:
+                    conf_key = audience
+            if not conf_key:
+                # use sub as config key for access token
+                conf_key = unverified['sub']
+            discovery_endpoint = auth_config[conf_key]['oidc_config_url']
             # decode headers
             headers = jwt.get_unverified_header(token)
             # get key id
@@ -87,7 +95,7 @@ class TokenDecoder:
             if vo is not None:
                 decoded['vo'] = vo
             else:
-                decoded['vo'] = auth_config[audience]['vo']
+                decoded['vo'] = auth_config[conf_key]['vo']
             return decoded
         except Exception:
             raise
