@@ -15,6 +15,7 @@ class NucleusSpec(object):
         self.allDdmEndPoints = {}
         self.all_ddm_endpoints_in = {}
         self.state = None
+        self.bareNucleus = None
 
     # add
     def add(self, siteName, ddmSpecDict, ddmSpecDictForInput=None):
@@ -80,3 +81,11 @@ class NucleusSpec(object):
         if len(self.allPandaSites) > 0:
             return self.allPandaSites[0]
         return None
+
+    # set bare nucleus mode
+    def set_bare_nucleus_mode(self, mode):
+        self.bareNucleus = mode
+
+    # get bare nucleus mode
+    def get_bare_nucleus_mode(self):
+        return self.bareNucleus

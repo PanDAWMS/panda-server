@@ -169,8 +169,10 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                     else:
                         if 'HTTP_ORIGIN' in env:
                             vo = env['HTTP_ORIGIN']
+                            vo_group = vo.replace(':', '.')
                         else:
                             vo = None
+                            vo_group = ''
                         token = token_decoder.deserialize_token(serialized_token, panda_config.auth_config,
                                                                 vo, tmpLog)
                     # check with auth policies
@@ -189,6 +191,19 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                             self.message = 'Unknown vo : {}'.format(vo)
                             tmpLog.error('{} - {}'.format(self.message, env['HTTP_AUTHORIZATION']))
                         else:
+                            # robot
+                            if vo_group in  panda_config.auth_vo_dict and \
+                                    'robot_ids' in panda_config.auth_vo_dict[vo_group]:
+                                robot_ids = [i for i in
+                                             panda_config.auth_vo_dict[vo_group].get('robot_ids').split(',') if i]
+                                if token['sub'] in robot_ids:
+                                    if 'groups' not in token:
+                                        if role:
+                                            token['groups'] = ['{}/{}'.format(vo, role)]
+                                        else:
+                                            token['groups'] = ['{}'.format(vo)]
+                                    if 'name' not in token:
+                                        token['name'] = 'robot {}'.format(role)
                             # check role
                             if role:
                                 if '{}/{}'.format(vo, role) not in token["groups"]:

@@ -61,27 +61,41 @@ class TokenDecoder:
         try:
             # check audience
             unverified = jwt.decode(token, verify=False, options={"verify_signature": False})
-            audience = unverified['aud']
-            discovery_endpoint = auth_config[audience]['oidc_config_url']
+            conf_key = None
+            audience = None
+            if 'aud' in unverified:
+                audience = unverified['aud']
+                if audience in auth_config:
+                    conf_key = audience
+            if not conf_key:
+                # use sub as config key for access token
+                conf_key = unverified['sub']
+            discovery_endpoint = auth_config[conf_key]['oidc_config_url']
             # decode headers
             headers = jwt.get_unverified_header(token)
             # get key id
             if headers is None or 'kid' not in headers:
                 raise jwt.exceptions.InvalidTokenError('cannot extract kid from headers')
             kid = headers['kid']
-            # retrieve OIDC configuration and and JWK set
+            # retrieve OIDC configuration and JWK set
             oidc_config = self.get_data(discovery_endpoint, log_stream)
             jwks = self.get_data(oidc_config['jwks_uri'], log_stream)
             # get JWK and public key
             jwk = get_jwk(kid, jwks)
             public_key = rsa_pem_from_jwk(jwk)
             # decode token only with RS256
+            if unverified['iss'] and unverified['iss'] != oidc_config['issuer'] and \
+                    oidc_config['issuer'].startswith(unverified['iss']):
+                # iss is missing the last '/' in access tokens
+                issuer = unverified['iss']
+            else:
+                issuer = oidc_config['issuer']
             decoded = jwt.decode(token, public_key, verify=True, algorithms='RS256',
-                                 audience=audience, issuer=oidc_config['issuer'])
+                                 audience=audience, issuer=issuer)
             if vo is not None:
                 decoded['vo'] = vo
             else:
-                decoded['vo'] = auth_config[audience]['vo']
+                decoded['vo'] = auth_config[conf_key]['vo']
             return decoded
         except Exception:
             raise
