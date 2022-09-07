@@ -2637,9 +2637,9 @@ def execute_idds_workflow_command(req, command_name, kwargs=None):
             return json.dumps((False, tmpMsg))
         # check owner
         c = iDDS_ClientManager(idds_host)
+        dn = req.subprocess_env.get('SSL_CLIENT_S_DN')
         if check_owner:
             # requester
-            dn = req.subprocess_env.get('SSL_CLIENT_S_DN')
             if not dn:
                 tmpMsg = 'SSL_CLIENT_S_DN is missing in HTTP request'
                 tmpLog.error(tmpMsg)
@@ -2663,7 +2663,6 @@ def execute_idds_workflow_command(req, command_name, kwargs=None):
                 tmpLog.error(tmpMsg)
                 return json.dumps((False, tmpMsg))
         # set original username
-        dn = req.subprocess_env.get('SSL_CLIENT_S_DN')
         if dn:
             c.set_original_user(user_name=clean_user_id(dn))
         # execute command
