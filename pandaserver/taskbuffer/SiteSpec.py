@@ -202,3 +202,10 @@ class SiteSpec(object):
             return items[-1]
         else:
             return None
+
+    # get bare nucleus mode
+    def bare_nucleus_mode(self):
+        mode = self.getValueFromCatchall('bareNucleus')
+        if mode in ['only', 'allow']:
+            return mode
+        return None
