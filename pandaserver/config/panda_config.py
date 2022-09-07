@@ -112,6 +112,9 @@ try:
         with open(name) as f:
             data = json.load(f)
             data_dict[data['client_id']] = data
+            if 'secondary_ids' in data:
+                for tmp_id in data['secondary_ids']:
+                    data_dict[tmp_id] = data
         m = re.search('^(.+)_auth_config.json', os.path.basename(name))
         if m:
             tmp_vo_group = m.group(1)
