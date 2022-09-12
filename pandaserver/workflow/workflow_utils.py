@@ -280,10 +280,12 @@ class Node (object):
                 else:
                     list_in_ds = ['{}_{}/'.format(dict_inputs['opt_inDS'], in_ds_suffix) if in_ds_suffix \
                                       else dict_inputs['opt_inDS']]
-                if self.type not in ['junction', 'reana']:
+                if self.type not in ['reana']:
                     in_ds_str = ','.join(list_in_ds)
                     com += ['--inDS', in_ds_str, '--notExpandInDS', '--notExpandSecDSs']
-                else:
+                    if self.type in ['junction']:
+                        com += ['--forceStaged', '--forceStagedSecondary']
+                if self.type in ['junction', 'reana']:
                     # replace placeholders in opt_exec and opt_args
                     for idx, dst in enumerate(list_in_ds):
                         src = "%{{DS{}}}".format(idx)
