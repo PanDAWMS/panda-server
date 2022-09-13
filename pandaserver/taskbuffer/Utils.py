@@ -79,7 +79,7 @@ def putFile(req, file):
         fileFullPath = '%s/%s' % (panda_config.cache_dir, fileName)
 
         # avoid overwriting
-        if os.path.exists(fileFullPath):
+        if os.path.exists(fileFullPath) and file.filename.split('.')[-1] != '__ow__':
             # touch
             os.utime(fileFullPath,None)
             # send error message
