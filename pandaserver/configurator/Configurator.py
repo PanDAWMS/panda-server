@@ -484,7 +484,7 @@ class Configurator(threading.Thread):
         self.taskBuffer.configurator_write_sites(sites_list)
         self.taskBuffer.configurator_write_panda_sites(panda_sites_list)
         self.taskBuffer.configurator_write_ddm_endpoints(ddm_endpoints_list)
-        self.taskBuffer.configurator_write_panda_ddm_relationss(panda_ddm_relation_dict)
+        self.taskBuffer.configurator_write_panda_ddm_relations(panda_ddm_relation_dict)
 
         # Do a data quality check
         self.consistency_check()
