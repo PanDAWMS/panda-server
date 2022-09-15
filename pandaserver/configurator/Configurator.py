@@ -359,7 +359,7 @@ class Configurator(threading.Thread):
                         # add the values to the list of relations if the ddm endpoint is valid
                         if ddm_endpoint_name in self.endpoint_token_dict:
                             relation_list.append({'panda_site_name': panda_site_name,
-                                                  'ddm_site': ddm_endpoint_name,
+                                                  'ddm_endpoint_name': ddm_endpoint_name,
                                                   'roles': ','.join(roles),
                                                   'default_read': default_read,
                                                   'default_write': default_write,
