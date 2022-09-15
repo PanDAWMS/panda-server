@@ -146,11 +146,11 @@ class Configurator(threading.Thread):
         # New relationship information based on astorages field in CRIC.
         # Used to fill atlas_panda.panda_ddm_relation table
         try:
-            panda_ddm_relation_dict = self.get_panda_ddm_relation()
+            panda_ddm_relation_list = self.get_panda_ddm_relations()
         except Exception:
             # Temporary protection to prevent issues
-            _logger.critical('get_panda_ddm_relation excepted with {0}'.format(traceback.print_exc()))
-            panda_ddm_relation_dict = {}
+            _logger.critical('get_panda_ddm_relations excepted with {0}'.format(traceback.print_exc()))
+            panda_ddm_relation_list = []
 
         # Iterate the site dump
         for site_name, site_config in self.site_dump.items():
@@ -246,7 +246,7 @@ class Configurator(threading.Thread):
                     panda_sites_list.append({'panda_site_name': panda_site_name,
                                              'site_name': site_name})
 
-        return sites_list, panda_sites_list, ddm_endpoints_list, panda_ddm_relation_dict
+        return sites_list, panda_sites_list, ddm_endpoints_list, panda_ddm_relation_list
 
     def parse_role(self, role):
         """
@@ -278,7 +278,7 @@ class Configurator(threading.Thread):
         else:
             return role, DEFAULT
 
-    def get_panda_ddm_relation(self):
+    def get_panda_ddm_relations(self):
         """
         Gets the DDM endpoints assigned to a panda queue, based on the CRIC astorages field of the panda queue definition
         """
