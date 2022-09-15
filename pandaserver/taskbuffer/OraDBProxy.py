@@ -24491,3 +24491,444 @@ class DBProxy:
         if not self.mb_proxy_dict or channel not in self.mb_proxy_dict['out']:
             return None
         return self.mb_proxy_dict['out'][channel]
+
+    def configurator_write_sites(self, sites_list):
+        """
+        Cache the CRIC site information in the PanDA database
+        """
+        comment = ' /* DBProxy.configurator_write_sites */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+
+        try:
+            # begin transaction
+            self.conn.begin()
+
+            # get existing sites
+            tmp_log.debug("getting existing sites")
+            sql_get = "SELECT site_name FROM ATLAS_PANDA.site"
+            self.cur.execute(sql_get + comment)
+            results = self.cur.fetchall()
+            site_name_list = list(map(lambda result: result[0], results))
+            tmp_log.debug("finished getting existing sites")
+            
+            # see which sites need an update and which need to be inserted new
+            var_map_insert = []
+            var_map_update = []
+            for site in site_list:
+                if site['site_name'] in site_name_list:
+                    var_map_update.append(site)
+                else:
+                    var_map_insert.append(site)
+
+            tmp_log.debug("Updating sites")
+            sql_update = "UPDATE ATLAS_PANDA.site set role=:role, tier_level=:tier_level WHERE site_name=:site_name"
+            for shard in create_shards(var_map_update, 100):
+                self.cur.execute(sql_update + comment, shard)
+            
+            tmp_log.debug("Inserting sites")
+            sql_insert = "INSERT INTO ATLAS_PANDA.site (site_name, role, tier_level) "\
+                         "VALUES(:site_name, :role, :tier_level)"
+            for shard in create_shards(var_map_insert, 100):
+                self.cur.execute(sql_insert + comment, shard)
+            
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+
+            tmp_log.debug('Done')
+            return 0, None
+
+        except Exception:
+            self._rollback()
+            type, value, tb = sys.exc_info()
+            tmp_log.error("{} {}".format(type, value))
+            return -1, None
+
+    def configurator_write_panda_sites(self, panda_site_list):
+        comment = ' /* DBProxy.configurator_write_panda_sites */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+
+        try:
+            # begin transaction
+            self.conn.begin()
+
+            # get existing panda sites
+            tmp_log.debug("getting existing panda sites")
+            sql_get = "SELECT panda_site_name FROM ATLAS_PANDA.panda_site"
+            self.cur.execute(sql_get + comment)
+            results = self.cur.fetchall()
+            panda_site_name_list = list(map(lambda result: result[0], results))
+            tmp_log.debug("finished getting existing panda sites")
+
+            # see which sites need an update and which need to be inserted new
+            var_map_insert = []
+            var_map_update = []
+            for panda_site in panda_site_list:
+                if panda_site['panda_site_name'] in panda_site_name_list:
+                    var_map_update.append(panda_site)
+                else:
+                    var_map_insert.append(panda_site)
+
+            tmp_log.debug("Updating panda sites")
+            sql_update = "UPDATE ATLAS_PANDA.panda_site set site_name=:site_name WHERE panda_site_name=:panda_site_name"
+            for shard in create_shards(var_map_update, 100):
+                self.cur.execute(sql_update + comment, shard)
+
+            tmp_log.debug("Inserting panda sites")
+            sql_insert = "INSERT INTO ATLAS_PANDA.panda_site (panda_site_name, site_name) " \
+                         "VALUES(:panda_site_name, :site_name)"
+            for shard in create_shards(var_map_insert, 100):
+                self.cur.execute(sql_insert + comment, shard)
+
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+
+            tmp_log.debug('Done')
+            return 0, None
+
+        except Exception:
+            self._rollback()
+            type, value, tb = sys.exc_info()
+            tmp_log.error("{} {}".format(type, value))
+            return -1, None
+
+    def configurator_write_ddm_endpoints(self, ddm_endpoint_list):
+        comment = ' /* DBProxy.configurator_write_ddm_endpoints */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+
+        try:
+            # begin transaction
+            self.conn.begin()
+
+            # get existing ddm endpoints
+            tmp_log.debug("getting existing ddm endpoints")
+            sql_get = "SELECT ddm_endpoint_name FROM ATLAS_PANDA.ddm_endpoints"
+            self.cur.execute(sql_get + comment)
+            results = self.cur.fetchall()
+            ddm_endpoint_name_list = list(map(lambda result: result[0], results))
+            tmp_log.debug("finished getting existing ddm endpoints")
+
+            # see which sites need an update and which need to be inserted new
+            var_map_insert = []
+            var_map_update = []
+            for ddm_endpoint in ddm_endpoint_list:
+                if ddm_endpoint['ddm_endpoint_name'] in ddm_endpoint_name_list:
+                    var_map_update.append(ddm_endpoint)
+                else:
+                    var_map_insert.append(ddm_endpoint)
+
+            tmp_log.debug("Updating ddm endpoints")
+            sql_update = "UPDATE ATLAS_PANDA.ddm_endpoint set "\
+                         "site_name=:site_name, ddm_spacetoken_name=:ddm_spacetoken_name, type=:type, is_tape=:is_tape, "\
+                         "blacklisted=:blacklisted, blacklisted_write=:blacklisted_write, blacklisted_read=:blacklisted_read, "\
+                         "space_used=:space_used, space_free=:space_free, space_total=:space_total, space_expired=:space_expired, space_timestamp=:space_timestamp "\
+                         "WHERE ddm_endpoint_name=:ddm_endpoint_name"
+            for shard in create_shards(var_map_update, 100):
+                self.cur.execute(sql_update + comment, shard)
+
+
+            tmp_log.debug("Inserting ddm endpoints")
+            sql_insert = "INSERT INTO ATLAS_PANDA.ddm_endpoint (ddm_endpoint_name, site_name, ddm_spacetoken_name, type, is_tape, "\
+                         "blacklisted, blacklisted_write, blacklisted_read, space_used, space_free, space_total, space_expired, space_timestamp) "\
+                         "VALUES(:ddm_endpoint_name, :site_name, :ddm_spacetoken_name, :type, :is_tape, "\
+                         ":blacklisted, :blacklisted_write, :blacklisted_read, :space_used, :space_free, :space_total, :space_expired, :space_timestamp)"
+            for shard in create_shards(var_map_insert, 100):
+                self.cur.execute(sql_insert + comment, shard)
+
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+
+            tmp_log.debug('Done')
+            return 0, None
+
+        except Exception:
+            self._rollback()
+            type, value, tb = sys.exc_info()
+            tmp_log.error("{} {}".format(type, value))
+            return -1, None
+
+    def configurator_write_panda_ddm_relation(self, relation_list):
+        comment = ' /* DBProxy.configurator_write_panda_ddm_relation */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+
+        try:
+            # begin transaction
+            self.conn.begin()
+
+            # get existing panda ddm relations
+            tmp_log.debug("getting existing panda ddm relations")
+            sql_get = "SELECT panda_site_name, ddm_endpoint_name FROM ATLAS_PANDA.panda_ddm_relation"
+            self.cur.execute(sql_get + comment)
+            relation_tuple_list = self.cur.fetchall()
+            tmp_log.debug("finished getting existing panda ddm relations")
+
+            # see which sites need an update and which need to be inserted new
+            var_map_insert = []
+            var_map_update = []
+            for relation in relation_list:
+                panda_site_name_tmp, ddm_endpoint_name_tmp = relation['panda_site_name'], relation['ddm_endpoint_name']
+                if (panda_site_name_tmp, ddm_endpoint_name_tmp) in relation_tuple_list:
+                    var_map_update.append(relation)
+                else:
+                    var_map_insert.append(relation)
+
+            tmp_log.debug("Updating panda ddm relations)
+            sql_update = "UPDATE ATLAS_PANDA.panda_ddm_relation set "\
+                         "roles=:roles, is_local=:is_local, order_read=:order_read, order_write=:order_write, "\
+                         "default_read=:default_read, default_write=:default_write, scope=:scope"
+            for shard in create_shards(var_map_update, 100):
+                self.cur.execute(sql_update + comment, shard)
+
+            tmp_log.debug("Inserting panda ddm relations")
+            sql_insert = "INSERT INTO ATLAS_PANDA.panda_ddm_relation (panda_site_name, ddm_endpoint_name, roles, "
+                         "is_local, order_read, order_write, default_read, default_write, scope) "\
+                         "VALUES(:panda_site_name, :ddm_endpoint_name, :roles, "
+                         ":is_local, :order_read, :order_write, :default_read, :default_write, :scope)"
+            for shard in create_shards(var_map_insert, 100):
+                self.cur.execute(sql_insert + comment, shard)
+
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+
+            tmp_log.debug('Done')
+            return 0, None
+
+        except Exception:
+            self._rollback()
+            type, value, tb = sys.exc_info()
+            tmp_log.error("{} {}".format(type, value))
+            return -1, None
+
+    def configurator_read_sites(self):
+        comment = ' /* DBProxy.configurator_read_sites */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+
+        try:
+            tmp_log.debug("getting existing panda sites")
+            sql_get = "SELECT site_name FROM ATLAS_PANDA.site"
+            self.cur.execute(sql_get + comment)
+            results = self.cur.fetchall()
+            site_names = set(map(lambda result: result[0], results))
+            tmp_log.debug("finished getting site names in configurator")
+
+            tmp_log.debug('Done')
+            return site_names
+
+        except Exception:
+            type, value, tb = sys.exc_info()
+            tmp_log.error("{} {}".format(type, value))
+            return set()
+
+    def configurator_read_panda_sites(self):
+        comment = ' /* DBProxy.configurator_read_sites */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+
+        try:
+            tmp_log.debug("getting existing panda sites")
+            sql_get = "SELECT panda_site_name FROM ATLAS_PANDA.panda_site"
+            self.cur.execute(sql_get + comment)
+            results = self.cur.fetchall()
+            panda_site_names = set(map(lambda result: result[0], results))
+            tmp_log.debug("finished getting panda site names in configurator")
+
+            tmp_log.debug('Done')
+            return panda_site_names
+
+        except Exception:
+            type, value, tb = sys.exc_info()
+            tmp_log.error("{} {}".format(type, value))
+            return set()
+
+    def configurator_read_ddm_endpoints(self):
+        comment = ' /* DBProxy.configurator_read_ddm_endpoints */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+
+        try:
+            tmp_log.debug("getting existing ddm endpoints")
+            sql_get = "SELECT ddm_endpoint_name FROM ATLAS_PANDA.ddm_endpoint"
+            self.cur.execute(sql_get + comment)
+            results = self.cur.fetchall()
+            ddm_endpoint_names = set(map(lambda result: result[0], results))
+            tmp_log.debug("finished getting ddm endpoint names in configurator")
+
+            tmp_log.debug('Done')
+            return ddm_endpoint_names
+
+        except Exception:
+            type, value, tb = sys.exc_info()
+            tmp_log.error("{} {}".format(type, value))
+            return set()
+
+    def configurator_read_cric_sites(self):
+        comment = ' /* DBProxy.configurator_read_cric_sites */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+
+        try:
+            tmp_log.debug("getting existing CRIC sites")
+            sql_get = "SELECT distinct scj.data.site FROM ATLAS_PANDA.schedconfig_json scj"
+            self.cur.execute(sql_get + comment)
+            results = self.cur.fetchall()
+            site_names = set(map(lambda result: result[0], results))
+            tmp_log.debug("finished getting CRIC sites")
+
+            tmp_log.debug('Done')
+            return site_names
+
+        except Exception:
+            type, value, tb = sys.exc_info()
+            tmp_log.error("{} {}".format(type, value))
+            return set()
+
+    def configurator_read_cric_panda_sites(self):
+        comment = ' /* DBProxy.configurator_read_cric_panda_sites */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+
+        try:
+            tmp_log.debug("getting existing CRIC panda queues")
+            sql_get = "SELECT panda_queue FROM ATLAS_PANDA.schedconfig_json"
+            self.cur.execute(sql_get + comment)
+            results = self.cur.fetchall()
+            panda_site_names = set(map(lambda result: result[0], results))
+            tmp_log.debug("finished getting CRIC panda queues")
+
+            tmp_log.debug('Done')
+            return panda_site_names
+
+        except Exception:
+            self._rollback()
+            type, value, tb = sys.exc_info()
+            tmp_log.error("{} {}".format(type, value))
+            return set()
+
+    def configurator_delete_sites(self, sites_to_delete):
+        """
+        Delete sites and all dependent entries (panda_sites, ddm_endpoints, panda_ddm_relations).
+        Deletion of dependent entries is done through cascade definition in models
+        """
+        comment = ' /* DBProxy.configurator_delete_sites */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+        
+        if not sites_to_delete:
+            tmp_log.debug("nothing to delete")
+            return
+        
+        var_map_list = list(map(lambda site_name: {':site_name': site_name}, sites_to_delete))
+
+        try:
+            # begin transaction
+            self.conn.begin()
+            tmp_log.debug("deleting sites: {}".format(sites_to_delete))
+            sql_update = "DELETE FROM ATLAS_PANDA.site WHERE site_name=:site_name"
+            self.cur.execute_many(sql_update + comment, var_map_list)
+            tmp_log.debug("done deleting sites")
+            
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+
+            tmp_log.debug('Done')
+            return 0, None
+
+        except Exception:
+            self._rollback()
+            type, value, tb = sys.exc_info()
+            tmp_log.error("{} {}".format(type, value))
+            return -1, None
+
+    def configurator_delete_panda_sites(self, panda_sites_to_delete):
+        """
+        Delete PanDA sites and dependent entries in panda_ddm_relations
+        """
+        comment = ' /* DBProxy.configurator_delete_panda_sites */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+
+        if not panda_sites_to_delete:
+            tmp_log.debug("nothing to delete")
+            return
+
+        var_map_list = list(map(lambda panda_site_name: {':panda_site_name': panda_site_name}, panda_sites_to_delete))
+
+        try:
+            # begin transaction
+            self.conn.begin()
+            tmp_log.debug("deleting panda sites: {}".format(panda_sites_to_delete))
+            sql_update = "DELETE FROM ATLAS_PANDA.panda_site WHERE panda_site_name=:panda_site_name"
+            self.cur.execute_many(sql_update + comment, var_map_list)
+            tmp_log.debug("done deleting panda sites")
+
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+
+            tmp_log.debug('Done')
+            return 0, None
+
+        except Exception:
+            self._rollback()
+            type, value, tb = sys.exc_info()
+            tmp_log.error("{} {}".format(type, value))
+            return -1, None
+
+    def configurator_delete_ddm_endpoints(self, ddm_endpoints_to_delete):
+        """
+        Delete DDM endpoints dependent entries in panda_ddm_relations
+        """
+        comment = ' /* DBProxy.configurator_delete_ddm_endpoints */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+
+        if not ddm_endpoints_to_delete:
+            tmp_log.debug("nothing to delete")
+            return
+
+        var_map_list = list(map(lambda ddm_endpoint_name: {':ddm_endpoint_name': ddm_endpoint_name}, ddm_endpoints_to_delete))
+
+        try:
+            # begin transaction
+            self.conn.begin()
+            tmp_log.debug("deleting ddm endpoints: {}".format(ddm_endpoints_to_delete))
+            sql_update = "DELETE FROM ATLAS_PANDA.ddm_endpoint WHERE ddm_endpoint_name=:ddm_endpoint_name"
+            self.cur.execute_many(sql_update + comment, var_map_list)
+            tmp_log.debug("done deleting ddm endpoints")
+            
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+
+            tmp_log.debug('Done')
+            return 0, None
+
+        except Exception:
+            self._rollback()
+            type, value, tb = sys.exc_info()
+            tmp_log.error("{} {}".format(type, value))
+            return -1, None
+
+
+

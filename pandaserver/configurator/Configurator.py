@@ -7,11 +7,8 @@ from datetime import datetime, timedelta
 
 from pandaserver.config import panda_config
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandaserver.configurator import db_interface as dbif
-# from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 
 _logger = PandaLogger().getLogger('configurator')
-# _session = dbif.get_session()
 
 # Definitions of roles
 WRITE_LAN = 'write_lan'
@@ -21,10 +18,10 @@ DEFAULT = 'default'
 
 class Configurator(threading.Thread):
 
-    def __init__(self, session):
+    def __init__(self, taskBuffer):
         threading.Thread.__init__(self)
 
-        self.session = session
+        self.taskBuffer = taskBuffer
 
         if hasattr(panda_config, 'CRIC_URL_SITES'):
             self.CRIC_URL_SITES = panda_config.CRIC_URL_SITES
@@ -162,7 +159,6 @@ class Configurator(threading.Thread):
             if site_state == 'ACTIVE' and site_name not in included_sites:
                 sites_list.append({'site_name': site_name,
                                    'role': site_role,
-                                   'state': site_state,
                                    'tier_level': tier_level})
                 included_sites.append(site_name)
             else:
@@ -176,11 +172,9 @@ class Configurator(threading.Thread):
                     ddm_endpoint_type = self.endpoint_token_dict[ddm_endpoint_name]['type']
                     ddm_endpoint_is_tape = self.endpoint_token_dict[ddm_endpoint_name]['is_tape']
                     if ddm_endpoint_name in self.blacklisted_endpoints:
-                        ddm_endpoint_blacklisted = 'Y'
                         ddm_endpoint_blacklisted_write = 'Y'
                         _logger.debug('process_site_dumps: endpoint {0} is blacklisted for write'.format(ddm_endpoint_name))
                     else:
-                        ddm_endpoint_blacklisted = 'N'
                         ddm_endpoint_blacklisted_write = 'N'
                         _logger.debug('process_site_dumps: endpoint {0} is NOT blacklisted for write'.format(ddm_endpoint_name))
 
@@ -217,14 +211,13 @@ class Configurator(threading.Thread):
                 except KeyError:
                     space_expired = 0
                     _logger.warning('process_site_dumps: no rse EXPIRED usage information for {0}'
-                                  .format(ddm_endpoint_name))
+                                    .format(ddm_endpoint_name))
 
                 ddm_spacetoken_state = site_config['ddmendpoints'][ddm_endpoint_name]['state']
                 if ddm_spacetoken_state == 'ACTIVE':
                     ddm_endpoints_list.append({'ddm_endpoint_name': ddm_endpoint_name,
                                                'site_name': site_name,
                                                'ddm_spacetoken_name': ddm_spacetoken_name,
-                                               'state': ddm_spacetoken_state,
                                                'type': ddm_endpoint_type,
                                                'is_tape': ddm_endpoint_is_tape,
                                                'blacklisted': ddm_endpoint_blacklisted_write,
@@ -250,12 +243,8 @@ class Configurator(threading.Thread):
                                       .format(panda_site, panda_site_state))
                         continue
                     panda_site_name = panda_site
-                    panda_queue_name = site_config['presources'][panda_resource][panda_site]['pandaqueue']
-
                     panda_sites_list.append({'panda_site_name': panda_site_name,
-                                             'panda_queue_name': panda_queue_name,
-                                             'site_name': site_name,
-                                             'state': panda_site_state})
+                                             'site_name': site_name})
 
         return sites_list, panda_sites_list, ddm_endpoints_list, panda_ddm_relation_dict
 
@@ -369,8 +358,7 @@ class Configurator(threading.Thread):
 
                         # add the values to the list of relations if the ddm endpoint is valid
                         if ddm_endpoint_name in self.endpoint_token_dict:
-                            relation_list.append({'long_panda_site_name': long_panda_site_name,
-                                                  'panda_site_name': panda_site_name,
+                            relation_list.append({'panda_site_name': panda_site_name,
                                                   'ddm_site': ddm_endpoint_name,
                                                   'roles': ','.join(roles),
                                                   'default_read': default_read,
@@ -390,9 +378,9 @@ class Configurator(threading.Thread):
         # Check for site inconsistencies
         CRIC_sites = set([site_name for site_name, site_config in self.site_dump.items() if site_config['state'] == 'ACTIVE'])
         _logger.debug("Sites in CRIC {0}".format(CRIC_sites))
-        configurator_sites = dbif.read_configurator_sites(self.session)
+        configurator_sites = self.taskBuffer.configurator_read_sites()
         _logger.debug("Sites in Configurator {0}".format(configurator_sites))
-        schedconfig_sites = dbif.read_schedconfig_sites(self.session)
+        schedconfig_sites = self.taskBuffer.configurator_read_cric_sites()()
         _logger.debug("Sites in Schedconfig {0}".format(schedconfig_sites))
 
         all_sites = list(CRIC_sites | configurator_sites | schedconfig_sites)
@@ -413,9 +401,9 @@ class Configurator(threading.Thread):
         CRIC_panda_sites = set([self.schedconfig_dump[long_panda_site_name]['panda_resource']
                                 for long_panda_site_name in self.schedconfig_dump])
         _logger.debug("PanDA sites in CRIC {0}".format(CRIC_panda_sites))
-        configurator_panda_sites = dbif.read_configurator_panda_sites(self.session)
+        configurator_panda_sites = self.taskBuffer.configurator_read_panda_sites()
         _logger.debug("PanDA sites in Configurator {0}".format(configurator_panda_sites))
-        schedconfig_panda_sites = dbif.read_schedconfig_panda_sites(self.session)
+        schedconfig_panda_sites = self.taskBuffer.configurator_read_cric_panda_sites()
         _logger.debug("PanDA sites in Schedconfig {0}".format(schedconfig_panda_sites))
 
         all_panda_sites = list(CRIC_panda_sites | configurator_panda_sites | schedconfig_panda_sites)
@@ -435,7 +423,7 @@ class Configurator(threading.Thread):
         # Check for DDM endpoint inconsistencies
         CRIC_ddm_endpoints = set([ddm_endpoint_name for ddm_endpoint_name in self.endpoint_token_dict])
         _logger.debug("DDM endpoints in CRIC {0}".format(CRIC_ddm_endpoints))
-        configurator_ddm_endpoints = dbif.read_configurator_ddm_endpoints(self.session)
+        configurator_ddm_endpoints = self.taskBuffer.configurator_read_ddm_endpoints()
         _logger.debug("DDM endpoints in Configurator {0}".format(configurator_ddm_endpoints))
 
         all_ddm_endpoints = list(CRIC_ddm_endpoints | configurator_ddm_endpoints)
@@ -463,15 +451,15 @@ class Configurator(threading.Thread):
 
         # Clean up sites
         sites_to_delete = configurator_sites - CRIC_sites
-        dbif.delete_sites(self.session, sites_to_delete)
+        self.taskBuffer.configurator_delete_sites(sites_to_delete)
 
         # Clean up panda sites
         panda_sites_to_delete = configurator_panda_sites - CRIC_panda_sites
-        dbif.delete_panda_sites(self.session, panda_sites_to_delete)
+        self.taskBuffer.configurator_delete_panda_sites(panda_sites_to_delete)
 
         # Clean up DDM endpoints
         ddm_endpoints_to_delete = configurator_ddm_endpoints - CRIC_ddm_endpoints
-        dbif.delete_ddm_endpoints(self.session, ddm_endpoints_to_delete)
+        self.taskBuffer.configurator_delete_ddm_endpoints(ddm_endpoints_to_delete)
 
     def run(self):
         """
@@ -493,10 +481,10 @@ class Configurator(threading.Thread):
         sites_list, panda_sites_list, ddm_endpoints_list, panda_ddm_relation_dict = self.process_site_dumps()
 
         # Persist the information to the PanDA DB
-        dbif.write_sites_db(self.session, sites_list)
-        dbif.write_panda_sites_db(self.session, panda_sites_list)
-        dbif.write_ddm_endpoints_db(self.session, ddm_endpoints_list)
-        dbif.write_panda_ddm_relation_db(self.session, panda_ddm_relation_dict)
+        self.taskBuffer.configurator_write_sites(sites_list)
+        self.taskBuffer.configurator_write_panda_sites(panda_sites_list)
+        self.taskBuffer.configurator_write_ddm_endpoints(ddm_endpoints_list)
+        self.taskBuffer.configurator_write_panda_ddm_relationss(panda_ddm_relation_dict)
 
         # Do a data quality check
         self.consistency_check()
@@ -506,12 +494,10 @@ class Configurator(threading.Thread):
 
 class NetworkConfigurator(threading.Thread):
 
-    def __init__(self, taskBuffer, session):
+    def __init__(self, taskBuffer):
         threading.Thread.__init__(self)
 
-        # taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
         self.taskBuffer = taskBuffer
-        self.session = session
 
         if hasattr(panda_config, 'NWS_URL'):
             self.NWS_URL = panda_config.NWS_URL
@@ -536,7 +522,7 @@ class NetworkConfigurator(threading.Thread):
         """
 
         data = []
-        sites_list = dbif.read_configurator_sites(self.session)
+        sites_list = self.taskBuffer.configurator_read_sites()
 
         # Ignore outdated values
         latest_validity = datetime.utcnow() - timedelta(minutes=30)
@@ -642,7 +628,7 @@ class NetworkConfigurator(threading.Thread):
         and prepares it for insertion into the PanDA DB
         """
         data = []
-        sites_list = dbif.read_configurator_sites(self.session)
+        sites_list = self.taskBuffer.configurator_read_sites()
 
         for entry in self.CRIC_cm_dump:
 
@@ -707,14 +693,13 @@ class SchedconfigJsonDumper(threading.Thread):
     """
     Downloads the CRIC schedconfig dump and stores it in the DB, one row per queue
     """
-    def __init__(self, taskBuffer, session):
+    def __init__(self, taskBuffer):
         """
         Initialization and configuration
         """
         threading.Thread.__init__(self)
 
         self.taskBuffer = taskBuffer
-        self.session = session
 
         if hasattr(panda_config, 'CRIC_URL_SCHEDCONFIG'):
             self.CRIC_URL_SCHEDCONFIG = panda_config.CRIC_URL_SCHEDCONFIG
@@ -740,14 +725,13 @@ class SWTagsDumper(threading.Thread):
     """
     Downloads the CRIC tags dump, flattens it out and stores it in the DB, one row per queue
     """
-    def __init__(self, taskBuffer, session):
+    def __init__(self, taskBuffer):
         """
         Initialization and configuration
         """
         threading.Thread.__init__(self)
 
         self.taskBuffer = taskBuffer
-        self.session = session
 
         if hasattr(panda_config, 'CRIC_URL_SCHEDCONFIG'):
             self.CRIC_URL_TAGS = panda_config.CRIC_URL_TAGS

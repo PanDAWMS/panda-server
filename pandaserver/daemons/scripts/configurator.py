@@ -2,7 +2,6 @@ import sys
 import time
 
 from pandaserver.config import panda_config
-from pandaserver.configurator import db_interface as dbif
 from pandacommon.pandalogger import logger_utils
 from pandaserver.configurator import Configurator as configurator_module
 from pandaserver.configurator.Configurator import Configurator, NetworkConfigurator, SchedconfigJsonDumper, SWTagsDumper
@@ -20,14 +19,12 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
     else:
         taskBuffer = tbuf
-    # dbif session
-    session = dbif.get_session()
 
     # If no argument, call the basic configurator
     if len(argv) == 1:
         _logger = logger_utils.make_logger(base_logger, 'Configurator')
         t1 = time.time()
-        configurator = Configurator(session=session)
+        configurator = Configurator(taskBuffer=taskBuffer)
         if not configurator.run():
             _logger.critical('Configurator loop FAILED')
         t2 = time.time()
@@ -37,7 +34,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     elif len(argv) == 2 and argv[1].lower() == '--network':
         _logger = logger_utils.make_logger(base_logger, 'NetworkConfigurator')
         t1 = time.time()
-        network_configurator = NetworkConfigurator(taskBuffer=taskBuffer, session=session)
+        network_configurator = NetworkConfigurator(taskBuffer=taskBuffer)
         if not network_configurator.run():
             _logger.critical('Configurator loop FAILED')
         t2 = time.time()
@@ -47,7 +44,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     elif len(argv) == 2 and argv[1].lower() == '--json_dump':
         _logger = logger_utils.make_logger(base_logger, 'SchedconfigJsonDumper')
         t1 = time.time()
-        json_dumper = SchedconfigJsonDumper(taskBuffer=taskBuffer, session=session)
+        json_dumper = SchedconfigJsonDumper(taskBuffer=taskBuffer)
         out_msg = json_dumper.run()
         _logger.debug('Json_dumper finished with {0}'.format(out_msg))
         t2 = time.time()
@@ -57,7 +54,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     elif len(argv) == 2 and argv[1].lower() == '--sw_tags':
         _logger = logger_utils.make_logger(base_logger, 'SWTagsDumper')
         t1 = time.time()
-        sw_tag_collector = SWTagsDumper(taskBuffer=taskBuffer, session=session)
+        sw_tag_collector = SWTagsDumper(taskBuffer=taskBuffer)
         out_msg = sw_tag_collector.run()
         _logger.debug('sw_tag_collector finished with {0}'.format(out_msg))
         t2 = time.time()
@@ -66,11 +63,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     else:
         base_logger.error('Configurator being called with wrong arguments. Use either no arguments or --network or --json_dump')
 
-    # dbif session close
-    session.close()
     dbif.engine_dispose()
 
 
-# run
 if __name__ == '__main__':
     main(argv=sys.argv)
