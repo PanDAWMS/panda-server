@@ -380,7 +380,7 @@ class Configurator(threading.Thread):
         _logger.debug("Sites in CRIC {0}".format(CRIC_sites))
         configurator_sites = self.taskBuffer.configurator_read_sites()
         _logger.debug("Sites in Configurator {0}".format(configurator_sites))
-        schedconfig_sites = self.taskBuffer.configurator_read_cric_sites()()
+        schedconfig_sites = self.taskBuffer.configurator_read_cric_sites()
         _logger.debug("Sites in Schedconfig {0}".format(schedconfig_sites))
 
         all_sites = list(CRIC_sites | configurator_sites | schedconfig_sites)
