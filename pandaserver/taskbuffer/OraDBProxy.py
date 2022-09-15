@@ -24492,7 +24492,7 @@ class DBProxy:
             return None
         return self.mb_proxy_dict['out'][channel]
 
-    def configurator_write_sites(self, sites_list):
+    def configurator_write_sites(self, site_list):
         """
         Cache the CRIC site information in the PanDA database
         """
@@ -24595,6 +24595,7 @@ class DBProxy:
             self._rollback()
             type, value, tb = sys.exc_info()
             tmp_log.error("{} {}".format(type, value))
+            tmp_log.error(format(traceback.format_exc()))
             return -1, None
 
     def configurator_write_ddm_endpoints(self, ddm_endpoint_list):
@@ -24653,6 +24654,7 @@ class DBProxy:
             self._rollback()
             type, value, tb = sys.exc_info()
             tmp_log.error("{} {}".format(type, value))
+                        tmp_log.error(format(traceback.format_exc()))
             return -1, None
 
     def configurator_write_panda_ddm_relations(self, relation_list):
@@ -24708,6 +24710,7 @@ class DBProxy:
             self._rollback()
             type, value, tb = sys.exc_info()
             tmp_log.error("{} {}".format(type, value))
+            tmp_log.error(format(traceback.format_exc()))
             return -1, None
 
     def configurator_read_sites(self):
@@ -24730,6 +24733,7 @@ class DBProxy:
         except Exception:
             type, value, tb = sys.exc_info()
             tmp_log.error("{} {}".format(type, value))
+            tmp_log.error(format(traceback.format_exc()))
             return set()
 
     def configurator_read_panda_sites(self):
@@ -24752,6 +24756,7 @@ class DBProxy:
         except Exception:
             type, value, tb = sys.exc_info()
             tmp_log.error("{} {}".format(type, value))
+            tmp_log.error(format(traceback.format_exc()))
             return set()
 
     def configurator_read_ddm_endpoints(self):
@@ -24774,6 +24779,7 @@ class DBProxy:
         except Exception:
             type, value, tb = sys.exc_info()
             tmp_log.error("{} {}".format(type, value))
+            tmp_log.error(format(traceback.format_exc()))
             return set()
 
     def configurator_read_cric_sites(self):
@@ -24784,7 +24790,7 @@ class DBProxy:
 
         try:
             tmp_log.debug("getting existing CRIC sites")
-            sql_get = "SELECT distinct scj.data.site FROM ATLAS_PANDA.schedconfig_json scj"
+            sql_get = "SELECT /* use_json_type */ distinct scj.data.site FROM ATLAS_PANDA.schedconfig_json scj"
             self.cur.execute(sql_get + comment)
             results = self.cur.fetchall()
             site_names = set(map(lambda result: result[0], results))
@@ -24796,6 +24802,7 @@ class DBProxy:
         except Exception:
             type, value, tb = sys.exc_info()
             tmp_log.error("{} {}".format(type, value))
+            tmp_log.error(format(traceback.format_exc()))
             return set()
 
     def configurator_read_cric_panda_sites(self):
@@ -24819,6 +24826,7 @@ class DBProxy:
             self._rollback()
             type, value, tb = sys.exc_info()
             tmp_log.error("{} {}".format(type, value))
+            tmp_log.error(format(traceback.format_exc()))
             return set()
 
     def configurator_delete_sites(self, sites_to_delete):
@@ -24856,6 +24864,7 @@ class DBProxy:
             self._rollback()
             type, value, tb = sys.exc_info()
             tmp_log.error("{} {}".format(type, value))
+            tmp_log.error(format(traceback.format_exc()))
             return -1, None
 
     def configurator_delete_panda_sites(self, panda_sites_to_delete):
@@ -24892,6 +24901,7 @@ class DBProxy:
             self._rollback()
             type, value, tb = sys.exc_info()
             tmp_log.error("{} {}".format(type, value))
+            tmp_log.error(format(traceback.format_exc()))
             return -1, None
 
     def configurator_delete_ddm_endpoints(self, ddm_endpoints_to_delete):
@@ -24928,6 +24938,7 @@ class DBProxy:
             self._rollback()
             type, value, tb = sys.exc_info()
             tmp_log.error("{} {}".format(type, value))
+            tmp_log.error(format(traceback.format_exc()))
             return -1, None
 
 
