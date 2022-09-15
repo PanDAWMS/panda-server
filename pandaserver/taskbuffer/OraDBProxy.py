@@ -24682,7 +24682,7 @@ class DBProxy:
                 else:
                     var_map_insert.append(relation)
 
-            tmp_log.debug("Updating panda ddm relations)
+            tmp_log.debug("Updating panda ddm relations")
             sql_update = "UPDATE ATLAS_PANDA.panda_ddm_relation set "\
                          "roles=:roles, is_local=:is_local, order_read=:order_read, order_write=:order_write, "\
                          "default_read=:default_read, default_write=:default_write, scope=:scope"
