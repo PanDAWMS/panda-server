@@ -24793,7 +24793,7 @@ class DBProxy:
 
         try:
             tmp_log.debug("getting existing CRIC sites")
-            sql_get = "SELECT /* use_json_type */ distinct scj.data.site FROM ATLAS_PANDA.schedconfig_json scj"
+            sql_get = "SELECT /* use_json_type */ distinct scj.data.rc_site FROM ATLAS_PANDA.schedconfig_json scj"
             self.cur.execute(sql_get + comment)
             results = self.cur.fetchall()
             site_names = set(map(lambda result: result[0], results))
