@@ -24654,7 +24654,7 @@ class DBProxy:
             self._rollback()
             type, value, tb = sys.exc_info()
             tmp_log.error("{} {}".format(type, value))
-                        tmp_log.error(format(traceback.format_exc()))
+            tmp_log.error(format(traceback.format_exc()))
             return -1, None
 
     def configurator_write_panda_ddm_relations(self, relation_list):
