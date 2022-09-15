@@ -4099,9 +4099,9 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         return ret
 
-    def configurator_write_panda_ddm_relation(self, relation_list):
+    def configurator_write_panda_ddm_relations(self, relation_list):
         proxy = self.proxyPool.getProxy()
-        ret = proxy.configurator_write_panda_ddm_relation(relation_list)
+        ret = proxy.configurator_write_panda_ddm_relations(relation_list)
         self.proxyPool.putProxy(proxy)
         return ret
 

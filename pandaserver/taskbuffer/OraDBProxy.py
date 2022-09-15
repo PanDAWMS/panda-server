@@ -24655,8 +24655,8 @@ class DBProxy:
             tmp_log.error("{} {}".format(type, value))
             return -1, None
 
-    def configurator_write_panda_ddm_relation(self, relation_list):
-        comment = ' /* DBProxy.configurator_write_panda_ddm_relation */'
+    def configurator_write_panda_ddm_relations(self, relation_list):
+        comment = ' /* DBProxy.configurator_write_panda_ddm_relations */'
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug('start')
