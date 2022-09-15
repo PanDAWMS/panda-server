@@ -6,7 +6,6 @@ from pandacommon.pandalogger import logger_utils
 from pandaserver.configurator import Configurator as configurator_module
 from pandaserver.configurator.Configurator import Configurator, NetworkConfigurator, SchedconfigJsonDumper, SWTagsDumper
 
-
 # logger
 base_logger = configurator_module._logger
 
@@ -62,8 +61,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
     else:
         base_logger.error('Configurator being called with wrong arguments. Use either no arguments or --network or --json_dump')
-
-    dbif.engine_dispose()
 
 
 if __name__ == '__main__':
