@@ -30,6 +30,7 @@ metric_list = [
     ('gshare_preference', 'gshare', 20),
     ('analy_pmerge_jobs_wait_time', 'site', 30),
     ('analy_site_eval', 'site', 30),
+    ('users_jobs_stats', 'both', 5),
 ]
 
 
@@ -448,6 +449,149 @@ class FetchData(object):
             # get analysis jobs wait time stats
             apjwt_dict = mdb.get_metrics('analy_pmerge_jobs_wait_time', 'site')
             # evaluate derived values from stats
+            # max of w_cl95upp and long_q_mean for ranking
+            ranking_wait_time_list = []
+            for v in apjwt_dict.values():
+                try:
+                    ranking_wait_time = np.maximum(v['w_cl95upp'], v['long_q_mean'])
+                    ranking_wait_time_list.append(ranking_wait_time)
+                except KeyError:
+                    continue
+            first_one_third_wait_time = np.nanquantile(np.array(ranking_wait_time_list), 0.333)
+            last_one_third_wait_time = np.nanquantile(np.array(ranking_wait_time_list), 0.667)
+            # get to-running rate of sites
+            tmp_st, site_6h_strr_map = get_site_strr_stats(self.tbuf, time_window=60*60*6)
+            if not tmp_st:
+                tmp_log.error('failed to get 6h-slot-to-running-rate')
+            tmp_st, site_1d_strr_map = get_site_strr_stats(self.tbuf, time_window=60*60*24)
+            if not tmp_st:
+                tmp_log.error('failed to get 1d-slot-to-running-rate')
+            # for each site
+            for site in apjwt_dict:
+                # from wait time stats
+                # TODO: to consider failure rate, site fullness, etc.
+                v = apjwt_dict[site]
+                # evaluate derived values
+                try:
+                    v['ranking_wait_time'] = np.maximum(v['w_cl95upp'], v['long_q_mean'])
+                    # v['is_slowing_down'] = (v['long_q_mean'] > v['w_cl95upp'] and v['long_q_n'] >= 3)
+                except KeyError as e:
+                    tmp_log.warning(('site={site} misses value, skipped : {err} ').format(site=site, err=e))
+                    continue
+                # initialize
+                site_dict[site] = dict()
+                # to-running rate
+                site_6h_strr = site_6h_strr_map.get(site, 0)
+                site_1d_strr = site_1d_strr_map.get(site, 0)
+                site_dict[site]['strr_6h'] = site_6h_strr
+                site_dict[site]['strr_1d'] = site_1d_strr
+                # classify
+                if (v['ranking_wait_time'] <= max(first_one_third_wait_time, 3600) \
+                        or (v['w_cl95upp'] <= max(first_one_third_wait_time, 3600) and v['long_q_n'] <= 3)
+                        ) and site_1d_strr > 0:
+                    # class A (1)
+                    site_dict[site]['class'] = 1
+                    class_A_set.add(site)
+                elif v['ranking_wait_time'] > max(last_one_third_wait_time, 10800):
+                    # class C (-1)
+                    site_dict[site]['class'] = -1
+                    class_C_set.add(site)
+                else:
+                    # class B (0)
+                    site_dict[site]['class'] = 0
+                    class_B_set.add(site)
+                # log
+                tmp_log.debug(('site={site}, class={class}, strr_6h={strr_6h:.3f}, strr_1d={strr_1d:.3f} '
+                                ).format(site=site, **site_dict[site]))
+                # turn nan into None
+                for key in site_dict[site]:
+                    if np.isnan(site_dict[site][key]):
+                        site_dict[site][key] = None
+            # log
+            tmp_log.debug(('class_A ({}) : {} ; class_B ({}) : {} ; class_C ({}) : {}'
+                            ).format(
+                                len(class_A_set), ','.join(sorted(list(class_A_set))),
+                                len(class_B_set), ','.join(sorted(list(class_B_set))),
+                                len(class_C_set), ','.join(sorted(list(class_C_set))),
+                            ))
+            # return
+            return site_dict
+        except Exception:
+            tmp_log.error(traceback.format_exc())
+
+    def users_jobs_stats(self):
+        prod_source_label='user'
+        tmp_log = logger_utils.make_logger(main_logger, 'FetchData')
+        tmp_log.debug('start')
+        try:
+            # initialize
+            site_gshare_dict = dict()
+            # get users jobs stats
+            jobsStatsPerUser = {}
+            varMap = {}
+            varMap[':prodSourceLabel'] = prod_source_label
+            varMap[':pmerge'] = 'pmerge'
+            varMap[':gangarbt'] = 'gangarbt'
+            sqlJ = ("SELECT COUNT(*),prodUserName,jobStatus,gshare,computingSite "
+                    "FROM ATLAS_PANDA.jobsActive4 "
+                    "WHERE prodSourceLabel=:prodSourceLabel "
+                        "AND processingType<>:pmerge "
+                        "AND prodUserName<>:gangarbt "
+                    "GROUP BY prodUserName,jobStatus,gshare,computingSite "
+                    )
+            # exec
+            tmp_log.debug(sqlJ + str(varMap))
+            # result
+            res = self.tbuf.querySQL(sqlJ, varMap)
+            if res is None:
+                tmp_log.debug("got %s " % res)
+            else:
+                tmp_log.debug("total %s " % len(res))
+                # make map
+                for cnt,prodUserName,jobStatus,gshare,computingSite in res:
+                    # append to PerUser map
+                    jobsStatsPerUser.setdefault(computingSite, {})
+                    jobsStatsPerUser[computingSite].setdefault(gshare, {})
+                    jobsStatsPerUser[computingSite][gshare].setdefault(prodUserName, {
+                                                                                    'nDefined': 0, 'nAssigned': 0,
+                                                                                    'nActivated': 0, 'nStarting':0,
+                                                                                    'nQueue': 0, 'nRunning': 0})
+                    jobsStatsPerUser[computingSite][gshare].setdefault('_total', {  'nDefined': 0, 'nAssigned': 0,
+                                                                                    'nActivated': 0, 'nStarting':0,
+                                                                                    'nQueue': 0, 'nRunning': 0})
+                    # count # of running/done and activated
+                    if jobStatus in ['defined', 'assigned', 'activated', 'starting']:
+                        status_name = 'n{0}'.format(jobStatus.capitalize())
+                        jobsStatsPerUser[computingSite][gshare][prodUserName][status_name] += cnt
+                        jobsStatsPerUser[computingSite][gshare][prodUserName]['nQueue'] += cnt
+                        jobsStatsPerUser[computingSite][gshare]['_total'][status_name] += cnt
+                        jobsStatsPerUser[computingSite][gshare]['_total']['nQueue'] += cnt
+                    elif jobStatus in ['running']:
+                        jobsStatsPerUser[computingSite][gshare][prodUserName]['nRunning'] += cnt
+                        jobsStatsPerUser[computingSite][gshare]['_total']['nRunning'] += cnt
+            # fill
+            for computingSite in jobsStatsPerUser:
+                g_dict = jobsStatsPerUser[computingSite]
+                for gshare in g_dict:
+                    data_dict = g_dict[gshare]
+                    site_gshare_dict[(computingSite, gshare)] = data_dict
+                    tmp_log.debug('site={}, gshare={}, stats={}'.format(computingSite, gshare, data_dict))
+            # done
+            tmp_log.debug('done')
+            return site_gshare_dict
+        except Exception:
+            tmp_log.error(traceback.format_exc())
+
+    def analy_user_eval(self):
+        tmp_log = logger_utils.make_logger(main_logger, 'FetchData')
+        try:
+            # initialize
+            user_dict = dict()
+            # MetricsDB
+            mdb = MetricsDB(self.tbuf)
+            # get analysis site classification evalutation
+            ase_dict = mdb.get_metrics('analy_site_eval', 'site')
+            # evaluate derived values
             # max of w_cl95upp and long_q_mean for ranking
             ranking_wait_time_list = []
             for v in apjwt_dict.values():
