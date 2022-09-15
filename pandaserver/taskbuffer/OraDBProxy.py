@@ -24525,13 +24525,13 @@ class DBProxy:
             tmp_log.debug("Updating sites")
             sql_update = "UPDATE ATLAS_PANDA.site set role=:role, tier_level=:tier_level WHERE site_name=:site_name"
             for shard in create_shards(var_map_update, 100):
-                self.cur.execute(sql_update + comment, shard)
+                self.cur.executemany(sql_update + comment, shard)
             
             tmp_log.debug("Inserting sites")
             sql_insert = "INSERT INTO ATLAS_PANDA.site (site_name, role, tier_level) "\
                          "VALUES(:site_name, :role, :tier_level)"
             for shard in create_shards(var_map_insert, 100):
-                self.cur.execute(sql_insert + comment, shard)
+                self.cur.executemany(sql_insert + comment, shard)
             
             # commit
             if not self._commit():
@@ -24576,13 +24576,13 @@ class DBProxy:
             tmp_log.debug("Updating panda sites")
             sql_update = "UPDATE ATLAS_PANDA.panda_site set site_name=:site_name WHERE panda_site_name=:panda_site_name"
             for shard in create_shards(var_map_update, 100):
-                self.cur.execute(sql_update + comment, shard)
+                self.cur.executemany(sql_update + comment, shard)
 
             tmp_log.debug("Inserting panda sites")
             sql_insert = "INSERT INTO ATLAS_PANDA.panda_site (panda_site_name, site_name) "\
                          "VALUES(:panda_site_name, :site_name)"
             for shard in create_shards(var_map_insert, 100):
-                self.cur.execute(sql_insert + comment, shard)
+                self.cur.executemany(sql_insert + comment, shard)
 
             # commit
             if not self._commit():
@@ -24610,7 +24610,7 @@ class DBProxy:
 
             # get existing ddm endpoints
             tmp_log.debug("getting existing ddm endpoints")
-            sql_get = "SELECT ddm_endpoint_name FROM ATLAS_PANDA.ddm_endpoints"
+            sql_get = "SELECT ddm_endpoint_name FROM ATLAS_PANDA.ddm_endpoint"
             self.cur.execute(sql_get + comment)
             results = self.cur.fetchall()
             ddm_endpoint_name_list = list(map(lambda result: result[0], results))
@@ -24632,7 +24632,7 @@ class DBProxy:
                          "space_used=:space_used, space_free=:space_free, space_total=:space_total, space_expired=:space_expired, space_timestamp=:space_timestamp "\
                          "WHERE ddm_endpoint_name=:ddm_endpoint_name"
             for shard in create_shards(var_map_update, 100):
-                self.cur.execute(sql_update + comment, shard)
+                self.cur.executemany(sql_update + comment, shard)
 
 
             tmp_log.debug("Inserting ddm endpoints")
@@ -24641,7 +24641,7 @@ class DBProxy:
                          "VALUES(:ddm_endpoint_name, :site_name, :ddm_spacetoken_name, :type, :is_tape, "\
                          ":blacklisted, :blacklisted_write, :blacklisted_read, :space_used, :space_free, :space_total, :space_expired, :space_timestamp)"
             for shard in create_shards(var_map_insert, 100):
-                self.cur.execute(sql_insert + comment, shard)
+                self.cur.executemany(sql_insert + comment, shard)
 
             # commit
             if not self._commit():
@@ -24689,7 +24689,7 @@ class DBProxy:
                          "roles=:roles, is_local=:is_local, order_read=:order_read, order_write=:order_write, "\
                          "default_read=:default_read, default_write=:default_write, scope=:scope"
             for shard in create_shards(var_map_update, 100):
-                self.cur.execute(sql_update + comment, shard)
+                self.cur.executemany(sql_update + comment, shard)
 
             tmp_log.debug("Inserting panda ddm relations")
             sql_insert = "INSERT INTO ATLAS_PANDA.panda_ddm_relation (panda_site_name, ddm_endpoint_name, roles, "\
@@ -24697,7 +24697,7 @@ class DBProxy:
                          "VALUES(:panda_site_name, :ddm_endpoint_name, :roles, "\
                          ":is_local, :order_read, :order_write, :default_read, :default_write, :scope)"
             for shard in create_shards(var_map_insert, 100):
-                self.cur.execute(sql_insert + comment, shard)
+                self.cur.executemany(sql_insert + comment, shard)
 
             # commit
             if not self._commit():
@@ -24850,7 +24850,7 @@ class DBProxy:
             self.conn.begin()
             tmp_log.debug("deleting sites: {}".format(sites_to_delete))
             sql_update = "DELETE FROM ATLAS_PANDA.site WHERE site_name=:site_name"
-            self.cur.execute_many(sql_update + comment, var_map_list)
+            self.cur.executemany(sql_update + comment, var_map_list)
             tmp_log.debug("done deleting sites")
             
             # commit
@@ -24887,7 +24887,7 @@ class DBProxy:
             self.conn.begin()
             tmp_log.debug("deleting panda sites: {}".format(panda_sites_to_delete))
             sql_update = "DELETE FROM ATLAS_PANDA.panda_site WHERE panda_site_name=:panda_site_name"
-            self.cur.execute_many(sql_update + comment, var_map_list)
+            self.cur.executemany(sql_update + comment, var_map_list)
             tmp_log.debug("done deleting panda sites")
 
             # commit
@@ -24924,7 +24924,7 @@ class DBProxy:
             self.conn.begin()
             tmp_log.debug("deleting ddm endpoints: {}".format(ddm_endpoints_to_delete))
             sql_update = "DELETE FROM ATLAS_PANDA.ddm_endpoint WHERE ddm_endpoint_name=:ddm_endpoint_name"
-            self.cur.execute_many(sql_update + comment, var_map_list)
+            self.cur.executemany(sql_update + comment, var_map_list)
             tmp_log.debug("done deleting ddm endpoints")
             
             # commit
