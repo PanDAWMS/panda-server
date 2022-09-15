@@ -24579,7 +24579,7 @@ class DBProxy:
                 self.cur.execute(sql_update + comment, shard)
 
             tmp_log.debug("Inserting panda sites")
-            sql_insert = "INSERT INTO ATLAS_PANDA.panda_site (panda_site_name, site_name) " \
+            sql_insert = "INSERT INTO ATLAS_PANDA.panda_site (panda_site_name, site_name) "\
                          "VALUES(:panda_site_name, :site_name)"
             for shard in create_shards(var_map_insert, 100):
                 self.cur.execute(sql_insert + comment, shard)
@@ -24690,9 +24690,9 @@ class DBProxy:
                 self.cur.execute(sql_update + comment, shard)
 
             tmp_log.debug("Inserting panda ddm relations")
-            sql_insert = "INSERT INTO ATLAS_PANDA.panda_ddm_relation (panda_site_name, ddm_endpoint_name, roles, "
+            sql_insert = "INSERT INTO ATLAS_PANDA.panda_ddm_relation (panda_site_name, ddm_endpoint_name, roles, "\
                          "is_local, order_read, order_write, default_read, default_write, scope) "\
-                         "VALUES(:panda_site_name, :ddm_endpoint_name, :roles, "
+                         "VALUES(:panda_site_name, :ddm_endpoint_name, :roles, "\
                          ":is_local, :order_read, :order_write, :default_read, :default_write, :scope)"
             for shard in create_shards(var_map_insert, 100):
                 self.cur.execute(sql_insert + comment, shard)
