@@ -458,14 +458,22 @@ class FetchData(object):
             class_A_set = set()
             class_B_set = set()
             class_C_set = set()
+            # get resource_type of sites (GRID, hpc, cloud, ...) from schedconfig
+            res = self.tbuf.querySQL((
+                    'SELECT /* use_json_type */ scj.panda_queue, scj.data.resource_type '
+                    'FROM ATLAS_PANDA.schedconfig_json scj '
+                ), {})
+            site_resource_type_map = { site: resource_type for site, resource_type in res }
             # MetricsDB
             mdb = MetricsDB(self.tbuf)
             # get analysis jobs wait time stats
             apjwt_dict = mdb.get_metrics('analy_pmerge_jobs_wait_time', 'site')
             # evaluate derived values from stats
-            # max of w_cl95upp and long_q_mean for ranking
+            # max of w_cl95upp and long_q_mean for ranking. Only consider GRID sites
             ranking_wait_time_list = []
-            for v in apjwt_dict.values():
+            for site, v in apjwt_dict.items():
+                if site_resource_type_map.get(site) != 'GRID':
+                    continue
                 try:
                     ranking_wait_time = np.maximum(v['w_cl95upp'], v['long_q_mean'])
                     ranking_wait_time_list.append(ranking_wait_time)
@@ -473,6 +481,8 @@ class FetchData(object):
                     continue
             first_one_third_wait_time = np.nanquantile(np.array(ranking_wait_time_list), 0.333)
             last_one_third_wait_time = np.nanquantile(np.array(ranking_wait_time_list), 0.667)
+            tmp_log.debug('GRID n_sites= {} wait time PR33={:.3f} PR67={:.3f}'.format(
+                            len(ranking_wait_time_list), first_one_third_wait_time, last_one_third_wait_time))
             # get to-running rate of sites
             tmp_st, site_6h_strr_map = get_site_strr_stats(self.tbuf, time_window=60*60*6)
             if not tmp_st:
@@ -494,6 +504,8 @@ class FetchData(object):
                     continue
                 # initialize
                 site_dict[site] = dict()
+                # resource type of the site
+                site_dict[site]['resource_type'] = site_resource_type_map.get(site)
                 # to-running rate
                 site_6h_strr = site_6h_strr_map.get(site, 0)
                 site_1d_strr = site_1d_strr_map.get(site, 0)
@@ -515,11 +527,12 @@ class FetchData(object):
                     site_dict[site]['class'] = 0
                     class_B_set.add(site)
                 # log
-                tmp_log.debug(('site={site}, class={class}, strr_6h={strr_6h:.3f}, strr_1d={strr_1d:.3f} '
+                tmp_log.debug(('site={site}, class={class}, type={resource_type}, strr_6h={strr_6h:.3f}, strr_1d={strr_1d:.3f} '
                                 ).format(site=site, **site_dict[site]))
                 # turn nan into None
                 for key in site_dict[site]:
-                    if np.isnan(site_dict[site][key]):
+                    _val = site_dict[site][key]
+                    if not isinstance(_val, str) and np.isnan(_val):
                         site_dict[site][key] = None
             # log
             tmp_log.debug(('class_A ({}) : {} ; class_B ({}) : {} ; class_C ({}) : {}'
@@ -622,16 +635,28 @@ class FetchData(object):
             ujs_dict = mdb.get_metrics('users_jobs_stats', fresher_than_minutes_ago=15)
             # for each site x gshare
             for (site, gshare), usage_dict in ujs_dict.items():
+                # get site evaluation data
+                try:
+                    site_eval_dict = ase_dict[site]
+                except KeyError:
+                    tmp_log.warning(('analy_site_eval missed site={site} gshare={gshare}, skipped ').format(
+                                        site=site, gshare=gshare))
+                    continue
                 # get site class value
                 try:
-                    site_class_value = ase_dict[site]['class']
+                    site_class_value = site_eval_dict['class']
                 except KeyError:
-                    tmp_log.warning(('analy_site_eval missed for site={site} gshare={gshare}, skipped ').format(
+                    tmp_log.warning(('analy_site_eval class missed for site={site} gshare={gshare}, skipped ').format(
                                         site=site, gshare=gshare))
                     continue
                 else:
                     site_class_rank = class_value_rank_map[site_class_value]
-                # evaluate derived values for each user
+                # site resource_type
+                site_resource_type = site_eval_dict.get('resource_type')
+                # skip non-GRID sites
+                if site_resource_type != 'GRID':
+                    continue
+                # evaluate usage of GRID sites for each user
                 for user, v in usage_dict.items():
                     # initialize
                     user_dict.setdefault(user, {})
