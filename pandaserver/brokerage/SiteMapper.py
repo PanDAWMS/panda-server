@@ -239,6 +239,9 @@ class SiteMapper:
             if ret.pandasite not in self.nuclei:
                 nucleus = NucleusSpec(ret.pandasite)
                 nucleus.state = ret.pandasite_state
+                mode = ret.bare_nucleus_mode()
+                if mode:
+                    nucleus.set_bare_nucleus_mode(mode)
                 self.nuclei[ret.pandasite] = nucleus
             self.nuclei[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output, ret.ddm_endpoints_input)
         # collect satellites

@@ -87,6 +87,14 @@ class Node (object):
 
     # set real input values
     def set_input_value(self, key, src_key, src_value):
+        # replace the value with a list of parameter names and indexes if value is a list,
+        # and src and dst are looping params
+        if isinstance(src_value, list):
+            src_loop_param_name = self.get_loop_param_name(src_key)
+            loop_params = self.get_loop_param_name(key.split('/')[-1]) is not None and src_loop_param_name is not None
+            if loop_params:
+                src_value = ['{}[{}]'.format(src_loop_param_name, i) for i in range(len(src_value))]
+        # resolve values
         if isinstance(self.inputs[key]['source'], list):
             self.inputs[key].setdefault('value', copy.copy(self.inputs[key]['source']))
             tmp_list = []
@@ -280,10 +288,12 @@ class Node (object):
                 else:
                     list_in_ds = ['{}_{}/'.format(dict_inputs['opt_inDS'], in_ds_suffix) if in_ds_suffix \
                                       else dict_inputs['opt_inDS']]
-                if self.type not in ['junction', 'reana']:
+                if self.type not in ['reana']:
                     in_ds_str = ','.join(list_in_ds)
                     com += ['--inDS', in_ds_str, '--notExpandInDS', '--notExpandSecDSs']
-                else:
+                    if self.type in ['junction']:
+                        com += ['--forceStaged', '--forceStagedSecondary']
+                if self.type in ['junction', 'reana']:
                     # replace placeholders in opt_exec and opt_args
                     for idx, dst in enumerate(list_in_ds):
                         src = "%{{DS{}}}".format(idx)
@@ -445,11 +455,11 @@ class Node (object):
         loop_params = {}
         workflow_params = {}
         for k, v in six.iteritems(root_inputs):
-            param = k.split('#')[-1]
-            m = re.search(r'^param_(.+)', param)
+            m = self.get_loop_param_name(k)
             if m:
-                loop_params[m.group(1)] = v
+                loop_params[m] = v
             else:
+                param = k.split('#')[-1]
                 workflow_params[param] = v
         return loop_params, workflow_params
 
@@ -463,6 +473,14 @@ class Node (object):
             if not sub_node.is_leaf:
                 sub_node.get_all_sub_node_ids(all_ids)
         return all_ids
+
+    # get loop param name
+    def get_loop_param_name(self, k):
+        param = k.split('#')[-1]
+        m = re.search(r'^param_(.+)', param)
+        if m:
+            return m.group(1)
+        return None
 
 
 # dump nodes

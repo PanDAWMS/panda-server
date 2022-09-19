@@ -2,7 +2,6 @@ import re
 import sys
 import traceback
 import time
-import fcntl
 import random
 import datetime
 import uuid
@@ -400,7 +399,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
         prevProType    = None
         prevSourceLabel= None
         prevDiskCount  = None
-        prevHomePkg    = None
         prevDirectAcc  = None
         prevCoreCount  = None
         prevIsJEDI     = None
@@ -627,66 +625,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         # set site list to use T1 and T1_VL
                         if previousCloud in hospitalQueueMap:
                             scanSiteList += hospitalQueueMap[previousCloud]
-                    # get availabe sites with cache
-                    useCacheVersion = False
-                    siteListWithCache = []
-                    if forAnalysis:
-                        if prevRelease not in ['','NULL',None] and prevRelease.startswith('ROOT'):
-                            if prevCmtConfig not in ['NULL',None,'']:
-                                usePattern = True
-                                if 'x86_64' in prevCmtConfig:
-                                    tmpCmtConfig = 'x86_64%'
-                                else:
-                                    tmpCmtConfig = 'i686%'
-                                # extract OS ver
-                                tmpMatch = re.search('(slc\d+)',prevCmtConfig)
-                                if tmpMatch is not None:
-                                    tmpCmtConfig += tmpMatch.group(1)
-                                    tmpCmtConfig += '%'
-                                useCacheVersion = True
-                                siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,
-                                                                                     cmtConfig=tmpCmtConfig,
-                                                                                     onlyCmtConfig=True,
-                                                                                     cmtConfigPattern=usePattern)
-                                tmpLog.debug('  using installSW for ROOT:cmtConfig %s' % prevCmtConfig)
-                            else:
-                                # reset release info for backward compatibility
-                                prevRelease = ''
-                        elif re.search('-\d+\.\d+\.\d+\.\d+',prevRelease) is not None:
-                            useCacheVersion = True
-                            siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,caches=prevRelease,cmtConfig=prevCmtConfig)
-                            tmpLog.debug('  using installSW for cache %s' % prevRelease)
-                        elif re.search('-\d+\.\d+\.\d+$',prevRelease) is not None:
-                            useCacheVersion = True
-                            siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,releases=prevRelease,cmtConfig=prevCmtConfig)
-                            tmpLog.debug('  using installSW for release %s' % prevRelease)
-                        elif re.search(':rel_\d+$$',prevRelease) is not None:
-                            useCacheVersion = True
-                            # FIXME
-                            #siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,
-                            #                                                     releases='nightlies',
-                            #                                                     cmtConfig=prevCmtConfig)
-                            siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,
-                                                                                 releases='CVMFS')
-                            tmpLog.debug('  using installSW for release:cache %s' % prevRelease)
-                    elif previousCloud in ['DE','NL','FR','CA','ES','IT','TW','UK','US','ND','CERN','RU']:
-                            useCacheVersion = True
-                            # change / to -
-                            convedPrevHomePkg = prevHomePkg.replace('/','-')
-                            if re.search('rel_\d+(\n|$)',prevHomePkg) is None:
-                                # only cache is used for normal jobs
-                                siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,caches=convedPrevHomePkg,
-                                                                                     cmtConfig=prevCmtConfig)
-                            else:
-                                # for nightlies
-                                siteListWithCache = taskBuffer.checkSitesWithRelease(scanSiteList,
-                                                                                     releases='nightlies',
-                                                                                     cmtConfig=prevCmtConfig)
-                            tmpLog.debug('  cache          %s' % prevHomePkg)
-                    if useCacheVersion:
-                        tmpLog.debug('  cache/relSites     %s' % str(siteListWithCache))
-                    # release/cmtconfig check
-                    foundRelease   = False
+
                     # found candidate
                     foundOneCandidate = False
                     # randomize the order
@@ -701,7 +640,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                             if site == 'NULL':
                                 continue
                             if prevIsJEDI:
-                                foundRelease = True
                                 winv = 1
                             else:
                                 # get SiteSpec
@@ -803,58 +741,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         tmpCmtConfig = 'i686-slc3-gcc323-opt'
                                 else:
                                     tmpCmtConfig = prevCmtConfig
-                                # set release
-                                releases = tmpSiteSpec.releases
-                                origReleases = releases
-                                if prevProType in ['reprocessing']:
-                                    # use validated releases for reprocessing
-                                    releases = tmpSiteSpec.validatedreleases
-                                if not useCacheVersion:
-                                    tmpLog.debug('   %s' % str(releases))
-                                if origReleases == ['ANY']:
-                                    # doesn't check releases for catch all
-                                    tmpLog.debug(' no release check due to releases=%s' % origReleases)
-                                    foundRelease = True
-                                elif forAnalysis and (tmpSiteSpec.cloud in ['ND'] or prevRelease==''):
-                                    # doesn't check releases for analysis
-                                    tmpLog.debug(' no release check')
-                                    pass
-                                elif forAnalysis and useCacheVersion:
-                                    # cache matching
-                                    if site not in siteListWithCache:
-                                        tmpLog.debug(' skip: cache %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))
-                                        if trustIS:
-                                            resultsForAnal['rel'].append(site)
-                                        continue
-                                elif prevRelease is not None and \
-                                         (useCacheVersion and tmpSiteSpec.cloud not in ['ND'] and site not in ['CERN-RELEASE']) and \
-                                         (prevProType not in ['reprocessing']) and \
-                                         (site not in siteListWithCache):
-                                        tmpLog.debug(' skip: cache %s/%s not found' % (prevHomePkg.replace('\n',' '), prevCmtConfig))
-                                        # send message to logger
-                                        try:
-                                            if prevSourceLabel in ['managed','test']:
-                                                resultsForAnal['rel'].append(site)
-                                                # make message
-                                                message = '%s - cache %s/%s not found' % (site,prevHomePkg.replace('\n',' '),prevCmtConfig)
-                                                if message not in loggerMessages:
-                                                    loggerMessages.append(message)
-                                        except Exception:
-                                            pass
-                                        continue
-                                elif prevRelease is not None and \
-                                     ((not useCacheVersion and releases != [] and tmpSiteSpec.cloud not in ['ND'] and site not in ['CERN-RELEASE']) or prevProType in ['reprocessing']) and \
-                                     (((not _checkRelease(prevRelease,releases) and prevManualPreset is False) or site not in siteListWithCache) and tmpSiteSpec.cloud not in ['ND'] and site not in ['CERN-RELEASE']):
-                                    # release matching
-                                    if not useCacheVersion:
-                                        tmpLog.debug(' skip: release %s/%s not found' % (prevRelease.replace('\n',' '),prevCmtConfig))
-                                    else:
-                                        tmpLog.debug(' skip: repro cache %s/%s not found' % (prevHomePkg.replace('\n',' '),prevCmtConfig))
-                                    resultsForAnal['rel'].append(site)
-                                    continue
-                                elif not foundRelease:
-                                    # found at least one site has the release
-                                    foundRelease = True
+
                                 # get pilot statistics
                                 nPilotsGet = 0
                                 nPilotsUpdate = 0
@@ -1255,7 +1142,7 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                         tmpLog.debug('PandaID:%s -> site:%s' % (tmpJob.PandaID,tmpJob.computingSite))
 
                         # fail jobs if no sites have the release
-                        if (not foundRelease or (tmpJob.relocationFlag != 1 and not foundOneCandidate)) and (tmpJob.prodSourceLabel in ['managed','test']):
+                        if ((tmpJob.relocationFlag != 1 and not foundOneCandidate)) and (tmpJob.prodSourceLabel in ['managed','test']):
                             # reset
                             if tmpJob.relocationFlag not in [1,2]:
                                 tmpJob.computingSite = None
@@ -1283,8 +1170,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                         tmpJob.brokerageErrorDiag = 'too many transferring at %s' % tmpJob.computingSite
                                     elif resultsForAnal['scratch'] != []:
                                         tmpJob.brokerageErrorDiag = 'small scratch disk at %s' % tmpJob.computingSite
-                                    elif useCacheVersion:
-                                        tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.homepackage,tmpJob.cmtConfig,tmpJob.computingSite)
                                     else:
                                         tmpJob.brokerageErrorDiag = '%s/%s not found at %s' % (tmpJob.AtlasRelease,tmpJob.cmtConfig,tmpJob.computingSite)
                                 except Exception:
@@ -1301,9 +1186,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
                                     tmpJob.brokerageErrorDiag = 'failed to set diag. see brokerage log in the panda server'
                             elif prevProType in ['reprocessing']:
                                 tmpJob.brokerageErrorDiag = '%s/%s not found at reprocessing sites' % (tmpJob.homepackage,tmpJob.cmtConfig)
-                            elif not useCacheVersion:
-                                tmpJob.brokerageErrorDiag = '%s/%s not found at online sites with enough memory and disk' % \
-                                                            (tmpJob.AtlasRelease,tmpJob.cmtConfig)
                             else:
                                 try:
                                     tmpJob.brokerageErrorDiag = makeCompactDiagMessage('',resultsForAnal)
@@ -1393,7 +1275,6 @@ def schedule(jobs,taskBuffer,siteMapper,forAnalysis=False,setScanSiteList=[],tru
             prevProType = job.processingType
             prevSourceLabel = job.prodSourceLabel
             prevDiskCount = job.maxDiskCount
-            prevHomePkg = job.homepackage
             prevDirectAcc = job.transferType
             prevCoreCount = job.coreCount
             prevMaxCpuCount = job.maxCpuCount

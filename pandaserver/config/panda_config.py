@@ -103,13 +103,18 @@ if 'token_issuers' not in tmpSelf.__dict__:
     tmpSelf.__dict__['token_issuers'] = ''
 tmpSelf.__dict__['production_dns'] = [x for x in tmpSelf.__dict__.get('production_dns', '').split(',') if x]
 tmpSelf.__dict__['auth_policies'] = {}
+tmpSelf.__dict__['auth_vo_dict'] = {}
 try:
     data_dict = {}
+    vo_data_dict = {}
     policy_dict = {}
     for name in glob.glob(os.path.join(tmpSelf.__dict__['auth_config'], '*_auth_config.json')):
         with open(name) as f:
             data = json.load(f)
             data_dict[data['client_id']] = data
+            if 'secondary_ids' in data:
+                for tmp_id in data['secondary_ids']:
+                    data_dict[tmp_id] = data
         m = re.search('^(.+)_auth_config.json', os.path.basename(name))
         if m:
             tmp_vo_group = m.group(1)
@@ -121,8 +126,10 @@ try:
                 tmp_vo, tmp_group = tmp_vo_group, 'user'
             policy_dict.setdefault(tmp_vo, [])
             policy_dict[tmp_vo].append([tmp_vo, {"group": tmp_group, "role": tmp_group}])
+            vo_data_dict[tmp_vo_group.replace(':', '.')] = data
     tmpSelf.__dict__['auth_config'] = data_dict
     tmpSelf.__dict__['auth_policies'] = policy_dict
+    tmpSelf.__dict__['auth_vo_dict'] = vo_data_dict
 except Exception:
     tmpSelf.__dict__['auth_config'] = {}
 

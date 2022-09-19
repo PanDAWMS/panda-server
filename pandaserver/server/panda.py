@@ -160,23 +160,21 @@ if panda_config.useFastCGI or panda_config.useWSGI:
             # content-length
             if 'CONTENT_LENGTH' in self.subprocess_env:
                 self.headers_in["content-length"] = self.subprocess_env['CONTENT_LENGTH']
-            # scitoken
+            # tokens
             try:
                 if panda_config.token_authType in ['scitokens', 'oidc'] and 'HTTP_AUTHORIZATION' in env:
                     serialized_token = env['HTTP_AUTHORIZATION'].split()[1]
-                    if panda_config.token_authType == 'scitokens':
-                        token = scitokens.SciToken.deserialize(serialized_token, audience=panda_config.token_audience)
-                    else:
-                        if 'HTTP_ORIGIN' in env:
-                            vo = env['HTTP_ORIGIN']
-                        else:
-                            vo = None
-                        token = token_decoder.deserialize_token(serialized_token, panda_config.auth_config,
-                                                                vo, tmpLog)
-                    # check with auth policies
                     role = None
                     if panda_config.token_authType == 'oidc':
                         self.authenticated = False
+                        if 'HTTP_ORIGIN' in env:
+                            vo = env['HTTP_ORIGIN']
+                            vo_group = vo.replace(':', '.')
+                        else:
+                            vo = None
+                            vo_group = ''
+                        token = token_decoder.deserialize_token(serialized_token, panda_config.auth_config,
+                                                                vo, tmpLog)
                         # extract role
                         if vo:
                             vo = token["vo"].split(':')[0]
@@ -189,6 +187,19 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                             self.message = 'Unknown vo : {}'.format(vo)
                             tmpLog.error('{} - {}'.format(self.message, env['HTTP_AUTHORIZATION']))
                         else:
+                            # robot
+                            if vo_group in  panda_config.auth_vo_dict and \
+                                    'robot_ids' in panda_config.auth_vo_dict[vo_group]:
+                                robot_ids = [i for i in
+                                             panda_config.auth_vo_dict[vo_group].get('robot_ids').split(',') if i]
+                                if token['sub'] in robot_ids:
+                                    if 'groups' not in token:
+                                        if role:
+                                            token['groups'] = ['{}/{}'.format(vo, role)]
+                                        else:
+                                            token['groups'] = ['{}'.format(vo)]
+                                    if 'name' not in token:
+                                        token['name'] = 'robot {}'.format(role)
                             # check role
                             if role:
                                 if '{}/{}'.format(vo, role) not in token["groups"]:
@@ -210,6 +221,8 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                             if not self.authenticated:
                                 self.message = 'Not a member of the {} group'.format(vo)
                                 tmpLog.error('{} - {}'.format(self.message, env['HTTP_AUTHORIZATION']))
+                    else:
+                        token = scitokens.SciToken.deserialize(serialized_token, audience=panda_config.token_audience)
                     # check issuer
                     if 'iss' not in token:
                         self.message = 'Issuer is undefined in the token'
@@ -243,7 +256,9 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                                 i += 1
             except Exception as e:
                 self.message = 'Corrupted token. {}'.format(str(e))
-                tmpLog.error('{} - {}'.format(self.message, env['HTTP_AUTHORIZATION']))
+                tmpLog.debug('Origin: {}, Token: {}\n{}'.format(env.get('HTTP_ORIGIN', None),
+                                                                env.get('HTTP_AUTHORIZATION', None),
+                                                                traceback.format_exc()))
 
         # get remote host
         def get_remote_host(self):
@@ -294,15 +309,16 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                     # dummy request object
                     dummyReq = DummyReq(environ, tmpLog)
                     if not dummyReq.authenticated:
+                        errMsg = "Token authentication failed. {}".format(dummyReq.message)
+                        tmpLog.error(errMsg)
                         start_response('403 Forbidden', [('Content-Type', 'text/plain')])
-                        return ["ERROR : Token authentication failed on the server side. {}".format(
-                            dummyReq.message).encode()]
+                        return ["ERROR : {}".format(errMsg).encode()]
                     username = dummyReq.subprocess_env.get('SSL_CLIENT_S_DN', None)
                     if username:
                         username = CoreUtils.clean_user_id(username)
                         if username in ban_user_list:
                             errMsg = '{} is banned'.format(username)
-                            tmpLog.warning(errMsg)
+                            tmpLog.error(errMsg)
                             start_response('403 Forbidden', [('Content-Type', 'text/plain')])
                             return ["ERROR : {}".format(errMsg).encode()]
                     # read contents
