@@ -30,7 +30,12 @@ metric_list = [
     ('gshare_preference', 'gshare', 20),
     ('analy_pmerge_jobs_wait_time', 'site', 30),
     ('analy_site_eval', 'site', 30),
+    ('users_jobs_stats', 'both', 5),
+    ('analy_user_eval', 'neither', 10),
 ]
+
+# constant maps
+class_value_rank_map = {1: 'A_sites', 0: 'B_sites', -1: 'C_sites'}
 
 
 def get_now_time_str():
@@ -187,6 +192,11 @@ class MetricsDB(object):
                         ':site': entity[0],
                         ':gshare': entity[1],
                     })
+            elif key_type == 'neither':
+                varMap.update({
+                        ':site': 'NULL',
+                        ':gshare': 'NULL',
+                    })
             # append to the list
             varMap_list.append(varMap)
         # update
@@ -239,13 +249,18 @@ class MetricsDB(object):
                 key = computingSite
             elif key_type == 'gshare':
                 key = gshare
+            elif key_type == 'neither':
+                key = None
             try:
                 value_dict = json.loads(value_json)
             except Exception:
-                tmp_log.error(traceback.format_exc() + ' ' + str(value_json))
+                tmp_log.error(traceback.format_exc() + ' ' + str((computingSite, gshare)) + str(value_json))
                 continue
             else:
-                ret_map[key] = value_dict
+                if key is None:
+                    ret_map = copy.deepcopy(value_dict)
+                else:
+                    ret_map[key] = value_dict
         # return
         return ret_map
 
@@ -443,14 +458,22 @@ class FetchData(object):
             class_A_set = set()
             class_B_set = set()
             class_C_set = set()
+            # get resource_type of sites (GRID, hpc, cloud, ...) from schedconfig
+            res = self.tbuf.querySQL((
+                    'SELECT /* use_json_type */ scj.panda_queue, scj.data.resource_type '
+                    'FROM ATLAS_PANDA.schedconfig_json scj '
+                ), {})
+            site_resource_type_map = { site: resource_type for site, resource_type in res }
             # MetricsDB
             mdb = MetricsDB(self.tbuf)
             # get analysis jobs wait time stats
             apjwt_dict = mdb.get_metrics('analy_pmerge_jobs_wait_time', 'site')
             # evaluate derived values from stats
-            # max of w_cl95upp and long_q_mean for ranking
+            # max of w_cl95upp and long_q_mean for ranking. Only consider GRID sites
             ranking_wait_time_list = []
-            for v in apjwt_dict.values():
+            for site, v in apjwt_dict.items():
+                if site_resource_type_map.get(site) != 'GRID':
+                    continue
                 try:
                     ranking_wait_time = np.maximum(v['w_cl95upp'], v['long_q_mean'])
                     ranking_wait_time_list.append(ranking_wait_time)
@@ -458,6 +481,8 @@ class FetchData(object):
                     continue
             first_one_third_wait_time = np.nanquantile(np.array(ranking_wait_time_list), 0.333)
             last_one_third_wait_time = np.nanquantile(np.array(ranking_wait_time_list), 0.667)
+            tmp_log.debug('GRID n_sites= {} wait time PR33={:.3f} PR67={:.3f}'.format(
+                            len(ranking_wait_time_list), first_one_third_wait_time, last_one_third_wait_time))
             # get to-running rate of sites
             tmp_st, site_6h_strr_map = get_site_strr_stats(self.tbuf, time_window=60*60*6)
             if not tmp_st:
@@ -479,6 +504,8 @@ class FetchData(object):
                     continue
                 # initialize
                 site_dict[site] = dict()
+                # resource type of the site
+                site_dict[site]['resource_type'] = site_resource_type_map.get(site)
                 # to-running rate
                 site_6h_strr = site_6h_strr_map.get(site, 0)
                 site_1d_strr = site_1d_strr_map.get(site, 0)
@@ -500,11 +527,12 @@ class FetchData(object):
                     site_dict[site]['class'] = 0
                     class_B_set.add(site)
                 # log
-                tmp_log.debug(('site={site}, class={class}, strr_6h={strr_6h:.3f}, strr_1d={strr_1d:.3f} '
+                tmp_log.debug(('site={site}, class={class}, type={resource_type}, strr_6h={strr_6h:.3f}, strr_1d={strr_1d:.3f} '
                                 ).format(site=site, **site_dict[site]))
                 # turn nan into None
                 for key in site_dict[site]:
-                    if np.isnan(site_dict[site][key]):
+                    _val = site_dict[site][key]
+                    if not isinstance(_val, str) and np.isnan(_val):
                         site_dict[site][key] = None
             # log
             tmp_log.debug(('class_A ({}) : {} ; class_B ({}) : {} ; class_C ({}) : {}'
@@ -515,6 +543,145 @@ class FetchData(object):
                             ))
             # return
             return site_dict
+        except Exception:
+            tmp_log.error(traceback.format_exc())
+
+    def users_jobs_stats(self):
+        prod_source_label='user'
+        tmp_log = logger_utils.make_logger(main_logger, 'FetchData')
+        tmp_log.debug('start')
+        try:
+            # initialize
+            site_gshare_dict = dict()
+            # get users jobs stats
+            jobsStatsPerUser = {}
+            varMap = {}
+            varMap[':prodSourceLabel'] = prod_source_label
+            varMap[':pmerge'] = 'pmerge'
+            varMap[':gangarbt'] = 'gangarbt'
+            sqlJ = ("SELECT COUNT(*),SUM(coreCount),prodUserName,jobStatus,gshare,computingSite "
+                    "FROM ATLAS_PANDA.jobsActive4 "
+                    "WHERE prodSourceLabel=:prodSourceLabel "
+                        "AND processingType<>:pmerge "
+                        "AND prodUserName<>:gangarbt "
+                    "GROUP BY prodUserName,jobStatus,gshare,computingSite "
+                    )
+            # exec
+            tmp_log.debug(sqlJ + str(varMap))
+            # result
+            res = self.tbuf.querySQL(sqlJ, varMap)
+            if res is None:
+                tmp_log.debug("got %s " % res)
+            else:
+                tmp_log.debug("total %s " % len(res))
+                # make map
+                for cnt,n_slots,prodUserName,jobStatus,gshare,computingSite in res:
+                    # append to PerUser map
+                    jobsStatsPerUser.setdefault(computingSite, {})
+                    jobsStatsPerUser[computingSite].setdefault(gshare, {})
+                    jobsStatsPerUser[computingSite][gshare].setdefault(prodUserName, {
+                                                                                    'nDefined': 0, 'nAssigned': 0,
+                                                                                    'nActivated': 0, 'nStarting':0,
+                                                                                    'nQueue': 0, 'nRunning': 0,
+                                                                                    'slotsDefined': 0, 'slotsAssigned': 0,
+                                                                                    'slotsActivated': 0, 'slotsStarting':0,
+                                                                                    'slotsQueue': 0, 'slotsRunning': 0,})
+                    jobsStatsPerUser[computingSite][gshare].setdefault('_total', {  'nDefined': 0, 'nAssigned': 0,
+                                                                                    'nActivated': 0, 'nStarting':0,
+                                                                                    'nQueue': 0, 'nRunning': 0,
+                                                                                    'slotsDefined': 0, 'slotsAssigned': 0,
+                                                                                    'slotsActivated': 0, 'slotsStarting':0,
+                                                                                    'slotsQueue': 0, 'slotsRunning': 0,})
+                    # count # of running/done and activated
+                    if jobStatus in ['defined', 'assigned', 'activated', 'starting']:
+                        status_name = 'n{0}'.format(jobStatus.capitalize())
+                        slots_status_name = 'slots{0}'.format(jobStatus.capitalize())
+                        jobsStatsPerUser[computingSite][gshare][prodUserName][status_name] += cnt
+                        jobsStatsPerUser[computingSite][gshare][prodUserName]['nQueue'] += cnt
+                        jobsStatsPerUser[computingSite][gshare]['_total'][status_name] += cnt
+                        jobsStatsPerUser[computingSite][gshare]['_total']['nQueue'] += cnt
+                        jobsStatsPerUser[computingSite][gshare][prodUserName][slots_status_name] += n_slots
+                        jobsStatsPerUser[computingSite][gshare][prodUserName]['slotsQueue'] += n_slots
+                        jobsStatsPerUser[computingSite][gshare]['_total'][slots_status_name] += n_slots
+                        jobsStatsPerUser[computingSite][gshare]['_total']['slotsQueue'] += n_slots
+                    elif jobStatus in ['running']:
+                        jobsStatsPerUser[computingSite][gshare][prodUserName]['nRunning'] += cnt
+                        jobsStatsPerUser[computingSite][gshare]['_total']['nRunning'] += cnt
+                        jobsStatsPerUser[computingSite][gshare][prodUserName]['slotsRunning'] += n_slots
+                        jobsStatsPerUser[computingSite][gshare]['_total']['slotsRunning'] += n_slots
+            # fill
+            for computingSite in jobsStatsPerUser:
+                g_dict = jobsStatsPerUser[computingSite]
+                for gshare in g_dict:
+                    data_dict = g_dict[gshare]
+                    site_gshare_dict[(computingSite, gshare)] = data_dict
+                    tmp_log.debug('site={}, gshare={}, stats={}'.format(computingSite, gshare, data_dict))
+            # done
+            tmp_log.debug('done')
+            return site_gshare_dict
+        except Exception:
+            tmp_log.error(traceback.format_exc())
+
+    def analy_user_eval(self):
+        tmp_log = logger_utils.make_logger(main_logger, 'FetchData')
+        try:
+            # initialize
+            user_dict = dict()
+            # MetricsDB
+            mdb = MetricsDB(self.tbuf)
+            # get analysis site classification evalutation
+            ase_dict = mdb.get_metrics('analy_site_eval', 'site', fresher_than_minutes_ago=120)
+            # get users jobs stats
+            ujs_dict = mdb.get_metrics('users_jobs_stats', fresher_than_minutes_ago=15)
+            # for each site x gshare
+            for (site, gshare), usage_dict in ujs_dict.items():
+                # get site evaluation data
+                try:
+                    site_eval_dict = ase_dict[site]
+                except KeyError:
+                    tmp_log.warning(('analy_site_eval missed site={site} gshare={gshare}, skipped ').format(
+                                        site=site, gshare=gshare))
+                    continue
+                # get site class value
+                try:
+                    site_class_value = site_eval_dict['class']
+                except KeyError:
+                    tmp_log.warning(('analy_site_eval class missed for site={site} gshare={gshare}, skipped ').format(
+                                        site=site, gshare=gshare))
+                    continue
+                else:
+                    site_class_rank = class_value_rank_map[site_class_value]
+                # site resource_type
+                site_resource_type = site_eval_dict.get('resource_type')
+                # skip non-GRID sites
+                if site_resource_type != 'GRID':
+                    continue
+                # evaluate usage of GRID sites for each user
+                for user, v in usage_dict.items():
+                    # initialize
+                    user_dict.setdefault(user, {})
+                    for _rank in class_value_rank_map.values():
+                        user_dict[user].setdefault(_rank, {'nQueue': 0, 'nRunning': 0, 'slotsQueue': 0, 'slotsRunning': 0})
+                    # fill nQ & nR at each site class of each user
+                    user_dict[user][site_class_rank]['nQueue'] += v['nQueue']
+                    user_dict[user][site_class_rank]['nRunning'] += v['nRunning']
+                    user_dict[user][site_class_rank]['slotsQueue'] += v['slotsQueue']
+                    user_dict[user][site_class_rank]['slotsRunning'] += v['slotsRunning']
+            # evaluate derived values for each user
+            threshold_A = 1000
+            threshold_B = 10000
+            for user, d in copy.deepcopy(user_dict).items():
+                run_slots_A = d['A_sites']['slotsRunning']
+                run_slots_AB = d['A_sites']['slotsRunning'] + d['B_sites']['slotsRunning']
+                # remaining allowed slots
+                rem_slots_A = max(threshold_A - run_slots_A, 0)
+                rem_slots_B = max(threshold_B - run_slots_AB, 0)
+                user_dict[user]['rem_slots_A'] = rem_slots_A
+                user_dict[user]['rem_slots_B'] = rem_slots_B
+            # log
+            tmp_log.debug('{}'.format(user_dict))
+            # return
+            return user_dict
         except Exception:
             tmp_log.error(traceback.format_exc())
 
