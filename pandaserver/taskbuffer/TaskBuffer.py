@@ -4081,5 +4081,76 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         return ret
 
+    def configurator_write_sites(self, sites_list):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.configurator_write_sites(sites_list)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    def configurator_write_panda_sites(self, panda_site_list):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.configurator_write_panda_sites(panda_site_list)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    def configurator_write_ddm_endpoints(self, ddm_endpoint_list):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.configurator_write_ddm_endpoints(ddm_endpoint_list)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    def configurator_write_panda_ddm_relations(self, relation_list):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.configurator_write_panda_ddm_relations(relation_list)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    def configurator_read_sites(self):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.configurator_read_sites()
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    def configurator_read_panda_sites(self):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.configurator_read_panda_sites()
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    def configurator_read_ddm_endpoints(self):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.configurator_read_ddm_endpoints()
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    def configurator_read_cric_sites(self):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.configurator_read_cric_sites()
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    def configurator_read_cric_panda_sites(self):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.configurator_read_cric_panda_sites()
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    def configurator_delete_sites(self, sites_to_delete):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.configurator_delete_sites(sites_to_delete)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    def configurator_delete_panda_sites(self, panda_sites_to_delete):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.configurator_delete_panda_sites(panda_sites_to_delete)
+        self.proxyPool.putProxy(proxy)
+        return ret
+    def configurator_delete_ddm_endpoints(self, ddm_endpoints_to_delete):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.configurator_delete_ddm_endpoints(ddm_endpoints_to_delete)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
 # Singleton
 taskBuffer = TaskBuffer()
