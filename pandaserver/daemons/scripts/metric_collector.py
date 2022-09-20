@@ -142,9 +142,15 @@ class MetricsDB(object):
         tmp_log = logger_utils.make_logger(main_logger, 'MetricsDB.update')
         # tmp_log.debug('start key={0} site={1}, gshare={2}'.format(key, site, gshare))
         # sql
+        # sql_update = (
+        #     """UPDATE ATLAS_PANDA.Metrics SET """
+        #         """value_json = json_mergepatch(value_json, :patch_value_json), """
+        #         """timestamp = :timestamp """
+        #     """WHERE computingSite=:site AND gshare=:gshare AND metric=:metric """
+        # )
         sql_update = (
             """UPDATE ATLAS_PANDA.Metrics SET """
-                """value_json = json_mergepatch(value_json, :patch_value_json), """
+                """value_json = :patch_value_json , """
                 """timestamp = :timestamp """
             """WHERE computingSite=:site AND gshare=:gshare AND metric=:metric """
         )
@@ -166,39 +172,51 @@ class MetricsDB(object):
         }
         # make var map list
         varMap_list = []
-        for entity, v in entity_dict.items():
+        if key_type == 'neither':
             # values to json string
             try:
-                patch_value_json = json.dumps(v)
+                patch_value_json = json.dumps(entity_dict)
             except Exception:
                 tmp_log.error(traceback.format_exc() + ' ' + str(v))
                 return
             # initialize varMap
             varMap = varMap_template.copy()
-            varMap[':patch_value_json'] = patch_value_json
-            # update varMap according to key_type
-            if key_type == 'site':
-                varMap.update({
-                        ':site': entity,
-                        ':gshare': 'NULL',
-                    })
-            elif key_type == 'gshare':
-                varMap.update({
-                        ':site': 'NULL',
-                        ':gshare': entity,
-                    })
-            elif key_type == 'both':
-                varMap.update({
-                        ':site': entity[0],
-                        ':gshare': entity[1],
-                    })
-            elif key_type == 'neither':
-                varMap.update({
-                        ':site': 'NULL',
-                        ':gshare': 'NULL',
-                    })
+            varMap.update({
+                    ':site': 'NULL',
+                    ':gshare': 'NULL',
+                    ':patch_value_json': patch_value_json,
+                })
             # append to the list
             varMap_list.append(varMap)
+        else:
+            for entity, v in entity_dict.items():
+                # values to json string
+                try:
+                    patch_value_json = json.dumps(v)
+                except Exception:
+                    tmp_log.error(traceback.format_exc() + ' ' + str(v))
+                    return
+                # initialize varMap
+                varMap = varMap_template.copy()
+                varMap[':patch_value_json'] = patch_value_json
+                # update varMap according to key_type
+                if key_type == 'site':
+                    varMap.update({
+                            ':site': entity,
+                            ':gshare': 'NULL',
+                        })
+                elif key_type == 'gshare':
+                    varMap.update({
+                            ':site': 'NULL',
+                            ':gshare': entity,
+                        })
+                elif key_type == 'both':
+                    varMap.update({
+                            ':site': entity[0],
+                            ':gshare': entity[1],
+                        })
+                # append to the list
+                varMap_list.append(varMap)
         # update
         n_row = self.tbuf.executemanySQL(sql_update, varMap_list)
         # try insert if not all rows updated
@@ -217,7 +235,7 @@ class MetricsDB(object):
         # tmp_log.debug('done key={0} site={1}, gshare={2}'.format(key, site, gshare))
 
     def get_metrics(self, metric, key_type=None, fresher_than_minutes_ago=120):
-        tmp_log = logger_utils.make_logger(main_logger, 'MetricsDB.update')
+        tmp_log = logger_utils.make_logger(main_logger, 'MetricsDB.get_metrics')
         # tmp_log.debug('start key={0} site={1}, gshare={2}'.format(key, site, gshare))
         # sql
         sql_query = (
@@ -251,6 +269,9 @@ class MetricsDB(object):
                 key = gshare
             elif key_type == 'neither':
                 key = None
+            if value_json is None:
+                tmp_log.warning('missing data for ' + str((computingSite, gshare)))
+                continue
             try:
                 value_dict = json.loads(value_json)
             except Exception:
