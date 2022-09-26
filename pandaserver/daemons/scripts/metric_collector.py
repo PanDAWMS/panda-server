@@ -496,8 +496,13 @@ class FetchData(object):
                 if site_resource_type_map.get(site) != 'GRID':
                     continue
                 try:
-                    ranking_wait_time = np.maximum(v['w_cl95upp'], v['long_q_mean'])
-                    ranking_wait_time_list.append(ranking_wait_time)
+                    if v['w_cl95upp'] is not None and v['long_q_mean'] is not None:
+                        ranking_wait_time = np.maximum(v['w_cl95upp'], v['long_q_mean'])
+                        ranking_wait_time_list.append(ranking_wait_time)
+                    else:
+                        tmp_log.warning(('site={site} none value, skipped : w_cl95upp={w_cl95upp} long_q_mean={long_q_mean} ').format(
+                                            w_cl95upp=v['w_cl95upp'], long_q_mean=v['long_q_mean']))
+                        continue
                 except KeyError:
                     continue
             first_one_third_wait_time = np.nanquantile(np.array(ranking_wait_time_list), 0.333)
@@ -518,8 +523,13 @@ class FetchData(object):
                 v = apjwt_dict[site]
                 # evaluate derived values
                 try:
-                    v['ranking_wait_time'] = np.maximum(v['w_cl95upp'], v['long_q_mean'])
-                    # v['is_slowing_down'] = (v['long_q_mean'] > v['w_cl95upp'] and v['long_q_n'] >= 3)
+                    if v['w_cl95upp'] is not None and v['long_q_mean'] is not None:
+                        v['ranking_wait_time'] = np.maximum(v['w_cl95upp'], v['long_q_mean'])
+                        # v['is_slowing_down'] = (v['long_q_mean'] > v['w_cl95upp'] and v['long_q_n'] >= 3)
+                    else:
+                        tmp_log.warning(('site={site} none value, skipped : w_cl95upp={w_cl95upp} long_q_mean={long_q_mean} ').format(
+                                            site=site, w_cl95upp=v['w_cl95upp'], long_q_mean=v['long_q_mean']))
+                        continue
                 except KeyError as e:
                     tmp_log.warning(('site={site} misses value, skipped : {err} ').format(site=site, err=e))
                     continue
