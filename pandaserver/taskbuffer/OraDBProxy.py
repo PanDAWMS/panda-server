@@ -17531,8 +17531,12 @@ class DBProxy:
                 if datasetID is None:
                     continue
                 # only input file
-                if fileSpec.datasetID != datasetID:
-                    continue
+                if jobSpec.processingType != 'pmerge':
+                    if fileSpec.datasetID != datasetID:
+                        continue
+                else:
+                    if fileSpec.type != 'input':
+                        continue
                 # skip if not normal JEDI files
                 if fileSpec.fileID == 'NULL':
                     continue
@@ -17575,7 +17579,7 @@ class DBProxy:
             if useCommit:
                 if not self._commit():
                     raise RuntimeError('Commit error')
-            tmpLog.debug("done with {0}".format(allOK))
+            tmpLog.debug("done with {} for processingType={}".format(allOK, jobSpec.processingType))
             return allOK
         except Exception:
             if useCommit:
