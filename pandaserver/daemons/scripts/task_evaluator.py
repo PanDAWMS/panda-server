@@ -28,7 +28,7 @@ DRY_RUN = False
 
 # list of metrics in FetchData to fetch data and update to DB. Format: (metric, period_minutes)
 metric_list = [
-    ('analy_task_eval', 0),
+    ('analy_task_eval', 10),
 ]
 
 # constant maps
