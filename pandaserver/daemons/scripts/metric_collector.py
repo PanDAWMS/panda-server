@@ -27,7 +27,7 @@ DRY_RUN = False
 
 # list of metrics in FetchData to fetch data and update to DB. Format: (metric, key_type, period_minutes)
 metric_list = [
-    ('gshare_preference', 'gshare', 20),
+    ('gshare_preference', 'gshare', 5),
     ('analy_pmerge_jobs_wait_time', 'site', 30),
     ('analy_site_eval', 'site', 30),
     ('users_jobs_stats', 'both', 5),
@@ -330,7 +330,7 @@ class FetchData(object):
             "WHERE prodSourceLabel='user' "
                 "AND gshare='User Analysis' "
                 "AND jobStatus IN ('activated', 'sent', 'starting') "
-                "AND (processingType='pmerge' OR prodUserName='gangarbt') "
+                "AND (processingType='pmerge') "
                 "AND computingSite=:computingSite "
                 "AND (CURRENT_DATE-creationtime)>:w_mean "
         )
@@ -461,11 +461,13 @@ class FetchData(object):
                 rank = idx + 1
                 gshare = leaf['name']
                 gshare_dict[gshare] = {
+                    'gshare': gshare,
                     'rank': rank,
                     'running_hs': leaf['running'],
                     'target_hs': leaf['target'],
+                    'usage_perc': leaf['running']/leaf['target'] if leaf['target'] > 0 else 999999,
                 }
-                tmp_log.debug('rank={rank}, gshare={gshare}'.format(gshare=gshare, **gshare_dict[gshare]))
+                tmp_log.debug('rank={rank}, gshare={gshare}, usage={usage_perc:.3%}'.format(**gshare_dict[gshare]))
             # return
             return gshare_dict
         except Exception:
@@ -597,8 +599,6 @@ class FetchData(object):
                         "AND prodUserName<>:gangarbt "
                     "GROUP BY prodUserName,jobStatus,gshare,computingSite "
                     )
-            # exec
-            tmp_log.debug(sqlJ + str(varMap))
             # result
             res = self.tbuf.querySQL(sqlJ, varMap)
             if res is None:
@@ -690,7 +690,7 @@ class FetchData(object):
                 # evaluate usage of GRID sites for each user
                 for user, v in usage_dict.items():
                     # initialize
-                    user_dict.setdefault(user, {})
+                    user_dict.setdefault(user, {'user': user})
                     for _rank in class_value_rank_map.values():
                         user_dict[user].setdefault(_rank, {'nQueue': 0, 'nRunning': 0, 'slotsQueue': 0, 'slotsRunning': 0})
                     # fill nQ & nR at each site class of each user
