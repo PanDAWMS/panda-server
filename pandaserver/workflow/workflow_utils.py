@@ -93,7 +93,7 @@ class Node (object):
             src_loop_param_name = self.get_loop_param_name(src_key)
             loop_params = self.get_loop_param_name(key.split('/')[-1]) is not None and src_loop_param_name is not None
             if loop_params:
-                src_value = ['{}[{}]'.format(src_loop_param_name, i) for i in range(len(src_value))]
+                src_value = [{'src': src_loop_param_name, 'idx': i} for i in range(len(src_value))]
         # resolve values
         if isinstance(self.inputs[key]['source'], list):
             self.inputs[key].setdefault('value', copy.copy(self.inputs[key]['source']))
@@ -737,11 +737,24 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None):
     if workflow_node:
         tmp_global, tmp_workflow_global = workflow_node.get_global_parameters()
         if tmp_global:
-            workflow.set_global_parameters({'user_' + k: tmp_global[k] for k in tmp_global})
-            cond_dump_str += '\n  Looping Globals\n'
+            loop_locals = {}
+            loop_slices = []
+            for k, v in six.iteritems(tmp_global):
+                if not isinstance(v, dict):
+                    # normal looping locals
+                    loop_locals['user_' + k] = tmp_global[k]
+                else:
+                    # sliced locals
+                    v['src'] = 'user_' + v['src']
+                    loop_slices.append([k, v])
+            if loop_locals:
+                workflow.set_global_parameters(loop_locals)
+            for k, v in loop_slices:
+                workflow.set_sliced_global_parameters(source=v['src'], index=v['idx'], name=k)
+            cond_dump_str += '\n  Looping local variables\n'
             cond_dump_str += '    {}\n'.format(tmp_global)
         if tmp_workflow_global:
-            cond_dump_str += '\n  Workflow Globals\n'
+            cond_dump_str += '\n  Workflow local variable\n'
             cond_dump_str += '    {}\n'.format(tmp_workflow_global)
     # dump strings
     dump_str_list.insert(0, class_dump_str+'\n'+cond_dump_str+'\n\n')
