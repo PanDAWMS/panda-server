@@ -699,8 +699,12 @@ class FetchData(object):
                     user_dict[user][site_class_rank]['slotsQueue'] += v['slotsQueue']
                     user_dict[user][site_class_rank]['slotsRunning'] += v['slotsRunning']
             # evaluate derived values for each user
-            threshold_A = 1000
-            threshold_B = 10000
+            threshold_A = self.tbuf.getConfigValue('analy_eval', 'USER_USAGE_THRESHOLD_A')
+            if threshold_A is None:
+                threshold_A = 1000
+            threshold_B = self.tbuf.getConfigValue('analy_eval', 'USER_USAGE_THRESHOLD_B')
+            if threshold_B is None:
+                threshold_B = 10000
             for user, d in copy.deepcopy(user_dict).items():
                 run_slots_A = d['A_sites']['slotsRunning']
                 run_slots_AB = d['A_sites']['slotsRunning'] + d['B_sites']['slotsRunning']
