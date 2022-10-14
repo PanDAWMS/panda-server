@@ -260,21 +260,29 @@ class FetchData(object):
                         pct_finished = n_files_finished*100/n_files_total
                         pct_failed = n_files_failed*100/n_files_total
                 # classify
-                if pct_finished >= 80:
-                    # nearly done task
-                    if pct_finished >= 90:
-                        # almost done task, to boost
-                        task_class = 2
-                else:
-                    # check usage of the user
-                    usage_dict = ue_dict.get(user)
-                    if usage_dict is None:
-                        continue
-                    if usage_dict['rem_slots_A'] <= 0:
-                        if usage_dict['rem_slots_B'] <= 0:
-                            task_class = -1
-                        else:
-                            task_class = 0
+                # parameters
+                progress_to_boost_A = self.tbuf.getConfigValue('analy_eval', 'PROGRESS_TO_BOOST_A')
+                if progress_to_boost_A is None:
+                    progress_to_boost_A = 90
+                progress_to_boost_B = self.tbuf.getConfigValue('analy_eval', 'PROGRESS_TO_BOOST_B')
+                if progress_to_boost_B is None:
+                    progress_to_boost_B = 95
+                # check usage of the user
+                usage_dict = ue_dict.get(user)
+                if usage_dict is None:
+                    continue
+                if usage_dict['rem_slots_A'] <= 0:
+                    if usage_dict['rem_slots_B'] <= 0:
+                        task_class = -1
+                    else:
+                        task_class = 0
+                # boost for nearly done tasks
+                if task_class == 1 and pct_finished >= progress_to_boost_A:
+                    # almost done A-tasks, to boost
+                    task_class = 2
+                elif task_class == 0 and pct_finished >= progress_to_boost_B:
+                    # almost done B-tasks, to boost
+                    task_class = 2
                 # fill in task class
                 task_dict[taskID] = {
                         'task_id': taskID,
