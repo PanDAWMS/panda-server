@@ -231,27 +231,26 @@ class SiteMapper:
             _logger.error(traceback.format_exc())
         _logger.debug('__init__ SiteMapper done')
 
-
     # collect nuclei and satellites
     def collectNS(self, ret):
-        # collect nuclei
-        if ret.role == 'nucleus' and ret.runs_production():
-            if ret.pandasite not in self.nuclei:
-                nucleus = NucleusSpec(ret.pandasite)
-                nucleus.state = ret.pandasite_state
+        if ret.runs_production():
+            if ret.role == 'nucleus':
+                target = self.nuclei
+            elif ret.role == 'satellite':
+                target = self.satellites
+            else:
+                return
+            if ret.pandasite not in target:
+                atom = NucleusSpec(ret.pandasite)
+                atom.state = ret.pandasite_state
                 mode = ret.bare_nucleus_mode()
                 if mode:
-                    nucleus.set_bare_nucleus_mode(mode)
-                self.nuclei[ret.pandasite] = nucleus
-            self.nuclei[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output, ret.ddm_endpoints_input)
-        # collect satellites
-        if ret.role == 'satellite' and ret.runs_production():
-            if ret.pandasite not in self.satellites:
-                satellite = NucleusSpec(ret.pandasite)
-                satellite.state = ret.pandasite_state
-                self.satellites[ret.pandasite] = satellite
-            self.satellites[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output, ret.ddm_endpoints_input)
-
+                    atom.set_bare_nucleus_mode(mode)
+                secondary = ret.secondary_nucleus()
+                if secondary:
+                    atom.set_secondary_nucleus(secondary)
+                target[ret.pandasite] = atom
+            target[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output, ret.ddm_endpoints_input)
 
     # accessor for site
     def getSite(self,site):

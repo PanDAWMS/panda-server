@@ -750,7 +750,7 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None):
             if loop_locals:
                 workflow.set_global_parameters(loop_locals)
             for k, v in loop_slices:
-                workflow.set_sliced_global_parameters(source=v['src'], index=v['idx'], name=k)
+                workflow.set_sliced_global_parameters(source=v['src'], index=v['idx'], name='user_'+k)
             cond_dump_str += '\n  Looping local variables\n'
             cond_dump_str += '    {}\n'.format(tmp_global)
         if tmp_workflow_global:

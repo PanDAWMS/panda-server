@@ -209,3 +209,10 @@ class SiteSpec(object):
         if mode in ['only', 'allow']:
             return mode
         return None
+
+    # get secondary nucleus
+    def secondary_nucleus(self):
+        n = self.getValueFromCatchall('secondaryNucleus')
+        if n:
+            return n
+        return None

@@ -16,6 +16,7 @@ class NucleusSpec(object):
         self.all_ddm_endpoints_in = {}
         self.state = None
         self.bareNucleus = None
+        self.secondaryNucleus = None
 
     # add
     def add(self, siteName, ddmSpecDict, ddmSpecDictForInput=None):
@@ -89,3 +90,11 @@ class NucleusSpec(object):
     # get bare nucleus mode
     def get_bare_nucleus_mode(self):
         return self.bareNucleus
+
+    # set secondary nucleus
+    def set_secondary_nucleus(self, nucleus):
+        self.secondaryNucleus = nucleus
+
+    # get secondary nucleus
+    def get_secondary_nucleus(self):
+        return self.secondaryNucleus
