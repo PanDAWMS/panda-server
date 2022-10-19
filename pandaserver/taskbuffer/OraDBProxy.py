@@ -437,7 +437,7 @@ class DBProxy:
                 job.jobStatus = 'waiting'
             else:
                 job.jobStatus = 'pending'
-        
+
         # host and time information
         job.modificationHost = self.hostname
         job.creationTime = datetime.datetime.utcnow()
@@ -447,16 +447,16 @@ class DBProxy:
         # DN
         if job.prodUserID == "NULL" or job.prodSourceLabel in ['user', 'panda']:
             job.prodUserID = user
-        
+
         # compact user name
         job.prodUserName = self.cleanUserID(job.prodUserID)
         if job.prodUserName in ['', 'NULL']:
             # use prodUserID as compact user name
             job.prodUserName = job.prodUserID
-        
+
         # VO
         job.VO = userVO
-        
+
         # priority
         if job.assignedPriority != 'NULL':
             job.currentPriority = job.assignedPriority
@@ -526,10 +526,10 @@ class DBProxy:
                 useJEDI = True
             else:
                 useJEDI = False
-            
+
             # begin transaction
             self.conn.begin()
-            
+
             # get jobsetID for event service
             if origEsJob:
                 if self.backend == 'oracle':
@@ -598,16 +598,16 @@ class DBProxy:
                     if unprocessedMap is not None:
                         return (False, unprocessedMap)
                     return False
-            
+
             # insert job
             varMap = job.valuesMap(useSeq=True)
             varMap[':newPandaID'] = self.cur.var(varNUMBER)
             retI = self.cur.execute(sql1+comment, varMap)
-            
+
             # set PandaID
             val = self.getvalue_corrector(self.cur.getvalue(varMap[':newPandaID']))
             job.PandaID = long(val)
-            
+
             # get jobsetID
             if job.jobsetID in [None, 'NULL', -1]:
                 jobsetID = 0
@@ -618,7 +618,7 @@ class DBProxy:
                 strJediTaskID = str(job.jediTaskID)
             except Exception:
                 strJediTaskID = ''
-            
+
             # get originPandaID
             originPandaID = None
             if oldPandaIDs is not None and len(oldPandaIDs) > 0:
@@ -9330,7 +9330,7 @@ class DBProxy:
             sqlA += ") AND modificationTime>:modificationTime "
             sqlA += "AND computingSite=tabS.panda_queue "
             sqlA += "GROUP BY jobStatus,tabS.data.cloud,processingType"
-        
+
         else:
             sqlN  = "SELECT jobStatus,COUNT(*), cloud, processingType, coreCount, workingGroup FROM %s "
             sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
@@ -9341,7 +9341,7 @@ class DBProxy:
             sqlN = sqlN[:-1]
             sqlN += ") "
             sqlN += "GROUP BY jobStatus, cloud, processingType, coreCount, workingGroup"
-            
+
             sqlA  = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ "
             sqlA += "jobStatus, COUNT(*), cloud, processingType, coreCount, workingGroup FROM %s tab "
             sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
@@ -9352,7 +9352,7 @@ class DBProxy:
             sqlA = sqlA[:-1]
             sqlA += ") AND modificationTime>:modificationTime "
             sqlA += "GROUP BY jobStatus, cloud, processingType, coreCount, workingGroup"
-        
+
         # sql for materialized view
         sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sqlN)
         sqlMV = re.sub('SELECT ','SELECT /*+ RESULT_CACHE */ ',sqlMV)
@@ -15492,7 +15492,7 @@ class DBProxy:
             closedInBadStatus = False
             if not doMerging:
                 minUnprocessed = self.getConfigValue('dbproxy', 'AES_MINEVENTSFORMCORE')
-                
+
                 sqlCore = "SELECT /* use_json_type */ scj.data.corecount, scj.data.status, scj.data.jobseed " \
                           "FROM ATLAS_PANDA.schedconfig_json scj " \
                           "WHERE scj.panda_queue=:siteid "
@@ -15729,7 +15729,7 @@ class DBProxy:
         sqlWM  = "SELECT /* use_json_type */ scj.data.catchall, scj.data.objectstores " \
                  "FROM ATLAS_PANDA.schedconfig_json scj " \
                  "WHERE scj.panda_queue=:siteid "
-        
+
         varMap = {}
         varMap[':siteid'] = jobSpec.computingSite
         self.cur.execute(sqlWM+comment, varMap)
@@ -15817,16 +15817,16 @@ class DBProxy:
             sqlSN += "AND (sc.data.maxrss IS NULL OR sc.data.minrss=0) "
             sqlSN += "AND (sc.data.jobseed IS NULL OR sc.data.jobseed<>'es') "
             sqlSN += "AND sc.data.type != 'analysis' "
-            
+
             if 'localEsMerge' in catchAll and 'useBrokerOff' in catchAll:
                 sqlSN += "AND sc.data.status IN (:siteStatus1,:siteStatus2) "
             else:
                 sqlSN += "AND sc.data.status=:siteStatus "
-            
+
             sqlSN += "AND dr.default_write ='Y' "
             sqlSN += "AND (scope = 'default' OR scope IS NULL) "  # skip endpoints with analysis roles
             sqlSN += "AND (sc.data.wnconnectivity IS NULL OR sc.data.wnconnectivity LIKE :wc1) "
-            
+
             varMap = {}
             varMap[':site'] = jobSpec.computingSite
             if 'localEsMerge' in catchAll and 'useBrokerOff' in catchAll:
@@ -15878,7 +15878,7 @@ class DBProxy:
                 sqlSN += "AND dr.default_write='Y' "
                 sqlSN += "AND (dr.scope = 'default' OR dr.scope IS NULL) "  # skip endpoints with analysis roles
                 sqlSN += "AND (sc.data.wnconnectivity IS NULL OR sc.data.wnconnectivity LIKE :wc1) "
-                
+
                 varMap = {}
                 varMap[':nucleus'] = tmpNucleus
                 varMap[':siteStatus'] = 'online'
@@ -15887,7 +15887,7 @@ class DBProxy:
                 # get sites
                 self.cur.execute(sqlSN+comment,varMap)
                 resSN = self.cur.fetchall()
-        
+
         # last resort for jumbo
         resSN_all = []
         if lookForMergeSite and (isFakeCJ or 'useJumboJobs' in catchAll or len(resSN + resSN_back) == 0):
@@ -15904,26 +15904,26 @@ class DBProxy:
             sqlSN += "AND dr.default_write='Y' "
             sqlSN += "AND (dr.scope = 'default' OR dr.scope IS NULL) " # skip endpoints with analysis roles
             sqlSN += "AND (sc.data.wnconnectivity IS NULL OR sc.data.wnconnectivity LIKE :wc1) "
-            
+
             varMap = {}
             varMap[':siteStatus'] = 'online'
             varMap[':wc1'] = 'full%'
             varMap[':capability'] = 'ucore'
-            
+
             # get sites
             self.cur.execute(sqlSN+comment,varMap)
             resSN_all = self.cur.fetchall()
-        
+
         # look for a site for merging
         if lookForMergeSite:
             # compare number of pilot requests
             maxNumPilot = 0
             sqlUG  = "SELECT updateJob+getJob FROM ATLAS_PANDAMETA.sitedata "
             sqlUG += "WHERE site=:panda_site AND HOURS=:hours AND FLAG=:flag "
-            
+
             sqlRJ  = "SELECT SUM(num_of_jobs) FROM ATLAS_PANDA.MV_JOBSACTIVE4_STATS "
             sqlRJ += "WHERE computingSite=:panda_site AND jobStatus=:jobStatus "
-            
+
             newSiteName = None
             for resItem in [resSN, resSN_back, resSN_all]:
                 for tmp_panda_site_name,tmp_ddm_endpoint in resItem:
@@ -20023,7 +20023,7 @@ class DBProxy:
         methodName = comment.split(' ')[-2].split('.')[-1]
         tmpLog = LogWrapper(_logger, methodName + " <siteid={}>".format(site_id))
         tmpLog.debug("start")
-        
+
         sqlS = "SELECT /* use_json_type */ scj.data.corepower FROM ATLAS_PANDA.schedconfig_json scj "
         sqlS += "WHERE panda_queue=:siteid "
 
@@ -20038,7 +20038,7 @@ class DBProxy:
                 core_power = float(core_power)
             tmpLog.debug('got {}'.format(core_power))
             return core_power, None
-        
+
         except Exception:
             # error
             self.dumpErrorMessage(_logger, methodName)
@@ -20706,13 +20706,35 @@ class DBProxy:
             # update in shards of 100 task ids
             for shard in create_shards(jedi_task_ids, 100):
 
-                # Prepare the bindings and var map
-                var_map = {':gshare': gshare}
+                # Prepare the bindings
+                var_map = {}
                 i = 0
                 for jedi_task_id in shard:
                     var_map[':jtid{0}'.format(i)] = jedi_task_id
                     i += 1
                 jtid_bindings = ','.join(':jtid{0}'.format(i) for i in range(len(shard)))
+
+                # select only tasks without lock
+                sql_tasks_not_locked = """
+                       SELECT jediTaskID FROM ATLAS_PANDA.JEDI_Tasks
+                       WHERE jediTaskID IN ({0}) AND lockedBy IS NULL
+                       """.format(jtid_bindings)
+
+                self.cur.execute(sql_tasks_not_locked + comment, var_map)
+                res = self.cur.fetchall()
+
+                # Update the bindings and prepare var map
+                var_map = {':gshare': gshare}
+                good_taskid_set = set()
+                i = 0
+                for jedi_task_id, in res:
+                    var_map[':jtid{0}'.format(i)] = jedi_task_id
+                    i += 1
+                    good_taskid_set.add(str(jedi_task_id))
+                jtid_bindings = ','.join(':jtid{0}'.format(i) for i in range(len(good_taskid_set)))
+                locked_taskid_set = set(shard) - good_taskid_set
+                if locked_taskid_set:
+                    tmp_log.debug("skip locked tasks: {0}".format(','.join(list(locked_taskid_set))))
 
                 # update the task
                 sql_task = """
@@ -20721,7 +20743,7 @@ class DBProxy:
                        """.format(jtid_bindings)
 
                 self.cur.execute(sql_task + comment, var_map)
-                tmp_log.debug("task sql executed")
+                tmp_log.debug("task sql executed: {0}".format(sql_task))
 
                 var_map[':pending'] = 'pending'
                 var_map[':defined'] = 'defined'
@@ -24516,7 +24538,7 @@ class DBProxy:
             results = self.cur.fetchall()
             site_name_list = list(map(lambda result: result[0], results))
             tmp_log.debug("finished getting existing sites")
-            
+
             # see which sites need an update and which need to be inserted new
             var_map_insert = []
             var_map_update = []
@@ -24530,13 +24552,13 @@ class DBProxy:
             sql_update = "UPDATE ATLAS_PANDA.site set role=:role, tier_level=:tier_level WHERE site_name=:site_name"
             for shard in create_shards(var_map_update, 100):
                 self.cur.executemany(sql_update + comment, shard)
-            
+
             tmp_log.debug("Inserting sites")
             sql_insert = "INSERT INTO ATLAS_PANDA.site (site_name, role, tier_level) "\
                          "VALUES(:site_name, :role, :tier_level)"
             for shard in create_shards(var_map_insert, 100):
                 self.cur.executemany(sql_insert + comment, shard)
-            
+
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
@@ -24845,11 +24867,11 @@ class DBProxy:
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug('start')
-        
+
         if not sites_to_delete:
             tmp_log.debug("nothing to delete")
             return
-        
+
         var_map_list = list(map(lambda site_name: {':site_name': site_name}, sites_to_delete))
 
         try:
@@ -24859,7 +24881,7 @@ class DBProxy:
             sql_update = "DELETE FROM ATLAS_PANDA.site WHERE site_name=:site_name"
             self.cur.executemany(sql_update + comment, var_map_list)
             tmp_log.debug("done deleting sites")
-            
+
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
@@ -24933,7 +24955,7 @@ class DBProxy:
             sql_update = "DELETE FROM ATLAS_PANDA.ddm_endpoint WHERE ddm_endpoint_name=:ddm_endpoint_name"
             self.cur.executemany(sql_update + comment, var_map_list)
             tmp_log.debug("done deleting ddm endpoints")
-            
+
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
@@ -24947,6 +24969,3 @@ class DBProxy:
             tmp_log.error("{} {}".format(type, value))
             tmp_log.error(format(traceback.format_exc()))
             return -1, None
-
-
-
