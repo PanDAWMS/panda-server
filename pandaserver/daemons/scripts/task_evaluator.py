@@ -206,7 +206,7 @@ class FetchData(object):
             "FROM ATLAS_PANDA.JEDI_Tasks jt, ATLAS_PANDA.JEDI_AUX_Status_MinTaskID asm "
             "WHERE jt.taskType = 'anal' AND jt.prodSourceLabel = 'user' "
                 "AND jt.status=asm.status AND jt.jediTaskID >= asm.min_jediTaskID "
-                "AND jt.status NOT IN ('done', 'finished', 'failed', 'broken', 'aborted', 'exhausted') "
+                "AND jt.status NOT IN ('registered', 'defined', 'assigning', 'ready', 'done', 'finished', 'failed', 'broken', 'aborted', 'exhausted') "
                 "AND jt.userName NOT IN ('gangarbt') "
                 "AND jt.modificationTime >= CURRENT_DATE - 30 "
         )
