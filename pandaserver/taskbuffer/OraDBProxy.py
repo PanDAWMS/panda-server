@@ -20730,10 +20730,11 @@ class DBProxy:
                 for jedi_task_id, in res:
                     var_map[':jtid{0}'.format(i)] = jedi_task_id
                     i += 1
-                    good_taskid_set.add(jedi_task_id)
+                    good_taskid_set.add(str(jedi_task_id))
                 jtid_bindings = ','.join(':jtid{0}'.format(i) for i in range(len(good_taskid_set)))
                 locked_taskid_set = set(shard) - good_taskid_set
-                tmp_log.debug("skip locked tasks: {0}".format(','.join(list(locked_taskid_set))))
+                if locked_taskid_set:
+                    tmp_log.debug("skip locked tasks: {0}".format(','.join(list(locked_taskid_set))))
 
                 # update the task
                 sql_task = """
@@ -20742,7 +20743,7 @@ class DBProxy:
                        """.format(jtid_bindings)
 
                 self.cur.execute(sql_task + comment, var_map)
-                tmp_log.debug("task sql executed")
+                tmp_log.debug("task sql executed: {0}".format(sql_task))
 
                 var_map[':pending'] = 'pending'
                 var_map[':defined'] = 'defined'
