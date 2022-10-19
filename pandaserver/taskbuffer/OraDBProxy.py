@@ -20720,7 +20720,7 @@ class DBProxy:
                        WHERE jediTaskID IN ({0}) AND lockedBy IS NULL
                        """.format(jtid_bindings)
 
-                self.cur.execute(sql_tasks_not_locked + comment, {})
+                self.cur.execute(sql_tasks_not_locked + comment, var_map)
                 res = self.cur.fetchall()
 
                 # Update the bindings and prepare var map
