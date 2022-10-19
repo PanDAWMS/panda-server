@@ -20731,7 +20731,7 @@ class DBProxy:
                     var_map[':jtid{0}'.format(i)] = jedi_task_id
                     i += 1
                     good_taskid_set.add(jedi_task_id)
-                jtid_bindings = ','.join(':jtid{0}'.format(i) for i in range(len(shard)))
+                jtid_bindings = ','.join(':jtid{0}'.format(i) for i in range(len(good_taskid_set)))
                 locked_taskid_set = set(shard) - good_taskid_set
                 tmp_log.debug("skip locked tasks: {0}".format(','.join(list(locked_taskid_set))))
 
