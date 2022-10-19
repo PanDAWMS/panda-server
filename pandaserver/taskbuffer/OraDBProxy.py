@@ -20707,6 +20707,7 @@ class DBProxy:
             for shard in create_shards(jedi_task_ids, 100):
 
                 # Prepare the bindings
+                var_map = {}
                 i = 0
                 for jedi_task_id in shard:
                     var_map[':jtid{0}'.format(i)] = jedi_task_id
