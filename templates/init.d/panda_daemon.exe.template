@@ -110,6 +110,7 @@ stop)
       ps -p `cat $PIDFILE` > /dev/null
       ERROR=$?
       if [ $ERROR -eq 1 ]; then
+        pkill -9 -P `cat $PIDFILE`
         echo "succeeded"
         rm -f $PIDFILE ${PIDFILE}.lock $LOCKFILE
         break
