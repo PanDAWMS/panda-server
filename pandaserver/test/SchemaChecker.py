@@ -8,7 +8,7 @@ from pandaserver.taskbuffer.OraDBProxy import DBProxy
 
 from pandaserver.taskbuffer import PandaDBSchemaInfo
 
-panda_config.dbhost = 'panda-postgres'
+#panda_config.dbhost = 'panda-postgres'
 proxyS = DBProxy()
 proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,panda_config.dbname)
 
