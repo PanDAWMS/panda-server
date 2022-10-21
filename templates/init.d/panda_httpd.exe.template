@@ -89,7 +89,7 @@ fi
 
 # check if PanDA Schema is the correct one
 function check_schema() {
-  return_string=$("${PROGNAME}")
+  return_string=`$PROGNAME`
   if [ "$return_string" == "True" ]; then
     return 0
   else
