@@ -10,9 +10,9 @@ from pandaserver.taskbuffer import PandaDBSchemaInfo
 
 #panda_config.dbhost = 'panda-postgres'
 proxyS = DBProxy()
-proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,panda_config.dbname)
+proxyS.connect(panda_config.dbhost, panda_config.dbpasswd, panda_config.dbuser, panda_config.dbname)
 
-sql = "select major || '.' || minor || '.' || patch from pandadb_version where component = 'SCHEMA'"
+sql = "select major || '.' || minor || '.' || patch from ATLAS_PANDA.pandadb_version where component = 'SCHEMA'"
 
 res = proxyS.querySQL(sql)
 dbVersion = res[0][0].split('.')
