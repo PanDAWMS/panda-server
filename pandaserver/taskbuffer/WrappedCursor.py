@@ -219,7 +219,7 @@ class WrappedCursor(object):
             ret = cur.execute(sql, varDict)
         elif self.backend == 'postgres':
             if panda_config.schemaPANDA == 'doma_panda':
-                sql = re.sub('doma_panda\.', '', sql)
+                sql = re.sub('doma_panda\.pandadb_version', 'pandadb_version', sql)
             if self.dump:
                 _logger.debug('OLD: {} {}'.format(sql, str(varDict)))
             sql, varList = convert_query_in_printf_format(sql, varDict, self.sql_conv_map)
