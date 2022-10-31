@@ -2656,7 +2656,7 @@ def execute_idds_workflow_command(req, command_name, kwargs=None):
             if not req:
                 tmpMsg = 'request {} is not found'.format(request_id)
                 tmpLog.error(tmpMsg)
-                return json.dumps((False, ))
+                return json.dumps((False, tmpMsg))
             user_name = req[0].get('username')
             if user_name and user_name != requester:
                 tmpMsg = 'request {} is not owned by {}'.format(request_id, requester)
@@ -2668,6 +2668,9 @@ def execute_idds_workflow_command(req, command_name, kwargs=None):
         # execute command
         tmpLog.debug('com={} host={} kwargs={}'.format(command_name, idds_host, str(kwargs)))
         ret = getattr(c, command_name)(**kwargs)
+        tmpLog.debug(str(ret))
+        if isinstance(ret, dict) and 'message' in ret:
+            return json.dumps((True, ret['message']))
         return json.dumps((True, ret))
     except Exception as e:
         tmpLog.error('failed with {} {}'.format(str(e), traceback.format_exc()))
