@@ -713,6 +713,8 @@ class FetchData(object):
                 rem_slots_B = max(threshold_B - run_slots_AB, 0)
                 user_dict[user]['rem_slots_A'] = rem_slots_A
                 user_dict[user]['rem_slots_B'] = rem_slots_B
+                user_dict[user]['rem_slot_ratio_A'] = rem_slots_A/threshold_A
+                user_dict[user]['rem_slot_ratio_B'] = rem_slots_B/threshold_B
             # log
             tmp_log.debug('{}'.format(user_dict))
             # return
