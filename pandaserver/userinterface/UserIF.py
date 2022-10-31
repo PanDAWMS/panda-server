@@ -2670,7 +2670,7 @@ def execute_idds_workflow_command(req, command_name, kwargs=None):
         ret = getattr(c, command_name)(**kwargs)
         tmpLog.debug(str(ret))
         if isinstance(ret, dict) and 'message' in ret:
-            return json.dumps((True, ret['message']))
+            return json.dumps((True, [ret['status'], ret['message']]))
         return json.dumps((True, ret))
     except Exception as e:
         tmpLog.error('failed with {} {}'.format(str(e), traceback.format_exc()))
