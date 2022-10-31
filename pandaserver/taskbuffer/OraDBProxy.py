@@ -20708,11 +20708,14 @@ class DBProxy:
 
                 # Prepare the bindings
                 var_map = {}
+                shard_taskid_set = set()
                 i = 0
-                for jedi_task_id in shard:
+                for _task_id in shard:
+                    jedi_task_id = int(_task_id)
                     var_map[':jtid{0}'.format(i)] = jedi_task_id
                     i += 1
-                jtid_bindings = ','.join(':jtid{0}'.format(i) for i in range(len(shard)))
+                    shard_taskid_set.add(jedi_task_id)
+                jtid_bindings = ','.join(':jtid{0}'.format(i) for i in range(len(shard_taskid_set)))
 
                 # select only tasks without lock
                 sql_tasks_not_locked = """
@@ -20727,12 +20730,13 @@ class DBProxy:
                 var_map = {':gshare': gshare}
                 good_taskid_set = set()
                 i = 0
-                for jedi_task_id, in res:
+                for _task_id, in res:
+                    jedi_task_id = int(_task_id)
                     var_map[':jtid{0}'.format(i)] = jedi_task_id
                     i += 1
-                    good_taskid_set.add(str(jedi_task_id))
+                    good_taskid_set.add(jedi_task_id)
                 jtid_bindings = ','.join(':jtid{0}'.format(i) for i in range(len(good_taskid_set)))
-                locked_taskid_set = set(shard) - good_taskid_set
+                locked_taskid_set = shard_taskid_set - good_taskid_set
                 if locked_taskid_set:
                     tmp_log.debug("skip locked tasks: {0}".format(','.join(list(locked_taskid_set))))
 
