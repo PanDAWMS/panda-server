@@ -615,7 +615,10 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None):
             if node.loop:
                 for sub_node in node.sub_nodes:
                     if sub_node.type == 'junction':
-                        cond = Condition(cond=sub_id_work_map[sub_node.id].get_not_custom_condition_status)
+                        # use to_continue for loop termination
+                        j_work = sub_id_work_map[sub_node.id]
+                        j_work.add_custom_condition(key='to_continue', value=True)
+                        cond = Condition(cond=j_work.get_custom_condition_status)
                         sub_workflow.add_loop_condition(cond)
                         cond_dump_str += '    Loop in ID:{} with terminator ID:{}\n'.format(node.id, sub_node.id)
                         break
