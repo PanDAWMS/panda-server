@@ -251,7 +251,7 @@ setup(
                       'requests',
                       'idds-common',
                       'idds-client',
-                      'idds-workflow>=1.0.0',
+                      'idds-workflow>=1.0.6',
                       'idds-doma',
                       'idds-atlas',
                       'ruamel.yaml',
