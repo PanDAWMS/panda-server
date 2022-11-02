@@ -4621,7 +4621,7 @@ class DBProxy:
                         elif useEventServiceMerge:
                             self.updateRelatedEventServiceJobs(job,True)
                     # disable reattempt
-                    if job.processingType == 'pmerge' and 'keepUnmerged' not in killOpts:
+                    if job.processingType == 'pmerge' and 'keepUnmerged' not in killOpts and code != '51':
                         self.disableFurtherReattempt(job)
                     # update JEDI
                     self.propagateResultToJEDI(job,self.cur,oldJobStatus)
