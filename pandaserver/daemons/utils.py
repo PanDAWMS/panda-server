@@ -13,6 +13,8 @@ import traceback
 import signal
 import gc
 
+import psutil
+
 from pandacommon.pandalogger import logger_utils
 from pandaserver.config import panda_config, daemon_config
 
@@ -36,6 +38,28 @@ CMD_STOP = '__STOP'
 
 # epoch datetime
 EPOCH = datetime.datetime.fromtimestamp(0)
+
+
+# kill process tree
+def kill_proc_tree(pid, sig=signal.SIGKILL, include_parent=True,
+                    timeout=None, on_terminate=None):
+    """
+    Kill a process tree (including grandchildren) with signal "sig" and return a (gone, still_alive) tuple.
+    "on_terminate", if specified, is a callback function which is called as soon as a child terminates.
+    """
+    assert pid != os.getpid(), 'will not kill myself'
+    parent = psutil.Process(pid)
+    children = parent.children(recursive=True)
+    if include_parent:
+        children.append(parent)
+    for p in children:
+        try:
+            p.send_signal(sig)
+        except psutil.NoSuchProcess:
+            pass
+    gone, alive = psutil.wait_procs(children, timeout=timeout,
+                                    callback=on_terminate)
+    return (gone, alive)
 
 
 # worker process loop of daemon
@@ -259,6 +283,10 @@ class DaemonWorker(object):
     def is_alive(self):
         return self.process.is_alive()
 
+    # kill the worker process and all its subprocesses
+    def kill(self):
+        return kill_proc_tree(self.process.pid)
+
 
 # master class of main daemon process for PanDA server
 class DaemonMaster(object):
@@ -352,6 +380,8 @@ class DaemonMaster(object):
                     self.dem_config[dem_name]['sync'] = False
                 if 'loop' not in attrs:
                     self.dem_config[dem_name]['loop'] = False
+                if 'timeout' not in attrs:
+                    self.dem_config[dem_name]['timeout'] = min(attrs['period']*3, attrs['period'] + 3600)
                 # check mandatory attributes
                 the_attrs = copy.deepcopy(self.dem_config[dem_name])
                 for attr, attr_type in MANDATORY_ATTRS:
@@ -403,11 +433,18 @@ class DaemonMaster(object):
                     if has_run and last_run_end_ts >= last_run_start_ts:
                         run_duration = last_run_end_ts - last_run_start_ts
                         run_period = self.dem_config[dem_name].get('period')
+                        run_timeout = self.dem_config[dem_name].get('timeout')
                         is_loop = self.dem_config[dem_name].get('loop')
                         if run_duration > run_period and not is_loop:
                             # warning since daemon run duration longer than daemon period (non-looping)
                             self.logger.warning('daemon {dem} took {dur} sec , longer than its period {period} sec'.format(
                                                 dem=dem_name, dur=run_duration, period=run_period))
+                        if run_duration > run_timeout:
+                            # kill the worker due to daemon timeout
+                            self.logger.warning('killing worker since daemon {dem} took {dur} sec , longer than its timeout {timeout} sec'.format(
+                                                dem=dem_name, dur=run_duration, timeout=run_timeout))
+                            worker.kill()
+                            self._remove_worker(worker)
                     dem_run_attrs['msg_ongoing'] = False
         # send message to workers
         for dem_name, attrs in self.dem_config.items():
