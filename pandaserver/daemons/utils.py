@@ -97,7 +97,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None):
         # taskBuffer object
         try:
             from pandaserver.taskbuffer.TaskBuffer import taskBuffer as tbuf
-            tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
+            tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, useTimeout=True)
             tmp_log.debug('taskBuffer initialized')
         except Exception as e:
             tmp_log.error('failed to initialize taskBuffer with {err} ; terminated'.format(
@@ -335,7 +335,7 @@ class DaemonMaster(object):
             from pandaserver.taskbuffer.TaskBufferInterface import TaskBufferInterface
             # taskBuffer
             _tbuf = TaskBuffer()
-            _tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=self.n_dbconn)
+            _tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=self.n_dbconn, useTimeout=True)
             # taskBuffer interface for multiprocessing
             taskBufferIF = TaskBufferInterface()
             taskBufferIF.launch(_tbuf)

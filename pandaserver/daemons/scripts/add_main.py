@@ -49,7 +49,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # instantiate TB
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-        taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
+        taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1, useTimeout=True)
     else:
         taskBuffer = tbuf
 
@@ -136,7 +136,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     tmpLog.debug("setup taskBufferIF")
     n_connections = 4
     _tbuf = TaskBuffer()
-    _tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=n_connections)
+    _tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=n_connections, useTimeout=True)
     taskBufferIF = TaskBufferInterface()
     taskBufferIF.launch(_tbuf)
 
@@ -175,7 +175,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             if i < _n_thr_with_tbuf:
                 tbuf = TaskBuffer()
                 tbuf_list.append(tbuf)
-                tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
+                tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, useTimeout=True)
                 thr = AdderThread(tbuf, aSiteMapper, jor_lists)
             else:
                 thr = AdderThread(taskBufferIF.getInterface(), aSiteMapper, jor_lists)
