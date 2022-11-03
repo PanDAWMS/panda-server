@@ -279,6 +279,10 @@ class DaemonWorker(object):
     def start(self):
         self.process.start()
 
+    # get worker process pid
+    def get_pid(self):
+        return self.process.pid
+
     # whether worker process is alive
     def is_alive(self):
         return self.process.is_alive()
@@ -353,6 +357,7 @@ class DaemonMaster(object):
                 self.worker_pool.add(worker)
                 if auto_start:
                     worker.start()
+                    self.logger.debug('launched new worker_pid={worker_pid}'.format(worker_pid=worker.get_pid()))
 
     # remove a worker from pool
     def _remove_worker(self, worker):
@@ -437,12 +442,12 @@ class DaemonMaster(object):
                         is_loop = self.dem_config[dem_name].get('loop')
                         if run_duration > run_period and not is_loop:
                             # warning since daemon run duration longer than daemon period (non-looping)
-                            self.logger.warning('daemon {dem} took {dur} sec , longer than its period {period} sec'.format(
-                                                dem=dem_name, dur=run_duration, period=run_period))
+                            self.logger.warning('worker_pid={pid} daemon {dem} took {dur} sec , exceeding its period {period} sec'.format(
+                                                pid=worker.get_pid(), dem=dem_name, dur=run_duration, period=run_period))
                         if run_duration > run_timeout:
                             # kill the worker due to daemon timeout
-                            self.logger.warning('killing worker since daemon {dem} took {dur} sec , longer than its timeout {timeout} sec'.format(
-                                                dem=dem_name, dur=run_duration, timeout=run_timeout))
+                            self.logger.warning('worker_pid={pid} killing worker since daemon {dem} took {dur} sec , exceeding its timeout {timeout} sec'.format(
+                                                pid=worker.get_pid(), dem=dem_name, dur=run_duration, timeout=run_timeout))
                             worker.kill()
                             self._remove_worker(worker)
                     dem_run_attrs['msg_ongoing'] = False
@@ -489,6 +494,7 @@ class DaemonMaster(object):
     def _stop_proc(self):
         for worker in self.worker_pool:
             worker.parent_conn.send(CMD_STOP)
+            self.logger.debug('sent stop command to worker_pid={worker_pid}'.format(worker_pid=worker.get_pid()))
 
     # stop master
     def stop(self):
@@ -504,15 +510,24 @@ class DaemonMaster(object):
 
     # run
     def run(self):
-        # pid
-        pid = os.getpid()
-        self.logger.info('daemon master started ; pid={pid}'.format(pid=pid))
+        # master pid
+        master_pid = os.getpid()
+        self.logger.info('daemon master started ; master_pid={master_pid}'.format(master_pid=master_pid))
         # start daemon workers
         for worker in self.worker_pool:
             worker.start()
+            self.logger.debug('launched worker_pid={worker_pid}'.format(worker_pid=worker.get_pid()))
         self.logger.debug('daemon master launched all worker processes')
+        # initialize old worker pid set
+        worker_pid_list_old = []
         # loop of scheduler
         while not self.to_stop_scheduler:
+            worker_pid_list = [ worker.get_pid() for worker in self.worker_pool ]
+            if worker_pid_list != worker_pid_list_old:
+                # log when worker pid list changes
+                self.logger.debug('master_pid: {master_pid} ; worker_pids: {worker_pid_list} '.format(
+                                    master_pid=master_pid, worker_pid_list=str(worker_pid_list)))
+                worker_pid_list_old = worker_pid_list
             self._scheduler_cycle()
         # end
         self.logger.info('daemon master ended')
