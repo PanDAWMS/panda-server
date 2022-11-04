@@ -190,9 +190,8 @@ start|stop)
         start)
             check_schema
             if [ $? -ne 0 ]; then
-                echo "ERROR: PanDA DB Schema is wrong for PanDA Server to work properly. Please check the docs on how to upgrade the schema. Exiting without starting PanDA Server"
-                exit $ERROR
-	    fi	    
+                echo "WARNING: PanDA DB Schema is wrong for PanDA Server to work properly. Please check the official PanDA docs on how to upgrade the schema."
+	    fi
 	    check_pidfile
     esac
     for itry in `seq 1 100`
