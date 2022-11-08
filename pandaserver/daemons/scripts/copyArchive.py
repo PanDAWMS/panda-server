@@ -129,7 +129,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
     # instantiate TB
     from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-    taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
+    taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1, useTimeout=True)
 
     # instantiate sitemapper
     siteMapper = SiteMapper(taskBuffer)

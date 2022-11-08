@@ -341,7 +341,7 @@ class ConBridge (object):
                 res = method(*variables[0], **variables[1])
                 # FIXME : modify response since cx_Oracle types cannot be picked
                 if comStr in ['querySQLS']:
-                    newRes = [True]+res[1:]
+                    newRes = [True] + list(res[1:])
                     res = newRes
                 if self.verbose:
                     _logger.debug('child  %s method %s completed' % (self.pid,comStr))

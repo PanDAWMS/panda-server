@@ -30,7 +30,7 @@ def main(tbuf=None, **kwargs):
         evpFilePatt = panda_config.cache_dir + '/' + prefixEVP + '*'
 
     from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-    taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
+    taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1, useTimeout=True)
 
     test_mode = kwargs.get('test_mode', False)
     dump_workflow = kwargs.get('dump_workflow', False)

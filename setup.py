@@ -249,6 +249,7 @@ setup(
                       'pyyaml',
                       'pyjwt',
                       'requests',
+                      'psutil>=5.4.8',
                       'idds-common',
                       'idds-client',
                       'idds-workflow>=1.0.6',
