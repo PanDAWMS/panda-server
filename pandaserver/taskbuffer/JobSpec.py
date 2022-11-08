@@ -80,6 +80,7 @@ class JobSpec(object):
                  'pushJob': 'pj',
                  'putLogToOS': 'po',
                  'registerEsFiles': 're',
+                 'retryRam': 'rr',
                  'resurrectConsumers': 'rs',
                  'requestType': 'rt',
                  'jobCloning': 'sc',
@@ -704,6 +705,29 @@ class JobSpec(object):
     # check if on-site merging
     def is_on_site_merging(self):
         return self.check_special_handling('onSiteMerging')
+
+    # get RAM for retry
+    def get_ram_for_retry(self):
+        if self.specialHandling is not None:
+            for tmpItem in self.specialHandling.split(','):
+                if tmpItem.startswith('{0}:'.format(self._tagForSH['retryRam'])):
+                    return int(tmpItem.split(':')[-1])
+        return None
+
+    # set RAM for retry
+    def set_ram_for_retry(self, val):
+        if self.specialHandling:
+            items = self.specialHandling.split(',')
+        else:
+            items = []
+        # remove old value
+        newItems = []
+        for tmpItem in items:
+            if tmpItem.startswith('{0}:'.format(self._tagForSH['retryRam'])):
+                continue
+            newItems.append(tmpItem)
+        newItems.append('{0}:{1}'.format(self._tagForSH['retryRam'], val))
+        self.specialHandling = ','.join(newItems)
 
 
 # utils
