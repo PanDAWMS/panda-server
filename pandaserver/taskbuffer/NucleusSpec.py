@@ -17,6 +17,8 @@ class NucleusSpec(object):
         self.state = None
         self.bareNucleus = None
         self.secondaryNucleus = None
+        self.nucleus = True
+        self.default_ddm_endpoint_out = None
 
     # add
     def add(self, siteName, ddmSpecDict, ddmSpecDictForInput=None):
@@ -98,3 +100,19 @@ class NucleusSpec(object):
     # get secondary nucleus
     def get_secondary_nucleus(self):
         return self.secondaryNucleus
+
+    # set satellite
+    def set_satellite(self):
+        self.nucleus = False
+
+    # check if nucleus
+    def is_nucleus(self):
+        return self.nucleus
+
+    # set default endpoint for output
+    def set_default_endpoint_out(self, rse):
+        self.default_ddm_endpoint_out = rse
+
+    # get default endpoint for output
+    def get_default_endpoint_out(self):
+        return self.getEndpoint(self.default_ddm_endpoint_out)

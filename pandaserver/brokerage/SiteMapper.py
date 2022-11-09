@@ -249,6 +249,12 @@ class SiteMapper:
                 secondary = ret.secondary_nucleus()
                 if secondary:
                     atom.set_secondary_nucleus(secondary)
+                if ret.role == 'satellite':
+                    atom.set_satellite()
+                try:
+                    atom.set_default_endpoint_out(ret.ddm_endpoints_output['default'].getDefaultWrite())
+                except Exception:
+                    pass
                 target[ret.pandasite] = atom
             target[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output, ret.ddm_endpoints_input)
 
