@@ -666,6 +666,9 @@ class FetchData(object):
             ujs_dict = mdb.get_metrics('users_jobs_stats', fresher_than_minutes_ago=15)
             # for each site x gshare
             for (site, gshare), usage_dict in ujs_dict.items():
+                # count only User Analysis & Express Analysis
+                if gshare not in ['User Analysis', 'Express Analysis']:
+                    continue
                 # get site evaluation data
                 try:
                     site_eval_dict = ase_dict[site]
@@ -704,7 +707,7 @@ class FetchData(object):
                 threshold_A = 1000
             threshold_B = self.tbuf.getConfigValue('analy_eval', 'USER_USAGE_THRESHOLD_B')
             if threshold_B is None:
-                threshold_B = 10000
+                threshold_B = 8000
             for user, d in copy.deepcopy(user_dict).items():
                 run_slots_A = d['A_sites']['slotsRunning']
                 run_slots_AB = d['A_sites']['slotsRunning'] + d['B_sites']['slotsRunning']
