@@ -707,7 +707,7 @@ class FetchData(object):
                 threshold_A = 1000
             threshold_B = self.tbuf.getConfigValue('analy_eval', 'USER_USAGE_THRESHOLD_B')
             if threshold_B is None:
-                threshold_B = 10000
+                threshold_B = 8000
             for user, d in copy.deepcopy(user_dict).items():
                 run_slots_A = d['A_sites']['slotsRunning']
                 run_slots_AB = d['A_sites']['slotsRunning'] + d['B_sites']['slotsRunning']
