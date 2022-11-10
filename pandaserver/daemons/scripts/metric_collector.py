@@ -666,6 +666,9 @@ class FetchData(object):
             ujs_dict = mdb.get_metrics('users_jobs_stats', fresher_than_minutes_ago=15)
             # for each site x gshare
             for (site, gshare), usage_dict in ujs_dict.items():
+                # count only User Analysis & Express Analysis
+                if gshare not in ['User Analysis', 'Express Analysis']:
+                    continue
                 # get site evaluation data
                 try:
                     site_eval_dict = ase_dict[site]
