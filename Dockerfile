@@ -5,7 +5,7 @@ ENV LC_ALL en_US.UTF-8
 
 RUN yum update -y
 RUN yum install -y epel-release
-RUN yum install -y python3 python3-devel httpd httpd-devel gcc gridsite less git psmisc wget
+RUN yum install -y python3 python3-devel httpd httpd-devel gcc gridsite less git psmisc wget logrotate
 RUN yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
 RUN yum install -y postgresql14
 RUN yum clean all && rm -rf /var/cache/yum
@@ -73,6 +73,7 @@ RUN chmod -R 777 /var/lock
 RUN chmod -R 777 /var/cache/pandaserver
 RUN chmod -R 777 /var/log/panda/pandacache
 RUN chmod -R 777 /var/run/panda
+RUN chmod -R 777 /var/lib/logrotate
 
 ENV PANDA_LOCK_DIR /var/run/panda
 RUN mkdir -p ${PANDA_LOCK_DIR} && chmod 777 ${PANDA_LOCK_DIR}
