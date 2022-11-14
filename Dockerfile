@@ -73,6 +73,7 @@ RUN chmod -R 777 /var/lock
 RUN chmod -R 777 /var/cache/pandaserver
 RUN chmod -R 777 /var/log/panda/pandacache
 RUN chmod -R 777 /var/run/panda
+RUN chmod -R 777 /var/lib/logrotate
 
 ENV PANDA_LOCK_DIR /var/run/panda
 RUN mkdir -p ${PANDA_LOCK_DIR} && chmod 777 ${PANDA_LOCK_DIR}
