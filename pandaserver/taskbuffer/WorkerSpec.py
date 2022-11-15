@@ -101,3 +101,22 @@ class WorkerSpec(object):
             ret += '{0}=:{0},'.format(attr)
         ret = ret[:-1]
         return ret
+
+    # return state values to be pickled
+    def __getstate__(self):
+        state = []
+        for attr in self._attributes:
+            val = getattr(self, attr)
+            state.append(val)
+        state.append(self._changedAttrs)
+        return state
+
+    # restore state from the unpickled state values
+    def __setstate__(self, state):
+        i = 0
+        for attr in self._attributes:
+            if i >= len(state)-1:
+                break
+            object.__setattr__(self, attr, state[i])
+            i += 1
+        object.__setattr__(self, '_changedAttrs', state[-1])
