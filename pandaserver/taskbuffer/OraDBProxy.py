@@ -82,6 +82,7 @@ for hdr in _loggerFiltered.handlers:
     _logger.addHandler(hdr)
     _loggerFiltered.removeHandler(hdr)
 
+
 # get mb proxies used in DBProxy methods
 def get_mb_proxy_dict():
     if hasattr(panda_config, 'mbproxy_configFile') \
@@ -93,6 +94,14 @@ def get_mb_proxy_dict():
         mb_proxy_dict = mp_agent.start_passive_mode(in_q_list=[], out_q_list=out_q_list)
         return mb_proxy_dict
     return {}
+
+
+# convert dict to bind variable dict
+def convert_dict_to_bind_vars(item):
+    ret = dict()
+    for k in item:
+        ret[':{}'.format(k)] = item[k]
+    return ret
 
 
 # proxy
@@ -193,8 +202,8 @@ class DBProxy:
             try:
                 # use SQL dumper
                 if panda_config.dump_sql:
-                    import SQLDumper
-                    self.cur = SQLDumper.SQLDumper(self.cur)
+                    from pandaserver.taskbuffer.SQLDumper import SQLDumper
+                    self.cur = SQLDumper(self.cur)
             except Exception:
                 pass
             self.hostname = self.cur.initialize()
@@ -24548,9 +24557,9 @@ class DBProxy:
             var_map_update = []
             for site in site_list:
                 if site['site_name'] in site_name_list:
-                    var_map_update.append(site)
+                    var_map_update.append(convert_dict_to_bind_vars(site))
                 else:
-                    var_map_insert.append(site)
+                    var_map_insert.append(convert_dict_to_bind_vars(site))
 
             tmp_log.debug("Updating sites")
             sql_update = "UPDATE ATLAS_PANDA.site set role=:role, tier_level=:tier_level WHERE site_name=:site_name"
@@ -24599,12 +24608,12 @@ class DBProxy:
             var_map_update = []
             for panda_site in panda_site_list:
                 if panda_site['panda_site_name'] in panda_site_name_list:
-                    var_map_update.append(panda_site)
+                    var_map_update.append(convert_dict_to_bind_vars(panda_site))
                 else:
-                    var_map_insert.append(panda_site)
+                    var_map_insert.append(convert_dict_to_bind_vars(panda_site))
 
             tmp_log.debug("Updating panda sites")
-            sql_update = "UPDATE ATLAS_PANDA.panda_site set site_name=:site_name WHERE panda_site_name=:panda_site_name"
+            sql_update = "UPDATE ATLAS_PANDA.panda_site set site_name=:site_name WHERE panda_site_name=:panda_site_name "
             for shard in create_shards(var_map_update, 100):
                 self.cur.executemany(sql_update + comment, shard)
 
@@ -24651,9 +24660,9 @@ class DBProxy:
             var_map_update = []
             for ddm_endpoint in ddm_endpoint_list:
                 if ddm_endpoint['ddm_endpoint_name'] in ddm_endpoint_name_list:
-                    var_map_update.append(ddm_endpoint)
+                    var_map_update.append(convert_dict_to_bind_vars(ddm_endpoint))
                 else:
-                    var_map_insert.append(ddm_endpoint)
+                    var_map_insert.append(convert_dict_to_bind_vars(ddm_endpoint))
 
             tmp_log.debug("Updating ddm endpoints")
             sql_update = "UPDATE ATLAS_PANDA.ddm_endpoint set "\
@@ -24712,9 +24721,9 @@ class DBProxy:
                 ddm_endpoint_name_tmp = relation['ddm_endpoint_name']
                 scope_tmp = relation['scope']
                 if (panda_site_name_tmp, ddm_endpoint_name_tmp, scope_tmp) in relation_tuple_list:
-                    var_map_update.append(relation)
+                    var_map_update.append(convert_dict_to_bind_vars(relation))
                 else:
-                    var_map_insert.append(relation)
+                    var_map_insert.append(convert_dict_to_bind_vars(relation))
 
             tmp_log.debug("Updating panda ddm relations")
             sql_update = "UPDATE ATLAS_PANDA.panda_ddm_relation set "\
