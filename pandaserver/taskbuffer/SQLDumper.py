@@ -7,7 +7,7 @@ class SQLDumper(object):
     def __init__(self,cur):
         self.cursor = cur
     def __iter__(self):
-        return self
+        return self.cursor.__iter__()
     def next(self):
         return self.cursor.next()
     def my_execute(self,sql,var={}):
