@@ -423,21 +423,23 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             thr.join()
 
     # check heartbeat for production jobs
-    timeOutVal = 48
-    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeOutVal)
+    timeOutVal = taskBuffer.getConfigValue('job_timeout', 'TIMEOUT_holding', 'pandaserver')
+    if not timeOutVal:
+        timeOutVal = 48 * 60
+    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=timeOutVal)
     sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime))"
     varMap = {}
     varMap[':modificationTime'] = timeLimit
     varMap[':endTime'] = timeLimit
     varMap[':jobStatus'] = 'holding'
-    status,res = taskBuffer.querySQLS(sql,varMap)
+    status, res = taskBuffer.querySQLS(sql, varMap)
     if res is None:
-        _logger.debug("# of Holding Watcher : %s" % res)
+        _logger.debug("# of Holding Watcher with timeout {}min: {}".format(timeOutVal, str(res)))
     else:
-        _logger.debug("# of Holding Watcher : %s" % len(res))
+        _logger.debug("# of Holding Watcher with timeout {}min: {}".format(timeOutVal, len(res)))
         for (id,) in res:
             _logger.debug("Holding Watcher %s" % id)
-            thr = Watcher(taskBuffer,id,single=True,sleepTime=60*timeOutVal,sitemapper=siteMapper)
+            thr = Watcher(taskBuffer, id, single=True, sleepTime=timeOutVal, sitemapper=siteMapper)
             thr.start()
             thr.join()
 
@@ -706,7 +708,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             else:
                 jobs.append(id)
     # reassign
-    _logger.debug('reassignJobs for defined jobs with timeout={}min -> {} jobs'.format(timeoutValue, len(jobs)))
+    _logger.debug('reassignJobs for defined jobs with timeout {}min -> {} jobs'.format(timeoutValue, len(jobs)))
     if len(jobs) > 0:
         nJob = 100
         iJob = 0
