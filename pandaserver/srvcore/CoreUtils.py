@@ -59,6 +59,9 @@ def clean_user_id(id):
         username = username.replace('(', '')
         username = username.replace(')', '')
         username = username.replace("'", '')
+        name_wo_email = re.sub(r' [a-z][\w\.-]+@[\w\.-]+(?:\.\w+)+', '', username).strip()
+        if ' ' in name_wo_email:
+            username = name_wo_email
         return username
     except Exception:
         return id
