@@ -625,8 +625,10 @@ class SetupperAtlasPlugin (SetupperPluginBase):
                                     self.logger.error(tmpMsg)
                                     continue
                                 # register dataset locations
-                                if (job.lockedby == 'jedi' and job.getDdmBackEnd() == 'rucio' and job.prodSourceLabel in ['panda','user']) or \
-                                        DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) is not None:
+                                if (job.lockedby == 'jedi' and job.getDdmBackEnd() == 'rucio' and
+                                    job.prodSourceLabel in ['panda', 'user']) or \
+                                        DataServiceUtils.getDistributedDestination(
+                                            file.destinationDBlockToken, ignore_empty=False) is not None:
                                     # skip registerDatasetLocations
                                     status,out = True,''
                                 elif name == originalName or tmpSrcDDM != tmpDstDDM or \
