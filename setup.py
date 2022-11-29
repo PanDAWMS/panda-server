@@ -257,7 +257,8 @@ setup(
                       'idds-atlas',
                       'ruamel.yaml',
                       'cwl-utils>=0.13',
-                      'packaging'
+                      'packaging',
+                      'snakemake==6.15.5'
                       ],
     extras_require={
         'oracle': ['cx_Oracle'],
