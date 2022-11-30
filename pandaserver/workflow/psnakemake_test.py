@@ -31,8 +31,9 @@ def main():
         set_workflow_outputs(nodes)
         id_map = get_node_id_map(nodes)
         task_template = None
-        with open(os.path.join(os.path.dirname(__file__), 'psnakemake_task.json'), 'r') as task_fp:
-            with open(os.path.join(os.path.dirname(__file__), 'psnakemake_container.json'), 'r') as container_fp:
+        dir_ = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(dir_, 'psnakemake_task.json'), 'r') as task_fp:
+            with open(os.path.join(dir_, 'psnakemake_container.json'), 'r') as container_fp:
                 task_template = {'athena': json.load(task_fp), 'container': json.load(container_fp)}
         if not task_template:
             raise Exception('Failed to load task template')

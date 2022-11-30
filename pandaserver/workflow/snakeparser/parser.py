@@ -1,9 +1,10 @@
 __author__ = 'retmas'
 
 import re
-import os.path
-import pathlib
+import os
 import six
+import pathlib
+import os.path
 from types import SimpleNamespace
 from itertools import chain
 import snakemake.workflow
@@ -26,8 +27,13 @@ class Parser(object):
         workdir = os.path.dirname(snakefile)
         self._logger.debug('create workflow')
         self._workflow = snakemake.workflow.Workflow(snakefile=snakefile, overwrite_workdir=None)
-        self._workflow.workdir(workdir)
-        self._workflow.include(self._workflow.main_snakefile, overwrite_default_target=True)
+        current_workdir = os.getcwd()
+        try:
+            self._workflow.workdir(workdir)
+            self._workflow.include(self._workflow.main_snakefile, overwrite_default_target=True)
+        finally:
+            if current_workdir:
+                os.chdir(current_workdir)
 
     @property
     def jobs(self):
