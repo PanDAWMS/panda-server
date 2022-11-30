@@ -1,7 +1,7 @@
 __author__ = 'retmas'
 
 import logging, sys, os, json
-from pandaserver.workflow.psnakemake_utils import parse_workflow_file
+from snakeparser import Parser
 from pandaserver.workflow.pcwl_utils import resolve_nodes
 from pandaserver.workflow.workflow_utils import get_node_id_map, dump_nodes, set_workflow_outputs, \
     convert_nodes_to_workflow
@@ -21,7 +21,12 @@ def main():
         workflow_file = sys.argv[1]
         data = dict()
         logging.info(f'{os.path.basename(__file__)}: workflow_file = {workflow_file}')
-        nodes, root_in = parse_workflow_file(workflow_file, logging)
+        parser = Parser(workflow_file, level=logging.DEBUG)
+        logging.info(f'verify_workflow = {parser.verify_workflow()}')
+        nodes, root_in = parser.parse_nodes()
+        _ = parser.parse_code()
+        dot_data = parser.get_dot_data()
+        logging.info(f'dot data ={os.linesep}{dot_data}')
         s_id, t_nodes, nodes = resolve_nodes(nodes, root_in, data, 0, set(), sys.argv[2], logging)
         set_workflow_outputs(nodes)
         id_map = get_node_id_map(nodes)
