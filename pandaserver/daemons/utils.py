@@ -476,6 +476,7 @@ class DaemonMaster(object):
                                             pid=worker.pid, dem=worker.dem_name, run=run_till_now, timeout=run_timeout))
                         worker.kill()
                         self._remove_worker(worker)
+                        self.dem_run_map[worker.dem_name]['msg_ongoing'] = False
         # send message to workers
         for dem_name, attrs in self.dem_config.items():
             run_period = attrs.get('period')
