@@ -275,6 +275,11 @@ class DaemonWorker(object):
     def _make_pipe(self):
         self.parent_conn, self.child_conn = multiprocessing.Pipe()
 
+    # close pipe connections
+    def _close_pipe(self):
+        self.parent_conn.close()
+        self.child_conn.close()
+
     # make associated process
     def _make_process(self, dem_config, msg_queue, worker_lifetime, tbuf):
         args = (dem_config, msg_queue, self.child_conn, worker_lifetime, tbuf)
@@ -292,6 +297,7 @@ class DaemonWorker(object):
 
     # kill the worker process and all its subprocesses
     def kill(self):
+        self._close_pipe()
         return kill_proc_tree(self.process.pid)
 
     # whether the worker is running daemon
@@ -479,16 +485,15 @@ class DaemonMaster(object):
                         self.dem_run_map[worker.dem_name]['msg_ongoing'] = False
         # send message to workers
         for dem_name, attrs in self.dem_config.items():
-            run_period = attrs.get('period')
-            dem_run_attrs = self.dem_run_map[dem_name]
-            last_run_start_ts = dem_run_attrs['last_run_start_ts']
-            last_warn_ts = dem_run_attrs['last_warn_ts']
-            if run_period is None or last_run_start_ts is None:
-                continue
-            if last_run_start_ts + run_period <= now_ts:
-                # time to send new message to run the daemon
-                with self._status_lock:
-                    dem_run_attrs = self.dem_run_map[dem_name]
+            with self._status_lock:
+                run_period = attrs.get('period')
+                dem_run_attrs = self.dem_run_map[dem_name]
+                last_run_start_ts = dem_run_attrs['last_run_start_ts']
+                last_warn_ts = dem_run_attrs['last_warn_ts']
+                if run_period is None or last_run_start_ts is None:
+                    continue
+                if last_run_start_ts + run_period <= now_ts:
+                    # time to send new message to run the daemon
                     msg_ongoing = dem_run_attrs['msg_ongoing']
                     if msg_ongoing:
                         # old message not processed yet, maybe daemon still running, skip
