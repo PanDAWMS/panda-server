@@ -320,7 +320,7 @@ class DaemonWorker(object):
 class DaemonMaster(object):
 
     # constructor
-    def __init__(self, logger, n_workers=1, n_dbconn=1, worker_lifetime=28800):
+    def __init__(self, logger, n_workers=1, n_dbconn=1, worker_lifetime=28800, use_tbif=False):
         # logger
         self.logger = logger
         # number of daemon worker processes
@@ -329,6 +329,8 @@ class DaemonMaster(object):
         self.n_dbconn = n_dbconn
         # lifetime of daemon worker processes
         self.worker_lifetime = worker_lifetime
+        # whether to use TaskBufferInterface to save DB sessions while prone to taskbuffer hanging
+        self.use_tbif = use_tbif
         # locks
         self._worker_lock = threading.Lock()
         self._status_lock = threading.Lock()
@@ -348,7 +350,8 @@ class DaemonMaster(object):
         self._make_dem_run_map()
         # shared taskBufferIF
         self.tbif = None
-        self._make_tbif()
+        if self.use_tbif:
+            self._make_tbif()
         # spawn workers
         self._spawn_workers(self.n_workers)
 
@@ -374,10 +377,14 @@ class DaemonMaster(object):
     def _spawn_workers(self, n_workers=1, auto_start=False):
         for j in range(n_workers):
             with self._worker_lock:
+                if self.use_tbif:
+                    tbuf = self.tbif.getInterface()
+                else:
+                    tbuf = None
                 worker = DaemonWorker(  dem_config=self.dem_config,
                                         msg_queue=self.msg_queue,
                                         worker_lifetime=self.worker_lifetime,
-                                        tbuf=self.tbif.getInterface())
+                                        tbuf=tbuf)
                 self.worker_pool.add(worker)
                 if auto_start:
                     worker.start()
@@ -535,7 +542,8 @@ class DaemonMaster(object):
         # send stop command to workers
         self._stop_proc()
         # stop taskBuffer interface
-        self.tbif.stop()
+        if self.use_tbif:
+            self.tbif.stop()
         # wait a bit
         time.sleep(2.5)
 

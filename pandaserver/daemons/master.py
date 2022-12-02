@@ -58,6 +58,7 @@ def main():
     n_workers = getattr(daemon_config, 'n_proc', 1)
     n_dbconn = getattr(daemon_config, 'n_dbconn', 1)
     worker_lifetime = getattr(daemon_config, 'proc_lifetime', 28800)
+    use_tbif = getattr(daemon_config, 'use_tbif', False)
     main_log.info('main start')
     # daemon context
     dc = daemon.DaemonContext(  stdout=sys.stdout, stderr=sys.stderr,
@@ -73,7 +74,8 @@ def main():
         master = DaemonMaster(  logger=tmp_log,
                                 n_workers=n_workers,
                                 n_dbconn=n_dbconn,
-                                worker_lifetime=worker_lifetime)
+                                worker_lifetime=worker_lifetime,
+                                use_tbif=use_tbif)
         # function to end master when end signal caught
         def end_master(sig, frame):
             tmp_log.info('got end signal: {sig}'.format(sig=sig))
