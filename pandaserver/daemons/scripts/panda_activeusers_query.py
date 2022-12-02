@@ -51,6 +51,10 @@ def main(tbuf=None, **kwargs):
         tmpLog.debug("check proxy cache for {}".format(name))
         for role in roles:
             my_proxy_interface_instance.checkProxy(realDN, role=role, name=name)
+    # stop taskBuffer if created inside this script
+    if tbuf is None:
+        taskBuffer.cleanup()
+        tmpLog.debug("Stopped the new connection")
     tmpLog.debug("done")
 
 

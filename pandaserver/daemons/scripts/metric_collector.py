@@ -776,6 +776,9 @@ def main(tbuf=None, **kwargs):
                 continue
             mdb.update(metric=metric_name, key_type=key_type, entity_dict=fetched_data)
             main_logger.debug('done {metric_name}'.format(metric_name=metric_name))
+    # stop taskBuffer if created inside this script
+    if tbuf is None:
+        taskBuffer.cleanup()
 
 # run
 if __name__ == '__main__':

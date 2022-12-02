@@ -131,6 +131,9 @@ def main(tbuf=None, **kwargs):
     # join all threads
     adderThreadPool.join()
 
+    # stop taskBuffer if created inside this script
+    taskBuffer.cleanup()
+
     _logger.debug("===================== end =====================")
 
 
