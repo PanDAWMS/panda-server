@@ -62,6 +62,9 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     else:
         base_logger.error('Configurator being called with wrong arguments. Use either no arguments or --network or --json_dump')
 
+    # stop taskBuffer if created inside this script
+    if tbuf is None:
+        taskBuffer.cleanup()
 
 if __name__ == '__main__':
     main(argv=sys.argv)

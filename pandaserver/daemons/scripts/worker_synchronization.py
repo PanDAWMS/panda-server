@@ -72,6 +72,9 @@ def main(tbuf=None, **kwargs):
         taskBuffer = tbuf
     # run
     WorkerSync(tbuf=taskBuffer).run()
+    # stop taskBuffer if created inside this script
+    if tbuf is None:
+        taskBuffer.cleanup()
 
 
 # run

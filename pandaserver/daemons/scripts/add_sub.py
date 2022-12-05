@@ -289,8 +289,9 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     for thr in forkThrList:
         thr.join()
 
-    # terminate TaskBuffer IF
-    # taskBufferIF.terminate()
+    # stop taskBuffer if created inside this script
+    if tbuf is None:
+        taskBuffer.cleanup()
 
     tmpLog.debug("===================== end =====================")
 
