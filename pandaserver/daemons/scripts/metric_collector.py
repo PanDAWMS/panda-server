@@ -324,12 +324,17 @@ class FetchData(object):
             "WHERE pandaID=:pandaID "
             "GROUP BY jobStatus "
         )
-        sql_get_long_queuing_job_wait_time = (
+        sql_get_site_workflow = (
+            "SELECT /* use_json_type */ scj.data.workflow "
+            "FROM ATLAS_PANDA.schedconfig_json scj "
+            "WHERE scj.panda_queue=:computingSite "
+        )
+        sql_get_long_queuing_job_wait_time_template = (
             "SELECT COUNT(*), AVG(CURRENT_DATE-creationtime) "
             "FROM ATLAS_PANDA.jobsActive4 "
             "WHERE prodSourceLabel='user' "
                 "AND gshare='User Analysis' "
-                "AND jobStatus IN ('activated', 'sent', 'starting') "
+                "AND jobStatus IN {q_status_list_str} "
                 "AND (processingType='pmerge') "
                 "AND computingSite=:computingSite "
                 "AND (CURRENT_DATE-creationtime)>:w_mean "
@@ -408,10 +413,18 @@ class FetchData(object):
                     w_cl95upp = conf_interval_upper(n=sum_of_weights+1, mean=w_mean, stdev=w_stdev, cl=0.95)
                     # current long queuing jobs
                     if w_mean:
+                        q_status_list_str = "('activated', 'sent')"
+                        varMap = {
+                                ':computingSite': site,
+                            }
+                        (site_workflow, ) = self.tbuf.querySQL(sql_get_site_workflow, varMap)[0]
+                        if site_workflow and site_workflow.startswith('push'):
+                            q_status_list_str = "('activated', 'sent', 'starting')"
                         varMap = {
                                 ':computingSite': site,
                                 ':w_mean': w_mean/(24*60*60),
                             }
+                        sql_get_long_queuing_job_wait_time = sql_get_long_queuing_job_wait_time_template.format(q_status_list_str=q_status_list_str)
                         (long_q_n, long_q_mean_day) = self.tbuf.querySQL(sql_get_long_queuing_job_wait_time, varMap)[0]
                         if long_q_mean_day:
                             long_q_mean = long_q_mean_day*(24*60*60)
