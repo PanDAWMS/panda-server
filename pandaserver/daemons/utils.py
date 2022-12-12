@@ -350,16 +350,18 @@ class DaemonMaster(object):
         self._make_dem_run_map()
         # shared taskBufferIF
         self.tbif = None
-        if self.use_tbif:
-            self._make_tbif()
+        self._make_tbif()
         # spawn workers
         self._spawn_workers(self.n_workers)
 
     # make common taskBuffer interface for daemon workers
     def _make_tbif(self):
         try:
+            # import is always required to have reserveChangedState consistent in *Spec
             from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
             from pandaserver.taskbuffer.TaskBufferInterface import TaskBufferInterface
+            if not self.use_tbif:
+                return
             # taskBuffer
             _tbuf = TaskBuffer()
             _tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=self.n_dbconn, useTimeout=True)
