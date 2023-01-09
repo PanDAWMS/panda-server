@@ -1,6 +1,8 @@
 import requests
 import time
 import os
+import json
+from urllib.parse import urlparse
 
 from pandaserver.config import panda_config
 
@@ -27,6 +29,14 @@ def get_dump(url):
     """
     Retrieves a json file from the given URL and loads it into memory
     """
+    # check if local file
+    p = urlparse(url)
+    if not p.scheme or p.scheme == 'file':
+        try:
+            with open(p.path) as f:
+                return json.loads(f)
+        except Exception:
+            return None
     if panda_config.configurator_use_cert:
         key_file = os.environ['X509_USER_PROXY']
         cert_file = os.environ['X509_USER_PROXY']
