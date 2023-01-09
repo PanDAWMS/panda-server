@@ -132,9 +132,10 @@ def putFile(req, file):
             statClient,outClient = Client.insertSandboxFileInfo(username,file.filename,
                                                                 fileSize,checkSum)
             if statClient != 0 or outClient.startswith("ERROR"):
-                tmpLog.error("failed to put sandbox to DB with %s %s" % (statClient,outClient))
-                #_logger.debug("putFile : end")
-                #return "ERROR : Cannot insert sandbox to DB"
+                errStr = "ERROR : failed to register sandbox to DB with %s %s" % (statClient, outClient)
+                tmpLog.error(errStr)
+                tmpLog.debug("end")
+                return errStr
             else:
                 tmpLog.debug("inserted sandbox to DB with %s" % outClient)
     tmpLog.debug("end")

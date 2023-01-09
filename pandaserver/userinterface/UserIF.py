@@ -1221,14 +1221,19 @@ def setDebugMode(req,pandaID,modeOn):
 
 # insert sandbox file info
 def insertSandboxFileInfo(req,userName,fileName,fileSize,checkSum):
+    tmpLog = LogWrapper(_logger, 'insertSandboxFileInfo {} {}'.format(userName,fileName))
     # get DN
     if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
-        return "ERROR: SSL connection is required"
+        errStr = "SSL connection is required"
+        tmpLog.error(errStr)
+        return "ERROR: " + errStr
     user = _getDN(req)
     # check role
     prodManager = _hasProdRole(req)
     if not prodManager:
-        return "ERROR: missing role"
+        errStr = "missing role"
+        tmpLog.error(errStr)
+        return "ERROR: " + errStr
     # hostname
     if hasattr(panda_config, 'sandboxHostname') and panda_config.sandboxHostname:
         hostName = panda_config.sandboxHostname
