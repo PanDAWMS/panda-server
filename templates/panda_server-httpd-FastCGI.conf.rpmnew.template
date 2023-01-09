@@ -41,7 +41,7 @@ RedirectMatch 403 "/panda.py$"
 Alias /trf/ "/var/trf/"
 Alias /cache/schedconfig/ "/var/cache/pandaserver/schedconfig/"
 Alias /cache/ "/var/log/panda/pandacache/"
-Alias /appdir/ "/var/appdir/"
+Alias /cric/ "/var/cric/"
 Alias /auth/ "/opt/panda/etc/panda/auth/"
 
 <Location /server-status>
