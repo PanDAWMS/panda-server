@@ -34,7 +34,7 @@ def get_dump(url):
     if not p.scheme or p.scheme == 'file':
         try:
             with open(p.path) as f:
-                return json.loads(f)
+                return json.load(f)
         except Exception:
             return None
     if panda_config.configurator_use_cert:
