@@ -983,7 +983,7 @@ def updateJob(req, jobId, state, token=None, transExitCode=None, pilotErrorCode=
                   "maxPSS={maxPSS},avgRSS={avgRSS},avgVMEM={avgVMEM},avgSWAP={avgSWAP},avgPSS={avgPSS},"
                   "totRCHAR={totRCHAR},totWCHAR={totWCHAR},totRBYTES={totRBYTES},totWBYTES={totWBYTES},rateRCHAR={rateRCHAR},"
                   "rateWCHAR={rateWCHAR},rateRBYTES={rateRBYTES},rateWBYTES={rateWBYTES},meanCoreCount={meanCoreCount},"
-                  "corruptedFiles={corruptedFiles}\n,==cpu_flags==\n{cpu_flags}\n==XML==\n{xml}\n==LOG==\n{pilotLog}\n==Meta==\n{metaData}\n"
+                  "corruptedFiles={corruptedFiles}\n==cpu_flags==\n{cpu_flags}\n==XML==\n{xml}\n==LOG==\n{pilotLog}\n==Meta==\n{metaData}\n"
                   "==Metrics==\n{jobMetrics}\n==stdout==\n{stdout})".format(jobId=jobId, state=state, transExitCode=transExitCode,
                                                                             pilotErrorCode=pilotErrorCode, pilotErrorDiag=pilotErrorDiag,
                                                                             node=node, workdir=workdir,
