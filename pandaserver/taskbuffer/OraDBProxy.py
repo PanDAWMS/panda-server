@@ -20597,7 +20597,7 @@ class DBProxy:
 
         if share.rtype is not None and task.site is not None:
             try:
-                site = task.site.split(',')[0] # if task assigned to more than one site, take the first one
+                site = task.site.split(',')[0]  # if task assigned to more than one site, take the first one
                 rtype_site = self.get_rtype_site(site)
                 if rtype_site and re.match(share.rtype, rtype_site) is None:
                     return False
