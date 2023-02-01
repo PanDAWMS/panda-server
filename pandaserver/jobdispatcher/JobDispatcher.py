@@ -1003,7 +1003,7 @@ def updateJob(req, jobId, state, token=None, transExitCode=None, pilotErrorCode=
                                                                             avgVMEM=avgVMEM, avgSWAP=avgSWAP, avgPSS=avgPSS, totRCHAR=totRCHAR,
                                                                             totWCHAR=totWCHAR, totRBYTES=totRBYTES, totWBYTES=totWBYTES,
                                                                             rateRCHAR=rateRCHAR, rateWCHAR=rateWCHAR, rateRBYTES=rateRBYTES,
-                                                                            rateWBYTES=rateWBYTES, meanCoreCount= eanCoreCount,
+                                                                            rateWBYTES=rateWBYTES, meanCoreCount=meanCoreCount,
                                                                             corruptedFiles=corruptedFiles, cpu_flags=cpu_flags,
                                                                             xml=xml, pilotLog=pilotLog[:1024],
                                                                             metaData=metaData[:1024], jobMetrics=jobMetrics,
