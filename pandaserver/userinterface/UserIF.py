@@ -2559,7 +2559,7 @@ def decode_idds_enum(d):
 
 
 # relay iDDS command
-def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None):
+def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None, json_outputs=None):
     tmpLog = LogWrapper(_logger, 'relay_idds_command-{}'.format(datetime.datetime.utcnow().isoformat('/')))
     # check security
     if not isSecure(req):
@@ -2598,6 +2598,9 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None):
                 kwargs = json.loads(kwargs, object_hook=decode_idds_enum)
         else:
             kwargs = {}
+        # json outputs
+        if json_outputs and manager:
+            c.setup_json_outputs()
         # set original username
         dn = req.subprocess_env.get('SSL_CLIENT_S_DN')
         if dn:
@@ -2617,7 +2620,7 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None):
 
 
 # relay iDDS workflow command with ownership check
-def execute_idds_workflow_command(req, command_name, kwargs=None):
+def execute_idds_workflow_command(req, command_name, kwargs=None, json_outputs=None):
     try:
         tmpLog = LogWrapper(_logger, 'execute_idds_workflow_command-{}'.format(datetime.datetime.utcnow().isoformat('/')))
         if kwargs:
@@ -2642,6 +2645,8 @@ def execute_idds_workflow_command(req, command_name, kwargs=None):
             return json.dumps((False, tmpMsg))
         # check owner
         c = iDDS_ClientManager(idds_host)
+        if json_outputs:
+            c.setup_json_outputs()
         dn = req.subprocess_env.get('SSL_CLIENT_S_DN')
         if check_owner:
             # requester
