@@ -1,13 +1,14 @@
 from pandaserver.taskbuffer import JobUtils
 
-
-processGroups = [('others',       []),
-                 ('evgen',        ['evgen']),
-                 ('simul',        ['simul']),
+processGroups = [('others', []),
+                 ('evgen', ['evgen']),
+                 ('simul', ['simul']),
                  ('reprocessing', ['reprocessing']),
-                 ('test',         ['prod_test', 'validation'] + JobUtils.list_ptest_prod_sources),
-                 ('mcore',        ['mcore']),
-                 ('group',        ['group']),                 
+                 ('test', ['prod_test', 'validation'] + JobUtils.list_ptest_prod_sources),
+                 ('mcore', ['mcore']),
+                 ('group', ['group']),
+                 ('deriv', ['deriv']),
+                 ('pile', ['pile']),
                  ]
 
 # ('evgensimul',   ['evgen','simul']),
@@ -16,10 +17,10 @@ processGroups = [('others',       []),
 internalSourceLabels = ['ddm']
 
 # maximum number of debug jobs per user
-maxDebugJobs   = 3
+maxDebugJobs = 3
 
 # maximum number of debug jobs for prod role
-maxDebugProdJobs  = 30
+maxDebugProdJobs = 30
 
 # maximum number of debug jobs for working group
 maxDebugWgJobs = 10
@@ -31,7 +32,7 @@ extensionLevel_1 = 1
 # get corresponding group
 def getProcessGroup(valGroup):
     tmpGroup = None
-    for tmpKey,tmpList in processGroups:
+    for tmpKey, tmpList in processGroups:
         # set default
         if tmpGroup is None:
             tmpGroup = tmpKey
@@ -41,20 +42,20 @@ def getProcessGroup(valGroup):
             break
     # return
     return tmpGroup
-    
+
 
 # convert cloud and processingType for extended PG
-def converCPTforEPG(cloud,processingType,coreCount,workingGroup=None):
-    if coreCount in [0,1,None]:
+def converCPTforEPG(cloud, processingType, coreCount, workingGroup=None):
+    if coreCount in [0, 1, None]:
         # use group queue for GP jobs
         if workingGroup is not None and workingGroup.startswith('GP_'):
-            return cloud,'group'
-        return cloud,processingType
+            return cloud, 'group'
+        return cloud, processingType
     else:
         # use MCORE queue for MPC jobs in all clouds
-        return cloud,"mcore"
+        return cloud, "mcore"
 
-    
+
 # count the number of jobs per group
 def countJobsPerGroup(valMap):
     ret = {}
