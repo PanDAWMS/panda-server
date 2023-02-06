@@ -252,7 +252,7 @@ setup(
                       'psutil>=5.4.8',
                       'idds-common',
                       'idds-client',
-                      'idds-workflow>=1.0.6',
+                      'idds-workflow>=1.1.0',
                       'idds-doma',
                       'idds-atlas',
                       'ruamel.yaml',
