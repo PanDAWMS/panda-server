@@ -271,6 +271,8 @@ class Response:
             self.data['coreCount'] = job.coreCount
         # jobsetID
         self.data['jobsetID'] = job.jobsetID
+        # requestID
+        self.data['reqID'] = job.reqID
         # nucleus
         self.data['nucleus'] = job.nucleus
         # walltime
