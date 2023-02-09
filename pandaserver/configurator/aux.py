@@ -61,7 +61,7 @@ def query_grafana_proxy(query, bearer_token):
     grafana_proxy_url = 'https://monit-grafana.cern.ch/api/datasources/proxy/10349/_msearch'
     for i in range(1, 4):  # 3 retries
         try:
-            r = requests.post(grafana_proxy_url, data=query, headers=headers).json()
+            r = requests.post(grafana_proxy_url, data=query, headers=headers)
             if r.status_code == requests.codes.ok:
                 return r.json()
         except Exception:
