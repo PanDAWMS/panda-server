@@ -24993,10 +24993,15 @@ class DBProxy:
         try:
             # begin transaction
             self.conn.begin()
-    
+
+            tmp_log.debug("Deleting old entries")
+            sql_insert = "DELETE FROM ATLAS_PANDA.CARBON_REGION_EMISSIONS " \
+                         "WHERE timestamp < sysdate - interval '10' day"
+
             tmp_log.debug("Inserting emissions by region")
             
-            sql_insert = "INSERT INTO ATLAS_PANDA.CARBON_REGION_EMISSIONS (REGION, TIMESTAMP, VALUE) " \
+            sql_insert = "INSERT /*+ ignore_row_on_dupkey_index (emissions(region, timestamp)) */ "\
+                         "INTO ATLAS_PANDA.CARBON_REGION_EMISSIONS emissions (REGION, TIMESTAMP, VALUE) " \
                          "VALUES(:region, :timestamp, :value)"
             for shard in create_shards(emissions, 100):
                 self.cur.executemany(sql_insert + comment, shard)
