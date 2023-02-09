@@ -42,6 +42,7 @@ class CarbonEmissions(threading.Thread):
             for entry in hits:
                 simplified_entry = {
                     'region': entry['_source']['data']['region'],
+                    # timestamps come in ms
                     'timestamp': datetime.datetime.fromtimestamp(entry['_source']['metadata']['timestamp']/1000),
                     'value': entry['_source']['data']['gCO2_perkWh']
                 }
