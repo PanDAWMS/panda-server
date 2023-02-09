@@ -1,5 +1,5 @@
 import threading
-import aux
+from pandaserver.configurator import aux
 import traceback
 from pandaserver.config import panda_config
 
