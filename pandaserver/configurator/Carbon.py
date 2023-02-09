@@ -1,4 +1,3 @@
-from pandaserver.taskbuffer.Utils import create_shards
 import threading
 import aux
 import traceback
