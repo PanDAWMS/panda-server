@@ -20,12 +20,17 @@ class CarbonEmissions(threading.Thread):
         self.taskBuffer = taskBuffer
 
     def download_region_emissions(self):
+        # Don't indent the query
         query = """
-        {"search_type": "query_then_fetch","ignore_unavailable": true,"index": ["monit_prod_green-it_raw_regionmetric*"]}
-        {"query": {"range": {"metadata.timestamp": {"gte": "now-2h","lt": "now"}}}, "size": 100}}
-        """
+{"search_type": "query_then_fetch","ignore_unavailable": true,"index": ["monit_prod_green-it_raw_regionmetric*"]}
+{"query": {"range": {"metadata.timestamp": {"gte": "now-2h","lt": "now"}}}, "size": 100}}
+"""
         try:
             results = aux.query_grafana_proxy(query, self.bearer_token)
+            if not results:
+                _logger.error('download_region_emissions was not able to download data')
+                return None
+
             status = results['responses']['status']
             if status != 200:
                 _logger.error('download_region_emissions was not able to download data with status {0}'.format(status))
