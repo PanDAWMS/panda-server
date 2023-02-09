@@ -24,12 +24,12 @@ class CarbonEmissions(threading.Thread):
         {"search_type": "query_then_fetch","ignore_unavailable": true,"index": ["monit_prod_green-it_raw_regionmetric*"]}
         {"query": {"range": {"metadata.timestamp": {"gte": "now-2h","lt": "now"}}}, "size": 100}}
         """
-        results = aux.query_grafana_proxy(query, self.bearer_token)
-        status = results['responses']['status']
-        if status != 200:
-            _logger.error('download_region_emissions was not able to download data with status {0}'.format(status))
-            return None
         try:
+            results = aux.query_grafana_proxy(query, self.bearer_token)
+            status = results['responses']['status']
+            if status != 200:
+                _logger.error('download_region_emissions was not able to download data with status {0}'.format(status))
+                return None
             hits = results['responses'][0]['hits']['hits']  # That's how the json is structured...
             results = []
             for entry in hits:
@@ -48,4 +48,5 @@ class CarbonEmissions(threading.Thread):
     def run(self):
         # download emissions and store them in the DB
         results = self.download_region_emissions()
-        self.taskBuffer.carbon_write_region_emissions(results)
+        if results:
+            self.taskBuffer.carbon_write_region_emissions(results)
