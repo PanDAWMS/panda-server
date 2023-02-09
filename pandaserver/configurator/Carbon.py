@@ -1,4 +1,5 @@
 import threading
+import datetime
 from pandaserver.configurator import aux
 import traceback
 from pandaserver.config import panda_config
@@ -41,7 +42,7 @@ class CarbonEmissions(threading.Thread):
             for entry in hits:
                 simplified_entry = {
                     'region': entry['_source']['data']['region'],
-                    'timestamp': entry['_source']['metadata']['timestamp'],
+                    'timestamp': datetime.datetime.fromtimestamp(entry['_source']['metadata']['timestamp']),
                     'value': entry['_source']['data']['gCO2_perkWh']
                 }
                 results.append(simplified_entry)
