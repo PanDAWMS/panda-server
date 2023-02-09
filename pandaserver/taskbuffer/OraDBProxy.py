@@ -24994,7 +24994,7 @@ def carbon_write_region_emissions(self, emissions):
         # begin transaction
         self.conn.begin()
 
-tmp_log.debug("Inserting emissions by region")
+        tmp_log.debug("Inserting emissions by region")
         
         sql_insert = "INSERT INTO ATLAS_PANDA.CARBON_REGION_EMISSIONS (REGION, TIMESTAMP, VALUE) " \
                      "VALUES(:region, :timestamp, :value)"
