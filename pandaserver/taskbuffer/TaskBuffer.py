@@ -4146,9 +4146,16 @@ class TaskBuffer:
         ret = proxy.configurator_delete_panda_sites(panda_sites_to_delete)
         self.proxyPool.putProxy(proxy)
         return ret
+
     def configurator_delete_ddm_endpoints(self, ddm_endpoints_to_delete):
         proxy = self.proxyPool.getProxy()
         ret = proxy.configurator_delete_ddm_endpoints(ddm_endpoints_to_delete)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    def carbon_write_region_emissions(self, emissions):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.carbon_write_region_emissions(emissions)
         self.proxyPool.putProxy(proxy)
         return ret
 

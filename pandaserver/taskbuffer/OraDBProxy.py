@@ -24982,3 +24982,35 @@ class DBProxy:
             tmp_log.error("{} {}".format(type, value))
             tmp_log.error(format(traceback.format_exc()))
             return -1, None
+
+
+def carbon_write_region_emissions(self, emissions):
+    comment = ' /* DBProxy.carbon_write_regional_emissions */'
+    method_name = comment.split(' ')[-2].split('.')[-1]
+    tmp_log = LogWrapper(_logger, method_name)
+    tmp_log.debug('start')
+
+    try:
+        # begin transaction
+        self.conn.begin()
+
+tmp_log.debug("Inserting emissions by region")
+        
+        sql_insert = "INSERT INTO ATLAS_PANDA.CARBON_REGION_EMISSIONS (REGION, TIMESTAMP, VALUE) " \
+                     "VALUES(:region, :timestamp, :value)"
+        for shard in create_shards(emissions, 100):
+            self.cur.executemany(sql_insert + comment, shard)
+
+        # commit
+        if not self._commit():
+            raise RuntimeError('Commit error')
+
+        tmp_log.debug('Done')
+        return 0, None
+
+    except Exception:
+        self._rollback()
+        type, value, tb = sys.exc_info()
+        tmp_log.error("{} {}".format(type, value))
+        tmp_log.error(format(traceback.format_exc()))
+        return -1, None
