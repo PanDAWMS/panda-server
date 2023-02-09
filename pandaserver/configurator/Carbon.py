@@ -2,6 +2,7 @@ import threading
 from pandaserver.configurator import aux
 import traceback
 from pandaserver.config import panda_config
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 _logger = PandaLogger().getLogger('carbon')
 
