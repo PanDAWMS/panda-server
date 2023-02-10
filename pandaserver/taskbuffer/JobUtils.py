@@ -97,6 +97,58 @@ def getHS06sec(startTime, endTime, corePower, coreCount, baseWalltime=0, cpuEffi
         return None
 
 
+def get_job_co2(start_time, end_time, core_count, energy_emissions):
+
+    energy_emissions_by_ts = {}
+    for entry in energy_emissions:
+        aux_timestamp, region, value = entry
+        energy_emissions_by_ts[aux_timestamp] = {'value': value}
+
+    try:
+        # TODO: see which format it comes in
+        timestamps = [entry[0] for entry in energy_emissions]
+        timestamps.sort()
+
+        started = False
+        ended = False
+        i = 0
+
+        gCO2_job = 0
+
+        for timestamp in timestamps:
+            try:
+                if start_time < timestamps[i + 1] and not started:
+                    started = True
+            except IndexError:
+                pass
+
+            if end_time < timestamp and not ended:
+                ended = True
+
+            if started and not ended:
+                bottom = max(start_time, timestamp)
+                try:
+                    top = min(end_time, timestamps[i + 1])
+                except IndexError:
+                    top = end_time
+
+                gCO2_perkWh = energy_emissions_by_ts[timestamp]['value']
+
+                duration = (top - bottom).total_seconds()
+                watts_per_core = 10  # TODO: Assigning temporary value
+                gCO2_job = gCO2_job + (duration * gCO2_perkWh * core_count * watts_per_core / 3600 / 1000)
+
+            if ended:
+                break
+
+            i = i + 1
+
+        return gCO2_job
+
+    except Exception:
+        return None
+
+
 # parse string for number of standby jobs
 def parseNumStandby(catchall):
     retMap = {}

@@ -19439,6 +19439,74 @@ class DBProxy:
         # return
         return hs06sec
 
+    def convert_computingsite_to_region(self, computing_site):
+        # TODO: for the moment we calculate based on Swiss emissions until there is a conversion logic or CRIC field
+        return 'CH'
+
+    def get_co2_emissions_site(self, computing_site):
+        comment = ' /* DBProxy.get_co2_emissions_site */'
+        region = self.convert_computingsite_to_region(computing_site)
+        if not region:
+            return None
+        
+        var_map = {':region': region}
+        sql = "SELECT timestamp, region, value FROM ATLAS_PANDA.CARBON_REGION_EMISSIONS WHERE region=:region"
+        self.cur.execute(sql + comment, var_map)
+        results = self.cur.fetchall()
+        return results
+
+    # set CO2 emissions
+    def set_co2_emissions(self, panda_id, inActive=False):
+        comment = ' /* DBProxy.set_co2_emissions */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger,method_name+" <PandaID={0}>".format(panda_id))
+        tmp_log.debug("start")
+        hs06sec = None
+
+        # sql to get job attributes
+        sql_read = "SELECT jediTaskID, startTime, endTime, actualCoreCount, coreCount, jobMetrics, computingSite "
+        if inActive:
+            sql_read += "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
+        else:
+            sql_read += "FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
+
+        # sql to update CO2 emissions
+        if inActive:
+            sql_update = "UPDATE ATLAS_PANDA.jobsActive4 "
+        else:
+            sql_update = "UPDATE ATLAS_PANDA.jobsArchived4 "
+        sql_update += "SET co2emissions=:co2emissions WHERE PandaID=:PandaID "
+
+        # get job attributes
+        var_map = {':PandaID': panda_id}
+        self.cur.execute(sql_read + comment, var_map)
+        res_read = self.cur.fetchone()
+        if res_read is None:
+            tmp_log.debug('skip since job not found')
+        else:
+            task_id, start_time, end_time, actual_cores, defined_cores, job_metrics, computing_site = res_read
+            # get regional CO2 emissions
+            co2_emissions = self.get_co2_emissions_site(computing_site)
+            if not co2_emissions:
+                tmp_log.debug('skip since co2_emissions are undefined for site={0}'.format(computing_site))
+            else:
+                # get core count
+                core_count = JobUtils.getCoreCount(actual_cores, defined_cores, job_metrics)
+                # get emitted CO2 for the job
+                co2_job = JobUtils.get_job_co2(start_time, end_time, core_count, co2_emissions)
+                if co2_job is None:
+                    tmp_log.debug('skip since the emissions could not be calculated')
+                else:
+                    max_co2_job = 999999999
+                    co2_job = min(co2_job, max_co2_job)
+
+                    var_map = {':PandaID': panda_id, ':co2emissions': co2_job}
+
+                    self.cur.execute(sql_update + comment, var_map)
+                    tmp_log.debug('set HS06sec={0}'.format(hs06sec))
+        # return
+        return hs06sec
+
 
     # check if all events are done
     def checkAllEventsDone(self,job,pandaID,useCommit=False,dumpLog=True,getProcStatus=False):
