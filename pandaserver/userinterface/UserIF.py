@@ -2130,6 +2130,9 @@ def pauseTask(req,jediTaskID):
         user = _getDN(req)
     # check role
     prodRole = _hasProdRole(req)
+    # only prod managers can use this method
+    if not prodRole:
+        return WrappedPickle.dumps((False, "production role required"))
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
@@ -2150,6 +2153,9 @@ def resumeTask(req,jediTaskID):
         user = _getDN(req)
     # check role
     prodRole = _hasProdRole(req)
+    # only prod managers can use this method
+    if not prodRole:
+        return WrappedPickle.dumps((False, "production role required"))
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
@@ -2170,6 +2176,9 @@ def avalancheTask(req,jediTaskID):
         user = _getDN(req)
     # check role
     prodRole = _hasProdRole(req)
+    # only prod managers can use this method
+    if not prodRole:
+        return WrappedPickle.dumps((False, "production role required"))
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
