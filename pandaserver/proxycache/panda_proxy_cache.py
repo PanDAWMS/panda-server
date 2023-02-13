@@ -1,3 +1,4 @@
+import shutil
 import subprocess
 import hashlib
 import os
@@ -111,11 +112,8 @@ class MyProxyInterface(object):
         else:
             _logger.warning('proxy file does not exist : DN:{0} role:{1} file:{2}'.format(user_dn,role,proxy_path))
 
-
-    def checkProxy(self, user_dn, production=False, role=None, name=None):
-        log_stream = LogWrapper(_logger, '< name="{}" role={} >'.format(name, role))
-        log_stream.info('check proxy for {}'.format(user_dn))
-        """Check the validity of a proxy."""
+    # get proxy path
+    def get_proxy_path(self, user_dn, production, role):
         if role is not None:
             tmpExtension = self.getExtension(role)
             proxy_path = os.path.join(self.__target_path, str(hashlib.sha1(six.b(user_dn + tmpExtension)).hexdigest()))
@@ -123,6 +121,13 @@ class MyProxyInterface(object):
             proxy_path = os.path.join(self.__target_path, str(hashlib.sha1(six.b(user_dn + '.prod')).hexdigest()))
         else:
             proxy_path = os.path.join(self.__target_path, hashlib.sha1(six.b(user_dn)).hexdigest())
+        return proxy_path
+
+    def checkProxy(self, user_dn, production=False, role=None, name=None):
+        log_stream = LogWrapper(_logger, '< name="{}" role={} >'.format(name, role))
+        log_stream.info('check proxy for {}'.format(user_dn))
+        """Check the validity of a proxy."""
+        proxy_path = self.get_proxy_path(user_dn, production, role)
         isOK = False
         if os.path.isfile(proxy_path):
             log_stream.info('proxy is there. Need to check validity')
@@ -137,6 +142,9 @@ class MyProxyInterface(object):
                 ret = self.store(user_dn, self.__cred_name, production, role=role, log_stream=log_stream)
                 if ret == 0:
                     log_stream.info('proxy retrieval successful')
+                    # copy with compact name
+                    alt_proxy_path = self.get_proxy_path(name, production, role)
+                    shutil.copyfile(proxy_path, alt_proxy_path)
                     isOK = True
                 elif ret == 2:
                     log_stream.info('proxy retrieval on hold')
@@ -150,6 +158,8 @@ class MyProxyInterface(object):
             ret = self.store(user_dn, self.__cred_name, production, role=role, log_stream=log_stream)
             if ret == 0:
                 log_stream.info('proxy stored successfully')
+                alt_proxy_path = self.get_proxy_path(name, production, role)
+                shutil.copyfile(proxy_path, alt_proxy_path)
                 isOK = True
             elif ret == 2:
                 log_stream.info('proxy retrieval on hold')
