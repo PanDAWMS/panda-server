@@ -54,3 +54,16 @@ def get_dump(url):
             time.sleep(1)
     return None
 
+
+def query_grafana_proxy(query, bearer_token):
+
+    headers = {'Content-Type': 'application/x-ndjson', 'Authorization': 'Bearer {0}'.format(bearer_token)}
+    grafana_proxy_url = 'https://monit-grafana.cern.ch/api/datasources/proxy/10349/_msearch'
+    for i in range(1, 4):  # 3 retries
+        try:
+            r = requests.post(grafana_proxy_url, data=query, headers=headers)
+            if r.status_code == requests.codes.ok:
+                return r.json()
+        except Exception:
+            time.sleep(1)
+    return None
