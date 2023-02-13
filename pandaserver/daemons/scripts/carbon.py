@@ -24,8 +24,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         _logger = logger_utils.make_logger(base_logger, 'Carbon')
         t1 = time.time()
         carbon_emissions = CarbonEmissions(taskBuffer=taskBuffer)
-        if not carbon_emissions.run():
-            _logger.critical('Carbon loop FAILED')
+        carbon_emissions.run()
         t2 = time.time()
         _logger.debug('Carbon run took {0}s'.format(t2-t1))
 
@@ -35,6 +34,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # stop taskBuffer if created inside this script
     if tbuf is None:
         taskBuffer.cleanup()
+
 
 if __name__ == '__main__':
     main(argv=sys.argv)

@@ -47,7 +47,6 @@ class CarbonEmissions(threading.Thread):
                     'value': entry['_source']['data']['gCO2_perkWh']
                 }
                 results.append(simplified_entry)
-                #_logger.debug("time: {0}, region: {1}, gCO2_perkWh: {2}".format(timestamp, region, gCO2_perkWh))
             return results
         except Exception:
             _logger.error('download_region_emissions excepted with {0}'.format(traceback.format_exc()))
