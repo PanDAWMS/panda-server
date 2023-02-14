@@ -1807,13 +1807,38 @@ class DBProxy:
                     _logger.debug("archiveJob : calculated hs06sec {0} for pandaID {1}".format(hs06sec, job.PandaID))
                     if hs06sec is not None:
                         job.hs06sec = hs06sec
+
+                    # update the g of CO2 emitted by the job
+                    try:
+                        g_co2 = self.set_co2_emissions(job.PandaID)
+                        _logger.debug("archiveJob : calculated gCO2 {0} for pandaID {1}".format(g_co2, job.PandaID))
+                        # if g_co2 is not None:
+                        #     job.g_co2 = g_co2
+                    except Exception:
+                        _logger.error(
+                            "archiveJob : failed calculating gCO2 for pandaID {0} with {1}".format(job.PandaID,
+                                                                                                   traceback.format_exc()))
+
                 # actions for successful normal ES jobs
                 if useJEDI and EventServiceUtils.isEventServiceJob(job) \
                         and not EventServiceUtils.isJobCloningJob(job):
+
                     # update some job attributes
                     hs06sec = self.setHS06sec(job.PandaID, inActive=True)
                     if hs06sec is not None:
                         job.hs06sec = hs06sec
+
+                    # update the g of CO2 emitted by the job
+                    try:
+                        g_co2 = self.set_co2_emissions(job.PandaID)
+                        _logger.debug("archiveJob : calculated gCO2 {0} for pandaID {1}".format(g_co2, job.PandaID))
+                        # if g_co2 is not None:
+                        #     job.g_co2 = g_co2
+                    except Exception:
+                        _logger.error(
+                            "archiveJob : failed calculating gCO2 for pandaID {0} with {1}".format(job.PandaID,
+                                                                                                   traceback.format_exc()))
+
                     # post processing
                     oldJobSubStatus = job.jobSubStatus
                     if oldJobSubStatus == 'NULL':
@@ -12419,7 +12444,7 @@ class DBProxy:
 
 
     # propagate result to JEDI
-    def propagateResultToJEDI(self,jobSpec,cur,oldJobStatus=None,extraInfo=None,finishPending=False,waitLock=False):
+    def propagateResultToJEDI(self, jobSpec, cur, oldJobStatus=None, extraInfo=None, finishPending=False, waitLock=False):
         comment = ' /* DBProxy.propagateResultToJEDI */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PandaID={0}>".format(jobSpec.PandaID)
@@ -12913,6 +12938,14 @@ class DBProxy:
             self.updateUnmergedJobs(jobSpec,finishUnmerge)
         # update some job attributes
         self.setHS06sec(jobSpec.PandaID)
+
+        # update the g of CO2 emitted by the job
+        try:
+            g_co2 = self.set_co2_emissions(job.PandaID)
+            _logger.debug("archiveJob : calculated gCO2 {0} for pandaID {1}".format(g_co2, jobSpec.PandaID))
+        except Exception:
+            _logger.error("archiveJob : failed calculating gCO2 for pandaID {0} with {1}".format(jobSpec.PandaID, traceback.format_exc()))
+
         # return
         return True
 
@@ -19440,8 +19473,19 @@ class DBProxy:
         return hs06sec
 
     def convert_computingsite_to_region(self, computing_site):
-        # TODO: for the moment we calculate based on Swiss emissions until there is a conversion logic or CRIC field
-        return 'CH'
+        comment = ' /* DBProxy.convert_computingsite_to_region */'
+
+        var_map = {":panda_queue": computing_site}
+        sql = "SELECT /* use_json_type */ scj.data.country FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:panda_queue"
+        self.cur.execute(sql + comment, var_map)
+        res_country = self.cur.fetchone()
+        country = None
+        if res_country:
+            country = res_country[0]
+
+        # TODO: for the moment we calculate based on static dictionary
+        region = JobUtils.country_to_co2_region(country)
+        return region
 
     def get_co2_emissions_site(self, computing_site):
         comment = ' /* DBProxy.get_co2_emissions_site */'
@@ -19459,9 +19503,9 @@ class DBProxy:
     def set_co2_emissions(self, panda_id, inActive=False):
         comment = ' /* DBProxy.set_co2_emissions */'
         method_name = comment.split(' ')[-2].split('.')[-1]
-        tmp_log = LogWrapper(_logger,method_name+" <PandaID={0}>".format(panda_id))
+        tmp_log = LogWrapper(_logger, method_name+" <PandaID={0}>".format(panda_id))
         tmp_log.debug("start")
-        hs06sec = None
+        g_co2 = None
 
         # sql to get job attributes
         sql_read = "SELECT jediTaskID, startTime, endTime, actualCoreCount, coreCount, jobMetrics, computingSite "
@@ -19493,19 +19537,19 @@ class DBProxy:
                 # get core count
                 core_count = JobUtils.getCoreCount(actual_cores, defined_cores, job_metrics)
                 # get emitted CO2 for the job
-                co2_job = JobUtils.get_job_co2(start_time, end_time, core_count, co2_emissions)
-                if co2_job is None:
+                g_co2 = JobUtils.get_job_co2(start_time, end_time, core_count, co2_emissions)
+                if g_co2 is None:
                     tmp_log.debug('skip since the emissions could not be calculated')
                 else:
-                    max_co2_job = 999999999
-                    co2_job = min(co2_job, max_co2_job)
+                    max_g_co2 = 999999999
+                    g_co2 = min(g_co2, max_g_co2)
 
-                    var_map = {':PandaID': panda_id, ':co2emissions': co2_job}
-
-                    self.cur.execute(sql_update + comment, var_map)
-                    tmp_log.debug('set HS06sec={0}'.format(hs06sec))
+                    var_map = {':PandaID': panda_id, ':co2emissions': g_co2}
+                    # TODO: for the moment we will log it
+                    # self.cur.execute(sql_update + comment, var_map)
+                    tmp_log.debug('set g_co2={0}'.format(g_co2))
         # return
-        return hs06sec
+        return g_co2
 
 
     # check if all events are done
