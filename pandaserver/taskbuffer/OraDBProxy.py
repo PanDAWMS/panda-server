@@ -19541,7 +19541,7 @@ class DBProxy:
                 # get emitted CO2 for the job
                 g_co2 = JobUtils.get_job_co2(start_time, end_time, core_count, co2_emissions)
                 if g_co2 is None:
-                    tmp_log.debug('skip since the emissions could not be calculated')
+                    tmp_log.debug('skip since the co2 emissions could not be calculated')
                 else:
                     max_g_co2 = 999999999
                     g_co2 = min(g_co2, max_g_co2)
