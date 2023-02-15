@@ -12936,13 +12936,13 @@ class DBProxy:
                         cur.execute(sqlRecal+comment,varMap)
         # propagate failed result to unmerge job
         if len(finishUnmerge) > 0:
-            self.updateUnmergedJobs(jobSpec,finishUnmerge)
+            self.updateUnmergedJobs(jobSpec, finishUnmerge)
         # update some job attributes
         self.setHS06sec(jobSpec.PandaID)
 
         # update the g of CO2 emitted by the job
         try:
-            g_co2 = self.set_co2_emissions(job.PandaID)
+            g_co2 = self.set_co2_emissions(jobSpec.PandaID)
             _logger.debug("archiveJob : calculated gCO2 {0} for pandaID {1}".format(g_co2, jobSpec.PandaID))
         except Exception:
             _logger.error("archiveJob : failed calculating gCO2 for pandaID {0} with {1}".format(jobSpec.PandaID,
