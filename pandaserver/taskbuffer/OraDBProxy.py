@@ -3505,7 +3505,13 @@ class DBProxy:
                 getValMap[':prodSourceLabel2'] = 'install'
                 getValMap[':prodSourceLabel3'] = 'test'
         elif prodSourceLabel == 'unified':
-            pass
+            sql1+= "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5,:prodSourceLabel6) "
+            getValMap[':prodSourceLabel1'] = 'managed'
+            getValMap[':prodSourceLabel2'] = 'test'
+            getValMap[':prodSourceLabel3'] = 'prod_test'
+            getValMap[':prodSourceLabel4'] = 'install'
+            getValMap[':prodSourceLabel5'] = 'user'
+            getValMap[':prodSourceLabel6'] = 'panda'
         else:
             sql1+= "AND prodSourceLabel=:prodSourceLabel "
             getValMap[':prodSourceLabel'] = prodSourceLabel
@@ -19448,7 +19454,7 @@ class DBProxy:
         region = self.convert_computingsite_to_region(computing_site)
         if not region:
             return None
-        
+
         var_map = {':region': region}
         sql = "SELECT timestamp, region, value FROM ATLAS_PANDA.CARBON_REGION_EMISSIONS WHERE region=:region"
         self.cur.execute(sql + comment, var_map)
@@ -25057,7 +25063,7 @@ class DBProxy:
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug('start')
-    
+
         try:
             # begin transaction
             self.conn.begin()
@@ -25067,20 +25073,20 @@ class DBProxy:
                          "WHERE timestamp < sysdate - interval '10' day"
 
             tmp_log.debug("Inserting emissions by region")
-            
+
             sql_insert = "INSERT /*+ ignore_row_on_dupkey_index (emissions(region, timestamp)) */ "\
                          "INTO ATLAS_PANDA.CARBON_REGION_EMISSIONS emissions (REGION, TIMESTAMP, VALUE) " \
                          "VALUES(:region, :timestamp, :value)"
             for shard in create_shards(emissions, 100):
                 self.cur.executemany(sql_insert + comment, shard)
-    
+
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
-    
+
             tmp_log.debug('Done')
             return 0, None
-    
+
         except Exception:
             self._rollback()
             type, value, tb = sys.exc_info()
