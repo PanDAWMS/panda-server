@@ -125,7 +125,7 @@ def get_job_co2(start_time, end_time, core_count, energy_emissions):
             if end_time < timestamp and not ended:
                 ended = True
 
-            if started and not ended:
+            if started and not ended or i == len(timestamps) - 1:
                 bottom = max(start_time, timestamp)
                 try:
                     top = min(end_time, timestamps[i + 1])
