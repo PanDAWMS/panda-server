@@ -10096,7 +10096,8 @@ class DBProxy:
 
                         # skip invalid siteid
                         if siteid in [None, '', 'ALL'] or not queue_data:
-                            _logger.error("siteid {0} had no queue_data {1}".format(siteid, queue_data))
+                            if siteid != 'ALL':  # skip noisy error message for ALL
+                                _logger.error("siteid {0} had no queue_data {1}".format(siteid, queue_data))
                             continue
 
                         _logger.debug("processing queue {0}".format(siteid))
