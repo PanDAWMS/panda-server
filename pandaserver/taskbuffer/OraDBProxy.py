@@ -19550,6 +19550,7 @@ class DBProxy:
                     # TODO: for the moment we will log it
                     # self.cur.execute(sql_update + comment, var_map)
                     tmp_log.debug('set g_co2={0}'.format(g_co2))
+        tmp_log.debug("done")
         # return
         return g_co2
 
