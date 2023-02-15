@@ -1810,7 +1810,7 @@ class DBProxy:
 
                     # update the g of CO2 emitted by the job
                     try:
-                        g_co2 = self.set_co2_emissions(job.PandaID)
+                        g_co2 = self.set_co2_emissions(job.PandaID, in_active=True)
                         _logger.debug("archiveJob : calculated gCO2 {0} for pandaID {1}".format(g_co2, job.PandaID))
                         # if g_co2 is not None:
                         #     job.g_co2 = g_co2
@@ -1830,7 +1830,7 @@ class DBProxy:
 
                     # update the g of CO2 emitted by the job
                     try:
-                        g_co2 = self.set_co2_emissions(job.PandaID)
+                        g_co2 = self.set_co2_emissions(job.PandaID, in_active=True)
                         _logger.debug("archiveJob : calculated gCO2 {0} for pandaID {1}".format(g_co2, job.PandaID))
                         # if g_co2 is not None:
                         #     job.g_co2 = g_co2
@@ -19502,7 +19502,7 @@ class DBProxy:
         return results
 
     # set CO2 emissions
-    def set_co2_emissions(self, panda_id, inActive=False):
+    def set_co2_emissions(self, panda_id, in_active=False):
         comment = ' /* DBProxy.set_co2_emissions */'
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmp_log = LogWrapper(_logger, method_name+" <PandaID={0}>".format(panda_id))
@@ -19511,13 +19511,13 @@ class DBProxy:
 
         # sql to get job attributes
         sql_read = "SELECT jediTaskID, startTime, endTime, actualCoreCount, coreCount, jobMetrics, computingSite "
-        if inActive:
+        if in_active:
             sql_read += "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
         else:
             sql_read += "FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
 
         # sql to update CO2 emissions
-        if inActive:
+        if in_active:
             sql_update = "UPDATE ATLAS_PANDA.jobsActive4 "
         else:
             sql_update = "UPDATE ATLAS_PANDA.jobsArchived4 "
