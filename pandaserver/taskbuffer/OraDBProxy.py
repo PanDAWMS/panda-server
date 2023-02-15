@@ -18377,7 +18377,7 @@ class DBProxy:
                                                             'release': release,
                                                             'wqid': wqid,
                                                             'active': active})
-        tmp_logger.debug("Loaded retrial rules from DB: %s" %retrial_rules)
+        # tmp_logger.debug("Loaded retrial rules from DB: %s" %retrial_rules)
         return retrial_rules
 
 
