@@ -25134,3 +25134,77 @@ class DBProxy:
             tmp_log.error("{} {}".format(type, value))
             tmp_log.error(format(traceback.format_exc()))
             return -1, None
+
+    def carbon_aggregate_emissions(self):
+        comment = ' /* DBProxy.carbon_aggregate_emissions */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+
+        try:
+            # begin transaction
+            self.conn.begin()
+
+            # get the percentage each country is contributing to grid computing power
+            sql_stat = "WITH tmp_total(total_hs) as " \
+                       "(SELECT sum(hs) " \
+                       "FROM ATLAS_PANDA.jobs_share_stats) " \ 
+                       "SELECT scj.data.country, sum(jss.hs)/tmp_total.total_hs " \
+                       "FROM ATLAS_PANDA.jobs_share_stats jss, ATLAS_PANDA.schedconfig_json scj, tmp_total " \
+                       "WHERE jss.computingsite = scj.panda_queue " \
+                       "GROUP BY scj.data.country, tmp_total.total_hs "
+            
+            country_dic = {}
+            stats_raw = self.cur.execute(sql_stat + comment)
+            for entry in stats_raw:
+                country, per_cent = entry
+                country_dic.setdefault(country, {'emissions': 0, 'per_cent': 0})
+                country_dic[country]['per_cent'] = per_cent
+
+            # get the last emission values for each country
+            sql_last = "WITH top_ts(timestamp, region) AS " \
+                       "(SELECT max(timestamp), region " \
+                       "FROM atlas_panda.carbon_region_emissions " \
+                       "GROUP BY region) " \
+                       "SELECT cre.region, cre.value, cre.timestamp " \
+                       "FROM atlas_panda.carbon_region_emissions cre, top_ts " \
+                       "WHERE cre.timestamp = top_ts.timestamp AND cre.region = top_ts.region"
+
+            last_emission_values = self.cur.execute(sql_last + comment)
+            for entry in last_emission_values:
+                country, value, ts = entry
+                country_dic.setdefault(country, {'emissions': 0, 'per_cent': 0})
+                country_dic[country]['emissions'] = value
+
+            # calculate the grid average emissions
+            average_emissions = 0
+            for country in country_dic:
+                try:
+                    average_emissions = average_emissions + country_dic[country]['per_cent'] * country_dic[country]['emissions']
+                except Exception:
+                    tmp_log.debug('Skipped country {0} with per_cent {1} and emissions {2}'.format(country,
+                                                                                                   country_dic[country]['per_cent'],
+                                                                                                   country_dic[country]['emissions']))
+            
+            # store the average emissions
+            tmp_log.debug('The grid co2 emissions were averaged to {0}'.format(average_emissions))
+            utc_now = datetime.datetime.utcnow()
+            var_map = {':region': 'GRID', ':timestamp': utc_now, 'value': average_emissions}
+
+            sql_insert = "INSERT INTO ATLAS_PANDA.carbon_region_emissions (region, timestamp, value) " \
+                         "VALUES (:region, :timestamp, :value)"
+            self.cur.execute(sql_insert + comment)
+
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+
+            tmp_log.debug('Done')
+            return 0, None
+
+        except Exception:
+            self._rollback()
+            type, value, tb = sys.exc_info()
+            tmp_log.error("{} {}".format(type, value))
+            tmp_log.error(format(traceback.format_exc()))
+            return -1, None
