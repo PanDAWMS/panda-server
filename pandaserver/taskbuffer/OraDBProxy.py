@@ -25180,6 +25180,9 @@ class DBProxy:
             # calculate the grid average emissions
             average_emissions = 0
             for country in country_dic:
+                tmp_log.debug('Country {0} with per_cent {1} and emissions {2}'.format(country,
+                                                                                       country_dic[country]['per_cent'],
+                                                                                       country_dic[country]['emissions']))
                 try:
                     average_emissions = average_emissions + country_dic[country]['per_cent'] * country_dic[country]['emissions']
                 except Exception:
