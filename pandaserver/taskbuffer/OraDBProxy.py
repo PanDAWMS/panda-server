@@ -25194,7 +25194,7 @@ class DBProxy:
 
             sql_insert = "INSERT INTO ATLAS_PANDA.carbon_region_emissions (region, timestamp, value) " \
                          "VALUES (:region, :timestamp, :value)"
-            self.cur.execute(sql_insert + comment)
+            self.cur.execute(sql_insert + comment, var_map)
 
             # commit
             if not self._commit():
