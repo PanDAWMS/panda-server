@@ -18331,7 +18331,7 @@ class DBProxy:
         tmp_logger.debug("start")
 
         # SQL to extract the error definitions
-        sql  = """
+        sql = """
         SELECT re.retryerror_id, re.errorsource, re.errorcode, re.errorDiag, re.parameters, re.architecture, re.release, re.workqueue_id, ra.retry_action, re.active, ra.active
         FROM ATLAS_PANDA.RETRYERRORS re, ATLAS_PANDA.RETRYACTIONS ra
         WHERE re.retryaction=ra.retryaction_id
@@ -18344,7 +18344,7 @@ class DBProxy:
         if not self._commit():
             raise RuntimeError('Commit error')
 
-        tmp_logger.debug("definitions %s"%(definitions))
+        # tmp_logger.debug("definitions %s"%(definitions))
 
         retrial_rules = {}
         for definition in definitions:
