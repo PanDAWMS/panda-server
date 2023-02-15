@@ -25110,8 +25110,9 @@ class DBProxy:
             self.conn.begin()
 
             tmp_log.debug("Deleting old entries")
-            sql_insert = "DELETE FROM ATLAS_PANDA.CARBON_REGION_EMISSIONS " \
+            sql_delete = "DELETE FROM ATLAS_PANDA.CARBON_REGION_EMISSIONS " \
                          "WHERE timestamp < sysdate - interval '10' day"
+            self.cur.execute(sql_delete + comment)
 
             tmp_log.debug("Inserting emissions by region")
             
@@ -25146,9 +25147,9 @@ class DBProxy:
             self.conn.begin()
 
             # get the percentage each country is contributing to grid computing power
-            sql_stat = "WITH tmp_total(total_hs) as " \
+            sql_stat = "WITH tmp_total(total_hs) AS " \
                        "(SELECT sum(hs) " \
-                       "FROM ATLAS_PANDA.jobs_share_stats) " \ 
+                       "FROM ATLAS_PANDA.jobs_share_stats) " \
                        "SELECT scj.data.country, sum(jss.hs)/tmp_total.total_hs " \
                        "FROM ATLAS_PANDA.jobs_share_stats jss, ATLAS_PANDA.schedconfig_json scj, tmp_total " \
                        "WHERE jss.computingsite = scj.panda_queue " \
