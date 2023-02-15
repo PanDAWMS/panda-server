@@ -113,7 +113,7 @@ def get_job_co2(start_time, end_time, core_count, energy_emissions):
         ended = False
         i = 0
 
-        gCO2_job = 0
+        g_co2_job = 0
 
         for timestamp in timestamps:
             try:
@@ -132,18 +132,18 @@ def get_job_co2(start_time, end_time, core_count, energy_emissions):
                 except IndexError:
                     top = end_time
 
-                gCO2_perkWh = energy_emissions_by_ts[timestamp]['value']
+                g_co2_perkWh = energy_emissions_by_ts[timestamp]['value']
 
                 duration = (top - bottom).total_seconds()
                 watts_per_core = 10  # TODO: Assigning temporary value
-                gCO2_job = gCO2_job + (duration * gCO2_perkWh * core_count * watts_per_core / 3600 / 1000)
+                g_co2_job = g_co2_job + (duration * g_co2_perkWh * core_count * watts_per_core / 3600 / 1000)
 
             if ended:
                 break
 
             i = i + 1
 
-        return gCO2_job
+        return g_co2_job
 
     except Exception:
         return None
