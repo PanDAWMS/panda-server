@@ -59,5 +59,5 @@ class CarbonEmissions(threading.Thread):
             self.taskBuffer.carbon_write_region_emissions(results)
 
             # aggregate the emissions for the grid
-            self.taskBuffer.aggregate_emissions()
+            self.taskBuffer.carbon_aggregate_emissions()
 
