@@ -17688,7 +17688,7 @@ class DBProxy:
             # reset the tasks resource type, since it could have jumped to HIMEM
             if increased:
                 try:
-                    self.reset_resource_type(jediTaskID)
+                    self.reset_resource_type_task(jediTaskID)
                 except Exception:
                     _logger.error("reset_resource_type excepted with {0}".format(traceback.format_exc()))
 
