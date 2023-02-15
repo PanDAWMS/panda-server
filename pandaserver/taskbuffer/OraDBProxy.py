@@ -12930,7 +12930,7 @@ class DBProxy:
                         varMap[':jediTaskID'] = jobSpec.jediTaskID
                         sqlRecal  = "UPDATE ATLAS_PANDA.JEDI_Tasks SET walltimeUnit=NULL WHERE jediTaskId=:jediTaskID "
                         msgStr  = "trigger recalcuration of task parameters "
-                        msgStr += "with nDoneJobs={0} for jediTaskID={1}".format(numDone,jobSpec.jediTaskID)
+                        msgStr += "with nDoneJobs={0} for jediTaskID={1}".format(numDone, jobSpec.jediTaskID)
                         tmpLog.debug(msgStr)
                         cur.execute(sqlRecal+comment,varMap)
         # propagate failed result to unmerge job
@@ -12944,7 +12944,8 @@ class DBProxy:
             g_co2 = self.set_co2_emissions(job.PandaID)
             _logger.debug("archiveJob : calculated gCO2 {0} for pandaID {1}".format(g_co2, jobSpec.PandaID))
         except Exception:
-            _logger.error("archiveJob : failed calculating gCO2 for pandaID {0} with {1}".format(jobSpec.PandaID, traceback.format_exc()))
+            _logger.error("archiveJob : failed calculating gCO2 for pandaID {0} with {1}".format(jobSpec.PandaID,
+                                                                                                 traceback.format_exc()))
 
         # return
         return True
