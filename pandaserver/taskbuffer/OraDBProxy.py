@@ -1810,8 +1810,8 @@ class DBProxy:
 
                     # update the g of CO2 emitted by the job
                     try:
-                        g_co2 = self.set_co2_emissions(job.PandaID, in_active=True)
-                        _logger.debug("archiveJob : calculated gCO2 {0} for pandaID {1}".format(g_co2, job.PandaID))
+                        g_co2_regional, g_co2_global = self.set_co2_emissions(job.PandaID, in_active=True)
+                        _logger.debug("archiveJob : calculated gCO2 regional {0} and global {1} for pandaID {2}".format(g_co2_regional, g_co2_global, job.PandaID))
                         # if g_co2 is not None:
                         #     job.g_co2 = g_co2
                     except Exception:
@@ -1830,8 +1830,8 @@ class DBProxy:
 
                     # update the g of CO2 emitted by the job
                     try:
-                        g_co2 = self.set_co2_emissions(job.PandaID, in_active=True)
-                        _logger.debug("archiveJob : calculated gCO2 {0} for pandaID {1}".format(g_co2, job.PandaID))
+                        g_co2_regional, g_co2_global = self.set_co2_emissions(job.PandaID, in_active=True)
+                        _logger.debug("archiveJob : calculated gCO2 regional {0} and global {1} for pandaID {1}".format(g_co2_regional, g_co2_global, job.PandaID))
                         # if g_co2 is not None:
                         #     job.g_co2 = g_co2
                     except Exception:
@@ -12948,8 +12948,10 @@ class DBProxy:
 
         # update the g of CO2 emitted by the job
         try:
-            g_co2 = self.set_co2_emissions(jobSpec.PandaID)
-            _logger.debug("archiveJob : calculated gCO2 {0} for pandaID {1}".format(g_co2, jobSpec.PandaID))
+            g_co2_regional, g_co2_global = self.set_co2_emissions(jobSpec.PandaID)
+            _logger.debug("archiveJob : calculated gCO2 regional {0} and global {1} for pandaID {2}".format(g_co2_regional,
+                                                                                                            g_co2_global,
+                                                                                                            jobSpec.PandaID))
         except Exception:
             _logger.error("archiveJob : failed calculating gCO2 for pandaID {0} with {1}".format(jobSpec.PandaID,
                                                                                                  traceback.format_exc()))
@@ -19521,7 +19523,7 @@ class DBProxy:
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmp_log = LogWrapper(_logger, method_name+" <PandaID={0}>".format(panda_id))
         tmp_log.debug("start")
-        g_co2 = None
+        g_co2_regional, g_co2_global = None, None
 
         # sql to get job attributes
         sql_read = "SELECT jediTaskID, startTime, endTime, actualCoreCount, coreCount, jobMetrics, computingSite "
@@ -19548,8 +19550,6 @@ class DBProxy:
 
             # get core count
             core_count = JobUtils.getCoreCount(actual_cores, defined_cores, job_metrics)
-
-            g_co2_regional, g_co2_global = None, None
 
             # get regional CO2 emissions
             co2_emissions = self.get_co2_emissions_site(computing_site)
@@ -19588,7 +19588,7 @@ class DBProxy:
                     
         tmp_log.debug("done")
         # return
-        return g_co2
+        return g_co2_regional, g_co2_global
 
 
     # check if all events are done
