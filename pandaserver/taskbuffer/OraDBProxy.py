@@ -1810,10 +1810,12 @@ class DBProxy:
 
                     # update the g of CO2 emitted by the job
                     try:
-                        g_co2_regional, g_co2_global = self.set_co2_emissions(job.PandaID, in_active=True)
-                        _logger.debug("archiveJob : calculated gCO2 regional {0} and global {1} for pandaID {2}".format(g_co2_regional, g_co2_global, job.PandaID))
-                        # if g_co2 is not None:
-                        #     job.g_co2 = g_co2
+                        gco2_regional, gco2_global = self.set_co2_emissions(job.PandaID, in_active=True)
+                        _logger.debug("archiveJob : calculated gCO2 regional {0} and global {1} for pandaID {2}".format(gco2_regional, gco2_global, job.PandaID))
+                        if gco2_regional is not None:
+                            job.gco2_regional = gco2_regional
+                        if gco2_global is not None:
+                            job.gco2_global = gco2_global
                     except Exception:
                         _logger.error(
                             "archiveJob : failed calculating gCO2 for pandaID {0} with {1}".format(job.PandaID,
@@ -1830,10 +1832,12 @@ class DBProxy:
 
                     # update the g of CO2 emitted by the job
                     try:
-                        g_co2_regional, g_co2_global = self.set_co2_emissions(job.PandaID, in_active=True)
-                        _logger.debug("archiveJob : calculated gCO2 regional {0} and global {1} for pandaID {1}".format(g_co2_regional, g_co2_global, job.PandaID))
-                        # if g_co2 is not None:
-                        #     job.g_co2 = g_co2
+                        gco2_regional, gco2_global = self.set_co2_emissions(job.PandaID, in_active=True)
+                        _logger.debug("archiveJob : calculated gCO2 regional {0} and global {1} for pandaID {1}".format(gco2_regional, gco2_global, job.PandaID))
+                        if gco2_regional is not None:
+                             job.gco2_regional = gco2_regional
+                        if gco2_global is not None:
+                             job.gco2_global = gco2_global
                     except Exception:
                         _logger.error(
                             "archiveJob : failed calculating gCO2 for pandaID {0} with {1}".format(job.PandaID,
@@ -12948,9 +12952,9 @@ class DBProxy:
 
         # update the g of CO2 emitted by the job
         try:
-            g_co2_regional, g_co2_global = self.set_co2_emissions(jobSpec.PandaID)
-            _logger.debug("archiveJob : calculated gCO2 regional {0} and global {1} for pandaID {2}".format(g_co2_regional,
-                                                                                                            g_co2_global,
+            gco2_regional, gco2_global = self.set_co2_emissions(jobSpec.PandaID)
+            _logger.debug("archiveJob : calculated gCO2 regional {0} and global {1} for pandaID {2}".format(gco2_regional,
+                                                                                                            gco2_global,
                                                                                                             jobSpec.PandaID))
         except Exception:
             _logger.error("archiveJob : failed calculating gCO2 for pandaID {0} with {1}".format(jobSpec.PandaID,
@@ -19524,7 +19528,7 @@ class DBProxy:
         method_name = comment.split(' ')[-2].split('.')[-1]
         tmp_log = LogWrapper(_logger, method_name+" <PandaID={0}>".format(panda_id))
         tmp_log.debug("start")
-        g_co2_regional, g_co2_global = None, None
+        gco2_regional, gco2_global = None, None
 
         # sql to get job attributes
         sql_read = "SELECT jediTaskID, startTime, endTime, actualCoreCount, coreCount, jobMetrics, computingSite "
@@ -19538,7 +19542,7 @@ class DBProxy:
             sql_update = "UPDATE ATLAS_PANDA.jobsActive4 "
         else:
             sql_update = "UPDATE ATLAS_PANDA.jobsArchived4 "
-        sql_update += "SET gCO2_global=:g_co2_global, gCO2_regional=:g_co2_regional WHERE PandaID=:PandaID "
+        sql_update += "SET gCO2_global=:gco2_global, gCO2_regional=:gco2_regional WHERE PandaID=:PandaID "
 
         # get job attributes
         var_map = {':PandaID': panda_id}
@@ -19558,13 +19562,13 @@ class DBProxy:
                 tmp_log.debug('skip since co2_emissions are undefined for site={0}'.format(computing_site))
             else:
                 # get emitted CO2 for the job
-                g_co2_regional = JobUtils.get_job_co2(start_time, end_time, core_count, co2_emissions)
-                if g_co2_regional is None:
+                gco2_regional = JobUtils.get_job_co2(start_time, end_time, core_count, co2_emissions)
+                if gco2_regional is None:
                     tmp_log.debug('skip since the co2 emissions could not be calculated')
                 else:
-                    max_g_co2 = 999999999
-                    g_co2_regional = min(g_co2_regional, max_g_co2)
-                    tmp_log.debug('set g_co2_regional={0}'.format(g_co2_regional))
+                    max_gco2 = 999999999
+                    gco2_regional = min(gco2_regional, max_gco2)
+                    tmp_log.debug('set gco2_regional={0}'.format(gco2_regional))
 
             # get globally averaged CO2 emissions
             co2_emissions = self.get_co2_emissions_grid()
@@ -19572,24 +19576,23 @@ class DBProxy:
                 tmp_log.debug('skip since co2_emissions are undefined for the grid')
             else:
                 # get emitted CO2 for the job
-                g_co2_global = JobUtils.get_job_co2(start_time, end_time, core_count, co2_emissions)
-                if g_co2_global is None:
+                gco2_global = JobUtils.get_job_co2(start_time, end_time, core_count, co2_emissions)
+                if gco2_global is None:
                     tmp_log.debug('skip since the co2 emissions could not be calculated')
                 else:
-                    max_g_co2 = 999999999
-                    g_co2_global = min(g_co2_global, max_g_co2)
+                    max_gco2 = 999999999
+                    gco2_global = min(gco2_global, max_gco2)
     
-                    tmp_log.debug('set g_co2_global={0}'.format(g_co2_global))
+                    tmp_log.debug('set gco2_global={0}'.format(gco2_global))
 
             var_map = {':PandaID': panda_id,
-                       ':g_co2_regional': g_co2_regional,
-                       ':g_co2_global': g_co2_global}
-            # TODO: for the moment we will only log it
-            # self.cur.execute(sql_update + comment, var_map)
+                       ':gco2_regional': gco2_regional,
+                       ':gco2_global': gco2_global}
+            self.cur.execute(sql_update + comment, var_map)
                     
         tmp_log.debug("done")
         # return
-        return g_co2_regional, g_co2_global
+        return gco2_regional, gco2_global
 
 
     # check if all events are done
