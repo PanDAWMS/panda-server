@@ -113,7 +113,7 @@ def get_job_co2(start_time, end_time, core_count, energy_emissions):
         ended = False
         i = 0
 
-        gCO2_job = 0
+        g_co2_job = 0
 
         for timestamp in timestamps:
             try:
@@ -125,25 +125,25 @@ def get_job_co2(start_time, end_time, core_count, energy_emissions):
             if end_time < timestamp and not ended:
                 ended = True
 
-            if started and not ended:
+            if started and not ended or i == len(timestamps) - 1:
                 bottom = max(start_time, timestamp)
                 try:
                     top = min(end_time, timestamps[i + 1])
                 except IndexError:
                     top = end_time
 
-                gCO2_perkWh = energy_emissions_by_ts[timestamp]['value']
+                g_co2_perkWh = energy_emissions_by_ts[timestamp]['value']
 
-                duration = (top - bottom).total_seconds()
+                duration = max((top - bottom).total_seconds(), 0)
                 watts_per_core = 10  # TODO: Assigning temporary value
-                gCO2_job = gCO2_job + (duration * gCO2_perkWh * core_count * watts_per_core / 3600 / 1000)
+                g_co2_job = g_co2_job + (duration * g_co2_perkWh * core_count * watts_per_core / 3600 / 1000)
 
             if ended:
                 break
 
             i = i + 1
 
-        return gCO2_job
+        return g_co2_job
 
     except Exception:
         return None
@@ -183,3 +183,48 @@ def compensate_ram_count(ram_count):
     if ram_count is not None:
         ram_count = int(ram_count * 0.90)
     return ram_count
+
+def country_to_co2_region(country):
+    # From https://gitlab.cern.ch/bbrueers/electricitymaps-scraper/-/blob/master/readPandacues.py
+    conversion_dict = {
+        'Argentina': "AR",
+        'Australia': "AU",
+        'Austria': "AT",
+        'Brazil': "BR",
+        'Canada': "CA-YT",
+        # as a proxy for Canada using Canada-Yukon, no whole coverage of Canada on electricity-maps so far
+        'Chile': "CL-SEN",
+        'China': "CN",
+        'Czechia': "CZ",
+        'Denmark': "DK",
+        'France': "FR",
+        'Germany': "DE",
+        'Greece': "GR",
+        'Hong Kong SAR': "HK",
+        'Israel': "IL",
+        'Italy': "IT",
+        'Japan': "JP-TK",  # Japan-Tokyo as a proxy for Japan
+        'Morocco': "MA",
+        'Southeast Norway': "NO",
+        'Norway': "NO",
+        'Netherlands': "NL",
+        'Poland': "PL",
+        'Portugal': "PT",
+        'Romania': "RO",
+        'Russian Federation': "RU-1",  # Russia, using Russia-Europe-Ural as proxy for Russia
+        'Slovakia': "SK",
+        'Slovenia': "SI",
+        'Spain': "ES",
+        'South Africa': "ZA",
+        'Sweden': "SE",
+        'Switzerland': "CH",
+        'Taiwan': "TW",
+        'Turkey': "TR",
+        'United Kingdom': "GB",
+        # 'United States': "US",
+        'United States': "US-SW-WALC"  # temporary, as a proxy for the US, as "US" is not available
+    }
+    if country in conversion_dict:
+        return conversion_dict[country]
+
+    return None

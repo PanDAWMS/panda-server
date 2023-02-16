@@ -4159,5 +4159,12 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         return ret
 
+    def carbon_aggregate_emissions(self):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.carbon_aggregate_emissions()
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+
 # Singleton
 taskBuffer = TaskBuffer()

@@ -1807,13 +1807,38 @@ class DBProxy:
                     _logger.debug("archiveJob : calculated hs06sec {0} for pandaID {1}".format(hs06sec, job.PandaID))
                     if hs06sec is not None:
                         job.hs06sec = hs06sec
+
+                    # update the g of CO2 emitted by the job
+                    try:
+                        g_co2_regional, g_co2_global = self.set_co2_emissions(job.PandaID, in_active=True)
+                        _logger.debug("archiveJob : calculated gCO2 regional {0} and global {1} for pandaID {2}".format(g_co2_regional, g_co2_global, job.PandaID))
+                        # if g_co2 is not None:
+                        #     job.g_co2 = g_co2
+                    except Exception:
+                        _logger.error(
+                            "archiveJob : failed calculating gCO2 for pandaID {0} with {1}".format(job.PandaID,
+                                                                                                   traceback.format_exc()))
+
                 # actions for successful normal ES jobs
                 if useJEDI and EventServiceUtils.isEventServiceJob(job) \
                         and not EventServiceUtils.isJobCloningJob(job):
+
                     # update some job attributes
                     hs06sec = self.setHS06sec(job.PandaID, inActive=True)
                     if hs06sec is not None:
                         job.hs06sec = hs06sec
+
+                    # update the g of CO2 emitted by the job
+                    try:
+                        g_co2_regional, g_co2_global = self.set_co2_emissions(job.PandaID, in_active=True)
+                        _logger.debug("archiveJob : calculated gCO2 regional {0} and global {1} for pandaID {1}".format(g_co2_regional, g_co2_global, job.PandaID))
+                        # if g_co2 is not None:
+                        #     job.g_co2 = g_co2
+                    except Exception:
+                        _logger.error(
+                            "archiveJob : failed calculating gCO2 for pandaID {0} with {1}".format(job.PandaID,
+                                                                                                   traceback.format_exc()))
+
                     # post processing
                     oldJobSubStatus = job.jobSubStatus
                     if oldJobSubStatus == 'NULL':
@@ -10077,7 +10102,8 @@ class DBProxy:
 
                         # skip invalid siteid
                         if siteid in [None, '', 'ALL'] or not queue_data:
-                            _logger.error("siteid {0} had no queue_data {1}".format(siteid, queue_data))
+                            if siteid != 'ALL':  # skip noisy error message for ALL
+                                _logger.error("siteid {0} had no queue_data {1}".format(siteid, queue_data))
                             continue
 
                         _logger.debug("processing queue {0}".format(siteid))
@@ -12425,7 +12451,7 @@ class DBProxy:
 
 
     # propagate result to JEDI
-    def propagateResultToJEDI(self,jobSpec,cur,oldJobStatus=None,extraInfo=None,finishPending=False,waitLock=False):
+    def propagateResultToJEDI(self, jobSpec, cur, oldJobStatus=None, extraInfo=None, finishPending=False, waitLock=False):
         comment = ' /* DBProxy.propagateResultToJEDI */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " <PandaID={0}>".format(jobSpec.PandaID)
@@ -12911,14 +12937,25 @@ class DBProxy:
                         varMap[':jediTaskID'] = jobSpec.jediTaskID
                         sqlRecal  = "UPDATE ATLAS_PANDA.JEDI_Tasks SET walltimeUnit=NULL WHERE jediTaskId=:jediTaskID "
                         msgStr  = "trigger recalcuration of task parameters "
-                        msgStr += "with nDoneJobs={0} for jediTaskID={1}".format(numDone,jobSpec.jediTaskID)
+                        msgStr += "with nDoneJobs={0} for jediTaskID={1}".format(numDone, jobSpec.jediTaskID)
                         tmpLog.debug(msgStr)
                         cur.execute(sqlRecal+comment,varMap)
         # propagate failed result to unmerge job
         if len(finishUnmerge) > 0:
-            self.updateUnmergedJobs(jobSpec,finishUnmerge)
+            self.updateUnmergedJobs(jobSpec, finishUnmerge)
         # update some job attributes
         self.setHS06sec(jobSpec.PandaID)
+
+        # update the g of CO2 emitted by the job
+        try:
+            g_co2_regional, g_co2_global = self.set_co2_emissions(jobSpec.PandaID)
+            _logger.debug("archiveJob : calculated gCO2 regional {0} and global {1} for pandaID {2}".format(g_co2_regional,
+                                                                                                            g_co2_global,
+                                                                                                            jobSpec.PandaID))
+        except Exception:
+            _logger.error("archiveJob : failed calculating gCO2 for pandaID {0} with {1}".format(jobSpec.PandaID,
+                                                                                                 traceback.format_exc()))
+
         # return
         return True
 
@@ -17659,7 +17696,7 @@ class DBProxy:
             # reset the tasks resource type, since it could have jumped to HIMEM
             if increased:
                 try:
-                    self.reset_resource_type(jediTaskID)
+                    self.reset_resource_type_task(jediTaskID)
                 except Exception:
                     _logger.error("reset_resource_type excepted with {0}".format(traceback.format_exc()))
 
@@ -18302,7 +18339,7 @@ class DBProxy:
         tmp_logger.debug("start")
 
         # SQL to extract the error definitions
-        sql  = """
+        sql = """
         SELECT re.retryerror_id, re.errorsource, re.errorcode, re.errorDiag, re.parameters, re.architecture, re.release, re.workqueue_id, ra.retry_action, re.active, ra.active
         FROM ATLAS_PANDA.RETRYERRORS re, ATLAS_PANDA.RETRYACTIONS ra
         WHERE re.retryaction=ra.retryaction_id
@@ -18315,7 +18352,7 @@ class DBProxy:
         if not self._commit():
             raise RuntimeError('Commit error')
 
-        tmp_logger.debug("definitions %s"%(definitions))
+        # tmp_logger.debug("definitions %s"%(definitions))
 
         retrial_rules = {}
         for definition in definitions:
@@ -18348,7 +18385,7 @@ class DBProxy:
                                                             'release': release,
                                                             'wqid': wqid,
                                                             'active': active})
-        tmp_logger.debug("Loaded retrial rules from DB: %s" %retrial_rules)
+        # tmp_logger.debug("Loaded retrial rules from DB: %s" %retrial_rules)
         return retrial_rules
 
 
@@ -19446,8 +19483,20 @@ class DBProxy:
         return hs06sec
 
     def convert_computingsite_to_region(self, computing_site):
-        # TODO: for the moment we calculate based on Swiss emissions until there is a conversion logic or CRIC field
-        return 'CH'
+        comment = ' /* DBProxy.convert_computingsite_to_region */'
+
+        var_map = {":panda_queue": computing_site}
+        sql = "SELECT /* use_json_type */ scj.data.country FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:panda_queue"
+        self.cur.arraysize = 100
+        self.cur.execute(sql + comment, var_map)
+        res_country = self.cur.fetchone()
+        country = None
+        if res_country:
+            country = res_country[0]
+
+        # TODO: for the moment we calculate based on static dictionary
+        region = JobUtils.country_to_co2_region(country)
+        return region
 
     def get_co2_emissions_site(self, computing_site):
         comment = ' /* DBProxy.get_co2_emissions_site */'
@@ -19461,27 +19510,35 @@ class DBProxy:
         results = self.cur.fetchall()
         return results
 
+    def get_co2_emissions_grid(self):
+        comment = ' /* DBProxy.get_co2_emissions_grid */'
+
+        sql = "SELECT timestamp, region, value FROM ATLAS_PANDA.CARBON_REGION_EMISSIONS WHERE region='GRID'"
+        self.cur.execute(sql + comment)
+        results = self.cur.fetchall()
+        return results
+
     # set CO2 emissions
-    def set_co2_emissions(self, panda_id, inActive=False):
+    def set_co2_emissions(self, panda_id, in_active=False):
         comment = ' /* DBProxy.set_co2_emissions */'
         method_name = comment.split(' ')[-2].split('.')[-1]
-        tmp_log = LogWrapper(_logger,method_name+" <PandaID={0}>".format(panda_id))
+        tmp_log = LogWrapper(_logger, method_name+" <PandaID={0}>".format(panda_id))
         tmp_log.debug("start")
-        hs06sec = None
+        g_co2_regional, g_co2_global = None, None
 
         # sql to get job attributes
         sql_read = "SELECT jediTaskID, startTime, endTime, actualCoreCount, coreCount, jobMetrics, computingSite "
-        if inActive:
+        if in_active:
             sql_read += "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
         else:
             sql_read += "FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
 
         # sql to update CO2 emissions
-        if inActive:
+        if in_active:
             sql_update = "UPDATE ATLAS_PANDA.jobsActive4 "
         else:
             sql_update = "UPDATE ATLAS_PANDA.jobsArchived4 "
-        sql_update += "SET co2emissions=:co2emissions WHERE PandaID=:PandaID "
+        sql_update += "SET gCO2_global=:g_co2_global, gCO2_regional=:g_co2_regional WHERE PandaID=:PandaID "
 
         # get job attributes
         var_map = {':PandaID': panda_id}
@@ -19491,27 +19548,48 @@ class DBProxy:
             tmp_log.debug('skip since job not found')
         else:
             task_id, start_time, end_time, actual_cores, defined_cores, job_metrics, computing_site = res_read
+
+            # get core count
+            core_count = JobUtils.getCoreCount(actual_cores, defined_cores, job_metrics)
+
             # get regional CO2 emissions
             co2_emissions = self.get_co2_emissions_site(computing_site)
             if not co2_emissions:
                 tmp_log.debug('skip since co2_emissions are undefined for site={0}'.format(computing_site))
             else:
-                # get core count
-                core_count = JobUtils.getCoreCount(actual_cores, defined_cores, job_metrics)
                 # get emitted CO2 for the job
-                co2_job = JobUtils.get_job_co2(start_time, end_time, core_count, co2_emissions)
-                if co2_job is None:
-                    tmp_log.debug('skip since the emissions could not be calculated')
+                g_co2_regional = JobUtils.get_job_co2(start_time, end_time, core_count, co2_emissions)
+                if g_co2_regional is None:
+                    tmp_log.debug('skip since the co2 emissions could not be calculated')
                 else:
-                    max_co2_job = 999999999
-                    co2_job = min(co2_job, max_co2_job)
+                    max_g_co2 = 999999999
+                    g_co2_regional = min(g_co2_regional, max_g_co2)
+                    tmp_log.debug('set g_co2_regional={0}'.format(g_co2_regional))
 
-                    var_map = {':PandaID': panda_id, ':co2emissions': co2_job}
+            # get globally averaged CO2 emissions
+            co2_emissions = self.get_co2_emissions_grid()
+            if not co2_emissions:
+                tmp_log.debug('skip since co2_emissions are undefined for the grid')
+            else:
+                # get emitted CO2 for the job
+                g_co2_global = JobUtils.get_job_co2(start_time, end_time, core_count, co2_emissions)
+                if g_co2_global is None:
+                    tmp_log.debug('skip since the co2 emissions could not be calculated')
+                else:
+                    max_g_co2 = 999999999
+                    g_co2_global = min(g_co2_global, max_g_co2)
+    
+                    tmp_log.debug('set g_co2_global={0}'.format(g_co2_global))
 
-                    self.cur.execute(sql_update + comment, var_map)
-                    tmp_log.debug('set HS06sec={0}'.format(hs06sec))
+            var_map = {':PandaID': panda_id,
+                       ':g_co2_regional': g_co2_regional,
+                       ':g_co2_global': g_co2_global}
+            # TODO: for the moment we will only log it
+            # self.cur.execute(sql_update + comment, var_map)
+                    
+        tmp_log.debug("done")
         # return
-        return hs06sec
+        return g_co2_regional, g_co2_global
 
 
     # check if all events are done
@@ -20113,6 +20191,7 @@ class DBProxy:
         varMap = {':siteid': site_id}
 
         try:
+            self.cur.arraysize = 100
             self.cur.execute(sqlS + comment, varMap)
             resS = self.cur.fetchone()
             core_power = None
@@ -25069,8 +25148,9 @@ class DBProxy:
             self.conn.begin()
 
             tmp_log.debug("Deleting old entries")
-            sql_insert = "DELETE FROM ATLAS_PANDA.CARBON_REGION_EMISSIONS " \
+            sql_delete = "DELETE FROM ATLAS_PANDA.CARBON_REGION_EMISSIONS " \
                          "WHERE timestamp < sysdate - interval '10' day"
+            self.cur.execute(sql_delete + comment)
 
             tmp_log.debug("Inserting emissions by region")
 
@@ -25079,6 +25159,85 @@ class DBProxy:
                          "VALUES(:region, :timestamp, :value)"
             for shard in create_shards(emissions, 100):
                 self.cur.executemany(sql_insert + comment, shard)
+
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+
+            tmp_log.debug('Done')
+            return 0, None
+
+        except Exception:
+            self._rollback()
+            type, value, tb = sys.exc_info()
+            tmp_log.error("{} {}".format(type, value))
+            tmp_log.error(format(traceback.format_exc()))
+            return -1, None
+
+    def carbon_aggregate_emissions(self):
+        comment = ' /* DBProxy.carbon_aggregate_emissions */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug('start')
+
+        try:
+            # begin transaction
+            self.conn.begin()
+
+            # get the percentage each country is contributing to grid computing power
+            sql_stat = "WITH tmp_total(total_hs) AS " \
+                       "(SELECT sum(hs) " \
+                       "FROM ATLAS_PANDA.jobs_share_stats) " \
+                       "SELECT scj.data.country, sum(jss.hs)/tmp_total.total_hs " \
+                       "FROM ATLAS_PANDA.jobs_share_stats jss, ATLAS_PANDA.schedconfig_json scj, tmp_total " \
+                       "WHERE jss.computingsite = scj.panda_queue " \
+                       "GROUP BY scj.data.country, tmp_total.total_hs "
+            
+            region_dic = {}
+            stats_raw = self.cur.execute(sql_stat + comment)
+            for entry in stats_raw:
+                country, per_cent = entry
+                # convert country to region code
+                region = JobUtils.country_to_co2_region(country)
+                region_dic.setdefault(region, {'emissions': 0, 'per_cent': 0})
+                region_dic[region]['per_cent'] = per_cent
+
+            # get the last emission values for each country
+            sql_last = "WITH top_ts(timestamp, region) AS " \
+                       "(SELECT max(timestamp), region " \
+                       "FROM atlas_panda.carbon_region_emissions " \
+                       "GROUP BY region) " \
+                       "SELECT cre.region, cre.value, cre.timestamp " \
+                       "FROM atlas_panda.carbon_region_emissions cre, top_ts " \
+                       "WHERE cre.timestamp = top_ts.timestamp AND cre.region = top_ts.region"
+
+            last_emission_values = self.cur.execute(sql_last + comment)
+            for entry in last_emission_values:
+                region, value, ts = entry
+                region_dic.setdefault(region, {'emissions': 0, 'per_cent': 0})
+                region_dic[region]['emissions'] = value
+
+            # calculate the grid average emissions
+            average_emissions = 0
+            for region in region_dic:
+                tmp_log.debug('Country {0} with per_cent {1} and emissions {2}'.format(region,
+                                                                                       region_dic[region]['per_cent'],
+                                                                                       region_dic[region]['emissions']))
+                try:
+                    average_emissions = average_emissions + region_dic[region]['per_cent'] * region_dic[region]['emissions']
+                except Exception:
+                    tmp_log.debug('Skipped country {0} with per_cent {1} and emissions {2}'.format(region,
+                                                                                                   region_dic[region]['per_cent'],
+                                                                                                   region_dic[region]['emissions']))
+            
+            # store the average emissions
+            tmp_log.debug('The grid co2 emissions were averaged to {0}'.format(average_emissions))
+            utc_now = datetime.datetime.utcnow()
+            var_map = {':region': 'GRID', ':timestamp': utc_now, 'value': average_emissions}
+
+            sql_insert = "INSERT INTO ATLAS_PANDA.carbon_region_emissions (region, timestamp, value) " \
+                         "VALUES (:region, :timestamp, :value)"
+            self.cur.execute(sql_insert + comment, var_map)
 
             # commit
             if not self._commit():
