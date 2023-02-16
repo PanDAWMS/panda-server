@@ -19487,6 +19487,7 @@ class DBProxy:
 
         var_map = {":panda_queue": computing_site}
         sql = "SELECT /* use_json_type */ scj.data.country FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:panda_queue"
+        # self.cur.arraysize = 1000
         self.cur.execute(sql + comment, var_map)
         res_country = self.cur.fetchone()
         country = None
@@ -19578,7 +19579,7 @@ class DBProxy:
                     max_g_co2 = 999999999
                     g_co2_global = min(g_co2_global, max_g_co2)
     
-                    tmp_log.debug('set g_co2_global={0}'.format(g_co2))
+                    tmp_log.debug('set g_co2_global={0}'.format(g_co2_global))
 
             var_map = {':PandaID': panda_id,
                        ':g_co2_regional': g_co2_regional,
