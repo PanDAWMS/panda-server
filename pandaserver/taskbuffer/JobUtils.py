@@ -134,7 +134,7 @@ def get_job_co2(start_time, end_time, core_count, energy_emissions):
 
                 g_co2_perkWh = energy_emissions_by_ts[timestamp]['value']
 
-                duration = (top - bottom).total_seconds()
+                duration = max((top - bottom).total_seconds(), 0)
                 watts_per_core = 10  # TODO: Assigning temporary value
                 g_co2_job = g_co2_job + (duration * g_co2_perkWh * core_count * watts_per_core / 3600 / 1000)
 
