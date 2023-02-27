@@ -19490,16 +19490,14 @@ class DBProxy:
         comment = ' /* DBProxy.convert_computingsite_to_region */'
 
         var_map = {":panda_queue": computing_site}
-        sql = "SELECT /* use_json_type */ scj.data.country FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:panda_queue"
+        sql = "SELECT /* use_json_type */ scj.data.region FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:panda_queue"
         self.cur.arraysize = 100
         self.cur.execute(sql + comment, var_map)
-        res_country = self.cur.fetchone()
-        country = None
-        if res_country:
-            country = res_country[0]
+        res_region = self.cur.fetchone()
+        region = 'GRID'  # when region is not defined, take average values
+        if res_region:
+            region = res_region[0]
 
-        # TODO: for the moment we calculate based on static dictionary
-        region = JobUtils.country_to_co2_region(country)
         return region
 
     def get_co2_emissions_site(self, computing_site):
