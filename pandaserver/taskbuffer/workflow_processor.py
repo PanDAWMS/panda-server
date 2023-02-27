@@ -11,6 +11,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandaserver.workflow import pcwl_utils
 from pandaserver.workflow import workflow_utils
+from pandaserver.workflow.snakeparser import Parser
 from pandaserver.srvcore.CoreUtils import commands_get_status_output, clean_user_id
 from pandaserver.srvcore.MailUtils import MailUtils
 
@@ -86,11 +87,11 @@ class WorkflowProcessor(object):
                             # message
                             if is_OK:
                                 mailSubject = "PANDA Notification for Workflow {}".format(ops['data']['outDS'])
-                                mailBody = "Hello,\n\nWorkflow:{} has been accepted with RequestID:{}\n\n".\
+                                mailBody = "Hello,\n\nWorkflow:{} has been accepted with RequestID:{}\n\n". \
                                     format(ops['data']['outDS'], request_id)
                             else:
                                 mailSubject = "PANDA WARNING for Workflow={}".format(ops['data']['outDS'])
-                                mailBody = "Hello,\n\nWorkflow {} was not accepted\n\n".\
+                                mailBody = "Hello,\n\nWorkflow {} was not accepted\n\n". \
                                     format(ops['data']['outDS'], request_id)
                                 mailBody += "Reason : %s\n" % dump_str
                             # send
@@ -169,6 +170,29 @@ def core_exec(sandbox_url, log_token, dump_workflow, ops_file, user_name, test_m
                                                                         tmpLog)
                         with open(ops['data']['workflowInputFile']) as workflow_input:
                             data = yaml.safe_load(workflow_input)
+                        # noinspection DuplicatedCode
+                        s_id, t_nodes, nodes = pcwl_utils.resolve_nodes(nodes, root_in, data, 0, set(),
+                                                                        ops['data']['outDS'], tmpLog)
+                        workflow_utils.set_workflow_outputs(nodes)
+                        id_node_map = workflow_utils.get_node_id_map(nodes)
+                        [node.resolve_params(ops['data']['taskParams'], id_node_map) for node in nodes]
+                        dump_str = "the description was internally converted as follows\n" \
+                                   + workflow_utils.dump_nodes(nodes)
+                        tmpLog.info(dump_str)
+                        for node in nodes:
+                            s_check, o_check = node.verify()
+                            tmp_str = 'Verification failure in ID:{} {}'.format(node.id, o_check)
+                            if not s_check:
+                                tmpLog.error(tmp_str)
+                                dump_str += tmp_str
+                                dump_str += '\n'
+                                is_fatal = True
+                                is_OK = False
+                    elif ops['data']['language'] == 'snakemake':
+                        parser = Parser(ops['data']['workflowSpecFile'], logger=tmpLog)
+                        nodes, root_in = parser.parse_nodes()
+                        data = dict()
+                        # noinspection DuplicatedCode
                         s_id, t_nodes, nodes = pcwl_utils.resolve_nodes(nodes, root_in, data, 0, set(),
                                                                         ops['data']['outDS'], tmpLog)
                         workflow_utils.set_workflow_outputs(nodes)

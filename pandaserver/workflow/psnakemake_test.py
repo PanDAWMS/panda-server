@@ -22,7 +22,6 @@ def main():
         data = dict()
         logging.info(f'{os.path.basename(__file__)}: workflow_file = {workflow_file}')
         parser = Parser(workflow_file, level=logging.DEBUG)
-        logging.info(f'verify_workflow = {parser.verify_workflow()}')
         nodes, root_in = parser.parse_nodes()
         _ = parser.parse_code()
         dot_data = parser.get_dot_data()
