@@ -97,7 +97,7 @@ def getHS06sec(startTime, endTime, corePower, coreCount, baseWalltime=0, cpuEffi
         return None
 
 
-def get_job_co2(start_time, end_time, core_count, energy_emissions):
+def get_job_co2(start_time, end_time, core_count, energy_emissions, watts_per_core):
 
     energy_emissions_by_ts = {}
     for entry in energy_emissions:
@@ -105,7 +105,6 @@ def get_job_co2(start_time, end_time, core_count, energy_emissions):
         energy_emissions_by_ts[aux_timestamp] = {'value': value}
 
     try:
-        # TODO: see which format it comes in
         timestamps = [entry[0] for entry in energy_emissions]
         timestamps.sort()
 
@@ -135,7 +134,6 @@ def get_job_co2(start_time, end_time, core_count, energy_emissions):
                 g_co2_perkWh = energy_emissions_by_ts[timestamp]['value']
 
                 duration = max((top - bottom).total_seconds(), 0)
-                watts_per_core = 10  # TODO: Assigning temporary value
                 g_co2_job = g_co2_job + (duration * g_co2_perkWh * core_count * watts_per_core / 3600 / 1000)
 
             if ended:
