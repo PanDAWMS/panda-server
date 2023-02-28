@@ -19554,13 +19554,24 @@ class DBProxy:
             # get core count
             core_count = JobUtils.getCoreCount(actual_cores, defined_cores, job_metrics)
 
+            # get the queues watts per core value
+            var_map = {":panda_queue": computing_site}
+            sql_wpc = "SELECT /* use_json_type */ scj.data.coreenergy FROM atlas_panda.schedconfig_json scj WHERE scj.panda_queue=:panda_queue"
+            self.cur.execute(sql_wpc + comment, var_map)
+            res_wpc = self.cur.fetchone()
+            if res_wpc is None:
+                watts_per_core = 10
+            else:
+                watts_per_core = res_wpc[0]
+            tmp_log.debug('using watts_per_core={0} for computing_site={1}'.format(watts_per_core, computing_site))
+
             # get regional CO2 emissions
             co2_emissions = self.get_co2_emissions_site(computing_site)
             if not co2_emissions:
                 tmp_log.debug('skip since co2_emissions are undefined for site={0}'.format(computing_site))
             else:
                 # get emitted CO2 for the job
-                gco2_regional = JobUtils.get_job_co2(start_time, end_time, core_count, co2_emissions)
+                gco2_regional = JobUtils.get_job_co2(start_time, end_time, core_count, co2_emissions, watts_per_core)
                 if gco2_regional is None:
                     tmp_log.debug('skip since the co2 emissions could not be calculated')
                 else:
@@ -19574,7 +19585,7 @@ class DBProxy:
                 tmp_log.debug('skip since co2_emissions are undefined for the grid')
             else:
                 # get emitted CO2 for the job
-                gco2_global = JobUtils.get_job_co2(start_time, end_time, core_count, co2_emissions)
+                gco2_global = JobUtils.get_job_co2(start_time, end_time, core_count, co2_emissions, watts_per_core)
                 if gco2_global is None:
                     tmp_log.debug('skip since the co2 emissions could not be calculated')
                 else:
