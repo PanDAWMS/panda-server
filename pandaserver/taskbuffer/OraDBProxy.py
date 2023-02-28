@@ -25185,25 +25185,24 @@ class DBProxy:
             # begin transaction
             self.conn.begin()
 
-            # get the percentage each country is contributing to grid computing power
+            # get the percentage each region is contributing to grid computing power
             sql_stat = "WITH tmp_total(total_hs) AS " \
                        "(SELECT sum(hs) " \
                        "FROM ATLAS_PANDA.jobs_share_stats) " \
-                       "SELECT scj.data.country, sum(jss.hs)/tmp_total.total_hs " \
+                       "SELECT scj.data.region, sum(jss.hs)/tmp_total.total_hs " \
                        "FROM ATLAS_PANDA.jobs_share_stats jss, ATLAS_PANDA.schedconfig_json scj, tmp_total " \
                        "WHERE jss.computingsite = scj.panda_queue " \
-                       "GROUP BY scj.data.country, tmp_total.total_hs "
+                       "AND scj.data.region IS NOT NULL AND scj.data.region != 'GRID'" \
+                       "GROUP BY scj.data.region, tmp_total.total_hs "
             
             region_dic = {}
             stats_raw = self.cur.execute(sql_stat + comment)
             for entry in stats_raw:
-                country, per_cent = entry
-                # convert country to region code
-                region = JobUtils.country_to_co2_region(country)
+                region, per_cent = entry
                 region_dic.setdefault(region, {'emissions': 0, 'per_cent': 0})
                 region_dic[region]['per_cent'] = per_cent
 
-            # get the last emission values for each country
+            # get the last emission values for each region
             sql_last = "WITH top_ts(timestamp, region) AS " \
                        "(SELECT max(timestamp), region " \
                        "FROM atlas_panda.carbon_region_emissions " \
@@ -25221,15 +25220,15 @@ class DBProxy:
             # calculate the grid average emissions
             average_emissions = 0
             for region in region_dic:
-                tmp_log.debug('Country {0} with per_cent {1} and emissions {2}'.format(region,
-                                                                                       region_dic[region]['per_cent'],
-                                                                                       region_dic[region]['emissions']))
+                tmp_log.debug('Region {0} with per_cent {1} and emissions {2}'.format(region,
+                                                                                      region_dic[region]['per_cent'],
+                                                                                      region_dic[region]['emissions']))
                 try:
                     average_emissions = average_emissions + region_dic[region]['per_cent'] * region_dic[region]['emissions']
                 except Exception:
-                    tmp_log.debug('Skipped country {0} with per_cent {1} and emissions {2}'.format(region,
-                                                                                                   region_dic[region]['per_cent'],
-                                                                                                   region_dic[region]['emissions']))
+                    tmp_log.debug('Skipped Region {0} with per_cent {1} and emissions {2}'.format(region,
+                                                                                                  region_dic[region]['per_cent'],
+                                                                                                  region_dic[region]['emissions']))
             
             # store the average emissions
             tmp_log.debug('The grid co2 emissions were averaged to {0}'.format(average_emissions))
