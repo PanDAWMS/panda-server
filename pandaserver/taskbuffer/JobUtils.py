@@ -97,6 +97,56 @@ def getHS06sec(startTime, endTime, corePower, coreCount, baseWalltime=0, cpuEffi
         return None
 
 
+def get_job_co2(start_time, end_time, core_count, energy_emissions, watts_per_core):
+
+    energy_emissions_by_ts = {}
+    for entry in energy_emissions:
+        aux_timestamp, region, value = entry
+        energy_emissions_by_ts[aux_timestamp] = {'value': value}
+
+    try:
+        timestamps = [entry[0] for entry in energy_emissions]
+        timestamps.sort()
+
+        started = False
+        ended = False
+        i = 0
+
+        g_co2_job = 0
+
+        for timestamp in timestamps:
+            try:
+                if start_time < timestamps[i + 1] and not started:
+                    started = True
+            except IndexError:
+                pass
+
+            if end_time < timestamp and not ended:
+                ended = True
+
+            if started and not ended or i == len(timestamps) - 1:
+                bottom = max(start_time, timestamp)
+                try:
+                    top = min(end_time, timestamps[i + 1])
+                except IndexError:
+                    top = end_time
+
+                g_co2_perkWh = energy_emissions_by_ts[timestamp]['value']
+
+                duration = max((top - bottom).total_seconds(), 0)
+                g_co2_job = g_co2_job + (duration * g_co2_perkWh * core_count * watts_per_core / 3600 / 1000)
+
+            if ended:
+                break
+
+            i = i + 1
+
+        return g_co2_job
+
+    except Exception:
+        return None
+
+
 # parse string for number of standby jobs
 def parseNumStandby(catchall):
     retMap = {}
@@ -131,3 +181,4 @@ def compensate_ram_count(ram_count):
     if ram_count is not None:
         ram_count = int(ram_count * 0.90)
     return ram_count
+

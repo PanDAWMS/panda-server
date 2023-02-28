@@ -19,6 +19,7 @@ from pandaserver.taskbuffer import retryModule
 
 from pandaserver.dataservice.Closer  import Closer
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.LogWrapper import LogWrapper
 
 # logger
 _logger = PandaLogger().getLogger('Watcher')
@@ -33,31 +34,32 @@ class Watcher (threading.Thread):
         self.sleepTime  = sleepTime
         self.single     = single
         self.siteMapper = sitemapper
+        self.logger = LogWrapper(_logger, str(pandaID))
 
     # main
     def run(self):
         try:
             while True:
-                _logger.debug('%s start' % self.pandaID)
+                self.logger.debug('start')
                 # query job
                 job = self.taskBuffer.peekJobs([self.pandaID],fromDefined=False,
                                                fromArchived=False,fromWaiting=False)[0]
-                _logger.debug('%s in %s' % (self.pandaID, job.jobStatus))
                 # check job status
                 if job is None:
-                    _logger.debug('%s escape : not found' % self.pandaID)
+                    self.logger.debug('escape : not found')
                     return
+                self.logger.debug('in %s' % job.jobStatus)
                 if job.jobStatus not in ['running','sent','starting','holding',
                                          'stagein','stageout']:
                     if job.jobStatus == 'transferring' and (job.prodSourceLabel in ['user','panda'] or job.jobSubStatus not in [None, 'NULL', '']):
                         pass
                     else:
-                        _logger.debug('%s escape : %s' % (self.pandaID,job.jobStatus))
+                        self.logger.debug('escape : wrong status %s' % job.jobStatus)
                         return
                 # time limit
                 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=self.sleepTime)
                 if job.modificationTime < timeLimit or (job.endTime != 'NULL' and job.endTime < timeLimit):
-                    _logger.debug('%s %s lastmod:%s endtime:%s' % (job.PandaID,job.jobStatus,
+                    self.logger.debug('%s lastmod:%s endtime:%s' % (job.jobStatus,
                                                                    str(job.modificationTime),
                                                                    str(job.endTime)))
                     destDBList = []
@@ -123,26 +125,26 @@ class Watcher (threading.Thread):
                         errors = [{'source': source, 'error_code': error_code, 'error_diag': error_diag}]
 
                         try:
-                            _logger.debug("Watcher will call apply_retrial_rules")
+                            self.logger.debug("Watcher will call apply_retrial_rules")
                             retryModule.apply_retrial_rules(self.taskBuffer, job.PandaID, errors, job.attemptNr)
-                            _logger.debug("apply_retrial_rules is back")
+                            self.logger.debug("apply_retrial_rules is back")
                         except Exception as e:
-                            _logger.debug("apply_retrial_rules excepted and needs to be investigated (%s): %s"%(e, traceback.format_exc()))
+                            self.logger.debug("apply_retrial_rules excepted and needs to be investigated (%s): %s"%(e, traceback.format_exc()))
 
                         # updateJobs was successful and it failed a job with taskBufferErrorCode
                         try:
 
-                            _logger.debug("Watcher.run will peek the job")
+                            self.logger.debug("Watcher.run will peek the job")
                             job_tmp = self.taskBuffer.peekJobs([job.PandaID], fromDefined=False, fromArchived=True,
                                                                fromWaiting=False)[0]
                             if job_tmp.taskBufferErrorCode:
                                 source = 'taskBufferErrorCode'
                                 error_code = job_tmp.taskBufferErrorCode
                                 error_diag = job_tmp.taskBufferErrorDiag
-                                _logger.debug("Watcher.run 2 will call apply_retrial_rules")
+                                self.logger.debug("Watcher.run 2 will call apply_retrial_rules")
                                 retryModule.apply_retrial_rules(self.taskBuffer, job_tmp.PandaID, source, error_code,
                                                                 error_diag, job_tmp.attemptNr)
-                                _logger.debug("apply_retrial_rules 2 is back")
+                                self.logger.debug("apply_retrial_rules 2 is back")
                         except IndexError:
                             pass
                         except Exception as e:
@@ -151,14 +153,13 @@ class Watcher (threading.Thread):
                         cThr = Closer(self.taskBuffer,destDBList,job)
                         cThr.start()
                         cThr.join()
-                    _logger.debug('%s end' % job.PandaID)
+                    self.logger.debug('done')
                     return
                 # single action
                 if self.single:
                     return
                 # sleep
                 time.sleep(60*self.sleepTime)
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error("run() : %s %s" % (type,value))
+        except Exception as e:
+            self.logger.error("run() : {} {}".format(str(e), traceback.format_exc()))
             return

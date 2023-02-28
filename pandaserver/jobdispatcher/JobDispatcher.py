@@ -102,7 +102,7 @@ class CachedObject:
 
 
 # job dipatcher
-class JobDipatcher:
+class JobDispatcher:
     # constructor
     def __init__(self):
         # taskbuffer
@@ -755,8 +755,8 @@ class JobDipatcher:
 
 
 # Singleton
-jobDispatcher = JobDipatcher()
-del JobDipatcher
+jobDispatcher = JobDispatcher()
+del JobDispatcher
 
 
 # get FQANs
@@ -960,34 +960,55 @@ def updateJob(req, jobId, state, token=None, transExitCode=None, pilotErrorCode=
               nInputFiles=None, batchID=None, attemptNr=None, jobMetrics=None, stdout='', jobSubStatus=None,
               coreCount=None, maxRSS=None, maxVMEM=None, maxSWAP=None, maxPSS=None, avgRSS=None, avgVMEM=None,
               avgSWAP=None, avgPSS=None, totRCHAR=None, totWCHAR=None, totRBYTES=None, totWBYTES=None, rateRCHAR=None,
-              rateWCHAR=None, rateRBYTES=None, rateWBYTES=None, corruptedFiles=None, meanCoreCount=None):
-    tmpLog = LogWrapper(_logger, 'updateJob PandaID={0} PID={1}'.format(jobId,os.getpid()))
+              rateWCHAR=None, rateRBYTES=None, rateWBYTES=None, corruptedFiles=None, meanCoreCount=None, cpu_flags=''):
+    tmpLog = LogWrapper(_logger, 'updateJob PandaID={0} PID={1}'.format(jobId, os.getpid()))
     tmpLog.debug('start')
     # get DN
     realDN = _getDN(req)
     # get FQANs
     fqans = _getFQAN(req)
     # check production role
-    prodManager = _checkRole(fqans,realDN,jobDispatcher,site=siteName,hostname=req.get_remote_host())
+    prodManager = _checkRole(fqans, realDN, jobDispatcher, site=siteName, hostname=req.get_remote_host())
     # check token
-    validToken = _checkToken(token,jobDispatcher)
+    validToken = _checkToken(token, jobDispatcher)
     # accept json
     acceptJson = req.acceptJson()
-    _logger.debug("updateJob(%s,%s,%s,%s,%s,%s,%s,"
-                  "cpuConsumptionTime=%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
-                  "attemptNr:%s,jobSubStatus:%s,core:%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s,"
-                  "maxRSS=%s,maxVMEM=%s,maxSWAP=%s,maxPSS=%s,avgRSS=%s,avgVMEM=%s,avgSWAP=%s,avgPSS=%s,"
-                  "totRCHAR=%s,totWCHAR=%s,totRBYTES=%s,totWBYTES=%s,rateRCHAR=%s,rateWCHAR=%s,rateRBYTES=%s,"
-                  "rateWBYTES=%s,meanCoreCount=%s,corruptedFiles=%s\n==XML==\n%s\n==LOG==\n%s\n==Meta==\n%s\n"
-                  "==Metrics==\n%s\n==stdout==\n%s)" %
-                  (jobId, state, transExitCode, pilotErrorCode, pilotErrorDiag, node, workdir, cpuConsumptionTime,
-                   cpuConsumptionUnit, remainingSpace, schedulerID, pilotID, siteName, messageLevel, nEvents,
-                   nInputFiles, cpuConversionFactor, exeErrorCode, exeErrorDiag, pilotTiming, computingElement,
-                   startTime, endTime, batchID, attemptNr, jobSubStatus, coreCount, realDN, prodManager, token,
-                   validToken, str(fqans), maxRSS, maxVMEM, maxSWAP, maxPSS, avgRSS, avgVMEM, avgSWAP, avgPSS,
-                   totRCHAR, totWCHAR, totRBYTES, totWBYTES, rateRCHAR, rateWCHAR, rateRBYTES, rateWBYTES,
-                   meanCoreCount, corruptedFiles, xml, pilotLog[:1024], metaData[:1024], jobMetrics, stdout))
-    _pilotReqLogger.debug('method=updateJob,site=%s,node=%s,type=None' % (siteName,node))
+
+    _logger.debug("updateJob({jobId},{state},{transExitCode},{pilotErrorCode},{pilotErrorDiag},{node},{workdir},"
+                  "cpuConsumptionTime={cpuConsumptionTime},{cpuConsumptionUnit},{remainingSpace},{schedulerID},{pilotID},"
+                  "{siteName},{messageLevel},{nEvents},{nInputFiles},{cpuConversionFactor},{exeErrorCode},"
+                  "{exeErrorDiag},{pilotTiming},{computingElement},{startTime},{endTime},{batchID},"
+                  "attemptNr:{attemptNr},jobSubStatus:{jobSubStatus},core:{coreCount},DN:{realDN},role:{prodManager},"
+                  "token:{token},val:{validToken},FQAN:{fqans},maxRSS={maxRSS},maxVMEM={maxVMEM},maxSWAP={maxSWAP},"
+                  "maxPSS={maxPSS},avgRSS={avgRSS},avgVMEM={avgVMEM},avgSWAP={avgSWAP},avgPSS={avgPSS},"
+                  "totRCHAR={totRCHAR},totWCHAR={totWCHAR},totRBYTES={totRBYTES},totWBYTES={totWBYTES},rateRCHAR={rateRCHAR},"
+                  "rateWCHAR={rateWCHAR},rateRBYTES={rateRBYTES},rateWBYTES={rateWBYTES},meanCoreCount={meanCoreCount},"
+                  "corruptedFiles={corruptedFiles}\n==cpu_flags==\n{cpu_flags}\n==XML==\n{xml}\n==LOG==\n{pilotLog}\n==Meta==\n{metaData}\n"
+                  "==Metrics==\n{jobMetrics}\n==stdout==\n{stdout})".format(jobId=jobId, state=state, transExitCode=transExitCode,
+                                                                            pilotErrorCode=pilotErrorCode, pilotErrorDiag=pilotErrorDiag,
+                                                                            node=node, workdir=workdir,
+                                                                            cpuConsumptionTime=cpuConsumptionTime,
+                                                                            cpuConsumptionUnit=cpuConsumptionUnit,
+                                                                            remainingSpace=remainingSpace, schedulerID=schedulerID,
+                                                                            pilotID=pilotID, siteName=siteName, messageLevel=messageLevel,
+                                                                            nEvents=nEvents, nInputFiles=nInputFiles,
+                                                                            cpuConversionFactor=cpuConversionFactor, exeErrorCode=exeErrorCode,
+                                                                            exeErrorDiag= exeErrorDiag, pilotTiming= pilotTiming,
+                                                                            computingElement=computingElement, startTime=startTime,
+                                                                            endTime=endTime, batchID=batchID, attemptNr=attemptNr,
+                                                                            jobSubStatus=jobSubStatus, coreCount=coreCount,
+                                                                            realDN=realDN, prodManager=prodManager, token=token,
+                                                                            validToken=validToken, fqans=str(fqans), maxRSS=maxRSS,
+                                                                            maxVMEM=maxVMEM, maxSWAP=maxSWAP, maxPSS=maxPSS, avgRSS=avgRSS,
+                                                                            avgVMEM=avgVMEM, avgSWAP=avgSWAP, avgPSS=avgPSS, totRCHAR=totRCHAR,
+                                                                            totWCHAR=totWCHAR, totRBYTES=totRBYTES, totWBYTES=totWBYTES,
+                                                                            rateRCHAR=rateRCHAR, rateWCHAR=rateWCHAR, rateRBYTES=rateRBYTES,
+                                                                            rateWBYTES=rateWBYTES, meanCoreCount=meanCoreCount,
+                                                                            corruptedFiles=corruptedFiles, cpu_flags=cpu_flags,
+                                                                            xml=xml, pilotLog=pilotLog[:1024],
+                                                                            metaData=metaData[:1024], jobMetrics=jobMetrics,
+                                                                            stdout=stdout))
+    _pilotReqLogger.debug('method=updateJob,site=%s,node=%s,type=None' % (siteName, node))
     # invalid role
     if not prodManager:
         _logger.warning("updateJob(%s) : invalid role" % jobId)
@@ -1001,20 +1022,20 @@ def updateJob(req, jobId, state, token=None, transExitCode=None, pilotErrorCode=
         _logger.warning("updateJob(%s) : invalid token" % jobId)
         return Protocol.Response(Protocol.SC_Invalid).encode(acceptJson)
     # aborting message
-    if jobId=='NULL':
+    if jobId == 'NULL':
         return Protocol.Response(Protocol.SC_Success).encode(acceptJson)
     # check status
-    if state not in ['running','failed','finished','holding','starting','transferring']:
+    if state not in ['running', 'failed', 'finished', 'holding', 'starting', 'transferring']:
         _logger.warning("invalid state=%s for updateJob" % state)
         return Protocol.Response(Protocol.SC_Success).encode(acceptJson)
     # create parameter map
     param = {}
     if cpuConsumptionTime not in [None, '']:
-        param['cpuConsumptionTime']=cpuConsumptionTime
+        param['cpuConsumptionTime'] = cpuConsumptionTime
     if cpuConsumptionUnit is not None:
-        param['cpuConsumptionUnit']=cpuConsumptionUnit
+        param['cpuConsumptionUnit'] = cpuConsumptionUnit
     if node is not None:
-        param['modificationHost']=node[:128]
+        param['modificationHost'] = node[:128]
     if transExitCode is not None:
         try:
             int(transExitCode)
@@ -1028,34 +1049,34 @@ def updateJob(req, jobId, state, token=None, transExitCode=None, pilotErrorCode=
         except Exception:
             pass
     if pilotErrorDiag is not None:
-        param['pilotErrorDiag']=pilotErrorDiag[:500]
+        param['pilotErrorDiag'] = pilotErrorDiag[:500]
     if jobMetrics is not None:
-        param['jobMetrics']=jobMetrics[:500]
+        param['jobMetrics'] = jobMetrics[:500]
     if schedulerID is not None:
-        param['schedulerID']=schedulerID
+        param['schedulerID'] = schedulerID
     if pilotID is not None:
-        param['pilotID']=pilotID[:200]
+        param['pilotID'] = pilotID[:200]
     if batchID is not None:
-        param['batchID']=batchID[:80]
+        param['batchID'] = batchID[:80]
     if exeErrorCode is not None:
-        param['exeErrorCode']=exeErrorCode
+        param['exeErrorCode'] = exeErrorCode
     if exeErrorDiag is not None:
-        param['exeErrorDiag']=exeErrorDiag[:500]
+        param['exeErrorDiag'] = exeErrorDiag[:500]
     if cpuConversionFactor is not None:
-        param['cpuConversion']=cpuConversionFactor
+        param['cpuConversion'] = cpuConversionFactor
     if pilotTiming is not None:
-        param['pilotTiming']=pilotTiming
+        param['pilotTiming'] = pilotTiming
     # disable pilot CE reporting. We will fill it from harvester table
-    #if computingElement is not None:
+    # if computingElement is not None:
     #    param['computingElement']=computingElement
     if nEvents is not None:
-        param['nEvents']=nEvents
+        param['nEvents'] = nEvents
     if nInputFiles is not None:
-        param['nInputFiles']=nInputFiles
-    if jobSubStatus not in [None,'']:
-        param['jobSubStatus']=jobSubStatus
-    if coreCount not in [None,'']:
-        param['actualCoreCount']=coreCount
+        param['nInputFiles'] = nInputFiles
+    if jobSubStatus not in [None, '']:
+        param['jobSubStatus'] = jobSubStatus
+    if coreCount not in [None, '']:
+        param['actualCoreCount'] = coreCount
     if meanCoreCount:
         try:
             param['meanCoreCount'] = float(meanCoreCount)
@@ -1078,19 +1099,19 @@ def updateJob(req, jobId, state, token=None, transExitCode=None, pilotErrorCode=
     if avgPSS is not None:
         param['avgPSS'] = int(float(avgPSS))
     if totRCHAR is not None:
-        totRCHAR = int(totRCHAR) / 1024 # convert to kByte
+        totRCHAR = int(totRCHAR) / 1024  # convert to kByte
         totRCHAR = min(10 ** 10 - 1, totRCHAR)  # limit to 10 digit
         param['totRCHAR'] = totRCHAR
     if totWCHAR is not None:
-        totWCHAR = int(totWCHAR) / 1024 # convert to kByte
-        totWCHAR = min(10 ** 10 - 1, totWCHAR) # limit to 10 digit
+        totWCHAR = int(totWCHAR) / 1024  # convert to kByte
+        totWCHAR = min(10 ** 10 - 1, totWCHAR)  # limit to 10 digit
         param['totWCHAR'] = totWCHAR
     if totRBYTES is not None:
-        totRBYTES = int(totRBYTES) / 1024 # convert to kByte
+        totRBYTES = int(totRBYTES) / 1024  # convert to kByte
         totRBYTES = min(10 ** 10 - 1, totRBYTES)  # limit to 10 digit
         param['totRBYTES'] = totRBYTES
     if totWBYTES is not None:
-        totWBYTES = int(totWBYTES) / 1024 # convert to kByte
+        totWBYTES = int(totWBYTES) / 1024  # convert to kByte
         totWBYTES = min(10 ** 10 - 1, totWBYTES)  # limit to 10 digit
         param['totWBYTES'] = totWBYTES
     if rateRCHAR is not None:
@@ -1107,12 +1128,12 @@ def updateJob(req, jobId, state, token=None, transExitCode=None, pilotErrorCode=
         param['rateWBYTES'] = rateWBYTES
     if startTime is not None:
         try:
-            param['startTime']=datetime.datetime(*time.strptime(startTime,'%Y-%m-%d %H:%M:%S')[:6])
+            param['startTime'] = datetime.datetime(*time.strptime(startTime, '%Y-%m-%d %H:%M:%S')[:6])
         except Exception:
             pass
     if endTime is not None:
         try:
-            param['endTime']=datetime.datetime(*time.strptime(endTime,'%Y-%m-%d %H:%M:%S')[:6])
+            param['endTime'] = datetime.datetime(*time.strptime(endTime, '%Y-%m-%d %H:%M:%S')[:6])
         except Exception:
             pass
     if attemptNr is not None:

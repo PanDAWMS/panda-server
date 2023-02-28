@@ -1168,6 +1168,9 @@ def main(tbuf=None, **kwargs):
 
     _memoryCheck("end")
 
+    # stop taskBuffer if created inside this script
+    taskBuffer.cleanup()
+
     _logger.debug("===================== end =====================")
 
 

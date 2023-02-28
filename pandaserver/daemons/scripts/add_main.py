@@ -201,6 +201,10 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # stop TaskBuffer IF
     taskBufferIF.stop()
 
+    # stop taskBuffer if created inside this script
+    if tbuf is None:
+        taskBuffer.cleanup()
+
     tmpLog.debug("===================== end =====================")
 
     # return

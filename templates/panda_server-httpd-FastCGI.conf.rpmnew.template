@@ -1,5 +1,9 @@
 Include conf.modules.d/0*.conf
 
+TimeOut 600
+KeepAliveTimeout 600
+SSLSessionCacheTimeout 600
+
 LoadModule gridsite_module modules/mod_gridsite.so
 LoadModule wsgi_module modules/mod_wsgi.so
 
@@ -37,7 +41,7 @@ RedirectMatch 403 "/panda.py$"
 Alias /trf/ "/var/trf/"
 Alias /cache/schedconfig/ "/var/cache/pandaserver/schedconfig/"
 Alias /cache/ "/var/log/panda/pandacache/"
-Alias /appdir/ "/var/appdir/"
+Alias /cric/ "/var/cric/"
 Alias /auth/ "/opt/panda/etc/panda/auth/"
 
 <Location /server-status>

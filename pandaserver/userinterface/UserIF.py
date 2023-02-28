@@ -1221,14 +1221,19 @@ def setDebugMode(req,pandaID,modeOn):
 
 # insert sandbox file info
 def insertSandboxFileInfo(req,userName,fileName,fileSize,checkSum):
+    tmpLog = LogWrapper(_logger, 'insertSandboxFileInfo {} {}'.format(userName,fileName))
     # get DN
     if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
-        return "ERROR: SSL connection is required"
+        errStr = "SSL connection is required"
+        tmpLog.error(errStr)
+        return "ERROR: " + errStr
     user = _getDN(req)
     # check role
     prodManager = _hasProdRole(req)
     if not prodManager:
-        return "ERROR: missing role"
+        errStr = "missing role"
+        tmpLog.error(errStr)
+        return "ERROR: " + errStr
     # hostname
     if hasattr(panda_config, 'sandboxHostname') and panda_config.sandboxHostname:
         hostName = panda_config.sandboxHostname
@@ -2125,6 +2130,9 @@ def pauseTask(req,jediTaskID):
         user = _getDN(req)
     # check role
     prodRole = _hasProdRole(req)
+    # only prod managers can use this method
+    if not prodRole:
+        return WrappedPickle.dumps((False, "production role required"))
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
@@ -2145,6 +2153,9 @@ def resumeTask(req,jediTaskID):
         user = _getDN(req)
     # check role
     prodRole = _hasProdRole(req)
+    # only prod managers can use this method
+    if not prodRole:
+        return WrappedPickle.dumps((False, "production role required"))
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
@@ -2165,6 +2176,9 @@ def avalancheTask(req,jediTaskID):
         user = _getDN(req)
     # check role
     prodRole = _hasProdRole(req)
+    # only prod managers can use this method
+    if not prodRole:
+        return WrappedPickle.dumps((False, "production role required"))
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
@@ -2554,7 +2568,7 @@ def decode_idds_enum(d):
 
 
 # relay iDDS command
-def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None):
+def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None, json_outputs=None):
     tmpLog = LogWrapper(_logger, 'relay_idds_command-{}'.format(datetime.datetime.utcnow().isoformat('/')))
     # check security
     if not isSecure(req):
@@ -2593,6 +2607,9 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None):
                 kwargs = json.loads(kwargs, object_hook=decode_idds_enum)
         else:
             kwargs = {}
+        # json outputs
+        if json_outputs and manager:
+            c.setup_json_outputs()
         # set original username
         dn = req.subprocess_env.get('SSL_CLIENT_S_DN')
         if dn:
@@ -2612,7 +2629,7 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None):
 
 
 # relay iDDS workflow command with ownership check
-def execute_idds_workflow_command(req, command_name, kwargs=None):
+def execute_idds_workflow_command(req, command_name, kwargs=None, json_outputs=None):
     try:
         tmpLog = LogWrapper(_logger, 'execute_idds_workflow_command-{}'.format(datetime.datetime.utcnow().isoformat('/')))
         if kwargs:
@@ -2637,6 +2654,8 @@ def execute_idds_workflow_command(req, command_name, kwargs=None):
             return json.dumps((False, tmpMsg))
         # check owner
         c = iDDS_ClientManager(idds_host)
+        if json_outputs:
+            c.setup_json_outputs()
         dn = req.subprocess_env.get('SSL_CLIENT_S_DN')
         if check_owner:
             # requester

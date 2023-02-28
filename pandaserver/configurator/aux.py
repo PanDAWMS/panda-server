@@ -1,6 +1,8 @@
 import requests
 import time
 import os
+import json
+from urllib.parse import urlparse
 
 from pandaserver.config import panda_config
 
@@ -27,6 +29,14 @@ def get_dump(url):
     """
     Retrieves a json file from the given URL and loads it into memory
     """
+    # check if local file
+    p = urlparse(url)
+    if not p.scheme or p.scheme == 'file':
+        try:
+            with open(p.path) as f:
+                return json.load(f)
+        except Exception:
+            return None
     if panda_config.configurator_use_cert:
         key_file = os.environ['X509_USER_PROXY']
         cert_file = os.environ['X509_USER_PROXY']
@@ -44,3 +54,16 @@ def get_dump(url):
             time.sleep(1)
     return None
 
+
+def query_grafana_proxy(query, bearer_token):
+
+    headers = {'Content-Type': 'application/x-ndjson', 'Authorization': 'Bearer {0}'.format(bearer_token)}
+    grafana_proxy_url = 'https://monit-grafana.cern.ch/api/datasources/proxy/10349/_msearch'
+    for i in range(1, 4):  # 3 retries
+        try:
+            r = requests.post(grafana_proxy_url, data=query, headers=headers)
+            if r.status_code == requests.codes.ok:
+                return r.json()
+        except Exception:
+            time.sleep(1)
+    return None

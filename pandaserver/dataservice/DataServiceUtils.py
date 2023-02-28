@@ -255,14 +255,16 @@ def checkJobDestinationSE(tmpJob):
     return None
 
 
-
- # check if destination is distributed
-def getDistributedDestination(destinationDBlockToken):
+# check if destination is distributed
+def getDistributedDestination(destinationDBlockToken, ignore_empty=True):
     if destinationDBlockToken is not None:
         for tmpToken in destinationDBlockToken.split(','):
             tmpMatch = re.search('^ddd:([^/]*)(/.*)*$',tmpToken)
             if tmpMatch is not None:
-                return tmpMatch.group(1)
+                loc = tmpMatch.group(1)
+                if ignore_empty and not loc:
+                    return None
+                return loc
     return None
 
 

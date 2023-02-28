@@ -79,6 +79,9 @@ def main(tbuf=None, **kwargs):
         taskBuffer = tbuf
     # run
     PilotStreaming(tbuf=taskBuffer).run()
+    # stop taskBuffer if created inside this script
+    if tbuf is None:
+        taskBuffer.cleanup()
 
 
 # run

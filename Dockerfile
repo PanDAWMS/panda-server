@@ -49,6 +49,7 @@ RUN mkdir -p /var/log/panda/pandacache
 RUN mkdir -p /run/httpd/wsgisocks
 RUN mkdir -p /var/cache/pandaserver/jedilog
 RUN mkdir -p /var/run/panda
+RUN mkdir -p /var/cric
 
 RUN ln -fs /opt/panda/etc/cert/hostkey.pem /etc/grid-security/hostkey.pem
 RUN ln -fs /opt/panda/etc/cert/hostcert.pem /etc/grid-security/hostcert.pem
@@ -74,6 +75,7 @@ RUN chmod -R 777 /var/cache/pandaserver
 RUN chmod -R 777 /var/log/panda/pandacache
 RUN chmod -R 777 /var/run/panda
 RUN chmod -R 777 /var/lib/logrotate
+RUN chmod -R 777 /var/cric
 
 ENV PANDA_LOCK_DIR /var/run/panda
 RUN mkdir -p ${PANDA_LOCK_DIR} && chmod 777 ${PANDA_LOCK_DIR}

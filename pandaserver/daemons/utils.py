@@ -275,6 +275,11 @@ class DaemonWorker(object):
     def _make_pipe(self):
         self.parent_conn, self.child_conn = multiprocessing.Pipe()
 
+    # close pipe connections
+    def _close_pipe(self):
+        self.parent_conn.close()
+        self.child_conn.close()
+
     # make associated process
     def _make_process(self, dem_config, msg_queue, worker_lifetime, tbuf):
         args = (dem_config, msg_queue, self.child_conn, worker_lifetime, tbuf)
@@ -292,6 +297,7 @@ class DaemonWorker(object):
 
     # kill the worker process and all its subprocesses
     def kill(self):
+        self._close_pipe()
         return kill_proc_tree(self.process.pid)
 
     # whether the worker is running daemon
@@ -314,7 +320,7 @@ class DaemonWorker(object):
 class DaemonMaster(object):
 
     # constructor
-    def __init__(self, logger, n_workers=1, n_dbconn=1, worker_lifetime=28800):
+    def __init__(self, logger, n_workers=1, n_dbconn=1, worker_lifetime=28800, use_tbif=False):
         # logger
         self.logger = logger
         # number of daemon worker processes
@@ -323,6 +329,8 @@ class DaemonMaster(object):
         self.n_dbconn = n_dbconn
         # lifetime of daemon worker processes
         self.worker_lifetime = worker_lifetime
+        # whether to use TaskBufferInterface to save DB sessions while prone to taskbuffer hanging
+        self.use_tbif = use_tbif
         # locks
         self._worker_lock = threading.Lock()
         self._status_lock = threading.Lock()
@@ -349,8 +357,11 @@ class DaemonMaster(object):
     # make common taskBuffer interface for daemon workers
     def _make_tbif(self):
         try:
+            # import is always required to have reserveChangedState consistent in *Spec
             from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
             from pandaserver.taskbuffer.TaskBufferInterface import TaskBufferInterface
+            if not self.use_tbif:
+                return
             # taskBuffer
             _tbuf = TaskBuffer()
             _tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=self.n_dbconn, useTimeout=True)
@@ -368,10 +379,14 @@ class DaemonMaster(object):
     def _spawn_workers(self, n_workers=1, auto_start=False):
         for j in range(n_workers):
             with self._worker_lock:
+                if self.use_tbif:
+                    tbuf = self.tbif.getInterface()
+                else:
+                    tbuf = None
                 worker = DaemonWorker(  dem_config=self.dem_config,
                                         msg_queue=self.msg_queue,
                                         worker_lifetime=self.worker_lifetime,
-                                        tbuf=self.tbif.getInterface())
+                                        tbuf=tbuf)
                 self.worker_pool.add(worker)
                 if auto_start:
                     worker.start()
@@ -476,18 +491,18 @@ class DaemonMaster(object):
                                             pid=worker.pid, dem=worker.dem_name, run=run_till_now, timeout=run_timeout))
                         worker.kill()
                         self._remove_worker(worker)
+                        self.dem_run_map[worker.dem_name]['msg_ongoing'] = False
         # send message to workers
         for dem_name, attrs in self.dem_config.items():
-            run_period = attrs.get('period')
-            dem_run_attrs = self.dem_run_map[dem_name]
-            last_run_start_ts = dem_run_attrs['last_run_start_ts']
-            last_warn_ts = dem_run_attrs['last_warn_ts']
-            if run_period is None or last_run_start_ts is None:
-                continue
-            if last_run_start_ts + run_period <= now_ts:
-                # time to send new message to run the daemon
-                with self._status_lock:
-                    dem_run_attrs = self.dem_run_map[dem_name]
+            with self._status_lock:
+                run_period = attrs.get('period')
+                dem_run_attrs = self.dem_run_map[dem_name]
+                last_run_start_ts = dem_run_attrs['last_run_start_ts']
+                last_warn_ts = dem_run_attrs['last_warn_ts']
+                if run_period is None or last_run_start_ts is None:
+                    continue
+                if last_run_start_ts + run_period <= now_ts:
+                    # time to send new message to run the daemon
                     msg_ongoing = dem_run_attrs['msg_ongoing']
                     if msg_ongoing:
                         # old message not processed yet, maybe daemon still running, skip
@@ -529,7 +544,8 @@ class DaemonMaster(object):
         # send stop command to workers
         self._stop_proc()
         # stop taskBuffer interface
-        self.tbif.stop()
+        if self.use_tbif:
+            self.tbif.stop()
         # wait a bit
         time.sleep(2.5)
 

@@ -142,7 +142,7 @@ class Node (object):
             for k in ['opt_exec', 'opt_args']:
                 test_str = dict_inputs.get(k)
                 if test_str:
-                    m = re.search(r'%{DS(\d+|\*)}', test_str)
+                    m = re.search(r'%{[A-Z]*DS(\d+|\*)}', test_str)
                     if m:
                         return False, '{} is unresolved in {}'.format(m.group(0), k)
             if self.type == 'prun':
@@ -192,7 +192,6 @@ class Node (object):
         if self.type == 'prun':
             dict_inputs = self.convert_dict_inputs()
             if 'opt_secondaryDSs' in dict_inputs:
-                idx = 1
                 # look for secondaryDsTypes if missing
                 if 'opt_secondaryDsTypes' not in dict_inputs:
                     dict_inputs['opt_secondaryDsTypes'] = []
@@ -203,15 +202,24 @@ class Node (object):
                                 dict_inputs['opt_secondaryDsTypes'].append(parent_node.output_types[0])
                                 break
                 # resolve secondary dataset names
+                idx = 1
+                list_sec_ds = []
                 for ds_name, ds_type in zip(dict_inputs['opt_secondaryDSs'], dict_inputs['opt_secondaryDsTypes']):
                     if '*' in ds_type:
                         ds_type = ds_type.replace('*', 'XYZ')
                         ds_type += '.tgz'
-                    src = "%{{DS{}}}".format(idx)
+                    src = "%{{SECDS{}}}".format(idx)
                     dst = "{}_{}/".format(ds_name, ds_type)
                     dict_inputs['opt_exec'] = re.sub(src, dst, dict_inputs['opt_exec'])
                     dict_inputs['opt_args'] = re.sub(src, dst, dict_inputs['opt_args'])
                     idx += 1
+                    list_sec_ds.append(src)
+                if list_sec_ds:
+                    src = r"%{SECDS\*}"
+                    if 'opt_exec' in dict_inputs:
+                        dict_inputs['opt_exec'] = re.sub(src, ','.join(list_sec_ds), dict_inputs['opt_exec'])
+                    if 'opt_args' in dict_inputs:
+                        dict_inputs['opt_args'] = re.sub(src, ','.join(list_sec_ds), dict_inputs['opt_args'])
                 for k, v in six.iteritems(self.inputs):
                     if k.endswith('opt_exec'):
                         v['value'] = dict_inputs['opt_exec']
@@ -293,10 +301,10 @@ class Node (object):
                     com += ['--inDS', in_ds_str, '--notExpandInDS', '--notExpandSecDSs']
                     if self.type in ['junction']:
                         com += ['--forceStaged', '--forceStagedSecondary']
-                if self.type in ['junction', 'reana']:
+                if self.type in ['prun', 'junction', 'reana']:
                     # replace placeholders in opt_exec and opt_args
                     for idx, dst in enumerate(list_in_ds):
-                        src = "%{{DS{}}}".format(idx)
+                        src = "%{{DS{}}}".format(idx+1)
                         if 'opt_exec' in dict_inputs:
                             dict_inputs['opt_exec'] = re.sub(src, dst, dict_inputs['opt_exec'])
                         if 'opt_args' in dict_inputs:
