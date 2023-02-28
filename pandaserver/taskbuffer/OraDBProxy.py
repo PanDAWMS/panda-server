@@ -25196,6 +25196,7 @@ class DBProxy:
                        "GROUP BY scj.data.region, tmp_total.total_hs "
             
             region_dic = {}
+            self.cur.arraysize = 1000
             stats_raw = self.cur.execute(sql_stat + comment)
             for entry in stats_raw:
                 region, per_cent = entry
