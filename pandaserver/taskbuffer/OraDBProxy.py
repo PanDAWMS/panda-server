@@ -19559,10 +19559,10 @@ class DBProxy:
             sql_wpc = "SELECT /* use_json_type */ scj.data.coreenergy FROM atlas_panda.schedconfig_json scj WHERE scj.panda_queue=:panda_queue"
             self.cur.execute(sql_wpc + comment, var_map)
             res_wpc = self.cur.fetchone()
-            if res_wpc is None:
+            try:
+                watts_per_core = float(res_wpc[0])
+            except Exception:
                 watts_per_core = 10
-            else:
-                watts_per_core = res_wpc[0]
             tmp_log.debug('using watts_per_core={0} for computing_site={1}'.format(watts_per_core, computing_site))
 
             # get regional CO2 emissions
