@@ -284,7 +284,8 @@ setup(
                'pandaserver.userinterface',
                'pandaserver.proxycache',
                'pandaserver.configurator',
-               'pandaserver.workflow'
+               'pandaserver.workflow',
+               'pandaserver.workflow.snakeparser',
               ],
     package_data = {'pandaserver.server': ['.gacl']},
     data_files=[
