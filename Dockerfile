@@ -76,8 +76,6 @@ RUN chmod -R 777 /var/run/panda
 RUN chmod -R 777 /var/lib/logrotate
 RUN chmod -R 777 /var/cric
 
-RUN chmod -R 777 /opt/panda
-
 ENV PANDA_LOCK_DIR /var/run/panda
 RUN mkdir -p ${PANDA_LOCK_DIR} && chmod 777 ${PANDA_LOCK_DIR}
 
