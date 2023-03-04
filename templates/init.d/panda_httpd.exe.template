@@ -164,7 +164,7 @@ function check_pidfile () {
 function kill_remaining_httpd () {
     COMSTR=`echo $HTTPD $OPTIONS -k`
     COMSTR=`echo $COMSTR | sed -e 's/ //g'`
-    USERID=`ps -ef | awk '{out=gensub(/ /, "", "g", $0); print $1"\t"out}' | grep $COMSTR  | grep -v root | head -n1 | awk '{print $1}'`
+    USERID=`ps ax o user:16,cmd | awk '{out=gensub(/ /, "", "g", $0); print $1"\t"out}' | grep $COMSTR  | grep -v root | head -n1 | awk '{print $1}'`
     if [ -n "$USERID" ]; then
         echo trying to killall remaining httpd processes with uid=$USERID
         killall -q -v -s SIGKILL -u $USERID `basename $HTTPD`
