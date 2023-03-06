@@ -72,7 +72,10 @@ class WorkflowProcessor(object):
                     else:
                         tmpLog.info('is_OK={} is_fatal={} request_id={}'.format(is_OK, is_fatal, request_id))
                 if to_delete or (not test_mode and (is_OK or is_fatal)):
-                    dump_str = tmpLog.dumpToString() + dump_str
+                    if dump_str:
+                        dump_str = tmpLog.dumpToString() + dump_str
+                    else:
+                        dump_str = tmpLog.dumpToString()
                     tmpLog.debug('delete {}'.format(file_name))
                     try:
                         os.remove(file_name)
