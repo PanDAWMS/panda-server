@@ -9,7 +9,7 @@ RUN mkdir /tmp/python && cd /tmp/python && \
     wget https://www.python.org/ftp/python/3.11.2/Python-3.11.2.tgz && \
     tar -xzf Python-*.tgz && rm -f Python-*.tgz && \
     cd Python-* && \
-    ./configure --enable-optimizations && \
+    ./configure --enable-optimizations --enable-shared --with-lto && \
     make altinstall && \
     cd / && rm -rf /tmp/pyton
 
