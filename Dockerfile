@@ -5,6 +5,7 @@ RUN yum install -y epel-release
 RUN yum install -y httpd httpd-devel gcc gridsite git psmisc wget logrotate procps which \
     openssl-devel bzip2-devel libffi-devel zlib-devel
 
+# install python
 RUN mkdir /tmp/python && cd /tmp/python && \
     wget https://www.python.org/ftp/python/3.11.2/Python-3.11.2.tgz && \
     tar -xzf Python-*.tgz && rm -f Python-*.tgz && \
