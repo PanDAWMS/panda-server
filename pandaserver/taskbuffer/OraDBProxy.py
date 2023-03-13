@@ -24631,6 +24631,10 @@ class DBProxy:
                 # delete key
                 if key in data:
                     del data[key]
+                else:
+                    file_key = '___file___:{}'.format(key)
+                    if file_key in data:
+                        del data[file_key]
             else:
                 data[key] = value
             varMap = {}
