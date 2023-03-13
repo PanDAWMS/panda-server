@@ -1,0 +1,62 @@
+{
+  "buildSpec": {
+    "jobParameters": "-i ${IN} -o ${OUT} --sourceURL ${SURL} -r ./ --useAthenaPackages --useCMake --cmtConfig x86_64-slc6-gcc49-opt",
+    "archiveName": "sources.5bca61db-3b0d-4e65-b102-7d56d82f4567.tar.gz",
+    "prodSourceLabel": "panda"
+  },
+  "sourceURL": "https://aipanda047.cern.ch:25443",
+  "cliParams": "prun --exec ls --useAthenaPackages --outDS user.retmas.9e640888-94b7-4e5e-bcf8-83cc927039c8",
+  "site": null,
+  "vo": "atlas",
+  "respectSplitRule": true,
+  "osInfo": "Linux-3.10.0-1160.36.2.el7.x86_64-x86_64-with-centos-7.9.2009-Core",
+  "log": {
+    "type": "template",
+    "param_type": "log",
+    "container": "user.retmas.9e640888-94b7-4e5e-bcf8-83cc927039c8.log/",
+    "value": "user.retmas.9e640888-94b7-4e5e-bcf8-83cc927039c8.log.$JEDITASKID.${SN}.log.tgz",
+    "dataset": "user.retmas.9e640888-94b7-4e5e-bcf8-83cc927039c8.log/"
+  },
+  "transUses": "Atlas-21.0.6",
+  "excludedSite": [],
+  "nMaxFilesPerJob": 200,
+  "uniqueTaskName": true,
+  "taskName": "user.retmas.9e640888-94b7-4e5e-bcf8-83cc927039c8/",
+  "transHome": "AnalysisTransforms",
+  "includedSite": null,
+  "jobParameters": [
+    {
+      "type": "constant",
+      "value": "-j \"\" --sourceURL ${SURL}"
+    },
+    {
+      "type": "constant",
+      "value": "-r ./"
+    },
+    {
+      "padding": false,
+      "type": "constant",
+      "value": "-p \""
+    },
+    {
+      "padding": false,
+      "type": "constant",
+      "value": "ls"
+    },
+    {
+      "type": "constant",
+      "value": "\""
+    },
+    {
+      "type": "constant",
+      "value": "-l ${LIB}"
+    },
+    {
+      "type": "constant",
+      "value": "--useAthenaPackages --useCMake --cmtConfig x86_64-slc6-gcc49-opt"
+    }
+  ],
+  "prodSourceLabel": "user",
+  "processingType": "panda-client-1.4.81-jedi-run",
+  "architecture": "x86_64-slc6-gcc49-opt@centos7"
+}

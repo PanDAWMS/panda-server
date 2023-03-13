@@ -1,0 +1,68 @@
+{
+  "sourceURL": "https://aipanda048.cern.ch:25443",
+  "cliParams": "prun --cwl test.cwl --yaml a.yaml --relayHost aipanda059.cern.ch --outDS user.retmas.b8ad7187-9513-4a34-9736-dd6062ac1138",
+  "site": null,
+  "vo": "atlas",
+  "respectSplitRule": true,
+  "osInfo": "Linux-3.10.0-1160.36.2.el7.x86_64-x86_64-with-centos-7.9.2009-Core",
+  "log": {
+    "type": "template",
+    "param_type": "log",
+    "container": "user.retmas.b8ad7187-9513-4a34-9736-dd6062ac1138.log/",
+    "value": "user.retmas.b8ad7187-9513-4a34-9736-dd6062ac1138.log.$JEDITASKID.${SN}.log.tgz",
+    "dataset": "user.retmas.b8ad7187-9513-4a34-9736-dd6062ac1138.log/"
+  },
+  "transUses": "",
+  "excludedSite": [],
+  "nMaxFilesPerJob": 200,
+  "uniqueTaskName": true,
+  "taskName": "user.retmas.b8ad7187-9513-4a34-9736-dd6062ac1138/",
+  "transHome": null,
+  "includedSite": null,
+  "container_name": "__dummy_container__",
+  "multiStepExec": {
+    "preprocess": {
+      "args": "--preprocess ${TRF_ARGS}",
+      "command": "${TRF}"
+    },
+    "containerOptions": {
+      "containerImage": "__dummy_container__",
+      "containerExec": "echo \"=== cat exec script ===\"; cat __run_main_exec.sh; echo; echo \"=== exec script ===\"; /bin/sh __run_main_exec.sh"
+    },
+    "postprocess": {
+      "args": "--postprocess ${TRF_ARGS}",
+      "command": "${TRF}"
+    }
+  },
+  "jobParameters": [
+    {
+      "type": "constant",
+      "value": "-j \"\" --sourceURL ${SURL}"
+    },
+    {
+      "type": "constant",
+      "value": "-r ."
+    },
+    {
+      "padding": false,
+      "type": "constant",
+      "value": "-p \""
+    },
+    {
+      "padding": false,
+      "type": "constant",
+      "value": "__dummy_exec_str__"
+    },
+    {
+      "type": "constant",
+      "value": "\""
+    },
+    {
+      "type": "constant",
+      "value": "-a jobO.b6bdf294-8a46-4b02-b399-46619db4088b.tar.gz"
+    }
+  ],
+  "prodSourceLabel": "user",
+  "processingType": "panda-client-1.4.81-jedi-run",
+  "architecture": ""
+}

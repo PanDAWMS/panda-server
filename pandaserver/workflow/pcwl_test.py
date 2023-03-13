@@ -8,7 +8,7 @@ from pandaserver.workflow.pcwl_utils import parse_workflow_file, resolve_nodes
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.DEBUG)
 with open(sys.argv[2]) as f:
-    data = yaml.safe_load(f)
+    data = yaml.safe_load(f) or dict()
 nodes, root_in = parse_workflow_file(sys.argv[1], logging)
 s_id, t_nodes, nodes = resolve_nodes(nodes, root_in, data, 0, set(), sys.argv[3], logging)
 set_workflow_outputs(nodes)
