@@ -257,7 +257,8 @@ setup(
                       'idds-atlas',
                       'ruamel.yaml',
                       'cwl-utils>=0.13',
-                      'packaging'
+                      'packaging',
+                      'snakemake==6.15.5'
                       ],
     extras_require={
         'oracle': ['cx_Oracle'],
@@ -283,7 +284,8 @@ setup(
                'pandaserver.userinterface',
                'pandaserver.proxycache',
                'pandaserver.configurator',
-               'pandaserver.workflow'
+               'pandaserver.workflow',
+               'pandaserver.workflow.snakeparser',
               ],
     package_data = {'pandaserver.server': ['.gacl']},
     data_files=[
