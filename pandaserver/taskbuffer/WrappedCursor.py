@@ -121,14 +121,14 @@ def convert_query_in_printf_format(sql, var_dict, sql_conv_map):
             sql_conv_map[old_sql] = sql
     # extract placeholders
     paramList = []
-    items = re.findall(r':[^ $,)\n]+', sql)
+    items = re.findall(r':[^ $,)\+\-\n]+', sql)
     for item in items:
         if item not in var_dict:
             raise KeyError('{0} is missing in SQL parameters'.format(item))
         if item not in paramList:
             paramList.append(var_dict[item])
     # using the printf style syntax
-    sql = re.sub(':[^ $,)]+', '%s', sql)
+    sql = re.sub(':[^ $,)\+\-]+', '%s', sql)
     return sql, paramList
 
 
