@@ -19560,7 +19560,7 @@ class DBProxy:
 
             # get the queues watts per core value
             var_map = {":panda_queue": computing_site}
-            sql_wpc = "SELECT /* use_json_type */ scj.data.coreenergy FROM atlas_panda.schedconfig_json scj WHERE scj.panda_queue=:panda_queue"
+            sql_wpc = "SELECT /* use_json_type */ scj.data.coreenergy FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:panda_queue"
             self.cur.execute(sql_wpc + comment, var_map)
             res_wpc = self.cur.fetchone()
             try:
