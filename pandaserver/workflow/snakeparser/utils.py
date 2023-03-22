@@ -23,3 +23,7 @@ class ParamRule(object):
 def param_of(name, source: RuleProxy = None) -> ParamRule:
     rule = source.rule if source is not None else None
     return ParamRule(name, rule)
+
+
+def param_exp(template):
+    return lambda wildcards: template

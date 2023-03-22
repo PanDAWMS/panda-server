@@ -16,7 +16,7 @@ from pandaserver.workflow.workflow_utils import Node, ConditionItem
 from .log import Logger
 from .names import WORKFLOW_NAMES
 from .extensions import inject
-from .utils import ParamRule, param_of
+from pandaserver.workflow.snakeparser.utils import ParamRule, param_of
 
 
 class ParamNotFoundException(Exception):
@@ -145,18 +145,27 @@ class Parser(object):
                                                                                          'source': source}}
                     )
                     continue
-                if isinstance(value, list):
-                    value = ' '.join([str(item) for item in value])
                 if node.inputs is None:
                     node.inputs = dict()
                 default_value = value
                 source = None
                 if job.dependencies:
-                    if default_value in job.dependencies.keys():
-                        source = Parser._extract_job_id(
-                            self._define_id(f'{job.dependencies[default_value].name}/{default_value}')
-                        )
-                        default_value = None
+                    if isinstance(value, list):
+                        for item in list(value):
+                            if item in job.dependencies.keys():
+                                if source is None:
+                                    source = list()
+                                source.append(Parser._extract_job_id(
+                                    self._define_id(f'{job.dependencies[item].name}/{item}'))
+                                )
+                        if source is not None:
+                            default_value = None
+                    else:
+                        if default_value in job.dependencies.keys():
+                            source = Parser._extract_job_id(
+                                self._define_id(f'{job.dependencies[default_value].name}/{default_value}')
+                            )
+                            default_value = None
                 node.inputs.update(
                     {Parser._extract_job_id(self._define_id(f'{job.name}/{name}')): {'default': default_value,
                                                                                      'source': source}})
