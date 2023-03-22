@@ -1067,6 +1067,19 @@ def _getDN(req):
     return realDN
 
 
+# get VOMS attributes
+def _get_grst_attr(req):
+    vomsAttrs = []
+    for tmpKey in req.subprocess_env:
+        tmpVal = req.subprocess_env[tmpKey]
+        vomsAttrs.append('%s : %s\n' % (tmpKey, tmpVal))
+    vomsAttrs.sort()
+    retStr = ''
+    for tmpStr in vomsAttrs:
+        retStr += tmpStr
+    return retStr
+
+
 # check role
 def _hasProdRole(req):
     # check DN
@@ -1202,12 +1215,17 @@ def setCloudTaskByUser(req,tid,cloud='',status=''):
 
 # set debug mode
 def setDebugMode(req,pandaID,modeOn):
+    tmpLog = LogWrapper(_logger, 'setDebugMode {} {}'.format(pandaID, modeOn))
     # get DN
     if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
-        return "ERROR: SSL connection is required"
+        errStr = "SSL connection is required"
+        tmpLog.error(errStr)
+        return "ERROR: " + errStr
     user = _getDN(req)
     # check role
     prodManager = _hasProdRole(req)
+    fqans = _getFQAN(req)
+    grst = _get_grst_attr(req)
     # mode
     if modeOn == 'True':
         modeOn = True
@@ -1215,6 +1233,8 @@ def setDebugMode(req,pandaID,modeOn):
         modeOn = False
     # get the primary working group with prod role
     workingGroup = _getWGwithPR(req)
+    tmpLog.error("user={} mgr={} wg={} fqans={} grst={}".format(user, prodManager, workingGroup, str(fqans),
+                 grst))
     # exec
     return userIF.setDebugMode(user,pandaID,prodManager,modeOn,workingGroup)
 

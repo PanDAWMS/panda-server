@@ -218,9 +218,9 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                                         self.subprocess_env['PANDA_OIDC_ROLE'] = memberInfo['role']
                                         self.authenticated = True
                                         break
-                            if not self.authenticated:
-                                self.message = 'Not a member of the {} group'.format(vo)
-                                tmpLog.error('{} - {}'.format(self.message, env['HTTP_AUTHORIZATION']))
+                                if not self.authenticated:
+                                    self.message = 'Not a member of the {} group'.format(vo)
+                                    tmpLog.error('{} - {}'.format(self.message, env['HTTP_AUTHORIZATION']))
                     else:
                         token = scitokens.SciToken.deserialize(serialized_token, audience=panda_config.token_audience)
                     # check issuer

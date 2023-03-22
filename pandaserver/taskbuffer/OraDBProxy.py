@@ -8557,7 +8557,8 @@ class DBProxy:
             tmpPrioMap[':minPriority'] = minPriority
         sql0 += sqlPrio
         sql0 += "GROUP BY computingSite,jobStatus"
-        sqlA =  "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ computingSite,jobStatus,COUNT(*) FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime>:modificationTime "
+        sqlA =  "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ computingSite,jobStatus,COUNT(*) "
+        sqlA += "FROM {0}.jobsArchived4 tab WHERE modificationTime>:modificationTime ".format(panda_config.schemaPANDA)
         if sqlJobType != "":
             sqlA += "AND prodSourceLabel IN ("
             sqlA += sqlJobType
@@ -8566,9 +8567,12 @@ class DBProxy:
         sqlA += sqlGroups
         sqlA += sqlPrio
         sqlA += "GROUP BY computingSite,jobStatus"
-        tables = ['ATLAS_PANDA.jobsActive4','ATLAS_PANDA.jobsDefined4']
+        jobs_active_4_table = '{0}.jobsActive4'.format(panda_config.schemaPANDA)
+        jobs_defined_4_table = '{0}.jobsDefined4'.format(panda_config.schemaPANDA)
+        jobs_archived_4_table = '{0}.jobsArchived4'.format(panda_config.schemaPANDA)
+        tables = [jobs_active_4_table, jobs_defined_4_table]
         if archived:
-            tables.append('ATLAS_PANDA.jobsArchived4')
+            tables.append(jobs_archived_4_table)
         # sql for materialized view
         sqlMV = re.sub('COUNT\(\*\)','SUM(num_of_jobs)',sql0)
         sqlMV = re.sub(':minPriority','TRUNC(:minPriority,-1)',sqlMV)
@@ -8588,10 +8592,10 @@ class DBProxy:
                         varMap[tmpGroup] = tmpGroupMap[tmpGroup]
                     for tmpPrio in tmpPrioMap:
                         varMap[tmpPrio] = tmpPrioMap[tmpPrio]
-                    if table != 'ATLAS_PANDA.jobsArchived4':
+                    if table != jobs_archived_4_table:
                         self.cur.arraysize = 10000
-                        if table == 'ATLAS_PANDA.jobsActive4':
-                            sqlExeTmp = (sqlMV+comment) % 'ATLAS_PANDA.MV_JOBSACTIVE4_STATS'
+                        if table == jobs_active_4_table:
+                            sqlExeTmp = (sqlMV+comment) % '{0}.MV_JOBSACTIVE4_STATS'.format(panda_config.schemaPANDA)
                         else:
                             sqlExeTmp = (sql0+comment) % table
                         _logger.debug("getJobStatistics : %s %s" % (sqlExeTmp,str(varMap)))
@@ -22122,9 +22126,9 @@ class DBProxy:
 
         ups_queues = []
         sql = """
-              SELECT /* use_json_type */ scj.panda_queue FROM ATLAS_PANDA.schedconfig_json scj
+              SELECT /* use_json_type */ scj.panda_queue FROM {0}.schedconfig_json scj
               WHERE scj.data.capability='ucore' AND scj.data.workflow = 'pull_ups'
-              """
+              """.format(panda_config.schemaPANDA)
 
         self.cur.execute(sql + comment)
         res = self.cur.fetchall()
@@ -22147,9 +22151,9 @@ class DBProxy:
         # get current pilot distribution in harvester for the queue
         sql = """
               SELECT computingsite, harvester_id, jobType, resourceType, status, n_workers
-              FROM ATLAS_PANDA.harvester_worker_stats
+              FROM {0}.harvester_worker_stats
               WHERE lastupdate > :time_limit
-              """
+              """.format(panda_config.schemaPANDA)
         var_map = {}
         var_map[':time_limit'] = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)
 
@@ -22270,12 +22274,12 @@ class DBProxy:
         for share in sorted_shares:
             var_map = {':queue': queue, ':gshare': share.name}
             sql = """
-                  SELECT gshare, prodsourcelabel, resource_type FROM ATLAS_PANDA.jobsactive4
+                  SELECT gshare, prodsourcelabel, resource_type FROM {0}.jobsactive4
                   WHERE jobstatus = 'activated'
                      AND computingsite=:queue
                      AND gshare=:gshare
                   ORDER BY currentpriority DESC
-                  """
+                  """.format(panda_config.schemaPANDA)
             self.cur.execute(sql + comment, var_map)
             activated_jobs = self.cur.fetchall()
             tmpLog.debug('Processing share: {0}. Got {1} activated jobs'.format(share.name, len(activated_jobs)))
@@ -24631,6 +24635,10 @@ class DBProxy:
                 # delete key
                 if key in data:
                     del data[key]
+                else:
+                    file_key = '___file___:{}'.format(key)
+                    if file_key in data:
+                        del data[file_key]
             else:
                 data[key] = value
             varMap = {}
