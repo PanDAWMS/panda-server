@@ -1034,8 +1034,12 @@ def updateJob(req, jobId, state, token=None, transExitCode=None, pilotErrorCode=
         param['cpuConsumptionTime'] = cpuConsumptionTime
     if cpuConsumptionUnit is not None:
         param['cpuConsumptionUnit'] = cpuConsumptionUnit
-    if cpu_architecture_level is not None:
-        param['cpu_architecture_level'] = cpu_architecture_level[:20]
+    if cpu_architecture_level:
+        try:
+            param['cpu_architecture_level'] = cpu_architecture_level[:20]
+        except Exception:
+            _logger.error("invalid cpu_architecture_level=%s for updateJob" % cpu_architecture_level)
+            pass
     if node is not None:
         param['modificationHost'] = node[:128]
     if transExitCode is not None:
