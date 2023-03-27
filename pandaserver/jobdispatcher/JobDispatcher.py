@@ -960,7 +960,7 @@ def updateJob(req, jobId, state, token=None, transExitCode=None, pilotErrorCode=
               nInputFiles=None, batchID=None, attemptNr=None, jobMetrics=None, stdout='', jobSubStatus=None,
               coreCount=None, maxRSS=None, maxVMEM=None, maxSWAP=None, maxPSS=None, avgRSS=None, avgVMEM=None,
               avgSWAP=None, avgPSS=None, totRCHAR=None, totWCHAR=None, totRBYTES=None, totWBYTES=None, rateRCHAR=None,
-              rateWCHAR=None, rateRBYTES=None, rateWBYTES=None, corruptedFiles=None, meanCoreCount=None, cpu_flags=''):
+              rateWCHAR=None, rateRBYTES=None, rateWBYTES=None, corruptedFiles=None, meanCoreCount=None, cpu_architecture_level=None):
     tmpLog = LogWrapper(_logger, 'updateJob PandaID={0} PID={1}'.format(jobId, os.getpid()))
     tmpLog.debug('start')
     # get DN
@@ -975,15 +975,15 @@ def updateJob(req, jobId, state, token=None, transExitCode=None, pilotErrorCode=
     acceptJson = req.acceptJson()
 
     _logger.debug("updateJob({jobId},{state},{transExitCode},{pilotErrorCode},{pilotErrorDiag},{node},{workdir},"
-                  "cpuConsumptionTime={cpuConsumptionTime},{cpuConsumptionUnit},{remainingSpace},{schedulerID},{pilotID},"
-                  "{siteName},{messageLevel},{nEvents},{nInputFiles},{cpuConversionFactor},{exeErrorCode},"
-                  "{exeErrorDiag},{pilotTiming},{computingElement},{startTime},{endTime},{batchID},"
+                  "cpuConsumptionTime={cpuConsumptionTime},{cpuConsumptionUnit},{cpu_architecure_level},{remainingSpace},"
+                  "{schedulerID},{pilotID},{siteName},{messageLevel},{nEvents},{nInputFiles},{cpuConversionFactor},"
+                  "{exeErrorCode},{exeErrorDiag},{pilotTiming},{computingElement},{startTime},{endTime},{batchID},"
                   "attemptNr:{attemptNr},jobSubStatus:{jobSubStatus},core:{coreCount},DN:{realDN},role:{prodManager},"
                   "token:{token},val:{validToken},FQAN:{fqans},maxRSS={maxRSS},maxVMEM={maxVMEM},maxSWAP={maxSWAP},"
                   "maxPSS={maxPSS},avgRSS={avgRSS},avgVMEM={avgVMEM},avgSWAP={avgSWAP},avgPSS={avgPSS},"
                   "totRCHAR={totRCHAR},totWCHAR={totWCHAR},totRBYTES={totRBYTES},totWBYTES={totWBYTES},rateRCHAR={rateRCHAR},"
-                  "rateWCHAR={rateWCHAR},rateRBYTES={rateRBYTES},rateWBYTES={rateWBYTES},meanCoreCount={meanCoreCount},"
-                  "corruptedFiles={corruptedFiles}\n==cpu_flags==\n{cpu_flags}\n==XML==\n{xml}\n==LOG==\n{pilotLog}\n==Meta==\n{metaData}\n"
+                  "rateWCHAR={rateWCHAR},rateRBYTES={rateRBYTES},rateWBYTES={rateWBYTES},meanCoreCount={meanCoreCount},"                  
+                  "corruptedFiles={corruptedFiles}\n==XML==\n{xml}\n==LOG==\n{pilotLog}\n==Meta==\n{metaData}\n"
                   "==Metrics==\n{jobMetrics}\n==stdout==\n{stdout})".format(jobId=jobId, state=state, transExitCode=transExitCode,
                                                                             pilotErrorCode=pilotErrorCode, pilotErrorDiag=pilotErrorDiag,
                                                                             node=node, workdir=workdir,
@@ -1004,7 +1004,7 @@ def updateJob(req, jobId, state, token=None, transExitCode=None, pilotErrorCode=
                                                                             totWCHAR=totWCHAR, totRBYTES=totRBYTES, totWBYTES=totWBYTES,
                                                                             rateRCHAR=rateRCHAR, rateWCHAR=rateWCHAR, rateRBYTES=rateRBYTES,
                                                                             rateWBYTES=rateWBYTES, meanCoreCount=meanCoreCount,
-                                                                            corruptedFiles=corruptedFiles, cpu_flags=cpu_flags,
+                                                                            corruptedFiles=corruptedFiles, cpu_architecture_level=cpu_architecture_level,
                                                                             xml=xml, pilotLog=pilotLog[:1024],
                                                                             metaData=metaData[:1024], jobMetrics=jobMetrics,
                                                                             stdout=stdout))
@@ -1034,6 +1034,8 @@ def updateJob(req, jobId, state, token=None, transExitCode=None, pilotErrorCode=
         param['cpuConsumptionTime'] = cpuConsumptionTime
     if cpuConsumptionUnit is not None:
         param['cpuConsumptionUnit'] = cpuConsumptionUnit
+    if cpu_architecture_level is not None:
+        param['cpu_architecture_level'] = cpu_architecture_level[:20]
     if node is not None:
         param['modificationHost'] = node[:128]
     if transExitCode is not None:
