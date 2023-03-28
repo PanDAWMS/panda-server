@@ -975,7 +975,7 @@ def updateJob(req, jobId, state, token=None, transExitCode=None, pilotErrorCode=
     acceptJson = req.acceptJson()
 
     _logger.debug("updateJob({jobId},{state},{transExitCode},{pilotErrorCode},{pilotErrorDiag},{node},{workdir},"
-                  "cpuConsumptionTime={cpuConsumptionTime},{cpuConsumptionUnit},{cpu_architecure_level},{remainingSpace},"
+                  "cpuConsumptionTime={cpuConsumptionTime},{cpuConsumptionUnit},{cpu_architecture_level},{remainingSpace},"
                   "{schedulerID},{pilotID},{siteName},{messageLevel},{nEvents},{nInputFiles},{cpuConversionFactor},"
                   "{exeErrorCode},{exeErrorDiag},{pilotTiming},{computingElement},{startTime},{endTime},{batchID},"
                   "attemptNr:{attemptNr},jobSubStatus:{jobSubStatus},core:{coreCount},DN:{realDN},role:{prodManager},"
