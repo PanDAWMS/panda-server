@@ -34,7 +34,7 @@ class JobSpec(object):
                    'failedAttempt', 'hs06sec', 'gshare', 'hs06', 'totRCHAR', 'totWCHAR', 'totRBYTES',
                    'totWBYTES', 'rateRCHAR', 'rateWCHAR', 'rateRBYTES', 'rateWBYTES', 'resource_type',
                    'diskIO', 'memory_leak', 'memory_leak_x2', 'container_name', 'job_label',
-                   'gco2_regional', 'gco2_global'
+                   'gco2_regional', 'gco2_global', 'cpu_architecture_level'
                    )
     # slots
     __slots__ = _attributes + ('Files', '_changedAttrs')
