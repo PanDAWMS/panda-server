@@ -274,7 +274,7 @@ class EventPicker:
                                                              None)
                         self.putLog(tmpMsg)
                         rucioAPI.registerDatasetLocation(tmpDS,[tmpDQ2ID],lifetime=14,owner=None,
-                                                         activity="User Subscriptions")
+                                                         activity="Analysis Output")
                         self.putLog('OK')
                     except Exception:
                         errType,errValue = sys.exc_info()[:2]

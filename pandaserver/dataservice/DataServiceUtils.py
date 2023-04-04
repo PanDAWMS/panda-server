@@ -289,7 +289,7 @@ def getActivityForOut(prodSourceLabel):
     if prodSourceLabel in ['managed']:
         activity = "Production Output"
     elif prodSourceLabel in ['user','panda']:
-        activity = "User Subscriptions"
+        activity = "Analysis Output"
     else:
         activity = "Functional Test"
     return activity
