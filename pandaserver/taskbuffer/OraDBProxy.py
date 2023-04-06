@@ -22214,11 +22214,24 @@ class DBProxy:
                 tmpLog.error('No corecount')
                 pass
 
-        # Filter central harvester instances that support UPS model
+        # Retrieve the assigned harvester instance and submit UPS commands only to this instance. We have had multiple
+        # cases of test instances submitting to large queues in classic pull mode and not following commands.
+        try:
+            assigned_harvester_id = pq_data_des['harvester']
+        except KeyErrorException:
+            assigned_harvester_id = None
+
+        
         harvester_ids = []
-        for harvester_id in harvester_ids_temp:
-            if 'ACT' not in harvester_id and 'test_fbarreir' not in harvester_id and 'cern_cloud' not in harvester_id:
-                harvester_ids.append(harvester_id)
+        # If the assigned instance is working, use it for the statistics
+        if assigned_harvester_id in harvester_ids_temp:
+            harvester_ids = [assigned_harvester_id]
+
+        # Filter central harvester instances that support UPS model
+        else:
+            for harvester_id in harvester_ids_temp:
+                if 'ACT' not in harvester_id and 'test_fbarreir' not in harvester_id and 'cern_cloud' not in harvester_id:
+                    harvester_ids.append(harvester_id)
 
         for harvester_id in harvester_ids:
             for job_type in worker_stats[harvester_id]:
