@@ -22306,19 +22306,22 @@ class DBProxy:
             activated_jobs = self.cur.fetchall()
             tmpLog.debug('Processing share: {0}. Got {1} activated jobs'.format(share.name, len(activated_jobs)))
             for gshare, prodsourcelabel, resource_type in activated_jobs:
+                tmpLog.debug('1')
                 core_factor = JobUtils.translate_resourcetype_to_cores(resource_type, cores_queue)
 
                 # translate prodsourcelabel to a subset of job types, typically 'user' and 'managed'
                 job_type = JobUtils.translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel)
-
+                tmpLog.debug('2')
                 # if we reached the limit for the resource type, skip the job
                 if resource_type in resource_type_limits and resource_type_limits[resource_type] <= 0:
                     # tmpLog.debug('Reached resource type limit for {0}'.format(resource_type))
+                    tmpLog.debug('2a')
                     continue
                     
                 # if we reached the limit for the HIMEM resource type group, skip the job
                 if resource_type in HIMEM_RTS and resource_type_limits[HIMEM] <= 0:
                     # tmpLog.debug('Reached resource type limit for {0}'.format(resource_type))
+                    tmpLog.debug('2b')
                     continue
 
                 workers_queued.setdefault(job_type, {})
@@ -22328,6 +22331,7 @@ class DBProxy:
                     # we've gone over the jobs that already have a queued worker, now we go for new workers
                     n_cores_to_submit = n_cores_to_submit - core_factor
 
+                tmpLog.debug('3')
                 # We reached the number of workers needed
                 if n_cores_to_submit <= 0:
                     tmpLog.debug('Reached cores needed (inner)')
