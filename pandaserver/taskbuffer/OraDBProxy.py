@@ -22245,12 +22245,14 @@ class DBProxy:
                     try:
                         n_cores_running = n_cores_running + worker_stats[harvester_id][job_type][resource_type]['running'] * core_factor
 
+                        # This limit is in #JOBS or #WORKERS
                         if resource_type in resource_type_limits:
                             resource_type_limits[resource_type] = resource_type_limits[resource_type] - worker_stats[harvester_id][job_type][resource_type]['running']
                             tmpLog.debug('Limit for rt {0} down to {1}'.format(resource_type, resource_type_limits[resource_type]))
                         
+                        # This limit is in #CORES, since it mixes single and multi core jobs
                         if resource_type in HIMEM_RTS and HIMEM in resource_type_limits:
-                            resource_type_limits[HIMEM] = resource_type_limits[HIMEM] - worker_stats[harvester_id][job_type][resource_type]['running']
+                            resource_type_limits[HIMEM] = resource_type_limits[HIMEM] - worker_stats[harvester_id][job_type][resource_type]['running'] * core_factor
                             tmpLog.debug('Limit for rt group {0} down to {1}'.format(HIMEM, resource_type_limits[HIMEM]))
                             
                     except KeyError:
