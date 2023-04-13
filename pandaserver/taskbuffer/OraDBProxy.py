@@ -22321,6 +22321,7 @@ class DBProxy:
                 tmpLog.debug('2b')
                 tmpLog.debug('{0}'.format(resource_type))
                 tmpLog.debug('{0}'.format(HIMEM_RTS))
+                tmpLog.debug('{0}'.format(resource_type_limits))
                 tmpLog.debug('{0}'.format(resource_type_limits[HIMEM]))
                 # if we reached the limit for the HIMEM resource type group, skip the job
                 if resource_type in HIMEM_RTS and HIMEM in resource_type_limits and resource_type_limits[HIMEM] <= 0:
