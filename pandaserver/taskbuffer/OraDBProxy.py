@@ -22191,7 +22191,7 @@ class DBProxy:
         
         # HIMEM resource types group
         HIMEM = 'HIMEM'
-        HIMEM_RTS = {'SCORE_HIMEM', 'MCORE_HIMEM'}
+        HIMEM_RTS = ['SCORE_HIMEM', 'MCORE_HIMEM']
 
         # get the configuration for maximum workers of each type
         pq_data_des = self.get_config_for_pq(queue)
@@ -22325,7 +22325,7 @@ class DBProxy:
                 tmpLog.debug('{0}'.format(HIMEM))
                 tmpLog.debug('{0}'.format(resource_type_limits[HIMEM]))
                 # if we reached the limit for the HIMEM resource type group, skip the job
-                if resource_type in HIMEM_RTS and HIMEM in resource_type_limits and resource_type_limits[HIMEM] <= 0:
+                if (resource_type in HIMEM_RTS) and (HIMEM in resource_type_limits) and (resource_type_limits[HIMEM] <= 0):
                     # tmpLog.debug('Reached resource type limit for {0}'.format(resource_type))
                     tmpLog.debug('2c')
                     continue
