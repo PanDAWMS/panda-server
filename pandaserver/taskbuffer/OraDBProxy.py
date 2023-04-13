@@ -22317,13 +22317,16 @@ class DBProxy:
                     # tmpLog.debug('Reached resource type limit for {0}'.format(resource_type))
                     tmpLog.debug('2a')
                     continue
-                    
+                
+                tmpLog.debug('2b')
+                
                 # if we reached the limit for the HIMEM resource type group, skip the job
                 if resource_type in HIMEM_RTS and resource_type_limits[HIMEM] <= 0:
                     # tmpLog.debug('Reached resource type limit for {0}'.format(resource_type))
-                    tmpLog.debug('2b')
+                    tmpLog.debug('2c')
                     continue
 
+                tmpLog.debug('2d')
                 workers_queued.setdefault(job_type, {})
                 workers_queued[job_type].setdefault(resource_type, 0)
                 workers_queued[job_type][resource_type] = workers_queued[job_type][resource_type] - 1
