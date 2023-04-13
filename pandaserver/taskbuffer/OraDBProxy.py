@@ -22188,6 +22188,10 @@ class DBProxy:
         workers_queued = {}
         n_cores_queued = 0
         harvester_ids_temp = list(worker_stats)
+        
+        # HIMEM resource types group
+        HIMEM = 'HIMEM'
+        HIMEM_RTS = ['SCORE_HIMEM', 'MCORE_HIMEM']
 
         # get the configuration for maximum workers of each type
         pq_data_des = self.get_config_for_pq(queue)
@@ -22214,11 +22218,24 @@ class DBProxy:
                 tmpLog.error('No corecount')
                 pass
 
-        # Filter central harvester instances that support UPS model
+        # Retrieve the assigned harvester instance and submit UPS commands only to this instance. We have had multiple
+        # cases of test instances submitting to large queues in classic pull mode and not following commands.
+        try:
+            assigned_harvester_id = pq_data_des['harvester']
+        except KeyErrorException:
+            assigned_harvester_id = None
+
+        
         harvester_ids = []
-        for harvester_id in harvester_ids_temp:
-            if 'ACT' not in harvester_id and 'test_fbarreir' not in harvester_id and 'cern_cloud' not in harvester_id:
-                harvester_ids.append(harvester_id)
+        # If the assigned instance is working, use it for the statistics
+        if assigned_harvester_id in harvester_ids_temp:
+            harvester_ids = [assigned_harvester_id]
+
+        # Filter central harvester instances that support UPS model
+        else:
+            for harvester_id in harvester_ids_temp:
+                if 'ACT' not in harvester_id and 'test_fbarreir' not in harvester_id and 'cern_cloud' not in harvester_id:
+                    harvester_ids.append(harvester_id)
 
         for harvester_id in harvester_ids:
             for job_type in worker_stats[harvester_id]:
@@ -22231,6 +22248,11 @@ class DBProxy:
                         if resource_type in resource_type_limits:
                             resource_type_limits[resource_type] = resource_type_limits[resource_type] - worker_stats[harvester_id][job_type][resource_type]['running']
                             tmpLog.debug('Limit for rt {0} down to {1}'.format(resource_type, resource_type_limits[resource_type]))
+                        
+                        if resource_type in HIMEM_RTS and HIMEM in resource_type_limits:
+                            resource_type_limits[HIMEM] = resource_type_limits[HIMEM] - worker_stats[harvester_id][job_type][resource_type]['running']
+                            tmpLog.debug('Limit for rt group {0} down to {1}'.format(HIMEM, resource_type_limits[HIMEM]))
+                            
                     except KeyError:
                         pass
 
@@ -22241,7 +22263,7 @@ class DBProxy:
                     except KeyError:
                         pass
 
-                    try: # ready
+                    try:  # ready
                         workers_queued[job_type].setdefault(resource_type, 0)
                         workers_queued[job_type][resource_type] = workers_queued[job_type][resource_type] + worker_stats[harvester_id][job_type][resource_type]['ready']
                         n_cores_queued = n_cores_queued + worker_stats[harvester_id][job_type][resource_type]['ready'] * core_factor
@@ -22269,7 +22291,7 @@ class DBProxy:
         # Get the sorted global shares
         sorted_shares = self.get_sorted_leaves()
 
-        # Run over the activated jobs by gshare&priority and substract them from the queued
+        # Run over the activated jobs by gshare & priority, and substract them from the queued
         # A negative value for queued will mean more pilots of that resource type are missing
         for share in sorted_shares:
             var_map = {':queue': queue, ':gshare': share.name}
@@ -22288,11 +22310,16 @@ class DBProxy:
 
                 # translate prodsourcelabel to a subset of job types, typically 'user' and 'managed'
                 job_type = JobUtils.translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel)
-
                 # if we reached the limit for the resource type, skip the job
                 if resource_type in resource_type_limits and resource_type_limits[resource_type] <= 0:
                     # tmpLog.debug('Reached resource type limit for {0}'.format(resource_type))
                     continue
+                
+                # if we reached the limit for the HIMEM resource type group, skip the job
+                if resource_type in HIMEM_RTS and HIMEM in resource_type_limits and resource_type_limits[HIMEM] <= 0:
+                    # tmpLog.debug('Reached resource type limit for {0}'.format(resource_type))
+                    continue
+
                 workers_queued.setdefault(job_type, {})
                 workers_queued[job_type].setdefault(resource_type, 0)
                 workers_queued[job_type][resource_type] = workers_queued[job_type][resource_type] - 1
