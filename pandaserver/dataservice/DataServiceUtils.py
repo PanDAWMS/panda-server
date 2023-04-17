@@ -204,13 +204,16 @@ def getSitesShareDDM(siteMapper, siteName, prodSourceLabel, job_label, output_sh
     # get siteSpec
     siteSpec = siteMapper.getSite(siteName)
     scope_site_input, scope_site_output = select_scope(siteSpec, prodSourceLabel, job_label)
+    runs_production = siteSpec.runs_production()
+    runs_analysis = siteSpec.runs_analysis()
     # loop over all sites
     retSites = []
     for tmpSiteName in siteMapper.siteSpecList:
         tmpSiteSpec = siteMapper.siteSpecList[tmpSiteName]
         scope_tmpSite_input, scope_tmpSite_output = select_scope(tmpSiteSpec, prodSourceLabel, job_label)
         # only same type
-        if siteSpec.type != tmpSiteSpec.type:
+        if (runs_production and not tmpSiteSpec.runs_production()) or \
+                (runs_analysis and not tmpSiteSpec.runs_analysis()):
             continue
         # only online sites
         if tmpSiteSpec.status != 'online':
