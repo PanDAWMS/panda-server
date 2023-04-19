@@ -350,7 +350,7 @@ class UserIF:
         ret = self.taskBuffer.getJobStatistics(readArchived,predefined,workingGroup,countryGroup,jobType,
                                                minPriority=minPriority)
         # serialize
-        return WrappedPickle.dumps(ret)
+        return WrappedPickle.dumps(ret, convert_to_safe=True)
 
 
     # get job statistics per site and resource

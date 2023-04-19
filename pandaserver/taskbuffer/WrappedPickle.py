@@ -1,4 +1,5 @@
 import sys
+import decimal
 from io import BytesIO
 try:
     # python 2
@@ -21,6 +22,20 @@ else:
                 pickle.Unpickler.__setattr__(self, 'find_class', value)
             else:
                 pickle.Unpickler.__setattr__(self, key, value)
+
+
+# conversion for unserializable values
+def conversion_func(item):
+    if isinstance(item, list):
+        return [conversion_func(i) for i in item]
+    if isinstance(item, dict):
+        return {k: conversion_func(item[k]) for k in item}
+    if isinstance(item, decimal.Decimal):
+        if item == item.to_integral_value():
+            item = int(item)
+        else:
+            item = float(item)
+    return item
 
 
 # wrapper to avoid de-serializing unsafe objects
@@ -76,5 +91,7 @@ class WrappedPickle(object):
 
     # dumps
     @classmethod
-    def dumps(cls, obj):
+    def dumps(cls, obj, convert_to_safe=False):
+        if convert_to_safe:
+            obj = conversion_func(obj)
         return pickle.dumps(obj, protocol=0)
