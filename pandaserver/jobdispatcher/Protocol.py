@@ -283,13 +283,15 @@ class Response:
         # debug mode
         if job.specialHandling is not None and 'debug' in job.specialHandling:
             self.data['debug'] = 'True'
-        # event service or job cloning
+        # event service or job cloning or fine-grained
         if EventServiceUtils.isJobCloningJob(job):
             self.data['cloneJob'] = EventServiceUtils.getJobCloningType(job)
         elif EventServiceUtils.isEventServiceJob(job) or EventServiceUtils.isJumboJob(job):
             self.data['eventService'] = 'True'
             # prod DBlock space token for pre-merging output
             self.data['prodDBlockTokenForOutput'] = strProdTokenForOutput[:-1]
+        elif EventServiceUtils.is_fine_grained_job(job):
+            self.data['eventService'] = 'True'
         # event service merge
         if isEventServiceMerge:
             self.data['eventServiceMerge'] = 'True'

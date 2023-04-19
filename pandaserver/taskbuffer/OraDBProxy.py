@@ -1982,6 +1982,17 @@ class DBProxy:
                                 job.taskBufferErrorDiag = 'closed since another clone PandaID={0} got semaphore'.format(retJC['win'])
                             else:
                                 job.taskBufferErrorDiag = 'closed since failed to lock semaphore'
+                elif useJEDI and EventServiceUtils.is_fine_grained_job(job):
+                    # fine-grained
+                    n_done, n_remain = self.check_fine_grained_processing(job)
+                    if n_done > 0 or n_remain == 0:
+                        job.jobStatus = 'finished'
+                        if n_remain == 0:
+                            job.jobSubStatus = 'fg_done'
+                        else:
+                            job.jobSubStatus = 'fg_partial'
+                    else:
+                        job.jobSubStatus = 'fg_stumble'
                 # release unprocessed samples for HPO
                 if job.is_hpo_workflow():
                     self.release_unprocessed_events(job.jediTaskID, job.PandaID)
@@ -12584,8 +12595,9 @@ class DBProxy:
             if fileSpec.type in ['input','pseudo_input']:
                 hasInput = True
                 updateAttemptNr = True
-                if jobSpec.jobStatus == 'finished' and not jobSpec.is_hpo_workflow() \
-                        and fileSpec.status != 'skipped':
+                if ((jobSpec.jobStatus == 'finished' and not EventServiceUtils.is_fine_grained_job(jobSpec)) or
+                        (jobSpec.jobSubStatus == 'fg_done' and EventServiceUtils.is_fine_grained_job(jobSpec))) and \
+                        not jobSpec.is_hpo_workflow() and fileSpec.status != 'skipped':
                     varMap[':status'] = 'finished'
                     if fileSpec.type in ['input','pseudo_input']:
                          updateNumEvents = True
@@ -25302,3 +25314,47 @@ class DBProxy:
             tmp_log.error("{} {}".format(type, value))
             tmp_log.error(format(traceback.format_exc()))
             return -1, None
+
+    # check fine-grained job
+    def check_fine_grained_processing(self, job_spec):
+        comment = ' /* DBProxy.check_fine_grained_processing */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += ' < jediTaskID={} PandaID={} >'.format(job_spec.jediTaskID, job_spec.PandaID)
+        try:
+            # get configs
+            tmpLog = LogWrapper(_logger, methodName)
+            # sql to release events
+            sqlW  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlW += "SET PandaID=:jobsetID,status=:newEventStatus "
+            sqlW += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID AND status<>:eventStatus "
+            # sql to count successful events
+            sqlC  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlC += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID AND status=:eventStatus "
+            # sql to count remaining events
+            sqlU  = "SELECT COUNT(*) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
+            sqlU += "WHERE jediTaskID=:jediTaskID AND PandaID=:jobsetID "
+            # release
+            varMap = {':jediTaskID': job_spec.jediTaskID,
+                      ':PandaID': job_spec.PandaID,
+                      ':jobsetID': job_spec.jobsetID,
+                      ':eventStatus': EventServiceUtils.ST_finished,
+                      ':newEventStatus': EventServiceUtils.ST_ready}
+            self.cur.execute(sqlW + comment, varMap)
+            n_release = self.cur.rowcount
+            # count successful events
+            varMap = {':jediTaskID': job_spec.jediTaskID,
+                      ':PandaID': job_spec.PandaID,
+                      ':eventStatus': EventServiceUtils.ST_finished}
+            self.cur.execute(sqlC + comment, varMap)
+            n_done, = self.cur.fetchone()
+            # count remaining events
+            varMap = {':jediTaskID': job_spec.jediTaskID,
+                      ':jobsetID': job_spec.jobsetID}
+            self.cur.execute(sqlU + comment, varMap)
+            n_remain, = self.cur.fetchone()
+            tmpLog.debug("done={} release/remain={}/{}".format(n_done, n_release, n_remain))
+            return n_done, n_remain
+        except Exception:
+            # error
+            self.dumpErrorMessage(_logger, methodName)
+            raise RuntimeError(methodName + ' failed')

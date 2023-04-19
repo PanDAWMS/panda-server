@@ -44,6 +44,7 @@ esMergeJobFlagNumber = 2
 jobCloningFlagNumber = 3
 jumboJobFlagNumber = 4
 coJumboJobFlagNumber = 5
+fineGrainedFlagNumber = 6
 
 
 # values for event.is_jumbo
@@ -144,27 +145,17 @@ def decodeFileInfo(specialHandling):
     return eventServiceInfo,newSpecialHandling,esIndex
 
 
-
 # check if event service job
 def isEventServiceJob(job):
-    try:
-        if job.specialHandling is not None and esToken in job.specialHandling.split(','):
-            return True
-    except Exception:
-        pass
-    return False
-
+    # fine-grained job
+    if is_fine_grained_job(job):
+        return False
+    return isEventServiceSH(job.specialHandling)
 
 
 # check if event service merge job
 def isEventServiceMerge(job):
-    try:
-        if job.specialHandling is not None and esMergeToken in job.specialHandling.split(','):
-            return True
-    except Exception:
-        pass
-    return False
-
+    return isEventServiceMergeSH(job.specialHandling)
 
 
 # check if specialHandling for event service
@@ -177,7 +168,6 @@ def isEventServiceSH(specialHandling):
     return False
 
 
-
 # check if specialHandling for event service merge 
 def isEventServiceMergeSH(specialHandling):
     try:
@@ -186,7 +176,6 @@ def isEventServiceMergeSH(specialHandling):
     except Exception:
         pass
     return False
-
 
 
 # set event service merge
@@ -383,3 +372,13 @@ def isResurrectConsumers(specialHandling):
     except Exception:
         pass
     return False
+
+
+# check if fine-grained job
+def is_fine_grained_job(job):
+    return job.eventService == fineGrainedFlagNumber
+
+
+# set fine-grained
+def set_fine_grained(job):
+    job.eventService = fineGrainedFlagNumber
