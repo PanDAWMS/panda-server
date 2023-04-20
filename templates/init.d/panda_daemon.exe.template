@@ -74,7 +74,7 @@ start)
     for itry in `seq 1 5`
     do
       echo "trying $itry"
-      $PROGNAME --pid $PIDFILE >> $LOGSTDOUT 2>> $LOGSTDERR
+      $PROGNAME --pidfile $PIDFILE >> $LOGSTDOUT 2>> $LOGSTDERR
       touch $LOCKFILE
       sleep 5
       ps -p `cat $PIDFILE` > /dev/null
