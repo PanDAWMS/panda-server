@@ -24922,8 +24922,8 @@ class DBProxy:
 
             # Reset the relations. Important to do this inside the transaction
             tmp_log.debug("Deleting existing panda ddm relations")
-            sql_get = "DELETE FROM ATLAS_PANDA.panda_ddm_relation"
-            self.cur.execute(sql_get + comment)
+            sql_delete = "DELETE FROM ATLAS_PANDA.panda_ddm_relation"
+            self.cur.execute(sql_delete + comment)
 
             var_map_insert = []
             for relation in relation_list:
