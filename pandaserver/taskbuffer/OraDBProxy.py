@@ -24920,32 +24920,14 @@ class DBProxy:
             # begin transaction
             self.conn.begin()
 
-            # get existing panda ddm relations
-            tmp_log.debug("getting existing panda ddm relations")
-            sql_get = "SELECT panda_site_name, ddm_endpoint_name, scope FROM ATLAS_PANDA.panda_ddm_relation"
+            # Reset the relations. Important to do this inside the transaction
+            tmp_log.debug("Deleting existing panda ddm relations")
+            sql_get = "DELETE FROM ATLAS_PANDA.panda_ddm_relation"
             self.cur.execute(sql_get + comment)
-            relation_tuple_list = self.cur.fetchall()
-            tmp_log.debug("finished getting existing panda ddm relations")
 
-            # see which sites need an update and which need to be inserted new
             var_map_insert = []
-            var_map_update = []
             for relation in relation_list:
-                panda_site_name_tmp = relation['panda_site_name']
-                ddm_endpoint_name_tmp = relation['ddm_endpoint_name']
-                scope_tmp = relation['scope']
-                if (panda_site_name_tmp, ddm_endpoint_name_tmp, scope_tmp) in relation_tuple_list:
-                    var_map_update.append(convert_dict_to_bind_vars(relation))
-                else:
-                    var_map_insert.append(convert_dict_to_bind_vars(relation))
-
-            tmp_log.debug("Updating panda ddm relations")
-            sql_update = "UPDATE ATLAS_PANDA.panda_ddm_relation set "\
-                         "roles=:roles, is_local=:is_local, order_read=:order_read, order_write=:order_write, "\
-                         "default_read=:default_read, default_write=:default_write "\
-                         "WHERE panda_site_name=:panda_site_name AND ddm_endpoint_name=:ddm_endpoint_name AND scope=:scope"
-            for shard in create_shards(var_map_update, 100):
-                self.cur.executemany(sql_update + comment, shard)
+                var_map_insert.append(convert_dict_to_bind_vars(relation))
 
             tmp_log.debug("Inserting panda ddm relations")
             sql_insert = "INSERT INTO ATLAS_PANDA.panda_ddm_relation (panda_site_name, ddm_endpoint_name, roles, "\
