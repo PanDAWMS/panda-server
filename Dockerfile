@@ -71,7 +71,6 @@ RUN chmod -R 777 /var/log/panda
 RUN chmod -R 777 /run/httpd
 RUN chmod -R 777 /home/atlpan
 RUN chmod -R 777 /var/lock
-RUN chmod -R 777 /var/cache/pandaserver
 RUN chmod -R 777 /var/log/panda/pandacache
 RUN chmod -R 777 /var/run/panda
 RUN chmod -R 777 /var/lib/logrotate
