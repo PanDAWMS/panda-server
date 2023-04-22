@@ -433,7 +433,10 @@ def uploadLog(req,file):
         fo.write(fileContent)
         fo.close()
         tmpLog.debug("written to {0}".format(fileFullPath))
-        retStr = 'http://{0}/cache{1}/{2}'.format(getServerHTTP(None),jediLogDir,fileBaseName)
+        if panda_config.disableHTTP:
+            retStr = 'https://{}/cache{}/{}'.format(getServer(None), jediLogDir, fileBaseName)
+        else:
+            retStr = 'http://{}/cache{}/{}'.format(getServerHTTP(None),jediLogDir,fileBaseName)
     except Exception:
         errtype,errvalue = sys.exc_info()[:2]
         errStr = "failed to write log with {0}:{1}".format(errtype.__name__,errvalue)

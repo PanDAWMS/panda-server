@@ -47,7 +47,7 @@ RUN mkdir -p /data/atlpan
 RUN mkdir -p /var/log/panda/wsgisocks
 RUN mkdir -p /var/log/panda/pandacache
 RUN mkdir -p /run/httpd/wsgisocks
-RUN mkdir -p /var/cache/pandaserver/jedilog
+RUN mkdir -p /var/log/panda/pandacache/jedilog
 RUN mkdir -p /var/run/panda
 RUN mkdir -p /var/cric
 
