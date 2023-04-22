@@ -2131,7 +2131,7 @@ class DBProxy:
                 except Exception:
                     tmpLog.error('recordStatusChange in archiveJob')
                 exec_time = datetime.datetime.utcnow() - start_time
-                tmpLog.debug("done. took %s.%03d sec" % (exec_time.seconds, exec_time.microseconds/1000))
+                tmpLog.debug("done OK. took %s.%03d sec" % (exec_time.seconds, exec_time.microseconds/1000))
                 return True, ddmIDs, ddmAttempt, newJob
             except Exception:
                 # roll back
@@ -2140,7 +2140,7 @@ class DBProxy:
                 # error
                 self.dumpErrorMessage(_logger, methodName)
                 exec_time = datetime.datetime.utcnow() - start_time
-                tmpLog.debug("done. took %s.%03d sec" % (exec_time.seconds, exec_time.microseconds/1000))
+                tmpLog.debug("done NG. took %s.%03d sec" % (exec_time.seconds, exec_time.microseconds/1000))
                 if not useCommit:
                     raise RuntimeError('archiveJob failed')
                 return False, [], 0, None
@@ -12460,7 +12460,7 @@ class DBProxy:
     def propagateResultToJEDI(self, jobSpec, cur, oldJobStatus=None, extraInfo=None, finishPending=False, waitLock=False):
         comment = ' /* DBProxy.propagateResultToJEDI */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        methodName += " <PandaID={0}>".format(jobSpec.PandaID)
+        methodName += " < PandaID={} jediTaskID={} >".format(jobSpec.PandaID, jobSpec.jediTaskID)
         tmpLog = LogWrapper(_logger,methodName)
         datasetContentsStat = {}
         # loop over all files
