@@ -44,7 +44,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     lock_interval = 10
 
     # retry interval in minutes
-    retry_interval = 3
+    retry_interval = 1
 
     # instantiate TB
     if tbuf is None:
