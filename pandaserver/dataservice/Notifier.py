@@ -9,6 +9,7 @@ import uuid
 import datetime
 import traceback
 import time
+import smtplib
 
 try:  # Python 2
     from urllib import urlencode
