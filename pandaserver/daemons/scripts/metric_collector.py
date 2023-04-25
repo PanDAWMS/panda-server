@@ -467,6 +467,7 @@ class FetchData(object):
             # get share and hs info
             if self.gshare_status is None:
                 self.gshare_status = self.tbuf.getGShareStatus()
+            share_name_tree_dict = self.tbuf.get_tree_of_gshare_names()
             # initialize
             gshare_dict = dict()
             # rank and data

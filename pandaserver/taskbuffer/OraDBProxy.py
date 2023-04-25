@@ -20705,15 +20705,16 @@ class DBProxy:
         get nested dict of gshare names implying the tree structure
         """
         def get_nested_gshare(share):
-            val_dict = {}
+            val = None
             if not share.children:
                 # leaf
                 pass
             else:
                 # branch
+                val = {}
                 for child in share.children:
-                    val_dict[child.name] = get_nested_gshare(child)
-            return val_dict
+                    val[child.name] = get_nested_gshare(child)
+            return val
         ret_dict = get_nested_gshare(self.tree)
         return ret_dict
 
