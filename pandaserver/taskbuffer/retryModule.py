@@ -169,7 +169,7 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
                   % (jobID, errors, attemptNr))
 
     retrial_rules = task_buffer.getRetrialRules()
-    _logger.debug("Back from getRetrialRules: %s" % retrial_rules)
+    _logger.debug("Back from getRetrialRules")
     if not retrial_rules:
         return
 

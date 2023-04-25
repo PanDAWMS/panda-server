@@ -38,7 +38,7 @@ panda_config.setupPlugin()
 class AdderGen(object):
     # constructor
     def __init__(self, taskBuffer, jobID, jobStatus, attemptNr, ignoreTmpError=True, siteMapper=None,
-                 pid=None, prelock_pid=None, lock_offset=10):
+                 pid=None, prelock_pid=None, lock_offset=10, lock_pool=None):
         self.job = None
         self.jobID = jobID
         self.jobStatus = jobStatus
@@ -52,6 +52,7 @@ class AdderGen(object):
         self.pid = pid
         self.prelock_pid = prelock_pid
         self.data = None
+        self.lock_pool = lock_pool
         # logger
         self.logger = LogWrapper(_logger,str(self.jobID))
 
@@ -304,13 +305,25 @@ class AdderGen(object):
                 if self.job.commandToPilot == 'tobekilled' and self.job.jobStatus == 'failed':
                     self.job.jobStatus = 'cancelled'
                 # update job
-                if oldJobStatus in ['cancelled','closed']:
+                if oldJobStatus in ['cancelled', 'closed']:
                     pass
                 else:
+                    db_lock = None
+                    if self.job.jediTaskID not in [0, None, 'NULL'] and self.lock_pool:
+                        db_lock = self.lock_pool.get(self.job.jediTaskID)
+                        if db_lock:
+                            db_lock.acquire()
+                            self.logger.debug("got DB lock for jediTaskID={}".format(self.job.jediTaskID))
+                        else:
+                            self.logger.debug("couldn't get DB lock for jediTaskID={}".format(self.job.jediTaskID))
                     self.logger.debug("updating DB")
                     retU = self.taskBuffer.updateJobs([self.job],False,oldJobStatusList=[oldJobStatus],
                                                       extraInfo=self.extraInfo)
                     self.logger.debug("retU: %s" % retU)
+                    if db_lock:
+                        self.logger.debug("release DB lock for jediTaskID={}".format(self.job.jediTaskID))
+                        db_lock.release()
+                        self.lock_pool.release(self.job.jediTaskID)
                     # failed
                     if not retU[0]:
                         self.logger.error('failed to update DB for pandaid={0}'.format(self.job.PandaID))

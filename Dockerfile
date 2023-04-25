@@ -47,7 +47,8 @@ RUN mkdir -p /data/atlpan
 RUN mkdir -p /var/log/panda/wsgisocks
 RUN mkdir -p /var/log/panda/pandacache
 RUN mkdir -p /run/httpd/wsgisocks
-RUN mkdir -p /var/cache/pandaserver/jedilog
+RUN mkdir -p /var/log/panda/pandacache/jedilog
+RUN mkdir -p /var/cache/pandaserver/schedconfig
 RUN mkdir -p /var/run/panda
 RUN mkdir -p /var/cric
 
@@ -71,11 +72,11 @@ RUN chmod -R 777 /var/log/panda
 RUN chmod -R 777 /run/httpd
 RUN chmod -R 777 /home/atlpan
 RUN chmod -R 777 /var/lock
-RUN chmod -R 777 /var/cache/pandaserver
 RUN chmod -R 777 /var/log/panda/pandacache
 RUN chmod -R 777 /var/run/panda
 RUN chmod -R 777 /var/lib/logrotate
 RUN chmod -R 777 /var/cric
+RUN chmod -R 777 /var/cache/pandaserver
 
 ENV PANDA_LOCK_DIR /var/run/panda
 RUN mkdir -p ${PANDA_LOCK_DIR} && chmod 777 ${PANDA_LOCK_DIR}

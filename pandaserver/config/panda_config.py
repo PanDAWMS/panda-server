@@ -35,6 +35,10 @@ if 'pserverporthttp' not in tmpSelf.__dict__:
 if 'pserverhosthttp' not in tmpSelf.__dict__:
     tmpSelf.__dict__['pserverhosthttp'] = tmpSelf.__dict__['pserverhost']
 
+# disable http
+if 'disableHTTP' not in tmpSelf.__dict__:
+    tmpSelf.__dict__['disableHTTP'] = False
+
 # change the number of database connections for FastCGI/WSGI
 if tmpSelf.__dict__['useFastCGI'] or tmpSelf.__dict__['useWSGI']:
     tmpSelf.__dict__['nDBConnection'] = tmpSelf.__dict__['nDBConForFastCGIWSGI']

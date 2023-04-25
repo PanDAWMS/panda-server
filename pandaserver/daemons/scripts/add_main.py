@@ -19,7 +19,7 @@ _logger = PandaLogger().getLogger('add_main')
 
 
 # main
-def main(argv=tuple(), tbuf=None, **kwargs):
+def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
 
     try:
         long
@@ -44,7 +44,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     lock_interval = 10
 
     # retry interval in minutes
-    retry_interval = 3
+    retry_interval = 1
 
     # instantiate TB
     if tbuf is None:
@@ -61,11 +61,12 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     class AdderThread(GenericThread):
 
         def __init__(self, taskBuffer, aSiteMapper,
-                        job_output_reports):
+                        job_output_reports, lock_pool):
             GenericThread.__init__(self)
             self.taskBuffer = taskBuffer
             self.aSiteMapper = aSiteMapper
             self.job_output_reports = job_output_reports
+            self.lock_pool = lock_pool
 
         # main loop
         def run(self):
@@ -111,7 +112,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                     # get adder
                     adder_gen = AdderGen(taskBuffer, panda_id, job_status, attempt_nr,
                                          ignoreTmpError=ignoreTmpError, siteMapper=aSiteMapper, pid=uniq_pid,
-                                         prelock_pid=uniq_pid, lock_offset=lock_interval-retry_interval)
+                                         prelock_pid=uniq_pid, lock_offset=lock_interval-retry_interval,
+                                         lock_pool=lock_pool)
                     n_processed += 1
                     # execute
                     adder_gen.run()
@@ -176,9 +178,9 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 tbuf = TaskBuffer()
                 tbuf_list.append(tbuf)
                 tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, useTimeout=True)
-                thr = AdderThread(tbuf, aSiteMapper, jor_lists)
+                thr = AdderThread(tbuf, aSiteMapper, jor_lists, lock_pool)
             else:
-                thr = AdderThread(taskBufferIF.getInterface(), aSiteMapper, jor_lists)
+                thr = AdderThread(taskBufferIF.getInterface(), aSiteMapper, jor_lists, lock_pool)
             adderThrList.append(thr)
         # start all threads
         for thr in adderThrList:
