@@ -1,0 +1,14 @@
+[Unit]
+Description=PanDA server httpd and daemon services
+After=network.target remote-fs.target nss-lookup.target
+
+[Service]
+# The dummy program will exit
+Type=oneshot
+# Execute a dummy program
+ExecStart=/bin/true
+# This service shall be considered active after start
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

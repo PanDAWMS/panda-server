@@ -1,0 +1,15 @@
+[Unit]
+Description=PanDA server httpd service
+After=network.target remote-fs.target nss-lookup.target
+PartOf=panda.service
+After=panda.service
+
+[Service]
+Type=notify
+EnvironmentFile=/etc/sysconfig/panda_server_env
+ExecStart=/bin/sh -c '. /opt/panda/bin/activate && /usr/sbin/httpd $OPTIONS -k start -D FOREGROUND'
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target
+WantedBy=panda.service
