@@ -16,6 +16,7 @@ import gc
 import psutil
 
 from pandacommon.pandalogger import logger_utils
+from pandacommon.pandautils.thread_utils import LockPool
 from pandaserver.config import panda_config, daemon_config
 
 
@@ -63,7 +64,7 @@ def kill_proc_tree(pid, sig=signal.SIGKILL, include_parent=True,
 
 
 # worker process loop of daemon
-def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None):
+def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lock_pool=None):
     # pid of the worker
     my_pid = os.getpid()
     my_full_pid = '{0}-{1}-{2}'.format(socket.getfqdn().split('.')[0], os.getpgrp(), my_pid)
@@ -202,7 +203,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None):
                         tmp_log.info('{dem} start looping'.format(dem=dem_name))
                         start_ts = time.time()
                         while True:
-                            ret_val = the_module.main(argv=mod_argv, tbuf=tbuf)
+                            ret_val = the_module.main(argv=mod_argv, tbuf=tbuf, lock_pool=lock_pool)
                             now_ts = time.time()
                             if not ret_val:
                                 # daemon main function says stop the loop
@@ -214,7 +215,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None):
                     else:
                         # execute the module script with arguments
                         tmp_log.info('{dem} start'.format(dem=dem_name))
-                        the_module.main(argv=mod_argv, tbuf=tbuf)
+                        the_module.main(argv=mod_argv, tbuf=tbuf, lock_pool=lock_pool)
                         tmp_log.info('{dem} finish'.format(dem=dem_name))
                 except Exception as e:
                     # with error
@@ -262,14 +263,15 @@ class DaemonWorker(object):
     _lock = threading.Lock()
 
     # constructor
-    def __init__(self, dem_config, msg_queue, worker_lifetime, tbuf=None):
+    def __init__(self, dem_config, msg_queue, worker_lifetime, tbuf=None, lock_pool=None):
         # synchronized with lock
         with self._lock:
             self._make_pipe()
             self._make_process( dem_config=dem_config,
                                 msg_queue=msg_queue,
                                 worker_lifetime=worker_lifetime,
-                                tbuf=tbuf)
+                                tbuf=tbuf,
+                                lock_pool=lock_pool)
 
     # make pipe connection pairs for the worker
     def _make_pipe(self):
@@ -281,8 +283,8 @@ class DaemonWorker(object):
         self.child_conn.close()
 
     # make associated process
-    def _make_process(self, dem_config, msg_queue, worker_lifetime, tbuf):
-        args = (dem_config, msg_queue, self.child_conn, worker_lifetime, tbuf)
+    def _make_process(self, dem_config, msg_queue, worker_lifetime, tbuf, lock_pool):
+        args = (dem_config, msg_queue, self.child_conn, worker_lifetime, tbuf, lock_pool)
         self.process = multiprocessing.Process(target=daemon_loop, args=args)
 
     # start worker process
@@ -351,6 +353,8 @@ class DaemonMaster(object):
         # shared taskBufferIF
         self.tbif = None
         self._make_tbif()
+        # shared lock pool
+        self.lock_pool = LockPool()
         # spawn workers
         self._spawn_workers(self.n_workers)
 
@@ -386,7 +390,8 @@ class DaemonMaster(object):
                 worker = DaemonWorker(  dem_config=self.dem_config,
                                         msg_queue=self.msg_queue,
                                         worker_lifetime=self.worker_lifetime,
-                                        tbuf=tbuf)
+                                        tbuf=tbuf,
+                                        lock_pool=self.lock_pool)
                 self.worker_pool.add(worker)
                 if auto_start:
                     worker.start()
