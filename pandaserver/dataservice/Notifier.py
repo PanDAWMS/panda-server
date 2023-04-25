@@ -6,11 +6,15 @@ notifier
 import re
 import sys
 import uuid
-import urllib
-import smtplib
 import datetime
 import traceback
 import time
+
+try:  # Python 2
+    from urllib import urlencode
+except ImportError:  # Python 3
+    from urllib.parse import urlencode
+
 
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.OraDBProxy import DBProxy
@@ -255,11 +259,11 @@ Parameters : %s""" % self.job.metadata
                                 message += \
 """
 
-PandaMonURL : http://panda.cern.ch/server/pandamon/query?%s""" % urllib.urlencode(urlData)
+PandaMonURL : http://panda.cern.ch/server/pandamon/query?%s""" % urlencode(urlData)
                             else:
                                 message += \
 """
-              http://panda.cern.ch/server/pandamon/query?%s""" % urllib.urlencode(urlData)
+              http://panda.cern.ch/server/pandamon/query?%s""" % urlencode(urlData)
                     else:
                         urlData = {}
                         urlData['job'] = '*'
@@ -274,14 +278,14 @@ PandaMonURL : http://panda.cern.ch/server/pandamon/query?%s""" % urllib.urlencod
                         message += \
 """
 
-PandaMonURL : http://panda.cern.ch/server/pandamon/query?%s""" % urllib.urlencode(urlData)
+PandaMonURL : http://panda.cern.ch/server/pandamon/query?%s""" % urlencode(urlData)
                         if logDS is not None:
                             message += \
 """
 TaskMonitorURL : https://dashb-atlas-task.cern.ch/templates/task-analysis/#task=%s""" % logDS
                         message += \
 """
-NewPandaMonURL : https://pandamon.cern.ch/jobinfo?%s""" % urllib.urlencode(newUrlData)
+NewPandaMonURL : https://pandamon.cern.ch/jobinfo?%s""" % urlencode(newUrlData)
 
                     # tailer
                     message += \
