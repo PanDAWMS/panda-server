@@ -23465,8 +23465,9 @@ class DBProxy:
         sorted_shares_export = []
         for share in sorted_shares:
             sorted_shares_export.append({'name': share.name,
-                                         'running': self.__hs_distribution[share.name]['executing'],
-                                         'target': self.__hs_distribution[share.name]['pledged']})
+                                         'running': self.__hs_distribution[share.name]['executing'], 
+                                         'target': self.__hs_distribution[share.name]['pledged'], 
+                                         'queuing': self.__hs_distribution[share.name]['queued']})
         return sorted_shares_export
 
 
