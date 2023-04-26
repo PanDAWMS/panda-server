@@ -295,15 +295,23 @@ setup(
                                'templates/panda_server.cfg.rpmnew.template',
                                'templates/pandasrv.cron.template',
                                'templates/logrotate.d/panda_server.logrotate.template',
-                               'templates/sysconfig/panda_server.sysconfig.rpmnew.template'
+                               'templates/sysconfig/panda_server.sysconfig.rpmnew.template',
+                               'templates/sysconfig/panda_server_env.systemd.rpmnew.template'
                                ]
                  ),
 
-                # init script
+                # init scripts for chkconfig -- these become obsolete in ALMA9
                 ('etc/rc.d/init.d', ['templates/init.d/panda_server.exe.template',
                                      'templates/init.d/panda_httpd.exe.template',
                                      'templates/init.d/panda_daemon.exe.template',
                                    ]
+                 ),
+
+                # service unit files for systemd -- these are to be used in ALMA9
+                ('etc/systemd/system', ['templates/systemd/panda_server.exe.template',
+                                         'templates/init.d/panda_httpd.exe.template',
+                                         'templates/init.d/panda_daemon.exe.template',
+                                        ]
                  ),
 
                 # var dirs
