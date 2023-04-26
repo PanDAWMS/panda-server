@@ -305,28 +305,6 @@ setup(
                                      'templates/init.d/panda_daemon.exe.template',
                                    ]
                  ),
-                # crons
-                ('usr/bin', ['templates/panda_server-add_main.exe.template',
-                             'templates/panda_server-add_sub.exe.template',
-                             'templates/panda_server-priority.exe.template',
-                             'templates/panda_server-copyArchive.exe.template',
-                             'templates/panda_server-vomsrenew.exe.template',
-                             'templates/panda_server-tmpwatch.exe.template',
-                             'templates/panda_server-datasetManager.exe.template',
-                             'templates/panda_server-evpPD2P.exe.template',
-                             'templates/panda_server-callback.exe.template',
-                             'templates/panda_server-makeSlsXml.exe.template',
-                             'templates/panda_server-boostUser.exe.template',
-                             'templates/panda_server-proxyCache.exe.template',
-                             'templates/panda_server-configurator.exe.template',
-                             'templates/panda_server-network_configurator.exe.template',
-                             'templates/panda_server-schedconfig_json.exe.template',
-                             'templates/panda_server-sw_tags.exe.template',
-                             'templates/panda_server-esPreemption.exe.template',
-                             'templates/panda_server-pilot_streaming.exe.template',
-                             'templates/panda_server-frontier_retagging.exe.template'
-                             ]
-                 ),
 
                 # var dirs
                 #('var/log/panda', []),
