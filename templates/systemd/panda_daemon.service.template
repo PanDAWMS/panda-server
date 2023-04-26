@@ -8,7 +8,7 @@ After=network.target remote-fs.target nss-lookup.target
 User=atlpan
 Nice=0
 EnvironmentFile=/etc/sysconfig/panda_server_env
-ExecStart=/bin/sh -c '. /opt/panda/bin/activate && python -u /opt/panda/lib/python3.11/site-packages/pandaserver/daemons/master_systemd.py >> /var/log/panda/panda_daemon_stdout.log 2>> /var/log/panda/panda_daemon_stderr.log'
+ExecStart=/bin/sh -c '@@virtual_env_setup@@ && python -u @@install_purelib@@/pandaserver/daemons/master_systemd.py >> /var/log/panda/panda_daemon_stdout.log 2>> /var/log/panda/panda_daemon_stderr.log'
 Restart=on-failure
 
 [Install]

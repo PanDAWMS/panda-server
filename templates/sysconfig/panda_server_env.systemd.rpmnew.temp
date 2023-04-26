@@ -1,7 +1,7 @@
 # python venv
-VIRTUAL_ENV=/opt/panda
+@@virtual_env_setup@@
 
-OPTIONS="-f /etc/panda/panda_server-httpd.conf"
+OPTIONS="-f ${VIRTUAL_ENV}/etc/panda/panda_server-httpd.conf"
 
 # reset PATH/LD_LIBRARY_PATH since atlpan's ones break grid-tools
 PATH=${VIRTUAL_ENV}/bin:/bin:/usr/local/bin:/usr/bin
@@ -19,10 +19,10 @@ PANDA_HOME=/data/atlpan
 TZ=UTC
 
 # import panda modules
-PYTHONPATH=/opt/panda/lib/python3.11/site-packages/pandacommon:/opt/panda/lib/python3.11/site-packages/pandaserver
+PYTHONPATH=@@install_purelib@@/pandacommon:@@install_purelib@@/pandaserver
 
 # avoid to use AFS
-HOME=~atlpan
+HOME=~@@panda_user@@
 
 # set user's proxy
 X509_USER_PROXY=/data/atlpan/x509up_u25606
