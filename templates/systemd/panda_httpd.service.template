@@ -6,6 +6,7 @@ After=panda.service
 
 [Service]
 Type=notify
+Nice=0
 EnvironmentFile=/etc/sysconfig/panda_server_env
 ExecStart=/bin/sh -c '. /opt/panda/bin/activate && /usr/sbin/httpd $OPTIONS -k start -D FOREGROUND'
 KillMode=mixed
