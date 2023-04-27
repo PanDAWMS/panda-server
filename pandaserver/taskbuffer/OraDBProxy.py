@@ -20686,6 +20686,25 @@ class DBProxy:
         return self.tree.sort_branch_by_current_hs_distribution(self.__hs_distribution)
 
 
+    def get_tree_of_gshare_names(self):
+        """
+        get nested dict of gshare names implying the tree structure
+        """
+        def get_nested_gshare(share):
+            val = None
+            if not share.children:
+                # leaf
+                pass
+            else:
+                # branch
+                val = {}
+                for child in share.children:
+                    val[child.name] = get_nested_gshare(child)
+            return val
+        ret_dict = get_nested_gshare(self.tree)
+        return ret_dict
+
+
     def __load_branch(self, share):
         """
         Recursively load a branch
@@ -23446,8 +23465,9 @@ class DBProxy:
         sorted_shares_export = []
         for share in sorted_shares:
             sorted_shares_export.append({'name': share.name,
-                                         'running': self.__hs_distribution[share.name]['executing'],
-                                         'target': self.__hs_distribution[share.name]['pledged']})
+                                         'running': self.__hs_distribution[share.name]['executing'], 
+                                         'target': self.__hs_distribution[share.name]['pledged'], 
+                                         'queuing': self.__hs_distribution[share.name]['queued']})
         return sorted_shares_export
 
 

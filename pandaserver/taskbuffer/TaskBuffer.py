@@ -3334,6 +3334,18 @@ class TaskBuffer:
         return res
 
 
+    # get nested dict of gshare names implying the tree structure
+    def get_tree_of_gshare_names(self):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # exec
+        res = proxy.get_tree_of_gshare_names()
+        # release DB proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return res
+
+
     # get the HS06 distribution for global shares
     def get_hs_distribution(self):
         # get DB proxy

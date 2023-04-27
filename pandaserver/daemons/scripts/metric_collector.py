@@ -118,6 +118,14 @@ def get_site_strr_stats(tbuf, time_window=21600, cutoff=300):
         tmp_log.error('Exception {0}: {1}'.format(e.__class__.__name__, e))
         return False, {}
 
+# get each share and its leaf share
+def fill_leaf_shares(key, val, the_list):
+    if val is None:
+        the_list.append(key)
+    else:
+        for k, v in val.items():
+            fill_leaf_shares(k, v, the_list)
+
 
 class MetricsDB(object):
     """
@@ -467,8 +475,10 @@ class FetchData(object):
             # get share and hs info
             if self.gshare_status is None:
                 self.gshare_status = self.tbuf.getGShareStatus()
+            share_name_tree_dict = self.tbuf.get_tree_of_gshare_names()
             # initialize
             gshare_dict = dict()
+            total_hs = sum([ leaf['target'] for leaf in self.gshare_status ])
             # rank and data
             for idx, leaf in enumerate(self.gshare_status):
                 rank = idx + 1
@@ -476,11 +486,63 @@ class FetchData(object):
                 gshare_dict[gshare] = {
                     'gshare': gshare,
                     'rank': rank,
+                    'queuing_hs': leaf['queuing'],
                     'running_hs': leaf['running'],
                     'target_hs': leaf['target'],
                     'usage_perc': leaf['running']/leaf['target'] if leaf['target'] > 0 else 999999,
+                    'queue_perc': leaf['queuing']/leaf['target'] if leaf['target'] > 0 else 999999,
+                    'norm_usage_perc': leaf['running']/total_hs if total_hs > 0 else 999999,
+                    'norm_queue_perc': leaf['queuing']/total_hs if total_hs > 0 else 999999,
+                    'norm_target_perc': leaf['target']/total_hs if total_hs > 0 else 999999,
+                    'proj_target_hs': 0,
+                    'eqiv_target_hs': 0,
+                    'eqiv_usage_perc': 0,
                 }
-                tmp_log.debug('rank={rank}, gshare={gshare}, usage={usage_perc:.3%}'.format(**gshare_dict[gshare]))
+                tmp_log.debug('rank={rank}, gshare={gshare}, usage={usage_perc:.3%}, queue={queue_perc:.3%} '.format(**gshare_dict[gshare]))
+            # add L1 share
+            tmp_L1_leaves_map = {}
+            l1_share_dict = {}
+            for l1_share, val in share_name_tree_dict.items():
+                tmp_L1_leaves_map.setdefault(l1_share, [])
+                fill_leaf_shares(l1_share, val, tmp_L1_leaves_map[l1_share])
+            for l1_share, leaves_list in tmp_L1_leaves_map.items():
+                l1_share_name = 'L1 {}'.format(l1_share)
+                l1_share_dict.setdefault(l1_share_name, {
+                        'gshare': l1_share_name,
+                        'rank': -1,
+                        'queuing_hs': 0,
+                        'running_hs': 0,
+                        'target_hs': 0,
+                        'usage_perc': 0,
+                        'queue_perc': 0,
+                    })
+                val_dict = l1_share_dict[l1_share_name]
+                for leaf in leaves_list:
+                    if leaf in gshare_dict:
+                        for field in ['queuing_hs', 'running_hs', 'target_hs']:
+                            val_dict.setdefault(field, 0)
+                            val_dict[field] += gshare_dict[leaf].get(field, 0)
+                val_dict['usage_perc'] = val_dict['running_hs']/val_dict['target_hs'] if val_dict['target_hs'] > 0 else 999999
+                val_dict['queue_perc'] = val_dict['queuing_hs']/val_dict['target_hs'] if val_dict['target_hs'] > 0 else 999999
+                val_dict['norm_usage_perc'] = val_dict['running_hs']/total_hs if total_hs > 0 else 999999
+                val_dict['norm_queue_perc'] = val_dict['queuing_hs']/total_hs if total_hs > 0 else 999999
+                val_dict['norm_target_perc'] = val_dict['target_hs']/total_hs
+                val_dict['proj_target_hs'] = min(val_dict['target_hs'], max(val_dict['running_hs'], val_dict['queuing_hs']/2))
+            proj_total_hs = sum([ v['proj_target_hs'] for v in l1_share_dict.values() ])
+            idle_total_hs = total_hs - proj_total_hs
+            for l1_share_name, val_dict in l1_share_dict.items():
+                if val_dict['proj_target_hs'] < val_dict['running_hs']:
+                    val_dict['eqiv_target_hs'] = val_dict['target_hs']
+                    val_dict['eqiv_usage_perc'] = val_dict['usage_perc']
+                else:
+                    val_dict['eqiv_target_hs'] = val_dict['target_hs'] + idle_total_hs*val_dict['norm_target_perc']
+                    val_dict['eqiv_usage_perc'] = val_dict['running_hs']/val_dict['eqiv_target_hs']
+                tmp_log.debug(( 'share={gshare}, usage={usage_perc:.3%}, queue={queue_perc:.3%}, '
+                                'target_hs={target_hs:.0f}, eqiv_target_hs={eqiv_target_hs:.0f}, '
+                                'norm_target_perc={norm_target_perc:.3%}, eqiv_usage_perc={eqiv_usage_perc:.3%}, '
+                                'norm_usage={norm_usage_perc:.3%}, norm_queue={norm_queue_perc:.3%} '
+                                ).format(**val_dict))
+            gshare_dict.update(l1_share_dict)
             # return
             return gshare_dict
         except Exception:
