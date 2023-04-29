@@ -309,7 +309,7 @@ class AdderGen(object):
                     pass
                 else:
                     db_lock = None
-                    if self.job.jediTaskID not in [0, None, 'NULL'] and self.lock_pool:
+                    if panda_config.add_serialized and self.job.jediTaskID not in [0, None, 'NULL'] and self.lock_pool:
                         db_lock = self.lock_pool.get(self.job.jediTaskID)
                         if db_lock:
                             db_lock.acquire()
