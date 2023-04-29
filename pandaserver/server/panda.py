@@ -202,8 +202,8 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                                         token['name'] = 'robot {}'.format(role)
                             # check role
                             if role:
-                                if '{}/{}'.format(vo, role) not in token["groups"]:
-                                    self.message = 'Not a member of the {}/{} group'.format(vo, role)
+                                if '{}/{}'.format(vo, role) not in token["groups"] and '{}.{}'.format(vo, role) not in token["groups"]:
+                                    self.message = 'Not a member of the {}/{} group or {}.{}'.format(vo, role, vo, role)
                                     tmpLog.error('{} - {}'.format(self.message, env['HTTP_AUTHORIZATION']))
                                 else:
                                     self.subprocess_env['PANDA_OIDC_VO'] = vo
