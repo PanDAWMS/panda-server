@@ -40,6 +40,11 @@ class TokenDecoder:
         self.data = {}
         self.refresh_interval = refresh_interval
 
+    def get_ca_path(self):
+        if 'X509_CERT_DIR' not in os.environ or os.environ['X509_CERT_DIR'] == '':
+            os.environ['X509_CERT_DIR'] = '/etc/grid-security/certificates'
+        return os.environ['X509_CERT_DIR']
+
     # get cached data
     def get_data(self, url, log_stream):
         try:
@@ -48,7 +53,7 @@ class TokenDecoder:
                         datetime.datetime.utcnow() - self.data[url]['last_update'] > \
                         datetime.timedelta(minutes=self.refresh_interval):
                     log_stream.debug('to refresh {}'.format(url))
-                    tmp_data = requests.get(url).json()
+                    tmp_data = requests.get(url, verify=self.get_ca_path()).json()
                     log_stream.debug('refreshed')
                     self.data[url] = {'data': tmp_data, 'last_update': datetime.datetime.utcnow()}
                 return self.data[url]['data']
