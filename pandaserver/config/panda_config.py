@@ -141,6 +141,10 @@ except Exception:
 if 'configurator_use_cert' not in tmpSelf.__dict__:
     tmpSelf.__dict__['configurator_use_cert'] = True
 
+# adder serialization
+if 'add_serialized' not in tmpSelf.__dict__:
+    tmpSelf.__dict__['add_serialized'] = False
+
 # dict for plugins
 g_pluginMap = {}    
 
