@@ -530,12 +530,21 @@ class FetchData(object):
                 val_dict['proj_target_hs'] = min(val_dict['target_hs'], max(val_dict['running_hs'], val_dict['queuing_hs']/2))
             proj_total_hs = sum([ v['proj_target_hs'] for v in l1_share_dict.values() ])
             idle_total_hs = total_hs - proj_total_hs
+            idle_l1_share_list = []
+            idle_threshold_perc = 0.85
             for l1_share_name, val_dict in l1_share_dict.items():
-                if val_dict['proj_target_hs'] < val_dict['running_hs']:
+                if val_dict['usage_perc'] < idle_threshold_perc and val_dict['proj_target_hs'] < val_dict['target_hs']:
+                    # idle l1 shares
+                    idle_l1_share_list.append(l1_share_name)
+            busy_total_hs = sum([ v['target_hs'] for k, v in l1_share_dict.items() if k not in idle_l1_share_list ]) + 1
+            for l1_share_name, val_dict in l1_share_dict.items():
+                if l1_share_name in idle_l1_share_list:
+                    # idle l1 shares
                     val_dict['eqiv_target_hs'] = val_dict['target_hs']
                     val_dict['eqiv_usage_perc'] = val_dict['usage_perc']
                 else:
-                    val_dict['eqiv_target_hs'] = val_dict['target_hs'] + idle_total_hs*val_dict['norm_target_perc']
+                    # busy l1 shares
+                    val_dict['eqiv_target_hs'] = val_dict['target_hs'] + idle_total_hs*val_dict['target_hs']/busy_total_hs
                     val_dict['eqiv_usage_perc'] = val_dict['running_hs']/val_dict['eqiv_target_hs']
                 tmp_log.debug(( 'share={gshare}, usage={usage_perc:.3%}, queue={queue_perc:.3%}, '
                                 'target_hs={target_hs:.0f}, eqiv_target_hs={eqiv_target_hs:.0f}, '
