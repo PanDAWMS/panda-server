@@ -307,7 +307,7 @@ setup(
                  ),
 
                 # service unit files for systemd -- these are to be used in ALMA9
-                ('etc/systemd/system', ['templates/systemd/panda_server.exe.template',
+                ('etc/systemd/system', ['templates/systemd/panda.service.template',
                                          'templates/init.d/panda_httpd.exe.template',
                                          'templates/init.d/panda_daemon.exe.template',
                                         ]
