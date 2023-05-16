@@ -293,7 +293,6 @@ setup(
                 ('etc/panda', ['templates/panda_server-httpd.conf.rpmnew.template',
                                'templates/panda_server-httpd-FastCGI.conf.rpmnew.template',
                                'templates/panda_server.cfg.rpmnew.template',
-                               'templates/pandasrv.cron.template',
                                'templates/logrotate.d/panda_server.logrotate.template',
                                'templates/sysconfig/panda_server.sysconfig.rpmnew.template',
                                'templates/sysconfig/panda_server_env.systemd.rpmnew.template'
