@@ -1,6 +1,0 @@
-#!/bin/bash
-
-# import env vars from sysconfig
-source @@virtual_env@@/etc/sysconfig/panda_server
-
-python @@install_purelib@@/pandaserver/daemons/scripts/panda_activeusers_query.py >> /var/log/panda/panda-proxyCache.log

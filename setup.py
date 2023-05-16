@@ -295,37 +295,23 @@ setup(
                                'templates/panda_server.cfg.rpmnew.template',
                                'templates/pandasrv.cron.template',
                                'templates/logrotate.d/panda_server.logrotate.template',
-                               'templates/sysconfig/panda_server.sysconfig.rpmnew.template'
+                               'templates/sysconfig/panda_server.sysconfig.rpmnew.template',
+                               'templates/sysconfig/panda_server_env.systemd.rpmnew.template'
                                ]
                  ),
 
-                # init script
+                # init scripts for chkconfig -- these become obsolete in ALMA9
                 ('etc/rc.d/init.d', ['templates/init.d/panda_server.exe.template',
                                      'templates/init.d/panda_httpd.exe.template',
                                      'templates/init.d/panda_daemon.exe.template',
                                    ]
                  ),
-                # crons
-                ('usr/bin', ['templates/panda_server-add_main.exe.template',
-                             'templates/panda_server-add_sub.exe.template',
-                             'templates/panda_server-priority.exe.template',
-                             'templates/panda_server-copyArchive.exe.template',
-                             'templates/panda_server-vomsrenew.exe.template',
-                             'templates/panda_server-tmpwatch.exe.template',
-                             'templates/panda_server-datasetManager.exe.template',
-                             'templates/panda_server-evpPD2P.exe.template',
-                             'templates/panda_server-callback.exe.template',
-                             'templates/panda_server-makeSlsXml.exe.template',
-                             'templates/panda_server-boostUser.exe.template',
-                             'templates/panda_server-proxyCache.exe.template',
-                             'templates/panda_server-configurator.exe.template',
-                             'templates/panda_server-network_configurator.exe.template',
-                             'templates/panda_server-schedconfig_json.exe.template',
-                             'templates/panda_server-sw_tags.exe.template',
-                             'templates/panda_server-esPreemption.exe.template',
-                             'templates/panda_server-pilot_streaming.exe.template',
-                             'templates/panda_server-frontier_retagging.exe.template'
-                             ]
+
+                # service unit files for systemd -- these are to be used in ALMA9
+                ('etc/systemd/system', ['templates/systemd/panda_server.exe.template',
+                                         'templates/init.d/panda_httpd.exe.template',
+                                         'templates/init.d/panda_daemon.exe.template',
+                                        ]
                  ),
 
                 # var dirs

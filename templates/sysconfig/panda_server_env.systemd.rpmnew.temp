@@ -1,0 +1,33 @@
+# python venv
+@@virtual_env_setup@@
+
+OPTIONS="-f ${VIRTUAL_ENV}/etc/panda/panda_server-httpd.conf"
+
+# reset PATH/LD_LIBRARY_PATH since atlpan's ones break grid-tools
+PATH=${VIRTUAL_ENV}/bin:/bin:/usr/local/bin:/usr/bin
+LD_LIBRARY_PATH=
+
+# for DQ2
+X509_CERT_DIR=/etc/grid-security/certificates
+RUCIO_ACCOUNT=panda
+RUCIO_APPID=pandasrv
+
+# panda home
+PANDA_HOME=/data/atlpan
+
+# timezone
+TZ=UTC
+
+# import panda modules
+PYTHONPATH=@@install_purelib@@/pandacommon:@@install_purelib@@/pandaserver
+
+# avoid to use AFS
+HOME=~@@panda_user@@
+
+# set user's proxy
+X509_USER_PROXY=/data/atlpan/x509up_u25606
+
+# panda server URLs
+PANDA_URL='http://pandaserver.cern.ch:25080/server/panda'
+PANDA_URL_SSL='https://pandaserver.cern.ch:25443/server/panda'
+PANDA_URL_MAP=CERN,$PANDA_URL,$PANDA_URL_SSL

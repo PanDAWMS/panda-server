@@ -1,0 +1,16 @@
+[Unit]
+Description=Panda server daemon
+PartOf=panda.service
+After=panda.service
+After=network.target remote-fs.target nss-lookup.target
+
+[Service]
+User=atlpan
+Nice=0
+EnvironmentFile=/etc/sysconfig/panda_server_env
+ExecStart=/bin/sh -c '@@virtual_env_setup@@ && python -u @@install_purelib@@/pandaserver/daemons/master_systemd.py >> /var/log/panda/panda_daemon_stdout.log 2>> /var/log/panda/panda_daemon_stderr.log'
+Restart=on-failure
+
+[Install]
+WantedBy=panda.service
+WantedBy=multi-user.target
