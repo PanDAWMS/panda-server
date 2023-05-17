@@ -221,7 +221,7 @@ class SetupperAtlasPlugin (SetupperPluginBase):
             if job.jobStatus in ['failed','cancelled'] or job.isCancelled():
                 continue
             # production datablock
-            if job.prodDBlock != 'NULL' and (not self.pandaDDM) and (job.prodSourceLabel not in ['user','panda']):
+            if job.prodDBlock != 'NULL' and job.prodDBlock and (job.prodSourceLabel not in ['user','panda']):
                 # get VUID and record prodDBlock into DB
                 if job.prodDBlock not in prodError:
                     self.logger.debug('listDatasets '+job.prodDBlock)
