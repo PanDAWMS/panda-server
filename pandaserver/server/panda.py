@@ -51,7 +51,7 @@ from pandaserver.userinterface.UserIF import submitJobs, getJobStatus, queryPand
      getJobStatisticsPerSiteResource, setNumSlotsForWP, reloadInput, enableJumboJobs, updateServiceMetrics, \
      getUserJobMetadata, getJumboJobDatasets, getGShareStatus,\
      sweepPQ,get_job_statistics_per_site_label_resource, relay_idds_command, send_command_to_job,\
-     execute_idds_workflow_command, set_user_secret, get_user_secrets, get_ban_users
+     execute_idds_workflow_command, set_user_secret, get_user_secrets, get_ban_users, get_files_in_datasets
 
 from pandaserver.userinterface import Client
 
@@ -116,7 +116,7 @@ allowedMethods += ['submitJobs', 'getJobStatus', 'queryPandaIDs', 'killJobs', 'r
                    'updateServiceMetrics', 'getUserJobMetadata', 'getJumboJobDatasets',
                    'getGShareStatus', 'sweepPQ', 'get_job_statistics_per_site_label_resource', 'relay_idds_command',
                    'send_command_to_job','execute_idds_workflow_command', 'set_user_secret', 'get_user_secrets',
-                   'get_ban_users']
+                   'get_ban_users', 'get_files_in_datasets']
 
 
 # FastCGI/WSGI entry

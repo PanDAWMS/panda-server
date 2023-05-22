@@ -25346,3 +25346,57 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger, methodName)
             raise RuntimeError(methodName + ' failed')
+
+    # get LFNs in datasets
+    def get_files_in_datasets(self, task_id, dataset_types):
+        comment = ' /* DBProxy.get_lfns_in_datasets */'
+        method_name = comment.split(' ')[-2].split('.')[-1]
+        method_name += '< jediTaskID={0} >'.format(task_id)
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        try:
+            varMap = {}
+            varMap[':jediTaskID'] = task_id
+            sqlD = "SELECT datasetName,datasetID FROM {}.JEDI_Datasets "\
+                   "WHERE jediTaskID=:jediTaskID AND type IN (".format(panda_config.schemaJEDI)
+            for tmp_type in dataset_types.split(','):
+                sqlD += ':{},'.format(tmp_type)
+                varMap[':{}'.format(tmp_type)] = tmp_type
+            sqlD = sqlD[:-1]
+            sqlD += ') '
+            sqlS = "SELECT lfn,scope,fileID,status FROM {}.JEDI_Dataset_Contents ".format(panda_config.schemaJEDI)
+            sqlS += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID ORDER BY fileID "
+            retVal = []
+            # start transaction
+            self.conn.begin()
+            self.cur.execute(sqlD + comment, varMap)
+            res = self.cur.fetchall()
+            for datasetName, datasetID in res:
+                datasetDict = {}
+                datasetDict['name'] = datasetName
+                datasetDict['id'] = datasetID
+                # read files
+                varMap = {}
+                varMap[':jediTaskID'] = task_id
+                varMap[':datasetID'] = datasetID
+                self.cur.execute(sqlS + comment, varMap)
+                resF = self.cur.fetchall()
+                fileList = []
+                for lfn, fileScope, fileID, status in resF:
+                    fileDict = {'lfn': lfn,
+                                'scope': fileScope,
+                                'id': fileID,
+                                'status': status}
+                    fileList.append(fileDict)
+                retVal.append({'dataset': datasetDict, 'files': fileList})
+            # commit
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            tmp_log.debug("done")
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return None

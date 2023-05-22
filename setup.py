@@ -239,7 +239,7 @@ setup(
     url='https://twiki.cern.ch/twiki/bin/view/Atlas/PanDA',
     zip_safe=False,
     install_requires=['panda-common>=0.0.34',
-                      'panda-client',
+                      'panda-client-light',
                       'pyOpenSSL',
                       'python-daemon',
                       'mod_wsgi',
