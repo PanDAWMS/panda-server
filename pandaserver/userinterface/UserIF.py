@@ -1029,6 +1029,11 @@ class UserIF:
         # return
         return ret
 
+    # get files in datasets
+    def get_files_in_datasets(self, task_id, dataset_types):
+        ret = self.taskBuffer.get_files_in_datasets(task_id, dataset_types)
+        # return
+        return ret
 
 # Singleton
 userIF = UserIF()
@@ -2756,3 +2761,11 @@ def get_user_secrets(req, keys=None, get_json=None):
         return json.dumps((False, tmpMsg))
     owner = clean_user_id(dn)
     return json.dumps(userIF.get_user_secrets(owner, keys, get_json))
+
+
+# get files in datasets
+def get_files_in_datasets(req, task_id, dataset_types='input,pseudo_input'):
+    # check security
+    if not isSecure(req):
+        return json.dumps((False,"SSL is required"))
+    return json.dumps(userIF.get_files_in_datasets(task_id, dataset_types))

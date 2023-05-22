@@ -4177,6 +4177,11 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         return ret
 
+    def get_files_in_datasets(self, task_id, dataset_types):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.get_files_in_datasets(task_id, dataset_types)
+        self.proxyPool.putProxy(proxy)
+        return ret
 
 # Singleton
 taskBuffer = TaskBuffer()
