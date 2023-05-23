@@ -3846,7 +3846,7 @@ class DBProxy:
                 sqlLBK += "SELECT jobMetrics FROM ATLAS_PANDAARCH.jobsArchived WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30) "
                 # read files
                 sqlFile = "SELECT %s FROM ATLAS_PANDA.filesTable4 " % FileSpec.columnNames()
-                sqlFile+= "WHERE PandaID=:PandaID "
+                sqlFile+= "WHERE PandaID=:PandaID ORDER BY row_ID "
                 # read LFN and dataset name for output files
                 sqlFileOut = "SELECT lfn,dataset FROM ATLAS_PANDA.filesTable4 "
                 sqlFileOut+= "WHERE PandaID=:PandaID AND type=:type "
