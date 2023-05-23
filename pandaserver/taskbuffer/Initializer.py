@@ -31,10 +31,10 @@ class Initializer:
                     conn = cx_Oracle.connect(dsn=panda_config.dbhost,user=panda_config.dbuser,
                                              password=panda_config.dbpasswd,threaded=True)
                 else:
-                    import MySQLdb
-                    conn = MySQLdb.connect(host=panda_config.dbhost, db=panda_config.dbname, 
-                                           port=panda_config.dbport, connect_timeout=panda_config.dbtimeout, 
-                                           user=panda_config.dbuser, passwd=panda_config.dbpasswd)
+                    import psycopg2
+                    conn = psycopg2.connect(host=panda_config.dbhost, dbname=panda_config.dbname,
+                                           port=panda_config.dbport, connect_timeout=panda_config.dbtimeout,
+                                           user=panda_config.dbuser, password=panda_config.dbpasswd)
                 # close
                 conn.close()
                 _logger.debug("done")                
