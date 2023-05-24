@@ -7172,6 +7172,11 @@ class DBProxy:
                 self.cur.arraysize = 100
                 self.cur.execute(sql+comment, {})
                 sn, = self.cur.fetchone()
+            elif self.backend == 'postgres':
+                sql = "SELECT {0}.SUBCOUNTER_SUBID_SEQ.nextval".format(panda_config.schemaPANDA)
+                self.cur.arraysize = 100
+                self.cur.execute(sql+comment, {})
+                sn, = self.cur.fetchone()
             else:
                 # panda_config.backend == 'mysql'
                 ### fake sequence
