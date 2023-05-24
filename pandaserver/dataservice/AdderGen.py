@@ -655,6 +655,13 @@ class AdderGen(object):
         lfns_set = set(lfns)
         fileList = []
         for file in self.job.Files:
+            if file.lfn.startswith('regex|'):
+                target = re.sub(r'^[^|]+\|', '', file.lfn)
+                for tmp_lfn in lfns_set:
+                    if re.search(target, tmp_lfn):
+                        file.lfn = tmp_lfn
+                        self.logger.debug(f'use new LFN {tmp_lfn} for {target}')
+                        break
             fileList.append(file.lfn)
             if file.type == 'input':
                 if file.lfn in lfns_set:
