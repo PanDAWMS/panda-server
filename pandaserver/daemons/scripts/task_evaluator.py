@@ -236,6 +236,12 @@ class FetchData(object):
             tmp_log.debug('got total {0} tasks'.format(n_tot_tasks))
             # counter
             cc = 0
+            n_tasks_dict = {
+                    2: 0,
+                    1: 0,
+                    0: 0,
+                    -1: 0,
+                }
             # loop over tasks
             for taskID, user, gshare in active_tasks_list:
                 # initialize
@@ -260,29 +266,33 @@ class FetchData(object):
                         pct_finished = n_files_finished*100/n_files_total
                         pct_failed = n_files_failed*100/n_files_total
                 # classify
-                # parameters
-                progress_to_boost_A = self.tbuf.getConfigValue('analy_eval', 'PROGRESS_TO_BOOST_A')
-                if progress_to_boost_A is None:
-                    progress_to_boost_A = 90
-                progress_to_boost_B = self.tbuf.getConfigValue('analy_eval', 'PROGRESS_TO_BOOST_B')
-                if progress_to_boost_B is None:
-                    progress_to_boost_B = 95
-                # check usage of the user
-                usage_dict = ue_dict.get(user)
-                if usage_dict is None:
-                    continue
-                if usage_dict['rem_slots_A'] <= 0:
-                    if usage_dict['rem_slots_B'] <= 0:
-                        task_class = -1
-                    else:
-                        task_class = 0
-                # boost for nearly done tasks
-                if task_class == 1 and pct_finished >= progress_to_boost_A:
-                    # almost done A-tasks, to boost
+                if gshare == 'Express Analysis':
+                    # Express Analysis tasks always in class S
                     task_class = 2
-                elif task_class == 0 and pct_finished >= progress_to_boost_B:
-                    # almost done B-tasks, to boost
-                    task_class = 2
+                else:
+                    # parameters
+                    progress_to_boost_A = self.tbuf.getConfigValue('analy_eval', 'PROGRESS_TO_BOOST_A')
+                    if progress_to_boost_A is None:
+                        progress_to_boost_A = 90
+                    progress_to_boost_B = self.tbuf.getConfigValue('analy_eval', 'PROGRESS_TO_BOOST_B')
+                    if progress_to_boost_B is None:
+                        progress_to_boost_B = 95
+                    # check usage of the user
+                    usage_dict = ue_dict.get(user)
+                    if usage_dict is None:
+                        continue
+                    if usage_dict['rem_slots_A'] <= 0:
+                        if usage_dict['rem_slots_B'] <= 0:
+                            task_class = -1
+                        else:
+                            task_class = 0
+                    # boost for nearly done tasks
+                    if task_class == 1 and pct_finished >= progress_to_boost_A:
+                        # almost done A-tasks, to boost
+                        task_class = 2
+                    elif task_class == 0 and pct_finished >= progress_to_boost_B:
+                        # almost done B-tasks, to boost
+                        task_class = 2
                 # fill in task class
                 task_dict[taskID] = {
                         'task_id': taskID,
@@ -298,8 +308,10 @@ class FetchData(object):
                 # counter
                 cc += 1
                 if cc % 5000 == 0:
-                    tmp_log.debug('evaluated {0:9d} tasks'.format(cc))
-            tmp_log.debug('evaluated {0:9d} tasks in total'.format(cc))
+                    tmp_log.debug('evaluated {0:6d} tasks'.format(cc))
+                n_tasks_dict[task_class] += 1
+            tmp_log.debug('evaluated {tot:6d} tasks in total (S:{nS}, A:{nA}, B:{nB}, C:{nC})'.format(
+                            tot=cc, nS=n_tasks_dict[2], nA=n_tasks_dict[1], nB=n_tasks_dict[0], nC=n_tasks_dict[-1]))
             # return
             # tmp_log.debug('{}'.format(str([ v for v in task_dict.values() if v['class'] != 1 ])[:3000]))
             tmp_log.debug('done')
