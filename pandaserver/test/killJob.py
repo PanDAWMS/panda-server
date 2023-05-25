@@ -24,7 +24,10 @@ codeV = None
 useMailAsIDV = False
 
 if options.forceKill:
-    codeV = 9
+    if options.killUserJobs:
+        codeV = 99
+    else:
+        codeV = 9
 elif options.killUserJobs:
     codeV = 91
 else:

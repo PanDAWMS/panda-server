@@ -4397,6 +4397,7 @@ class DBProxy:
         # 55 : killed since task is (almost) done
         # 60 : workload was terminated by the pilot without actual work
         # 91 : kill user jobs with prod role
+        # 99 : force kill user jobs with prod role
         comment = ' /* DBProxy.killJob */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += ' <PandaID={0}>'.format(pandaID)
@@ -4480,7 +4481,7 @@ class DBProxy:
                             break
                 if prodManager:
                     if res[1] in ['user','panda'] and (code not in ['2','4','7','8','9','50','51','52','91',
-                                                                    '10']):
+                                                                    '10', '99']):
                         tmpLog.debug("ignored -> prod proxy tried to kill analysis job type=%s" % res[1])
                         break
                     tmpLog.debug("using prod role")
@@ -4504,7 +4505,7 @@ class DBProxy:
                 varMap[':PandaID'] = pandaID
                 varMap[':commandToPilot'] = 'tobekilled'
                 varMap[':taskBufferErrorDiag'] = 'killed by %s' % user
-                if code in ['2', '9', '10', '52', '51', '60']:
+                if code in ['2', '9', '10', '52', '51', '60', '99']:
                     # ignore commandToPilot for force kill
                     self.cur.execute((sql1F+comment) % table, varMap)
                 elif useEventService or jobStatusInDB in ['merging']:
@@ -4520,7 +4521,8 @@ class DBProxy:
                 # select
                 varMap = {}
                 varMap[':PandaID'] = pandaID
-                if (userProdSourceLabel in ['managed','test',None] or 'test' in userProdSourceLabel) and code in ['9','52']:
+                if ((userProdSourceLabel in ['managed', 'test', None] or 'test' in userProdSourceLabel)
+                        and code in ['9', '52']) or (prodManager and code == '99'):
                     # use dummy for force kill
                     varMap[':jobStatus'] = 'dummy'
                 elif useEventService or jobStatusInDB in ['merging']:
