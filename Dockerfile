@@ -19,6 +19,8 @@ RUN usermod -a -G zp atlpan
 RUN mkdir /tmp/src
 WORKDIR /tmp/src
 COPY . .
+# install panda-common first to prevent panda-client from installing redundant files
+RUN /opt/panda/bin/pip install --no-cache-dir panda-common
 RUN /opt/panda/bin/python setup.py sdist; /opt/panda/bin/pip install --no-cache-dir `ls dist/p*.tar.gz`[postgres]
 RUN /opt/panda/bin/pip install --no-cache-dir rucio-clients
 RUN /opt/panda/bin/pip install --no-cache-dir "git+https://github.com/PanDAWMS/panda-cacheschedconfig.git"
