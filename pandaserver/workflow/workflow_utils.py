@@ -388,7 +388,10 @@ class Node (object):
             # outputs
             for tmp_item in task_params['jobParameters']:
                 if tmp_item['type'] == 'template' and tmp_item["param_type"] == "output":
-                    self.output_types.append(re.search(r'}\.(.+)$', tmp_item["value"]).group(1))
+                    if tmp_item["value"].startswith('regex|'):
+                        self.output_types.append(re.search(r'_([^_]+)/$', tmp_item["dataset"]).group(1))
+                    else:
+                        self.output_types.append(re.search(r'}\.(.+)$', tmp_item["value"]).group(1))
             # container
             if not container_image:
                 if 'container_name' in task_params:
