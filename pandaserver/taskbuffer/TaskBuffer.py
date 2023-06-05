@@ -4183,5 +4183,12 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         return ret
 
+    def get_max_worker_id(self, harvester_id):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.get_max_worker_id(harvester_id)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+
 # Singleton
 taskBuffer = TaskBuffer()

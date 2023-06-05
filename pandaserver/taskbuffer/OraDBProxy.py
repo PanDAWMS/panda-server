@@ -25407,3 +25407,34 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger, method_name)
             return None
+
+    # get the max workerID
+    def get_max_worker_id(self, harvester_id):
+        comment = ' /* DBProxy.get_max_worker_id */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += " < HarvesterID={} >".format(harvester_id)
+        tmpLog = LogWrapper(_logger, methodName)
+        tmpLog.debug("start")
+        try:
+            # sql to get workers
+            sqlC  = "SELECT MAX(workerID) FROM ATLAS_PANDA.Harvester_Workers "
+            sqlC += "WHERE harvesterID=:harvesterID "
+            varMap = {':harvesterID': harvester_id}
+            # start transaction
+            self.conn.begin()
+            self.cur.execute(sqlC+comment, varMap)
+            res = self.cur.fetchone()
+            if res:
+                max_id, = res
+            else:
+                max_id = None
+            if not self._commit():
+                raise RuntimeError('Commit error')
+            tmpLog.debug("got max workerID={}".format(max_id))
+            return max_id
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, methodName)
+            return None

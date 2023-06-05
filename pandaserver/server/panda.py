@@ -29,7 +29,8 @@ from pandaserver.taskbuffer.Utils import isAlive, putFile, deleteFile, getServer
 from pandaserver.dataservice.DataService import datasetCompleted, updateFileStatusInDisp
 from pandaserver.jobdispatcher.JobDispatcher import getJob, updateJob, getStatus, genPilotToken,\
     getEventRanges, updateEventRange, getKeyPair, updateEventRanges, getDNsForS3, getProxy, getCommands, ackCommands,\
-    checkJobStatus, checkEventsAvailability, updateJobsInBulk, getResourceTypes, updateWorkerPilotStatus
+    checkJobStatus, checkEventsAvailability, updateJobsInBulk, getResourceTypes, updateWorkerPilotStatus,\
+    get_max_worker_id
 from pandaserver.userinterface.UserIF import submitJobs, getJobStatus, queryPandaIDs, killJobs, reassignJobs,\
      getJobStatistics, getJobStatisticsPerSite, resubmitJobs, queryLastFilesInDataset, getPandaIDsSite,\
      getJobsToBeUpdated, updateProdDBUpdateTimes, runTaskAssignment, getAssigningTask, getSiteSpecs,\
@@ -91,7 +92,7 @@ allowedMethods += ['getJob', 'updateJob', 'getStatus', 'genPilotToken',
                    'getEventRanges', 'updateEventRange', 'getKeyPair',
                    'updateEventRanges', 'getDNsForS3', 'getProxy', 'getCommands', 'ackCommands',
                    'checkJobStatus', 'checkEventsAvailability', 'updateJobsInBulk', 'getResourceTypes',
-                   'updateWorkerPilotStatus']
+                   'updateWorkerPilotStatus', 'get_max_worker_id']
 
 allowedMethods += ['submitJobs', 'getJobStatus', 'queryPandaIDs', 'killJobs', 'reassignJobs', 'getJobStatistics',
                    'getJobStatisticsPerSite', 'resubmitJobs', 'queryLastFilesInDataset', 'getPandaIDsSite',
