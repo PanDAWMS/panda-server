@@ -753,6 +753,11 @@ class JobDispatcher:
                       .format(workerID, harvesterID, status, response.encode(accept_json)))
         return response.encode(accept_json)
 
+    # get max workerID
+    def get_max_worker_id(self, harvester_id):
+        id = self.taskBuffer.get_max_worker_id(harvester_id)
+        return json.dumps(id)
+
 
 # Singleton
 jobDispatcher = JobDispatcher()
@@ -1402,3 +1407,6 @@ def updateWorkerPilotStatus(req, site, workerID, harvesterID, status, timeout=60
     return jobDispatcher.updateWorkerPilotStatus(workerID, harvesterID, status, timeout, accept_json)
 
 
+# get max workerID
+def get_max_worker_id(req, harvester_id):
+    return jobDispatcher.get_max_worker_id(harvester_id)
