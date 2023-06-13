@@ -2424,8 +2424,11 @@ class DBProxy:
                         lockedby,jediTaskID,jobsetID,jobDispatcherErrorDiag,supErrorCode,eventService,batchID \
                         = res
                     # debug mode
-                    if specialHandling not in [None,''] and 'debug' in specialHandling:
-                        ret += 'debug,'
+                    if specialHandling:
+                        tmpJobSpec = JobSpec()
+                        tmpJobSpec.specialHandling = specialHandling
+                        if tmpJobSpec.is_debug_mode():
+                            ret += 'debug,'
                     # FIXME
                     #else:
                     #    ret += 'debugoff,'

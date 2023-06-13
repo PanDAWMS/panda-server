@@ -281,7 +281,7 @@ class Response:
         if job.is_no_looping_check():
             self.data['loopingCheck'] = False
         # debug mode
-        if job.specialHandling is not None and 'debug' in job.specialHandling:
+        if job.is_debug_mode():
             self.data['debug'] = 'True'
         # event service or job cloning or fine-grained
         if EventServiceUtils.isJobCloningJob(job):
