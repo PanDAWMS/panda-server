@@ -25441,3 +25441,42 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger, methodName)
             return None
+
+    # get events status
+    def get_events_status(self, ids):
+        comment = ' /* DBProxy.get_events_status */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        tmpLog = LogWrapper(_logger, methodName)
+        tmpLog.debug('start')
+        try:
+            ids = json.loads(ids)
+            # sql to get event stats
+            sql = 'SELECT jediTaskID,fileID,attemptNr,job_processID,status FROM {0}.JEDI_Events '.\
+                format(panda_config.schemaJEDI)
+            sql += 'WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID '
+            ret_val = {}
+            for tmp_id in ids:
+                varMap = {':jediTaskID': tmp_id['task_id'], ':PandaID': tmp_id['panda_id']}
+                # start transaction
+                self.conn.begin()
+                self.cur.arraysize = 10000
+                # get stats
+                self.cur.execute(sql + comment, varMap)
+                resM = self.cur.fetchall()
+                tmp_map = {}
+                for jediTaskID, fileID, attemptNr, job_processID, eventStatus in resM:
+                    eventRangeID = self.makeEventRangeID(jediTaskID, tmp_id['panda_id'],
+                                                         fileID, job_processID, attemptNr)
+                    tmp_map[eventRangeID] = EventServiceUtils.ES_status_map[eventStatus]
+                ret_val[tmp_id['panda_id']] = tmp_map
+                # commit
+                if not self._commit():
+                    raise RuntimeError('Commit error')
+            tmpLog.debug("done")
+            return ret_val
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmpLog, methodName)
+            return None
