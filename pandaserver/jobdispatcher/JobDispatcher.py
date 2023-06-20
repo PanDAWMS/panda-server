@@ -758,6 +758,11 @@ class JobDispatcher:
         id = self.taskBuffer.get_max_worker_id(harvester_id)
         return json.dumps(id)
 
+    # get max workerID
+    def get_events_status(self, ids):
+        ret = self.taskBuffer.get_events_status(ids)
+        return json.dumps(ret)
+
 
 # Singleton
 jobDispatcher = JobDispatcher()
@@ -1410,3 +1415,8 @@ def updateWorkerPilotStatus(req, site, workerID, harvesterID, status, timeout=60
 # get max workerID
 def get_max_worker_id(req, harvester_id):
     return jobDispatcher.get_max_worker_id(harvester_id)
+
+
+# get events status
+def get_events_status(req, ids):
+    return jobDispatcher.get_events_status(ids)
