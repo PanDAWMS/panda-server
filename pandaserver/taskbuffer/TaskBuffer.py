@@ -4189,6 +4189,11 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         return ret
 
+    def get_events_status(self, ids):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.get_events_status(ids)
+        self.proxyPool.putProxy(proxy)
+        return ret
 
 # Singleton
 taskBuffer = TaskBuffer()

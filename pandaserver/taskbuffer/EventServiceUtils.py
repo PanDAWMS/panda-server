@@ -22,7 +22,20 @@ ST_corrupted     = 10
 ST_reserved_fail = 98
 ST_reserved_get  = 99
 
-
+ES_status_map = {ST_ready: 'ready',
+                 ST_sent: 'sent',
+                 ST_running: 'running',
+                 ST_finished: 'finished',
+                 ST_cancelled: 'cancelled',
+                 ST_discarded: 'discarded',
+                 ST_done: 'done',
+                 ST_failed: 'failed',
+                 ST_fatal: 'fatal',
+                 ST_merged: 'merged',
+                 ST_corrupted: 'corrupted',
+                 ST_reserved_fail: 'reserved_fail',
+                 ST_reserved_get: 'reserved_get'
+                 }
 
 # identifiers for specialHandling
 esHeader = 'es:'
