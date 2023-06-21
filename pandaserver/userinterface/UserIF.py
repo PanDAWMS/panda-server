@@ -1097,7 +1097,7 @@ def _hasProdRole(req):
     # loop over all FQANs
     for fqan in fqans:
         # check production role
-        for rolePat in ['/atlas/usatlas/Role=production', '/atlas/Role=production', '^/[^/]+/Role=production$']:
+        for rolePat in ['/atlas/usatlas/Role=production', '/atlas/Role=production', '^/[^/]+/Role=production']:
             if fqan.startswith(rolePat):
                 return True
             if re.search(rolePat, fqan):
