@@ -13777,7 +13777,7 @@ class DBProxy:
             if goForward:
                 if comStr in ['kill','finish']:
                     sendMsgToPilot = broadcast
-                    if taskStatus in ['finished','done','prepared','broken','aborted','aborted','toabort','aborting','failed','finishing']:
+                    if taskStatus in ['finished','done','prepared','broken','aborted','aborted','toabort','aborting','failed']:
                         goForward = False
                 if comStr == 'retry':
                     if taskStatus not in ['finished','failed','aborted','exhausted']:
