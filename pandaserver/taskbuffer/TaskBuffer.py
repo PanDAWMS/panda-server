@@ -3013,12 +3013,12 @@ class TaskBuffer:
 
 
 
-    # copy file record
-    def copyFileRecord(self,newLFN,fileSpec,updateOrig):
+    # copy file records
+    def copy_file_records(self, new_lfns, file_spec):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.copyFileRecord(newLFN,fileSpec,updateOrig)
+        ret = proxy.copy_file_records(new_lfns, file_spec)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
