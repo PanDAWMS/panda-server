@@ -50,6 +50,9 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
     parser.add_argument('--reproduceParent', action='store_const', const=True, dest='reproduceParent',
                         default=False, help='reproduce the input files from which the lost files were produced. '
                         'Typically useful to recover merged files when unmerged files were already deleted')
+    parser.add_argument('--reproduceUptoNthGen', action='store', dest='reproduceUptoNthGen', type=int, default=0,
+                        help='reproduce files up to N-th upper generation. --reproduceUptoNthGen=1 corresponds '
+                             'to --reproduceParent. 0 by default so that any provenance files are not reproduced')
     # parse options
     if taskBuffer:
         if args_list:
@@ -82,6 +85,10 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
             givenTaskID = exec_options['jediTaskID']
         if 'userName' in exec_options:
             dn = exec_options['userName']
+
+    if options.reproduceUptoNthGen > 0:
+        options.reproduceUptoNthGen -= 1
+        options.reproduceParent = True
 
     ds_files = {}
     if options.files is not None:
@@ -166,11 +173,13 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
         else:
             print(msgStr)
         s |= ts
-        # recover parent
+        # recover provenance
         if options.reproduceParent:
             # reproduce input
             for lostDS in lostInputFiles:
                 com_args = ['--ds', lostDS, '--noChildRetry', '--resurrectDS']
+                if options.reproduceUptoNthGen > 0:
+                    com_args += ['--reproduceUptoNthGen', str(options.reproduceUptoNthGen)]
                 if options.dryRun:
                     com_args.append('--dryRun')
                 com_args += ['--files', ','.join(lostInputFiles[lostDS])]
@@ -203,10 +212,10 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
         else:
             msgStr = Client.reloadInput(jediTaskID)[-1][-1]
         if log_stream:
-            log_stream.info("Retried task with {}".format(msgStr))
+            log_stream.info("Retried task {} with {}".format(jediTaskID, msgStr))
             log_stream.info("Done")
         else:
-            print("Retried task: done with {}".format(msgStr))
+            print("Retried task {}: done with {}".format(jediTaskID, msgStr))
         return True, msgStr
     else:
         msgStr = 'failed'
