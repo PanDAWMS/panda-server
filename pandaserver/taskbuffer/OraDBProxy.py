@@ -18276,7 +18276,7 @@ class DBProxy:
                 if idx_lfn > 0:
                     tmpFileSpec.row_ID = None
                 # insert file in JEDI
-                if idx_lfn > 0 and tmpFileSpec.jediTaskID not in [None,'NULL'] and                         \
+                if idx_lfn > 0 and tmpFileSpec.jediTaskID not in [None,'NULL'] and \
                             tmpFileSpec.fileID not in ['', 'NULL', None]:
                     # get fileID
                     sqlFileID = "SELECT ATLAS_PANDA.JEDI_DATASET_CONT_FILEID_SEQ.nextval FROM dual "
