@@ -655,13 +655,6 @@ class AdderGen(object):
         lfns_set = set(lfns)
         fileList = []
         for file in self.job.Files:
-            if file.lfn.startswith('regex|'):
-                target = re.sub(r'^[^|]+\|', '', file.lfn)
-                for tmp_lfn in lfns_set:
-                    if re.search(target, tmp_lfn):
-                        file.lfn = tmp_lfn
-                        self.logger.debug(f'use new LFN {tmp_lfn} for {target}')
-                        break
             fileList.append(file.lfn)
             if file.type == 'input':
                 if file.lfn in lfns_set:
@@ -742,34 +735,32 @@ class AdderGen(object):
     def copyFilesForVariableNumOutputs(self,lfns):
         # get original output files
         origOutputs = {}
-        updateOrig  = {}
         for tmpFile in self.job.Files:
             if tmpFile.type in ['output','log']:
                 origOutputs[tmpFile.lfn] = tmpFile
-                if tmpFile.lfn in lfns:
-                    # keep original
-                    updateOrig[tmpFile.lfn] = False
-                else:
-                    # overwrite original
-                    updateOrig[tmpFile.lfn] = True
         # look for unkown files
-        addedNewFiles = False
+        orig_to_new_map = {}
         for newLFN in lfns:
             if newLFN not in origOutputs:
                 # look for corresponding original output
                 for origLFN in origOutputs:
-                    tmpPatt = '^{0}\.*_\d+$'.format(origLFN)
-                    if re.search(tmpPatt,newLFN) is not None:
-                        # copy file record
-                        tmpStat = self.taskBuffer.copyFileRecord(newLFN,origOutputs[origLFN],updateOrig[origLFN])
-                        if not tmpStat:
-                            return False
-                        addedNewFiles = True
-                        # disable further overwriting
-                        updateOrig[origLFN] = False
+                    tmpPatt = r'^{0}\.*_\d+$'.format(origLFN)
+                    regPatt = re.sub(r'^[^|]+\|', '', origLFN)
+                    if re.search(tmpPatt,newLFN) or \
+                            (origLFN.startswith('regex|') and re.search(regPatt, newLFN)):
+                        self.logger.debug(f'use new LFN {newLFN} for {origLFN}')
+                        # collect new filenames
+                        orig_to_new_map.setdefault(origLFN, [])
+                        orig_to_new_map[origLFN].append(newLFN)
                         break
+        # copy file records
+        for origLFN in orig_to_new_map:
+            tmpStat = self.taskBuffer.copy_file_records(orig_to_new_map[origLFN],
+                                                        origOutputs[origLFN])
+            if not tmpStat:
+                return False
         # refresh job info
-        if addedNewFiles:
+        if orig_to_new_map:
             self.job = self.taskBuffer.peekJobs([self.jobID],fromDefined=False,
                                                 fromWaiting=False,
                                                 forAnal=True)[0]
