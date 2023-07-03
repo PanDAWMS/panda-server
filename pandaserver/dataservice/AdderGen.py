@@ -649,7 +649,11 @@ class AdderGen(object):
         # copy files for variable number of outputs
         tmpStat = self.copyFilesForVariableNumOutputs(lfns)
         if not tmpStat:
-            self.logger.error("failed to copy files for variable number of outputs")
+            err_msg = "failed to copy files for variable number of outputs"
+            self.logger.error(err_msg)
+            self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
+            self.job.ddmErrorDiag = err_msg
+            self.job.jobStatus = 'failed'
             return 2
         # check files
         lfns_set = set(lfns)
