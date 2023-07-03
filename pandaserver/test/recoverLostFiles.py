@@ -2,6 +2,6 @@ from pandaserver.dataservice import RecoverLostFilesCore
 
 s, o = RecoverLostFilesCore.main()
 if s:
-    print ('OK:', o)
+    print('OK')
 else:
-    print ('ERROR:', o)
+    print('ERROR:', o)

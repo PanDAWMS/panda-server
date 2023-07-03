@@ -51,6 +51,8 @@ def convert_query_in_printf_format(sql, var_dict, sql_conv_map):
         sql = re.sub(r'\(SELECT\s+level\s+FROM\s+dual\s+CONNECT\s+BY\s+level\s*<=\s*(:[^ \)]+)\)*',
                      r'GENERATE_SERIES(1,\1)',
                      sql, flags=re.IGNORECASE)
+        # dual
+        sql = re.sub(r"FROM dual", "", sql, flags=re.IGNORECASE)
         # json
         if '/* use_json_type */' in sql:
             # remove \n to make regexp easier
