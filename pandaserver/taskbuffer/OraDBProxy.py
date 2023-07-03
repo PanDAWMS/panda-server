@@ -18300,7 +18300,7 @@ class DBProxy:
                         for columDesc,columVal in zip(self.cur.description,resGI):
                             columName = columDesc[0]
                             # overwrite fileID
-                            if columName == 'FILEID':
+                            if columName.upper() == 'FILEID':
                                 columVal = tmpFileSpec.fileID
                             keyName = ':{0}'.format(columName)
                             varMap[keyName] = columVal
