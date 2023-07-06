@@ -48,7 +48,7 @@ def get_dump(url):
         ca_certs = False
     for i in range(1, 4):  # 3 retries
         try:
-            r = requests.get(url, cert=cert, verify=ca_certs, REQUESTS_TIMEOUT)
+            r = requests.get(url, cert=cert, verify=ca_certs, timeout=REQUESTS_TIMEOUT)
             if r.status_code == requests.codes.ok:
                 return r.json()
         except Exception:
