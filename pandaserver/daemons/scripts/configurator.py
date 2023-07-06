@@ -40,10 +40,10 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         t1 = time.time()
         network_configurator = NetworkConfigurator(taskBuffer=taskBuffer)
         if not network_configurator.retrieve_data():
-            _logger.critical('Data was not retrieved correctly')
+            _logger.error('Data was not retrieved correctly')
             return
         if not network_configurator.run():
-            _logger.critical('Configurator loop FAILED')
+            _logger.error('Configurator loop FAILED')
         t2 = time.time()
         _logger.debug(' run took {0}s'.format(t2-t1))
 

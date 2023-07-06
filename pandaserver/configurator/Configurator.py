@@ -177,7 +177,7 @@ class Configurator(threading.Thread):
             panda_ddm_relation_list = self.get_panda_ddm_relations()
         except Exception:
             # Temporary protection to prevent issues
-            _logger.critical('get_panda_ddm_relations excepted with {0}'.format(traceback.print_exc()))
+            _logger.error('get_panda_ddm_relations excepted with {0}'.format(traceback.print_exc()))
             panda_ddm_relation_list = []
 
         # Iterate the site dump
@@ -505,15 +505,15 @@ class Configurator(threading.Thread):
 
 
         if self.schedconfig_dump is None:
-            _logger.critical("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_SCHEDCONFIG))
+            _logger.error("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_SCHEDCONFIG))
             return False
 
         if self.endpoint_dump is None:
-            _logger.critical("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_DDMENDPOINTS))
+            _logger.error("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_DDMENDPOINTS))
             return False
 
         if self.site_dump is None:
-            _logger.critical("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_SITES))
+            _logger.error("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_SITES))
             return False
 
         # Get pre-processed CRIC dumps
@@ -722,12 +722,12 @@ class NetworkConfigurator(threading.Thread):
         # Process and store the NWS information (NWS=Network Weather Service)
         data_nws = self.process_nws_dump()
         if not data_nws:
-            _logger.critical("Could not retrieve any data from the NWS!")
+            _logger.error("Could not retrieve any data from the NWS!")
 
         # Process and store the CRIC connectivity information
         data_CRIC_cm = self.process_CRIC_cm_dump()
         if not data_CRIC_cm:
-            _logger.critical("Could not retrieve any data from the CRIC Cost Matrix!")
+            _logger.error("Could not retrieve any data from the CRIC Cost Matrix!")
 
         data_combined = data_nws + data_CRIC_cm
         if data_combined:
@@ -766,7 +766,7 @@ class SchedconfigJsonDumper(threading.Thread):
         Principal function
         """
         if self.schedconfig_dump is None:
-            _logger.critical("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_SCHEDCONFIG))
+            _logger.error("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_SCHEDCONFIG))
             return False
 
         return self.taskBuffer.upsertQueuesInJSONSchedconfig(self.schedconfig_dump)
@@ -798,7 +798,7 @@ class SWTagsDumper(threading.Thread):
         Principal function
         """
         if self.tags_dump is None:
-            _logger.critical("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_TAGS))
+            _logger.error("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_TAGS))
             return False
 
         return self.taskBuffer.loadSWTags(self.tags_dump)
