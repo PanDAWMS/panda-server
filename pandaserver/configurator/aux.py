@@ -24,6 +24,7 @@ D1 = '1d'
 W1 = '1w'
 TIMESTAMP = 'timestamp'
 
+REQUESTS_TIMEOUT = 30
 
 def get_dump(url):
     """
@@ -47,7 +48,7 @@ def get_dump(url):
         ca_certs = False
     for i in range(1, 4):  # 3 retries
         try:
-            r = requests.get(url, cert=cert, verify=ca_certs)
+            r = requests.get(url, cert=cert, verify=ca_certs, REQUESTS_TIMEOUT)
             if r.status_code == requests.codes.ok:
                 return r.json()
         except Exception:
