@@ -28,37 +28,64 @@ class Configurator(threading.Thread):
         else:
             self.CRIC_URL_SITES = 'https://atlas-cric.cern.ch/api/atlas/site/query/?json'
 
-        _logger.debug('Getting site dump...')
-        self.site_dump = aux.get_dump(self.CRIC_URL_SITES)
-        _logger.debug('Done')
-        self.site_endpoint_dict = self.get_site_endpoint_dictionary()
-
         if hasattr(panda_config, 'CRIC_URL_DDMENDPOINTS'):
             self.CRIC_URL_DDMENDPOINTS = panda_config.CRIC_URL_DDMENDPOINTS
         else:
             self.CRIC_URL_DDMENDPOINTS = 'https://atlas-cric.cern.ch/api/atlas/ddmendpoint/query/?json'
-        _logger.debug('Getting DDM endpoints dump...')
-        self.endpoint_dump = aux.get_dump(self.CRIC_URL_DDMENDPOINTS)
-        _logger.debug('Done')
-        _logger.debug('Parsing endpoints...')
-        self.endpoint_token_dict = self.parse_endpoints()
-        _logger.debug('Done')
 
         if hasattr(panda_config, 'CRIC_URL_SCHEDCONFIG'):
             self.CRIC_URL_SCHEDCONFIG = panda_config.CRIC_URL_SCHEDCONFIG
         else:
             self.CRIC_URL_SCHEDCONFIG = 'https://atlas-cric.cern.ch/api/atlas/pandaqueue/query/?json'
-        _logger.debug('Getting schedconfig dump...')
-        self.schedconfig_dump = aux.get_dump(self.CRIC_URL_SCHEDCONFIG)
-        _logger.debug('Done')
 
         if hasattr(panda_config, 'CRIC_URL_DDMBLACKLIST'):
             self.CRIC_URL_DDMBLACKLIST = panda_config.CRIC_URL_DDMBLACKLIST
         else:
             self.CRIC_URL_DDMBLACKLIST = 'https://atlas-cric.cern.ch/api/atlas/ddmendpointstatus/query/?json&activity=write_wan&fstate=OFF'
+
+        if hasattr(panda_config, 'CRIC_URL_DDMBLACKLIST_READ'):
+            self.CRIC_URL_DDMBLACKLIST_READ = panda_config.CRIC_URL_DDMBLACKLIST_READ
+        else:
+            self.CRIC_URL_DDMBLACKLIST_READ = 'https://atlas-cric.cern.ch/api/atlas/ddmendpointstatus/query/?json&activity=read_wan&fstate=OFF'
+
+        if hasattr(panda_config, 'RUCIO_RSE_USAGE'):
+            self.RUCIO_RSE_USAGE = panda_config.RUCIO_RSE_USAGE
+        else:
+            self.RUCIO_RSE_USAGE = 'https://rucio-hadoop.cern.ch/dumps/rse_usage/current.json'
+
+    def retrieve_data(self):
+
+        _logger.debug('Getting site dump...')
+        self.site_dump = aux.get_dump(self.CRIC_URL_SITES)
+        if not self.site_dump:
+            _logger.error('The site dump was not retrieved correctly')
+            return False
+        _logger.debug('Done')
+        self.site_endpoint_dict = self.get_site_endpoint_dictionary()
+
+        _logger.debug('Getting DDM endpoints dump...')
+        self.endpoint_dump = aux.get_dump(self.CRIC_URL_DDMENDPOINTS)
+        if not self.endpoint_dump:
+            _logger.error('The endpoint dump was not retrieved correctly')
+            return False
+        _logger.debug('Done')
+        _logger.debug('Parsing endpoints...')
+        self.endpoint_token_dict = self.parse_endpoints()
+        _logger.debug('Done')
+
+        _logger.debug('Getting schedconfig dump...')
+        self.schedconfig_dump = aux.get_dump(self.CRIC_URL_SCHEDCONFIG)
+        if not self.schedconfig_dump:
+            _logger.error('The schedconfig dump was not retrieved correctly')
+            return False
+        _logger.debug('Done')
+
         _logger.debug('Getting ddmblacklist dump...')
         try:
             self.blacklisted_endpoints = list(aux.get_dump(self.CRIC_URL_DDMBLACKLIST))
+            if not self.blacklisted_endpoints:
+                _logger.error('The blacklisted endpoint dump was not retrieved correctly')
+                return False
             self.blacklisted_endpoints_write = self.blacklisted_endpoints
         except TypeError:
             self.blacklisted_endpoints = []
@@ -67,25 +94,26 @@ class Configurator(threading.Thread):
         _logger.debug('Blacklisted endpoints write {0}'.format(self.blacklisted_endpoints_write))
         _logger.debug('Done')
 
-        if hasattr(panda_config, 'CRIC_URL_DDMBLACKLIST_READ'):
-            self.CRIC_URL_DDMBLACKLIST_READ = panda_config.CRIC_URL_DDMBLACKLIST_READ
-        else:
-            self.CRIC_URL_DDMBLACKLIST_READ = 'https://atlas-cric.cern.ch/api/atlas/ddmendpointstatus/query/?json&activity=read_wan&fstate=OFF'
         _logger.debug('Getting ddmblacklist read dump...')
         try:
             self.blacklisted_endpoints_read = list(aux.get_dump(self.CRIC_URL_DDMBLACKLIST_READ))
+
         except TypeError:
             self.blacklisted_endpoints_read = []
+            if not self.blacklisted_endpoints_read:
+                _logger.error('The blacklisted endpoint for read dump was not retrieved correctly')
+                return False
         _logger.debug('Blacklisted endpoints read {0}'.format(self.blacklisted_endpoints_read))
         _logger.debug('Done')
 
-        if hasattr(panda_config, 'RUCIO_RSE_USAGE'):
-            self.RUCIO_RSE_USAGE = panda_config.RUCIO_RSE_USAGE
-        else:
-            self.RUCIO_RSE_USAGE = 'https://rucio-hadoop.cern.ch/dumps/rse_usage/current.json'
         _logger.debug('Getting Rucio RSE usage dump...')
         self.rse_usage = aux.get_dump(self.RUCIO_RSE_USAGE)
+        if not self.rse_usage:
+            _logger.error('The RSE usage dump was not retrieved correctly')
+            return False
         _logger.debug('Done')
+
+        return True
 
     def get_site_info(self, site):
         """
@@ -465,6 +493,17 @@ class Configurator(threading.Thread):
         """
         Principal function
         """
+
+        """        
+        site_dump
+        endpoint_dump
+        schedconfig_dump
+        blacklisted_endpoints
+        blacklisted_endpoints_read
+        rse_usage
+        """
+
+
         if self.schedconfig_dump is None:
             _logger.critical("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_SCHEDCONFIG))
             return False
@@ -503,17 +542,29 @@ class NetworkConfigurator(threading.Thread):
             self.NWS_URL = panda_config.NWS_URL
         else:
             self.NWS_URL = 'http://atlas-adc-netmetrics-lb.cern.ch/metrics/latest.json'
-        _logger.debug('Getting NWS dump...')
-        self.nws_dump = aux.get_dump(self.NWS_URL)
-        _logger.debug('Done')
 
         if hasattr(panda_config, 'CRIC_URL_CM'):
             self.CRIC_URL_CM = panda_config.CRIC_URL_CM
         else:
             self.CRIC_URL_CM = 'https://atlas-cric.cern.ch/api/core/sitematrix/query/?json&json_pretty=0'
+
+
+    def retrieve_data(self):
+        _logger.debug('Getting NWS dump...')
+        self.nws_dump = aux.get_dump(self.NWS_URL)
+        if not self.nws_dump:
+            _logger.error('Could not retrieve the NWS data')
+            return False
+        _logger.debug('Done')
+
         _logger.debug('Getting CRIC cost matrix dump...')
         self.CRIC_cm_dump = aux.get_dump(self.CRIC_URL_CM)
+        if not self.CRIC_cm_dump:
+            _logger.error('Could not retrieve the cost matrix data')
+            return False
         _logger.debug('Done')
+
+        return True
 
     def process_nws_dump(self):
         """

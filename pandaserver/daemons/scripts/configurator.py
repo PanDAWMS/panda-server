@@ -24,8 +24,13 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         _logger = logger_utils.make_logger(base_logger, 'Configurator')
         t1 = time.time()
         configurator = Configurator(taskBuffer=taskBuffer)
+
+        if not configurator.retrieve_data():
+            _logger.error('Data was not retrieved correctly')
+            return
+
         if not configurator.run():
-            _logger.critical('Configurator loop FAILED')
+            _logger.error('Configurator loop FAILED')
         t2 = time.time()
         _logger.debug('Configurator run took {0}s'.format(t2-t1))
 
@@ -34,6 +39,9 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         _logger = logger_utils.make_logger(base_logger, 'NetworkConfigurator')
         t1 = time.time()
         network_configurator = NetworkConfigurator(taskBuffer=taskBuffer)
+        if not network_configurator.retrieve_data():
+            _logger.critical('Data was not retrieved correctly')
+            return
         if not network_configurator.run():
             _logger.critical('Configurator loop FAILED')
         t2 = time.time()
