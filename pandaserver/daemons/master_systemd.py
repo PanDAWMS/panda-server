@@ -73,6 +73,16 @@ def main():
                           worker_lifetime=worker_lifetime,
                           use_tbif=use_tbif)
 
+    # function to end master when end signal caught
+    def end_master(sig, frame):
+        tmp_log.info('got end signal: {sig}'.format(sig=sig))
+        master.stop()
+        kill_whole()
+
+    # set signal handler
+    for sig in END_SIGNALS:
+        signal.signal(sig, end_master)
+    
     # start master
     master.run()
 
