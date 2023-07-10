@@ -190,8 +190,7 @@ start|stop)
     case $ARGV in
         start)
             check_schema
-	    fi
-	    check_pidfile
+	        check_pidfile
     esac
     for itry in `seq 1 100`
     do
