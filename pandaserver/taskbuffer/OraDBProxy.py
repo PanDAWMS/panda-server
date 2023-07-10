@@ -14716,6 +14716,9 @@ class DBProxy:
 
     # update even ranges
     def updateEventRanges(self,eventDictParam,version=0):
+        # version 0: normal event service
+        # version 1: jumbo jobs with zip file support
+        # version 2: fine-grained processing where events can be updated before being dispatched
         comment = ' /* DBProxy.updateEventRanges */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += ' <{0}>'.format(datetime.datetime.utcnow().isoformat('/'))
