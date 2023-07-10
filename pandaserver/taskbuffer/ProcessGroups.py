@@ -9,6 +9,7 @@ processGroups = [('others', []),
                  ('group', ['group']),
                  ('deriv', ['deriv']),
                  ('pile', ['pile']),
+                 ('merge', ['merge'])
                  ]
 
 # ('evgensimul',   ['evgen','simul']),

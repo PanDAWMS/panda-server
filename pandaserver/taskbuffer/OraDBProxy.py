@@ -85,14 +85,17 @@ for hdr in _loggerFiltered.handlers:
 
 # get mb proxies used in DBProxy methods
 def get_mb_proxy_dict():
-    if hasattr(panda_config, 'mbproxy_configFile') \
-            and panda_config.mbproxy_configFile:
-        # delay import to open logger file inside python daemon
-        from pandaserver.taskbuffer.PanDAMsgProcessor import MsgProcAgent
-        out_q_list = ['panda_jobstatus', 'panda_jedi', 'panda_pilot_topic', 'panda_pilot_queue']
-        mp_agent = MsgProcAgent(config_file=panda_config.mbproxy_configFile)
-        mb_proxy_dict = mp_agent.start_passive_mode(in_q_list=[], out_q_list=out_q_list)
-        return mb_proxy_dict
+    try:
+        if hasattr(panda_config, 'mbproxy_configFile') \
+                and panda_config.mbproxy_configFile:
+            # delay import to open logger file inside python daemon
+            from pandaserver.taskbuffer.PanDAMsgProcessor import MsgProcAgent
+            out_q_list = ['panda_jobstatus', 'panda_jedi', 'panda_pilot_topic', 'panda_pilot_queue']
+            mp_agent = MsgProcAgent(config_file=panda_config.mbproxy_configFile)
+            mb_proxy_dict = mp_agent.start_passive_mode(in_q_list=[], out_q_list=out_q_list)
+            return mb_proxy_dict
+    except Exception as exc:
+        _logger.error(f'Error on get_mb_proxy_dict : {traceback.format_exc()}')
     return {}
 
 
