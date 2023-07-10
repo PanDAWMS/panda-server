@@ -90,9 +90,10 @@ fi
 # check if PanDA Schema is the correct one
 function check_schema() {
   return_string=`$PROGNAME`
-  if [ "$return_string" == "True" ]; then
+  if [[ "$return_string" =~ .*OK ]]; then
     return 0
   else
+    echo $return_string
     return 1
   fi
 }
@@ -189,10 +190,7 @@ start|stop)
     case $ARGV in
         start)
             check_schema
-            if [ $? -ne 0 ]; then
-                echo "WARNING: PanDA DB Schema is wrong for PanDA Server to work properly. Please check the official PanDA docs on how to upgrade the schema."
-	    fi
-	    check_pidfile
+	        check_pidfile
     esac
     for itry in `seq 1 100`
     do

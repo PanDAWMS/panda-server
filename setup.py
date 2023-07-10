@@ -244,7 +244,6 @@ setup(
                       'python-daemon',
                       'mod_wsgi',
                       'six',
-                      'sqlalchemy',
                       'stomp.py',
                       'pyyaml',
                       'pyjwt',
@@ -258,7 +257,9 @@ setup(
                       'ruamel.yaml',
                       'cwl-utils>=0.13',
                       'packaging',
-                      'snakemake==6.15.5'
+                      'snakemake==6.15.5',
+                      'numpy',
+                      'scipy'
                       ],
     extras_require={
         'oracle': ['cx_Oracle'],
