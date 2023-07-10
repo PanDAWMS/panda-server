@@ -5,6 +5,10 @@ After=network.target remote-fs.target nss-lookup.target
 [Service]
 Nice=0
 Type=oneshot
+
+# Pre check of DB schema version. Output can be seen running 'systemctl status panda.service'
+ExecStartPre=/bin/sh -c '. /opt/panda/bin/activate && python -u @@install_purelib@@/pandaserver/test/SchemaChecker.py'
+
 # Execute a dummy program
 ExecStart=/bin/true
 RemainAfterExit=yes

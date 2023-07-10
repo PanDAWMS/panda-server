@@ -14719,6 +14719,9 @@ class DBProxy:
 
     # update even ranges
     def updateEventRanges(self,eventDictParam,version=0):
+        # version 0: normal event service
+        # version 1: jumbo jobs with zip file support
+        # version 2: fine-grained processing where events can be updated before being dispatched
         comment = ' /* DBProxy.updateEventRanges */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += ' <{0}>'.format(datetime.datetime.utcnow().isoformat('/'))
@@ -14730,23 +14733,31 @@ class DBProxy:
             commandMap = {}
             # sql to update status
             sqlU  = "UPDATE {0}.JEDI_Events ".format(panda_config.schemaJEDI)
-            sqlU += "SET status=:eventStatus,objstore_ID=:objstoreID,error_code=:errorCode,path_convention=:pathConvention"
+            sqlU += "SET status=:eventStatus,objstore_ID=:objstoreID,error_code=:errorCode,"\
+                    "path_convention=:pathConvention,error_diag=:errorDiag"
             if version != 0:
                 sqlU += ",zipRow_ID=:zipRow_ID"
             sqlU += " WHERE jediTaskID=:jediTaskID AND pandaID=:pandaID AND fileID=:fileID "
             sqlU += "AND job_processID=:job_processID AND attemptNr=:attemptNr "
-            sqlU += "AND status IN (:esSent, :esRunning) "
+            if version == 2:
+                sqlU += "AND status IN (:esSent, :esRunning, :esReady) "
+            else:
+                sqlU += "AND status IN (:esSent, :esRunning) "
             # sql to get event range
             sqlC  = "SELECT splitRule FROM {0}.JEDI_Tasks ".format(panda_config.schemaJEDI)
             sqlC += "WHERE jediTaskID=:jediTaskID "
             # sql to get nEvents
             sqlE  = "SELECT jobStatus,nEvents,commandToPilot,supErrorCode,specialHandling FROM ATLAS_PANDA.jobsActive4 "
             sqlE += "WHERE PandaID=:pandaID "
+            if version == 2:
+                sqlE += "OR jobsetID=:pandaID "
             # sql to set nEvents
             sqlS  = "UPDATE ATLAS_PANDA.jobsActive4 "
             sqlS += "SET nEvents=(SELECT COUNT(1) FROM {0}.JEDI_Events ".format(panda_config.schemaJEDI)
             sqlS += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID AND status IN (:esFinished,:esDone,:esMerged))*:nEvents "
             sqlS += "WHERE PandaID=:pandaID "
+            if version == 2:
+                sqlS += "OR jobsetID=:pandaID "
             # sql to check zip file
             sqlFC = "SELECT row_ID FROM ATLAS_PANDA.filesTable4 "
             sqlFC += "WHERE PandaID=:pandaID AND lfn=:lfn "
@@ -14790,6 +14801,9 @@ class DBProxy:
             iEvents = 0
             maxEvents = 100000
             iSkipped = 0
+            ok_job_status = ['sent', 'running', 'starting', 'transferring']
+            if version == 2:
+                ok_job_status += ['activated']
             # start transaction
             self.conn.begin()
             # loop over all events
@@ -14851,30 +14865,17 @@ class DBProxy:
                     tmpLog.debug("<eventRangeID={0}> eventStatus={1} skipped".format(eventRangeID, eventStatus))
                     continue
                 # core count
-                if 'coreCount' in eventDict:
-                    coreCount = eventDict['coreCount']
-                else:
-                    coreCount = None
+                coreCount = eventDict.get('coreCount')
                 # CPU consumption
-                if 'cpuConsumptionTime' in eventDict:
-                    cpuConsumptionTime = eventDict['cpuConsumptionTime']
-                else:
-                    cpuConsumptionTime = None
+                cpuConsumptionTime = eventDict.get('cpuConsumptionTime')
                 # objectstore ID
-                if 'objstoreID' in eventDict:
-                    objstoreID = eventDict['objstoreID']
-                else:
-                    objstoreID = None
+                objstoreID = eventDict.get('objstoreID')
                 # error code
-                if 'errorCode' in eventDict:
-                    errorCode = eventDict['errorCode']
-                else:
-                    errorCode = None
+                errorCode = eventDict.get('errorCode')
                 # path convention
-                if 'pathConvention' in eventDict:
-                    pathConvention = eventDict['pathConvention']
-                else:
-                    pathConvention = None
+                pathConvention = eventDict.get('pathConvention')
+                # error diag
+                errorDiag = eventDict.get('errorDiag')
                 isOK = True
                 # get job attributes
                 if pandaID not in jobAttrs:
@@ -14893,7 +14894,7 @@ class DBProxy:
                 else:
                     # check job status
                     jobStatus,nEventsOld,commandToPilot,supErrorCode,specialHandling = resE
-                    if jobStatus not in ['sent','running','starting','transferring']:
+                    if jobStatus not in ok_job_status:
                         tmpLog.error("<eventRangeID={0}> wrong jobStatus={1}".format(eventRangeID,jobStatus))
                         _logger.debug("{0} : wrong jobStatus={1}".format(methodName,jobStatus))
                         retList.append(False)
@@ -14982,8 +14983,11 @@ class DBProxy:
                         varMap[':objstoreID'] = objstoreID
                         varMap[':errorCode'] = errorCode
                         varMap[':pathConvention'] = pathConvention
+                        varMap[':errorDiag'] = errorDiag
                         varMap[':esSent'] = EventServiceUtils.ST_sent
                         varMap[':esRunning'] = EventServiceUtils.ST_running
+                        if version == 2:
+                            varMap[':esReady'] = EventServiceUtils.ST_ready
                         if version != 0:
                             varMap[':zipRow_ID'] = zipRow_ID
                         varMapListU.append(varMap)
@@ -15017,7 +15021,6 @@ class DBProxy:
                     if commandToPilot not in [None,''] and supErrorCode in [ErrorCode.EC_EventServicePreemption]:
                             commandToPilot = 'softkill'
                 if isOK:
-                    #tmpLog.debug("<eventRangeID={0}> eventStatus={1}".format(eventRangeID, eventStatus))
                     retList.append(True)
                 if pandaID not in commandMap:
                     commandMap[pandaID] = commandToPilot
@@ -15045,7 +15048,9 @@ class DBProxy:
                 if not self._commit():
                     raise RuntimeError('Commit error')
             regTime = datetime.datetime.utcnow() - regStart
-            tmpLog.debug('done. {0}/{1} events skipped. took {2} sec'.format(iSkipped, len(eventDictList), regTime.seconds))
+            tmpLog.debug('done. {0} events out of {1} events skipped. took {2} sec'.format(iSkipped,
+                                                                                           len(eventDictList),
+                                                                                           regTime.seconds))
             return retList,commandMap
         except Exception:
             # roll back
