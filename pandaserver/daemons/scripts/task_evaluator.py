@@ -116,6 +116,15 @@ class TaskEvaluationDB(object):
                             metric=metric, len_list=len(update_varMap_list)))
         # insert
         n_row = self.tbuf.executemanySQL(sql_insert, insert_varMap_list)
+        if n_row is None:
+            # try to insert one by one
+            n_row = 0
+            for varMap in insert_varMap_list:
+                res = self.tbuf.querySQL(sql_insert, varMap)
+                try:
+                    n_row += res
+                except TypeError:
+                    pass
         if n_row < len(insert_varMap_list):
             tmp_log.warning('only {n_row}/{len_list} rows inserted for metric={metric}'.format(
                                 n_row=n_row, len_list=len(insert_varMap_list), metric=metric))
