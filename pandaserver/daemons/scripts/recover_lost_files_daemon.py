@@ -5,12 +5,13 @@ import os.path
 import datetime
 import threading
 import traceback
+import sys
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice import RecoverLostFilesCore
-
+from pandacommon.pandautils.thread_utils import GenericThread
 
 # logger
 _logger = PandaLogger().getLogger('recover_lost_files')
@@ -28,7 +29,9 @@ def main(tbuf=None, **kwargs):
     evpFilePatt = panda_config.cache_dir + '/' + prefixEVP + '*'
 
     from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-    taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, useTimeout=True)
+    requester_id = "{0}({1})".format(sys.modules[__name__], GenericThread().get_pid())
+    taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd,
+                    nDBConnection=1, useTimeout=True, requester=requester_id)
 
     # thread pool
     class ThreadPool:
@@ -132,7 +135,7 @@ def main(tbuf=None, **kwargs):
     adderThreadPool.join()
 
     # stop taskBuffer if created inside this script
-    taskBuffer.cleanup()
+    taskBuffer.cleanup(requester=requester_id)
 
     _logger.debug("===================== end =====================")
 

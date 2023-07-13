@@ -1,8 +1,9 @@
 import sys
 import time
 
-from pandaserver.config import panda_config
 from pandacommon.pandalogger import logger_utils
+from pandacommon.pandautils.thread_utils import GenericThread
+from pandaserver.config import panda_config
 from pandaserver.configurator import Carbon as carbon_module
 from pandaserver.configurator.Carbon import CarbonEmissions
 
@@ -12,10 +13,13 @@ base_logger = carbon_module._logger
 
 # main
 def main(argv=tuple(), tbuf=None, **kwargs):
+    requester_id = "{0}({1})".format(sys.modules[__name__], GenericThread().get_pid())
+
     # instantiate TB
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, useTimeout=True)
+        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd,
+                        nDBConnection=1, useTimeout=True, requester=requester_id)
     else:
         taskBuffer = tbuf
 
@@ -33,7 +37,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
     # stop taskBuffer if created inside this script
     if tbuf is None:
-        taskBuffer.cleanup()
+        taskBuffer.cleanup(requester=requester_id)
 
 
 if __name__ == '__main__':

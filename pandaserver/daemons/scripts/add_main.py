@@ -20,10 +20,8 @@ _logger = PandaLogger().getLogger('add_main')
 
 # main
 def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
-    try:
-        long
-    except NameError:
-        long = int
+
+    requester_id = "{0}({1})".format(sys.modules[__name__], GenericThread().get_pid())
 
     prelock_pid = GenericThread().get_pid()
     tmpLog = LogWrapper(_logger, "<pid={}>".format(prelock_pid))
@@ -48,7 +46,7 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
     # instantiate TB
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, useTimeout=True)
+        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, useTimeout=True, requester=requester_id)
     else:
         taskBuffer = tbuf
 
@@ -135,7 +133,8 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
     tmpLog.debug("setup taskBufferIF")
     n_connections = 4
     _tbuf = TaskBuffer()
-    _tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=n_connections, useTimeout=True)
+    _tbuf.init(panda_config.dbhost, panda_config.dbpasswd,
+               nDBConnection=n_connections, useTimeout=True, requester=requester_id)
     taskBufferIF = TaskBufferInterface()
     taskBufferIF.launch(_tbuf)
 
@@ -174,7 +173,8 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
             if i < _n_thr_with_tbuf:
                 tbuf = TaskBuffer()
                 tbuf_list.append(tbuf)
-                tbuf.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, useTimeout=True)
+                tbuf.init(panda_config.dbhost, panda_config.dbpasswd,
+                          nDBConnection=1, useTimeout=True, requester=requester_id)
                 thr = AdderThread(tbuf, aSiteMapper, jor_lists, lock_pool)
             else:
                 thr = AdderThread(taskBufferIF.getInterface(), aSiteMapper, jor_lists, lock_pool)
@@ -189,7 +189,7 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
         for thr in adderThrList:
             # thr.join()
             thr.proc_join()
-        [tbuf.cleanup() for tbuf in tbuf_list]
+        [tbuf.cleanup(requester=requester_id) for tbuf in tbuf_list]
         end_time = datetime.datetime.utcnow()
         sleep_time = interval - (end_time - start_time).seconds
         if sleep_time > 0 and iLoop + 1 < nLoop:
@@ -202,7 +202,7 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
 
     # stop taskBuffer if created inside this script
     if tbuf is None:
-        taskBuffer.cleanup()
+        taskBuffer.cleanup(requester=requester_id)
 
     tmpLog.debug("===================== end =====================")
 

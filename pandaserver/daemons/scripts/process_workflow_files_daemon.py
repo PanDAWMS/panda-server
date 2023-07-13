@@ -1,5 +1,7 @@
 import glob
 import time
+import sys
+
 import os.path
 import datetime
 import threading
@@ -7,6 +9,7 @@ import traceback
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.taskbuffer.workflow_processor import WorkflowProcessor
+from pandacommon.pandautils.thread_utils import GenericThread
 
 from pandaserver.config import panda_config
 
@@ -29,7 +32,9 @@ def main(tbuf=None, **kwargs):
         evpFilePatt = panda_config.cache_dir + '/' + prefixEVP + '*'
 
     from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-    taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, useTimeout=True)
+    requester_id = "{0}({1})".format(sys.modules[__name__], GenericThread().get_pid())
+    taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd,
+                    nDBConnection=1, useTimeout=True, requester=requester_id)
 
     test_mode = kwargs.get('test_mode', False)
     dump_workflow = kwargs.get('dump_workflow', False)
@@ -135,7 +140,7 @@ def main(tbuf=None, **kwargs):
     adderThreadPool.join()
 
     # stop taskBuffer if created inside this script
-    taskBuffer.cleanup()
+    taskBuffer.cleanup(requester=requester_id)
 
     _logger.debug("===================== end =====================")
 

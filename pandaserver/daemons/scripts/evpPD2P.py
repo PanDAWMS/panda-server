@@ -1,4 +1,3 @@
-import re
 import sys
 import glob
 import time
@@ -7,10 +6,10 @@ import datetime
 import threading
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.config import panda_config
 from pandaserver.brokerage import SiteMapper
 from pandaserver.dataservice.EventPicker import EventPicker
-from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
 # logger
 _logger = PandaLogger().getLogger('evpPD2P')
@@ -27,41 +26,14 @@ def main(tbuf=None, **kwargs):
     # file pattern of evp files
     evpFilePatt = panda_config.cache_dir + '/' + prefixEVP + '*'
 
-    # # kill old process
-    # try:
-    #     # time limit
-    #     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=overallTimeout)
-    #     # get process list
-    #     scriptName = sys.argv[0]
-    #     out = commands_get_status_output('env TZ=UTC ps axo user,pid,lstart,args | grep %s' % scriptName)[-1]
-    #     for line in out.split('\n'):
-    #         items = line.split()
-    #         # owned process
-    #         if items[0] not in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
-    #             continue
-    #         # look for python
-    #         if re.search('python',line) is None:
-    #             continue
-    #         # PID
-    #         pid = items[1]
-    #         # start time
-    #         timeM = re.search('(\S+\s+\d+ \d+:\d+:\d+ \d+)',line)
-    #         startTime = datetime.datetime(*time.strptime(timeM.group(1),'%b %d %H:%M:%S %Y')[:6])
-    #         # kill old process
-    #         if startTime < timeLimit:
-    #             _logger.debug("old process : %s %s" % (pid,startTime))
-    #             _logger.debug(line)
-    #             commands_get_status_output('kill -9 %s' % pid)
-    # except Exception:
-    #     type, value, traceBack = sys.exc_info()
-    #     _logger.error("kill process : %s %s" % (type,value))
 
     # instantiate PD2P
-    # if tbuf is None:
+
+    requester_id = "{0}({1})".format(sys.modules[__name__], GenericThread().get_pid())
+
     from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-    taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, useTimeout=True)
-    # else:
-    #     taskBuffer = tbuf
+    taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd,
+                    nDBConnection=1, useTimeout=True, requester=requester_id)
     siteMapper = SiteMapper.SiteMapper(taskBuffer)
 
     # thread pool
@@ -157,7 +129,7 @@ def main(tbuf=None, **kwargs):
     adderThreadPool.join()
 
     # stop taskBuffer if created inside this script
-    taskBuffer.cleanup()
+    taskBuffer.cleanup(requester=requester_id)
 
     _logger.debug("===================== end =====================")
 

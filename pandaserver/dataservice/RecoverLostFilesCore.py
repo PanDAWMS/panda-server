@@ -6,7 +6,7 @@ from pandaserver.userinterface import Client
 from rucio.client import Client as RucioClient
 from rucio.common.exception import DataIdentifierNotFound
 from pandaserver.dataservice.DDM import rucioAPI
-
+from pandacommon.pandautils.thread_utils import GenericThread
 
 # get files form rucio
 def get_files_from_rucio(ds_name, log_stream):
@@ -68,10 +68,13 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
     # executed via command-line
     givenTaskID = None
     dn = None
+
+    requester_id = "{0}({1})".format(sys.modules[__name__], GenericThread().get_pid())
     if taskBuffer is None:
         # instantiate TB
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-        taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
+        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd,
+                        nDBConnection=1, requester=requester_id)
 
     else:
         # set options from dict

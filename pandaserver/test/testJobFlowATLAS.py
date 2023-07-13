@@ -13,6 +13,7 @@ import nose
 import time
 import uuid
 import socket
+import sys
 try:
     from urlparse import parse_qs
 except ImportError:
@@ -99,7 +100,8 @@ class JobFlowATLAS(object):
         self.__site = site
         self.__cloud = cloud
         self.__nJobs = nJobs
-        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
+        requester_id = "{0}({1})".format(sys.modules[__name__], GenericThread().get_pid())
+        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, requester=requester_id)
 
     def defineEvgen16Job(self, i):
         """Define an Evgen16 job based on predefined values and randomly generated names

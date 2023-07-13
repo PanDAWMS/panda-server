@@ -9,6 +9,7 @@ import threading
 import pandaserver.taskbuffer.ErrorCode
 import pandaserver.taskbuffer.ErrorCode
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.config import panda_config
 from pandaserver.dataservice.DDM import rucioAPI
 from pandaserver.taskbuffer import EventServiceUtils
@@ -17,9 +18,6 @@ from pandaserver.dataservice.Finisher import Finisher
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.Closer import Closer
-
-# from pandaserver.srvcore.CoreUtils import commands_get_status_output
-
 
 # logger
 _logger = PandaLogger().getLogger('datasetManager')
@@ -62,72 +60,11 @@ def main(tbuf=None, **kwargs):
 
     _memoryCheck("start")
 
-    # # kill old dq2 process
-    # try:
-    #     # time limit
-    #     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
-    #     # get process list
-    #     scriptName = sys.argv[0]
-    #     out = commands_get_status_output(
-    #         'ps axo user,pid,lstart,args | grep dq2.clientapi | grep -v PYTHONPATH | grep -v grep')[-1]
-    #     for line in out.split('\n'):
-    #         if line == '':
-    #             continue
-    #         items = line.split()
-    #         # owned process
-    #         if items[0] not in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
-    #             continue
-    #         # look for python
-    #         if re.search('python',line) is None:
-    #             continue
-    #         # PID
-    #         pid = items[1]
-    #         # start time
-    #         timeM = re.search('(\S+\s+\d+ \d+:\d+:\d+ \d+)',line)
-    #         startTime = datetime.datetime(*time.strptime(timeM.group(1),'%b %d %H:%M:%S %Y')[:6])
-    #         # kill old process
-    #         if startTime < timeLimit:
-    #             _logger.debug("old dq2 process : %s %s" % (pid,startTime))
-    #             _logger.debug(line)
-    #             commands_get_status_output('kill -9 %s' % pid)
-    # except Exception:
-    #     type, value, traceBack = sys.exc_info()
-    #     _logger.error("kill dq2 process : %s %s" % (type,value))
-    #
-    #
-    # # kill old process
-    # try:
-    #     # time limit
-    #     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=7)
-    #     # get process list
-    #     scriptName = sys.argv[0]
-    #     out = commands_get_status_output('ps axo user,pid,lstart,args | grep %s' % scriptName)[-1]
-    #     for line in out.split('\n'):
-    #         items = line.split()
-    #         # owned process
-    #         if items[0] not in ['sm','atlpan','pansrv','root']: # ['os.getlogin()']: doesn't work in cron
-    #             continue
-    #         # look for python
-    #         if re.search('python',line) is None:
-    #             continue
-    #         # PID
-    #         pid = items[1]
-    #         # start time
-    #         timeM = re.search('(\S+\s+\d+ \d+:\d+:\d+ \d+)',line)
-    #         startTime = datetime.datetime(*time.strptime(timeM.group(1),'%b %d %H:%M:%S %Y')[:6])
-    #         # kill old process
-    #         if startTime < timeLimit:
-    #             _logger.debug("old process : %s %s" % (pid,startTime))
-    #             _logger.debug(line)
-    #             commands_get_status_output('kill -9 %s' % pid)
-    # except Exception:
-    #     type, value, traceBack = sys.exc_info()
-    #     _logger.error("kill process : %s %s" % (type,value))
 
-    # instantiate TB
-    # if tbuf is None:
     from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-    taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, useTimeout=True)
+    requester_id = "{0}({1})".format(sys.modules[__name__], GenericThread().get_pid())
+    taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd,
+                    nDBConnection=1, useTimeout=True, requester=requester_id)
     # else:
     #     taskBuffer = tbuf
 
@@ -1171,7 +1108,7 @@ def main(tbuf=None, **kwargs):
     _memoryCheck("end")
 
     # stop taskBuffer if created inside this script
-    taskBuffer.cleanup()
+    taskBuffer.cleanup(requester=requester_id)
 
     _logger.debug("===================== end =====================")
 
