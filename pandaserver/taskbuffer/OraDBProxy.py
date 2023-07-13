@@ -2208,7 +2208,6 @@ class DBProxy:
                 varMap[':newJobStatus'] = 'holding'
                 varMap[':PandaID']      = pandaID
                 self.cur.execute(sqlU+comment,varMap)
-                self.push_job_status_message(job, pandaID, varMap[':newJobStatus'])
                 retU = self.cur.rowcount
                 if retU == 0:
                     # commit
@@ -2266,6 +2265,7 @@ class DBProxy:
                 # commit
                 if not self._commit():
                     raise RuntimeError('Commit error')
+                self.push_job_status_message(job, pandaID, varMap[':newJobStatus'])
             tmpLog.debug("done {} jobs".format(len(pPandaIDs)))
             return True
         except Exception as e:
