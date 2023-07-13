@@ -21,20 +21,18 @@ from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.srvcore.CoreUtils import commands_get_status_output
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
-
 # logger
 _logger = PandaLogger().getLogger('add_sub')
 
 
 # main
 def main(argv=tuple(), tbuf=None, **kwargs):
-
     try:
         long
     except NameError:
         long = int
 
-    tmpLog = LogWrapper(_logger,None)
+    tmpLog = LogWrapper(_logger, None)
 
     tmpLog.debug("===================== start =====================")
 
@@ -44,7 +42,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # instantiate TB
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-        taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1, useTimeout=True)
+        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, useTimeout=True)
     else:
         taskBuffer = tbuf
 
@@ -53,7 +51,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
     # delete
     tmpLog.debug("Del session")
-    status,retSel = taskBuffer.querySQLS("SELECT MAX(PandaID) FROM ATLAS_PANDA.jobsDefined4",{})
+    status, retSel = taskBuffer.querySQLS("SELECT MAX(PandaID) FROM ATLAS_PANDA.jobsDefined4", {})
     if retSel is not None:
         try:
             maxID = retSel[0][0]
@@ -65,7 +63,9 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 varMap[':jobStatus2'] = 'waiting'
                 varMap[':jobStatus3'] = 'failed'
                 varMap[':jobStatus4'] = 'cancelled'
-                status,retDel = taskBuffer.querySQLS("DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID<:maxID AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4)",varMap)
+                status, retDel = taskBuffer.querySQLS(
+                    "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID<:maxID AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4)",
+                    varMap)
         except Exception:
             pass
 
@@ -73,26 +73,26 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     try:
         # don't update when logrotate is running
         timeNow = datetime.datetime.utcnow()
-        logRotateTime = timeNow.replace(hour=3,minute=2,second=0,microsecond=0)
-        if (timeNow > logRotateTime and (timeNow-logRotateTime) < datetime.timedelta(minutes=5)) or \
-               (logRotateTime > timeNow and (logRotateTime-timeNow) < datetime.timedelta(minutes=5)):
+        logRotateTime = timeNow.replace(hour=3, minute=2, second=0, microsecond=0)
+        if (timeNow > logRotateTime and (timeNow - logRotateTime) < datetime.timedelta(minutes=5)) or \
+                (logRotateTime > timeNow and (logRotateTime - timeNow) < datetime.timedelta(minutes=5)):
             tmpLog.debug("skip pilotCounts session for logrotate")
         else:
             # log filename
             dispLogName = '%s/panda-PilotRequests.log' % panda_config.logdir
             # time limit
-            timeLimit  = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
-            timeLimitS  = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+            timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
+            timeLimitS = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
             # check if tgz is required
             com = 'head -1 %s' % dispLogName
-            lostat,loout = commands_get_status_output(com)
+            lostat, loout = commands_get_status_output(com)
             useLogTgz = True
             if lostat == 0:
-                match = re.search('^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}',loout)
+                match = re.search('^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}', loout)
                 if match is not None:
-                    startTime = datetime.datetime(*time.strptime(match.group(0),'%Y-%m-%d %H:%M:%S')[:6])
+                    startTime = datetime.datetime(*time.strptime(match.group(0), '%Y-%m-%d %H:%M:%S')[:6])
                     # current log contains all info
-                    if startTime<timeLimit:
+                    if startTime < timeLimit:
                         useLogTgz = False
             # log files
             dispLogNameList = [dispLogName]
@@ -102,37 +102,37 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             # delete tmp
             commands_get_status_output('rm -f %s.tmp-*' % dispLogName)
             # tmp name
-            tmpLogName = '%s.tmp-%s' % (dispLogName,datetime.datetime.utcnow().strftime('%Y-%m-%d-%H-%M-%S'))
+            tmpLogName = '%s.tmp-%s' % (dispLogName, datetime.datetime.utcnow().strftime('%Y-%m-%d-%H-%M-%S'))
             # loop over all files
             pilotCounts = {}
             pilotCountsS = {}
             for tmpDispLogName in dispLogNameList:
                 # expand or copy
                 if tmpDispLogName.endswith('.gz'):
-                    com = 'gunzip -c %s > %s' % (tmpDispLogName,tmpLogName)
+                    com = 'gunzip -c %s > %s' % (tmpDispLogName, tmpLogName)
                 else:
-                    com = 'cp %s %s' % (tmpDispLogName,tmpLogName)
-                lostat,loout = commands_get_status_output(com)
+                    com = 'cp %s %s' % (tmpDispLogName, tmpLogName)
+                lostat, loout = commands_get_status_output(com)
                 if lostat != 0:
-                    errMsg = 'failed to expand/copy %s with : %s' % (tmpDispLogName,loout)
+                    errMsg = 'failed to expand/copy %s with : %s' % (tmpDispLogName, loout)
                     raise RuntimeError(errMsg)
                 # search string
-                sStr  = '^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*'
+                sStr = '^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*'
                 sStr += 'method=(.+),site=(.+),node=(.+),type=(.+)'
                 # read
                 logFH = open(tmpLogName)
                 for line in logFH:
                     # check format
-                    match = re.search(sStr,line)
+                    match = re.search(sStr, line)
                     if match is not None:
                         # check timerange
-                        timeStamp = datetime.datetime(*time.strptime(match.group(1),'%Y-%m-%d %H:%M:%S')[:6])
+                        timeStamp = datetime.datetime(*time.strptime(match.group(1), '%Y-%m-%d %H:%M:%S')[:6])
                         if timeStamp < timeLimit:
                             continue
                         tmpMethod = match.group(2)
-                        tmpSite   = match.group(3)
-                        tmpNode   = match.group(4)
-                        tmpType   = match.group(5)
+                        tmpSite = match.group(3)
+                        tmpNode = match.group(4)
+                        tmpType = match.group(5)
 
                         # protection against corrupted entries from pilot,
                         # e.g. pilot reading site json from cvmfs while it was being updated
@@ -159,14 +159,13 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             # update
             hostID = panda_config.pserverhost.split('.')[0]
             tmpLog.debug("pilotCounts session")
-            retPC = taskBuffer.updateSiteData(hostID,pilotCounts,interval=3)
+            retPC = taskBuffer.updateSiteData(hostID, pilotCounts, interval=3)
             tmpLog.debug(retPC)
-            retPC = taskBuffer.updateSiteData(hostID,pilotCountsS,interval=1)
+            retPC = taskBuffer.updateSiteData(hostID, pilotCountsS, interval=1)
             tmpLog.debug(retPC)
     except Exception:
-        errType,errValue = sys.exc_info()[:2]
-        tmpLog.error("updateJob/getJob : %s %s" % (errType,errValue))
-
+        errType, errValue = sys.exc_info()[:2]
+        tmpLog.error("updateJob/getJob : %s %s" % (errType, errValue))
 
     # nRunning
     tmpLog.debug("nRunning session")
@@ -175,66 +174,68 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             retNR = taskBuffer.insertnRunningInSiteData()
             tmpLog.debug(retNR)
     except Exception:
-        errType,errValue = sys.exc_info()[:2]
-        tmpLog.error("nRunning : %s %s" % (errType,errValue))
-
+        errType, errValue = sys.exc_info()[:2]
+        tmpLog.error("nRunning : %s %s" % (errType, errValue))
 
     # session for co-jumbo jobs
     tmpLog.debug("co-jumbo session")
     try:
-        ret = taskBuffer.getCoJumboJobsToBeFinished(30,0,1000)
+        ret = taskBuffer.getCoJumboJobsToBeFinished(30, 0, 1000)
         if ret is None:
             tmpLog.debug("failed to get co-jumbo jobs to finish")
         else:
-            coJumboA,coJumboD,coJumboW,coJumboTokill = ret
+            coJumboA, coJumboD, coJumboW, coJumboTokill = ret
             tmpLog.debug("finish {0} co-jumbo jobs in Active".format(len(coJumboA)))
             if len(coJumboA) > 0:
-                jobSpecs = taskBuffer.peekJobs(coJumboA,fromDefined=False,fromActive=True,fromArchived=False,fromWaiting=False)
+                jobSpecs = taskBuffer.peekJobs(coJumboA, fromDefined=False, fromActive=True, fromArchived=False,
+                                               fromWaiting=False)
                 for jobSpec in jobSpecs:
                     fileCheckInJEDI = taskBuffer.checkInputFileStatusInJEDI(jobSpec)
                     if not fileCheckInJEDI:
                         jobSpec.jobStatus = 'closed'
                         jobSpec.jobSubStatus = 'cojumbo_wrong'
                         jobSpec.taskBufferErrorCode = pandaserver.taskbuffer.ErrorCode.EC_EventServiceInconsistentIn
-                    taskBuffer.archiveJobs([jobSpec],False)
+                    taskBuffer.archiveJobs([jobSpec], False)
             tmpLog.debug("finish {0} co-jumbo jobs in Defined".format(len(coJumboD)))
             if len(coJumboD) > 0:
-                jobSpecs = taskBuffer.peekJobs(coJumboD,fromDefined=True,fromActive=False,fromArchived=False,fromWaiting=False)
+                jobSpecs = taskBuffer.peekJobs(coJumboD, fromDefined=True, fromActive=False, fromArchived=False,
+                                               fromWaiting=False)
                 for jobSpec in jobSpecs:
                     fileCheckInJEDI = taskBuffer.checkInputFileStatusInJEDI(jobSpec)
                     if not fileCheckInJEDI:
                         jobSpec.jobStatus = 'closed'
                         jobSpec.jobSubStatus = 'cojumbo_wrong'
                         jobSpec.taskBufferErrorCode = pandaserver.taskbuffer.ErrorCode.EC_EventServiceInconsistentIn
-                    taskBuffer.archiveJobs([jobSpec],True)
+                    taskBuffer.archiveJobs([jobSpec], True)
             tmpLog.debug("finish {0} co-jumbo jobs in Waiting".format(len(coJumboW)))
             if len(coJumboW) > 0:
-                jobSpecs = taskBuffer.peekJobs(coJumboW,fromDefined=False,fromActive=False,fromArchived=False,fromWaiting=True)
+                jobSpecs = taskBuffer.peekJobs(coJumboW, fromDefined=False, fromActive=False, fromArchived=False,
+                                               fromWaiting=True)
                 for jobSpec in jobSpecs:
                     fileCheckInJEDI = taskBuffer.checkInputFileStatusInJEDI(jobSpec)
                     if not fileCheckInJEDI:
                         jobSpec.jobStatus = 'closed'
                         jobSpec.jobSubStatus = 'cojumbo_wrong'
                         jobSpec.taskBufferErrorCode = pandaserver.taskbuffer.ErrorCode.EC_EventServiceInconsistentIn
-                    taskBuffer.archiveJobs([jobSpec],False,True)
+                    taskBuffer.archiveJobs([jobSpec], False, True)
             tmpLog.debug("kill {0} co-jumbo jobs in Waiting".format(len(coJumboTokill)))
             if len(coJumboTokill) > 0:
                 jediJobs = list(coJumboTokill)
                 nJob = 100
                 iJob = 0
                 while iJob < len(jediJobs):
-                    tmpLog.debug(' killing %s' % str(jediJobs[iJob:iJob+nJob]))
-                    Client.killJobs(jediJobs[iJob:iJob+nJob],51,keepUnmerged=True)
+                    tmpLog.debug(' killing %s' % str(jediJobs[iJob:iJob + nJob]))
+                    Client.killJobs(jediJobs[iJob:iJob + nJob], 51, keepUnmerged=True)
                     iJob += nJob
     except Exception:
         errStr = traceback.format_exc()
         tmpLog.error(errStr)
 
-
     tmpLog.debug("Fork session")
+
     # thread for fork
-    class ForkThr (threading.Thread):
-        def __init__(self,fileName):
+    class ForkThr(threading.Thread):
+        def __init__(self, fileName):
             threading.Thread.__init__(self)
             self.fileName = fileName
 
@@ -244,7 +245,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             else:
                 prefix = ''
             setupStr = 'source {0}/etc/sysconfig/panda_server; '.format(prefix)
-            runStr  = '%s/python -Wignore ' % panda_config.native_python
+            runStr = '%s/python -Wignore ' % panda_config.native_python
             runStr += panda_config.pandaPython_dir + '/dataservice/forkSetupper.py -i '
             runStr += self.fileName
             if self.fileName.split('/')[-1].startswith('set.NULL.'):
@@ -272,7 +273,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             modTime = datetime.datetime(*(time.gmtime(os.path.getmtime(tmpName))[:7]))
             if (timeNow - modTime) > datetime.timedelta(minutes=1) and \
                     (timeNow - modTime) < datetime.timedelta(hours=1):
-                cSt,cOut = commands_get_status_output('ps aux | grep fork | grep -v PYTH')
+                cSt, cOut = commands_get_status_output('ps aux | grep fork | grep -v PYTH')
                 # if no process is running for the file
                 if cSt == 0 and tmpName not in cOut:
                     nThr += 1
@@ -282,8 +283,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                     if nThr > maxThr:
                         break
         except Exception:
-            errType,errValue = sys.exc_info()[:2]
-            tmpLog.error("%s %s" % (errType,errValue))
+            errType, errValue = sys.exc_info()[:2]
+            tmpLog.error("%s %s" % (errType, errValue))
 
     # join fork threads
     for thr in forkThrList:

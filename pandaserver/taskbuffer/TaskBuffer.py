@@ -36,26 +36,40 @@ class TaskBuffer:
         self.processLimiter = None
         self.nDBConection = None
 
+        # save the requester for monitoring/logging purposes
+        self.start_time = time.time()
+
     def __repr__(self):
         return "TaskBuffer"
 
     # initialize
-    def init(self, dbname, dbpass, nDBConnection=10, useTimeout=False):
-        # lock
+    def init(self, dbname, dbpass, nDBConnection=10, useTimeout=False, requester=None):
+        # acquire lock
         self.lock.acquire()
         self.nDBConection = nDBConnection
+
         # create Proxy Pool
         if self.proxyPool is None:
+            self.logger.debug("creating DBProxyPool with {0} connections on behalf of {1}".format(nDBConnection, requester))
+            self.start_time = time.time()
             self.proxyPool = DBProxyPool(dbname, dbpass, nDBConnection, useTimeout)
+
         # create process limiter
         if self.processLimiter is None:
             self.processLimiter = ProcessLimiter()
-        # release
+
+        # release lock
         self.lock.release()
 
     # cleanup
-    def cleanup(self):
+    def cleanup(self, requester=None):
         if self.proxyPool:
+            try:
+                pool_duration = time.time() - self.start_time
+            except TypeError:
+                pool_duration = -1  # duration unknown
+
+            self.logger.debug("destroying DBProxyPool on behalf of {0} after {1} seconds".format(requester, pool_duration))
             self.proxyPool.cleanup()
 
     # get number of database connections

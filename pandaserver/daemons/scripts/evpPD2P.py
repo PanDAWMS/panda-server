@@ -12,14 +12,12 @@ from pandaserver.brokerage import SiteMapper
 from pandaserver.dataservice.EventPicker import EventPicker
 from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
-
 # logger
 _logger = PandaLogger().getLogger('evpPD2P')
 
 
 # main
 def main(tbuf=None, **kwargs):
-
     _logger.debug("===================== start =====================")
 
     # overall timeout value
@@ -61,11 +59,10 @@ def main(tbuf=None, **kwargs):
     # instantiate PD2P
     # if tbuf is None:
     from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-    taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1, useTimeout=True)
+    taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, useTimeout=True)
     # else:
     #     taskBuffer = tbuf
     siteMapper = SiteMapper.SiteMapper(taskBuffer)
-
 
     # thread pool
     class ThreadPool:
@@ -73,12 +70,12 @@ def main(tbuf=None, **kwargs):
             self.lock = threading.Lock()
             self.list = []
 
-        def add(self,obj):
+        def add(self, obj):
             self.lock.acquire()
             self.list.append(obj)
             self.lock.release()
 
-        def remove(self,obj):
+        def remove(self, obj):
             self.lock.acquire()
             self.list.remove(obj)
             self.lock.release()
@@ -90,24 +87,22 @@ def main(tbuf=None, **kwargs):
             for thr in thrlist:
                 thr.join()
 
-
     # thread to ev-pd2p
-    class EvpThr (threading.Thread):
-        def __init__(self,lock,pool,aTaskBuffer,aSiteMapper,fileName,ignoreError):
+    class EvpThr(threading.Thread):
+        def __init__(self, lock, pool, aTaskBuffer, aSiteMapper, fileName, ignoreError):
             threading.Thread.__init__(self)
-            self.lock       = lock
-            self.pool       = pool
-            self.fileName   = fileName
-            self.evp        = EventPicker(aTaskBuffer,aSiteMapper,fileName,ignoreError)
+            self.lock = lock
+            self.pool = pool
+            self.fileName = fileName
+            self.evp = EventPicker(aTaskBuffer, aSiteMapper, fileName, ignoreError)
             self.pool.add(self)
 
         def run(self):
             self.lock.acquire()
             retRun = self.evp.run()
-            _logger.debug("%s : %s" % (retRun,self.fileName))
+            _logger.debug("%s : %s" % (retRun, self.fileName))
             self.pool.remove(self)
             self.lock.release()
-
 
     # get files
     _logger.debug("EVP session")
@@ -145,18 +140,18 @@ def main(tbuf=None, **kwargs):
             if (timeNow - modTime) > datetime.timedelta(hours=24):
                 # last chance
                 _logger.debug("Last event picking : %s" % fileName)
-                thr = EvpThr(adderLock,adderThreadPool,taskBuffer,siteMapper,fileName,False)
+                thr = EvpThr(adderLock, adderThreadPool, taskBuffer, siteMapper, fileName, False)
                 thr.start()
             elif (timeInt - modTime) > datetime.timedelta(minutes=1):
                 # try
                 _logger.debug("event picking : %s" % fileName)
-                thr = EvpThr(adderLock,adderThreadPool,taskBuffer,siteMapper,fileName,True)
+                thr = EvpThr(adderLock, adderThreadPool, taskBuffer, siteMapper, fileName, True)
                 thr.start()
             else:
-                _logger.debug("%s : %s" % ((timeInt - modTime),fileName))
+                _logger.debug("%s : %s" % ((timeInt - modTime), fileName))
         except Exception:
-            errType,errValue = sys.exc_info()[:2]
-            _logger.error("%s %s" % (errType,errValue))
+            errType, errValue = sys.exc_info()[:2]
+            _logger.error("%s %s" % (errType, errValue))
 
     # join all threads
     adderThreadPool.join()
