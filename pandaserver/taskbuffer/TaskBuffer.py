@@ -50,7 +50,7 @@ class TaskBuffer:
 
         # create Proxy Pool
         if self.proxyPool is None:
-            _logger.debug("creating DBProxyPool with {0} connections on behalf of {1}".format(nDBConnection, requester))
+            _logger.info("creating DBProxyPool with {0} connections on behalf of {1}".format(nDBConnection, requester))
             self.start_time = time.time()
             self.proxyPool = DBProxyPool(dbname, dbpass, nDBConnection, useTimeout)
 
@@ -69,7 +69,7 @@ class TaskBuffer:
             except TypeError:
                 pool_duration = -1  # duration unknown
 
-            _logger.debug("destroying DBProxyPool on behalf of {0} after {1} seconds".format(requester, pool_duration))
+            _logger.info("destroying DBProxyPool on behalf of {0} after {1} seconds".format(requester, pool_duration))
             self.proxyPool.cleanup()
 
     # get number of database connections
