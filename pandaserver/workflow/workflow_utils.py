@@ -149,15 +149,20 @@ class Node (object):
                 for k in dict_inputs:
                     if k not in ['opt_inDS', 'opt_inDsType', 'opt_secondaryDSs', 'opt_secondaryDsTypes',
                                  'opt_args', 'opt_exec', 'opt_useAthenaPackages', 'opt_containerImage']:
-                        return False, 'unknown input parameter {}'.format(k)
+                        return False, 'unknown input parameter {} for {}'.format(k, self.type)
             elif self.type in ['junction', 'reana']:
                 for k in dict_inputs:
                     if k not in ['opt_inDS', 'opt_inDsType', 'opt_args', 'opt_exec', 'opt_containerImage']:
-                        return False, 'unknown input parameter {}'.format(k)
+                        return False, 'unknown input parameter {} for {}'.format(k, self.type)
             elif self.type == 'phpo':
                 for k in dict_inputs:
                     if k not in ['opt_trainingDS', 'opt_trainingDsType', 'opt_args']:
-                        return False, 'unknown input parameter {}'.format(k)
+                        return False, 'unknown input parameter {} for {}'.format(k, self.type)
+            elif self.type == 'gitlab':
+                for k in dict_inputs:
+                    if k not in ['opt_inDS', 'opt_args', 'opt_projectURL', 'opt_projectID', 'opt_ref',
+                                 'opt_triggerToken', 'opt_accessToken', 'opt_site']:
+                        return False, 'unknown input parameter {} for {}'.format(k, self.type)
         elif self.type == 'workflow':
             reserved_params = ['i']
             loop_global, workflow_global = self.get_global_parameters()
@@ -266,36 +271,7 @@ class Node (object):
                         dict_inputs['opt_args'] = re.sub(m.group(0), tmp_dst, dict_inputs['opt_args'])
             com += shlex.split(dict_inputs['opt_args'])
             if 'opt_inDS' in dict_inputs and dict_inputs['opt_inDS']:
-                if isinstance(dict_inputs['opt_inDS'], list):
-                    is_list_in_ds = True
-                else:
-                    is_list_in_ds = False
-                if 'opt_inDsType' not in dict_inputs or not dict_inputs['opt_inDsType']:
-                    if is_list_in_ds:
-                        in_ds_suffix = []
-                        in_ds_list = dict_inputs['opt_inDS']
-                    else:
-                        in_ds_suffix = None
-                        in_ds_list = [dict_inputs['opt_inDS']]
-                    for tmp_in_ds in in_ds_list:
-                        for parent_id in self.parents:
-                            parent_node = id_map[parent_id]
-                            if tmp_in_ds in parent_node.convert_set_outputs():
-                                if is_list_in_ds:
-                                    in_ds_suffix.append(parent_node.output_types[0])
-                                else:
-                                    in_ds_suffix = parent_node.output_types[0]
-                                break
-                else:
-                    in_ds_suffix = dict_inputs['opt_inDsType']
-                    if '*' in in_ds_suffix:
-                        in_ds_suffix = in_ds_suffix.replace('*', 'XYZ') + '.tgz'
-                if is_list_in_ds:
-                    list_in_ds = ['{}_{}/'.format(s1, s2) if s2 else s1 for s1, s2
-                                  in zip(dict_inputs['opt_inDS'], in_ds_suffix)]
-                else:
-                    list_in_ds = ['{}_{}/'.format(dict_inputs['opt_inDS'], in_ds_suffix) if in_ds_suffix \
-                                      else dict_inputs['opt_inDS']]
+                list_in_ds = self.get_input_ds_list(dict_inputs, id_map)
                 if self.type not in ['reana']:
                     in_ds_str = ','.join(list_in_ds)
                     com += ['--inDS', in_ds_str, '--notExpandInDS', '--notExpandSecDSs']
@@ -451,8 +427,34 @@ class Node (object):
             task_params["jobParameters"] = new_job_params
             # return
             return task_params
-        elif self.type == 'junction':
-            return {}
+        elif self.type == 'gitlab':
+            dict_inputs = self.convert_dict_inputs(skip_suppressed=True)
+            list_in_ds = self.get_input_ds_list(dict_inputs, id_map)
+            task_params = copy.copy(task_template['container'])
+            task_params['taskName'] = task_name
+            task_params['noInput'] = True
+            task_params['nEventsPerJob'] = 1
+            task_params['nEvents'] = 1
+            task_params['processingType'] = re.sub(r'-[^-]+$', '-gitlab', task_params['processingType'])
+            task_params['useSecrets'] = True
+            task_params['site'] = dict_inputs['opt_site']
+            task_params['cliParams'] = ""
+            task_params['log']['container'] = task_params['log']['dataset'] = '{}.log/'.format(task_name)
+            # set gitlab parameters
+            task_params['jobParameters'] = [{'type': 'constant',
+                                             'value': json.dumps(
+                                                 {'project_url': dict_inputs['opt_projectURL'],
+                                                  'project_id': int(dict_inputs['opt_projectID']),
+                                                  'ref': dict_inputs['opt_ref'],
+                                                  'trigger_token': dict_inputs['opt_triggerToken'],
+                                                  'access_token': dict_inputs['opt_accessToken'],
+                                                  'input_datasets': ','.join(list_in_ds)
+                                                  }
+                                             )}]
+
+            del task_params["container_name"]
+            del task_params["multiStepExec"]
+            return task_params
         return None
 
     # get global parameters in the workflow
@@ -492,6 +494,42 @@ class Node (object):
         if m:
             return m.group(1)
         return None
+
+    # def get input dataset list
+    def get_input_ds_list(self, dict_inputs, id_map):
+        if 'opt_inDS' not in dict_inputs:
+            return []
+        if isinstance(dict_inputs['opt_inDS'], list):
+            is_list_in_ds = True
+        else:
+            is_list_in_ds = False
+        if 'opt_inDsType' not in dict_inputs or not dict_inputs['opt_inDsType']:
+            if is_list_in_ds:
+                in_ds_suffix = []
+                in_ds_list = dict_inputs['opt_inDS']
+            else:
+                in_ds_suffix = None
+                in_ds_list = [dict_inputs['opt_inDS']]
+            for tmp_in_ds in in_ds_list:
+                for parent_id in self.parents:
+                    parent_node = id_map[parent_id]
+                    if tmp_in_ds in parent_node.convert_set_outputs():
+                        if is_list_in_ds:
+                            in_ds_suffix.append(parent_node.output_types[0])
+                        else:
+                            in_ds_suffix = parent_node.output_types[0]
+                        break
+        else:
+            in_ds_suffix = dict_inputs['opt_inDsType']
+            if '*' in in_ds_suffix:
+                in_ds_suffix = in_ds_suffix.replace('*', 'XYZ') + '.tgz'
+        if is_list_in_ds:
+            list_in_ds = ['{}_{}/'.format(s1, s2) if s2 else s1 for s1, s2
+                          in zip(dict_inputs['opt_inDS'], in_ds_suffix)]
+        else:
+            list_in_ds = ['{}_{}/'.format(dict_inputs['opt_inDS'], in_ds_suffix) if in_ds_suffix \
+                              else dict_inputs['opt_inDS']]
+        return list_in_ds
 
 
 # dump nodes
