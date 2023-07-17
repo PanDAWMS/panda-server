@@ -160,8 +160,8 @@ class Node (object):
                         return False, 'unknown input parameter {} for {}'.format(k, self.type)
             elif self.type == 'gitlab':
                 for k in dict_inputs:
-                    if k not in ['opt_inDS', 'opt_args', 'opt_projectURL', 'opt_projectID', 'opt_ref',
-                                 'opt_triggerToken', 'opt_accessToken', 'opt_site']:
+                    if k not in ['opt_inDS', 'opt_args', 'opt_api', 'opt_projectID', 'opt_ref',
+                                 'opt_triggerToken', 'opt_accessToken', 'opt_site', 'opt_input_location']:
                         return False, 'unknown input parameter {} for {}'.format(k, self.type)
         elif self.type == 'workflow':
             reserved_params = ['i']
@@ -448,7 +448,8 @@ class Node (object):
                                                   'ref': dict_inputs['opt_ref'],
                                                   'trigger_token': dict_inputs['opt_triggerToken'],
                                                   'access_token': dict_inputs['opt_accessToken'],
-                                                  'input_datasets': ','.join(list_in_ds)
+                                                  'input_datasets': ','.join(list_in_ds),
+                                                  'input_location': dict_inputs.get('opt_input_location')
                                                   }
                                              )}]
 
