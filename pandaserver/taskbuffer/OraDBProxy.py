@@ -2265,6 +2265,7 @@ class DBProxy:
                 # commit
                 if not self._commit():
                     raise RuntimeError('Commit error')
+                self.push_job_status_message(job, pandaID, varMap[':newJobStatus'])
             tmpLog.debug("done {} jobs".format(len(pPandaIDs)))
             return True
         except Exception as e:
@@ -16255,6 +16256,7 @@ class DBProxy:
                 self.recordStatusChange(pandaID,varMap[':newJobStatus'])
             except Exception:
                 _logger.error('recordStatusChange in throttleJob')
+            self.push_job_status_message(None, pandaID, varMap[':newJobStatus'])
             _logger.debug("{0} done with {1}".format(methodName,nRow))
             return nRow
         except Exception:
@@ -16396,6 +16398,7 @@ class DBProxy:
                 self.recordStatusChange(pandaID,varMap[':newJobStatus'])
             except Exception:
                 _logger.error('recordStatusChange in unThrottleJob')
+            self.push_job_status_message(None, pandaID, varMap[':newJobStatus'])
             _logger.debug("{0} done with {1}".format(methodName,nRow))
             return nRow
         except Exception:
@@ -18839,6 +18842,7 @@ class DBProxy:
                 if not self._commit():
                     raise RuntimeError('Commit error')
                 nRow += self.cur.rowcount
+                self.push_job_status_message(None, pandaID, varMap[':newStatus'])
             tmpLog.debug("activated {0} jobs".format(nRow))
             return nRow
         except Exception:
