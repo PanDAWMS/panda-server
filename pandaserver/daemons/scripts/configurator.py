@@ -23,7 +23,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     if len(argv) == 1:
         _logger = logger_utils.make_logger(base_logger, 'Configurator')
         t1 = time.time()
-        configurator = Configurator(taskBuffer=taskBuffer)
+        configurator = Configurator(taskBuffer=taskBuffer, log_stream=_logger)
 
         if not configurator.retrieve_data():
             _logger.error('Data was not retrieved correctly')
@@ -38,7 +38,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     elif len(argv) == 2 and argv[1].lower() == '--network':
         _logger = logger_utils.make_logger(base_logger, 'NetworkConfigurator')
         t1 = time.time()
-        network_configurator = NetworkConfigurator(taskBuffer=taskBuffer)
+        network_configurator = NetworkConfigurator(taskBuffer=taskBuffer, log_stream=_logger)
         if not network_configurator.retrieve_data():
             _logger.error('Data was not retrieved correctly')
             return
@@ -51,7 +51,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     elif len(argv) == 2 and argv[1].lower() == '--json_dump':
         _logger = logger_utils.make_logger(base_logger, 'SchedconfigJsonDumper')
         t1 = time.time()
-        json_dumper = SchedconfigJsonDumper(taskBuffer=taskBuffer)
+        json_dumper = SchedconfigJsonDumper(taskBuffer=taskBuffer, log_stream=_logger)
         out_msg = json_dumper.run()
         _logger.debug('Json_dumper finished with {0}'.format(out_msg))
         t2 = time.time()
