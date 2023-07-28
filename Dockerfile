@@ -17,12 +17,12 @@ RUN yum install -y httpd httpd-devel gridsite git psmisc less wget logrotate pro
     openssl11 openssl11-devel bzip2-devel libffi-devel zlib-devel
 
 # install gcc for https://github.com/python/cpython/issues/94825
+# patch configure to link with OpenSSL 1.1.1
+# install python
 RUN yum install -y centos-release-scl && \
     yum -y install devtoolset-8 && \
-    scl enable devtoolset-8 bash
-
-# install python NB: patch configure to link with OpenSSL 1.1.1
-RUN mkdir /tmp/python && cd /tmp/python && \
+    scl enable devtoolset-8 bash && \
+    mkdir /tmp/python && cd /tmp/python && \
     wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz && \
     tar -xzf Python-*.tgz && rm -f Python-*.tgz && \
     cd Python-* && \
