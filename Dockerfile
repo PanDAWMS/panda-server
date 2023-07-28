@@ -1,16 +1,34 @@
+ARG PYTHON_VERSION=3.11.4
+
 FROM docker.io/centos:7
+
+ARG PYTHON_VERSION
 
 ENV LANG en_US.UTF-8
 ENV LC_ALL en_US.UTF-8
 
 RUN yum update -y
 RUN yum install -y epel-release
-RUN yum install -y python3 python3-devel httpd httpd-devel gcc gridsite less git psmisc wget logrotate
+RUN yum install -y httpd httpd-devel gcc gridsite git psmisc less wget logrotate procps which \
+    openssl-devel bzip2-devel libffi-devel zlib-devel
+
+# install python
+RUN mkdir /tmp/python && cd /tmp/python && \
+    wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz && \
+    tar -xzf Python-*.tgz && rm -f Python-*.tgz && \
+    cd Python-* && \
+    ./configure --enable-optimizations --enable-shared --with-lto && \
+    make altinstall && \
+    echo /usr/local/lib > /etc/ld.so.conf.d/local.conf && ldconfig && \
+    cd / && rm -rf /tmp/pyton
+
+# install postgres
 RUN yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
 RUN yum install -y postgresql14
 RUN yum clean all && rm -rf /var/cache/yum
 
-RUN python3 -m venv /opt/panda
+# setup venv with pythonX.Y
+RUN python$(echo ${PYTHON_VERSION} | sed -E 's/\.[0-9]+$//') -m venv /opt/panda
 RUN /opt/panda/bin/pip install --no-cache-dir -U pip
 RUN /opt/panda/bin/pip install --no-cache-dir -U setuptools
 RUN adduser atlpan
