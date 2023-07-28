@@ -10,17 +10,23 @@ ENV LC_ALL en_US.UTF-8
 RUN yum update -y
 RUN yum install -y epel-release
 RUN yum install -y httpd httpd-devel gcc gridsite git psmisc less wget logrotate procps which \
-    openssl-devel bzip2-devel libffi-devel zlib-devel
+    openssl11 openssl11-devel bzip2-devel libffi-devel zlib-devel
+
+# Changed to install openssl11 since Python requires a OpenSSL 1.1.1 or newer
+#    openssl-devel bzip2-devel libffi-devel zlib-devel
 
 # install python
 RUN mkdir /tmp/python && cd /tmp/python && \
     wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz && \
     tar -xzf Python-*.tgz && rm -f Python-*.tgz && \
     cd Python-* && \
-    ./configure --enable-optimizations --enable-shared --with-lto && \
+    LDFLAGS="${LDFLAGS} -Wl,-rpath=/lib64/openssl11/" ./configure --enable-optimizations --enable-shared --with-lto --with-openssl=/bin/openssl11 && \
     make altinstall && \
     echo /usr/local/lib > /etc/ld.so.conf.d/local.conf && ldconfig && \
     cd / && rm -rf /tmp/pyton
+
+# Changed to link Python against OpenSSL 1.1
+#     ./configure --enable-optimizations --enable-shared --with-lto && \
 
 # install postgres
 RUN yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
