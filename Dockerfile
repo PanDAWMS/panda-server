@@ -9,11 +9,17 @@ ENV LC_ALL en_US.UTF-8
 
 RUN yum update -y
 RUN yum install -y epel-release
-RUN yum install -y httpd httpd-devel gcc gridsite git psmisc less wget logrotate procps which \
+
+# Changed to install openssl11 and gcc since Python requires a OpenSSL 1.1.1 and recent gcc
+# RUN yum install -y python3 python3-devel httpd httpd-devel gcc gridsite git psmisc less wget logrotate procps which \
+#    openssl-devel bzip2-devel libffi-devel zlib-devel
+RUN yum install -y httpd httpd-devel gridsite git psmisc less wget logrotate procps which \
     openssl11 openssl11-devel bzip2-devel libffi-devel zlib-devel
 
-# Changed to install openssl11 since Python requires a OpenSSL 1.1.1 or newer
-#    openssl-devel bzip2-devel libffi-devel zlib-devel
+# install gcc for https://github.com/python/cpython/issues/94825
+RUN yum install -y centos-release-scl && \
+    yum -y install devtoolset-8 && \
+    scl enable devtoolset-8 bash
 
 # install python NB: patch configure to link with OpenSSL 1.1.1
 RUN mkdir /tmp/python && cd /tmp/python && \
