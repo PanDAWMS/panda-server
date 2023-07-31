@@ -17,7 +17,7 @@ RUN yum install -y httpd httpd-devel gcc gridsite git psmisc less wget logrotate
     openssl11 openssl11-devel bzip2-devel libffi-devel zlib-devel
 
 # patch configure to link with OpenSSL 1.1.1
-# removed --enable-optimizations --with-lto for https://github.com/python/cpython/issues/94825
+# removed --with-lto for https://github.com/python/cpython/issues/94825
 # install python
 RUN mkdir /tmp/python && cd /tmp/python && \
     wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz && \
@@ -32,7 +32,7 @@ RUN mkdir /tmp/python && cd /tmp/python && \
 
 # install postgres
 RUN  yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
-RUN  yum install -y postgresql14 && \
+RUN  yum install -y postgresql14
 RUN  yum clean all && rm -rf /var/cache/yum
 
 # setup venv with pythonX.Y
