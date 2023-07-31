@@ -16,19 +16,16 @@ RUN yum install -y epel-release
 RUN yum install -y httpd httpd-devel gridsite git psmisc less wget logrotate procps which \
     openssl11 openssl11-devel bzip2-devel libffi-devel zlib-devel
 
-# install gcc for https://github.com/python/cpython/issues/94825
 # patch configure to link with OpenSSL 1.1.1
+# use -j 1 for https://github.com/python/cpython/issues/94825
 # install python
-RUN yum install -y centos-release-scl && \
-    yum -y install devtoolset-8 && \
-    scl enable devtoolset-8 bash && \
-    mkdir /tmp/python && cd /tmp/python && \
+RUN mkdir /tmp/python && cd /tmp/python && \
     wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz && \
     tar -xzf Python-*.tgz && rm -f Python-*.tgz && \
     cd Python-* && \
     sed -i 's/PKG_CONFIG openssl /PKG_CONFIG openssl11 /g' configure && \
     ./configure --enable-optimizations --enable-shared --with-lto && \
-    make altinstall && \
+    make -j 1 altinstall && \
     echo /usr/local/lib > /etc/ld.so.conf.d/local.conf && ldconfig && \
     cd / && rm -rf /tmp/pyton
 
@@ -50,12 +47,11 @@ WORKDIR /tmp/src
 COPY . .
 
 # install panda-common first to prevent panda-client from installing redundant files
-RUN scl enable devtoolset-8 bash && \
-    /opt/panda/bin/pip install --no-cache-dir panda-common && \
-    /opt/panda/bin/python setup.py sdist; /opt/panda/bin/pip install --no-cache-dir `ls dist/p*.tar.gz`[postgres] && \
-    /opt/panda/bin/pip install --no-cache-dir rucio-clients && \
-    /opt/panda/bin/pip install --no-cache-dir "git+https://github.com/PanDAWMS/panda-cacheschedconfig.git" && \
-    ln -s /opt/panda/lib/python*/site-packages/mod_wsgi/server/mod_wsgi*.so /etc/httpd/modules/mod_wsgi.so
+RUN /opt/panda/bin/pip install --no-cache-dir panda-common
+RUN /opt/panda/bin/python setup.py sdist; /opt/panda/bin/pip install --no-cache-dir `ls dist/p*.tar.gz`[postgres]
+RUN /opt/panda/bin/pip install --no-cache-dir rucio-clients
+RUN /opt/panda/bin/pip install --no-cache-dir "git+https://github.com/PanDAWMS/panda-cacheschedconfig.git"
+RUN ln -s /opt/panda/lib/python*/site-packages/mod_wsgi/server/mod_wsgi*.so /etc/httpd/modules/mod_wsgi.so
 
 WORKDIR /
 RUN rm -rf /tmp/src
