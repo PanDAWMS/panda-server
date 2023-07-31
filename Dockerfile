@@ -24,7 +24,7 @@ RUN mkdir /tmp/python && cd /tmp/python && \
     tar -xzf Python-*.tgz && rm -f Python-*.tgz && \
     cd Python-* && \
     sed -i 's/PKG_CONFIG openssl /PKG_CONFIG openssl11 /g' configure && \
-    ./configure --enable-shared && \
+    ./configure --enable-optimizations --enable-shared && \
     make altinstall && \
     echo /usr/local/lib > /etc/ld.so.conf.d/local.conf && ldconfig && \
     cd / && rm -rf /tmp/pyton
@@ -33,7 +33,7 @@ RUN mkdir /tmp/python && cd /tmp/python && \
 # install postgres
 RUN  yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
 RUN  yum install -y postgresql14 && \
-RUN  yum clean all && rm -rf /var/cache/yum \
+RUN  yum clean all && rm -rf /var/cache/yum
 
 # setup venv with pythonX.Y
 RUN python$(echo ${PYTHON_VERSION} | sed -E 's/\.[0-9]+$//') -m venv /opt/panda
