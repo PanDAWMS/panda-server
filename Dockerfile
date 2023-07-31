@@ -34,13 +34,13 @@ RUN yum install -y centos-release-scl && \
 
 
 # install postgres
-RUN yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
-RUN yum install -y postgresql14
-RUN yum clean all && rm -rf /var/cache/yum
+RUN  yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+RUN  yum install -y postgresql14 && \
+RUN  yum clean all && rm -rf /var/cache/yum \
 
 # setup venv with pythonX.Y
-RUN python$(echo ${PYTHON_VERSION} | sed -E 's/\.[0-9]+$//') -m venv /opt/panda
-RUN /opt/panda/bin/pip install --no-cache-dir -U pip
+RUN python$(echo ${PYTHON_VERSION} | sed -E 's/\.[0-9]+$//') -m venv /opt/panda && \
+/opt/panda/bin/pip install --no-cache-dir -U pip
 RUN /opt/panda/bin/pip install --no-cache-dir -U setuptools
 RUN adduser atlpan
 RUN groupadd zp
@@ -48,12 +48,15 @@ RUN usermod -a -G zp atlpan
 RUN mkdir /tmp/src
 WORKDIR /tmp/src
 COPY . .
+
 # install panda-common first to prevent panda-client from installing redundant files
-RUN /opt/panda/bin/pip install --no-cache-dir panda-common
-RUN /opt/panda/bin/python setup.py sdist; /opt/panda/bin/pip install --no-cache-dir `ls dist/p*.tar.gz`[postgres]
-RUN /opt/panda/bin/pip install --no-cache-dir rucio-clients
-RUN /opt/panda/bin/pip install --no-cache-dir "git+https://github.com/PanDAWMS/panda-cacheschedconfig.git"
-RUN ln -s /opt/panda/lib/python*/site-packages/mod_wsgi/server/mod_wsgi*.so /etc/httpd/modules/mod_wsgi.so
+RUN scl enable devtoolset-8 bash && \
+    /opt/panda/bin/pip install --no-cache-dir panda-common && \
+    /opt/panda/bin/python setup.py sdist; /opt/panda/bin/pip install --no-cache-dir `ls dist/p*.tar.gz`[postgres] && \
+    /opt/panda/bin/pip install --no-cache-dir rucio-clients && \
+    /opt/panda/bin/pip install --no-cache-dir "git+https://github.com/PanDAWMS/panda-cacheschedconfig.git" && \
+    ln -s /opt/panda/lib/python*/site-packages/mod_wsgi/server/mod_wsgi*.so /etc/httpd/modules/mod_wsgi.so
+
 WORKDIR /
 RUN rm -rf /tmp/src
 
