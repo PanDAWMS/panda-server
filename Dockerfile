@@ -10,10 +10,10 @@ ENV LC_ALL en_US.UTF-8
 RUN yum update -y
 RUN yum install -y epel-release
 
-# Changed to install openssl11 and gcc since Python requires a OpenSSL 1.1.1 and recent gcc
+# Changed to install openssl11 since Python requires a OpenSSL 1.1.1
 # RUN yum install -y python3 python3-devel httpd httpd-devel gcc gridsite git psmisc less wget logrotate procps which \
 #    openssl-devel bzip2-devel libffi-devel zlib-devel
-RUN yum install -y httpd httpd-devel gridsite git psmisc less wget logrotate procps which \
+RUN yum install -y httpd httpd-devel gcc gridsite git psmisc less wget logrotate procps which \
     openssl11 openssl11-devel bzip2-devel libffi-devel zlib-devel
 
 # patch configure to link with OpenSSL 1.1.1
@@ -36,8 +36,8 @@ RUN  yum install -y postgresql14 && \
 RUN  yum clean all && rm -rf /var/cache/yum \
 
 # setup venv with pythonX.Y
-RUN python$(echo ${PYTHON_VERSION} | sed -E 's/\.[0-9]+$//') -m venv /opt/panda && \
-/opt/panda/bin/pip install --no-cache-dir -U pip
+RUN python$(echo ${PYTHON_VERSION} | sed -E 's/\.[0-9]+$//') -m venv /opt/panda
+RUN /opt/panda/bin/pip install --no-cache-dir -U pip
 RUN /opt/panda/bin/pip install --no-cache-dir -U setuptools
 RUN adduser atlpan
 RUN groupadd zp
