@@ -1,0 +1,74 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "panda-server"
+dynamic = ["version"]
+description = "PanDA Server Package"
+readme = {"text" = "PanDA Server Package", "content-type" = "text/markdown"}
+license = "Apache-2.0"
+authors = [
+    { name = "PanDA Team", email = "atlas-adc-panda@cern.ch" },
+]
+
+dependencies = [
+    'panda-common>=0.0.34',
+    'panda-client-light>=1.5.55',
+    'pyOpenSSL',
+    'python-daemon',
+    'mod_wsgi',
+    'six',
+    'stomp.py',
+    'pyyaml',
+    'pyjwt',
+    'requests',
+    'psutil>=5.4.8',
+    'idds-common',
+    'idds-client',
+    'idds-workflow>=1.1.0',
+    'idds-doma',
+    'idds-atlas',
+    'ruamel.yaml',
+    'cwl-utils>=0.13',
+    'packaging',
+    'snakemake==6.15.5',
+    'numpy',
+    'scipy'
+]
+
+[project.optional-dependencies]
+oracle = ['cx_Oracle']
+mysql = ['mysqlclient']
+postgres =  ['psycopg2-binary']
+rucio = ['rucio-clients']
+elasticsearch = ['elasticsearch']
+atlasprod =  ['cx_Oracle', 'rucio-clients', 'elasticsearch', 'numpy', 'scipy']
+
+[project.urls]
+Homepage = "https://panda-wms.readthedocs.io/en/latest/"
+
+[tool.hatch.version]
+path = "PandaPkgInfo.py"
+pattern = "release_version = \"(?P<version>[^\"]+)\""
+
+[tool.hatch.build]
+directory = "dist"
+
+[tool.hatch.build.targets.wheel]
+exclude = ["*.template"]
+packages = ["pandaserver"]
+
+[tool.hatch.build.targets.wheel.shared-data]
+"templates" = "etc/panda"
+"templates/init.d" = "etc/rc.d/init.d"
+"templates/systemd" = "etc/systemd/system"
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "package/hatch_build.py"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    ".github",
+    ".idea",
+]
