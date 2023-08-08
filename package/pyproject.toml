@@ -9,7 +9,7 @@ description = "PanDA Server Package"
 readme = "README.md"
 license = "Apache-2.0"
 authors = [
-    { name = "PanDA Team", email = "atlas-adc-panda@cern.ch" },
+    { name = "PanDA Team", email = "panda-support@cern.ch" },
 ]
 
 dependencies = [
