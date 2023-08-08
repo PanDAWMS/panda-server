@@ -81,7 +81,7 @@ class CustomBuildHook(BuildHookInterface):
                     patt = re.sub('/var/tmp/.*-buildroot', '', patt)
                     # replace
                     file_data = file_data.replace('@@%s@@' % item, patt)
-                out_f = re.sub(r'\.template$', '', in_f)
+                out_f = re.sub(r'(\.exe)*\.template$', '', in_f)
                 with open(out_f, 'w') as out_fh:
                     out_fh.write(file_data)
                 # chmod +x
