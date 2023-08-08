@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "panda-server"
 dynamic = ["version"]
 description = "PanDA Server Package"
-readme = {"text" = "PanDA Server Package", "content-type" = "text/markdown"}
+readme = "README.md"
 license = "Apache-2.0"
 authors = [
     { name = "PanDA Team", email = "atlas-adc-panda@cern.ch" },
