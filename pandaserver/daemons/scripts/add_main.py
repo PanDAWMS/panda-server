@@ -198,7 +198,7 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
             time.sleep(sleep_time)
 
     # stop TaskBuffer IF
-    taskBufferIF.stop()
+    taskBufferIF.stop(requester=requester_id)
 
     # stop taskBuffer if created inside this script
     if tbuf is None:

@@ -4,30 +4,30 @@ import time
 import pickle
 import threading
 import multiprocessing
-from concurrent.futures import  ThreadPoolExecutor
-
-# required to reserve changed attributes
+from concurrent.futures import ThreadPoolExecutor
 
 from pandaserver.taskbuffer import JobSpec
 from pandaserver.taskbuffer import FileSpec
+
 JobSpec.reserveChangedState = True
 FileSpec.reserveChangedState = True
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
+
 _logger = PandaLogger().getLogger('TaskBufferInterface')
 
 
 # method class
 class TaskBufferMethod:
-    def __init__(self,methodName,commDict,childlock,comLock,resLock):
+    def __init__(self, methodName, commDict, childlock, comLock, resLock):
         self.methodName = methodName
         self.childlock = childlock
         self.commDict = commDict
         self.comLock = comLock
         self.resLock = resLock
 
-    def __call__(self,*args,**kwargs):
+    def __call__(self, *args, **kwargs):
         log = LogWrapper(_logger, 'pid={} thr={} {}'.format(os.getpid(),
                                                             threading.current_thread().ident,
                                                             self.methodName))
@@ -51,26 +51,23 @@ class TaskBufferMethod:
         if statusCode == 0:
             return res
         else:
-            errtype,errvalue = res
-            raise RuntimeError("{0}: {1} {2}".format(self.methodName,errtype.__name__,errvalue))
-
+            errtype, errvalue = res
+            raise RuntimeError("{0}: {1} {2}".format(self.methodName, errtype.__name__, errvalue))
 
 
 # child class
 class TaskBufferInterfaceChild:
     # constructor
-    def __init__(self,commDict,childlock,comLock,resLock):
+    def __init__(self, commDict, childlock, comLock, resLock):
         self.childlock = childlock
         self.commDict = commDict
         self.comLock = comLock
         self.resLock = resLock
 
-
     # method emulation
-    def __getattr__(self,attrName):
-        return TaskBufferMethod(attrName,self.commDict,self.childlock,
-                                self.comLock,self.resLock)
-
+    def __getattr__(self, attrName):
+        return TaskBufferMethod(attrName, self.commDict, self.childlock,
+                                self.comLock, self.resLock)
 
 
 # master class
@@ -84,7 +81,8 @@ class TaskBufferInterface:
     # main loop
     def run(self, taskBuffer, commDict, comLock, resLock, to_stop):
         with ThreadPoolExecutor(max_workers=taskBuffer.get_num_connections()) as pool:
-            [pool.submit(self.thread_run, taskBuffer, commDict[i], comLock[i], resLock[i], to_stop) for i in commDict.keys()]
+            [pool.submit(self.thread_run, taskBuffer, commDict[i], comLock[i], resLock[i], to_stop) for i in
+             commDict.keys()]
 
     # main loop
     def thread_run(self, taskBuffer, commDict, comLock, resLock, to_stop):
@@ -102,7 +100,7 @@ class TaskBufferInterface:
                 args = pickle.loads(commDict['args'])
                 kwargs = pickle.loads(commDict['kwargs'])
                 # execute
-                method = getattr(taskBuffer,methodName)
+                method = getattr(taskBuffer, methodName)
                 res = method(*args, **kwargs)
                 commDict['stat'] = 0
                 # set response
@@ -132,24 +130,21 @@ class TaskBufferInterface:
         # run
         self.process = multiprocessing.Process(target=self.run,
                                                args=(taskBuffer,
-                                                        self.commDict, self.comLock,
-                                                        self.resLock, self.to_stop))
+                                                     self.commDict, self.comLock,
+                                                     self.resLock, self.to_stop))
         self.process.start()
-
 
     # get interface for child
     def getInterface(self):
         return TaskBufferInterfaceChild(self.commDict, self.childlock, self.comLock, self.resLock)
 
-
     # stop the loop
-    def stop(self):
+    def stop(self, requester=requester_id):
         with self.to_stop.get_lock():
             self.to_stop.value = 1
         while self.process.is_alive():
             time.sleep(1)
-        self.taskBuffer.cleanup()
-
+        self.taskBuffer.cleanup(requester=requester)
 
     # kill
     def terminate(self):
