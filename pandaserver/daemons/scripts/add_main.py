@@ -21,7 +21,7 @@ _logger = PandaLogger().getLogger('add_main')
 # main
 def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
 
-    requester_id = "{0}({1})".format(sys.modules[__name__], GenericThread().get_pid())
+    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
 
     prelock_pid = GenericThread().get_pid()
     tmpLog = LogWrapper(_logger, "<pid={}>".format(prelock_pid))

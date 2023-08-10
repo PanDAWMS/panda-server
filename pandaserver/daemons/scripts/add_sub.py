@@ -25,7 +25,7 @@ _logger = PandaLogger().getLogger('add_sub')
 def main(argv=tuple(), tbuf=None, **kwargs):
 
     tmp_log = LogWrapper(_logger, None)
-    requester_id = "{0}({1})".format(sys.modules[__name__], GenericThread().get_pid())
+    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
 
     tmp_log.debug("===================== start =====================")
 

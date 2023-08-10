@@ -69,7 +69,8 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
     givenTaskID = None
     dn = None
 
-    requester_id = "{0}({1})".format(sys.modules[__name__], GenericThread().get_pid())
+    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+
     if taskBuffer is None:
         # instantiate TB
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer

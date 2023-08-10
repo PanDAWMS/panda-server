@@ -13,7 +13,8 @@ base_logger = carbon_module._logger
 
 # main
 def main(argv=tuple(), tbuf=None, **kwargs):
-    requester_id = "{0}({1})".format(sys.modules[__name__], GenericThread().get_pid())
+
+    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
 
     # instantiate TB
     if tbuf is None:

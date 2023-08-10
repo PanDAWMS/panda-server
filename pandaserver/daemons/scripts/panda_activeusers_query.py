@@ -16,7 +16,7 @@ _logger = PandaLogger().getLogger('panda_activeusers_query')
 def main(tbuf=None, **kwargs):
     # logger
     tmpLog = LogWrapper(_logger)
-    requester_id = "{0}({1})".format(sys.modules[__name__], GenericThread().get_pid())
+    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
 
     tmpLog.debug("================= start ==================")
     # instantiate TB

@@ -41,7 +41,8 @@ CMD_STOP = '__STOP'
 # epoch datetime
 EPOCH = datetime.datetime.fromtimestamp(0)
 
-requester_id = "{0}({1})".format(sys.modules[__name__], GenericThread().get_pid())
+
+requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
 
 # kill process tree
 def kill_proc_tree(pid, sig=signal.SIGKILL, include_parent=True,

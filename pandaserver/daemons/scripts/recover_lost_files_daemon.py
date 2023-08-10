@@ -29,7 +29,8 @@ def main(tbuf=None, **kwargs):
     evpFilePatt = panda_config.cache_dir + '/' + prefixEVP + '*'
 
     from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-    requester_id = "{0}({1})".format(sys.modules[__name__], GenericThread().get_pid())
+
+    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
     taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd,
                     nDBConnection=1, useTimeout=True, requester=requester_id)
 
