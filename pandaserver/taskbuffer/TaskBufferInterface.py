@@ -139,7 +139,7 @@ class TaskBufferInterface:
         return TaskBufferInterfaceChild(self.commDict, self.childlock, self.comLock, self.resLock)
 
     # stop the loop
-    def stop(self, requester=requester_id):
+    def stop(self, requester=None):
         with self.to_stop.get_lock():
             self.to_stop.value = 1
         while self.process.is_alive():
