@@ -238,7 +238,7 @@ setup(
     author_email='atlas-adc-panda@cern.ch',
     url='https://twiki.cern.ch/twiki/bin/view/Atlas/PanDA',
     zip_safe=False,
-    install_requires=['panda-common>=0.0.34',
+    install_requires=['panda-common>=0.0.42',
                       'panda-client-light>=1.5.55',
                       'pyOpenSSL',
                       'python-daemon',

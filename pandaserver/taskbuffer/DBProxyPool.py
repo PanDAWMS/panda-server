@@ -19,9 +19,10 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 # logger
 _logger = PandaLogger().getLogger('DBProxyPool')
 
+
 class DBProxyPool:
-    
-    def __init__(self,dbhost,dbpasswd,nConnection,useTimeout=False,dbProxyClass=None):
+
+    def __init__(self, dbhost, dbpasswd, nConnection, useTimeout=False, dbProxyClass=None):
         # crate lock for callers
         self.lock = Lock()
         self.callers = []
@@ -33,23 +34,27 @@ class DBProxyPool:
             _logger.debug("connect -> %s " % i)
             if dbProxyClass is not None:
                 proxy = dbProxyClass()
-            elif useTimeout and hasattr(panda_config,'usedbtimeout') and \
-                   panda_config.usedbtimeout is True:
+            elif useTimeout and hasattr(panda_config, 'usedbtimeout') and \
+                    panda_config.usedbtimeout is True:
+                """
+                ConBridge allows having database interactions in separate processes and killing them independently when interactions are stalled.
+                This avoids clogged httpd processes due to stalled database accesses.
+                """
                 proxy = ConBridge()
             else:
                 proxy = DBProxy.DBProxy()
                 self.connList.append(proxy)
-            iTry = 0    
+            iTry = 0
             while True:
-                if proxy.connect(dbhost,dbpasswd,dbtimeout=60):
+                if proxy.connect(dbhost, dbpasswd, dbtimeout=60):
                     break
                 iTry += 1
-                _logger.debug("failed -> %s : try %s" % (i,iTry))
-                time.sleep(random.randint(60,90))
+                _logger.debug("failed -> %s : try %s" % (i, iTry))
+                time.sleep(random.randint(60, 90))
             self.proxyList.put(proxy)
             time.sleep(1)
         # get PID    
-        self.pid = os.getpid()    
+        self.pid = os.getpid()
         _logger.debug("ready")
 
     # return a free proxy. this method blocks until a proxy is available
@@ -62,7 +67,7 @@ class DBProxyPool:
         return proxy
 
     # put back a proxy
-    def putProxy(self,proxy):
+    def putProxy(self, proxy):
         self.proxyList.put(proxy)
 
     # cleanup
