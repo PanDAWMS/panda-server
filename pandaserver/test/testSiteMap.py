@@ -1,11 +1,12 @@
+import sys
+
+from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 from pandaserver.brokerage import SiteMapper
-
-# password
 from pandaserver.config import panda_config
 
-# instantiate TB
-taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
+requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, requester=requester_id)
 
 siteMapper = SiteMapper.SiteMapper(taskBuffer)
 

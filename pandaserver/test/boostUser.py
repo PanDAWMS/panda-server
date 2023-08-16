@@ -1,11 +1,10 @@
 import sys
+
 from pandaserver.config import panda_config
-
 from pandaserver.taskbuffer.Initializer import initializer
-
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-
+from pandacommon.pandautils.thread_utils import GenericThread
 
 # initialize cx_Oracle using dummy connection
 initializer.init()
@@ -15,7 +14,8 @@ _logger = PandaLogger().getLogger('boostUser')
 _logger.debug("================= start ==================")
 
 # instantiate TB
-taskBuffer.init(panda_config.dbhost,panda_config.dbpasswd,nDBConnection=1)
+requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, requester=requester_id)
 
 user = sys.stdin.read()
 user = user[:-1]

@@ -1,10 +1,11 @@
 import time
 import traceback
+import sys
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.Utils import create_shards
-
 
 # logger
 _logger = PandaLogger().getLogger('worker_sync')
@@ -67,14 +68,16 @@ def main(tbuf=None, **kwargs):
     # instantiate TB
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, useTimeout=True)
+        requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd,
+                        nDBConnection=1, useTimeout=True, requester=requester_id)
     else:
         taskBuffer = tbuf
     # run
     WorkerSync(tbuf=taskBuffer).run()
     # stop taskBuffer if created inside this script
     if tbuf is None:
-        taskBuffer.cleanup()
+        taskBuffer.cleanup(requester=requester_id)
 
 
 # run
