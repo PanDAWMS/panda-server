@@ -13,7 +13,7 @@ class FileSpec(object):
                    'destinationDBlockToken', 'destinationSE', 'fsize', 'md5sum', 'checksum', 'scope',
                    'jediTaskID', 'datasetID', 'fileID', 'attemptNr')
     # slots
-    __slots__ = _attributes + ('_owner', '_changedAttrs', '_oldPandaID')
+    __slots__ = _attributes + ('_owner', '_changedAttrs', '_oldPandaID', '_reserveChangedState')
     # attributes which have 0 by default
     _zeroAttrs = ('fsize',)
     # mapping between sequence and attr
@@ -30,6 +30,8 @@ class FileSpec(object):
         object.__setattr__(self, '_changedAttrs', {})
         # old PandaID
         object.__setattr__(self, '_oldPandaID', 'NULL')
+        # reserve changed state at instance level
+        object.__setattr__(self, '_reserveChangedState', False)
 
     # override __getattribute__ for SQL and PandaID
     def __getattribute__(self, name):
@@ -105,7 +107,7 @@ class FileSpec(object):
         for attr in self._attributes:
             val = getattr(self, attr)
             state.append(val)
-        if reserveChangedState:
+        if reserveChangedState or self._reserveChangedState:
             state.append(self._changedAttrs)
         # append owner info
         state.append(self._owner)
@@ -123,7 +125,9 @@ class FileSpec(object):
                 pandaID = state[i]
         object.__setattr__(self, '_owner', state[-1])
         object.__setattr__(self, '_oldPandaID', pandaID)
-        if reserveChangedState:
+        if not hasattr(self, '_reserveChangedState'):
+            object.__setattr__(self, '_reserveChangedState', False)
+        if reserveChangedState or self._reserveChangedState:
             object.__setattr__(self, '_changedAttrs', state[-2])
         else:
             object.__setattr__(self, '_changedAttrs', {})
