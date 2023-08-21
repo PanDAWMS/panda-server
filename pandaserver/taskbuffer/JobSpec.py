@@ -37,7 +37,7 @@ class JobSpec(object):
                    'gco2_regional', 'gco2_global', 'cpu_architecture_level'
                    )
     # slots
-    __slots__ = _attributes + ('Files', '_changedAttrs')
+    __slots__ = _attributes + ('Files', '_changedAttrs', '_reserveChangedState')
     # attributes which have 0 by default
     _zeroAttrs = ('assignedPriority', 'currentPriority', 'attemptNr', 'maxAttempt', 'maxCpuCount', 'maxDiskCount',
                   'minRamCount', 'cpuConsumptionTime', 'pilotErrorCode', 'exeErrorCode', 'supErrorCode', 'ddmErrorCode',
@@ -101,6 +101,8 @@ class JobSpec(object):
         object.__setattr__(self, 'Files', [])
         # map of changed attributes
         object.__setattr__(self, '_changedAttrs', {})
+        # reserve changed state at instance level
+        object.__setattr__(self, '_reserveChangedState', False)
 
     # override __getattribute__ for SQL
     def __getattribute__(self, name):
@@ -178,7 +180,7 @@ class JobSpec(object):
         for attr in self._attributes:
             val = getattr(self, attr)
             state.append(val)
-        if reserveChangedState:
+        if reserveChangedState or self._reserveChangedState:
             state.append(self._changedAttrs)
         # append File info
         state.append(self.Files)
@@ -193,7 +195,9 @@ class JobSpec(object):
             else:
                 object.__setattr__(self, self._attributes[i], 'NULL')
         object.__setattr__(self, 'Files', state[-1])
-        if reserveChangedState:
+        if not hasattr(self, '_reserveChangedState'):
+            object.__setattr__(self, '_reserveChangedState', False)
+        if reserveChangedState or self._reserveChangedState:
             object.__setattr__(self, '_changedAttrs', state[-2])
         else:
             object.__setattr__(self, '_changedAttrs', {})
