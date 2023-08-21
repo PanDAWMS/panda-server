@@ -12,6 +12,7 @@ from pandaserver.config import panda_config
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandaserver.taskbuffer import EventServiceUtils
+from pandaserver.taskbuffer.PickleJobSpec import PickleJobSpec
 
 # logger
 _logger = PandaLogger().getLogger('Setupper')
@@ -53,6 +54,13 @@ class Setupper (threading.Thread):
             if not self.forkRun:
                 tmpLog.debug('main start')
                 tmpLog.debug('firstSubmission={0}'.format(self.firstSubmission))
+                # make Specs pickleable
+                p_job_list = []
+                for job_spec in self.jobs:
+                    p_job = PickleJobSpec()
+                    p_job.update(job_spec)
+                    p_job_list.append(p_job)
+                self.jobs = p_job_list
                 # group jobs per VO
                 voJobsMap = {}
                 ddmFreeJobs = []
