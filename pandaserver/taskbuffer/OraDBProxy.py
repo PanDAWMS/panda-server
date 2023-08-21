@@ -93,6 +93,9 @@ def get_mb_proxy_dict():
             out_q_list = ['panda_jobstatus', 'panda_jedi', 'panda_pilot_topic', 'panda_pilot_queue']
             mp_agent = MsgProcAgent(config_file=panda_config.mbproxy_configFile)
             mb_proxy_dict = mp_agent.start_passive_mode(in_q_list=[], out_q_list=out_q_list)
+            # stop with atexit
+            atexit.register(mp_agent.stop_passive_mode)
+            # return
             return mb_proxy_dict
     except Exception as exc:
         _logger.error(f'Error on get_mb_proxy_dict : {traceback.format_exc()}')
