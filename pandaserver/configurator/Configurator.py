@@ -25,7 +25,7 @@ class Configurator(threading.Thread):
         if log_stream:
             self.log_stream = log_stream
         else:
-            self.log_stream = self.log_stream
+            self.log_stream = _logger
 
         if hasattr(panda_config, 'CRIC_URL_SITES'):
             self.CRIC_URL_SITES = panda_config.CRIC_URL_SITES
@@ -549,7 +549,7 @@ class NetworkConfigurator(threading.Thread):
         if log_stream:
             self.log_stream = log_stream
         else:
-            self.log_stream = self.log_stream
+            self.log_stream = _logger
 
         if hasattr(panda_config, 'NWS_URL'):
             self.NWS_URL = panda_config.NWS_URL
@@ -767,7 +767,7 @@ class SchedconfigJsonDumper(threading.Thread):
         if log_stream:
             self.log_stream = log_stream
         else:
-            self.log_stream = self.log_stream
+            self.log_stream = _logger
 
         if hasattr(panda_config, 'CRIC_URL_SCHEDCONFIG'):
             self.CRIC_URL_SCHEDCONFIG = panda_config.CRIC_URL_SCHEDCONFIG
@@ -803,7 +803,7 @@ class SWTagsDumper(threading.Thread):
         if log_stream:
             self.log_stream = log_stream
         else:
-            self.log_stream = self.log_stream
+            self.log_stream = _logger
 
         if hasattr(panda_config, 'CRIC_URL_SCHEDCONFIG'):
             self.CRIC_URL_TAGS = panda_config.CRIC_URL_TAGS
