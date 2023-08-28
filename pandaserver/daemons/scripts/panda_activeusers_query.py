@@ -1,7 +1,8 @@
-import re
+import sys
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.config import panda_config
 from pandaserver.proxycache import panda_proxy_cache
 from pandaserver.srvcore import CoreUtils
@@ -15,13 +16,15 @@ _logger = PandaLogger().getLogger('panda_activeusers_query')
 def main(tbuf=None, **kwargs):
     # logger
     tmpLog = LogWrapper(_logger)
+    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
 
     tmpLog.debug("================= start ==================")
     # instantiate TB
     if tbuf is None:
         tmpLog.debug("Getting new connection")
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, useTimeout=True)
+        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd,
+                        nDBConnection=1, useTimeout=True, requester=requesterd_id)
         tmpLog.debug("Getting new connection - done")
     else:
         tmpLog.debug("Reusing connection")
@@ -35,6 +38,7 @@ def main(tbuf=None, **kwargs):
         roles = panda_config.proxy_cache_roles.split(',')
     else:
         roles = ['atlas', 'atlas:/atlas/Role=production', 'atlas:/atlas/Role=pilot']
+
     # get users
     sql = 'select distinct DN FROM ATLAS_PANDAMETA.users WHERE GRIDPREF LIKE :patt'
     varMap = {}
@@ -51,9 +55,10 @@ def main(tbuf=None, **kwargs):
         tmpLog.debug("check proxy cache for {}".format(name))
         for role in roles:
             my_proxy_interface_instance.checkProxy(realDN, role=role, name=name)
+
     # stop taskBuffer if created inside this script
     if tbuf is None:
-        taskBuffer.cleanup()
+        taskBuffer.cleanup(requester=requester_id)
         tmpLog.debug("Stopped the new connection")
     tmpLog.debug("done")
 

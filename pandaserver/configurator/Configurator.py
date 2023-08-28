@@ -18,10 +18,14 @@ DEFAULT = 'default'
 
 class Configurator(threading.Thread):
 
-    def __init__(self, taskBuffer):
+    def __init__(self, taskBuffer, log_stream=None):
         threading.Thread.__init__(self)
 
         self.taskBuffer = taskBuffer
+        if log_stream:
+            self.log_stream = log_stream
+        else:
+            self.log_stream = self.log_stream
 
         if hasattr(panda_config, 'CRIC_URL_SITES'):
             self.CRIC_URL_SITES = panda_config.CRIC_URL_SITES
@@ -55,63 +59,68 @@ class Configurator(threading.Thread):
 
     def retrieve_data(self):
 
-        _logger.debug('Getting site dump...')
+        self.log_stream.debug('Getting site dump...')
         self.site_dump = aux.get_dump(self.CRIC_URL_SITES)
         if not self.site_dump:
-            _logger.error('The site dump was not retrieved correctly')
+            self.log_stream.error('The site dump was not retrieved correctly')
             return False
-        _logger.debug('Done')
+        self.log_stream.debug('Done')
         self.site_endpoint_dict = self.get_site_endpoint_dictionary()
 
-        _logger.debug('Getting DDM endpoints dump...')
+        self.log_stream.debug('Getting DDM endpoints dump...')
         self.endpoint_dump = aux.get_dump(self.CRIC_URL_DDMENDPOINTS)
         if not self.endpoint_dump:
-            _logger.error('The endpoint dump was not retrieved correctly')
+            self.log_stream.error('The endpoint dump was not retrieved correctly')
             return False
-        _logger.debug('Done')
-        _logger.debug('Parsing endpoints...')
+        self.log_stream.debug('Done')
+        self.log_stream.debug('Parsing endpoints...')
         self.endpoint_token_dict = self.parse_endpoints()
-        _logger.debug('Done')
+        self.log_stream.debug('Done')
 
-        _logger.debug('Getting schedconfig dump...')
+        self.log_stream.debug('Getting schedconfig dump...')
         self.schedconfig_dump = aux.get_dump(self.CRIC_URL_SCHEDCONFIG)
         if not self.schedconfig_dump:
-            _logger.error('The schedconfig dump was not retrieved correctly')
+            self.log_stream.error('The schedconfig dump was not retrieved correctly')
             return False
-        _logger.debug('Done')
+        self.log_stream.debug('Done')
 
-        _logger.debug('Getting ddmblacklist dump...')
+        self.log_stream.debug('Getting ddmblacklist dump...')
         try:
-            self.blacklisted_endpoints = list(aux.get_dump(self.CRIC_URL_DDMBLACKLIST))
-            if not self.blacklisted_endpoints:
-                _logger.error('The blacklisted endpoint dump was not retrieved correctly')
-                return False
+            if self.CRIC_URL_DDMBLACKLIST:
+                self.blacklisted_endpoints = list(aux.get_dump(self.CRIC_URL_DDMBLACKLIST))
+                if not self.blacklisted_endpoints:
+                    self.log_stream.error('The blacklisted endpoint dump was not retrieved correctly')
+                    return False
+            else:
+                self.blacklisted_endpoints = []
             self.blacklisted_endpoints_write = self.blacklisted_endpoints
         except TypeError:
             self.blacklisted_endpoints = []
             self.blacklisted_endpoints_write = []
-        _logger.debug('Blacklisted endpoints {0}'.format(self.blacklisted_endpoints))
-        _logger.debug('Blacklisted endpoints write {0}'.format(self.blacklisted_endpoints_write))
-        _logger.debug('Done')
+        self.log_stream.debug('Blacklisted endpoints {0}'.format(self.blacklisted_endpoints))
+        self.log_stream.debug('Blacklisted endpoints write {0}'.format(self.blacklisted_endpoints_write))
+        self.log_stream.debug('Done')
 
-        _logger.debug('Getting ddmblacklist read dump...')
+        self.log_stream.debug('Getting ddmblacklist read dump...')
         try:
-            self.blacklisted_endpoints_read = list(aux.get_dump(self.CRIC_URL_DDMBLACKLIST_READ))
-
+            if self.CRIC_URL_DDMBLACKLIST_READ:
+                self.blacklisted_endpoints_read = list(aux.get_dump(self.CRIC_URL_DDMBLACKLIST_READ))
+                if not self.blacklisted_endpoints_read:
+                    self.log_stream.error('The blacklisted endpoint for read dump was not retrieved correctly')
+                    return False
+            else:
+                self.blacklisted_endpoints_read = []
         except TypeError:
             self.blacklisted_endpoints_read = []
-            if not self.blacklisted_endpoints_read:
-                _logger.error('The blacklisted endpoint for read dump was not retrieved correctly')
-                return False
-        _logger.debug('Blacklisted endpoints read {0}'.format(self.blacklisted_endpoints_read))
-        _logger.debug('Done')
+        self.log_stream.debug('Blacklisted endpoints read {0}'.format(self.blacklisted_endpoints_read))
+        self.log_stream.debug('Done')
 
-        _logger.debug('Getting Rucio RSE usage dump...')
+        self.log_stream.debug('Getting Rucio RSE usage dump...')
         self.rse_usage = aux.get_dump(self.RUCIO_RSE_USAGE)
         if not self.rse_usage:
-            _logger.error('The RSE usage dump was not retrieved correctly')
+            self.log_stream.error('The RSE usage dump was not retrieved correctly')
             return False
-        _logger.debug('Done')
+        self.log_stream.debug('Done')
 
         return True
 
@@ -146,7 +155,7 @@ class Configurator(threading.Thread):
                 else:
                     endpoint_token_dict[endpoint]['is_tape'] = 'N'
             else:
-                _logger.debug('parse_endpoints: skipped endpoint {0} (type: {1}, state: {2})'
+                self.log_stream.debug('parse_endpoints: skipped endpoint {0} (type: {1}, state: {2})'
                               .format(endpoint, endpoint_config['type'], endpoint_config['state']))
 
         return endpoint_token_dict
@@ -177,7 +186,7 @@ class Configurator(threading.Thread):
             panda_ddm_relation_list = self.get_panda_ddm_relations()
         except Exception:
             # Temporary protection to prevent issues
-            _logger.error('get_panda_ddm_relations excepted with {0}'.format(traceback.print_exc()))
+            self.log_stream.error('get_panda_ddm_relations excepted with {0}'.format(traceback.print_exc()))
             panda_ddm_relation_list = []
 
         # Iterate the site dump
@@ -190,7 +199,7 @@ class Configurator(threading.Thread):
                                    'tier_level': tier_level})
                 included_sites.append(site_name)
             else:
-                _logger.debug('process_site_dumps: skipped site {0} (state: {1})'.format(site_name, site_state))
+                self.log_stream.debug('process_site_dumps: skipped site {0} (state: {1})'.format(site_name, site_state))
 
             # Get the DDM endpoints for the site we are inspecting
             for ddm_endpoint_name in site_config['ddmendpoints']:
@@ -201,44 +210,44 @@ class Configurator(threading.Thread):
                     ddm_endpoint_is_tape = self.endpoint_token_dict[ddm_endpoint_name]['is_tape']
                     if ddm_endpoint_name in self.blacklisted_endpoints:
                         ddm_endpoint_blacklisted_write = 'Y'
-                        _logger.debug('process_site_dumps: endpoint {0} is blacklisted for write'.format(ddm_endpoint_name))
+                        self.log_stream.debug('process_site_dumps: endpoint {0} is blacklisted for write'.format(ddm_endpoint_name))
                     else:
                         ddm_endpoint_blacklisted_write = 'N'
-                        _logger.debug('process_site_dumps: endpoint {0} is NOT blacklisted for write'.format(ddm_endpoint_name))
+                        self.log_stream.debug('process_site_dumps: endpoint {0} is NOT blacklisted for write'.format(ddm_endpoint_name))
 
                     if ddm_endpoint_name in self.blacklisted_endpoints_read:
                         ddm_endpoint_blacklisted_read = 'Y'
-                        _logger.debug('process_site_dumps: endpoint {0} is blacklisted for read'.format(ddm_endpoint_name))
+                        self.log_stream.debug('process_site_dumps: endpoint {0} is blacklisted for read'.format(ddm_endpoint_name))
                     else:
                         ddm_endpoint_blacklisted_read = 'N'
-                        _logger.debug('process_site_dumps: endpoint {0} is NOT blacklisted for read'.format(ddm_endpoint_name))
+                        self.log_stream.debug('process_site_dumps: endpoint {0} is NOT blacklisted for read'.format(ddm_endpoint_name))
                 except KeyError:
                     continue
 
                 # Get the storage space
                 try:
                     space_used = self.rse_usage[ddm_endpoint_name]['storage']['used']/GB
-                    _logger.debug('process_site_dumps: endpoint {0} has used space {1}GB'.format(ddm_endpoint_name,
+                    self.log_stream.debug('process_site_dumps: endpoint {0} has used space {1}GB'.format(ddm_endpoint_name,
                                                                                                  space_used))
                     space_free = self.rse_usage[ddm_endpoint_name]['storage']['free']/GB
-                    _logger.debug('process_site_dumps: endpoint {0} has free space {1}GB'.format(ddm_endpoint_name,
+                    self.log_stream.debug('process_site_dumps: endpoint {0} has free space {1}GB'.format(ddm_endpoint_name,
                                                                                                  space_free))
                     space_total = space_used + space_free
                     space_timestamp = datetime.strptime(self.rse_usage[ddm_endpoint_name]['storage']['updated_at'],
                                                         '%Y-%m-%d %H:%M:%S')
-                    _logger.debug('process_site_dumps: endpoint {0} has space timestamp {1}'.format(ddm_endpoint_name,
+                    self.log_stream.debug('process_site_dumps: endpoint {0} has space timestamp {1}'.format(ddm_endpoint_name,
                                                                                                     space_timestamp))
 
                 except (KeyError, ValueError):
                     space_used, space_free, space_total, space_timestamp = None, None, None, None
-                    _logger.warning('process_site_dumps: no rse storage usage information for {0}'.format(ddm_endpoint_name))
+                    self.log_stream.warning('process_site_dumps: no rse storage usage information for {0}'.format(ddm_endpoint_name))
 
                 # Get the Expired space
                 try:
                     space_expired = self.rse_usage[ddm_endpoint_name]['expired']['used']/GB
                 except KeyError:
                     space_expired = 0
-                    _logger.warning('process_site_dumps: no rse EXPIRED usage information for {0}'
+                    self.log_stream.warning('process_site_dumps: no rse EXPIRED usage information for {0}'
                                     .format(ddm_endpoint_name))
 
                 ddm_spacetoken_state = site_config['ddmendpoints'][ddm_endpoint_name]['state']
@@ -257,9 +266,9 @@ class Configurator(threading.Thread):
                                                'space_expired': space_expired,
                                                'space_timestamp': space_timestamp
                                                })
-                    _logger.debug('process_site_dumps: added DDM endpoint {0}'.format(ddm_endpoint_name))
+                    self.log_stream.debug('process_site_dumps: added DDM endpoint {0}'.format(ddm_endpoint_name))
                 else:
-                    _logger.debug('process_site_dumps: skipped DDM endpoint {0} because of state {1}'
+                    self.log_stream.debug('process_site_dumps: skipped DDM endpoint {0} because of state {1}'
                                   .format(ddm_endpoint_name, ddm_spacetoken_state))
 
             # Get the PanDA resources
@@ -267,7 +276,7 @@ class Configurator(threading.Thread):
                 for panda_site in site_config['presources'][panda_resource]:
                     panda_site_state = site_config['presources'][panda_resource][panda_site]['state']
                     if panda_site_state != 'ACTIVE':
-                        _logger.debug('process_site_dumps: skipped PanDA site {0} (state: {1})'
+                        self.log_stream.debug('process_site_dumps: skipped PanDA site {0} (state: {1})'
                                       .format(panda_site, panda_site_state))
                         continue
                     panda_site_name = panda_site
@@ -364,7 +373,7 @@ class Configurator(threading.Thread):
                         try:
                             storage_site_name = self.endpoint_token_dict[ddm_endpoint_name]['site_name']
                         except KeyError:
-                            _logger.warning("Skipped {0}, because primary associated DDM endpoint {1} not found (e.g.DISABLED)"
+                            self.log_stream.warning("Skipped {0}, because primary associated DDM endpoint {1} not found (e.g.DISABLED)"
                                             .format(long_panda_site_name, ddm_endpoint_name))
                             continue
 
@@ -405,11 +414,11 @@ class Configurator(threading.Thread):
         """
         # Check for site inconsistencies
         CRIC_sites = set([site_name for site_name, site_config in self.site_dump.items() if site_config['state'] == 'ACTIVE'])
-        _logger.debug("Sites in CRIC {0}".format(CRIC_sites))
+        self.log_stream.debug("Sites in CRIC {0}".format(CRIC_sites))
         configurator_sites = self.taskBuffer.configurator_read_sites()
-        _logger.debug("Sites in Configurator {0}".format(configurator_sites))
+        self.log_stream.debug("Sites in Configurator {0}".format(configurator_sites))
         schedconfig_sites = self.taskBuffer.configurator_read_cric_sites()
-        _logger.debug("Sites in Schedconfig {0}".format(schedconfig_sites))
+        self.log_stream.debug("Sites in Schedconfig {0}".format(schedconfig_sites))
 
         all_sites = list(filter(None, CRIC_sites | configurator_sites | schedconfig_sites))
         all_sites.sort()
@@ -423,16 +432,16 @@ class Configurator(threading.Thread):
             if site not in schedconfig_sites:
                 missing.append('Schedconfig')
             if missing:
-                _logger.warning("SITE inconsistency: {0} was not found in {1}".format(site, missing))
+                self.log_stream.warning("SITE inconsistency: {0} was not found in {1}".format(site, missing))
 
         # Check for panda-site inconsistencies
         CRIC_panda_sites = set([self.schedconfig_dump[long_panda_site_name]['panda_resource']
                                 for long_panda_site_name in self.schedconfig_dump])
-        _logger.debug("PanDA sites in CRIC {0}".format(CRIC_panda_sites))
+        self.log_stream.debug("PanDA sites in CRIC {0}".format(CRIC_panda_sites))
         configurator_panda_sites = self.taskBuffer.configurator_read_panda_sites()
-        _logger.debug("PanDA sites in Configurator {0}".format(configurator_panda_sites))
+        self.log_stream.debug("PanDA sites in Configurator {0}".format(configurator_panda_sites))
         schedconfig_panda_sites = self.taskBuffer.configurator_read_cric_panda_sites()
-        _logger.debug("PanDA sites in Schedconfig {0}".format(schedconfig_panda_sites))
+        self.log_stream.debug("PanDA sites in Schedconfig {0}".format(schedconfig_panda_sites))
 
         all_panda_sites = list(CRIC_panda_sites | configurator_panda_sites | schedconfig_panda_sites)
         all_panda_sites.sort()
@@ -446,13 +455,13 @@ class Configurator(threading.Thread):
             if site not in schedconfig_panda_sites:
                 missing.append('Schedconfig')
             if missing:
-                _logger.warning("PanDA SITE inconsistency: {0} was not found in {1}".format(site, missing))
+                self.log_stream.warning("PanDA SITE inconsistency: {0} was not found in {1}".format(site, missing))
 
         # Check for DDM endpoint inconsistencies
         CRIC_ddm_endpoints = set([ddm_endpoint_name for ddm_endpoint_name in self.endpoint_token_dict])
-        _logger.debug("DDM endpoints in CRIC {0}".format(CRIC_ddm_endpoints))
+        self.log_stream.debug("DDM endpoints in CRIC {0}".format(CRIC_ddm_endpoints))
         configurator_ddm_endpoints = self.taskBuffer.configurator_read_ddm_endpoints()
-        _logger.debug("DDM endpoints in Configurator {0}".format(configurator_ddm_endpoints))
+        self.log_stream.debug("DDM endpoints in Configurator {0}".format(configurator_ddm_endpoints))
 
         all_ddm_endpoints = list(CRIC_ddm_endpoints | configurator_ddm_endpoints)
         all_ddm_endpoints.sort()
@@ -464,7 +473,7 @@ class Configurator(threading.Thread):
             if site not in configurator_ddm_endpoints:
                 missing.append('Configurator')
             if missing:
-                _logger.warning("DDM ENDPOINT inconsistency: {0} was not found in {1}".format(site, missing))
+                self.log_stream.warning("DDM ENDPOINT inconsistency: {0} was not found in {1}".format(site, missing))
 
         self.cleanup_configurator(CRIC_sites, CRIC_panda_sites, CRIC_ddm_endpoints, configurator_sites,
                                   configurator_panda_sites, configurator_ddm_endpoints)
@@ -475,7 +484,7 @@ class Configurator(threading.Thread):
         Cleans up information from configurator that is not in CRIC
         """
         if not CRIC_sites or not CRIC_panda_sites or not CRIC_ddm_endpoints:
-            _logger.warning("Exiting cleanup because one of CRIC sets was empty")
+            self.log_stream.warning("Exiting cleanup because one of CRIC sets was empty")
 
         # Clean up sites
         sites_to_delete = configurator_sites - CRIC_sites
@@ -505,15 +514,15 @@ class Configurator(threading.Thread):
 
 
         if self.schedconfig_dump is None:
-            _logger.error("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_SCHEDCONFIG))
+            self.log_stream.error("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_SCHEDCONFIG))
             return False
 
         if self.endpoint_dump is None:
-            _logger.error("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_DDMENDPOINTS))
+            self.log_stream.error("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_DDMENDPOINTS))
             return False
 
         if self.site_dump is None:
-            _logger.error("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_SITES))
+            self.log_stream.error("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_SITES))
             return False
 
         # Get pre-processed CRIC dumps
@@ -533,10 +542,14 @@ class Configurator(threading.Thread):
 
 class NetworkConfigurator(threading.Thread):
 
-    def __init__(self, taskBuffer):
+    def __init__(self, taskBuffer, log_stream=None):
         threading.Thread.__init__(self)
 
         self.taskBuffer = taskBuffer
+        if log_stream:
+            self.log_stream = log_stream
+        else:
+            self.log_stream = self.log_stream
 
         if hasattr(panda_config, 'NWS_URL'):
             self.NWS_URL = panda_config.NWS_URL
@@ -550,19 +563,19 @@ class NetworkConfigurator(threading.Thread):
 
 
     def retrieve_data(self):
-        _logger.debug('Getting NWS dump...')
+        self.log_stream.debug('Getting NWS dump...')
         self.nws_dump = aux.get_dump(self.NWS_URL)
         if not self.nws_dump:
-            _logger.error('Could not retrieve the NWS data')
+            self.log_stream.error('Could not retrieve the NWS data')
             return False
-        _logger.debug('Done')
+        self.log_stream.debug('Done')
 
-        _logger.debug('Getting CRIC cost matrix dump...')
+        self.log_stream.debug('Getting CRIC cost matrix dump...')
         self.CRIC_cm_dump = aux.get_dump(self.CRIC_URL_CM)
         if not self.CRIC_cm_dump:
-            _logger.error('Could not retrieve the cost matrix data')
+            self.log_stream.error('Could not retrieve the cost matrix data')
             return False
-        _logger.debug('Done')
+        self.log_stream.debug('Done')
 
         return True
 
@@ -589,11 +602,11 @@ class NetworkConfigurator(threading.Thread):
                 if destination not in sites_list:
                     skip_sites.append(destination)
                 if skip_sites:
-                    _logger.warning("Could not find site(s) {0} in configurator sites".format(skip_sites))
+                    self.log_stream.warning("Could not find site(s) {0} in configurator sites".format(skip_sites))
                     continue
 
             except ValueError:
-                _logger.error("Json wrongly formatted. Expected key with format src:dst, but found key {0}"
+                self.log_stream.error("Json wrongly formatted. Expected key with format src:dst, but found key {0}"
                               .format(src_dst))
                 continue
 
@@ -611,7 +624,7 @@ class NetworkConfigurator(threading.Thread):
                             data.append((source, destination, activity+'_done_1h', done_1h, updated_at))
                             data.append((source, destination, activity+'_done_6h', done_6h, updated_at))
                     except (KeyError, ValueError):
-                        _logger.debug("Entry {0} ({1}->{2}) key {3} does not follow standards"
+                        self.log_stream.debug("Entry {0} ({1}->{2}) key {3} does not follow standards"
                                       .format(done, source, destination, activity))
                         continue
             except KeyError:
@@ -629,7 +642,7 @@ class NetworkConfigurator(threading.Thread):
                             nqueued = queued[activity][LATEST]
                             data.append((source, destination, activity+'_queued', nqueued, updated_at))
                     except (KeyError, ValueError):
-                        _logger.error("Entry {0} ({1}->{2}) key {3} does not follow standards"
+                        self.log_stream.error("Entry {0} ({1}->{2}) key {3} does not follow standards"
                                       .format(queued, source, destination, activity))
                         continue
             except KeyError:
@@ -642,16 +655,16 @@ class NetworkConfigurator(threading.Thread):
                     try:
                         updated_at = datetime.strptime(mbps[system][TIMESTAMP], '%Y-%m-%dT%H:%M:%S')
                     except ValueError:
-                        _logger.debug("Entry {0} has wrong timestamp for system {1}".format(mbps, system))
+                        self.log_stream.debug("Entry {0} has wrong timestamp for system {1}".format(mbps, system))
                     if updated_at > latest_validity:
                         for duration in [H1, D1, W1]:
                             try:
                                 mbps_entry = mbps[system][duration]
                                 data.append((source, destination, '{0}_mbps_{1}'.format(system, duration), mbps_entry, updated_at))
                             except KeyError:
-                                _logger.debug("Entry {0} ({1}->{2}) system {3} duration {4} not available or wrongly formatted"
+                                self.log_stream.debug("Entry {0} ({1}->{2}) system {3} duration {4} not available or wrongly formatted"
                                               .format(mbps, source, destination, system, duration))
-                                _logger.debug(sys.exc_info())
+                                self.log_stream.debug(sys.exc_info())
             except KeyError:
                 pass
 
@@ -665,7 +678,7 @@ class NetworkConfigurator(threading.Thread):
                             value = struc[LATEST]
                             data.append((source, destination, metric, value, updated_at))
                     except KeyError:
-                        _logger.debug("Entry {0} ({1}->{2}) does not follow {3} standards"
+                        self.log_stream.debug("Entry {0} ({1}->{2}) does not follow {3} standards"
                                       .format(struc, source, destination, metric))
                         pass
                 except KeyError:
@@ -683,7 +696,7 @@ class NetworkConfigurator(threading.Thread):
 
         for entry in self.CRIC_cm_dump:
 
-            _logger.debug('Processing CRIC CM entry {0}'.format(entry))
+            self.log_stream.debug('Processing CRIC CM entry {0}'.format(entry))
 
             try:
                 src = entry['src']
@@ -698,7 +711,7 @@ class NetworkConfigurator(threading.Thread):
                 if dst not in sites_list:
                     skip_sites.append(dst)
                 if skip_sites:
-                    _logger.warning("Could not find site(s) {0} in configurator sites".format(skip_sites))
+                    self.log_stream.warning("Could not find site(s) {0} in configurator sites".format(skip_sites))
                     continue
 
                 # Skip broken entries (protection against errors in CRIC)
@@ -709,7 +722,7 @@ class NetworkConfigurator(threading.Thread):
                 data.append((src, dst, 'AGIS_closeness', closeness, ts))
 
             except KeyError:
-                _logger.warning("CRIC CM entry {0} does not contain one or more of the keys src/dst/closeness".format(entry))
+                self.log_stream.warning("CRIC CM entry {0} does not contain one or more of the keys src/dst/closeness".format(entry))
                 continue
 
         return data
@@ -722,12 +735,12 @@ class NetworkConfigurator(threading.Thread):
         # Process and store the NWS information (NWS=Network Weather Service)
         data_nws = self.process_nws_dump()
         if not data_nws:
-            _logger.error("Could not retrieve any data from the NWS!")
+            self.log_stream.error("Could not retrieve any data from the NWS!")
 
         # Process and store the CRIC connectivity information
         data_CRIC_cm = self.process_CRIC_cm_dump()
         if not data_CRIC_cm:
-            _logger.error("Could not retrieve any data from the CRIC Cost Matrix!")
+            self.log_stream.error("Could not retrieve any data from the CRIC Cost Matrix!")
 
         data_combined = data_nws + data_CRIC_cm
         if data_combined:
@@ -744,29 +757,33 @@ class SchedconfigJsonDumper(threading.Thread):
     """
     Downloads the CRIC schedconfig dump and stores it in the DB, one row per queue
     """
-    def __init__(self, taskBuffer):
+    def __init__(self, taskBuffer, log_stream=None):
         """
         Initialization and configuration
         """
         threading.Thread.__init__(self)
 
         self.taskBuffer = taskBuffer
+        if log_stream:
+            self.log_stream = log_stream
+        else:
+            self.log_stream = self.log_stream
 
         if hasattr(panda_config, 'CRIC_URL_SCHEDCONFIG'):
             self.CRIC_URL_SCHEDCONFIG = panda_config.CRIC_URL_SCHEDCONFIG
         else:
             self.CRIC_URL_SCHEDCONFIG = 'https://atlas-cric.cern.ch/api/atlas/pandaqueue/query/?json'
 
-        _logger.debug('Getting schedconfig dump...')
+        self.log_stream.debug('Getting schedconfig dump...')
         self.schedconfig_dump = aux.get_dump(self.CRIC_URL_SCHEDCONFIG)
-        _logger.debug('Done')
+        self.log_stream.debug('Done')
 
     def run(self):
         """
         Principal function
         """
         if self.schedconfig_dump is None:
-            _logger.error("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_SCHEDCONFIG))
+            self.log_stream.error("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_SCHEDCONFIG))
             return False
 
         return self.taskBuffer.upsertQueuesInJSONSchedconfig(self.schedconfig_dump)
@@ -793,16 +810,16 @@ class SWTagsDumper(threading.Thread):
         else:
             self.CRIC_URL_TAGS = 'https://atlas-cric.cern.ch/api/atlas/pandaqueue/query/?json&preset=tags'
 
-        _logger.debug('Getting tags dump...')
+        self.log_stream.debug('Getting tags dump...')
         self.tags_dump = aux.get_dump(self.CRIC_URL_TAGS)
-        _logger.debug('Done')
+        self.log_stream.debug('Done')
 
     def run(self):
         """
         Principal function
         """
         if self.tags_dump is None:
-            _logger.error("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_TAGS))
+            self.log_stream.error("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_TAGS))
             return False
 
         return self.taskBuffer.loadSWTags(self.tags_dump)

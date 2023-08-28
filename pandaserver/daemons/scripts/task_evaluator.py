@@ -1,24 +1,19 @@
 import os
 import socket
-import time
 import datetime
 import json
 import functools
 import traceback
-import copy
-
-import numpy as np
+import sys
 
 from zlib import adler32
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger import logger_utils
+from pandacommon.pandautils.thread_utils import GenericThread
 
 from pandaserver.config import panda_config
 from pandaserver.daemons.scripts.metric_collector import MetricsDB
-
-from scipy import stats
-
 
 # logger
 main_logger = PandaLogger().getLogger('task_evaluator')
@@ -79,7 +74,7 @@ class TaskEvaluationDB(object):
         now_time = datetime.datetime.utcnow()
         # get existing taskID list
         res = self.tbuf.querySQL(sql_query_taskid, {':metric': metric})
-        existing_taskID_list = [ taskID for (taskID, ) in res ]
+        existing_taskID_list = [taskID for (taskID, ) in res]
         # var map template
         varMap_template = {
             ':taskID': None,
@@ -334,7 +329,9 @@ def main(tbuf=None, **kwargs):
     # instantiate TB
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, useTimeout=True)
+        requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd,
+                        nDBConnection=1, useTimeout=True, requester=requester_id)
     else:
         taskBuffer = tbuf
     # pid
@@ -384,7 +381,7 @@ def main(tbuf=None, **kwargs):
             main_logger.debug('done {metric_name}'.format(metric_name=metric_name))
     # stop taskBuffer if created inside this script
     if tbuf is None:
-        taskBuffer.cleanup()
+        taskBuffer.cleanup(requester=requester_id)
 
 # run
 if __name__ == '__main__':

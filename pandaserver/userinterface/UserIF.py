@@ -123,7 +123,7 @@ class UserIF:
                               % (userVO, user))
 
         # store jobs
-        ret = self.taskBuffer.storeJobs(jobs, user, forkSetupper=True, fqans=userFQANs,
+        ret = self.taskBuffer.storeJobs(jobs, user, forkSetupper=False, fqans=userFQANs,
                                         hostname=host, toPending=toPending, userVO=userVO)
         _logger.debug("submitJobs %s ->:%s" % (user, len(ret)))
 
@@ -514,7 +514,7 @@ class UserIF:
         # deserialize IDs
         ids = WrappedPickle.loads(idsStr)
         # reassign jobs
-        ret = self.taskBuffer.reassignJobs(ids,forkSetupper=True,forPending=forPending,
+        ret = self.taskBuffer.reassignJobs(ids, forkSetupper=False, forPending=forPending,
                                            firstSubmission=firstSubmission)
         # serialize
         return WrappedPickle.dumps(ret)

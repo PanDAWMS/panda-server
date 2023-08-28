@@ -107,3 +107,19 @@ class DatasetSpec(object):
         return ret
 
     bindUpdateExpression = classmethod(bindUpdateExpression)
+
+    # return state values to be pickled
+    def __getstate__(self):
+        state = []
+        for attr in self._attributes:
+            val = getattr(self, attr)
+            state.append(val)
+        return state
+
+    # restore state from the unpickled state values
+    def __setstate__(self, state):
+        for i, attr in enumerate(self._attributes):
+            if i < len(state):
+                setattr(self, attr, state[i])
+            else:
+                setattr(self, attr, None)

@@ -93,6 +93,9 @@ def get_mb_proxy_dict():
             out_q_list = ['panda_jobstatus', 'panda_jedi', 'panda_pilot_topic', 'panda_pilot_queue']
             mp_agent = MsgProcAgent(config_file=panda_config.mbproxy_configFile)
             mb_proxy_dict = mp_agent.start_passive_mode(in_q_list=[], out_q_list=out_q_list)
+            # stop with atexit
+            atexit.register(mp_agent.stop_passive_mode)
+            # return
             return mb_proxy_dict
     except Exception as exc:
         _logger.error(f'Error on get_mb_proxy_dict : {traceback.format_exc()}')
@@ -156,18 +159,18 @@ class DBProxy:
         # self.__reload_hs_distribution()
 
     # connect to DB
-    def connect(self,dbhost=panda_config.dbhost,dbpasswd=panda_config.dbpasswd,
-                dbuser=panda_config.dbuser,dbname=panda_config.dbname,
-                dbtimeout=panda_config.dbtimeout,reconnect=False,dbport=panda_config.dbport):
+    def connect(self, dbhost=panda_config.dbhost, dbpasswd=panda_config.dbpasswd,
+                dbuser=panda_config.dbuser, dbname=panda_config.dbname,
+                dbtimeout=panda_config.dbtimeout, reconnect=False, dbport=panda_config.dbport):
         _logger.debug("connect : re=%s" % reconnect)
         # keep parameters for reconnect
         if not reconnect:
-            self.dbhost    = dbhost
-            self.dbpasswd  = dbpasswd
-            self.dbuser    = dbuser
-            self.dbname    = dbname
+            self.dbhost = dbhost
+            self.dbpasswd = dbpasswd
+            self.dbuser = dbuser
+            self.dbname = dbname
             self.dbtimeout = dbtimeout
-            self.dbport    = dbport
+            self.dbport = dbport
         # close old connection
         if reconnect:
             _logger.debug("closing old connection")
@@ -182,9 +185,11 @@ class DBProxy:
                 self.conn = cx_Oracle.connect(dsn=self.dbhost, user=self.dbuser,
                                               password=self.dbpasswd, threaded=True,
                                               encoding='UTF-8')
+
                 def OutputTypeHandler(cursor, name, defaultType, size, precision, scale):
                     if defaultType == cx_Oracle.CLOB:
-                        return cursor.var(cx_Oracle.LONG_STRING, arraysize = cursor.arraysize)
+                        return cursor.var(cx_Oracle.LONG_STRING, arraysize=cursor.arraysize)
+
                 self.conn.outputtypehandler = OutputTypeHandler
             elif self.backend == 'postgres':
                 dsn = {'dbname': self.dbname, 'user': self.dbuser}
@@ -239,15 +244,16 @@ class DBProxy:
         Needed to support old and new versions of cx_Oracle
         :return:
         """
-        if isinstance(value, list): # cx_Oracle version >= 6.3
+        if isinstance(value, list):  # cx_Oracle version >= 6.3
             return value[0]
-        else: # cx_Oracle version < 6.3
+        else:  # cx_Oracle version < 6.3
             return value
 
     # Internal caching of a result. Use only for information with low update frequency and low memory footprint
     def memoize(f):
         memo = {}
         kwd_mark = object()
+
         def helper(self, *args, **kwargs):
             now = datetime.datetime.now()
             key = args + (kwd_mark,) + tuple(sorted(kwargs.items()))
@@ -256,17 +262,18 @@ class DBProxy:
                 memo[key]['value'] = f(self, *args, **kwargs)
                 memo[key]['timestamp'] = now
             return memo[key]['value']
+
         return helper
 
     # query an SQL
-    def querySQL(self,sql,arraySize=1000):
+    def querySQL(self, sql, arraySize=1000):
         comment = ' /* DBProxy.querySQL */'
         try:
             _logger.debug("querySQL : %s " % sql)
             # begin transaction
             self.conn.begin()
             self.cur.arraysize = arraySize
-            self.cur.execute(sql+comment)
+            self.cur.execute(sql + comment)
             res = self.cur.fetchall()
             # commit
             if not self._commit():
@@ -277,36 +284,34 @@ class DBProxy:
             self._rollback(self.useOtherError)
             type, value, traceBack = sys.exc_info()
             _logger.error("querySQL : %s " % sql)
-            _logger.error("querySQL : %s %s" % (type,value))
+            _logger.error("querySQL : %s %s" % (type, value))
             return None
 
-
     # query an SQL return Status
-    def querySQLS(self,sql,varMap,arraySize=1000):
+    def querySQLS(self, sql, varMap, arraySize=1000):
         comment = ' /* DBProxy.querySQLS */'
         try:
             # begin transaction
             self.conn.begin()
             self.cur.arraysize = arraySize
-            ret = self.cur.execute(sql+comment,varMap)
+            ret = self.cur.execute(sql + comment, varMap)
             if ret:
                 ret = True
             if sql.startswith('INSERT') or sql.startswith('UPDATE') or \
-                   sql.startswith('DELETE'):
+                    sql.startswith('DELETE'):
                 res = self.cur.rowcount
             else:
                 res = self.cur.fetchall()
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
-            return ret,res
+            return ret, res
         except Exception as e:
             # roll back
             self._rollback(self.useOtherError)
-            _logger.error("querySQLS : %s %s" % (sql,str(varMap)))
+            _logger.error("querySQLS : %s %s" % (sql, str(varMap)))
             _logger.error("querySQLS : %s" % str(e))
-            return -1,None
-
+            return -1, None
 
     # execute an SQL return with executemany
     def executemanySQL(self, sql, varMaps, arraySize=1000):
@@ -315,11 +320,11 @@ class DBProxy:
             # begin transaction
             self.conn.begin()
             self.cur.arraysize = arraySize
-            ret = self.cur.executemany(sql+comment, varMaps)
+            ret = self.cur.executemany(sql + comment, varMaps)
             if ret:
                 ret = True
             if sql.startswith('INSERT') or sql.startswith('UPDATE') or \
-                   sql.startswith('DELETE'):
+                    sql.startswith('DELETE'):
                 res = self.cur.rowcount
             else:
                 raise RuntimeError('Operation unsupported. Only INSERT, UPDATE, DELETE are allowed')
@@ -334,7 +339,6 @@ class DBProxy:
             _logger.error("executemanySQL : %s" % str(e))
             return None
 
-
     # get CLOB
     def getClobObj(self, sql, varMap, arraySize=10000, use_commit=True):
         comment = ' /* DBProxy.getClobObj */'
@@ -343,7 +347,7 @@ class DBProxy:
             if use_commit:
                 self.conn.begin()
                 self.cur.arraysize = arraySize
-            ret = self.cur.execute(sql+comment,varMap)
+            ret = self.cur.execute(sql + comment, varMap)
             if ret:
                 ret = True
             res = []
@@ -368,7 +372,7 @@ class DBProxy:
             if use_commit:
                 self._rollback()
             type, value, traceBack = sys.exc_info()
-            _logger.error("getClobObj : %s %s" % (sql,str(varMap)))
+            _logger.error("getClobObj : %s %s" % (sql, str(varMap)))
             _logger.error("getClobObj : {}".format(str(e)))
             return -1, None
 
@@ -2265,6 +2269,7 @@ class DBProxy:
                 # commit
                 if not self._commit():
                     raise RuntimeError('Commit error')
+                self.push_job_status_message(job, pandaID, varMap[':newJobStatus'])
             tmpLog.debug("done {} jobs".format(len(pPandaIDs)))
             return True
         except Exception as e:
@@ -16255,6 +16260,7 @@ class DBProxy:
                 self.recordStatusChange(pandaID,varMap[':newJobStatus'])
             except Exception:
                 _logger.error('recordStatusChange in throttleJob')
+            self.push_job_status_message(None, pandaID, varMap[':newJobStatus'])
             _logger.debug("{0} done with {1}".format(methodName,nRow))
             return nRow
         except Exception:
@@ -16396,6 +16402,7 @@ class DBProxy:
                 self.recordStatusChange(pandaID,varMap[':newJobStatus'])
             except Exception:
                 _logger.error('recordStatusChange in unThrottleJob')
+            self.push_job_status_message(None, pandaID, varMap[':newJobStatus'])
             _logger.debug("{0} done with {1}".format(methodName,nRow))
             return nRow
         except Exception:
@@ -18839,6 +18846,7 @@ class DBProxy:
                 if not self._commit():
                     raise RuntimeError('Commit error')
                 nRow += self.cur.rowcount
+                self.push_job_status_message(None, pandaID, varMap[':newStatus'])
             tmpLog.debug("activated {0} jobs".format(nRow))
             return nRow
         except Exception:

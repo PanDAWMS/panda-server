@@ -3,6 +3,7 @@ import time
 
 from pandaserver.config import panda_config
 from pandacommon.pandalogger import logger_utils
+from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.configurator import Configurator as configurator_module
 from pandaserver.configurator.Configurator import Configurator, NetworkConfigurator, SchedconfigJsonDumper, SWTagsDumper
 
@@ -12,10 +13,14 @@ base_logger = configurator_module._logger
 
 # main
 def main(argv=tuple(), tbuf=None, **kwargs):
+
+    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+
     # instantiate TB
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, useTimeout=True)
+        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd,
+                        nDBConnection=1, useTimeout=True, requester=requester_id)
     else:
         taskBuffer = tbuf
 
@@ -23,7 +28,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     if len(argv) == 1:
         _logger = logger_utils.make_logger(base_logger, 'Configurator')
         t1 = time.time()
-        configurator = Configurator(taskBuffer=taskBuffer)
+        configurator = Configurator(taskBuffer=taskBuffer, log_stream=_logger)
 
         if not configurator.retrieve_data():
             _logger.error('Data was not retrieved correctly')
@@ -38,7 +43,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     elif len(argv) == 2 and argv[1].lower() == '--network':
         _logger = logger_utils.make_logger(base_logger, 'NetworkConfigurator')
         t1 = time.time()
-        network_configurator = NetworkConfigurator(taskBuffer=taskBuffer)
+        network_configurator = NetworkConfigurator(taskBuffer=taskBuffer, log_stream=_logger)
         if not network_configurator.retrieve_data():
             _logger.error('Data was not retrieved correctly')
             return
@@ -51,7 +56,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     elif len(argv) == 2 and argv[1].lower() == '--json_dump':
         _logger = logger_utils.make_logger(base_logger, 'SchedconfigJsonDumper')
         t1 = time.time()
-        json_dumper = SchedconfigJsonDumper(taskBuffer=taskBuffer)
+        json_dumper = SchedconfigJsonDumper(taskBuffer=taskBuffer, log_stream=_logger)
         out_msg = json_dumper.run()
         _logger.debug('Json_dumper finished with {0}'.format(out_msg))
         t2 = time.time()
@@ -72,7 +77,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
     # stop taskBuffer if created inside this script
     if tbuf is None:
-        taskBuffer.cleanup()
+        taskBuffer.cleanup(requester=requester_id)
+
 
 if __name__ == '__main__':
     main(argv=sys.argv)

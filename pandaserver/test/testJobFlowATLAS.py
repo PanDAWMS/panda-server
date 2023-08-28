@@ -13,6 +13,7 @@ import nose
 import time
 import uuid
 import socket
+import sys
 try:
     from urlparse import parse_qs
 except ImportError:
@@ -30,7 +31,7 @@ from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 from pandaserver.config import panda_config
 from pandaserver.test.testutils import sendCommand
-
+from pandacommon.pandautils.thread_utils import GenericThread
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 _logger = PandaLogger().getLogger('testJobFlowATLAS')
 
@@ -99,7 +100,8 @@ class JobFlowATLAS(object):
         self.__site = site
         self.__cloud = cloud
         self.__nJobs = nJobs
-        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
+        requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, requester=requester_id)
 
     def defineEvgen16Job(self, i):
         """Define an Evgen16 job based on predefined values and randomly generated names

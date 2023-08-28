@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 
 from .workflow_utils import Node, ConditionItem
 
-WORKFLOW_NAMES = ['prun', 'phpo', 'junction', 'reana']
+WORKFLOW_NAMES = ['prun', 'phpo', 'junction', 'reana', 'gitlab']
 
 
 # extract id

@@ -13,8 +13,10 @@ import io
 import signal
 import json
 import gzip
+import sys
 
-# config file
+from pandacommon.pandautils.thread_utils import GenericThread
+
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
 
@@ -23,6 +25,7 @@ from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 from pandaserver.jobdispatcher.JobDispatcher import jobDispatcher
 from pandaserver.dataservice.DataService import dataService
 from pandaserver.userinterface.UserIF import userIF
+
 from pandaserver.taskbuffer.Utils import isAlive, putFile, deleteFile, getServer, updateLog, fetchLog,\
      touchFile, getVomsAttr, putEventPickingRequest, getAttr, uploadLog, put_checkpoint, delete_checkpoint,\
      put_file_recovery_request, put_workflow_request
@@ -55,16 +58,15 @@ from pandaserver.userinterface.UserIF import submitJobs, getJobStatus, queryPand
      execute_idds_workflow_command, set_user_secret, get_user_secrets, get_ban_users, get_files_in_datasets
 
 from pandaserver.userinterface import Client
-
-# import error
 import pandaserver.taskbuffer.ErrorCode
-
 
 # initialize cx_Oracle using dummy connection
 initializer.init()
 
-# initialzie TaskBuffer
-taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, panda_config.nDBConnection, True)
+# initialize TaskBuffer
+requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=panda_config.nDBConnection,
+                useTimeout=True, requester=requester_id)
 
 # initialize JobDispatcher
 if panda_config.nDBConnection != 0:
