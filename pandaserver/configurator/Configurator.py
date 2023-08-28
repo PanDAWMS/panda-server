@@ -776,13 +776,17 @@ class SWTagsDumper(threading.Thread):
     """
     Downloads the CRIC tags dump, flattens it out and stores it in the DB, one row per queue
     """
-    def __init__(self, taskBuffer):
+    def __init__(self, taskBuffer, log_stream=None):
         """
         Initialization and configuration
         """
         threading.Thread.__init__(self)
 
         self.taskBuffer = taskBuffer
+        if log_stream:
+            self.log_stream = log_stream
+        else:
+            self.log_stream = self.log_stream
 
         if hasattr(panda_config, 'CRIC_URL_SCHEDCONFIG'):
             self.CRIC_URL_TAGS = panda_config.CRIC_URL_TAGS

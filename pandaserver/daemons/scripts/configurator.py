@@ -61,7 +61,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     elif len(argv) == 2 and argv[1].lower() == '--sw_tags':
         _logger = logger_utils.make_logger(base_logger, 'SWTagsDumper')
         t1 = time.time()
-        sw_tag_collector = SWTagsDumper(taskBuffer=taskBuffer)
+        sw_tag_collector = SWTagsDumper(taskBuffer=taskBuffer, log_stream=_logger)
         out_msg = sw_tag_collector.run()
         _logger.debug('sw_tag_collector finished with {0}'.format(out_msg))
         t2 = time.time()
