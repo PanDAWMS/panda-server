@@ -25566,6 +25566,7 @@ class DBProxy:
                 sqlD = 'DELETE FROM {0}.SQL_QUEUE WHERE PandaID=:PandaID '.\
                     format(panda_config.schemaPANDA)
                 n_try = 5
+                all_ok = True
                 for i_try in range(n_try):
                     all_ok = True
                     query_list = []
@@ -25610,6 +25611,8 @@ class DBProxy:
                         self._rollback()
                         if i_try+1 < n_try:
                             time.sleep(1)
+                if not all_ok:
+                    tmp_log.error('All attempts failed')
             tmpLog.debug(f"processed {len(panda_id_list)} IDs")
             return True
         except Exception:
