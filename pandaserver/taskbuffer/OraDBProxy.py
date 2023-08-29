@@ -1446,13 +1446,14 @@ class DBProxy:
                 return False
 
     # archive job to jobArchived and remove the job from jobsActive or jobsDefined
-    def archiveJob(self,job,fromJobsDefined,useCommit=True,extraInfo=None,fromJobsWaiting=False,
-                   async_dataset_update=False):
+    def archiveJob(self, job, fromJobsDefined, useCommit=True, extraInfo=None, fromJobsWaiting=False,
+                   async_params=None):
         comment = ' /* DBProxy.archiveJob */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName = methodName + " < PandaID={} jediTaskID={} >".format(job.PandaID, job.jediTaskID)
         tmpLog = LogWrapper(_logger, methodName)
-        tmpLog.debug(f"start jobStatus={job.jobStatus} label={job.prodSourceLabel} async_dataset_update={async_dataset_update}")
+        tmpLog.debug(f"start status={job.jobStatus} label={job.prodSourceLabel} "
+                     f"type={job.processingType} async_params={async_params}")
         start_time = datetime.datetime.utcnow()
         if fromJobsDefined:
             sql0 = "SELECT jobStatus FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID "
@@ -2065,10 +2066,8 @@ class DBProxy:
                     updatedJobList.append(job)
                     # update JEDI tables unless it is an ES consumer job which was successful but waits for merging or other running consumers
                     if useJEDI and not (EventServiceUtils.isEventServiceJob(job) and (job.isCancelled() or job.jobStatus == 'merging')):
-                        # disable asynchronous dataset update for pmerge as async update on upstream jobs is tricky
-                        use_async_dataset_update = async_dataset_update and job.processingType != 'pmerge'
-                        self.propagateResultToJEDI(job,self.cur,extraInfo=extraInfo,
-                                                   async_dataset_update=use_async_dataset_update)
+                        self.propagateResultToJEDI(job, self.cur, extraInfo=extraInfo,
+                                                   async_params=async_params)
                     # update related ES jobs when ES-merge job is done
                     if useJEDI and EventServiceUtils.isEventServiceMerge(job) and job.taskBufferErrorCode not in [ErrorCode.EC_PilotRetried] \
                             and not job.isCancelled():
@@ -2078,7 +2077,7 @@ class DBProxy:
                             self.updateRelatedEventServiceJobs(job)
                 # propagate successful result to unmerge job
                 if useJEDI and job.processingType == 'pmerge' and job.jobStatus == 'finished':
-                    self.updateUnmergedJobs(job)
+                    self.updateUnmergedJobs(job, async_params=async_params)
                 # overwrite job status
                 tmpJobStatus = job.jobStatus
                 sqlPRE = "SELECT /* use_json_type */ scj.data.pledgedcpu FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:siteID "
@@ -12484,7 +12483,7 @@ class DBProxy:
 
     # propagate result to JEDI
     def propagateResultToJEDI(self, jobSpec, cur, oldJobStatus=None, extraInfo=None, finishPending=False,
-                              waitLock=False, async_dataset_update=False):
+                              waitLock=False, async_params=None):
         comment = ' /* DBProxy.propagateResultToJEDI */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " < PandaID={} jediTaskID={} >".format(jobSpec.PandaID, jobSpec.jediTaskID)
@@ -12493,7 +12492,7 @@ class DBProxy:
         # loop over all files
         finishUnmerge = set()
         hasInput = False
-        tmpLog.debug(f'waitLock={waitLock} async_dataset_update={async_dataset_update}')
+        tmpLog.debug(f'waitLock={waitLock} async_params={async_params}')
         # make pseudo files for dynamic number of events
         pseudoFiles = []
         if EventServiceUtils.isDynNumEventsSH(jobSpec.specialHandling):
@@ -12838,7 +12837,6 @@ class DBProxy:
                             datasetContentsStat[datasetID]['nFilesUsed'] += 1
         # update JEDI_Datasets table
         nOutEvents = 0
-        exec_order = 0
         if datasetContentsStat != {}:
             tmpDatasetIDs = list(datasetContentsStat)
             tmpDatasetIDs.sort()
@@ -12855,7 +12853,7 @@ class DBProxy:
                 varMap = {}
                 varMap[':jediTaskID'] = jobSpec.jediTaskID
                 varMap[':datasetID']  = tmpDatasetID
-                if not async_dataset_update:
+                if async_params is None:
                     cur.execute(sqlJediDL + comment, varMap)
                 else:
                     cur.execute(sqlJediDLnoL + comment, varMap)
@@ -12865,11 +12863,11 @@ class DBProxy:
                 tmpLog.debug(f'datasetID={tmpDatasetID} had nFilesTobeUsed={t_nFilesTobeUsed} '
                              f'nFilesUsed={t_nFilesUsed} nFilesFinished={t_nFilesFinished} '
                              f'nFilesFailed={t_nFilesFailed} status={t_status}')
-                if async_dataset_update:
+                if async_params is not None:
                     self.insert_to_query_pool(SQL_QUEUE_TOPIC_async_dataset_update,
-                                              jobSpec.PandaID, jobSpec.jediTaskID,
-                                              sqlJediDL, varMap, exec_order)
-                    exec_order += 1
+                                              async_params['PandaID'], async_params['jediTaskID'],
+                                              sqlJediDL, varMap, async_params['exec_order'])
+                    async_params['exec_order'] += 1
                 # sql to update nFiles info
                 toUpdateFlag = False
                 eventsToRead = False
@@ -12893,13 +12891,13 @@ class DBProxy:
                 # update
                 if toUpdateFlag:
                     tmpLog.debug(sqlJediDS+comment+str(varMap))
-                    if async_dataset_update:
+                    if async_params is not None:
                         self.insert_to_query_pool(SQL_QUEUE_TOPIC_async_dataset_update,
-                                                  jobSpec.PandaID, jobSpec.jediTaskID,
-                                                  sqlJediDS, varMap, exec_order)
+                                                  async_params['PandaID'], async_params['jediTaskID'],
+                                                  sqlJediDS, varMap, async_params['exec_order'])
+                        async_params['exec_order'] += 1
                     else:
                         cur.execute(sqlJediDS + comment, varMap)
-                    exec_order += 1
                     # update events in corrupted input files
                     if EventServiceUtils.isEventServiceMerge(jobSpec) and jobSpec.jobStatus == 'failed' \
                             and jobSpec.pilotErrorCode in \
@@ -12996,7 +12994,7 @@ class DBProxy:
                         cur.execute(sqlRecal+comment,varMap)
         # propagate failed result to unmerge job
         if len(finishUnmerge) > 0:
-            self.updateUnmergedJobs(jobSpec, finishUnmerge)
+            self.updateUnmergedJobs(jobSpec, finishUnmerge, async_params=async_params)
         # update some job attributes
         self.setHS06sec(jobSpec.PandaID)
 
@@ -13892,13 +13890,11 @@ class DBProxy:
             else:
                 return False,'failed to register command'
 
-
-
     # update unmerged jobs
-    def updateUnmergedJobs(self,job,fileIDs=None):
+    def updateUnmergedJobs(self, job, fileIDs=None, async_params=None):
         comment = ' /* JediDBProxy.updateUnmergedJobs */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        methodName += " <PandaID={0}>".format(job.PandaID)
+        methodName += f" < PandaID={job.PandaID} async_params={async_params} >"
         tmpLog = LogWrapper(_logger,methodName)
         # get PandaID which produced unmerged files
         umPandaIDs = []
@@ -13974,7 +13970,7 @@ class DBProxy:
                 umJob.addFile(umFile)
             # finish
             tmpLog.debug('update unmerged PandaID={0}'.format(umJob.PandaID))
-            self.archiveJob(umJob,False,useCommit=False)
+            self.archiveJob(umJob, False, useCommit=False, async_params=async_params)
         return
 
 

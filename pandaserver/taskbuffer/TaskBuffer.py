@@ -630,9 +630,13 @@ class TaskBuffer:
                             job.taskBufferErrorDiag = 'set {0} since no successful events'.format(job.jobStatus)
                             job.taskBufferErrorCode = ErrorCode.EC_EventServiceNoEvent
             if job.jobStatus in ['finished', 'failed', 'cancelled']:
+                if async_dataset_update and job.jediTaskID not in [None, 'NULL']:
+                    async_params = {'exec_order': 0, 'PandaID': job.PandaID, 'jediTaskID': job.jediTaskID}
+                else:
+                    async_params = None
                 ret, tmpddmIDs, ddmAttempt, newMover = proxy.archiveJob(job, inJobsDefined, extraInfo=extraInfo,
-                                                                        async_dataset_update=async_dataset_update)
-                if async_dataset_update and ret:
+                                                                        async_params=async_params)
+                if async_params is not None and ret:
                     proxy.async_update_datasets(job.PandaID)
             else:
                 ret = proxy.updateJob(job, inJobsDefined, oldJobStatus=oldJobStatus, extraInfo=extraInfo)
