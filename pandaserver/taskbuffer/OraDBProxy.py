@@ -25612,7 +25612,7 @@ class DBProxy:
                         if i_try+1 < n_try:
                             time.sleep(1)
                 if not all_ok:
-                    tmp_log.error('All attempts failed')
+                    tmp_log.error('all attempts failed')
             tmpLog.debug(f"processed {len(panda_id_list)} IDs")
             return True
         except Exception:
