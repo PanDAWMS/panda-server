@@ -318,7 +318,7 @@ class AdderGen(object):
                             self.logger.debug("couldn't get DB lock for jediTaskID={}".format(self.job.jediTaskID))
                     self.logger.debug("updating DB")
                     retU = self.taskBuffer.updateJobs([self.job],False,oldJobStatusList=[oldJobStatus],
-                                                      extraInfo=self.extraInfo)
+                                                      extraInfo=self.extraInfo, async_dataset_update=True)
                     self.logger.debug("retU: %s" % retU)
                     if db_lock:
                         self.logger.debug("release DB lock for jediTaskID={}".format(self.job.jediTaskID))

@@ -43,6 +43,9 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
     # retry interval in minutes
     retry_interval = 1
 
+    # last recovery time
+    last_recovery = datetime.datetime.utcnow() + datetime.timedelta(seconds=random.randint(0, 30))
+
     # instantiate TB
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer
@@ -143,6 +146,7 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
 
     interval = 10
     nLoop = 10
+    recover_dataset_update = False
     for iLoop in range(10):
         tmpLog.debug('start iLoop={}/{}'.format(iLoop, nLoop))
         start_time = datetime.datetime.utcnow()
@@ -196,6 +200,16 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
             sleep_time = random.randint(1, sleep_time)
             tmpLog.debug("sleep {} sec".format(sleep_time))
             time.sleep(sleep_time)
+
+        # recovery
+        if datetime.datetime.utcnow() - last_recovery > datetime.timedelta(minutes=2):
+            taskBuffer.async_update_datasets(None)
+            last_recovery = datetime.datetime.utcnow()
+            recover_dataset_update = True
+
+    # recovery
+    if not recover_dataset_update:
+        taskBuffer.async_update_datasets(None)
 
     # stop TaskBuffer IF
     taskBufferIF.stop(requester=requester_id)

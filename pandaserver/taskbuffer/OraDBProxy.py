@@ -110,6 +110,10 @@ def convert_dict_to_bind_vars(item):
     return ret
 
 
+# topics in SQL_QUEUE
+SQL_QUEUE_TOPIC_async_dataset_update = "async_dataset_update"
+
+
 # proxy
 class DBProxy:
 
@@ -1442,12 +1446,14 @@ class DBProxy:
                 return False
 
     # archive job to jobArchived and remove the job from jobsActive or jobsDefined
-    def archiveJob(self,job,fromJobsDefined,useCommit=True,extraInfo=None,fromJobsWaiting=False):
+    def archiveJob(self, job, fromJobsDefined, useCommit=True, extraInfo=None, fromJobsWaiting=False,
+                   async_params=None):
         comment = ' /* DBProxy.archiveJob */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName = methodName + " < PandaID={} jediTaskID={} >".format(job.PandaID, job.jediTaskID)
         tmpLog = LogWrapper(_logger, methodName)
-        tmpLog.debug("start for jobStatus=%s" % job.jobStatus)
+        tmpLog.debug(f"start status={job.jobStatus} label={job.prodSourceLabel} "
+                     f"type={job.processingType} async_params={async_params}")
         start_time = datetime.datetime.utcnow()
         if fromJobsDefined:
             sql0 = "SELECT jobStatus FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID "
@@ -2060,7 +2066,8 @@ class DBProxy:
                     updatedJobList.append(job)
                     # update JEDI tables unless it is an ES consumer job which was successful but waits for merging or other running consumers
                     if useJEDI and not (EventServiceUtils.isEventServiceJob(job) and (job.isCancelled() or job.jobStatus == 'merging')):
-                        self.propagateResultToJEDI(job,self.cur,extraInfo=extraInfo)
+                        self.propagateResultToJEDI(job, self.cur, extraInfo=extraInfo,
+                                                   async_params=async_params)
                     # update related ES jobs when ES-merge job is done
                     if useJEDI and EventServiceUtils.isEventServiceMerge(job) and job.taskBufferErrorCode not in [ErrorCode.EC_PilotRetried] \
                             and not job.isCancelled():
@@ -2070,7 +2077,7 @@ class DBProxy:
                             self.updateRelatedEventServiceJobs(job)
                 # propagate successful result to unmerge job
                 if useJEDI and job.processingType == 'pmerge' and job.jobStatus == 'finished':
-                    self.updateUnmergedJobs(job)
+                    self.updateUnmergedJobs(job, async_params=async_params)
                 # overwrite job status
                 tmpJobStatus = job.jobStatus
                 sqlPRE = "SELECT /* use_json_type */ scj.data.pledgedcpu FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:siteID "
@@ -12475,7 +12482,8 @@ class DBProxy:
 
 
     # propagate result to JEDI
-    def propagateResultToJEDI(self, jobSpec, cur, oldJobStatus=None, extraInfo=None, finishPending=False, waitLock=False):
+    def propagateResultToJEDI(self, jobSpec, cur, oldJobStatus=None, extraInfo=None, finishPending=False,
+                              waitLock=False, async_params=None):
         comment = ' /* DBProxy.propagateResultToJEDI */'
         methodName = comment.split(' ')[-2].split('.')[-1]
         methodName += " < PandaID={} jediTaskID={} >".format(jobSpec.PandaID, jobSpec.jediTaskID)
@@ -12484,7 +12492,7 @@ class DBProxy:
         # loop over all files
         finishUnmerge = set()
         hasInput = False
-        tmpLog.debug('waitLock={0}'.format(waitLock))
+        tmpLog.debug(f'waitLock={waitLock} async_params={async_params}')
         # make pseudo files for dynamic number of events
         pseudoFiles = []
         if EventServiceUtils.isDynNumEventsSH(jobSpec.specialHandling):
@@ -12835,19 +12843,31 @@ class DBProxy:
             for tmpDatasetID in tmpDatasetIDs:
                 tmpLog.debug('trying to lock datasetID={}'.format(tmpDatasetID))
                 tmpContentsStat = datasetContentsStat[tmpDatasetID]
-                sqlJediDL = "SELECT nFilesUsed,nFilesFailed,nFilesTobeUsed,nFilesFinished,nFilesOnHold,type,masterID FROM ATLAS_PANDA.JEDI_Datasets "
-                sqlJediDL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID FOR UPDATE "
+                sqlJediDL = "SELECT nFilesUsed,nFilesFailed,nFilesTobeUsed,nFilesFinished,"\
+                            "nFilesOnHold,type,masterID,status FROM ATLAS_PANDA.JEDI_Datasets "
+                sqlJediDL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+                sqlJediDLnoL = sqlJediDL
+                sqlJediDL += "FOR UPDATE "
                 if not waitLock:
                     sqlJediDL += "NOWAIT "
                 varMap = {}
                 varMap[':jediTaskID'] = jobSpec.jediTaskID
                 varMap[':datasetID']  = tmpDatasetID
-                cur.execute(sqlJediDL+comment,varMap)
+                if async_params is None:
+                    cur.execute(sqlJediDL + comment, varMap)
+                else:
+                    cur.execute(sqlJediDLnoL + comment, varMap)
                 tmpResJediDL = self.cur.fetchone()
-                t_nFilesUsed, t_nFilesFailed, t_nFilesTobeUsed, t_nFilesFinished, t_nFilesOnHold, t_type, t_masterID = tmpResJediDL
-                tmpLog.debug('datasetID={0} had nFilesTobeUsed={1} nFilesUsed={2} nFilesFinished={3} nFilesFailed={4}'.format(tmpDatasetID, t_nFilesTobeUsed,
-                                                                                                                              t_nFilesUsed, t_nFilesFinished,
-                                                                                                                              t_nFilesFailed))
+                t_nFilesUsed, t_nFilesFailed, t_nFilesTobeUsed, t_nFilesFinished,\
+                    t_nFilesOnHold, t_type, t_masterID, t_status = tmpResJediDL
+                tmpLog.debug(f'datasetID={tmpDatasetID} had nFilesTobeUsed={t_nFilesTobeUsed} '
+                             f'nFilesUsed={t_nFilesUsed} nFilesFinished={t_nFilesFinished} '
+                             f'nFilesFailed={t_nFilesFailed} status={t_status}')
+                if async_params is not None:
+                    self.insert_to_query_pool(SQL_QUEUE_TOPIC_async_dataset_update,
+                                              async_params['PandaID'], async_params['jediTaskID'],
+                                              sqlJediDL, varMap, async_params['exec_order'])
+                    async_params['exec_order'] += 1
                 # sql to update nFiles info
                 toUpdateFlag = False
                 eventsToRead = False
@@ -12871,7 +12891,13 @@ class DBProxy:
                 # update
                 if toUpdateFlag:
                     tmpLog.debug(sqlJediDS+comment+str(varMap))
-                    cur.execute(sqlJediDS+comment,varMap)
+                    if async_params is not None:
+                        self.insert_to_query_pool(SQL_QUEUE_TOPIC_async_dataset_update,
+                                                  async_params['PandaID'], async_params['jediTaskID'],
+                                                  sqlJediDS, varMap, async_params['exec_order'])
+                        async_params['exec_order'] += 1
+                    else:
+                        cur.execute(sqlJediDS + comment, varMap)
                     # update events in corrupted input files
                     if EventServiceUtils.isEventServiceMerge(jobSpec) and jobSpec.jobStatus == 'failed' \
                             and jobSpec.pilotErrorCode in \
@@ -12968,7 +12994,7 @@ class DBProxy:
                         cur.execute(sqlRecal+comment,varMap)
         # propagate failed result to unmerge job
         if len(finishUnmerge) > 0:
-            self.updateUnmergedJobs(jobSpec, finishUnmerge)
+            self.updateUnmergedJobs(jobSpec, finishUnmerge, async_params=async_params)
         # update some job attributes
         self.setHS06sec(jobSpec.PandaID)
 
@@ -13769,20 +13795,22 @@ class DBProxy:
             if resTC is None:
                 # task not found
                 retStr = 'jediTaskID={0} not found'.format(jediTaskID)
-                _logger.debug("{0} : {1}".format(methodName,retStr))
+                tmpLog.debug(retStr)
                 goForward = False
                 retCode = 2
             else:
                 taskStatus,userName,prodSourceLabel = resTC
+                tmpLog.debug(f"status={taskStatus}")
             # check owner
             if goForward:
                 if not prodRole and compactDN != userName:
                     retStr = 'Permission denied: not the task owner or no production role'
-                    _logger.debug("{0} : {1}".format(methodName,retStr))
+                    tmpLog.debug(retStr)
                     goForward = False
                     retCode = 3
             # check task status
             if goForward:
+                add_msg = ''
                 if comStr in ['kill','finish']:
                     sendMsgToPilot = broadcast
                     if taskStatus in ['finished','done','prepared','broken','aborted','aborted','toabort','aborting','failed']:
@@ -13790,6 +13818,9 @@ class DBProxy:
                 if comStr == 'retry':
                     if taskStatus not in ['finished','failed','aborted','exhausted']:
                         goForward = False
+                    elif taskStatus == 'exhausted' and not prodRole:
+                        goForward = False
+                        add_msg = 'and production role is missing'
                 if comStr == 'incexec':
                     if taskStatus not in ['finished','failed','done','aborted','exhausted']:
                         goForward = False
@@ -13806,7 +13837,8 @@ class DBProxy:
                     if taskStatus not in ['scouting']:
                         goForward = False
                 if not goForward:
-                    retStr = 'Command rejected: the {0} command is not accepted if the task is in {1} status'.format(comStr,taskStatus)
+                    retStr = f'Command rejected: the {comStr} command is not accepted '\
+                             f'if the task is in {taskStatus} status {add_msg}'
                     _logger.debug("{0} : {1}".format(methodName,retStr))
                     retCode = 4
                     # retry for failed analysis jobs
@@ -13864,13 +13896,11 @@ class DBProxy:
             else:
                 return False,'failed to register command'
 
-
-
     # update unmerged jobs
-    def updateUnmergedJobs(self,job,fileIDs=None):
+    def updateUnmergedJobs(self, job, fileIDs=None, async_params=None):
         comment = ' /* JediDBProxy.updateUnmergedJobs */'
         methodName = comment.split(' ')[-2].split('.')[-1]
-        methodName += " <PandaID={0}>".format(job.PandaID)
+        methodName += f" < PandaID={job.PandaID} async_params={async_params} >"
         tmpLog = LogWrapper(_logger,methodName)
         # get PandaID which produced unmerged files
         umPandaIDs = []
@@ -13946,7 +13976,7 @@ class DBProxy:
                 umJob.addFile(umFile)
             # finish
             tmpLog.debug('update unmerged PandaID={0}'.format(umJob.PandaID))
-            self.archiveJob(umJob,False,useCommit=False)
+            self.archiveJob(umJob, False, useCommit=False, async_params=async_params)
         return
 
 
@@ -25498,3 +25528,102 @@ class DBProxy:
             # error
             self.dumpErrorMessage(tmpLog, methodName)
             return None
+
+    def insert_to_query_pool(self, topic, panda_id, task_id, sql, var_map, exec_order):
+        comment = ' /* DBProxy.insert_to_query_pool */'
+        sqlI = "INSERT INTO {}.SQL_QUEUE (topic,PandaID,jediTaskID,creationTime,data,execution_order) "\
+               "VALUES(:topic,:PandaID,:taskID,:creationTime,:data,:execution_order) ".format(panda_config.schemaPANDA)
+        varMap = {':topic': topic, 'PandaID': panda_id, ":taskID": task_id, ":creationTime": datetime.datetime.utcnow(),
+                  ":execution_order": exec_order, ":data": json.dumps((sql, var_map))}
+        self.cur.execute(sqlI + comment, varMap)
+
+    # update datasets asynchronously outside propagateResultToJEDI to avoid row contentions
+    def async_update_datasets(self, panda_id):
+        comment = ' /* DBProxy.async_update_datasets */'
+        methodName = comment.split(' ')[-2].split('.')[-1]
+        methodName += f' < ID={panda_id} >'
+        tmpLog = LogWrapper(_logger, methodName)
+        tmpLog.debug('start')
+        try:
+            if panda_id is not None:
+                panda_id_list = [panda_id]
+            else:
+                # get PandaIDs
+                sql = 'SELECT DISTINCT PandaID FROM {0}.SQL_QUEUE WHERE topic=:topic AND creationTime<:timeLimit'.\
+                    format(panda_config.schemaPANDA)
+                varMap = {':topic': SQL_QUEUE_TOPIC_async_dataset_update,
+                          ':timeLimit': datetime.datetime.utcnow()-datetime.timedelta(minutes=1)}
+                # start transaction
+                self.conn.begin()
+                self.cur.arraysize = 10000
+                self.cur.execute(sql + comment, varMap)
+                panda_id_list = [i[0] for i in self.cur.fetchall()]
+                # commit
+                if not self._commit():
+                    raise RuntimeError('Commit error')
+            if not panda_id_list:
+                tmpLog.debug('done since no IDs are available')
+                return None
+            # loop over all IDs
+            for tmp_id in panda_id_list:
+                tmp_log = LogWrapper(_logger, methodName + f' < PandaID={tmp_id} >')
+                sqlL = 'SELECT data FROM {0}.SQL_QUEUE WHERE topic=:topic AND PandaID=:PandaID ORDER BY '\
+                       'execution_order FOR UPDATE NOWAIT '.format(panda_config.schemaPANDA)
+                sqlD = 'DELETE FROM {0}.SQL_QUEUE WHERE PandaID=:PandaID '.\
+                    format(panda_config.schemaPANDA)
+                n_try = 5
+                all_ok = True
+                for i_try in range(n_try):
+                    all_ok = True
+                    query_list = []
+                    tmp_log.debug(f'Trying PandaID={tmp_id} {i_try+1}/{n_try}')
+                    tmp_data_list = None
+                    # start transaction
+                    self.conn.begin()
+                    # lock queries
+                    try:
+                        var_map = {':topic': SQL_QUEUE_TOPIC_async_dataset_update, ':PandaID': tmp_id}
+                        self.cur.execute(sqlL + comment, var_map)
+                        tmp_data_list = self.cur.fetchall()
+                    except Exception:
+                        tmp_log.debug("cannot lock queries")
+                        all_ok = False
+                    if tmp_data_list:
+                        # execute queries
+                        if all_ok:
+                            for tmp_data, in tmp_data_list:
+                                sql, var_map = json.loads(tmp_data)
+                                query_list.append((sql, var_map))
+                                try:
+                                    self.cur.execute(sql + comment, var_map)
+                                except Exception:
+                                    tmp_log.error(f'failed to execute "{sql}" var={str(var_map)}')
+                                    self.dumpErrorMessage(tmpLog, methodName)
+                                    all_ok = False
+                                    break
+                        # delete queries
+                        if all_ok:
+                            var_map = {':PandaID': tmp_id}
+                            self.cur.execute(sqlD + comment, var_map)
+                    # commit
+                    if all_ok:
+                        if not self._commit():
+                            raise RuntimeError('Commit error')
+                        for sql, var_map in query_list:
+                            tmp_log.debug(sql + str(var_map))
+                        tmp_log.debug('done')
+                        break
+                    else:
+                        self._rollback()
+                        if i_try+1 < n_try:
+                            time.sleep(1)
+                if not all_ok:
+                    tmp_log.error('all attempts failed')
+            tmpLog.debug(f"processed {len(panda_id_list)} IDs")
+            return True
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmpLog, methodName)
+            return False

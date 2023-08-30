@@ -597,7 +597,7 @@ class TaskBuffer:
         return True
 
     # update overall job information
-    def updateJobs(self, jobs, inJobsDefined, oldJobStatusList=None, extraInfo=None):
+    def updateJobs(self, jobs, inJobsDefined, oldJobStatusList=None, extraInfo=None, async_dataset_update=False):
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # loop over all jobs
@@ -630,7 +630,14 @@ class TaskBuffer:
                             job.taskBufferErrorDiag = 'set {0} since no successful events'.format(job.jobStatus)
                             job.taskBufferErrorCode = ErrorCode.EC_EventServiceNoEvent
             if job.jobStatus in ['finished', 'failed', 'cancelled']:
-                ret, tmpddmIDs, ddmAttempt, newMover = proxy.archiveJob(job, inJobsDefined, extraInfo=extraInfo)
+                if async_dataset_update and job.jediTaskID not in [None, 'NULL']:
+                    async_params = {'exec_order': 0, 'PandaID': job.PandaID, 'jediTaskID': job.jediTaskID}
+                else:
+                    async_params = None
+                ret, tmpddmIDs, ddmAttempt, newMover = proxy.archiveJob(job, inJobsDefined, extraInfo=extraInfo,
+                                                                        async_params=async_params)
+                if async_params is not None and ret:
+                    proxy.async_update_datasets(job.PandaID)
             else:
                 ret = proxy.updateJob(job, inJobsDefined, oldJobStatus=oldJobStatus, extraInfo=extraInfo)
             returns.append(ret)
@@ -3936,6 +3943,12 @@ class TaskBuffer:
     def get_events_status(self, ids):
         proxy = self.proxyPool.getProxy()
         ret = proxy.get_events_status(ids)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    def async_update_datasets(self, panda_id):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.async_update_datasets(panda_id)
         self.proxyPool.putProxy(proxy)
         return ret
 
