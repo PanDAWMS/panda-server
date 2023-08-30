@@ -13795,20 +13795,22 @@ class DBProxy:
             if resTC is None:
                 # task not found
                 retStr = 'jediTaskID={0} not found'.format(jediTaskID)
-                _logger.debug("{0} : {1}".format(methodName,retStr))
+                tmpLog.debug(retStr)
                 goForward = False
                 retCode = 2
             else:
                 taskStatus,userName,prodSourceLabel = resTC
+                tmpLog.debug(f"status={taskStatus}")
             # check owner
             if goForward:
                 if not prodRole and compactDN != userName:
                     retStr = 'Permission denied: not the task owner or no production role'
-                    _logger.debug("{0} : {1}".format(methodName,retStr))
+                    tmpLog.debug(retStr)
                     goForward = False
                     retCode = 3
             # check task status
             if goForward:
+                add_msg = ''
                 if comStr in ['kill','finish']:
                     sendMsgToPilot = broadcast
                     if taskStatus in ['finished','done','prepared','broken','aborted','aborted','toabort','aborting','failed']:
@@ -13816,6 +13818,9 @@ class DBProxy:
                 if comStr == 'retry':
                     if taskStatus not in ['finished','failed','aborted','exhausted']:
                         goForward = False
+                    elif taskStatus == 'exhausted' and not prodRole:
+                        goForward = False
+                        add_msg = 'and production role is missing'
                 if comStr == 'incexec':
                     if taskStatus not in ['finished','failed','done','aborted','exhausted']:
                         goForward = False
@@ -13832,7 +13837,8 @@ class DBProxy:
                     if taskStatus not in ['scouting']:
                         goForward = False
                 if not goForward:
-                    retStr = 'Command rejected: the {0} command is not accepted if the task is in {1} status'.format(comStr,taskStatus)
+                    retStr = f'Command rejected: the {comStr} command is not accepted '\
+                             f'if the task is in {taskStatus} status {add_msg}'
                     _logger.debug("{0} : {1}".format(methodName,retStr))
                     retCode = 4
                     # retry for failed analysis jobs
