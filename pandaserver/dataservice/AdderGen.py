@@ -97,6 +97,7 @@ class AdderGen(object):
     # main
     def run(self):
         try:
+            start_time = datetime.datetime.utcnow()
             self.logger.debug("new start: %s attemptNr=%s" % (self.jobStatus,self.attemptNr))
 
             # got lock, get the report
@@ -412,7 +413,8 @@ class AdderGen(object):
                                     cThr.run()
                                     del cThr
                                     self.logger.debug("end Closer for PandaID={0}".format(assJobID))
-            self.logger.debug("end")
+            duration = datetime.datetime.utcnow() - start_time
+            self.logger.debug("end: took %s.%03d sec in total" % (duration.seconds, duration.microseconds/1000))
             # try:
             #     # remove Catalog
             #     os.remove(self.xmlFile)
@@ -425,7 +427,8 @@ class AdderGen(object):
         except Exception as e:
             errStr = ": {} {}".format(str(e), traceback.format_exc())
             self.logger.error(errStr)
-            self.logger.error("except")
+            duration = datetime.datetime.utcnow() - start_time
+            self.logger.error("except: took %s.%03d sec in total" % (duration.seconds, duration.microseconds/1000))
             # unlock job output report
             self.taskBuffer.unlockJobOutputReport(
                             panda_id=self.jobID, attempt_nr=self.attemptNr, pid=self.pid, lock_offset=self.lock_offset)

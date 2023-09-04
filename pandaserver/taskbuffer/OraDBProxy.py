@@ -12583,7 +12583,16 @@ class DBProxy:
             sqlFileStat += "FOR UPDATE "
             if not waitLock:
                 sqlFileStat += "NOWAIT "
-            cur.execute(sqlFileStat+comment,varMap)
+            n_try = 5
+            for i_try in range(n_try):
+                try:
+                    tmpLog.debug(f'Trying to lock file {i_try+1}/{n_try} sql:{sqlFileStat} var:{str(varMap)}')
+                    cur.execute(sqlFileStat+comment, varMap)
+                    break
+                except Exception as e:
+                    if i_try + 1 == n_try:
+                        raise e
+                    time.sleep(1)
             resFileStat = self.cur.fetchone()
             if resFileStat is not None:
                 oldFileStatus,oldIsWaiting = resFileStat
@@ -17253,6 +17262,8 @@ class DBProxy:
             # update JEDI
             self.cur.execute(sqlT+comment, varMap)
             nRow = self.cur.rowcount
+            if nRow:
+                self.reset_resource_type_task(jediTaskID, use_commit=False)
             # commit
             if not self._commit():
                 raise RuntimeError('Commit error')
