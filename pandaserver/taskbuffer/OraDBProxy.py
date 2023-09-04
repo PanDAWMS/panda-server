@@ -12586,7 +12586,7 @@ class DBProxy:
             n_try = 5
             for i_try in range(n_try):
                 try:
-                    tmpLog.debug(f'Trying {i_try+1}/{n_try} sql:{sqlFileStat} var:{str(varMap)}')
+                    tmpLog.debug(f'Trying to lock file {i_try+1}/{n_try} sql:{sqlFileStat} var:{str(varMap)}')
                     cur.execute(sqlFileStat+comment, varMap)
                     break
                 except Exception as e:
