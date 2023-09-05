@@ -2142,12 +2142,12 @@ class DBProxy:
                     for tmpJob in updatedJobList:
                         self.recordStatusChange(tmpJob.PandaID,tmpJobStatus,jobInfo=tmpJob,useCommit=useCommit)
                         extra_info_dict = {
-                                # JA4.NEVENTS, JA4.NINPUTFILES, JA4.NOUTPUTDATAFILES, JA4.NINPUTDATAFILES, JA4.HS06SEC,
-                                # JD.NEVENTSTOBEUSED, JD.NFILES, JD.NFILESUSED, jd.NFILESTOBEUSED
                                 'job_nevents': tmpJob.nEvents,
                                 'job_ninputfiles': tmpJob.nInputFiles,
                                 'job_noutputdatafiles': tmpJob.nOutputDataFiles,
                                 'job_ninputdatafiles': tmpJob.nInputDataFiles,
+                                'job_inputfilebytes': tmpJob.inputFileBytes,
+                                'job_outputfilebytes': tmpJob.outputFileBytes,
                                 'job_hs06sec': tmpJob.hs06sec,
                             }
                         self.push_job_status_message(tmpJob, tmpJob.PandaID, tmpJobStatus, extra_data=extra_info_dict)
