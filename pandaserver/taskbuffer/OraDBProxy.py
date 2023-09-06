@@ -12482,7 +12482,8 @@ class DBProxy:
                     }
                 msg_dict = orig_msg_dict.copy()
                 if extra_data:
-                    msg_dict = extra_data.copy().update(orig_msg_dict)
+                    msg_dict = extra_data.copy()
+                    msg_dict.update(orig_msg_dict)
                 msg = json.dumps(msg_dict)
                 if mb_proxy.got_disconnected:
                     mb_proxy.restart()
