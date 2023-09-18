@@ -201,20 +201,31 @@ class Node (object):
                 if 'opt_secondaryDsTypes' not in dict_inputs:
                     dict_inputs['opt_secondaryDsTypes'] = []
                     for ds_name in dict_inputs['opt_secondaryDSs']:
+                        added = False
                         for pid in self.parents:
                             parent_node = id_map[pid]
                             if ds_name in parent_node.convert_set_outputs():
                                 dict_inputs['opt_secondaryDsTypes'].append(parent_node.output_types[0])
+                                added = True
                                 break
+                            # use None if not found
+                            dict_inputs['opt_secondaryDsTypes'].append(None)
+                            added = True
+                        if not added:
+                            # use None if not found
+                            dict_inputs['opt_secondaryDsTypes'].append(None)
                 # resolve secondary dataset names
                 idx = 1
                 list_sec_ds = []
                 for ds_name, ds_type in zip(dict_inputs['opt_secondaryDSs'], dict_inputs['opt_secondaryDsTypes']):
-                    if '*' in ds_type:
+                    if ds_type and '*' in ds_type:
                         ds_type = ds_type.replace('*', 'XYZ')
                         ds_type += '.tgz'
                     src = "%{{SECDS{}}}".format(idx)
-                    dst = "{}_{}/".format(ds_name, ds_type)
+                    if ds_type:
+                        dst = "{}_{}/".format(ds_name, ds_type)
+                    else:
+                        dst = f"{ds_name}/"
                     dict_inputs['opt_exec'] = re.sub(src, dst, dict_inputs['opt_exec'])
                     dict_inputs['opt_args'] = re.sub(src, dst, dict_inputs['opt_args'])
                     idx += 1
