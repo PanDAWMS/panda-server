@@ -31,8 +31,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             _logger.error(f'failed to mkdir {dest_dir_path}: {e}')
         # copy
         for source_file in source_file_list:
-            shutil.copy(source_file, dest_dir_path)
-            _logger.debug(f'copied {source_file} to {dest_dir_path}/')
+            dest_file_path = shutil.copy(source_file, dest_dir_path)
+            _logger.debug(f'copied {source_file} to {dest_file_path}')
     except Exception as e:
         err_str = traceback.format_exc()
         _logger.error(f'failed to copy files: {err_str}')

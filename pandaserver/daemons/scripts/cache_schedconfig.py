@@ -8,6 +8,7 @@ import sys
 import os
 import shutil
 import json
+import traceback
 
 from argparse import ArgumentParser
 from copy import deepcopy
@@ -19,7 +20,7 @@ from pandacommon.pandautils.thread_utils import GenericThread
 
 
 # logger
-_logger = PandaLogger().getLogger('cache_sched_config')
+_logger = PandaLogger().getLogger('cache_schedconfig')
 
 # default destination directory
 default_dest_dir = getattr(panda_config, 'schedconfig_cache_dir', '/var/cache/pandaserver/schedconfig')
@@ -190,46 +191,44 @@ class cacheSchedConfig:
 
 def main(argv=tuple(), tbuf=None, **kwargs):
     _logger.debug('start')
-
-    parser = ArgumentParser()
-    parser.add_argument("-o", "--output", dest="dirname",
-                        default=default_dest_dir,
-                        help="write cache outputs to DIR", metavar="DIR")
-    args = parser.parse_args()
-
-    # ensure destination directory
-    dest_dir_path = Path(args.dirname)
-    dest_dir_path.mkdir(mode=0o755, exist_ok=True)
-
-    # instantiate TB
-    requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
-    if tbuf is None:
-        from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd,
-                        nDBConnection=1, useTimeout=True, requester=requester_id)
-    else:
-        taskBuffer = tbuf
-
-    # dump
-    cacher = cacheSchedConfig(tbuf=taskBuffer)
-    cacher.getStucturedQueueStatus()
-    
-    for queue in cacher.queueData:
-        cacher.dumpSingleQueue(queue, dest=args.dirname, outputSet='pilot', format='pilot')
-        cacher.dumpSingleQueue(queue, dest=args.dirname, outputSet='pilot', format='json')
-        cacher.dumpSingleQueue(queue, dest=args.dirname, outputSet='all', format='json')
-        cacher.dumpSingleQueue(queue, dest=args.dirname, outputSet='factory', format='json')
-    
-    _logger.debug('dumped json files for each queue')
-        
-    # Big dumper
-    cacher.dumpAllSchedConfig(dest=args.dirname)
-    _logger.debug('dumped schedconfig.all.json')
-
-    # stop taskBuffer if created inside this script
-    if tbuf is None:
-        taskBuffer.cleanup(requester=requester_id)
-    
+    try:
+        # parse arguments
+        parser = ArgumentParser()
+        parser.add_argument("-o", "--output", dest="dirname",
+                            default=default_dest_dir,
+                            help="write cache outputs to DIR", metavar="DIR")
+        args = parser.parse_args()
+        # ensure destination directory
+        dest_dir_path = Path(args.dirname)
+        dest_dir_path.mkdir(mode=0o755, exist_ok=True)
+        # instantiate TB
+        requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+        if tbuf is None:
+            from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+            taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd,
+                            nDBConnection=1, useTimeout=True, requester=requester_id)
+        else:
+            taskBuffer = tbuf
+        # initialze
+        cacher = cacheSchedConfig(tbuf=taskBuffer)
+        cacher.getStucturedQueueStatus()
+        # dump
+        for queue in cacher.queueData:
+            cacher.dumpSingleQueue(queue, dest=args.dirname, outputSet='pilot', format='pilot')
+            cacher.dumpSingleQueue(queue, dest=args.dirname, outputSet='pilot', format='json')
+            cacher.dumpSingleQueue(queue, dest=args.dirname, outputSet='all', format='json')
+            cacher.dumpSingleQueue(queue, dest=args.dirname, outputSet='factory', format='json')
+        _logger.debug('dumped json files for each queue')
+        # Big dumper
+        cacher.dumpAllSchedConfig(dest=args.dirname)
+        _logger.debug('dumped schedconfig.all.json')
+        # stop taskBuffer if created inside this script
+        if tbuf is None:
+            taskBuffer.cleanup(requester=requester_id)
+    except Exception as e:
+        err_str = traceback.format_exc()
+        _logger.error(f'failed to copy files: {err_str}')
+    # done    
     _logger.debug('done')
 
 
