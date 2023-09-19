@@ -11,6 +11,7 @@ import json
 
 from argparse import ArgumentParser
 from copy import deepcopy
+from pathlib import Path
 
 from pandaserver.config import panda_config
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -195,6 +196,10 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         default=default_dest_dir,
                         help="write cache outputs to DIR", metavar="DIR")
     args = parser.parse_args()
+
+    # ensure destination directory
+    dest_dir_path = Path(args.dirname)
+    dest_dir_path.mkdir(mode=0o755, exist_ok=True)
 
     # instantiate TB
     requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)

@@ -26,7 +26,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         # ensure the destination directory
         dest_dir_path = Path(default_dest_dir)
         try:
-            dest_dir_path.mkdir(mode=0o755,exist_ok=True)
+            dest_dir_path.mkdir(mode=0o755, exist_ok=True)
         except Exception as e:
             _logger.error(f'failed to mkdir {dest_dir_path}: {e}')
         # copy
