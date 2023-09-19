@@ -18,7 +18,7 @@ from pandacommon.pandautils.thread_utils import GenericThread
 
 
 # logger
-_logger = PandaLogger().getLogger('cacheSchedConfig')
+_logger = PandaLogger().getLogger('cache_sched_config')
 
 
 class cacheSchedConfig:
@@ -82,7 +82,7 @@ class cacheSchedConfig:
         
     def getCloudStatus(self):
         sql = 'SELECT name, status from {0}.CLOUDCONFIG'.format(panda_config.schemaMETA)
-        r = self.tbuf.querySQL(sql)
+        r = self.tbuf.querySQL(sql, None)
         self.cloudStatus = dict()
         for row in r:
             self.cloudStatus[row[0]] = row[1]
@@ -185,6 +185,8 @@ class cacheSchedConfig:
 
 
 def main(argv=tuple(), tbuf=None, **kwargs):
+    _logger.debug('start')
+
     parser = ArgumentParser()
     parser.add_argument("-o", "--output", dest="dirname",
                       help="write cache outputs to DIR", metavar="DIR")
@@ -200,7 +202,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         taskBuffer = tbuf
 
     # dump
-    cacher = cacheSchedConfig(tbuf=taskBuffer)    
+    cacher = cacheSchedConfig(tbuf=taskBuffer)
     cacher.getStucturedQueueStatus()
     
     for queue in cacher.queueData:
@@ -208,9 +210,18 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         cacher.dumpSingleQueue(queue, dest=args.dirname, outputSet='pilot', format='json')
         cacher.dumpSingleQueue(queue, dest=args.dirname, outputSet='all', format='json')
         cacher.dumpSingleQueue(queue, dest=args.dirname, outputSet='factory', format='json')
+    
+    _logger.debug('dumped json files for each queue')
         
     # Big dumper
     cacher.dumpAllSchedConfig(dest=args.dirname)
+    _logger.debug('dumped schedconfig.all.json')
+
+    # stop taskBuffer if created inside this script
+    if tbuf is None:
+        taskBuffer.cleanup(requester=requester_id)
+    
+    _logger.debug('done')
 
 
 if __name__ == "__main__":
