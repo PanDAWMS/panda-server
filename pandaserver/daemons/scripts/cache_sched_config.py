@@ -20,6 +20,9 @@ from pandacommon.pandautils.thread_utils import GenericThread
 # logger
 _logger = PandaLogger().getLogger('cache_sched_config')
 
+# default destination directory
+default_dest_dir = getattr(panda_config, 'schedconfig_cache_dir', '/var/cache/pandaserver/schedconfig')
+
 
 class cacheSchedConfig:
     '''
@@ -189,7 +192,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
     parser = ArgumentParser()
     parser.add_argument("-o", "--output", dest="dirname",
-                      help="write cache outputs to DIR", metavar="DIR")
+                        default=default_dest_dir,
+                        help="write cache outputs to DIR", metavar="DIR")
     args = parser.parse_args()
 
     # instantiate TB
