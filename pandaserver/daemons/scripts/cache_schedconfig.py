@@ -194,10 +194,10 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     try:
         # parse arguments
         parser = ArgumentParser()
-        parser.add_argument("-o", "--output", dest="dirname",
-                            default=default_dest_dir,
+        parser.add_argument("-o", "--output", 
+                            dest="dirname", default=default_dest_dir,
                             help="write cache outputs to DIR", metavar="DIR")
-        args = parser.parse_args()
+        args = parser.parse_args(list(argv)[1:])
         # ensure destination directory
         dest_dir_path = Path(args.dirname)
         dest_dir_path.mkdir(mode=0o755, exist_ok=True)
@@ -233,4 +233,4 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
 
 if __name__ == "__main__":
-    main()
+    main(argv=sys.argv)
