@@ -2141,7 +2141,16 @@ class DBProxy:
                 try:
                     for tmpJob in updatedJobList:
                         self.recordStatusChange(tmpJob.PandaID,tmpJobStatus,jobInfo=tmpJob,useCommit=useCommit)
-                        self.push_job_status_message(tmpJob, tmpJob.PandaID, tmpJobStatus)
+                        extra_info_dict = {
+                                'job_nevents': tmpJob.nEvents,
+                                'job_ninputfiles': tmpJob.nInputFiles,
+                                'job_noutputdatafiles': tmpJob.nOutputDataFiles,
+                                'job_ninputdatafiles': tmpJob.nInputDataFiles,
+                                'job_inputfilebytes': tmpJob.inputFileBytes,
+                                'job_outputfilebytes': tmpJob.outputFileBytes,
+                                'job_hs06sec': tmpJob.hs06sec,
+                            }
+                        self.push_job_status_message(tmpJob, tmpJob.PandaID, tmpJobStatus, extra_data=extra_info_dict)
                 except Exception:
                     tmpLog.error('recordStatusChange in archiveJob')
                 exec_time = datetime.datetime.utcnow() - start_time
@@ -12429,7 +12438,7 @@ class DBProxy:
                 raise RuntimeError('recordStatusChange failed')
         return
 
-    def push_job_status_message(self, job_spec, panda_id, status, jedi_task_id=None, special_handling=None):
+    def push_job_status_message(self, job_spec, panda_id, status, jedi_task_id=None, special_handling=None, extra_data=None):
         if not (hasattr(panda_config, 'mbproxy_configFile') and panda_config.mbproxy_configFile):
             # skip if not configured
             return
@@ -12463,7 +12472,7 @@ class DBProxy:
                         if file_spec.type in ['input', 'pseudo_input']:
                             inputs.append(file_spec.lfn)
                 # message
-                msg_dict = {
+                orig_msg_dict = {
                         'msg_type': 'job_status',
                         'jobid': panda_id,
                         'taskid': jedi_task_id,
@@ -12471,6 +12480,10 @@ class DBProxy:
                         'inputs': inputs if inputs else None,
                         'timestamp': now_ts,
                     }
+                msg_dict = orig_msg_dict.copy()
+                if extra_data:
+                    msg_dict = extra_data.copy()
+                    msg_dict.update(orig_msg_dict)
                 msg = json.dumps(msg_dict)
                 if mb_proxy.got_disconnected:
                     mb_proxy.restart()
