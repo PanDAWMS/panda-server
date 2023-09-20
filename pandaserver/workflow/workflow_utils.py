@@ -698,7 +698,8 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None):
                     else:
                         p_work = all_sub_id_work_map[p_id]
                         str_p_id = sub_to_id_map[p_id]
-                    if len(node.parents) > 1 or isinstance(p_work, Workflow) or node.type in ['junction', 'reana']:
+                    if len(node.parents) > 1 or isinstance(p_work, Workflow) or \
+                            node.type in ['junction', 'reana', 'gitlab']:
                         cond_function = p_work.is_finished
                     else:
                         cond_function = p_work.is_started
