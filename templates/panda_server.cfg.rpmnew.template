@@ -427,10 +427,10 @@ config = {
         "enable": true, "module": "configurator", "arguments": ["--network"], "period": 400, "sync": true},
     "schedconfig_json": {
         "enable": true, "module": "configurator", "arguments": ["--json_dump"], "period": 200, "sync": true},
+    "sw_tags": {
+        "enable": true, "module": "configurator", "arguments": ["--sw_tags"], "period": 200, "sync": true},
     "cache_schedconfig": {
         "enable": true, "period": 300},
     "cache_pilots": {
-        "enable": true, "period": 3600},
-    "sw_tags": {
-        "enable": true, "module": "configurator", "arguments": ["--sw_tags"], "period": 200, "sync": true}
+        "enable": true, "period": 3600}
   }
