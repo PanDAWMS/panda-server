@@ -1,12 +1,11 @@
 # Definitions
-EXECUTING = 'executing'
-QUEUED = 'queued'
-PLEDGED = 'pledged'
-IGNORE = 'ignore'
+EXECUTING = "executing"
+QUEUED = "queued"
+PLEDGED = "pledged"
+IGNORE = "ignore"
 
 
 class Node(object):
-
     def __init__(self):
         self.children = []
 
@@ -14,7 +13,6 @@ class Node(object):
         self.children.append(node)
 
     def get_leaves(self, leaves=[]):
-
         # If the node has no leaves, return the node in a list
         if not self.children:
             leaves.append(self)
@@ -31,14 +29,27 @@ class Share(Node):
     """
     Implement the share node
     """
-    _attributes = ('name', 'value', 'parent', 'prodsourcelabel', 'workinggroup', 'campaign', 'processingtype',
-                   'transpath', 'vo', 'rtype', 'queue_id', 'throttled')
+
+    _attributes = (
+        "name",
+        "value",
+        "parent",
+        "prodsourcelabel",
+        "workinggroup",
+        "campaign",
+        "processingtype",
+        "transpath",
+        "vo",
+        "rtype",
+        "queue_id",
+        "throttled",
+    )
 
     def __str__(self, level=0):
         """
         Print the tree structure
         """
-        ret = "{0} name: {1}, value: {2}\n".format('\t' * level, self.name, self.value)
+        ret = "{0} name: {1}, value: {2}\n".format("\t" * level, self.name, self.value)
         for child in self.children:
             ret += child.__str__(level + 1)
         return ret
@@ -59,9 +70,21 @@ class Share(Node):
     def __imul__(self, other):
         return self.__mul__
 
-    def __init__(self, name, value, parent, prodsourcelabel, workinggroup, campaign, processingtype,
-                 transpath, rtype, vo, queue_id, throttled):
-
+    def __init__(
+        self,
+        name,
+        value,
+        parent,
+        prodsourcelabel,
+        workinggroup,
+        campaign,
+        processingtype,
+        transpath,
+        rtype,
+        vo,
+        queue_id,
+        throttled,
+    ):
         # Create default attributes
         for attr in self._attributes:
             setattr(self, attr, None)
@@ -82,31 +105,30 @@ class Share(Node):
 
     def pretty_print_hs_distribution(self, hs_distribution, level=0):
         try:
-            executing = hs_distribution[self.name][EXECUTING]/1000.0
+            executing = hs_distribution[self.name][EXECUTING] / 1000.0
         except Exception:
             executing = 0
 
         try:
-            target = hs_distribution[self.name][PLEDGED]/1000.0
+            target = hs_distribution[self.name][PLEDGED] / 1000.0
         except Exception:
             target = 0
 
         try:
-            queued = hs_distribution[self.name][QUEUED]/1000.0
+            queued = hs_distribution[self.name][QUEUED] / 1000.0
         except Exception:
             queued = 0
 
-        ret = "{0} name: {1}, values: {2:.1f}k|{3:.1f}k|{4:.1f}k\n".format('\t' * level, self.name, executing, target, queued)
+        ret = "{0} name: {1}, values: {2:.1f}k|{3:.1f}k|{4:.1f}k\n".format("\t" * level, self.name, executing, target, queued)
         for child in self.children:
             ret += child.pretty_print_hs_distribution(hs_distribution, level + 1)
         return ret
-
 
     def normalize(self, multiplier=100, divider=100):
         """
         Will run down the branch and normalize values beneath
         """
-        self.value *= (multiplier * 1.0 / divider)
+        self.value *= multiplier * 1.0 / divider
         if not self.children:
             return
 
@@ -149,7 +171,7 @@ class Share(Node):
                     # Calculate under-pledging
                     child2_under_pledge = hs_distribution[child2.name][EXECUTING] * 1.0 / hs_distribution[child2.name][PLEDGED]
                 except ZeroDivisionError:
-                    child2_under_pledge = 10 ** 6  # Initialize to a large default number
+                    child2_under_pledge = 10**6  # Initialize to a large default number
                 except KeyError:
                     continue  # Does not exist
 
@@ -192,27 +214,31 @@ class Share(Node):
         pledged = 0
 
         for child in self.children:
-            executing_child, queued_child, pledged_child = child.aggregate_hs_distribution(hs_distribution)
+            (
+                executing_child,
+                queued_child,
+                pledged_child,
+            ) = child.aggregate_hs_distribution(hs_distribution)
             executing += executing_child
             queued += queued_child
             pledged += pledged_child
 
         # Add the aggregated value to the map
         hs_distribution[self.name] = {
-                                       EXECUTING: executing,
-                                       QUEUED: queued,
-                                       PLEDGED: pledged
-                                     }
+            EXECUTING: executing,
+            QUEUED: queued,
+            PLEDGED: pledged,
+        }
 
         # Return the aggregated values
         return executing, queued, pledged
 
     # return column names
     def column_names(cls):
-        ret = ''
+        ret = ""
         for attr in cls._attributes:
-            if ret != '':
-                ret += ','
+            if ret != "":
+                ret += ","
             ret += attr
         return ret
 

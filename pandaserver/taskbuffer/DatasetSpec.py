@@ -6,11 +6,23 @@ dataset specification
 
 class DatasetSpec(object):
     # attributes
-    _attributes = ('vuid', 'name', 'version', 'type', 'status', 'numberfiles', 'currentfiles', 'creationdate',
-                   'modificationdate', 'MoverID', 'transferStatus', 'subType')
+    _attributes = (
+        "vuid",
+        "name",
+        "version",
+        "type",
+        "status",
+        "numberfiles",
+        "currentfiles",
+        "creationdate",
+        "modificationdate",
+        "MoverID",
+        "transferStatus",
+        "subType",
+    )
 
     # attributes which have 0 by default
-    _zeroAttrs = ('MoverID', 'transferStatus')
+    _zeroAttrs = ("MoverID", "transferStatus")
 
     # constructor
     def __init__(self):
@@ -38,12 +50,12 @@ class DatasetSpec(object):
         ret = {}
         for attr in self._attributes:
             val = getattr(self, attr)
-            if val == 'NULL':
+            if val == "NULL":
                 if attr in self._zeroAttrs:
                     val = 0
                 else:
                     val = None
-            ret[':%s' % attr] = val
+            ret[":%s" % attr] = val
         return ret
 
     # pack tuple into DatasetSpec
@@ -58,7 +70,7 @@ class DatasetSpec(object):
         ret = ""
         for attr in cls._attributes:
             if ret != "":
-                ret += ','
+                ret += ","
             ret += attr
         return ret
 
@@ -102,7 +114,7 @@ class DatasetSpec(object):
     def bindUpdateExpression(cls):
         ret = ""
         for attr in cls._attributes:
-            ret += '%s=:%s,' % (attr, attr)
+            ret += "%s=:%s," % (attr, attr)
         ret = ret[:-1]
         return ret
 

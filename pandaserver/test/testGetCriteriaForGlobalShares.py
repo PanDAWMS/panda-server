@@ -2,6 +2,7 @@ from pandaserver.taskbuffer.OraDBProxy import DBProxy
 import socket
 from pandaserver.config import panda_config
 import time
+
 try:
     from urlparse import parse_qs
 except ImportError:
@@ -11,15 +12,15 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from testutils import sendCommand
 
 
-_logger = PandaLogger().getLogger('testGetCriteriaGlobalShares')
+_logger = PandaLogger().getLogger("testGetCriteriaGlobalShares")
 
 
 def retrieveJob(site):
     function = "getJob"
     node = {}
-    node['siteName'] = site
-    node['mem'] = 1000
-    node['node'] = socket.getfqdn()
+    node["siteName"] = site
+    node["mem"] = 1000
+    node["node"] = socket.getfqdn()
 
     data = sendCommand(function, node, _logger)
     jobD = parse_qs(data)  # jobD indicates it's a job in dictionary format, not a JobSpec object
@@ -28,27 +29,48 @@ def retrieveJob(site):
 
 if __name__ == "__main__":
     proxyS = DBProxy()
-    proxyS.connect(panda_config.dbhost,panda_config.dbpasswd,panda_config.dbuser,panda_config.dbname)
+    proxyS.connect(
+        panda_config.dbhost,
+        panda_config.dbpasswd,
+        panda_config.dbuser,
+        panda_config.dbname,
+    )
 
-    #proxyS.getCriteriaForGlobalShares('BNL-OSG')
+    # proxyS.getCriteriaForGlobalShares('BNL-OSG')
 
-    site = 'CERN-PROD'
+    site = "CERN-PROD"
 
-    DIRECT = 'direct'
-    WEB = 'web'
+    DIRECT = "direct"
+    WEB = "web"
 
     mode = WEB
 
     if mode == DIRECT:
         for i in range(3):
             t_before = time.time()
-            _logger.info(proxyS.getJobs(1, site, 'managed', None, 1000,
-                           0, 'aipanda081.cern.ch', 20, None, None,
-                           None, None, None, None, None))
+            _logger.info(
+                proxyS.getJobs(
+                    1,
+                    site,
+                    "managed",
+                    None,
+                    1000,
+                    0,
+                    "aipanda081.cern.ch",
+                    20,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
+            )
             t_after = time.time()
 
-            total = t_after-t_before
-            _logger.info('Took {0}s'.format(total))
+            total = t_after - t_before
+            _logger.info("Took {0}s".format(total))
 
     elif mode == WEB:
         job = retrieveJob(site)

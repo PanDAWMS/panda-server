@@ -5,8 +5,8 @@ ddm specification
 
 import re
 
-class DdmSpec(object):
 
+class DdmSpec(object):
     # constructor
     def __init__(self):
         self.all = {}
@@ -17,7 +17,7 @@ class DdmSpec(object):
 
     # add endpoint
     def add(self, relation, endpointDict):
-        name = relation['ddm_endpoint_name']
+        name = relation["ddm_endpoint_name"]
 
         # protection against inconsistent dict
         if name not in endpointDict:
@@ -33,15 +33,15 @@ class DdmSpec(object):
             self.all[name][key] = value
 
         # local endpoints
-        if relation['is_local'] != 'N':
+        if relation["is_local"] != "N":
             self.local.add(name)
         # defaults
-        if relation['default_read'] == 'Y':
+        if relation["default_read"] == "Y":
             self.default_read = name
-        if relation['default_write'] == 'Y':
+        if relation["default_write"] == "Y":
             self.default_write = name
         # tape
-        if relation['is_tape'] == 'Y':
+        if relation["is_tape"] == "Y":
             self.tape.add(name)
 
     # get all endpoints
@@ -49,7 +49,7 @@ class DdmSpec(object):
         return list(self.all)
 
     # get endpoint
-    def getEndPoint(self,endpointName):
+    def getEndPoint(self, endpointName):
         if endpointName in self.all:
             return self.all[endpointName]
         return None
@@ -73,28 +73,28 @@ class DdmSpec(object):
         return tuple(self.tape)
 
     # check association
-    def isAssociated(self,endpointName):
+    def isAssociated(self, endpointName):
         return endpointName in self.all
 
     # check local
-    def isLocal(self,endpointName):
+    def isLocal(self, endpointName):
         return endpointName in self.local
 
     # get DDM endpoint associated with a pattern
-    def getAssociatedEndpoint(self, patt, mode='output'):
-        patt = patt.split('/')[-1]
+    def getAssociatedEndpoint(self, patt, mode="output"):
+        patt = patt.split("/")[-1]
         if patt in self.all:
             return self.all[patt]
 
         endpoint = None
-        order = 10**6 # Like infinite
+        order = 10**6  # Like infinite
         for tmp_ddm_endpoint_name in self.all:
             tmp_ddm_endpoint_dict = self.all[tmp_ddm_endpoint_name]
             # get the order of the current loop endpoint
-            if mode == 'input':
-                tmp_order = tmp_ddm_endpoint_dict['order_read']
-            elif mode == 'output':
-                tmp_order = tmp_ddm_endpoint_dict['order_write']
+            if mode == "input":
+                tmp_order = tmp_ddm_endpoint_dict["order_read"]
+            elif mode == "output":
+                tmp_order = tmp_ddm_endpoint_dict["order_write"]
             # we already have a closer endpoint, so skip the looping one
             if tmp_order > order:
                 continue
@@ -105,8 +105,8 @@ class DdmSpec(object):
                 order = tmp_order
 
             # check type
-            pattwoVO = re.sub('ATLAS','',patt)
-            if self.all[tmp_ddm_endpoint_name]['type'] == pattwoVO:
+            pattwoVO = re.sub("ATLAS", "", patt)
+            if self.all[tmp_ddm_endpoint_name]["type"] == pattwoVO:
                 endpoint = self.all[tmp_ddm_endpoint_name]
                 order = tmp_order
 
@@ -118,13 +118,13 @@ class DdmSpec(object):
         orders = {}
         for tmp_ddm_endpoint_name in self.all:
             tmp_ddm_endpoint_dict = self.all[tmp_ddm_endpoint_name]
-            token = tmp_ddm_endpoint_dict['ddm_spacetoken_name']
+            token = tmp_ddm_endpoint_dict["ddm_spacetoken_name"]
 
             # get the order
-            if mode == 'input':
-                order = tmp_ddm_endpoint_dict['order_read']
-            elif mode == 'output':
-                order = tmp_ddm_endpoint_dict['order_write']
+            if mode == "input":
+                order = tmp_ddm_endpoint_dict["order_read"]
+            elif mode == "output":
+                order = tmp_ddm_endpoint_dict["order_write"]
 
             # map already contains this token
             if token in ret_map and orders[token] < order:

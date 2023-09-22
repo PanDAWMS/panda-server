@@ -6,9 +6,24 @@ cloud specification
 
 class CloudSpec(object):
     # attributes
-    _attributes = ('name', 'tier1', 'tier1SE', 'relocation', 'weight', 'server', 'status', 'transtimelo',
-                   'transtimehi', 'waittime', 'validation', 'mcshare', 'countries', 'fasttrack', 'nprestage',
-                   'pilotowners')
+    _attributes = (
+        "name",
+        "tier1",
+        "tier1SE",
+        "relocation",
+        "weight",
+        "server",
+        "status",
+        "transtimelo",
+        "transtimehi",
+        "waittime",
+        "validation",
+        "mcshare",
+        "countries",
+        "fasttrack",
+        "nprestage",
+        "pilotowners",
+    )
 
     # constructor
     def __init__(self):
@@ -18,7 +33,7 @@ class CloudSpec(object):
 
     # serialize
     def __str__(self):
-        str = ''
+        str = ""
         for attr in self._attributes:
-            str += '%s:%s ' % (attr, getattr(self, attr))
+            str += "%s:%s " % (attr, getattr(self, attr))
         return str

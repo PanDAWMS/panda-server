@@ -25,12 +25,20 @@ serverDBVersion = PandaDBSchemaInfo.PandaDBSchemaInfo().method()
 if version.parse(dbVersion) >= version.parse(serverDBVersion):
     print("DB schema check: OK")
 else:
-    msgBody = 'There is an issue with ' + panda_config.pserveralias + '. PanDA DB schema installed is ' + dbVersion + \
-              ' while PanDA Server requires version ' + serverDBVersion + \
-              ' to be installed. Please check the official docs for instructions on how to upgrade the schema.'
+    msgBody = (
+        "There is an issue with "
+        + panda_config.pserveralias
+        + ". PanDA DB schema installed is "
+        + dbVersion
+        + " while PanDA Server requires version "
+        + serverDBVersion
+        + " to be installed. Please check the official docs for instructions on how to upgrade the schema."
+    )
 
     print(msgBody)
-    if 'pandaEmailNotification' in panda_config.__dict__:
-
-        MailUtils().send(panda_config.pandaEmailNotification,
-                         'PanDA DB Version installed is not correct for ' + panda_config.pserveralias, msgBody)
+    if "pandaEmailNotification" in panda_config.__dict__:
+        MailUtils().send(
+            panda_config.pandaEmailNotification,
+            "PanDA DB Version installed is not correct for " + panda_config.pserveralias,
+            msgBody,
+        )

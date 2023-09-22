@@ -6,11 +6,13 @@ Please always keep this version number up to date.
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 # logger
-_logger = PandaLogger().getLogger('DBSchema')
+_logger = PandaLogger().getLogger("DBSchema")
 
-class PandaDBSchemaInfo():
+
+class PandaDBSchemaInfo:
     schema_version = None
+
     def method(self):
-        schema_version = '0.0.14'
+        schema_version = "0.0.14"
         _logger.debug("PanDA schema version required for Server is : %s" % schema_version)
-        return (schema_version)
+        return schema_version

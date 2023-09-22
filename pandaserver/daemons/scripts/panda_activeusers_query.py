@@ -9,7 +9,7 @@ from pandaserver.srvcore import CoreUtils
 
 
 # logger
-_logger = PandaLogger().getLogger('panda_activeusers_query')
+_logger = PandaLogger().getLogger("panda_activeusers_query")
 
 
 # main
@@ -23,8 +23,14 @@ def main(tbuf=None, **kwargs):
     if tbuf is None:
         tmpLog.debug("Getting new connection")
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd,
-                        nDBConnection=1, useTimeout=True, requester=requesterd_id)
+
+        taskBuffer.init(
+            panda_config.dbhost,
+            panda_config.dbpasswd,
+            nDBConnection=1,
+            useTimeout=True,
+            requester=requesterd_id,
+        )
         tmpLog.debug("Getting new connection - done")
     else:
         tmpLog.debug("Reusing connection")
@@ -34,19 +40,19 @@ def main(tbuf=None, **kwargs):
     my_proxy_interface_instance = panda_proxy_cache.MyProxyInterface()
 
     # roles
-    if hasattr(panda_config, 'proxy_cache_roles'):
-        roles = panda_config.proxy_cache_roles.split(',')
+    if hasattr(panda_config, "proxy_cache_roles"):
+        roles = panda_config.proxy_cache_roles.split(",")
     else:
-        roles = ['atlas', 'atlas:/atlas/Role=production', 'atlas:/atlas/Role=pilot']
+        roles = ["atlas", "atlas:/atlas/Role=production", "atlas:/atlas/Role=pilot"]
 
     # get users
-    sql = 'select distinct DN FROM ATLAS_PANDAMETA.users WHERE GRIDPREF LIKE :patt'
+    sql = "select distinct DN FROM ATLAS_PANDAMETA.users WHERE GRIDPREF LIKE :patt"
     varMap = {}
-    varMap[':patt'] = '%p%'
+    varMap[":patt"] = "%p%"
     tmpLog.debug("Querying users")
-    tmpStat,tmpRes = taskBuffer.querySQLS(sql, varMap)
+    tmpStat, tmpRes = taskBuffer.querySQLS(sql, varMap)
     tmpLog.debug("Querying done")
-    for realDN, in tmpRes:
+    for (realDN,) in tmpRes:
         if realDN is None:
             continue
         realDN = CoreUtils.get_bare_dn(realDN, keep_digits=False)
@@ -64,5 +70,5 @@ def main(tbuf=None, **kwargs):
 
 
 # run
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

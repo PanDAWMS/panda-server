@@ -17,11 +17,10 @@ from pandaserver.taskbuffer.ConBridge import ConBridge
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 # logger
-_logger = PandaLogger().getLogger('DBProxyPool')
+_logger = PandaLogger().getLogger("DBProxyPool")
 
 
 class DBProxyPool:
-
     def __init__(self, dbhost, dbpasswd, nConnection, useTimeout=False, dbProxyClass=None):
         # crate lock for callers
         self.lock = Lock()
@@ -34,8 +33,7 @@ class DBProxyPool:
             _logger.debug("connect -> %s " % i)
             if dbProxyClass is not None:
                 proxy = dbProxyClass()
-            elif useTimeout and hasattr(panda_config, 'usedbtimeout') and \
-                    panda_config.usedbtimeout is True:
+            elif useTimeout and hasattr(panda_config, "usedbtimeout") and panda_config.usedbtimeout is True:
                 """
                 ConBridge allows having database interactions in separate processes and killing them independently when interactions are stalled.
                 This avoids clogged httpd processes due to stalled database accesses.
@@ -53,7 +51,7 @@ class DBProxyPool:
                 time.sleep(random.randint(60, 90))
             self.proxyList.put(proxy)
             time.sleep(1)
-        # get PID    
+        # get PID
         self.pid = os.getpid()
         _logger.debug("ready")
 

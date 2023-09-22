@@ -8,16 +8,15 @@ from datetime import datetime, timedelta
 from pandaserver.config import panda_config
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
-_logger = PandaLogger().getLogger('configurator')
+_logger = PandaLogger().getLogger("configurator")
 
 # Definitions of roles
-WRITE_LAN = 'write_lan'
-READ_LAN = 'read_lan'
-DEFAULT = 'default'
+WRITE_LAN = "write_lan"
+READ_LAN = "read_lan"
+DEFAULT = "default"
 
 
 class Configurator(threading.Thread):
-
     def __init__(self, taskBuffer, log_stream=None):
         threading.Thread.__init__(self)
 
@@ -27,69 +26,68 @@ class Configurator(threading.Thread):
         else:
             self.log_stream = _logger
 
-        if hasattr(panda_config, 'CRIC_URL_SITES'):
+        if hasattr(panda_config, "CRIC_URL_SITES"):
             self.CRIC_URL_SITES = panda_config.CRIC_URL_SITES
         else:
-            self.CRIC_URL_SITES = 'https://atlas-cric.cern.ch/api/atlas/site/query/?json'
+            self.CRIC_URL_SITES = "https://atlas-cric.cern.ch/api/atlas/site/query/?json"
 
-        if hasattr(panda_config, 'CRIC_URL_DDMENDPOINTS'):
+        if hasattr(panda_config, "CRIC_URL_DDMENDPOINTS"):
             self.CRIC_URL_DDMENDPOINTS = panda_config.CRIC_URL_DDMENDPOINTS
         else:
-            self.CRIC_URL_DDMENDPOINTS = 'https://atlas-cric.cern.ch/api/atlas/ddmendpoint/query/?json'
+            self.CRIC_URL_DDMENDPOINTS = "https://atlas-cric.cern.ch/api/atlas/ddmendpoint/query/?json"
 
-        if hasattr(panda_config, 'CRIC_URL_SCHEDCONFIG'):
+        if hasattr(panda_config, "CRIC_URL_SCHEDCONFIG"):
             self.CRIC_URL_SCHEDCONFIG = panda_config.CRIC_URL_SCHEDCONFIG
         else:
-            self.CRIC_URL_SCHEDCONFIG = 'https://atlas-cric.cern.ch/api/atlas/pandaqueue/query/?json'
+            self.CRIC_URL_SCHEDCONFIG = "https://atlas-cric.cern.ch/api/atlas/pandaqueue/query/?json"
 
-        if hasattr(panda_config, 'CRIC_URL_DDMBLACKLIST'):
+        if hasattr(panda_config, "CRIC_URL_DDMBLACKLIST"):
             self.CRIC_URL_DDMBLACKLIST = panda_config.CRIC_URL_DDMBLACKLIST
         else:
-            self.CRIC_URL_DDMBLACKLIST = 'https://atlas-cric.cern.ch/api/atlas/ddmendpointstatus/query/?json&activity=write_wan&fstate=OFF'
+            self.CRIC_URL_DDMBLACKLIST = "https://atlas-cric.cern.ch/api/atlas/ddmendpointstatus/query/?json&activity=write_wan&fstate=OFF"
 
-        if hasattr(panda_config, 'CRIC_URL_DDMBLACKLIST_READ'):
+        if hasattr(panda_config, "CRIC_URL_DDMBLACKLIST_READ"):
             self.CRIC_URL_DDMBLACKLIST_READ = panda_config.CRIC_URL_DDMBLACKLIST_READ
         else:
-            self.CRIC_URL_DDMBLACKLIST_READ = 'https://atlas-cric.cern.ch/api/atlas/ddmendpointstatus/query/?json&activity=read_wan&fstate=OFF'
+            self.CRIC_URL_DDMBLACKLIST_READ = "https://atlas-cric.cern.ch/api/atlas/ddmendpointstatus/query/?json&activity=read_wan&fstate=OFF"
 
-        if hasattr(panda_config, 'RUCIO_RSE_USAGE'):
+        if hasattr(panda_config, "RUCIO_RSE_USAGE"):
             self.RUCIO_RSE_USAGE = panda_config.RUCIO_RSE_USAGE
         else:
-            self.RUCIO_RSE_USAGE = 'https://rucio-hadoop.cern.ch/dumps/rse_usage/current.json'
+            self.RUCIO_RSE_USAGE = "https://rucio-hadoop.cern.ch/dumps/rse_usage/current.json"
 
     def retrieve_data(self):
-
-        self.log_stream.debug('Getting site dump...')
+        self.log_stream.debug("Getting site dump...")
         self.site_dump = aux.get_dump(self.CRIC_URL_SITES)
         if not self.site_dump:
-            self.log_stream.error('The site dump was not retrieved correctly')
+            self.log_stream.error("The site dump was not retrieved correctly")
             return False
-        self.log_stream.debug('Done')
+        self.log_stream.debug("Done")
         self.site_endpoint_dict = self.get_site_endpoint_dictionary()
 
-        self.log_stream.debug('Getting DDM endpoints dump...')
+        self.log_stream.debug("Getting DDM endpoints dump...")
         self.endpoint_dump = aux.get_dump(self.CRIC_URL_DDMENDPOINTS)
         if not self.endpoint_dump:
-            self.log_stream.error('The endpoint dump was not retrieved correctly')
+            self.log_stream.error("The endpoint dump was not retrieved correctly")
             return False
-        self.log_stream.debug('Done')
-        self.log_stream.debug('Parsing endpoints...')
+        self.log_stream.debug("Done")
+        self.log_stream.debug("Parsing endpoints...")
         self.endpoint_token_dict = self.parse_endpoints()
-        self.log_stream.debug('Done')
+        self.log_stream.debug("Done")
 
-        self.log_stream.debug('Getting schedconfig dump...')
+        self.log_stream.debug("Getting schedconfig dump...")
         self.schedconfig_dump = aux.get_dump(self.CRIC_URL_SCHEDCONFIG)
         if not self.schedconfig_dump:
-            self.log_stream.error('The schedconfig dump was not retrieved correctly')
+            self.log_stream.error("The schedconfig dump was not retrieved correctly")
             return False
-        self.log_stream.debug('Done')
+        self.log_stream.debug("Done")
 
-        self.log_stream.debug('Getting ddmblacklist dump...')
+        self.log_stream.debug("Getting ddmblacklist dump...")
         try:
             if self.CRIC_URL_DDMBLACKLIST:
                 self.blacklisted_endpoints = list(aux.get_dump(self.CRIC_URL_DDMBLACKLIST))
                 if not self.blacklisted_endpoints:
-                    self.log_stream.error('The blacklisted endpoint dump was not retrieved correctly')
+                    self.log_stream.error("The blacklisted endpoint dump was not retrieved correctly")
                     return False
             else:
                 self.blacklisted_endpoints = []
@@ -97,30 +95,30 @@ class Configurator(threading.Thread):
         except TypeError:
             self.blacklisted_endpoints = []
             self.blacklisted_endpoints_write = []
-        self.log_stream.debug('Blacklisted endpoints {0}'.format(self.blacklisted_endpoints))
-        self.log_stream.debug('Blacklisted endpoints write {0}'.format(self.blacklisted_endpoints_write))
-        self.log_stream.debug('Done')
+        self.log_stream.debug("Blacklisted endpoints {0}".format(self.blacklisted_endpoints))
+        self.log_stream.debug("Blacklisted endpoints write {0}".format(self.blacklisted_endpoints_write))
+        self.log_stream.debug("Done")
 
-        self.log_stream.debug('Getting ddmblacklist read dump...')
+        self.log_stream.debug("Getting ddmblacklist read dump...")
         try:
             if self.CRIC_URL_DDMBLACKLIST_READ:
                 self.blacklisted_endpoints_read = list(aux.get_dump(self.CRIC_URL_DDMBLACKLIST_READ))
                 if not self.blacklisted_endpoints_read:
-                    self.log_stream.error('The blacklisted endpoint for read dump was not retrieved correctly')
+                    self.log_stream.error("The blacklisted endpoint for read dump was not retrieved correctly")
                     return False
             else:
                 self.blacklisted_endpoints_read = []
         except TypeError:
             self.blacklisted_endpoints_read = []
-        self.log_stream.debug('Blacklisted endpoints read {0}'.format(self.blacklisted_endpoints_read))
-        self.log_stream.debug('Done')
+        self.log_stream.debug("Blacklisted endpoints read {0}".format(self.blacklisted_endpoints_read))
+        self.log_stream.debug("Done")
 
-        self.log_stream.debug('Getting Rucio RSE usage dump...')
+        self.log_stream.debug("Getting Rucio RSE usage dump...")
         self.rse_usage = aux.get_dump(self.RUCIO_RSE_USAGE)
         if not self.rse_usage:
-            self.log_stream.error('The RSE usage dump was not retrieved correctly')
+            self.log_stream.error("The RSE usage dump was not retrieved correctly")
             return False
-        self.log_stream.debug('Done')
+        self.log_stream.debug("Done")
 
         return True
 
@@ -128,13 +126,13 @@ class Configurator(threading.Thread):
         """
         Gets the relevant information from a site
         """
-        state = site['state']
-        tier_level = site['tier_level']
+        state = site["state"]
+        tier_level = site["tier_level"]
 
-        if 'Nucleus' in site['datapolicies']:  # or site['tier_level'] <= 1:
-            role = 'nucleus'
+        if "Nucleus" in site["datapolicies"]:  # or site['tier_level'] <= 1:
+            role = "nucleus"
         else:
-            role = 'satellite'
+            role = "satellite"
 
         return role, state, tier_level
 
@@ -145,18 +143,19 @@ class Configurator(threading.Thread):
         endpoint_token_dict = {}
         for endpoint, endpoint_config in self.endpoint_dump.items():
             # Filter out testing and inactive endpoints
-            if endpoint_config['state'] == 'ACTIVE': # and endpoint['type'] != 'TEST'
+            if endpoint_config["state"] == "ACTIVE":  # and endpoint['type'] != 'TEST'
                 endpoint_token_dict[endpoint] = {}
-                endpoint_token_dict[endpoint]['token'] = endpoint_config['token']
-                endpoint_token_dict[endpoint]['site_name'] = endpoint_config['site']
-                endpoint_token_dict[endpoint]['type'] = endpoint_config['type']
-                if endpoint_config['is_tape']:
-                    endpoint_token_dict[endpoint]['is_tape'] = 'Y'
+                endpoint_token_dict[endpoint]["token"] = endpoint_config["token"]
+                endpoint_token_dict[endpoint]["site_name"] = endpoint_config["site"]
+                endpoint_token_dict[endpoint]["type"] = endpoint_config["type"]
+                if endpoint_config["is_tape"]:
+                    endpoint_token_dict[endpoint]["is_tape"] = "Y"
                 else:
-                    endpoint_token_dict[endpoint]['is_tape'] = 'N'
+                    endpoint_token_dict[endpoint]["is_tape"] = "N"
             else:
-                self.log_stream.debug('parse_endpoints: skipped endpoint {0} (type: {1}, state: {2})'
-                              .format(endpoint, endpoint_config['type'], endpoint_config['state']))
+                self.log_stream.debug(
+                    "parse_endpoints: skipped endpoint {0} (type: {1}, state: {2})".format(endpoint, endpoint_config["type"], endpoint_config["state"])
+                )
 
         return endpoint_token_dict
 
@@ -166,7 +165,7 @@ class Configurator(threading.Thread):
         """
         site_to_endpoints_dict = {}
         for site, site_config in self.site_dump.items():
-            site_to_endpoints_dict[site] = list(site_config['ddmendpoints'])
+            site_to_endpoints_dict[site] = list(site_config["ddmendpoints"])
 
         return site_to_endpoints_dict
 
@@ -186,102 +185,108 @@ class Configurator(threading.Thread):
             panda_ddm_relation_list = self.get_panda_ddm_relations()
         except Exception:
             # Temporary protection to prevent issues
-            self.log_stream.error('get_panda_ddm_relations excepted with {0}'.format(traceback.print_exc()))
+            self.log_stream.error("get_panda_ddm_relations excepted with {0}".format(traceback.print_exc()))
             panda_ddm_relation_list = []
 
         # Iterate the site dump
         for site_name, site_config in self.site_dump.items():
             # Add the site info to a list
             (site_role, site_state, tier_level) = self.get_site_info(site_config)
-            if site_state == 'ACTIVE' and site_name not in included_sites:
-                sites_list.append({'site_name': site_name,
-                                   'role': site_role,
-                                   'tier_level': tier_level})
+            if site_state == "ACTIVE" and site_name not in included_sites:
+                sites_list.append(
+                    {
+                        "site_name": site_name,
+                        "role": site_role,
+                        "tier_level": tier_level,
+                    }
+                )
                 included_sites.append(site_name)
             else:
-                self.log_stream.debug('process_site_dumps: skipped site {0} (state: {1})'.format(site_name, site_state))
+                self.log_stream.debug("process_site_dumps: skipped site {0} (state: {1})".format(site_name, site_state))
 
             # Get the DDM endpoints for the site we are inspecting
-            for ddm_endpoint_name in site_config['ddmendpoints']:
-
+            for ddm_endpoint_name in site_config["ddmendpoints"]:
                 try:
-                    ddm_spacetoken_name = self.endpoint_token_dict[ddm_endpoint_name]['token']
-                    ddm_endpoint_type = self.endpoint_token_dict[ddm_endpoint_name]['type']
-                    ddm_endpoint_is_tape = self.endpoint_token_dict[ddm_endpoint_name]['is_tape']
+                    ddm_spacetoken_name = self.endpoint_token_dict[ddm_endpoint_name]["token"]
+                    ddm_endpoint_type = self.endpoint_token_dict[ddm_endpoint_name]["type"]
+                    ddm_endpoint_is_tape = self.endpoint_token_dict[ddm_endpoint_name]["is_tape"]
                     if ddm_endpoint_name in self.blacklisted_endpoints:
-                        ddm_endpoint_blacklisted_write = 'Y'
-                        self.log_stream.debug('process_site_dumps: endpoint {0} is blacklisted for write'.format(ddm_endpoint_name))
+                        ddm_endpoint_blacklisted_write = "Y"
+                        self.log_stream.debug("process_site_dumps: endpoint {0} is blacklisted for write".format(ddm_endpoint_name))
                     else:
-                        ddm_endpoint_blacklisted_write = 'N'
-                        self.log_stream.debug('process_site_dumps: endpoint {0} is NOT blacklisted for write'.format(ddm_endpoint_name))
+                        ddm_endpoint_blacklisted_write = "N"
+                        self.log_stream.debug("process_site_dumps: endpoint {0} is NOT blacklisted for write".format(ddm_endpoint_name))
 
                     if ddm_endpoint_name in self.blacklisted_endpoints_read:
-                        ddm_endpoint_blacklisted_read = 'Y'
-                        self.log_stream.debug('process_site_dumps: endpoint {0} is blacklisted for read'.format(ddm_endpoint_name))
+                        ddm_endpoint_blacklisted_read = "Y"
+                        self.log_stream.debug("process_site_dumps: endpoint {0} is blacklisted for read".format(ddm_endpoint_name))
                     else:
-                        ddm_endpoint_blacklisted_read = 'N'
-                        self.log_stream.debug('process_site_dumps: endpoint {0} is NOT blacklisted for read'.format(ddm_endpoint_name))
+                        ddm_endpoint_blacklisted_read = "N"
+                        self.log_stream.debug("process_site_dumps: endpoint {0} is NOT blacklisted for read".format(ddm_endpoint_name))
                 except KeyError:
                     continue
 
                 # Get the storage space
                 try:
-                    space_used = self.rse_usage[ddm_endpoint_name]['storage']['used']/GB
-                    self.log_stream.debug('process_site_dumps: endpoint {0} has used space {1}GB'.format(ddm_endpoint_name,
-                                                                                                 space_used))
-                    space_free = self.rse_usage[ddm_endpoint_name]['storage']['free']/GB
-                    self.log_stream.debug('process_site_dumps: endpoint {0} has free space {1}GB'.format(ddm_endpoint_name,
-                                                                                                 space_free))
+                    space_used = self.rse_usage[ddm_endpoint_name]["storage"]["used"] / GB
+                    self.log_stream.debug("process_site_dumps: endpoint {0} has used space {1}GB".format(ddm_endpoint_name, space_used))
+                    space_free = self.rse_usage[ddm_endpoint_name]["storage"]["free"] / GB
+                    self.log_stream.debug("process_site_dumps: endpoint {0} has free space {1}GB".format(ddm_endpoint_name, space_free))
                     space_total = space_used + space_free
-                    space_timestamp = datetime.strptime(self.rse_usage[ddm_endpoint_name]['storage']['updated_at'],
-                                                        '%Y-%m-%d %H:%M:%S')
-                    self.log_stream.debug('process_site_dumps: endpoint {0} has space timestamp {1}'.format(ddm_endpoint_name,
-                                                                                                    space_timestamp))
+                    space_timestamp = datetime.strptime(
+                        self.rse_usage[ddm_endpoint_name]["storage"]["updated_at"],
+                        "%Y-%m-%d %H:%M:%S",
+                    )
+                    self.log_stream.debug("process_site_dumps: endpoint {0} has space timestamp {1}".format(ddm_endpoint_name, space_timestamp))
 
                 except (KeyError, ValueError):
-                    space_used, space_free, space_total, space_timestamp = None, None, None, None
-                    self.log_stream.warning('process_site_dumps: no rse storage usage information for {0}'.format(ddm_endpoint_name))
+                    space_used, space_free, space_total, space_timestamp = (
+                        None,
+                        None,
+                        None,
+                        None,
+                    )
+                    self.log_stream.warning("process_site_dumps: no rse storage usage information for {0}".format(ddm_endpoint_name))
 
                 # Get the Expired space
                 try:
-                    space_expired = self.rse_usage[ddm_endpoint_name]['expired']['used']/GB
+                    space_expired = self.rse_usage[ddm_endpoint_name]["expired"]["used"] / GB
                 except KeyError:
                     space_expired = 0
-                    self.log_stream.warning('process_site_dumps: no rse EXPIRED usage information for {0}'
-                                    .format(ddm_endpoint_name))
+                    self.log_stream.warning("process_site_dumps: no rse EXPIRED usage information for {0}".format(ddm_endpoint_name))
 
-                ddm_spacetoken_state = site_config['ddmendpoints'][ddm_endpoint_name]['state']
-                if ddm_spacetoken_state == 'ACTIVE':
-                    ddm_endpoints_list.append({'ddm_endpoint_name': ddm_endpoint_name,
-                                               'site_name': site_name,
-                                               'ddm_spacetoken_name': ddm_spacetoken_name,
-                                               'type': ddm_endpoint_type,
-                                               'is_tape': ddm_endpoint_is_tape,
-                                               'blacklisted': ddm_endpoint_blacklisted_write,
-                                               'blacklisted_write': ddm_endpoint_blacklisted_write,
-                                               'blacklisted_read': ddm_endpoint_blacklisted_read,
-                                               'space_used': space_used,
-                                               'space_free': space_free,
-                                               'space_total': space_total,
-                                               'space_expired': space_expired,
-                                               'space_timestamp': space_timestamp
-                                               })
-                    self.log_stream.debug('process_site_dumps: added DDM endpoint {0}'.format(ddm_endpoint_name))
+                ddm_spacetoken_state = site_config["ddmendpoints"][ddm_endpoint_name]["state"]
+                if ddm_spacetoken_state == "ACTIVE":
+                    ddm_endpoints_list.append(
+                        {
+                            "ddm_endpoint_name": ddm_endpoint_name,
+                            "site_name": site_name,
+                            "ddm_spacetoken_name": ddm_spacetoken_name,
+                            "type": ddm_endpoint_type,
+                            "is_tape": ddm_endpoint_is_tape,
+                            "blacklisted": ddm_endpoint_blacklisted_write,
+                            "blacklisted_write": ddm_endpoint_blacklisted_write,
+                            "blacklisted_read": ddm_endpoint_blacklisted_read,
+                            "space_used": space_used,
+                            "space_free": space_free,
+                            "space_total": space_total,
+                            "space_expired": space_expired,
+                            "space_timestamp": space_timestamp,
+                        }
+                    )
+                    self.log_stream.debug("process_site_dumps: added DDM endpoint {0}".format(ddm_endpoint_name))
                 else:
-                    self.log_stream.debug('process_site_dumps: skipped DDM endpoint {0} because of state {1}'
-                                  .format(ddm_endpoint_name, ddm_spacetoken_state))
+                    self.log_stream.debug("process_site_dumps: skipped DDM endpoint {0} because of state {1}".format(ddm_endpoint_name, ddm_spacetoken_state))
 
             # Get the PanDA resources
-            for panda_resource in site_config['presources']:
-                for panda_site in site_config['presources'][panda_resource]:
-                    panda_site_state = site_config['presources'][panda_resource][panda_site]['state']
-                    if panda_site_state != 'ACTIVE':
-                        self.log_stream.debug('process_site_dumps: skipped PanDA site {0} (state: {1})'
-                                      .format(panda_site, panda_site_state))
+            for panda_resource in site_config["presources"]:
+                for panda_site in site_config["presources"][panda_resource]:
+                    panda_site_state = site_config["presources"][panda_resource][panda_site]["state"]
+                    if panda_site_state != "ACTIVE":
+                        self.log_stream.debug("process_site_dumps: skipped PanDA site {0} (state: {1})".format(panda_site, panda_site_state))
                         continue
                     panda_site_name = panda_site
-                    panda_sites_list.append({'panda_site_name': panda_site_name,
-                                             'site_name': site_name})
+                    panda_sites_list.append({"panda_site_name": panda_site_name, "site_name": site_name})
 
         return sites_list, panda_sites_list, ddm_endpoints_list, panda_ddm_relation_list
 
@@ -302,13 +307,13 @@ class Configurator(threading.Thread):
         # special read_lan roles, e.g. "read_lan_analysis"
         elif role.startswith(READ_LAN):
             role_clean = READ_LAN
-            scope = role.replace("{0}_".format(READ_LAN), '')
+            scope = role.replace("{0}_".format(READ_LAN), "")
             return role_clean, scope
 
         # special write_lan roles, e.g. "write_lan_analysis"
         elif role.startswith(WRITE_LAN):
             role_clean = WRITE_LAN
-            scope = role.replace("{0}_".format(WRITE_LAN), '')
+            scope = role.replace("{0}_".format(WRITE_LAN), "")
             return role_clean, scope
 
         # roles we are currently not expecting
@@ -323,19 +328,18 @@ class Configurator(threading.Thread):
 
         # iterate on panda queues
         for long_panda_site_name in self.schedconfig_dump:
-            panda_site_name = self.schedconfig_dump[long_panda_site_name]['panda_resource']
-            cpu_site_name = self.schedconfig_dump[long_panda_site_name]['atlas_site']
+            panda_site_name = self.schedconfig_dump[long_panda_site_name]["panda_resource"]
+            cpu_site_name = self.schedconfig_dump[long_panda_site_name]["atlas_site"]
             dict_ddm_endpoint = {}
 
             # get the astorages field
-            if self.schedconfig_dump[long_panda_site_name]['astorages']:
-                astorages = self.schedconfig_dump[long_panda_site_name]['astorages']
+            if self.schedconfig_dump[long_panda_site_name]["astorages"]:
+                astorages = self.schedconfig_dump[long_panda_site_name]["astorages"]
 
                 # iterate the storages to establish their roles and orders
                 order_read = {DEFAULT: 1}
                 order_write = {DEFAULT: 1}
                 for role in astorages:
-
                     # ignore old roles (pr, pw) that we are not supposed to use
                     if not role.startswith(READ_LAN) and not role.startswith(WRITE_LAN):
                         continue
@@ -348,63 +352,66 @@ class Configurator(threading.Thread):
 
                         # initialize DDM endpoint and scope if it does not exist
                         dict_ddm_endpoint.setdefault(ddm_endpoint_name, {})
-                        dict_ddm_endpoint[ddm_endpoint_name].setdefault(scope, {'order_write': None,
-                                                                                'order_read': None,
-                                                                                'role': []
-                                                                               })
+                        dict_ddm_endpoint[ddm_endpoint_name].setdefault(scope, {"order_write": None, "order_read": None, "role": []})
 
                         if role.startswith(WRITE_LAN):
-                            dict_ddm_endpoint[ddm_endpoint_name][scope]['order_write'] = order_write[scope]
+                            dict_ddm_endpoint[ddm_endpoint_name][scope]["order_write"] = order_write[scope]
                             order_write[scope] += 1
                         elif role.startswith(READ_LAN):
-                            dict_ddm_endpoint[ddm_endpoint_name][scope]['order_read'] = order_read[scope]
+                            dict_ddm_endpoint[ddm_endpoint_name][scope]["order_read"] = order_read[scope]
                             order_read[scope] += 1
                         # append the roles
-                        dict_ddm_endpoint[ddm_endpoint_name][scope]['role'].append(role_clean)
+                        dict_ddm_endpoint[ddm_endpoint_name][scope]["role"].append(role_clean)
 
                 for ddm_endpoint_name, ddm_endpoint_values in dict_ddm_endpoint.items():
                     for scope, scope_values in ddm_endpoint_values.items():
                         # unpack the values
-                        roles = scope_values['role']
-                        order_write = scope_values['order_write']
-                        order_read = scope_values['order_read']
+                        roles = scope_values["role"]
+                        order_write = scope_values["order_write"]
+                        order_read = scope_values["order_read"]
 
                         # figure out the ATLAS site the DDM endpoint belongs to
                         try:
-                            storage_site_name = self.endpoint_token_dict[ddm_endpoint_name]['site_name']
+                            storage_site_name = self.endpoint_token_dict[ddm_endpoint_name]["site_name"]
                         except KeyError:
-                            self.log_stream.warning("Skipped {0}, because primary associated DDM endpoint {1} not found (e.g.DISABLED)"
-                                            .format(long_panda_site_name, ddm_endpoint_name))
+                            self.log_stream.warning(
+                                "Skipped {0}, because primary associated DDM endpoint {1} not found (e.g.DISABLED)".format(
+                                    long_panda_site_name, ddm_endpoint_name
+                                )
+                            )
                             continue
 
                         # figure out if the storage is local to the cpu
                         if storage_site_name == cpu_site_name:
-                            is_local = 'Y'
+                            is_local = "Y"
                         else:
-                            is_local = 'N'
+                            is_local = "N"
 
                         # endpoints with order 1 will be considered default
                         if order_read == 1:
-                            default_read = 'Y'
+                            default_read = "Y"
                         else:
-                            default_read = 'N'
+                            default_read = "N"
                         if order_write == 1:
-                            default_write = 'Y'
+                            default_write = "Y"
                         else:
-                            default_write = 'N'
+                            default_write = "N"
 
                         # add the values to the list of relations if the ddm endpoint is valid
                         if ddm_endpoint_name in self.endpoint_token_dict:
-                            relation_list.append({'panda_site_name': panda_site_name,
-                                                  'ddm_endpoint_name': ddm_endpoint_name,
-                                                  'roles': ','.join(roles),
-                                                  'default_read': default_read,
-                                                  'default_write': default_write,
-                                                  'is_local': is_local,
-                                                  'order_read': order_read,
-                                                  'order_write': order_write,
-                                                  'scope': scope,
-                                                  })
+                            relation_list.append(
+                                {
+                                    "panda_site_name": panda_site_name,
+                                    "ddm_endpoint_name": ddm_endpoint_name,
+                                    "roles": ",".join(roles),
+                                    "default_read": default_read,
+                                    "default_write": default_write,
+                                    "is_local": is_local,
+                                    "order_read": order_read,
+                                    "order_write": order_write,
+                                    "scope": scope,
+                                }
+                            )
 
         return relation_list
 
@@ -413,7 +420,7 @@ class Configurator(threading.Thread):
         Point out sites, panda sites and DDM endpoints that are missing in one of the sources
         """
         # Check for site inconsistencies
-        CRIC_sites = set([site_name for site_name, site_config in self.site_dump.items() if site_config['state'] == 'ACTIVE'])
+        CRIC_sites = set([site_name for site_name, site_config in self.site_dump.items() if site_config["state"] == "ACTIVE"])
         self.log_stream.debug("Sites in CRIC {0}".format(CRIC_sites))
         configurator_sites = self.taskBuffer.configurator_read_sites()
         self.log_stream.debug("Sites in Configurator {0}".format(configurator_sites))
@@ -426,17 +433,16 @@ class Configurator(threading.Thread):
         for site in all_sites:
             missing = []
             if site not in CRIC_sites:
-                missing.append('CRIC')
+                missing.append("CRIC")
             if site not in configurator_sites:
-                missing.append('Configurator')
+                missing.append("Configurator")
             if site not in schedconfig_sites:
-                missing.append('Schedconfig')
+                missing.append("Schedconfig")
             if missing:
                 self.log_stream.warning("SITE inconsistency: {0} was not found in {1}".format(site, missing))
 
         # Check for panda-site inconsistencies
-        CRIC_panda_sites = set([self.schedconfig_dump[long_panda_site_name]['panda_resource']
-                                for long_panda_site_name in self.schedconfig_dump])
+        CRIC_panda_sites = set([self.schedconfig_dump[long_panda_site_name]["panda_resource"] for long_panda_site_name in self.schedconfig_dump])
         self.log_stream.debug("PanDA sites in CRIC {0}".format(CRIC_panda_sites))
         configurator_panda_sites = self.taskBuffer.configurator_read_panda_sites()
         self.log_stream.debug("PanDA sites in Configurator {0}".format(configurator_panda_sites))
@@ -449,11 +455,11 @@ class Configurator(threading.Thread):
         for site in all_panda_sites:
             missing = []
             if site not in CRIC_panda_sites:
-                missing.append('CRIC')
+                missing.append("CRIC")
             if site not in configurator_panda_sites:
-                missing.append('Configurator')
+                missing.append("Configurator")
             if site not in schedconfig_panda_sites:
-                missing.append('Schedconfig')
+                missing.append("Schedconfig")
             if missing:
                 self.log_stream.warning("PanDA SITE inconsistency: {0} was not found in {1}".format(site, missing))
 
@@ -469,17 +475,30 @@ class Configurator(threading.Thread):
         for site in all_ddm_endpoints:
             missing = []
             if site not in CRIC_ddm_endpoints:
-                missing.append('CRIC')
+                missing.append("CRIC")
             if site not in configurator_ddm_endpoints:
-                missing.append('Configurator')
+                missing.append("Configurator")
             if missing:
                 self.log_stream.warning("DDM ENDPOINT inconsistency: {0} was not found in {1}".format(site, missing))
 
-        self.cleanup_configurator(CRIC_sites, CRIC_panda_sites, CRIC_ddm_endpoints, configurator_sites,
-                                  configurator_panda_sites, configurator_ddm_endpoints)
+        self.cleanup_configurator(
+            CRIC_sites,
+            CRIC_panda_sites,
+            CRIC_ddm_endpoints,
+            configurator_sites,
+            configurator_panda_sites,
+            configurator_ddm_endpoints,
+        )
 
-    def cleanup_configurator(self, CRIC_sites, CRIC_panda_sites, CRIC_ddm_endpoints, configurator_sites,
-                             configurator_panda_sites, configurator_ddm_endpoints):
+    def cleanup_configurator(
+        self,
+        CRIC_sites,
+        CRIC_panda_sites,
+        CRIC_ddm_endpoints,
+        configurator_sites,
+        configurator_panda_sites,
+        configurator_ddm_endpoints,
+    ):
         """
         Cleans up information from configurator that is not in CRIC
         """
@@ -512,7 +531,6 @@ class Configurator(threading.Thread):
         rse_usage
         """
 
-
         if self.schedconfig_dump is None:
             self.log_stream.error("SKIPPING RUN. Failed to download {0}".format(self.CRIC_URL_SCHEDCONFIG))
             return False
@@ -526,7 +544,12 @@ class Configurator(threading.Thread):
             return False
 
         # Get pre-processed CRIC dumps
-        sites_list, panda_sites_list, ddm_endpoints_list, panda_ddm_relation_dict = self.process_site_dumps()
+        (
+            sites_list,
+            panda_sites_list,
+            ddm_endpoints_list,
+            panda_ddm_relation_dict,
+        ) = self.process_site_dumps()
 
         # Persist the information to the PanDA DB
         self.taskBuffer.configurator_write_sites(sites_list)
@@ -541,7 +564,6 @@ class Configurator(threading.Thread):
 
 
 class NetworkConfigurator(threading.Thread):
-
     def __init__(self, taskBuffer, log_stream=None):
         threading.Thread.__init__(self)
 
@@ -551,31 +573,30 @@ class NetworkConfigurator(threading.Thread):
         else:
             self.log_stream = _logger
 
-        if hasattr(panda_config, 'NWS_URL'):
+        if hasattr(panda_config, "NWS_URL"):
             self.NWS_URL = panda_config.NWS_URL
         else:
-            self.NWS_URL = 'http://atlas-adc-netmetrics-lb.cern.ch/metrics/latest.json'
+            self.NWS_URL = "http://atlas-adc-netmetrics-lb.cern.ch/metrics/latest.json"
 
-        if hasattr(panda_config, 'CRIC_URL_CM'):
+        if hasattr(panda_config, "CRIC_URL_CM"):
             self.CRIC_URL_CM = panda_config.CRIC_URL_CM
         else:
-            self.CRIC_URL_CM = 'https://atlas-cric.cern.ch/api/core/sitematrix/query/?json&json_pretty=0'
-
+            self.CRIC_URL_CM = "https://atlas-cric.cern.ch/api/core/sitematrix/query/?json&json_pretty=0"
 
     def retrieve_data(self):
-        self.log_stream.debug('Getting NWS dump...')
+        self.log_stream.debug("Getting NWS dump...")
         self.nws_dump = aux.get_dump(self.NWS_URL)
         if not self.nws_dump:
-            self.log_stream.error('Could not retrieve the NWS data')
+            self.log_stream.error("Could not retrieve the NWS data")
             return False
-        self.log_stream.debug('Done')
+        self.log_stream.debug("Done")
 
-        self.log_stream.debug('Getting CRIC cost matrix dump...')
+        self.log_stream.debug("Getting CRIC cost matrix dump...")
         self.CRIC_cm_dump = aux.get_dump(self.CRIC_URL_CM)
         if not self.CRIC_cm_dump:
-            self.log_stream.error('Could not retrieve the cost matrix data')
+            self.log_stream.error("Could not retrieve the cost matrix data")
             return False
-        self.log_stream.debug('Done')
+        self.log_stream.debug("Done")
 
         return True
 
@@ -593,7 +614,7 @@ class NetworkConfigurator(threading.Thread):
 
         for src_dst in self.nws_dump:
             try:
-                source, destination = src_dst.split(':')
+                source, destination = src_dst.split(":")
                 skip_sites = []
 
                 # Skip entries with sites not recognized by configurator
@@ -606,8 +627,7 @@ class NetworkConfigurator(threading.Thread):
                     continue
 
             except ValueError:
-                self.log_stream.error("Json wrongly formatted. Expected key with format src:dst, but found key {0}"
-                              .format(src_dst))
+                self.log_stream.error("Json wrongly formatted. Expected key with format src:dst, but found key {0}".format(src_dst))
                 continue
 
             # Transferred files
@@ -617,15 +637,30 @@ class NetworkConfigurator(threading.Thread):
                     if activity not in done:
                         continue
                     try:
-                        updated_at = datetime.strptime(done[activity][TIMESTAMP], '%Y-%m-%dT%H:%M:%S')
+                        updated_at = datetime.strptime(done[activity][TIMESTAMP], "%Y-%m-%dT%H:%M:%S")
                         if updated_at > latest_validity:
                             done_1h = done[activity][H1]
                             done_6h = done[activity][H6]
-                            data.append((source, destination, activity+'_done_1h', done_1h, updated_at))
-                            data.append((source, destination, activity+'_done_6h', done_6h, updated_at))
+                            data.append(
+                                (
+                                    source,
+                                    destination,
+                                    activity + "_done_1h",
+                                    done_1h,
+                                    updated_at,
+                                )
+                            )
+                            data.append(
+                                (
+                                    source,
+                                    destination,
+                                    activity + "_done_6h",
+                                    done_6h,
+                                    updated_at,
+                                )
+                            )
                     except (KeyError, ValueError):
-                        self.log_stream.debug("Entry {0} ({1}->{2}) key {3} does not follow standards"
-                                      .format(done, source, destination, activity))
+                        self.log_stream.debug("Entry {0} ({1}->{2}) key {3} does not follow standards".format(done, source, destination, activity))
                         continue
             except KeyError:
                 pass
@@ -637,13 +672,20 @@ class NetworkConfigurator(threading.Thread):
                     if activity not in queued:
                         continue
                     try:
-                        updated_at = datetime.strptime(queued[activity][TIMESTAMP], '%Y-%m-%dT%H:%M:%S')
+                        updated_at = datetime.strptime(queued[activity][TIMESTAMP], "%Y-%m-%dT%H:%M:%S")
                         if updated_at > latest_validity:
                             nqueued = queued[activity][LATEST]
-                            data.append((source, destination, activity+'_queued', nqueued, updated_at))
+                            data.append(
+                                (
+                                    source,
+                                    destination,
+                                    activity + "_queued",
+                                    nqueued,
+                                    updated_at,
+                                )
+                            )
                     except (KeyError, ValueError):
-                        self.log_stream.error("Entry {0} ({1}->{2}) key {3} does not follow standards"
-                                      .format(queued, source, destination, activity))
+                        self.log_stream.error("Entry {0} ({1}->{2}) key {3} does not follow standards".format(queued, source, destination, activity))
                         continue
             except KeyError:
                 pass
@@ -653,17 +695,28 @@ class NetworkConfigurator(threading.Thread):
                 mbps = self.nws_dump[src_dst][MBPS]
                 for system in mbps:
                     try:
-                        updated_at = datetime.strptime(mbps[system][TIMESTAMP], '%Y-%m-%dT%H:%M:%S')
+                        updated_at = datetime.strptime(mbps[system][TIMESTAMP], "%Y-%m-%dT%H:%M:%S")
                     except ValueError:
                         self.log_stream.debug("Entry {0} has wrong timestamp for system {1}".format(mbps, system))
                     if updated_at > latest_validity:
                         for duration in [H1, D1, W1]:
                             try:
                                 mbps_entry = mbps[system][duration]
-                                data.append((source, destination, '{0}_mbps_{1}'.format(system, duration), mbps_entry, updated_at))
+                                data.append(
+                                    (
+                                        source,
+                                        destination,
+                                        "{0}_mbps_{1}".format(system, duration),
+                                        mbps_entry,
+                                        updated_at,
+                                    )
+                                )
                             except KeyError:
-                                self.log_stream.debug("Entry {0} ({1}->{2}) system {3} duration {4} not available or wrongly formatted"
-                                              .format(mbps, source, destination, system, duration))
+                                self.log_stream.debug(
+                                    "Entry {0} ({1}->{2}) system {3} duration {4} not available or wrongly formatted".format(
+                                        mbps, source, destination, system, duration
+                                    )
+                                )
                                 self.log_stream.debug(sys.exc_info())
             except KeyError:
                 pass
@@ -673,13 +726,12 @@ class NetworkConfigurator(threading.Thread):
                 try:
                     struc = self.nws_dump[src_dst][metric]
                     try:
-                        updated_at = datetime.strptime(struc[TIMESTAMP], '%Y-%m-%dT%H:%M:%S')
+                        updated_at = datetime.strptime(struc[TIMESTAMP], "%Y-%m-%dT%H:%M:%S")
                         if updated_at > latest_validity:
                             value = struc[LATEST]
                             data.append((source, destination, metric, value, updated_at))
                     except KeyError:
-                        self.log_stream.debug("Entry {0} ({1}->{2}) does not follow {3} standards"
-                                      .format(struc, source, destination, metric))
+                        self.log_stream.debug("Entry {0} ({1}->{2}) does not follow {3} standards".format(struc, source, destination, metric))
                         pass
                 except KeyError:
                     continue
@@ -695,13 +747,12 @@ class NetworkConfigurator(threading.Thread):
         sites_list = self.taskBuffer.configurator_read_sites()
 
         for entry in self.CRIC_cm_dump:
-
-            self.log_stream.debug('Processing CRIC CM entry {0}'.format(entry))
+            self.log_stream.debug("Processing CRIC CM entry {0}".format(entry))
 
             try:
-                src = entry['src']
-                dst = entry['dst']
-                closeness = entry['closeness']
+                src = entry["src"]
+                dst = entry["dst"]
+                closeness = entry["closeness"]
                 ts = datetime.now()
 
                 # filter out sites that are not in CRIC
@@ -719,7 +770,7 @@ class NetworkConfigurator(threading.Thread):
                     continue
 
                 # Prepare data for bulk upserts
-                data.append((src, dst, 'AGIS_closeness', closeness, ts))
+                data.append((src, dst, "AGIS_closeness", closeness, ts))
 
             except KeyError:
                 self.log_stream.warning("CRIC CM entry {0} does not contain one or more of the keys src/dst/closeness".format(entry))
@@ -757,6 +808,7 @@ class SchedconfigJsonDumper(threading.Thread):
     """
     Downloads the CRIC schedconfig dump and stores it in the DB, one row per queue
     """
+
     def __init__(self, taskBuffer, log_stream=None):
         """
         Initialization and configuration
@@ -769,14 +821,14 @@ class SchedconfigJsonDumper(threading.Thread):
         else:
             self.log_stream = _logger
 
-        if hasattr(panda_config, 'CRIC_URL_SCHEDCONFIG'):
+        if hasattr(panda_config, "CRIC_URL_SCHEDCONFIG"):
             self.CRIC_URL_SCHEDCONFIG = panda_config.CRIC_URL_SCHEDCONFIG
         else:
-            self.CRIC_URL_SCHEDCONFIG = 'https://atlas-cric.cern.ch/api/atlas/pandaqueue/query/?json'
+            self.CRIC_URL_SCHEDCONFIG = "https://atlas-cric.cern.ch/api/atlas/pandaqueue/query/?json"
 
-        self.log_stream.debug('Getting schedconfig dump...')
+        self.log_stream.debug("Getting schedconfig dump...")
         self.schedconfig_dump = aux.get_dump(self.CRIC_URL_SCHEDCONFIG)
-        self.log_stream.debug('Done')
+        self.log_stream.debug("Done")
 
     def run(self):
         """
@@ -793,6 +845,7 @@ class SWTagsDumper(threading.Thread):
     """
     Downloads the CRIC tags dump, flattens it out and stores it in the DB, one row per queue
     """
+
     def __init__(self, taskBuffer, log_stream=None):
         """
         Initialization and configuration
@@ -805,14 +858,14 @@ class SWTagsDumper(threading.Thread):
         else:
             self.log_stream = _logger
 
-        if hasattr(panda_config, 'CRIC_URL_SCHEDCONFIG'):
+        if hasattr(panda_config, "CRIC_URL_SCHEDCONFIG"):
             self.CRIC_URL_TAGS = panda_config.CRIC_URL_TAGS
         else:
-            self.CRIC_URL_TAGS = 'https://atlas-cric.cern.ch/api/atlas/pandaqueue/query/?json&preset=tags'
+            self.CRIC_URL_TAGS = "https://atlas-cric.cern.ch/api/atlas/pandaqueue/query/?json&preset=tags"
 
-        self.log_stream.debug('Getting tags dump...')
+        self.log_stream.debug("Getting tags dump...")
         self.tags_dump = aux.get_dump(self.CRIC_URL_TAGS)
-        self.log_stream.debug('Done')
+        self.log_stream.debug("Done")
 
     def run(self):
         """

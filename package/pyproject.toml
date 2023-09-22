@@ -72,3 +72,6 @@ exclude = [
     ".github",
     ".idea",
 ]
+
+[tool.black]
+line-length=160

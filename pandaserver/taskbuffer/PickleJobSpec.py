@@ -6,10 +6,9 @@ from pandaserver.taskbuffer.PickleFileSpec import PickleFileSpec
 
 
 class PickleJobSpec(JobSpec):
-
     def __init__(self):
         JobSpec.__init__(self)
-        object.__setattr__(self, '_reserveChangedState', True)
+        object.__setattr__(self, "_reserveChangedState", True)
 
     def update(self, spec):
         spec._reserveChangedState = True
@@ -19,8 +18,8 @@ class PickleJobSpec(JobSpec):
             p_file = PickleFileSpec()
             p_file.update(file)
             p_file_list.append(p_file)
-        object.__setattr__(self, 'Files', p_file_list)
+        object.__setattr__(self, "Files", p_file_list)
 
     def __setstate__(self, state):
-        object.__setattr__(self, '_reserveChangedState', True)
+        object.__setattr__(self, "_reserveChangedState", True)
         JobSpec.__setstate__(self, state)

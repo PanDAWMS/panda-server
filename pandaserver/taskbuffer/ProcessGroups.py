@@ -1,21 +1,22 @@
 from pandaserver.taskbuffer import JobUtils
 
-processGroups = [('others', []),
-                 ('evgen', ['evgen']),
-                 ('simul', ['simul']),
-                 ('reprocessing', ['reprocessing']),
-                 ('test', ['prod_test', 'validation'] + JobUtils.list_ptest_prod_sources),
-                 ('mcore', ['mcore']),
-                 ('group', ['group']),
-                 ('deriv', ['deriv']),
-                 ('pile', ['pile']),
-                 ('merge', ['merge'])
-                 ]
+processGroups = [
+    ("others", []),
+    ("evgen", ["evgen"]),
+    ("simul", ["simul"]),
+    ("reprocessing", ["reprocessing"]),
+    ("test", ["prod_test", "validation"] + JobUtils.list_ptest_prod_sources),
+    ("mcore", ["mcore"]),
+    ("group", ["group"]),
+    ("deriv", ["deriv"]),
+    ("pile", ["pile"]),
+    ("merge", ["merge"]),
+]
 
 # ('evgensimul',   ['evgen','simul']),
 
 # source labels used for panda internal purpose
-internalSourceLabels = ['ddm']
+internalSourceLabels = ["ddm"]
 
 # maximum number of debug jobs per user
 maxDebugJobs = 3
@@ -49,8 +50,8 @@ def getProcessGroup(valGroup):
 def converCPTforEPG(cloud, processingType, coreCount, workingGroup=None):
     if coreCount in [0, 1, None]:
         # use group queue for GP jobs
-        if workingGroup is not None and workingGroup.startswith('GP_'):
-            return cloud, 'group'
+        if workingGroup is not None and workingGroup.startswith("GP_"):
+            return cloud, "group"
         return cloud, processingType
     else:
         # use MCORE queue for MPC jobs in all clouds

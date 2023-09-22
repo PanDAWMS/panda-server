@@ -4,6 +4,4 @@
 EC_Release = 100
 
 # voms authentication failure
-EC_Voms    = 101
-
-
+EC_Voms = 101

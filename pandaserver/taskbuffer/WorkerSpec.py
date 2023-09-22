@@ -13,16 +13,40 @@ except NameError:
 
 class WorkerSpec(object):
     # attributes
-    _attributes = ('harvesterID', 'workerID', 'batchID', 'queueName', 'status', 'computingSite', 'nCore',
-                   'nodeID', 'submitTime', 'startTime', 'endTime', 'lastUpdate', 'stdOut', 'stdErr',
-                   'batchLog', 'jdl', 'resourceType', 'nativeExitCode', 'nativeStatus', 'diagMessage',
-                   'nJobs', 'computingElement', 'submissionHost', 'harvesterHost', 'errorCode', 'jobType')
+    _attributes = (
+        "harvesterID",
+        "workerID",
+        "batchID",
+        "queueName",
+        "status",
+        "computingSite",
+        "nCore",
+        "nodeID",
+        "submitTime",
+        "startTime",
+        "endTime",
+        "lastUpdate",
+        "stdOut",
+        "stdErr",
+        "batchLog",
+        "jdl",
+        "resourceType",
+        "nativeExitCode",
+        "nativeStatus",
+        "diagMessage",
+        "nJobs",
+        "computingElement",
+        "submissionHost",
+        "harvesterHost",
+        "errorCode",
+        "jobType",
+    )
     # slots
-    __slots__ = _attributes + ('_changedAttrs',)
+    __slots__ = _attributes + ("_changedAttrs",)
     # attributes which have 0 by default
     _zeroAttrs = ()
     # catchall resouce type
-    RT_catchall = 'ANY'
+    RT_catchall = "ANY"
 
     # constructor
     def __init__(self):
@@ -30,14 +54,14 @@ class WorkerSpec(object):
         for attr in self._attributes:
             object.__setattr__(self, attr, None)
         # map of changed attributes
-        object.__setattr__(self, '_changedAttrs', {})
+        object.__setattr__(self, "_changedAttrs", {})
 
     # override __setattr__ to collecte the changed attributes
     def __setattr__(self, name, value):
         oldVal = getattr(self, name)
         # convert string to datetime
-        if type(value) in [str, unicode] and value.startswith('datetime/'):
-            value = datetime.datetime.strptime(value.split('/')[-1], '%Y-%m-%d %H:%M:%S.%f')
+        if type(value) in [str, unicode] and value.startswith("datetime/"):
+            value = datetime.datetime.strptime(value.split("/")[-1], "%Y-%m-%d %H:%M:%S.%f")
         object.__setattr__(self, name, value)
         # collect changed attributes
         if oldVal != value:
@@ -46,7 +70,7 @@ class WorkerSpec(object):
     # reset changed attribute list
     def resetChangedList(self):
         self._oldPandaID = self.PandaID
-        object.__setattr__(self, '_changedAttrs', {})
+        object.__setattr__(self, "_changedAttrs", {})
 
     # return map of values
     def valuesMap(self, onlyChanged=False):
@@ -58,7 +82,7 @@ class WorkerSpec(object):
             if val is None:
                 if attr in self._zeroAttrs:
                     val = 0
-            ret[':%s' % attr] = val
+            ret[":%s" % attr] = val
         return ret
 
     # pack tuple into FileSpec
@@ -73,8 +97,8 @@ class WorkerSpec(object):
         ret = ""
         for attr in cls._attributes:
             if prefix is not None:
-                ret += '{0}.'.format(prefix)
-            ret += '{0},'.format(attr)
+                ret += "{0}.".format(prefix)
+            ret += "{0},".format(attr)
         ret = ret[:-1]
         return ret
 
@@ -83,6 +107,7 @@ class WorkerSpec(object):
     # return expression of bind variables for INSERT
     def bindValuesExpression(cls):
         from pandaserver.config import panda_config
+
         ret = "VALUES("
         for attr in cls._attributes:
             ret += ":%s," % attr
@@ -98,7 +123,7 @@ class WorkerSpec(object):
         for attr in self._attributes:
             if attr not in self._changedAttrs:
                 continue
-            ret += '{0}=:{0},'.format(attr)
+            ret += "{0}=:{0},".format(attr)
         ret = ret[:-1]
         return ret
 
@@ -115,8 +140,8 @@ class WorkerSpec(object):
     def __setstate__(self, state):
         i = 0
         for attr in self._attributes:
-            if i >= len(state)-1:
+            if i >= len(state) - 1:
                 break
             object.__setattr__(self, attr, state[i])
             i += 1
-        object.__setattr__(self, '_changedAttrs', state[-1])
+        object.__setattr__(self, "_changedAttrs", state[-1])

@@ -15,7 +15,7 @@ FileSpec.reserveChangedState = True
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 
-_logger = PandaLogger().getLogger('TaskBufferInterface')
+_logger = PandaLogger().getLogger("TaskBufferInterface")
 
 
 # method class
@@ -28,25 +28,30 @@ class TaskBufferMethod:
         self.resLock = resLock
 
     def __call__(self, *args, **kwargs):
-        log = LogWrapper(_logger, 'pid={} thr={} {}'.format(os.getpid(),
-                                                            threading.current_thread().ident,
-                                                            self.methodName))
-        log.debug('start')
+        log = LogWrapper(
+            _logger,
+            "pid={} thr={} {}".format(os.getpid(), threading.current_thread().ident, self.methodName),
+        )
+        log.debug("start")
         # get lock among children
         i = self.childlock.get()
         # make dict to send it master
-        self.commDict[i].update({'methodName': self.methodName,
-                                 'args': pickle.dumps(args),
-                                 'kwargs': pickle.dumps(kwargs)})
+        self.commDict[i].update(
+            {
+                "methodName": self.methodName,
+                "args": pickle.dumps(args),
+                "kwargs": pickle.dumps(kwargs),
+            }
+        )
         # send notification to master
         self.comLock[i].release()
         # wait response
         self.resLock[i].acquire()
-        res = pickle.loads(self.commDict[i]['res'])
-        statusCode = self.commDict[i]['stat']
+        res = pickle.loads(self.commDict[i]["res"])
+        statusCode = self.commDict[i]["stat"]
         # release lock to children
         self.childlock.put(i)
-        log.debug('end')
+        log.debug("end")
         # return
         if statusCode == 0:
             return res
@@ -66,8 +71,7 @@ class TaskBufferInterfaceChild:
 
     # method emulation
     def __getattr__(self, attrName):
-        return TaskBufferMethod(attrName, self.commDict, self.childlock,
-                                self.comLock, self.resLock)
+        return TaskBufferMethod(attrName, self.commDict, self.childlock, self.comLock, self.resLock)
 
 
 # master class
@@ -81,8 +85,17 @@ class TaskBufferInterface:
     # main loop
     def run(self, taskBuffer, commDict, comLock, resLock, to_stop):
         with ThreadPoolExecutor(max_workers=taskBuffer.get_num_connections()) as pool:
-            [pool.submit(self.thread_run, taskBuffer, commDict[i], comLock[i], resLock[i], to_stop) for i in
-             commDict.keys()]
+            [
+                pool.submit(
+                    self.thread_run,
+                    taskBuffer,
+                    commDict[i],
+                    comLock[i],
+                    resLock[i],
+                    to_stop,
+                )
+                for i in commDict.keys()
+            ]
 
     # main loop
     def thread_run(self, taskBuffer, commDict, comLock, resLock, to_stop):
@@ -96,19 +109,19 @@ class TaskBufferInterface:
                 continue
             try:
                 # get command from child
-                methodName = commDict['methodName']
-                args = pickle.loads(commDict['args'])
-                kwargs = pickle.loads(commDict['kwargs'])
+                methodName = commDict["methodName"]
+                args = pickle.loads(commDict["args"])
+                kwargs = pickle.loads(commDict["kwargs"])
                 # execute
                 method = getattr(taskBuffer, methodName)
                 res = method(*args, **kwargs)
-                commDict['stat'] = 0
+                commDict["stat"] = 0
                 # set response
-                commDict['res'] = pickle.dumps(res)
+                commDict["res"] = pickle.dumps(res)
             except Exception:
                 res = sys.exc_info()[:2]
-                commDict['stat'] = 1
-                commDict['res'] = pickle.dumps(res)
+                commDict["stat"] = 1
+                commDict["res"] = pickle.dumps(res)
             # send response
             resLock.release()
 
@@ -120,7 +133,7 @@ class TaskBufferInterface:
         self.comLock = dict()
         self.resLock = dict()
         self.taskBuffer = taskBuffer
-        self.to_stop = multiprocessing.Value('i', 0)
+        self.to_stop = multiprocessing.Value("i", 0)
         for i in range(taskBuffer.get_num_connections()):
             self.childlock.put(i)
             self.commDict[i] = self.manager.dict()
@@ -128,10 +141,10 @@ class TaskBufferInterface:
             self.resLock[i] = multiprocessing.Semaphore(0)
 
         # run
-        self.process = multiprocessing.Process(target=self.run,
-                                               args=(taskBuffer,
-                                                     self.commDict, self.comLock,
-                                                     self.resLock, self.to_stop))
+        self.process = multiprocessing.Process(
+            target=self.run,
+            args=(taskBuffer, self.commDict, self.comLock, self.resLock, self.to_stop),
+        )
         self.process.start()
 
     # get interface for child

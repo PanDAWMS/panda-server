@@ -6,7 +6,7 @@ cloud/task specification
 
 class CloudTaskSpec(object):
     # attributes
-    _attributes = ('id', 'taskname', 'taskid', 'cloud', 'status', 'tmod', 'tenter')
+    _attributes = ("id", "taskname", "taskid", "cloud", "status", "tmod", "tenter")
     # slots
     __slots__ = _attributes
 
@@ -52,7 +52,7 @@ class CloudTaskSpec(object):
             if i + 1 < len(state):
                 setattr(self, self._attributes[i], state[i])
             else:
-                setattr(self, self._attributes[i], 'NULL')
+                setattr(self, self._attributes[i], "NULL")
 
                 # return column names for INSERT
 
@@ -60,7 +60,7 @@ class CloudTaskSpec(object):
         ret = ""
         for attr in cls._attributes:
             if ret != "":
-                ret += ','
+                ret += ","
             ret += attr
         return ret
 

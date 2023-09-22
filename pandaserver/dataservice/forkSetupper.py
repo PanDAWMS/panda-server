@@ -13,7 +13,7 @@ def run(inFile, v_onlyTA, v_firstSubmission):
         import pickle
     try:
         # read Jobs from file
-        f = open(inFile, 'rb')
+        f = open(inFile, "rb")
         jobs = pickle.load(f)
         f.close()
     except Exception as e:
@@ -25,15 +25,22 @@ def run(inFile, v_onlyTA, v_firstSubmission):
 
     # initialize cx_Oracle using dummy connection
     from pandaserver.taskbuffer.Initializer import initializer
+
     initializer.init()
     # instantiate TB
     from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 
     requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
-    taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, requester=requester_id)
+    taskBuffer.init(
+        panda_config.dbhost,
+        panda_config.dbpasswd,
+        nDBConnection=1,
+        requester=requester_id,
+    )
 
     # run Setupper
     from pandaserver.dataservice.Setupper import Setupper
+
     thr = Setupper(taskBuffer, jobs, onlyTA=v_onlyTA, firstSubmission=v_firstSubmission)
     thr.start()
     thr.join()
@@ -42,7 +49,7 @@ def run(inFile, v_onlyTA, v_firstSubmission):
 
 # exit action
 def _onExit(fname):
-    commands_get_status_output('rm -rf %s' % fname)
+    commands_get_status_output("rm -rf %s" % fname)
 
 
 ####################################################################
@@ -50,6 +57,7 @@ def _onExit(fname):
 def main():
     import getopt
     import atexit
+
     # option class
     class _options:
         def __init__(self):

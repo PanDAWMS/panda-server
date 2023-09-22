@@ -6,11 +6,11 @@ if len(sys.argv) == 2:
     jobDefIDs = [sys.argv[1]]
 else:
     startID = int(sys.argv[1])
-    endID   = int(sys.argv[2])
+    endID = int(sys.argv[2])
     if startID > endID:
-        print('%d is less than %d' % (endID,startID))
+        print("%d is less than %d" % (endID, startID))
         sys.exit(1)
-    jobDefIDs = range(startID,endID+1)
+    jobDefIDs = range(startID, endID + 1)
 
 # quesry PandaID
 status, ids = Client.queryPandaIDs(jobDefIDs)

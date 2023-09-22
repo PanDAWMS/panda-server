@@ -7,7 +7,6 @@ import re
 
 
 class NucleusSpec(object):
-
     # constructor
     def __init__(self, name):
         self.name = name
@@ -61,9 +60,9 @@ class NucleusSpec(object):
 
     # get associated DDM endpoint
     def getAssociatedEndpoint(self, patt):
-        patt = patt.split('/')[-1]
-        if patt.startswith('dst:'):
-            patt = patt.split(':')[-1]
+        patt = patt.split("/")[-1]
+        if patt.startswith("dst:"):
+            patt = patt.split(":")[-1]
         if patt in self.allDdmEndPoints:
             return self.allDdmEndPoints[patt]
         for endPointName in self.allDdmEndPoints:
@@ -74,8 +73,8 @@ class NucleusSpec(object):
             if re.search(patt, endPointName) is not None:
                 return self.allDdmEndPoints[endPointName]
             # check type
-            pattwoVO = re.sub('ATLAS', '', patt)
-            if self.allDdmEndPoints[endPointName]['type'] == pattwoVO:
+            pattwoVO = re.sub("ATLAS", "", patt)
+            if self.allDdmEndPoints[endPointName]["type"] == pattwoVO:
                 return self.allDdmEndPoints[endPointName]
         return None
 

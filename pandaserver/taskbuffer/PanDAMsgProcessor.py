@@ -1,4 +1,3 @@
-
 from pandacommon.pandamsgbkr import msg_processor
 from pandacommon.pandalogger import logger_utils
 

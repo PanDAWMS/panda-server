@@ -1,7 +1,7 @@
-'''
+"""
 add data to dataset
 
-'''
+"""
 
 import os
 import re
@@ -25,189 +25,195 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 
 # logger
-_logger = PandaLogger().getLogger('EventPicker')
+_logger = PandaLogger().getLogger("EventPicker")
 
 
 class EventPicker:
     # constructor
-    def __init__(self,taskBuffer,siteMapper,evpFileName,ignoreError):
-        self.taskBuffer      = taskBuffer
-        self.siteMapper      = siteMapper
-        self.ignoreError     = ignoreError
-        self.evpFileName     = evpFileName
-        self.token           = datetime.datetime.utcnow().isoformat(' ')
+    def __init__(self, taskBuffer, siteMapper, evpFileName, ignoreError):
+        self.taskBuffer = taskBuffer
+        self.siteMapper = siteMapper
+        self.ignoreError = ignoreError
+        self.evpFileName = evpFileName
+        self.token = datetime.datetime.utcnow().isoformat(" ")
         # logger
-        self.logger = LogWrapper(_logger,self.token)
-        self.pd2p            = DynDataDistributer.DynDataDistributer([],self.taskBuffer,self.siteMapper,
-                                                                     token=' ',logger=self.logger)
-        self.userDatasetName = ''
-        self.creationTime    = ''
-        self.params          = ''
-        self.lockedBy        = ''
-        self.evpFile         = None
-        self.userTaskName    = ''
+        self.logger = LogWrapper(_logger, self.token)
+        self.pd2p = DynDataDistributer.DynDataDistributer([], self.taskBuffer, self.siteMapper, token=" ", logger=self.logger)
+        self.userDatasetName = ""
+        self.creationTime = ""
+        self.params = ""
+        self.lockedBy = ""
+        self.evpFile = None
+        self.userTaskName = ""
         # message buffer
-        self.msgBuffer       = []
-        self.lineLimit       = 100
+        self.msgBuffer = []
+        self.lineLimit = 100
         # JEDI
-        self.jediTaskID      = None
+        self.jediTaskID = None
         self.prodSourceLabel = None
         self.job_label = None
 
     # main
     def run(self):
         try:
-            self.putLog('start %s' % self.evpFileName)
+            self.putLog("start %s" % self.evpFileName)
             # lock evp file
             self.evpFile = open(self.evpFileName)
             try:
-                fcntl.flock(self.evpFile.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
+                fcntl.flock(self.evpFile.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             except Exception:
                 # relase
                 self.putLog("cannot lock %s" % self.evpFileName)
                 self.evpFile.close()
                 return True
             # options
-            runEvtList          = []
-            eventPickDataType   = ''
-            eventPickStreamName = ''
-            eventPickDS         = []
-            eventPickAmiTag     = ''
-            eventPickNumSites   = 1
-            inputFileList       = []
-            tagDsList           = []
-            tagQuery            = ''
-            tagStreamRef        = ''
-            skipDaTRI           = False
-            runEvtGuidMap       = {}
-            ei_api              = ''
+            runEvtList = []
+            eventPickDataType = ""
+            eventPickStreamName = ""
+            eventPickDS = []
+            eventPickAmiTag = ""
+            eventPickNumSites = 1
+            inputFileList = []
+            tagDsList = []
+            tagQuery = ""
+            tagStreamRef = ""
+            skipDaTRI = False
+            runEvtGuidMap = {}
+            ei_api = ""
             # read evp file
             for tmpLine in self.evpFile:
-                tmpMatch = re.search('^([^=]+)=(.+)$',tmpLine)
+                tmpMatch = re.search("^([^=]+)=(.+)$", tmpLine)
                 # check format
                 if tmpMatch is None:
                     continue
                 tmpItems = tmpMatch.groups()
-                if tmpItems[0] == 'runEvent':
+                if tmpItems[0] == "runEvent":
                     # get run and event number
-                    tmpRunEvt = tmpItems[1].split(',')
+                    tmpRunEvt = tmpItems[1].split(",")
                     if len(tmpRunEvt) == 2:
                         runEvtList.append(tmpRunEvt)
-                elif tmpItems[0] == 'eventPickDataType':
+                elif tmpItems[0] == "eventPickDataType":
                     # data type
                     eventPickDataType = tmpItems[1]
-                elif tmpItems[0] == 'eventPickStreamName':
+                elif tmpItems[0] == "eventPickStreamName":
                     # stream name
                     eventPickStreamName = tmpItems[1]
-                elif tmpItems[0] == 'eventPickDS':
+                elif tmpItems[0] == "eventPickDS":
                     # dataset pattern
-                    eventPickDS = tmpItems[1].split(',')
-                elif tmpItems[0] == 'eventPickAmiTag':
+                    eventPickDS = tmpItems[1].split(",")
+                elif tmpItems[0] == "eventPickAmiTag":
                     # AMI tag
                     eventPickAmiTag = tmpItems[1]
-                elif tmpItems[0] == 'eventPickNumSites':
+                elif tmpItems[0] == "eventPickNumSites":
                     # the number of sites where datasets are distributed
                     try:
                         eventPickNumSites = int(tmpItems[1])
                     except Exception:
                         pass
-                elif tmpItems[0] == 'userName':
+                elif tmpItems[0] == "userName":
                     # user name
                     self.userDN = tmpItems[1]
                     self.putLog("user=%s" % self.userDN)
-                elif tmpItems[0] == 'userTaskName':
+                elif tmpItems[0] == "userTaskName":
                     # user task name
                     self.userTaskName = tmpItems[1]
-                elif tmpItems[0] == 'userDatasetName':
+                elif tmpItems[0] == "userDatasetName":
                     # user dataset name
                     self.userDatasetName = tmpItems[1]
-                elif tmpItems[0] == 'lockedBy':
+                elif tmpItems[0] == "lockedBy":
                     # client name
                     self.lockedBy = tmpItems[1]
-                elif tmpItems[0] == 'creationTime':
+                elif tmpItems[0] == "creationTime":
                     # creation time
                     self.creationTime = tmpItems[1]
-                elif tmpItems[0] == 'params':
+                elif tmpItems[0] == "params":
                     # parameters
                     self.params = tmpItems[1]
-                elif tmpItems[0] == 'ei_api':
+                elif tmpItems[0] == "ei_api":
                     # ei api parameter for MC
                     ei_api = tmpItems[1]
-                elif tmpItems[0] == 'inputFileList':
+                elif tmpItems[0] == "inputFileList":
                     # input file list
-                    inputFileList = tmpItems[1].split(',')
+                    inputFileList = tmpItems[1].split(",")
                     try:
-                        inputFileList.remove('')
+                        inputFileList.remove("")
                     except Exception:
                         pass
-                elif tmpItems[0] == 'tagDS':
+                elif tmpItems[0] == "tagDS":
                     # TAG dataset
-                    tagDsList = tmpItems[1].split(',')
-                elif tmpItems[0] == 'tagQuery':
+                    tagDsList = tmpItems[1].split(",")
+                elif tmpItems[0] == "tagQuery":
                     # query for TAG
                     tagQuery = tmpItems[1]
-                elif tmpItems[0] == 'tagStreamRef':
+                elif tmpItems[0] == "tagStreamRef":
                     # StreamRef for TAG
                     tagStreamRef = tmpItems[1]
-                    if not tagStreamRef.endswith('_ref'):
-                        tagStreamRef += '_ref'
-                elif tmpItems[0] == 'runEvtGuidMap':
+                    if not tagStreamRef.endswith("_ref"):
+                        tagStreamRef += "_ref"
+                elif tmpItems[0] == "runEvtGuidMap":
                     # GUIDs
                     try:
                         runEvtGuidMap = eval(tmpItems[1])
                     except Exception:
                         pass
             # extract task name
-            if self.userTaskName == '' and self.params != '':
+            if self.userTaskName == "" and self.params != "":
                 try:
-                    tmpMatch = re.search('--outDS(=| ) *([^ ]+)',self.params)
+                    tmpMatch = re.search("--outDS(=| ) *([^ ]+)", self.params)
                     if tmpMatch is not None:
                         self.userTaskName = tmpMatch.group(2)
-                        if not self.userTaskName.endswith('/'):
-                            self.userTaskName += '/'
+                        if not self.userTaskName.endswith("/"):
+                            self.userTaskName += "/"
                 except Exception:
                     pass
             # suppress DaTRI
-            if self.params != '':
-                if '--eventPickSkipDaTRI' in self.params:
+            if self.params != "":
+                if "--eventPickSkipDaTRI" in self.params:
                     skipDaTRI = True
             # get compact user name
             compactDN = self.taskBuffer.cleanUserID(self.userDN)
             # get jediTaskID
-            self.jediTaskID = self.taskBuffer.getTaskIDwithTaskNameJEDI(compactDN,self.userTaskName)
+            self.jediTaskID = self.taskBuffer.getTaskIDwithTaskNameJEDI(compactDN, self.userTaskName)
             # get prodSourceLabel
-            self.prodSourceLabel, self.job_label = self.taskBuffer.getProdSourceLabelwithTaskID(self.jediTaskID)
+            (
+                self.prodSourceLabel,
+                self.job_label,
+            ) = self.taskBuffer.getProdSourceLabelwithTaskID(self.jediTaskID)
             # convert run/event list to dataset/file list
-            tmpRet,locationMap,allFiles = self.pd2p.convertEvtRunToDatasets(runEvtList,
-                                                                            eventPickDataType,
-                                                                            eventPickStreamName,
-                                                                            eventPickDS,
-                                                                            eventPickAmiTag,
-                                                                            self.userDN,
-                                                                            runEvtGuidMap,
-                                                                            ei_api
-                                                                            )
+            tmpRet, locationMap, allFiles = self.pd2p.convertEvtRunToDatasets(
+                runEvtList,
+                eventPickDataType,
+                eventPickStreamName,
+                eventPickDS,
+                eventPickAmiTag,
+                self.userDN,
+                runEvtGuidMap,
+                ei_api,
+            )
             if not tmpRet:
-                if 'isFatal' in locationMap and locationMap['isFatal'] is True:
+                if "isFatal" in locationMap and locationMap["isFatal"] is True:
                     self.ignoreError = False
-                self.endWithError('Failed to convert the run/event list to a dataset/file list')
+                self.endWithError("Failed to convert the run/event list to a dataset/file list")
                 return False
             # use only files in the list
             if inputFileList != []:
                 tmpAllFiles = []
                 for tmpFile in allFiles:
-                    if tmpFile['lfn'] in inputFileList:
+                    if tmpFile["lfn"] in inputFileList:
                         tmpAllFiles.append(tmpFile)
                 allFiles = tmpAllFiles
             # remove redundant CN from DN
             tmpDN = CoreUtils.get_id_from_dn(self.userDN)
             # make dataset container
-            tmpRet = self.pd2p.registerDatasetContainerWithDatasets(self.userDatasetName, allFiles,
-                                                                    locationMap,
-                                                                    nSites=eventPickNumSites,
-                                                                    owner=tmpDN)
+            tmpRet = self.pd2p.registerDatasetContainerWithDatasets(
+                self.userDatasetName,
+                allFiles,
+                locationMap,
+                nSites=eventPickNumSites,
+                owner=tmpDN,
+            )
             if not tmpRet:
-                self.endWithError('Failed to make a dataset container %s' % self.userDatasetName)
+                self.endWithError("Failed to make a dataset container %s" % self.userDatasetName)
                 return False
             # skip DaTRI
             if skipDaTRI:
@@ -217,10 +223,15 @@ class EventPicker:
                 self.taskBuffer.updateTaskModTimeJEDI(self.jediTaskID)
             else:
                 # get candidates
-                tmpRet, candidateMaps = self.pd2p.getCandidates(self.userDatasetName, self.prodSourceLabel,
-                                                                self.job_label, checkUsedFile=False, useHidden=True)
+                tmpRet, candidateMaps = self.pd2p.getCandidates(
+                    self.userDatasetName,
+                    self.prodSourceLabel,
+                    self.job_label,
+                    checkUsedFile=False,
+                    useHidden=True,
+                )
                 if not tmpRet:
-                    self.endWithError('Failed to find candidate for destination')
+                    self.endWithError("Failed to find candidate for destination")
                     return False
                 # collect all candidates
                 allCandidates = []
@@ -232,14 +243,14 @@ class EventPicker:
                             if tmpSiteName not in allCandidates:
                                 allCandidates.append(tmpSiteName)
                 if allCandidates == []:
-                    self.endWithError('No candidate for destination')
+                    self.endWithError("No candidate for destination")
                     return False
                 # get list of dataset (container) names
                 if eventPickNumSites > 1:
                     # decompose container to transfer datasets separately
-                    tmpRet,tmpOut = self.pd2p.getListDatasetReplicasInContainer(self.userDatasetName)
+                    tmpRet, tmpOut = self.pd2p.getListDatasetReplicasInContainer(self.userDatasetName)
                     if not tmpRet:
-                        self.endWithError('Failed to get replicas in %s' % self.userDatasetName)
+                        self.endWithError("Failed to get replicas in %s" % self.userDatasetName)
                         return False
                     userDatasetNameList = list(tmpOut)
                 else:
@@ -249,18 +260,25 @@ class EventPicker:
                 sitesUsed = []
                 for tmpUserDatasetName in userDatasetNameList:
                     # get size of dataset container
-                    tmpRet,totalInputSize = rucioAPI.getDatasetSize(tmpUserDatasetName)
+                    tmpRet, totalInputSize = rucioAPI.getDatasetSize(tmpUserDatasetName)
                     if not tmpRet:
-                        self.endWithError('Failed to get the size of {0} with {1}'.format(tmpUserDatasetName, totalInputSize))
+                        self.endWithError("Failed to get the size of {0} with {1}".format(tmpUserDatasetName, totalInputSize))
                         return False
                     # run brokerage
                     tmpJob = JobSpec()
-                    tmpJob.AtlasRelease = ''
+                    tmpJob.AtlasRelease = ""
                     self.putLog("run brokerage for %s" % tmpDS)
-                    pandaserver.brokerage.broker.schedule([tmpJob],self.taskBuffer,self.siteMapper,True,allCandidates,
-                                              True,datasetSize=totalInputSize)
-                    if tmpJob.computingSite.startswith('ERROR'):
-                        self.endWithError('brokerage failed with %s' % tmpJob.computingSite)
+                    pandaserver.brokerage.broker.schedule(
+                        [tmpJob],
+                        self.taskBuffer,
+                        self.siteMapper,
+                        True,
+                        allCandidates,
+                        True,
+                        datasetSize=totalInputSize,
+                    )
+                    if tmpJob.computingSite.startswith("ERROR"):
+                        self.endWithError("brokerage failed with %s" % tmpJob.computingSite)
                         return False
                     self.putLog("site -> %s" % tmpJob.computingSite)
                     # send transfer request
@@ -268,17 +286,27 @@ class EventPicker:
                         tmpSiteSpec = self.siteMapper.getSite(tmpJob.computingSite)
                         scope_input, scope_output = select_scope(tmpSiteSpec, JobUtils.PROD_PS, JobUtils.PROD_PS)
                         tmpDQ2ID = tmpSiteSpec.ddm_output[scope_output]
-                        tmpMsg = "%s ds=%s site=%s id=%s" % ('registerDatasetLocation for EventPicking ',
-                                                             tmpUserDatasetName,
-                                                             tmpDQ2ID,
-                                                             None)
+                        tmpMsg = "%s ds=%s site=%s id=%s" % (
+                            "registerDatasetLocation for EventPicking ",
+                            tmpUserDatasetName,
+                            tmpDQ2ID,
+                            None,
+                        )
                         self.putLog(tmpMsg)
-                        rucioAPI.registerDatasetLocation(tmpDS,[tmpDQ2ID],lifetime=14,owner=None,
-                                                         activity="Analysis Output")
-                        self.putLog('OK')
+                        rucioAPI.registerDatasetLocation(
+                            tmpDS,
+                            [tmpDQ2ID],
+                            lifetime=14,
+                            owner=None,
+                            activity="Analysis Output",
+                        )
+                        self.putLog("OK")
                     except Exception:
-                        errType,errValue = sys.exc_info()[:2]
-                        tmpStr = 'Failed to send transfer request : %s %s' % (errType,errValue)
+                        errType, errValue = sys.exc_info()[:2]
+                        tmpStr = "Failed to send transfer request : %s %s" % (
+                            errType,
+                            errValue,
+                        )
                         tmpStr.strip()
                         tmpStr += traceback.format_exc()
                         self.endWithError(tmpStr)
@@ -295,12 +323,12 @@ class EventPicker:
                         # remove site
                         allCandidates.remove(tmpJob.computingSite)
                 # send email notification for success
-                tmpMsg =  'A transfer request was successfully sent to Rucio.\n'
-                tmpMsg += 'Your task will get started once transfer is completed.'
-                self.sendEmail(True,tmpMsg)
+                tmpMsg = "A transfer request was successfully sent to Rucio.\n"
+                tmpMsg += "Your task will get started once transfer is completed."
+                self.sendEmail(True, tmpMsg)
             try:
                 # unlock and delete evp file
-                fcntl.flock(self.evpFile.fileno(),fcntl.LOCK_UN)
+                fcntl.flock(self.evpFile.fileno(), fcntl.LOCK_UN)
                 self.evpFile.close()
                 os.remove(self.evpFileName)
             except Exception:
@@ -309,51 +337,48 @@ class EventPicker:
             self.putLog("end %s" % self.evpFileName)
             return True
         except Exception:
-            errType,errValue = sys.exc_info()[:2]
-            self.endWithError('Got exception %s:%s %s' % (errType,errValue,traceback.format_exc()))
+            errType, errValue = sys.exc_info()[:2]
+            self.endWithError("Got exception %s:%s %s" % (errType, errValue, traceback.format_exc()))
             return False
 
-
     # end with error
-    def endWithError(self,message):
-        self.putLog(message,'error')
+    def endWithError(self, message):
+        self.putLog(message, "error")
         # unlock evp file
         try:
-            fcntl.flock(self.evpFile.fileno(),fcntl.LOCK_UN)
+            fcntl.flock(self.evpFile.fileno(), fcntl.LOCK_UN)
             self.evpFile.close()
             if not self.ignoreError:
                 # remove evp file
                 os.remove(self.evpFileName)
                 # send email notification
-                self.sendEmail(False,message)
+                self.sendEmail(False, message)
         except Exception:
             pass
         # upload log
         if self.jediTaskID is not None:
             outLog = self.uploadLog()
-            self.taskBuffer.updateTaskErrorDialogJEDI(self.jediTaskID,'event picking failed. '+outLog)
+            self.taskBuffer.updateTaskErrorDialogJEDI(self.jediTaskID, "event picking failed. " + outLog)
             # update task
             if not self.ignoreError:
-                self.taskBuffer.updateTaskModTimeJEDI(self.jediTaskID,'tobroken')
+                self.taskBuffer.updateTaskModTimeJEDI(self.jediTaskID, "tobroken")
             self.putLog(outLog)
-        self.putLog('end %s' % self.evpFileName)
-
+        self.putLog("end %s" % self.evpFileName)
 
     # put log
-    def putLog(self,msg,type='debug'):
+    def putLog(self, msg, type="debug"):
         tmpMsg = msg
-        if type == 'error':
+        if type == "error":
             self.logger.error(tmpMsg)
         else:
             self.logger.debug(tmpMsg)
 
-
     # send email notification
-    def sendEmail(self,isSucceeded,message):
+    def sendEmail(self, isSucceeded, message):
         # mail address
-        toAdder = Notifier(self.taskBuffer,None,[]).getEmail(self.userDN)
-        if toAdder == '':
-            self.putLog('cannot find email address for %s' % self.userDN,'error')
+        toAdder = Notifier(self.taskBuffer, None, []).getEmail(self.userDN)
+        if toAdder == "":
+            self.putLog("cannot find email address for %s" % self.userDN, "error")
             return
         # subject
         mailSubject = "PANDA notification for Event-Picking Request"
@@ -363,27 +388,26 @@ class EventPicker:
             mailBody += "Status  : Passed to Rucio\n"
         else:
             mailBody += "Status  : Failed\n"
-        mailBody +=     "Created : %s\n" % self.creationTime
-        mailBody +=     "Ended   : %s\n" % datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-        mailBody +=     "Dataset : %s\n" % self.userDatasetName
-        mailBody +=     "\n"
-        mailBody +=     "Parameters : %s %s\n" % (self.lockedBy,self.params)
-        mailBody +=     "\n"
-        mailBody +=     "%s\n" % message
+        mailBody += "Created : %s\n" % self.creationTime
+        mailBody += "Ended   : %s\n" % datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        mailBody += "Dataset : %s\n" % self.userDatasetName
+        mailBody += "\n"
+        mailBody += "Parameters : %s %s\n" % (self.lockedBy, self.params)
+        mailBody += "\n"
+        mailBody += "%s\n" % message
         # send
-        retVal = MailUtils().send(toAdder,mailSubject,mailBody)
+        retVal = MailUtils().send(toAdder, mailSubject, mailBody)
         # return
         return
-
 
     # upload log
     def uploadLog(self):
         if self.jediTaskID is None:
-            return 'cannot find jediTaskID'
+            return "cannot find jediTaskID"
         strMsg = self.logger.dumpToString()
-        s,o = Client.uploadLog(strMsg,self.jediTaskID)
+        s, o = Client.uploadLog(strMsg, self.jediTaskID)
         if s != 0:
             return "failed to upload log with {0}.".format(s)
-        if o.startswith('http'):
+        if o.startswith("http"):
             return '<a href="{0}">log</a>'.format(o)
         return o

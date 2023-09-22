@@ -1,7 +1,7 @@
-'''
+"""
 notifier
 
-'''
+"""
 
 import re
 import sys
@@ -23,18 +23,35 @@ from pandaserver.dataservice.DDM import rucioAPI
 import pandaserver.taskbuffer.ErrorCode
 
 # logger
-_logger = PandaLogger().getLogger('Notifier')
+_logger = PandaLogger().getLogger("Notifier")
 
 # ignored DN
 _ignoreList = [
-    'Nurcan Ozturk',
-    'Xin Zhao',
-    'Dietrich Liko',
+    "Nurcan Ozturk",
+    "Xin Zhao",
+    "Dietrich Liko",
 ]
 
 # NG words in email address
-_ngWordsInMailAddr = ['support', 'system', 'stuff', 'service', 'secretariat', 'club', 'user', 'admin',
-                      'cvs', 'grid', 'librarian', 'svn', 'atlas', 'cms', 'lhcb', 'alice', 'alaelp']
+_ngWordsInMailAddr = [
+    "support",
+    "system",
+    "stuff",
+    "service",
+    "secretariat",
+    "club",
+    "user",
+    "admin",
+    "cvs",
+    "grid",
+    "librarian",
+    "svn",
+    "atlas",
+    "cms",
+    "lhcb",
+    "alice",
+    "alaelp",
+]
 
 # port for SMTP server
 smtpPortList = [25, 587]
@@ -53,13 +70,13 @@ class StderrLogger(object):
 
     def write(self, message):
         message = message.strip()
-        if message != '':
-            _logger.debug('%s %s' % (self.token, message))
+        if message != "":
+            _logger.debug("%s %s" % (self.token, message))
 
 
 class Notifier:
     # constructor
-    def __init__(self, taskBuffer, job, datasets, summary={}, mailFile=None, mailFileName=''):
+    def __init__(self, taskBuffer, job, datasets, summary={}, mailFile=None, mailFileName=""):
         self.job = job
         self.datasets = datasets
         self.taskBuffer = taskBuffer
@@ -73,7 +90,7 @@ class Notifier:
             _logger.debug("%s start" % self.job.PandaID)
             try:
                 # check job type
-                if self.job.prodSourceLabel != 'user' and self.job.prodSourceLabel != 'panda':
+                if self.job.prodSourceLabel != "user" and self.job.prodSourceLabel != "panda":
                     _logger.error("Invalid job type : %s" % self.job.prodSourceLabel)
                     _logger.debug("%s end" % self.job.PandaID)
                     return
@@ -85,12 +102,12 @@ class Notifier:
                         return
                 # get e-mail address
                 mailAddr = self.getEmail(self.job.prodUserID)
-                if mailAddr == '':
+                if mailAddr == "":
                     _logger.error("could not find email address for %s" % self.job.prodUserID)
                     _logger.debug("%s end" % self.job.PandaID)
                     return
                 # not send
-                if mailAddr in ['notsend', '', None] or (mailAddr is not None and mailAddr.startswith('notsend')):
+                if mailAddr in ["notsend", "", None] or (mailAddr is not None and mailAddr.startswith("notsend")):
                     _logger.debug("not send to %s" % self.job.prodUserID)
                     _logger.debug("%s end" % self.job.PandaID)
                     return
@@ -103,10 +120,14 @@ class Notifier:
                             continue
                         self.datasets += tmpDsList
                 # get full jobSpec including metadata
-                self.job = self.taskBuffer.peekJobs([self.job.PandaID], fromDefined=False,
-                                                    fromActive=False, fromWaiting=False)[0]
+                self.job = self.taskBuffer.peekJobs(
+                    [self.job.PandaID],
+                    fromDefined=False,
+                    fromActive=False,
+                    fromWaiting=False,
+                )[0]
                 if self.job is None:
-                    _logger.error('%s : not found in DB' % self.job.PandaID)
+                    _logger.error("%s : not found in DB" % self.job.PandaID)
                     _logger.debug("%s end" % self.job.PandaID)
                     return
                 # get IDs
@@ -117,9 +138,8 @@ class Notifier:
                     if tmpID not in ids:
                         ids.append(tmpID)
                 # from archived table
-                if self.job.jobsetID in [0, 'NULL', None]:
-                    tmpIDs = self.taskBuffer.getPandIDsWithIdInArch(self.job.prodUserName, self.job.jobDefinitionID,
-                                                                    False)
+                if self.job.jobsetID in [0, "NULL", None]:
+                    tmpIDs = self.taskBuffer.getPandIDsWithIdInArch(self.job.prodUserName, self.job.jobDefinitionID, False)
                 else:
                     tmpIDs = self.taskBuffer.getPandIDsWithIdInArch(self.job.prodUserName, self.job.jobsetID, True)
                 for tmpID in tmpIDs:
@@ -128,8 +148,13 @@ class Notifier:
                 _logger.debug("%s IDs: %s" % (self.job.PandaID, ids))
                 if len(ids) != 0:
                     # get jobs
-                    jobs = self.taskBuffer.getFullJobStatus(ids, fromDefined=False, fromActive=False,
-                                                            fromWaiting=False, forAnal=False)
+                    jobs = self.taskBuffer.getFullJobStatus(
+                        ids,
+                        fromDefined=False,
+                        fromActive=False,
+                        fromWaiting=False,
+                        forAnal=False,
+                    )
                     # statistics
                     nTotal = 0
                     nSucceeded = 0
@@ -140,7 +165,7 @@ class Notifier:
                     creationTime = self.job.creationTime
                     endTime = self.job.modificationTime
                     if isinstance(endTime, datetime.datetime):
-                        endTime = endTime.strftime('%Y-%m-%d %H:%M:%S')
+                        endTime = endTime.strftime("%Y-%m-%d %H:%M:%S")
                     # datasets
                     iDSList = []
                     oDSList = []
@@ -150,26 +175,33 @@ class Notifier:
                         if tmpJob.jobDefinitionID not in siteMap:
                             siteMap[tmpJob.jobDefinitionID] = tmpJob.computingSite
                         for file in tmpJob.Files:
-                            if file.type == 'input':
+                            if file.type == "input":
                                 if file.dataset not in iDSList:
                                     iDSList.append(file.dataset)
                             else:
                                 if file.dataset not in oDSList:
                                     oDSList.append(file.dataset)
-                                if file.type == 'log':
+                                if file.type == "log":
                                     logDS = file.dataset
                     # job/jobset IDs and site
                     if self.summary == {}:
-                        jobIDsite = "%s/%s" % (self.job.jobDefinitionID, self.job.computingSite)
+                        jobIDsite = "%s/%s" % (
+                            self.job.jobDefinitionID,
+                            self.job.computingSite,
+                        )
                         jobsetID = self.job.jobDefinitionID
                         jobDefIDList = [self.job.jobDefinitionID]
                     else:
                         jobDefIDList = list(self.summary)
                         jobDefIDList.sort()
-                        jobIDsite = ''
+                        jobIDsite = ""
                         tmpIndent = "             "
                         for tmpJobID in jobDefIDList:
-                            jobIDsite += '%s/%s\n%s' % (tmpJobID, siteMap[tmpJobID], tmpIndent)
+                            jobIDsite += "%s/%s\n%s" % (
+                                tmpJobID,
+                                siteMap[tmpJobID],
+                                tmpIndent,
+                            )
                         remCount = len(tmpIndent) + 1
                         jobIDsite = jobIDsite[:-remCount]
                         jobsetID = self.job.jobsetID
@@ -183,20 +215,20 @@ class Notifier:
                         # total
                         nTotal += 1
                         # count per job status
-                        if job.jobStatus == 'finished':
+                        if job.jobStatus == "finished":
                             # check all files were used
                             allUses = True
                             for file in job.Files:
-                                if file.type == 'input' and file.status in ['skipped']:
+                                if file.type == "input" and file.status in ["skipped"]:
                                     allUses = False
                                     break
                             if allUses:
                                 nSucceeded += 1
                             else:
                                 nPartial += 1
-                        elif job.jobStatus == 'failed':
+                        elif job.jobStatus == "failed":
                             nFailed += 1
-                        elif job.jobStatus == 'cancelled':
+                        elif job.jobStatus == "cancelled":
                             nCancel += 1
                     # make message
                     if nSucceeded == nTotal:
@@ -204,27 +236,37 @@ class Notifier:
                     else:
                         finalStatInSub = "(%s/%s Succeeded)" % (nSucceeded, nTotal)
                     fromadd = panda_config.emailSender
-                    if self.job.jobsetID in [0, 'NULL', None]:
-                        message = \
-                            """Subject: PANDA notification for JobID : %s  %s
+                    if self.job.jobsetID in [0, "NULL", None]:
+                        message = """Subject: PANDA notification for JobID : %s  %s
                             From: %s
                             To: %s
                             
                             Summary of JobID : %s
                             
-                            Site : %s""" % (self.job.jobDefinitionID, finalStatInSub, fromadd, mailAddr, self.job.jobDefinitionID,
-                self.job.computingSite)
+                            Site : %s""" % (
+                            self.job.jobDefinitionID,
+                            finalStatInSub,
+                            fromadd,
+                            mailAddr,
+                            self.job.jobDefinitionID,
+                            self.job.computingSite,
+                        )
                     else:
-                        message = \
-                            """Subject: PANDA notification for JobsetID : %s  %s
+                        message = """Subject: PANDA notification for JobsetID : %s  %s
                             From: %s
                             To: %s
                             
                             Summary of JobsetID : %s
                             
-                            JobID/Site : %s""" % (jobsetID, finalStatInSub, fromadd, mailAddr, jobsetID, jobIDsite)
-                    message += \
-                        """
+                            JobID/Site : %s""" % (
+                            jobsetID,
+                            finalStatInSub,
+                            fromadd,
+                            mailAddr,
+                            jobsetID,
+                            jobIDsite,
+                        )
+                    message += """
                         
                         Created : %s (UTC)
                         Ended   : %s (UTC)
@@ -234,66 +276,85 @@ class Notifier:
                                    Partial   : %s
                                    Failed    : %s
                                    Cancelled : %s
-                        """ % (creationTime, endTime, nTotal, nSucceeded, nPartial, nFailed, nCancel)
+                        """ % (
+                        creationTime,
+                        endTime,
+                        nTotal,
+                        nSucceeded,
+                        nPartial,
+                        nFailed,
+                        nCancel,
+                    )
                     # input datasets
                     for iDS in iDSList:
-                        message += \
+                        message += (
                             """
-                            In  : %s""" % iDS
+                            In  : %s"""
+                            % iDS
+                        )
                     # output datasets
                     for oDS in oDSList:
-                        message += \
+                        message += (
                             """
-                            Out : %s""" % oDS
+                            Out : %s"""
+                            % oDS
+                        )
                     # command
-                    if self.job.metadata not in ['', 'NULL', None]:
-                        message += \
+                    if self.job.metadata not in ["", "NULL", None]:
+                        message += (
                             """
                             
-                            Parameters : %s""" % self.job.metadata
+                            Parameters : %s"""
+                            % self.job.metadata
+                        )
                     # URLs to PandaMon
-                    if self.job.jobsetID in [0, 'NULL', None]:
+                    if self.job.jobsetID in [0, "NULL", None]:
                         for tmpIdx, tmpJobID in enumerate(jobDefIDList):
                             urlData = {}
-                            urlData['job'] = '*'
-                            urlData['jobDefinitionID'] = tmpJobID
-                            urlData['user'] = self.job.prodUserName
-                            urlData['at'] = (str(creationTime)).split()[0]
+                            urlData["job"] = "*"
+                            urlData["jobDefinitionID"] = tmpJobID
+                            urlData["user"] = self.job.prodUserName
+                            urlData["at"] = (str(creationTime)).split()[0]
                             if tmpIdx == 0:
-                                message += \
-                                    """
+                                message += """
                                     
-                                    PandaMonURL : http://panda.cern.ch/server/pandamon/query?%s""" % urlencode(urlData)
+                                    PandaMonURL : http://panda.cern.ch/server/pandamon/query?%s""" % urlencode(
+                                    urlData
+                                )
                             else:
-                                message += \
-                                    """
-                                                  http://panda.cern.ch/server/pandamon/query?%s""" % urlencode(urlData)
+                                message += """
+                                                  http://panda.cern.ch/server/pandamon/query?%s""" % urlencode(
+                                    urlData
+                                )
                     else:
                         urlData = {}
-                        urlData['job'] = '*'
-                        urlData['jobsetID'] = self.job.jobsetID
-                        urlData['user'] = self.job.prodUserName
-                        urlData['at'] = (str(creationTime)).split()[0]
+                        urlData["job"] = "*"
+                        urlData["jobsetID"] = self.job.jobsetID
+                        urlData["user"] = self.job.prodUserName
+                        urlData["at"] = (str(creationTime)).split()[0]
                         newUrlData = {}
-                        newUrlData['jobtype'] = 'analysis'
-                        newUrlData['jobsetID'] = self.job.jobsetID
-                        newUrlData['prodUserName'] = self.job.prodUserName
-                        newUrlData['hours'] = 71
-                        message += \
-                            """
+                        newUrlData["jobtype"] = "analysis"
+                        newUrlData["jobsetID"] = self.job.jobsetID
+                        newUrlData["prodUserName"] = self.job.prodUserName
+                        newUrlData["hours"] = 71
+                        message += """
                             
-                            PandaMonURL : http://panda.cern.ch/server/pandamon/query?%s""" % urlencode(urlData)
+                            PandaMonURL : http://panda.cern.ch/server/pandamon/query?%s""" % urlencode(
+                            urlData
+                        )
                         if logDS is not None:
-                            message += \
+                            message += (
                                 """
-                                TaskMonitorURL : https://dashb-atlas-task.cern.ch/templates/task-analysis/#task=%s""" % logDS
-                        message += \
-                            """
-                            NewPandaMonURL : https://pandamon.cern.ch/jobinfo?%s""" % urlencode(newUrlData)
+                                TaskMonitorURL : https://dashb-atlas-task.cern.ch/templates/task-analysis/#task=%s"""
+                                % logDS
+                            )
+                        message += """
+                            NewPandaMonURL : https://pandamon.cern.ch/jobinfo?%s""" % urlencode(
+                            newUrlData
+                        )
 
                     # tailer
-                    message += \
-                        """
+                    message += """
                         
                         
                         Report Panda problems of any sort to
@@ -320,7 +381,7 @@ class Notifier:
                 mailAddr = self.mailFile.readline()[:-1]
                 message = self.mailFile.read()
                 _logger.debug("%s start recovery" % pandaID)
-                if message != '':
+                if message != "":
                     self.sendMail(pandaID, fromadd, mailAddr, message, 5, False)
             except Exception:
                 errType, errValue = sys.exc_info()[:2]
@@ -339,7 +400,7 @@ class Notifier:
                 server.starttls()
                 # server.login(panda_config.emailLogin,panda_config.emailPass)
                 out = server.sendmail(fromadd, mailAddr, message)
-                _logger.debug('%s %s' % (pandaID, str(out)))
+                _logger.debug("%s %s" % (pandaID, str(out)))
                 server.quit()
                 break
             except Exception:
@@ -352,9 +413,13 @@ class Notifier:
                     _logger.error("%s %s %s" % (pandaID, errType, errValue))
                     if fileBackUp:
                         # write to file which is processed in add.py
-                        mailFile = '%s/mail_%s_%s' % (panda_config.logdir, self.job.PandaID, str(uuid.uuid4()))
+                        mailFile = "%s/mail_%s_%s" % (
+                            panda_config.logdir,
+                            self.job.PandaID,
+                            str(uuid.uuid4()),
+                        )
                         oMail = open(mailFile, "w")
-                        oMail.write(str(self.job.PandaID) + '\n' + fromadd + '\n' + mailAddr + '\n' + message)
+                        oMail.write(str(self.job.PandaID) + "\n" + fromadd + "\n" + mailAddr + "\n" + message)
                         oMail.close()
 
     # get email
@@ -371,38 +436,38 @@ class Notifier:
         mailAddrInDB, dbUptime = self.taskBuffer.getEmailAddr(distinguishedName, withUpTime=True)
         _logger.debug("email in MetaDB : '%s'" % mailAddrInDB)
         notSendMail = False
-        if mailAddrInDB not in [None, '']:
+        if mailAddrInDB not in [None, ""]:
             # email mortification is suppressed
-            if mailAddrInDB.split(':')[0] == 'notsend':
+            if mailAddrInDB.split(":")[0] == "notsend":
                 notSendMail = True
         # avoid too frequently lookup
         if dbUptime is not None and datetime.datetime.utcnow() - dbUptime < datetime.timedelta(hours=1):
             _logger.debug("no lookup")
-            if notSendMail or mailAddrInDB in [None, '']:
-                return 'notsend'
+            if notSendMail or mailAddrInDB in [None, ""]:
+                return "notsend"
             else:
-                return mailAddrInDB.split(':')[-1]
+                return mailAddrInDB.split(":")[-1]
         # get email from DQ2
         try:
             tmpStatus, userInfo = rucioAPI.finger(dn)
             if tmpStatus:
-                mailAddr = userInfo['email']
+                mailAddr = userInfo["email"]
                 _logger.debug("email from DDM : '%s'" % mailAddr)
             else:
                 mailAddr = None
                 _logger.error("failed to get email from DDM : {}".format(userInfo))
             if mailAddr is None:
-                mailAddr = ''
+                mailAddr = ""
             # make email field to update DB
-            mailAddrToDB = ''
+            mailAddrToDB = ""
             if notSendMail:
-                mailAddrToDB += 'notsend:'
+                mailAddrToDB += "notsend:"
             mailAddrToDB += mailAddr
             # update database
             _logger.debug("update email for %s to %s" % (distinguishedName, mailAddrToDB))
             self.taskBuffer.setEmailAddr(distinguishedName, mailAddrToDB)
             if notSendMail:
-                return 'notsend'
+                return "notsend"
             return mailAddr
         except Exception as e:
             _logger.error("getEmail failed with {} {}".format(str(e), traceback.format_exc()))

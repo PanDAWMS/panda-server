@@ -10,7 +10,7 @@ from pandacommon.pandautils.thread_utils import GenericThread
 initializer.init()
 
 # logger
-_logger = PandaLogger().getLogger('boostUser')
+_logger = PandaLogger().getLogger("boostUser")
 _logger.debug("================= start ==================")
 
 # instantiate TB
@@ -22,13 +22,13 @@ user = user[:-1]
 
 sql = "UPDATE atlas_panda.%s set currentPriority=:prio where prodUserName=:uname and prodSourceLabel IN (:label1,:label2) and currentPriority<:prio"
 varMap = {}
-varMap[':prio'] = 4000
-varMap[':uname'] = user
-varMap[':label1'] = 'user'
-varMap[':label2'] = 'panda'
-for table in ('jobsactive4','jobsdefined4'):
-	_logger.debug((sql % table) + str(varMap))
-	ret = taskBuffer.querySQLS(sql % table,varMap)
-	_logger.debug('ret -> %s' % str(ret))
+varMap[":prio"] = 4000
+varMap[":uname"] = user
+varMap[":label1"] = "user"
+varMap[":label2"] = "panda"
+for table in ("jobsactive4", "jobsdefined4"):
+    _logger.debug((sql % table) + str(varMap))
+    ret = taskBuffer.querySQLS(sql % table, varMap)
+    _logger.debug("ret -> %s" % str(ret))
 
 _logger.debug("================= end ==================")

@@ -20,7 +20,7 @@ from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.Closer import Closer
 
 # logger
-_logger = PandaLogger().getLogger('datasetManager')
+_logger = PandaLogger().getLogger("datasetManager")
 
 
 # main
@@ -30,7 +30,7 @@ def main(tbuf=None, **kwargs):
     # memory checker
     def _memoryCheck(str):
         try:
-            proc_status = '/proc/%d/status' % os.getpid()
+            proc_status = "/proc/%d/status" % os.getpid()
             procfile = open(proc_status)
             name = ""
             vmSize = ""
@@ -51,21 +51,25 @@ def main(tbuf=None, **kwargs):
                         vmRSS += item
                     continue
             procfile.close()
-            _logger.debug('MemCheck - %s Name=%s VSZ=%s RSS=%s : %s' % (os.getpid(), name, vmSize, vmRSS, str))
+            _logger.debug("MemCheck - %s Name=%s VSZ=%s RSS=%s : %s" % (os.getpid(), name, vmSize, vmRSS, str))
         except Exception:
             type, value, traceBack = sys.exc_info()
             _logger.error("memoryCheck() : %s %s" % (type, value))
-            _logger.debug('MemCheck - %s unknown : %s' % (os.getpid(), str))
+            _logger.debug("MemCheck - %s unknown : %s" % (os.getpid(), str))
         return
 
     _memoryCheck("start")
 
-
     from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 
     requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
-    taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd,
-                    nDBConnection=1, useTimeout=True, requester=requester_id)
+    taskBuffer.init(
+        panda_config.dbhost,
+        panda_config.dbpasswd,
+        nDBConnection=1,
+        useTimeout=True,
+        requester=requester_id,
+    )
     # else:
     #     taskBuffer = tbuf
 
@@ -100,8 +104,7 @@ def main(tbuf=None, **kwargs):
     def setTobeDeletedToDis(subDsName):
         try:
             # only production sub datasets
-            if subDsName.startswith('user') or subDsName.startswith('group') or \
-                    subDsName.startswith('pandaddm_') or re.search('_sub\d+$', subDsName) is None:
+            if subDsName.startswith("user") or subDsName.startswith("group") or subDsName.startswith("pandaddm_") or re.search("_sub\d+$", subDsName) is None:
                 return
             # get _dis names with _sub
             disNameList = taskBuffer.getAssociatedDisDatasets(subDsName)
@@ -113,30 +116,34 @@ def main(tbuf=None, **kwargs):
                     # another thread already took care of the _dis
                     continue
                 # skip non _dis
-                if re.search('_dis\d+$', tmpDisName) is None:
+                if re.search("_dis\d+$", tmpDisName) is None:
                     continue
                 # get dataset
                 _logger.debug("setTobeDeletedToDis : try to get %s in DB" % tmpDisName)
-                tmpDS = taskBuffer.queryDatasetWithMap({'name': tmpDisName})
+                tmpDS = taskBuffer.queryDatasetWithMap({"name": tmpDisName})
                 if tmpDS is None:
                     _logger.error("setTobeDeletedToDis : cannot get %s in DB" % tmpDisName)
                     continue
                 # check status
-                if tmpDS.status in ['tobedeleted', 'deleted']:
+                if tmpDS.status in ["tobedeleted", "deleted"]:
                     _logger.debug("setTobeDeletedToDis : skip %s since status=%s" % (tmpDisName, tmpDS.status))
                     continue
                 # check the number of failed jobs associated to the _dis
                 if tmpDS.currentfiles == 0:
                     # all succeeded
-                    tmpDS.status = 'deleting'
-                    excStatus = 'deleted'
+                    tmpDS.status = "deleting"
+                    excStatus = "deleted"
                 else:
                     # some failed, to reduce the lifetime
-                    tmpDS.status = 'shortening'
-                    excStatus = 'shortened'
+                    tmpDS.status = "shortening"
+                    excStatus = "shortened"
                 # update dataset
-                retU = taskBuffer.updateDatasets([tmpDS], withLock=True, withCriteria="status<>:crStatus",
-                                                 criteriaMap={':crStatus': excStatus})
+                retU = taskBuffer.updateDatasets(
+                    [tmpDS],
+                    withLock=True,
+                    withCriteria="status<>:crStatus",
+                    criteriaMap={":crStatus": excStatus},
+                )
                 _logger.debug("setTobeDeletedToDis : set %s to %s with %s" % (tmpDS.status, tmpDisName, str(retU)))
         except Exception:
             errType, errValue = sys.exc_info()[:2]
@@ -182,8 +189,13 @@ def main(tbuf=None, **kwargs):
                 for vuid, name, modDate in self.datasets:
                     _logger.debug("Close %s %s" % (modDate, name))
                     dsExists = True
-                    if name.startswith('pandaddm_') or name.startswith('user.') or name.startswith('group.') \
-                            or name.startswith('hc_test.') or name.startswith('panda.um.'):
+                    if (
+                        name.startswith("pandaddm_")
+                        or name.startswith("user.")
+                        or name.startswith("group.")
+                        or name.startswith("hc_test.")
+                        or name.startswith("panda.um.")
+                    ):
                         dsExists = False
                     if dsExists:
                         # check if dataset exists
@@ -195,25 +207,26 @@ def main(tbuf=None, **kwargs):
                                     status = True
                                 except Exception:
                                     errtype, errvalue = sys.exc_info()[:2]
-                                    out = 'failed to freeze : {0} {1}'.format(errtype, errvalue)
+                                    out = "failed to freeze : {0} {1}".format(errtype, errvalue)
                                     status = False
                             else:
                                 # dataset not exist
-                                status, out = True, ''
+                                status, out = True, ""
                                 dsExists = False
                     else:
-                        status, out = True, ''
+                        status, out = True, ""
                     if not status:
-                        _logger.error('{0} failed to close with {1}'.format(name, out))
+                        _logger.error("{0} failed to close with {1}".format(name, out))
                     else:
                         self.proxyLock.acquire()
                         varMap = {}
-                        varMap[':vuid'] = vuid
-                        varMap[':newstatus'] = 'completed'
-                        varMap[':oldstatus'] = 'tobeclosed'
+                        varMap[":vuid"] = vuid
+                        varMap[":newstatus"] = "completed"
+                        varMap[":oldstatus"] = "tobeclosed"
                         taskBuffer.querySQLS(
                             "UPDATE ATLAS_PANDA.Datasets SET status=:newstatus,modificationdate=CURRENT_DATE WHERE vuid=:vuid AND status=:oldstatus",
-                            varMap)
+                            varMap,
+                        )
                         self.proxyLock.release()
                         # set tobedeleted to dis
                         setTobeDeletedToDis(name)
@@ -231,9 +244,9 @@ def main(tbuf=None, **kwargs):
                                 nFile = int(out)
                                 if nFile == 0:
                                     # erase dataset
-                                    _logger.debug('erase %s' % name)
+                                    _logger.debug("erase %s" % name)
                                     status, out = rucioAPI.eraseDataset(name)
-                                    _logger.debug('OK with %s' % name)
+                                    _logger.debug("OK with %s" % name)
                             except Exception:
                                 pass
             except Exception:
@@ -255,12 +268,12 @@ def main(tbuf=None, **kwargs):
         # get datasets
         closeProxyLock.acquire()
         varMap = {}
-        varMap[':modificationdateU'] = timeLimitU
-        varMap[':modificationdateL'] = timeLimitL
-        varMap[':type'] = 'output'
-        varMap[':status'] = 'tobeclosed'
+        varMap[":modificationdateU"] = timeLimitU
+        varMap[":modificationdateL"] = timeLimitL
+        varMap[":type"] = "output"
+        varMap[":status"] = "tobeclosed"
         sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= %s" % maxRows
-        res = taskBuffer.getLockDatasets(sqlQuery, varMap, modTimeOffset='90/24/60')
+        res = taskBuffer.getLockDatasets(sqlQuery, varMap, modTimeOffset="90/24/60")
         if res is None:
             _logger.debug("# of datasets to be closed: %s" % res)
         else:
@@ -276,7 +289,7 @@ def main(tbuf=None, **kwargs):
         iRows = 0
         nRows = 500
         while iRows < len(res):
-            closerThr = CloserThr(closeLock, closeProxyLock, res[iRows:iRows + nRows], closeThreadPool)
+            closerThr = CloserThr(closeLock, closeProxyLock, res[iRows : iRows + nRows], closeThreadPool)
             closerThr.start()
             iRows += nRows
         closeThreadPool.join()
@@ -301,7 +314,8 @@ def main(tbuf=None, **kwargs):
                     self.proxyLock.acquire()
                     retF, resF = taskBuffer.querySQLS(
                         "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID,status FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock ",
-                        {':destinationDBlock': name})
+                        {":destinationDBlock": name},
+                    )
                     self.proxyLock.release()
                     if isinstance(retF, int) and retF < 0:
                         _logger.error("SQL error")
@@ -310,7 +324,13 @@ def main(tbuf=None, **kwargs):
                         onePandaID = None
                         for tmpPandaID, tmpFileStatus in resF:
                             onePandaID = tmpPandaID
-                            if tmpFileStatus not in ['ready', 'failed', 'skipped', 'merging', 'finished']:
+                            if tmpFileStatus not in [
+                                "ready",
+                                "failed",
+                                "skipped",
+                                "merging",
+                                "finished",
+                            ]:
                                 allFinished = False
                                 break
                         # check sub datasets in the jobset for event service job
@@ -324,36 +344,47 @@ def main(tbuf=None, **kwargs):
                                     cThr = Closer(taskBuffer, [], tmpJobs[0])
                                     allFinished = cThr.checkSubDatasetsInJobset()
                                     self.proxyLock.release()
-                                    _logger.debug(
-                                        "closer checked sub datasets in the jobset for %s : %s" % (name, allFinished))
+                                    _logger.debug("closer checked sub datasets in the jobset for %s : %s" % (name, allFinished))
                         # no files in filesTable
                         if allFinished:
                             _logger.debug("freeze %s " % name)
                             dsExists = True
-                            if name.startswith('pandaddm_') or name.startswith('user.') or name.startswith('group.') \
-                                    or name.startswith('hc_test.') or name.startswith('panda.um.'):
+                            if (
+                                name.startswith("pandaddm_")
+                                or name.startswith("user.")
+                                or name.startswith("group.")
+                                or name.startswith("hc_test.")
+                                or name.startswith("panda.um.")
+                            ):
                                 dsExists = False
-                            if name.startswith('panda.um.'):
+                            if name.startswith("panda.um."):
                                 self.proxyLock.acquire()
                                 retMer, resMer = taskBuffer.querySQLS(
                                     "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND status IN (:statusM,:statusF) ",
-                                    {':destinationDBlock': name,
-                                     ':statusM': 'merging',
-                                     ':statusF': 'failed'})
+                                    {
+                                        ":destinationDBlock": name,
+                                        ":statusM": "merging",
+                                        ":statusF": "failed",
+                                    },
+                                )
                                 self.proxyLock.release()
                                 if resMer is not None and len(resMer) > 0:
                                     mergeID = resMer[0][0]
                                     # get merging jobs
                                     self.proxyLock.acquire()
-                                    mergingJobs = taskBuffer.peekJobs([mergeID], fromDefined=False, fromArchived=False,
-                                                                      fromWaiting=False)
+                                    mergingJobs = taskBuffer.peekJobs(
+                                        [mergeID],
+                                        fromDefined=False,
+                                        fromArchived=False,
+                                        fromWaiting=False,
+                                    )
                                     self.proxyLock.release()
                                     mergeJob = mergingJobs[0]
                                     if mergeJob is not None:
                                         tmpDestDBlocks = []
                                         # get destDBlock
                                         for tmpFile in mergeJob.Files:
-                                            if tmpFile.type in ['output', 'log']:
+                                            if tmpFile.type in ["output", "log"]:
                                                 if tmpFile.destinationDBlock not in tmpDestDBlocks:
                                                     tmpDestDBlocks.append(tmpFile.destinationDBlock)
                                         # run
@@ -369,7 +400,7 @@ def main(tbuf=None, **kwargs):
                                         _logger.debug("failed to get merging job for %s " % name)
                                 else:
                                     _logger.debug("failed to get merging file for %s " % name)
-                                status, out = True, ''
+                                status, out = True, ""
                             elif dsExists:
                                 # check if dataset exists
                                 status, out = rucioAPI.getMetaData(name)
@@ -380,26 +411,27 @@ def main(tbuf=None, **kwargs):
                                             status = True
                                         except Exception:
                                             errtype, errvalue = sys.exc_info()[:2]
-                                            out = 'failed to freeze : {0} {1}'.format(errtype, errvalue)
+                                            out = "failed to freeze : {0} {1}".format(errtype, errvalue)
                                             status = False
                                     else:
                                         # dataset not exist
-                                        status, out = True, ''
+                                        status, out = True, ""
                                         dsExists = False
                             else:
-                                status, out = True, ''
+                                status, out = True, ""
                             if not status:
-                                _logger.error('{0} failed to freeze with {1}'.format(name, out))
+                                _logger.error("{0} failed to freeze with {1}".format(name, out))
                             else:
                                 self.proxyLock.acquire()
                                 varMap = {}
-                                varMap[':vuid'] = vuid
-                                varMap[':status'] = 'completed'
+                                varMap[":vuid"] = vuid
+                                varMap[":status"] = "completed"
                                 taskBuffer.querySQLS(
                                     "UPDATE ATLAS_PANDA.Datasets SET status=:status,modificationdate=CURRENT_DATE WHERE vuid=:vuid",
-                                    varMap)
+                                    varMap,
+                                )
                                 self.proxyLock.release()
-                                if name.startswith('pandaddm_') or name.startswith('panda.um.') or not dsExists:
+                                if name.startswith("pandaddm_") or name.startswith("panda.um.") or not dsExists:
                                     continue
                                 # set tobedeleted to dis
                                 setTobeDeletedToDis(name)
@@ -415,9 +447,9 @@ def main(tbuf=None, **kwargs):
                                         _logger.debug(nFile)
                                         if nFile == 0:
                                             # erase dataset
-                                            _logger.debug('erase %s' % name)
+                                            _logger.debug("erase %s" % name)
                                             status, out = rucioAPI.eraseDataset(name)
-                                            _logger.debug('OK with %s' % name)
+                                            _logger.debug("OK with %s" % name)
                                     except Exception:
                                         pass
                         else:
@@ -425,7 +457,8 @@ def main(tbuf=None, **kwargs):
                             self.proxyLock.acquire()
                             taskBuffer.querySQLS(
                                 "UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid",
-                                {':vuid': vuid})
+                                {":vuid": vuid},
+                            )
                             self.proxyLock.release()
                     _logger.debug("end %s " % name)
             except Exception:
@@ -444,20 +477,20 @@ def main(tbuf=None, **kwargs):
     sql = "SELECT name FROM ATLAS_PANDA.Datasets "
     sql += "WHERE type=:type AND (modificationdate BETWEEN :modificationdateRL AND :modificationdateRU) AND subType=:subType AND status=:oldStatus "
     varMap = {}
-    varMap[':modificationdateRU'] = timeLimitRU
-    varMap[':modificationdateRL'] = timeLimitRL
-    varMap[':type'] = 'output'
-    varMap[':subType'] = 'sub'
-    varMap[':oldStatus'] = 'doing'
+    varMap[":modificationdateRU"] = timeLimitRU
+    varMap[":modificationdateRL"] = timeLimitRL
+    varMap[":type"] = "output"
+    varMap[":subType"] = "sub"
+    varMap[":oldStatus"] = "doing"
     retReset, resReset = taskBuffer.querySQLS(sql, varMap)
     sql = "UPDATE ATLAS_PANDA.Datasets SET status=:newStatus,modificationdate=:modificationdateU WHERE name=:name AND status=:oldStatus "
     if resReset is not None:
-        for name, in resReset:
+        for (name,) in resReset:
             varMap = {}
-            varMap[':name'] = name
-            varMap[':oldStatus'] = 'doing'
-            varMap[':newStatus'] = 'running'
-            varMap[':modificationdateU'] = timeLimitU
+            varMap[":name"] = name
+            varMap[":oldStatus"] = "doing"
+            varMap[":newStatus"] = "running"
+            varMap[":modificationdateU"] = timeLimitU
             _logger.debug("reset {0} to freeze".format(name))
             taskBuffer.querySQLS(sql, varMap)
     # loop for freezer
@@ -469,20 +502,22 @@ def main(tbuf=None, **kwargs):
         # lock
         freezeLock.acquire()
         # get datasets
-        sqlQuery = "type=:type AND status IN (:status1,:status2,:status3,:status4,:status5) " + \
-                   "AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND subType=:subType AND rownum <= %s" % maxRows
+        sqlQuery = (
+            "type=:type AND status IN (:status1,:status2,:status3,:status4,:status5) "
+            + "AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND subType=:subType AND rownum <= %s" % maxRows
+        )
         varMap = {}
-        varMap[':modificationdateU'] = timeLimitU
-        varMap[':modificationdateL'] = timeLimitL
-        varMap[':type'] = 'output'
-        varMap[':status1'] = 'running'
-        varMap[':status2'] = 'created'
-        varMap[':status3'] = 'defined'
-        varMap[':status4'] = 'locked'
-        varMap[':status5'] = 'doing'
-        varMap[':subType'] = 'sub'
+        varMap[":modificationdateU"] = timeLimitU
+        varMap[":modificationdateL"] = timeLimitL
+        varMap[":type"] = "output"
+        varMap[":status1"] = "running"
+        varMap[":status2"] = "created"
+        varMap[":status3"] = "defined"
+        varMap[":status4"] = "locked"
+        varMap[":status5"] = "doing"
+        varMap[":subType"] = "sub"
         freezeProxyLock.acquire()
-        res = taskBuffer.getLockDatasets(sqlQuery, varMap, modTimeOffset='90/24/60')
+        res = taskBuffer.getLockDatasets(sqlQuery, varMap, modTimeOffset="90/24/60")
         if res is None:
             _logger.debug("# of datasets to be frozen: %s" % res)
         else:
@@ -498,7 +533,12 @@ def main(tbuf=None, **kwargs):
         iRows = 0
         nRows = 500
         while iRows < len(res):
-            freezer = Freezer(freezeLock, freezeProxyLock, res[iRows:iRows + nRows], freezeThreadPool)
+            freezer = Freezer(
+                freezeLock,
+                freezeProxyLock,
+                res[iRows : iRows + nRows],
+                freezeThreadPool,
+            )
             freezer.start()
             iRows += nRows
         freezeThreadPool.join()
@@ -522,26 +562,27 @@ def main(tbuf=None, **kwargs):
                 # loop over all datasets
                 for vuid, name, modDate in self.datasets:
                     # only dis datasets
-                    if re.search('_dis\d+$', name) is None:
+                    if re.search("_dis\d+$", name) is None:
                         _logger.error("Eraser : non disDS %s" % name)
                         continue
                     # delete
                     _logger.debug("Eraser %s dis %s %s" % (self.operationType, modDate, name))
                     # delete or shorten
-                    endStatus = 'deleted'
+                    endStatus = "deleted"
                     status, out = rucioAPI.eraseDataset(name)
                     if not status:
                         _logger.error(out)
                         continue
-                    _logger.debug('OK with %s' % name)
+                    _logger.debug("OK with %s" % name)
                     # update
                     self.proxyLock.acquire()
                     varMap = {}
-                    varMap[':vuid'] = vuid
-                    varMap[':status'] = endStatus
+                    varMap[":vuid"] = vuid
+                    varMap[":status"] = endStatus
                     taskBuffer.querySQLS(
                         "UPDATE ATLAS_PANDA.Datasets SET status=:status,modificationdate=CURRENT_DATE WHERE vuid=:vuid",
-                        varMap)
+                        varMap,
+                    )
                     self.proxyLock.release()
             except Exception:
                 errStr = traceback.format_exc()
@@ -558,19 +599,19 @@ def main(tbuf=None, **kwargs):
     disEraseThreadPool = ThreadPool()
     # maxRows = 100000
     maxRows = 5000
-    for targetStatus in ['deleting', 'shortening']:
+    for targetStatus in ["deleting", "shortening"]:
         for i in range(10):
             # lock
             disEraseLock.acquire()
             # get datasets
             varMap = {}
-            varMap[':modificationdateU'] = timeLimitU
-            varMap[':modificationdateL'] = timeLimitL
-            varMap[':type'] = 'dispatch'
-            varMap[':status'] = targetStatus
+            varMap[":modificationdateU"] = timeLimitU
+            varMap[":modificationdateL"] = timeLimitL
+            varMap[":type"] = "dispatch"
+            varMap[":status"] = targetStatus
             sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= %s" % maxRows
             disEraseProxyLock.acquire()
-            res = taskBuffer.getLockDatasets(sqlQuery, varMap, modTimeOffset='90/24/60')
+            res = taskBuffer.getLockDatasets(sqlQuery, varMap, modTimeOffset="90/24/60")
             if res is None:
                 _logger.debug("# of dis datasets for %s: None" % targetStatus)
             else:
@@ -586,8 +627,13 @@ def main(tbuf=None, **kwargs):
             iRows = 0
             nRows = 500
             while iRows < len(res):
-                disEraser = EraserThr(disEraseLock, disEraseProxyLock, res[iRows:iRows + nRows],
-                                      disEraseThreadPool, targetStatus)
+                disEraser = EraserThr(
+                    disEraseLock,
+                    disEraseProxyLock,
+                    res[iRows : iRows + nRows],
+                    disEraseThreadPool,
+                    targetStatus,
+                )
                 disEraser.start()
                 iRows += nRows
             disEraseThreadPool.join()
@@ -618,12 +664,12 @@ def main(tbuf=None, **kwargs):
                 upJobs = []
                 finJobs = []
                 for job in jobs:
-                    if job is None or job.jobStatus == 'unknown':
+                    if job is None or job.jobStatus == "unknown":
                         continue
-                    seList = ['dummy']
+                    seList = ["dummy"]
                     tmpNucleus = siteMapper.getNucleus(job.nucleus)
                     # get SEs
-                    if job.prodSourceLabel == 'user' and job.destinationSE not in siteMapper.siteSpecList:
+                    if job.prodSourceLabel == "user" and job.destinationSE not in siteMapper.siteSpecList:
                         # using --destSE for analysis job to transfer output
                         seList = [job.destinationSE]
                     elif tmpNucleus is not None:
@@ -631,7 +677,7 @@ def main(tbuf=None, **kwargs):
                     elif siteMapper.checkCloud(job.cloud):
                         # normal production jobs
                         if DataServiceUtils.checkJobDestinationSE(job) is None:
-                            tmpDstID = siteMapper.getCloud(job.cloud)['dest']
+                            tmpDstID = siteMapper.getCloud(job.cloud)["dest"]
                         else:
                             tmpDstID = job.destinationSE
                         tmpDstSite = siteMapper.getSite(tmpDstID)
@@ -644,15 +690,15 @@ def main(tbuf=None, **kwargs):
                     nTokens = 0
                     for file in job.Files:
                         # only output files are checked
-                        if file.type == 'output' or file.type == 'log':
-                            if file.status == 'nooutput':
+                        if file.type == "output" or file.type == "log":
+                            if file.status == "nooutput":
                                 continue
                             if DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) is not None:
                                 continue
                             lfns.append(file.lfn)
                             guids.append(file.GUID)
                             scopes.append(file.scope)
-                            nTokens += len(file.destinationDBlockToken.split(','))
+                            nTokens += len(file.destinationDBlockToken.split(","))
                     # get files in LRC
                     _logger.debug("%s Cloud:%s" % (job.PandaID, job.cloud))
                     tmpStat, okFiles = rucioAPI.listFileReplicas(scopes, lfns, seList)
@@ -669,50 +715,60 @@ def main(tbuf=None, **kwargs):
                     if nTokens <= nOkTokens:
                         _logger.debug("%s Finisher : Finish" % job.PandaID)
                         for file in job.Files:
-                            if file.type == 'output' or file.type == 'log':
-                                if file.status != 'nooutput':
-                                    file.status = 'ready'
+                            if file.type == "output" or file.type == "log":
+                                if file.status != "nooutput":
+                                    file.status = "ready"
                         # append to run Finisher
                         finJobs.append(job)
                     else:
                         endTime = job.endTime
-                        if endTime == 'NULL':
+                        if endTime == "NULL":
                             endTime = job.startTime
                         # priority-dependent timeout
                         tmpCloudSpec = siteMapper.getCloud(job.cloud)
-                        if job.currentPriority >= 800 and (job.prodSourceLabel not in ['user']):
-                            if 'transtimehi' in tmpCloudSpec:
-                                timeOutValue = tmpCloudSpec['transtimehi']
+                        if job.currentPriority >= 800 and (job.prodSourceLabel not in ["user"]):
+                            if "transtimehi" in tmpCloudSpec:
+                                timeOutValue = tmpCloudSpec["transtimehi"]
                             else:
                                 timeOutValue = 1
                         else:
-                            if 'transtimelo' in tmpCloudSpec:
-                                timeOutValue = tmpCloudSpec['transtimelo']
+                            if "transtimelo" in tmpCloudSpec:
+                                timeOutValue = tmpCloudSpec["transtimelo"]
                             else:
                                 timeOutValue = 2
                         # protection
                         if timeOutValue < 1:
                             timeOutValue = 1
                         timeOut = self.timeNow - datetime.timedelta(days=timeOutValue)
-                        _logger.debug("%s  Priority:%s Limit:%s End:%s" % (
-                        job.PandaID, job.currentPriority, str(timeOut), str(endTime)))
+                        _logger.debug(
+                            "%s  Priority:%s Limit:%s End:%s"
+                            % (
+                                job.PandaID,
+                                job.currentPriority,
+                                str(timeOut),
+                                str(endTime),
+                            )
+                        )
                         if endTime < timeOut:
                             # timeout
                             _logger.debug("%s Finisher : Kill" % job.PandaID)
-                            strMiss = ''
+                            strMiss = ""
                             for lfn in lfns:
                                 if lfn not in okFiles:
-                                    strMiss += ' %s' % lfn
-                            job.jobStatus = 'failed'
+                                    strMiss += " %s" % lfn
+                            job.jobStatus = "failed"
                             job.taskBufferErrorCode = pandaserver.taskbuffer.ErrorCode.EC_Transfer
-                            job.taskBufferErrorDiag = 'transfer timeout for ' + strMiss
+                            job.taskBufferErrorDiag = "transfer timeout for " + strMiss
                             guidMap = {}
                             for file in job.Files:
                                 # set file status
-                                if file.status == 'transferring' or file.type in ['log', 'output']:
-                                    file.status = 'failed'
+                                if file.status == "transferring" or file.type in [
+                                    "log",
+                                    "output",
+                                ]:
+                                    file.status = "failed"
                                 # collect GUIDs to delete files from _tid datasets
-                                if file.type == 'output' or file.type == 'log':
+                                if file.type == "output" or file.type == "log":
                                     if file.destinationDBlock not in guidMap:
                                         guidMap[file.destinationDBlock] = []
                                     guidMap[file.destinationDBlock].append(file.GUID)
@@ -748,9 +804,9 @@ def main(tbuf=None, **kwargs):
     finisherLock = threading.Semaphore(3)
     finisherProxyLock = threading.Lock()
     finisherThreadPool = ThreadPool()
-    for loopIdx in ['low', 'high']:
+    for loopIdx in ["low", "high"]:
         timeNow = datetime.datetime.utcnow()
-        if loopIdx == 'high':
+        if loopIdx == "high":
             highPrioFlag = True
         else:
             highPrioFlag = False
@@ -794,7 +850,7 @@ def main(tbuf=None, **kwargs):
                 self.proxyLock.release()
                 actJobs = []
                 for tmpJob in jobs:
-                    if tmpJob is None or tmpJob.jobStatus == 'unknown':
+                    if tmpJob is None or tmpJob.jobStatus == "unknown":
                         continue
                     # get LFN list
                     lfns = []
@@ -802,7 +858,7 @@ def main(tbuf=None, **kwargs):
                     scopes = []
                     for tmpFile in tmpJob.Files:
                         # only input files are checked
-                        if tmpFile.type == 'input' and tmpFile.status != 'ready':
+                        if tmpFile.type == "input" and tmpFile.status != "ready":
                             lfns.append(tmpFile.lfn)
                             scopes.append(tmpFile.scope)
                     # get file replicas
@@ -817,20 +873,20 @@ def main(tbuf=None, **kwargs):
                         allOK = True
                         for tmpFile in tmpJob.Files:
                             # only input
-                            if tmpFile.type == 'input' and tmpFile.status != 'ready':
+                            if tmpFile.type == "input" and tmpFile.status != "ready":
                                 # check RSEs
                                 if tmpFile.lfn in okFiles:
                                     for rse in okFiles[tmpFile.lfn]:
-                                        if siteSpec.ddm_endpoints_input[scope_input].isAssociated(rse) and \
-                                                siteSpec.ddm_endpoints_input[scope_input].getEndPoint(rse)[
-                                                    'is_tape'] == 'N':
-                                            tmpFile.status = 'ready'
+                                        if (
+                                            siteSpec.ddm_endpoints_input[scope_input].isAssociated(rse)
+                                            and siteSpec.ddm_endpoints_input[scope_input].getEndPoint(rse)["is_tape"] == "N"
+                                        ):
+                                            tmpFile.status = "ready"
                                             break
                                 # missing
-                                if tmpFile.status != 'ready':
+                                if tmpFile.status != "ready":
                                     allOK = False
-                                    _logger.debug(
-                                        "%s skip since %s:%s is missing" % (tmpJob.PandaID, tmpFile.scope, tmpFile.lfn))
+                                    _logger.debug("%s skip since %s:%s is missing" % (tmpJob.PandaID, tmpFile.scope, tmpFile.lfn))
                                     break
                         if not allOK:
                             continue
@@ -899,7 +955,7 @@ def main(tbuf=None, **kwargs):
                 actJobs = []
                 replicaMap = dict()
                 for tmpJob in jobs:
-                    if tmpJob is None or tmpJob.jobStatus == 'unknown':
+                    if tmpJob is None or tmpJob.jobStatus == "unknown":
                         continue
                     # check if locally available
                     siteSpec = siteMapper.getSite(tmpJob.computingSite)
@@ -907,7 +963,7 @@ def main(tbuf=None, **kwargs):
                     allOK = True
                     for tmpFile in tmpJob.Files:
                         # only input files are checked
-                        if tmpFile.type == 'input' and tmpFile.status != 'ready':
+                        if tmpFile.type == "input" and tmpFile.status != "ready":
                             # get replicas
                             if tmpFile.dispatchDBlock not in replicaMap:
                                 tmpStat, repMap = rucioAPI.listDatasetReplicas(tmpFile.dispatchDBlock)
@@ -917,16 +973,18 @@ def main(tbuf=None, **kwargs):
                             # check RSEs
                             for rse in replicaMap[tmpFile.dispatchDBlock]:
                                 repInfo = replicaMap[tmpFile.dispatchDBlock][rse]
-                                if siteSpec.ddm_endpoints_input[scope_input].isAssociated(rse) and \
-                                        siteSpec.ddm_endpoints_input[scope_input].getEndPoint(rse)['is_tape'] == 'N' and \
-                                        repInfo[0]['total'] == repInfo[0]['found'] and repInfo[0]['total'] is not None:
-                                    tmpFile.status = 'ready'
+                                if (
+                                    siteSpec.ddm_endpoints_input[scope_input].isAssociated(rse)
+                                    and siteSpec.ddm_endpoints_input[scope_input].getEndPoint(rse)["is_tape"] == "N"
+                                    and repInfo[0]["total"] == repInfo[0]["found"]
+                                    and repInfo[0]["total"] is not None
+                                ):
+                                    tmpFile.status = "ready"
                                     break
                             # missing
-                            if tmpFile.status != 'ready':
+                            if tmpFile.status != "ready":
                                 allOK = False
-                                _logger.debug("%s skip since %s:%s is missing with rule" % (
-                                tmpJob.PandaID, tmpFile.scope, tmpFile.lfn))
+                                _logger.debug("%s skip since %s:%s is missing with rule" % (tmpJob.PandaID, tmpFile.scope, tmpFile.lfn))
                                 break
                     if not allOK:
                         continue
@@ -989,12 +1047,17 @@ def main(tbuf=None, **kwargs):
             try:
                 for vuid, name, modDate in self.datasets:
                     # check just in case
-                    if re.search('_sub\d+$', name) is None:
+                    if re.search("_sub\d+$", name) is None:
                         _logger.debug("skip non sub %s" % name)
                         continue
                     _logger.debug("delete sub %s" % name)
-                    if name.startswith('pandaddm_') or name.startswith('user.') or name.startswith('group.') \
-                            or name.startswith('hc_test.') or name.startswith('panda.um.'):
+                    if (
+                        name.startswith("pandaddm_")
+                        or name.startswith("user.")
+                        or name.startswith("group.")
+                        or name.startswith("hc_test.")
+                        or name.startswith("panda.um.")
+                    ):
                         dsExists = False
                     else:
                         dsExists = True
@@ -1002,7 +1065,8 @@ def main(tbuf=None, **kwargs):
                         self.proxyLock.acquire()
                         retF, resF = taskBuffer.querySQLS(
                             "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ DISTINCT PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock ",
-                            {':destinationDBlock': name})
+                            {":destinationDBlock": name},
+                        )
                         self.proxyLock.release()
                         if retF is None:
                             _logger.error("SQL error for sub {0}".format(name))
@@ -1015,16 +1079,20 @@ def main(tbuf=None, **kwargs):
                             sqlP += "UNION "
                             sqlP += "SELECT jobStatus FROM ATLAS_PANDAARCH.jobsArchived WHERE PandaID=:PandaID AND modificationTime>CURRENT_DATE-30 "
                             allDone = True
-                            for pandaID, in resF:
-                                retP, resP = taskBuffer.querySQLS(sqlP, {':PandaID': pandaID})
+                            for (pandaID,) in resF:
+                                retP, resP = taskBuffer.querySQLS(sqlP, {":PandaID": pandaID})
                                 if len(resP) == 0:
                                     _logger.debug("skip delete sub {0} PandaID={1} not found".format(name, pandaID))
                                     allDone = False
                                     break
                                 jobStatus = resP[0][0]
-                                if jobStatus not in ['finished', 'failed', 'cancelled', 'closed']:
-                                    _logger.debug("skip delete sub {0} PandaID={1} is active {2}".format(name, pandaID,
-                                                                                                         jobStatus))
+                                if jobStatus not in [
+                                    "finished",
+                                    "failed",
+                                    "cancelled",
+                                    "closed",
+                                ]:
+                                    _logger.debug("skip delete sub {0} PandaID={1} is active {2}".format(name, pandaID, jobStatus))
                                     allDone = False
                                     break
                             self.proxyLock.release()
@@ -1035,21 +1103,22 @@ def main(tbuf=None, **kwargs):
                                     status = True
                                 except Exception:
                                     errtype, errvalue = sys.exc_info()[:2]
-                                    out = '{0} {1}'.format(errtype, errvalue)
-                                    _logger.error('{0} failed to erase with {1}'.format(name, out))
+                                    out = "{0} {1}".format(errtype, errvalue)
+                                    _logger.error("{0} failed to erase with {1}".format(name, out))
                             else:
                                 _logger.debug("wait sub %s" % name)
                                 continue
                     # update dataset
                     self.proxyLock.acquire()
                     varMap = {}
-                    varMap[':vuid'] = vuid
-                    varMap[':ost1'] = 'completed'
-                    varMap[':ost2'] = 'cleanup'
-                    varMap[':newStatus'] = 'deleted'
+                    varMap[":vuid"] = vuid
+                    varMap[":ost1"] = "completed"
+                    varMap[":ost2"] = "cleanup"
+                    varMap[":newStatus"] = "deleted"
                     taskBuffer.querySQLS(
                         "UPDATE ATLAS_PANDA.Datasets SET status=:newStatus,modificationdate=CURRENT_DATE WHERE vuid=:vuid AND status IN (:ost1,:ost2) ",
-                        varMap)
+                        varMap,
+                    )
                     self.proxyLock.release()
                     _logger.debug("end %s " % name)
             except Exception:
@@ -1071,15 +1140,18 @@ def main(tbuf=None, **kwargs):
         subdeleteLock.acquire()
         # get datasets
         varMap = {}
-        varMap[':limitU'] = timeLimitU
-        varMap[':limitL'] = timeLimitL
-        varMap[':type'] = 'output'
-        varMap[':subtype'] = 'sub'
-        varMap[':st1'] = 'completed'
-        varMap[':st2'] = 'cleanup'
-        sqlQuery = "type=:type AND subType=:subtype AND status IN (:st1,:st2) AND (creationdate BETWEEN :limitL AND :limitU) AND (modificationdate BETWEEN :limitL AND :limitU) AND rownum <= %s" % maxRows
+        varMap[":limitU"] = timeLimitU
+        varMap[":limitL"] = timeLimitL
+        varMap[":type"] = "output"
+        varMap[":subtype"] = "sub"
+        varMap[":st1"] = "completed"
+        varMap[":st2"] = "cleanup"
+        sqlQuery = (
+            "type=:type AND subType=:subtype AND status IN (:st1,:st2) AND (creationdate BETWEEN :limitL AND :limitU) AND (modificationdate BETWEEN :limitL AND :limitU) AND rownum <= %s"
+            % maxRows
+        )
         subdeleteProxyLock.acquire()
-        res = taskBuffer.getLockDatasets(sqlQuery, varMap, modTimeOffset='90/24/60')
+        res = taskBuffer.getLockDatasets(sqlQuery, varMap, modTimeOffset="90/24/60")
         if res is None:
             _logger.debug("# of sub datasets to be deleted %s" % res)
         else:
@@ -1095,7 +1167,12 @@ def main(tbuf=None, **kwargs):
         iRows = 0
         nRows = 500
         while iRows < len(res):
-            subdeleter = SubDeleter(subdeleteLock, subdeleteProxyLock, res[iRows:iRows + nRows], subdeleteThreadPool)
+            subdeleter = SubDeleter(
+                subdeleteLock,
+                subdeleteProxyLock,
+                res[iRows : iRows + nRows],
+                subdeleteThreadPool,
+            )
             subdeleter.start()
             iRows += nRows
         subdeleteThreadPool.join()
@@ -1115,5 +1192,5 @@ def main(tbuf=None, **kwargs):
 
 
 # run
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

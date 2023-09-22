@@ -9,16 +9,17 @@ from pandaserver.config import panda_config
 ORAC_CON = None
 
 
-OracleList = ['oracle']
+OracleList = ["oracle"]
 
 
 #
 # Connection initializers
 #
 
-def getOracleConnection(db_type) :
+
+def getOracleConnection(db_type):
     global ORAC_CON
-    if ORAC_CON is not None :
+    if ORAC_CON is not None:
         return ORAC_CON
     user = panda_config.dbuser
     pssw = panda_config.dbpasswd
@@ -28,15 +29,17 @@ def getOracleConnection(db_type) :
     poolincr = 1
 
     print("Initializing Oracle connection")
-    try :
+    try:
         cpool = cx_Oracle.SessionPool(user, pssw, serv, poolmin, poolmax, poolincr)
         ORAC_CON = cpool.acquire()
     except Exception:
         import traceback
+
         traceback.print_stack()
         traceback.print_exc()
         sys.exit(1)
     return ORAC_CON
+
 
 class DBMSql:
     db_type = ""
@@ -46,7 +49,7 @@ class DBMSql:
     def __init__(self, _db_type):
         self.db_type = _db_type
 
-        if self.db_type in OracleList :
+        if self.db_type in OracleList:
             self.oracle_con = getOracleConnection(self.db_type)
         else:
             print("Unknown database type:" + self.db_type)
@@ -58,20 +61,20 @@ class DBMSql:
     # Method to execute sql query (SELECT)
     def executeQuery(self, sql):
         bindDict = None
-        if isinstance(sql, TupleType) :
+        if isinstance(sql, TupleType):
             bindDict = sql[1]
             sql = sql[0]
         if sql.strip()[0:6].lower() != "select":
             print("not a SELECT statement!!")
             return []
         try:
-            if self.db_type in OracleList :
+            if self.db_type in OracleList:
                 cursor = self.oracle_con.cursor()
-                if bindDict is not None :
+                if bindDict is not None:
                     cursor.execute(sql, bindDict)
-                else :
+                else:
                     cursor.execute(sql)
-                colMap =  cursor.description
+                colMap = cursor.description
                 result = cursor.fetchall()
                 ret = []
                 for t in result:
@@ -95,14 +98,15 @@ class DBMSql:
 class DBMSqlError(Exception):
     def __init__(self, value):
         self.value = value
+
     def __str__(self):
         return repr(self.value)
+
 
 # -----------------------------
 # Codes below are for test...
 #
 
-if __name__ == '__main__':
-
-    dbm = DBMSql(_db_type='oracle')
-    print(dbm.executeQuery('select * from services'))
+if __name__ == "__main__":
+    dbm = DBMSql(_db_type="oracle")
+    print(dbm.executeQuery("select * from services"))
