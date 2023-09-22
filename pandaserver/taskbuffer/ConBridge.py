@@ -255,7 +255,7 @@ class ConBridge(object):
                 roleType = "master"
             else:
                 roleType = "child "
-            if type(e) == HarmlessEx:
+            if isinstance(e, HarmlessEx):
                 _logger.debug("%s %s recv harmless ex : %s" % (roleType, self.pid, str(e)))
             else:
                 _logger.error("%s %s recv error : %s %s" % (roleType, self.pid, str(e), traceback.format_exc()))
@@ -423,7 +423,7 @@ class ConBridge(object):
         # copy changes in taskbuff objects to master
         def copyTbObjChanges(self, oldPar, newPar):
             # check they have the same type
-            if type(oldPar) != type(newPar):
+            if not isinstance(oldPar, type(newPar)):
                 return False
             # copy some Specs since they are passed via ref's
             if isinstance(oldPar, JobSpec) or isinstance(oldPar, FileSpec) or isinstance(oldPar, DatasetSpec):

@@ -594,7 +594,7 @@ class DBProxy:
                     (job.jobsetID,) = self.cur.fetchone()
                 else:
                     # panda_config.backend == 'mysql':
-                    ### fake sequence
+                    # fake sequence
                     sql = " INSERT INTO ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ (col) VALUES (NULL) "
                     self.cur.arraysize = 10
                     self.cur.execute(sql + comment, {})
@@ -2824,8 +2824,7 @@ class DBProxy:
                                         # decrement nOnHold
                                         datasetContentsStat[tmpDatasetID] -= 1
                             # loop over all datasets
-                            tmpDatasetIDs = list(datasetContentsStat)
-                            tmpDatasetIDs.sort()
+                            tmpDatasetIDs = sorted(datasetContentsStat)
                             for tmpDatasetID in tmpDatasetIDs:
                                 diffNum = datasetContentsStat[tmpDatasetID]
                                 # no difference
@@ -3120,8 +3119,7 @@ class DBProxy:
                                 _logger.debug(sqlFileMeta + comment + str(varMap))
                                 self.cur.execute(sqlFileMeta + comment, varMap)
                     # loop over all JEDI datasets
-                    tmpDatasetIDs = list(datasetContentsStat)
-                    tmpDatasetIDs.sort()
+                    tmpDatasetIDs = sorted(datasetContentsStat)
                     for tmpDatasetID in tmpDatasetIDs:
                         valMap = datasetContentsStat[tmpDatasetID]
                         diffNum = valMap["diff"]
@@ -4343,8 +4341,7 @@ class DBProxy:
                 mergeZipLFNs = set()
                 for tmpFileID in eventRangeIDs:
                     tmpMapEventRangeID = eventRangeIDs[tmpFileID]
-                    jobProcessIDs = list(tmpMapEventRangeID)
-                    jobProcessIDs.sort()
+                    jobProcessIDs = sorted(tmpMapEventRangeID)
                     # make input
                     for jobProcessID in jobProcessIDs:
                         for tmpFileSpec in job.Files:
@@ -7693,7 +7690,7 @@ class DBProxy:
                 (sn,) = self.cur.fetchone()
             else:
                 # panda_config.backend == 'mysql'
-                ### fake sequence
+                # fake sequence
                 sql = " INSERT INTO ATLAS_PANDA.SUBCOUNTER_SUBID_SEQ (col) VALUES (NULL) "
                 self.cur.arraysize = 100
                 self.cur.execute(sql + comment, {})
@@ -7728,7 +7725,7 @@ class DBProxy:
                 (sn,) = self.cur.fetchone()
             else:
                 # panda_config.backend == 'mysql'
-                ### fake sequence
+                # fake sequence
                 sql = " INSERT INTO ATLAS_PANDA.GROUP_JOBID_SEQ (col) VALUES (NULL) "
                 self.cur.arraysize = 100
                 self.cur.execute(sql + comment, {})
@@ -13484,8 +13481,7 @@ class DBProxy:
         # update JEDI_Datasets table
         nOutEvents = 0
         if datasetContentsStat != {}:
-            tmpDatasetIDs = list(datasetContentsStat)
-            tmpDatasetIDs.sort()
+            tmpDatasetIDs = sorted(datasetContentsStat)
             for tmpDatasetID in tmpDatasetIDs:
                 tmpLog.debug("trying to lock datasetID={}".format(tmpDatasetID))
                 tmpContentsStat = datasetContentsStat[tmpDatasetID]
@@ -14173,7 +14169,7 @@ class DBProxy:
                 sqlT += "({0}.PRODSYS2_TASK_ID_SEQ.nextval,".format(schemaDEFT)
             else:
                 # panda_config.backend == 'mysql':
-                ### fake sequence
+                # fake sequence
                 sql = " INSERT INTO PRODSYS2_TASK_ID_SEQ (col) VALUES (NULL) "
                 self.cur.arraysize = 100
                 self.cur.execute(sql + comment, {})
@@ -14188,7 +14184,7 @@ class DBProxy:
                     sqlT += "{0}.PRODSYS2_TASK_ID_SEQ.currval) ".format(schemaDEFT)
                 else:
                     # panda_config.backend == 'mysql':
-                    ### fake sequence
+                    # fake sequence
                     sql = " SELECT MAX(COL) FROM PRODSYS2_TASK_ID_SEQ "
                     self.cur.arraysize = 100
                     self.cur.execute(sql + comment, {})
@@ -15235,8 +15231,7 @@ class DBProxy:
                     outDSs.add(targetName)
                 else:
                     inDSs.add(targetName)
-            inDSs = list(inDSs)
-            inDSs.sort()
+            inDSs = sorted(inDSs)
             retDict["inDS"] = ",".join(inDSs)
             outDSs = list(outDSs)
             outDSs.sort()
@@ -17508,8 +17503,7 @@ class DBProxy:
             sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
             sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
             nKilled = 0
-            killPandaIDsList = list(killPandaIDs)
-            killPandaIDsList.sort()
+            killPandaIDsList = sorted(killPandaIDs)
             for pandaID in killPandaIDsList:
                 # ignore original PandaID since it will be killed by caller
                 if pandaID == job.PandaID:
@@ -21527,7 +21521,7 @@ class DBProxy:
             # Get top level shares
             sql += "WHERE parent IS NULL"
 
-        elif type(parents) == str:
+        elif isinstance(parents, str):
             # Get the children of a specific share
             var_map = {":parent": parents}
             sql += "WHERE parent = :parent"

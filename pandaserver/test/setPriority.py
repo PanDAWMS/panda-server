@@ -7,7 +7,7 @@ from pandaserver.taskbuffer.OraDBProxy import DBProxy
 # password
 from pandaserver.config import panda_config
 
-usage = """%prog <taskID> <priority> 
+usage = """%prog <taskID> <priority>
 
   Set a priority to jobs in a task"""
 

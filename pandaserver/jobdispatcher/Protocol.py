@@ -13,7 +13,7 @@ from pandaserver.dataservice import DataServiceUtils
 TimeOutToken = "TimeOut"
 NoJobsToken = "NoJobs"
 
-########### status codes
+# status codes
 # succeeded
 SC_Success = 0
 # timeout

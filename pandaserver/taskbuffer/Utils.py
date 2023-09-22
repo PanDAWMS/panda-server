@@ -408,8 +408,7 @@ def getAttr(req, **kv):
         allAttrs.append("%s : %s\n" % (tmpKey, tmpVal))
     allAttrs.sort()
     retStr = "===== param =====\n"
-    kk = list(kv.keys())
-    kk.sort()
+    kk = sorted(kv.keys())
     for k in kk:
         retStr += "%s = %s\n" % (k, kv[k])
     retStr += "\n====== env ======\n"

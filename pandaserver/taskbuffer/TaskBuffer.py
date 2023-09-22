@@ -361,8 +361,7 @@ class TaskBuffer:
             # bulk fetch fileIDs
             fileIDPool = []
             if totalNumFiles > 0:
-                fileIDPool = proxy.bulkFetchFileIDsPanda(totalNumFiles)
-                fileIDPool.sort()
+                fileIDPool = sorted(proxy.bulkFetchFileIDsPanda(totalNumFiles))
             # loop over all jobs
             ret = []
             newJobs = []
@@ -554,7 +553,7 @@ class TaskBuffer:
                     ret.append((job.PandaID, job.jobDefinitionID, job.jobName))
                 serNum += 1
                 try:
-                    fileIDPool = fileIDPool[len(job.Files) :]
+                    fileIDPool = fileIDPool[len(job.Files):]
                 except Exception:
                     fileIDPool = []
             # release DB proxy
@@ -1082,8 +1081,7 @@ class TaskBuffer:
             if idStatus == {}:
                 return retNA
             # use larger PandaID which corresponds to runXYZ
-            tmpKeys = list(idStatus)
-            tmpKeys.sort()
+            tmpKeys = sorted(idStatus)
             pandaID = tmpKeys[-1]
             # get job
             tmpJobs = self.getFullJobStatus([pandaID])
@@ -1220,7 +1218,7 @@ class TaskBuffer:
             # get DBproxy
             proxy = self.proxyPool.getProxy()
             # get
-            tmpRetInfo = proxy.getSlimmedFileInfoPandaIDs(pandaIDs[iPandaID : iPandaID + nPandaID])
+            tmpRetInfo = proxy.getSlimmedFileInfoPandaIDs(pandaIDs[iPandaID: iPandaID + nPandaID])
             # release proxy
             self.proxyPool.putProxy(proxy)
             iPandaID += nPandaID

@@ -427,8 +427,7 @@ class Configurator(threading.Thread):
         schedconfig_sites = self.taskBuffer.configurator_read_cric_sites()
         self.log_stream.debug("Sites in Schedconfig {0}".format(schedconfig_sites))
 
-        all_sites = list(filter(None, CRIC_sites | configurator_sites | schedconfig_sites))
-        all_sites.sort()
+        all_sites = sorted(filter(None, CRIC_sites | configurator_sites | schedconfig_sites))
 
         for site in all_sites:
             missing = []
@@ -522,7 +521,7 @@ class Configurator(threading.Thread):
         Principal function
         """
 
-        """        
+        """
         site_dump
         endpoint_dump
         schedconfig_dump

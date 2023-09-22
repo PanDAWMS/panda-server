@@ -69,13 +69,13 @@ if len(jobs):
     nJob = 100
     iJob = 0
     while iJob < len(jobs):
-        print("reassign  %s" % str(jobs[iJob : iJob + nJob]))
-        Client.reassignJobs(jobs[iJob : iJob + nJob])
+        print("reassign  %s" % str(jobs[iJob: iJob + nJob]))
+        Client.reassignJobs(jobs[iJob: iJob + nJob])
         iJob += nJob
 if len(jediJobs) != 0:
     nJob = 100
     iJob = 0
     while iJob < len(jediJobs):
-        print("kill JEDI jobs %s" % str(jediJobs[iJob : iJob + nJob]))
-        Client.killJobs(jediJobs[iJob : iJob + nJob], 51)
+        print("kill JEDI jobs %s" % str(jediJobs[iJob: iJob + nJob]))
+        Client.killJobs(jediJobs[iJob: iJob + nJob], 51)
         iJob += nJob

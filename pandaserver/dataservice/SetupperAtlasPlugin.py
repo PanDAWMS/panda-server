@@ -496,7 +496,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         if startIdx == -1:
             jobsList = self.jobs
         else:
-            jobsList = self.jobs[startIdx : startIdx + nJobsInLoop]
+            jobsList = self.jobs[startIdx: startIdx + nJobsInLoop]
         for job in jobsList:
             # ignore failed jobs
             if job.jobStatus in ["failed", "cancelled"] or job.isCancelled():
@@ -1712,7 +1712,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     iFiles = 0
                     iLoop = 0
                     while iFiles < len(tmpFileList):
-                        subFileNames = list(tmpFileList)[iFiles : iFiles + nMaxFiles]
+                        subFileNames = list(tmpFileList)[iFiles: iFiles + nMaxFiles]
                         if len(subFileNames) == 0:
                             break
                         # dis name

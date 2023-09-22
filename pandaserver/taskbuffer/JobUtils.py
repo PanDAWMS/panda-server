@@ -104,8 +104,7 @@ def get_job_co2(start_time, end_time, core_count, energy_emissions, watts_per_co
         energy_emissions_by_ts[aux_timestamp] = {"value": value}
 
     try:
-        timestamps = [entry[0] for entry in energy_emissions]
-        timestamps.sort()
+        timestamps = sorted([entry[0] for entry in energy_emissions])
 
         started = False
         ended = False

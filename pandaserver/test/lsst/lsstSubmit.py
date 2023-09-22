@@ -96,7 +96,7 @@ for idx, argv in enumerate(sys.argv):
         break
 
 
-### DP_USER and PIPELINE_USER preference
+# DP_USER and PIPELINE_USER preference
 if prodUserNameDP is not None:
     prodUserName = prodUserNameDP
 elif prodUserNamePipeline is not None:

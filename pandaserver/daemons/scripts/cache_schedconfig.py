@@ -171,7 +171,7 @@ class cacheSchedConfig:
             file = os.path.join(dest, queueDict["nickname"] + "." + outputSet + "." + format)
             output = open(file, "w")
             outputFields = self.queueDataFields[outputSet]
-            if outputFields == None:
+            if outputFields is None:
                 outputFields = queueDict.keys()
             if format == "txt":
                 for outputField in outputFields:
@@ -212,7 +212,7 @@ class cacheSchedConfig:
         else:
             structDict = queueDict
 
-        if "releases" in structDict and structDict["releases"] != None:
+        if "releases" in structDict and structDict["releases"] is not None:
             if isinstance(structDict["releases"], str):
                 structDict["releases"] = structDict["releases"].split("|")
         # TODO - Change this into Ricardo's ISO dateTime in UTC?
@@ -225,7 +225,7 @@ class cacheSchedConfig:
         """Dumps all of schedconfig into a single json file - allows clients to retrieve a
         machine readable version of schedconfig efficiently"""
         file = os.path.join(dest, "schedconfig.all.json")
-        if queueArray == None:
+        if queueArray is None:
             queueArray = self.queueData
         output = open(file, "w")
         dumpMe = {}

@@ -349,8 +349,7 @@ class Closer:
             for fileSpec in jobSpec.Files:
                 if fileSpec.type == "output":
                     subDatasets.add(fileSpec.destinationDBlock)
-            subDatasets = list(subDatasets)
-            subDatasets.sort()
+            subDatasets = sorted(subDatasets)
             if len(subDatasets) > 0:
                 # use the first sub dataset
                 subDataset = subDatasets[0]

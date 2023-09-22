@@ -595,7 +595,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                     # return internal server error
                     start_response("500 INTERNAL SERVER ERROR", [("Content-Type", "text/plain")])
                     # force kill to release memory
-                    if type(e) == OSError:
+                    if isinstance(e, OSError):
                         tmpLog.warning("force restart due")
                         os.kill(os.getpid(), signal.SIGINT)
                     return [str(e).encode()]

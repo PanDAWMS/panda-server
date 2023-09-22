@@ -85,8 +85,7 @@ def main(tbuf=None, **kwargs):
     _logger.debug("EVP session")
     timeNow = datetime.datetime.utcnow()
     timeInt = datetime.datetime.utcnow()
-    fileList = glob.glob(evpFilePatt)
-    fileList.sort()
+    fileList = sorted(glob.glob(evpFilePatt))
 
     # create thread pool and semaphore
     adderLock = threading.Semaphore(1)
@@ -104,8 +103,7 @@ def main(tbuf=None, **kwargs):
         if (datetime.datetime.utcnow() - timeInt) > datetime.timedelta(minutes=15):
             timeInt = datetime.datetime.utcnow()
             # get file
-            fileList = glob.glob(evpFilePatt)
-            fileList.sort()
+            fileList = sorted(glob.glob(evpFilePatt))
         # choose a file
         fileName = fileList.pop(0)
         # release lock

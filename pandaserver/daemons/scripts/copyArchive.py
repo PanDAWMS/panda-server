@@ -602,8 +602,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                             nJob = 100
                             iJob = 0
                             while iJob < len(jediJobs):
-                                _logger.debug("reassignJobs for JEDI at Nq/Nr overshoot site {} ({})".format(computingSite, str(jediJobs[iJob : iJob + nJob])))
-                                Client.killJobs(jediJobs[iJob : iJob + nJob], 10, keepUnmerged=True)
+                                _logger.debug("reassignJobs for JEDI at Nq/Nr overshoot site {} ({})".format(computingSite, str(jediJobs[iJob: iJob + nJob])))
+                                Client.killJobs(jediJobs[iJob: iJob + nJob], 10, keepUnmerged=True)
                                 iJob += nJob
     except Exception as e:
         _logger.error("failed with {} {}".format(str(e), traceback.format_exc()))
@@ -681,8 +681,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 nJob = 100
                 iJob = 0
                 while iJob < len(jediJobs):
-                    _logger.debug("reassignJobs for JEDI at inactive site %s (%s)" % (tmpSite, jediJobs[iJob : iJob + nJob]))
-                    Client.killJobs(jediJobs[iJob : iJob + nJob], 51, keepUnmerged=True)
+                    _logger.debug("reassignJobs for JEDI at inactive site %s (%s)" % (tmpSite, jediJobs[iJob: iJob + nJob]))
+                    Client.killJobs(jediJobs[iJob: iJob + nJob], 51, keepUnmerged=True)
                     iJob += nJob
 
     # reassign defined jobs in defined table
@@ -715,16 +715,16 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         nJob = 100
         iJob = 0
         while iJob < len(jobs):
-            _logger.debug("reassignJobs for defined jobs (%s)" % jobs[iJob : iJob + nJob])
-            taskBuffer.reassignJobs(jobs[iJob : iJob + nJob], joinThr=True)
+            _logger.debug("reassignJobs for defined jobs (%s)" % jobs[iJob: iJob + nJob])
+            taskBuffer.reassignJobs(jobs[iJob: iJob + nJob], joinThr=True)
             iJob += nJob
     _logger.debug("reassignJobs for JEDI defined jobs -> #%s" % len(jediJobs))
     if len(jediJobs) != 0:
         nJob = 100
         iJob = 0
         while iJob < len(jediJobs):
-            _logger.debug("reassignJobs for JEDI defined jobs (%s)" % jediJobs[iJob : iJob + nJob])
-            Client.killJobs(jediJobs[iJob : iJob + nJob], 51, keepUnmerged=True)
+            _logger.debug("reassignJobs for JEDI defined jobs (%s)" % jediJobs[iJob: iJob + nJob])
+            Client.killJobs(jediJobs[iJob: iJob + nJob], 51, keepUnmerged=True)
             iJob += nJob
 
     # reassign long-waiting jobs in defined table
@@ -744,16 +744,16 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         nJob = 100
         iJob = 0
         while iJob < len(jobs):
-            _logger.debug("reassignJobs for long in defined table (%s)" % jobs[iJob : iJob + nJob])
-            taskBuffer.reassignJobs(jobs[iJob : iJob + nJob], joinThr=True)
+            _logger.debug("reassignJobs for long in defined table (%s)" % jobs[iJob: iJob + nJob])
+            taskBuffer.reassignJobs(jobs[iJob: iJob + nJob], joinThr=True)
             iJob += nJob
     _logger.debug("reassignJobs for long JEDI in defined table -> #%s" % len(jediJobs))
     if len(jediJobs) != 0:
         nJob = 100
         iJob = 0
         while iJob < len(jediJobs):
-            _logger.debug("reassignJobs for long JEDI in defined table (%s)" % jediJobs[iJob : iJob + nJob])
-            Client.killJobs(jediJobs[iJob : iJob + nJob], 51, keepUnmerged=True)
+            _logger.debug("reassignJobs for long JEDI in defined table (%s)" % jediJobs[iJob: iJob + nJob])
+            Client.killJobs(jediJobs[iJob: iJob + nJob], 51, keepUnmerged=True)
             iJob += nJob
 
     # reassign too long activated jobs in active table
@@ -795,16 +795,16 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         nJob = 100
         iJob = 0
         while iJob < len(jobs):
-            _logger.debug("reassignJobs for long activated in active table (%s)" % jobs[iJob : iJob + nJob])
-            taskBuffer.reassignJobs(jobs[iJob : iJob + nJob], joinThr=True)
+            _logger.debug("reassignJobs for long activated in active table (%s)" % jobs[iJob: iJob + nJob])
+            taskBuffer.reassignJobs(jobs[iJob: iJob + nJob], joinThr=True)
             iJob += nJob
     _logger.debug("reassignJobs for long activated JEDI in active table -> #%s" % len(jediJobs))
     if len(jediJobs) != 0:
         nJob = 100
         iJob = 0
         while iJob < len(jediJobs):
-            _logger.debug("reassignJobs for long activated JEDI in active table (%s)" % jediJobs[iJob : iJob + nJob])
-            Client.killJobs(jediJobs[iJob : iJob + nJob], 51, keepUnmerged=True)
+            _logger.debug("reassignJobs for long activated JEDI in active table (%s)" % jediJobs[iJob: iJob + nJob])
+            Client.killJobs(jediJobs[iJob: iJob + nJob], 51, keepUnmerged=True)
             iJob += nJob
 
     # reassign too long starting jobs in active table
@@ -838,16 +838,16 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         nJob = 100
         iJob = 0
         while iJob < len(jobs):
-            _logger.debug("reassignJobs for long starting in active table (%s)" % jobs[iJob : iJob + nJob])
-            taskBuffer.reassignJobs(jobs[iJob : iJob + nJob], joinThr=True)
+            _logger.debug("reassignJobs for long starting in active table (%s)" % jobs[iJob: iJob + nJob])
+            taskBuffer.reassignJobs(jobs[iJob: iJob + nJob], joinThr=True)
             iJob += nJob
     _logger.debug("reassignJobs for long starting JEDI in active table -> #%s" % len(jediJobs))
     if len(jediJobs) != 0:
         nJob = 100
         iJob = 0
         while iJob < len(jediJobs):
-            _logger.debug("reassignJobs for long stating JEDI in active table (%s)" % jediJobs[iJob : iJob + nJob])
-            Client.killJobs(jediJobs[iJob : iJob + nJob], 51, keepUnmerged=True)
+            _logger.debug("reassignJobs for long stating JEDI in active table (%s)" % jediJobs[iJob: iJob + nJob])
+            Client.killJobs(jediJobs[iJob: iJob + nJob], 51, keepUnmerged=True)
             iJob += nJob
 
     # kill too long-standing analysis jobs in active table
@@ -889,8 +889,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             nJob = 100
             iJob = 0
             while iJob < len(jobs):
-                _logger.debug("killJobs for Pending (%s)" % str(jobs[iJob : iJob + nJob]))
-                Client.killJobs(jobs[iJob : iJob + nJob], 4)
+                _logger.debug("killJobs for Pending (%s)" % str(jobs[iJob: iJob + nJob]))
+                Client.killJobs(jobs[iJob: iJob + nJob], 4)
                 iJob += nJob
 
     # kick waiting ES merge jobs which were generated from fake co-jumbo
@@ -915,9 +915,9 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             nJob = 100
             iJob = 0
             while iJob < len(jobs):
-                _logger.debug("kick waiting ES merge (%s)" % str(jobs[iJob : iJob + nJob]))
+                _logger.debug("kick waiting ES merge (%s)" % str(jobs[iJob: iJob + nJob]))
                 Client.reassignJobs(
-                    jobs[iJob : iJob + nJob],
+                    jobs[iJob: iJob + nJob],
                 )
                 iJob += nJob
 
@@ -940,8 +940,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             nJob = 100
             iJob = 0
             while iJob < len(jobs):
-                _logger.debug("killJobs for Waiting (%s)" % str(jobs[iJob : iJob + nJob]))
-                Client.killJobs(jobs[iJob : iJob + nJob], 4)
+                _logger.debug("killJobs for Waiting (%s)" % str(jobs[iJob: iJob + nJob]))
+                Client.killJobs(jobs[iJob: iJob + nJob], 4)
                 iJob += nJob
 
     # kill too long running ES jobs
@@ -964,9 +964,9 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         nJob = 100
         iJob = 0
         while iJob < len(jobs):
-            _logger.debug("killJobs for long running ES jobs (%s)" % str(jobs[iJob : iJob + nJob]))
+            _logger.debug("killJobs for long running ES jobs (%s)" % str(jobs[iJob: iJob + nJob]))
             Client.killJobs(
-                jobs[iJob : iJob + nJob],
+                jobs[iJob: iJob + nJob],
                 2,
                 keepUnmerged=True,
                 jobSubStatus="es_toolong",
@@ -992,8 +992,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         nJob = 100
         iJob = 0
         while iJob < len(jobs):
-            _logger.debug("killJobs for long running ES merge jobs (%s)" % str(jobs[iJob : iJob + nJob]))
-            Client.killJobs(jobs[iJob : iJob + nJob], 2)
+            _logger.debug("killJobs for long running ES merge jobs (%s)" % str(jobs[iJob: iJob + nJob]))
+            Client.killJobs(jobs[iJob: iJob + nJob], 2)
             iJob += nJob
 
     # kill too long waiting jobs
@@ -1232,10 +1232,10 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         iJob = 0
         while iJob < len(jobs):
             # set tobekill
-            _logger.debug("killJobs for Running (%s)" % jobs[iJob : iJob + nJob])
-            Client.killJobs(jobs[iJob : iJob + nJob], 2)
+            _logger.debug("killJobs for Running (%s)" % jobs[iJob: iJob + nJob])
+            Client.killJobs(jobs[iJob: iJob + nJob], 2)
             # run watcher
-            for id in jobs[iJob : iJob + nJob]:
+            for id in jobs[iJob: iJob + nJob]:
                 thr = Watcher(
                     taskBuffer,
                     id,

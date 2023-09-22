@@ -327,8 +327,7 @@ def makeCompactDiagMessage(header, results):
             numTypeMap[nSites] = []
         numTypeMap[nSites].append(resultType)
     # sort
-    numTypeKeys = list(numTypeMap)
-    numTypeKeys.sort()
+    numTypeKeys = sorted(numTypeMap)
     # use compact format for largest one
     largeTypes = None
     if len(numTypeKeys) > 0:
@@ -654,7 +653,7 @@ def schedule(
                 # determine site
                 if (iJob == 0 or chosen_ce != "TOBEDONE") and prevBrokergageSiteList in [None, []]:
                     # file scan for pre-assigned jobs
-                    jobsInBunch = jobs[indexJob - iJob - 1 : indexJob - 1]
+                    jobsInBunch = jobs[indexJob - iJob - 1: indexJob - 1]
                     if (
                         jobsInBunch != []
                         and fileList != []
@@ -1367,7 +1366,7 @@ def schedule(
                     tmpLog.debug("indexJob      : %s" % indexJob)
                     tmpLog.debug("nInputs/Job   : %s" % nFilesPerJob)
                     tmpLog.debug("inputSize/Job : %s" % inputSizePerJob)
-                    for tmpJob in jobs[indexJob - iJob - 1 : indexJob - 1]:
+                    for tmpJob in jobs[indexJob - iJob - 1: indexJob - 1]:
                         # set computingSite
                         if (not candidateForAnal) and forAnalysis and trustIS:
                             resultsForAnalStr = "ERROR : No candidate. "

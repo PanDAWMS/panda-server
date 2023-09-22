@@ -1,6 +1,9 @@
 __author__ = "retmas"
 
-import logging, sys, os, json
+import logging
+import sys
+import os
+import json
 from snakeparser import Parser
 from pandaserver.workflow.pcwl_utils import resolve_nodes
 from pandaserver.workflow.workflow_utils import (

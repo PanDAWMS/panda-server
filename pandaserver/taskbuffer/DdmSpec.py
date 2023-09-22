@@ -56,8 +56,7 @@ class DdmSpec(object):
 
     # get local endpoints
     def getLocalEndPoints(self):
-        tmpRet = list(self.local)
-        tmpRet.sort()
+        tmpRet = sorted(self.local)
         return tmpRet
 
     # get default write endpoint

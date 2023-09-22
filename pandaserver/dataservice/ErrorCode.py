@@ -1,4 +1,4 @@
-############## errror code
+# errror code
 
 # Setupper
 EC_Setupper = 100

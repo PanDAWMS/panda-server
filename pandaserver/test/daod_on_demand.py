@@ -85,8 +85,7 @@ for i in t["jobParameters"]:
     elif i["type"] == "template":
         i["value"] = re.sub(r" {}.".format(jediTaskID), r" {}.".format(tname), i["value"])
 
-k = list(t.keys())
-k.sort()
+k = sorted(t.keys())
 
 for kk in k:
     print(kk, t[kk])

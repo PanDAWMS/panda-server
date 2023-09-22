@@ -192,8 +192,7 @@ class Notifier:
                         jobsetID = self.job.jobDefinitionID
                         jobDefIDList = [self.job.jobDefinitionID]
                     else:
-                        jobDefIDList = list(self.summary)
-                        jobDefIDList.sort()
+                        jobDefIDList = sorted(self.summary)
                         jobIDsite = ""
                         tmpIndent = "             "
                         for tmpJobID in jobDefIDList:
@@ -240,9 +239,9 @@ class Notifier:
                         message = """Subject: PANDA notification for JobID : %s  %s
                             From: %s
                             To: %s
-                            
+
                             Summary of JobID : %s
-                            
+
                             Site : %s""" % (
                             self.job.jobDefinitionID,
                             finalStatInSub,
@@ -255,9 +254,9 @@ class Notifier:
                         message = """Subject: PANDA notification for JobsetID : %s  %s
                             From: %s
                             To: %s
-                            
+
                             Summary of JobsetID : %s
-                            
+
                             JobID/Site : %s""" % (
                             jobsetID,
                             finalStatInSub,
@@ -267,10 +266,10 @@ class Notifier:
                             jobIDsite,
                         )
                     message += """
-                        
+
                         Created : %s (UTC)
                         Ended   : %s (UTC)
-                        
+
                         Total Number of Jobs : %s
                                    Succeeded : %s
                                    Partial   : %s
@@ -303,7 +302,7 @@ class Notifier:
                     if self.job.metadata not in ["", "NULL", None]:
                         message += (
                             """
-                            
+
                             Parameters : %s"""
                             % self.job.metadata
                         )
@@ -317,7 +316,7 @@ class Notifier:
                             urlData["at"] = (str(creationTime)).split()[0]
                             if tmpIdx == 0:
                                 message += """
-                                    
+
                                     PandaMonURL : http://panda.cern.ch/server/pandamon/query?%s""" % urlencode(
                                     urlData
                                 )
@@ -338,7 +337,7 @@ class Notifier:
                         newUrlData["prodUserName"] = self.job.prodUserName
                         newUrlData["hours"] = 71
                         message += """
-                            
+
                             PandaMonURL : http://panda.cern.ch/server/pandamon/query?%s""" % urlencode(
                             urlData
                         )
@@ -355,13 +354,13 @@ class Notifier:
 
                     # tailer
                     message += """
-                        
-                        
+
+
                         Report Panda problems of any sort to
-                        
+
                           the eGroup for help request
                             hn-atlas-dist-analysis-help@cern.ch
-                        
+
                           the Panda JIRA for software bug
                             https://its.cern.ch/jira/browse/ATLASPANDA
                         """

@@ -1,4 +1,4 @@
-############## errror code
+# errror code
 
 # killed
 EC_Kill = 100

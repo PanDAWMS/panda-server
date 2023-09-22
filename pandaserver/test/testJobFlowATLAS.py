@@ -54,14 +54,14 @@ class JobFlowATLAS(object):
 <!DOCTYPE POOLFILECATALOG SYSTEM "InMemory">
 <POOLFILECATALOG>
     {info}
-</POOLFILECATALOG>        
+</POOLFILECATALOG>
 """
 
     __XMLTEMPLATE_FILE = """<File ID="{guid}">
     <logical>
         <lfn name="{lfn}"/>
     </logical>
-    <metadata att_name="surl" att_value="{pfn}"/>    
+    <metadata att_name="surl" att_value="{pfn}"/>
     <metadata att_name="fsize" att_value="127340"/>
     <metadata att_name="md5sum" att_value="03cea4013bdb9f2e44050449b6ebf079"/>
 </File>

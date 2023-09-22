@@ -841,8 +841,7 @@ class DynDataDistributer:
         # sort by locations
         filesMap = {}
         for tmpFile in files:
-            tmpLocations = replicaMap[tmpFile["dataset"]]
-            tmpLocations.sort()
+            tmpLocations = sorted(replicaMap[tmpFile["dataset"]])
             newLocations = []
             # skip STAGING
             for tmpLocation in tmpLocations:
@@ -872,7 +871,7 @@ class DynDataDistributer:
                 tmpDsName = containerName[:-1] + "_%04d" % tmpIndex
                 tmpRet = self.registerDatasetWithLocation(
                     tmpDsName,
-                    tmpFiles[tmpSubIndex : tmpSubIndex + nFilesPerDataset],
+                    tmpFiles[tmpSubIndex: tmpSubIndex + nFilesPerDataset],
                     # tmpLocations,owner=owner)
                     tmpLocations,
                     owner=None,
@@ -1079,7 +1078,7 @@ class DynDataDistributer:
             nEventsPerLoop = 500
             iEventsTotal = 0
             while iEventsTotal < len(runEvtList):
-                tmpRunEvtList = runEvtList[iEventsTotal : iEventsTotal + nEventsPerLoop]
+                tmpRunEvtList = runEvtList[iEventsTotal: iEventsTotal + nEventsPerLoop]
                 self.putLog("EI lookup for {}/{}".format(iEventsTotal, len(runEvtList)))
                 iEventsTotal += nEventsPerLoop
                 regStart = datetime.datetime.utcnow()

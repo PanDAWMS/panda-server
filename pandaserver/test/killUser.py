@@ -79,7 +79,7 @@ if len(jobs):
     iJob = 0
     nJob = 1000
     while iJob < len(jobs):
-        subJobs = jobs[iJob : iJob + nJob]
+        subJobs = jobs[iJob: iJob + nJob]
         print("kill %s %s/%s" % (str(subJobs), iJob, len(jobs)))
         Client.killJobs(subJobs, code=9)
         iJob += nJob

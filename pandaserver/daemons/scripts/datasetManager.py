@@ -289,7 +289,7 @@ def main(tbuf=None, **kwargs):
         iRows = 0
         nRows = 500
         while iRows < len(res):
-            closerThr = CloserThr(closeLock, closeProxyLock, res[iRows : iRows + nRows], closeThreadPool)
+            closerThr = CloserThr(closeLock, closeProxyLock, res[iRows: iRows + nRows], closeThreadPool)
             closerThr.start()
             iRows += nRows
         closeThreadPool.join()
@@ -536,7 +536,7 @@ def main(tbuf=None, **kwargs):
             freezer = Freezer(
                 freezeLock,
                 freezeProxyLock,
-                res[iRows : iRows + nRows],
+                res[iRows: iRows + nRows],
                 freezeThreadPool,
             )
             freezer.start()
@@ -630,7 +630,7 @@ def main(tbuf=None, **kwargs):
                 disEraser = EraserThr(
                     disEraseLock,
                     disEraseProxyLock,
-                    res[iRows : iRows + nRows],
+                    res[iRows: iRows + nRows],
                     disEraseThreadPool,
                     targetStatus,
                 )
@@ -1170,7 +1170,7 @@ def main(tbuf=None, **kwargs):
             subdeleter = SubDeleter(
                 subdeleteLock,
                 subdeleteProxyLock,
-                res[iRows : iRows + nRows],
+                res[iRows: iRows + nRows],
                 subdeleteThreadPool,
             )
             subdeleter.start()

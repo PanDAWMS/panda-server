@@ -81,12 +81,10 @@ for table in [
 
 # order by PandaID and currentPriority
 jobs = []
-prioList = list(jobsMap)
-prioList.sort()
+prioList = sorted(jobsMap)
 for prio in prioList:
     # reverse order by PandaID to kill newer jobs
-    ids = jobsMap[prio]
-    ids.sort()
+    ids = sorted(jobsMap[prio])
     ids.reverse()
     jobs += ids
 
@@ -98,10 +96,10 @@ if len(jobs):
     nJob = 100
     iJob = 0
     while iJob < len(jobs):
-        print("kill %s" % str(jobs[iJob : iJob + nJob]))
+        print("kill %s" % str(jobs[iJob: iJob + nJob]))
         if options.forceKill:
-            Client.killJobs(jobs[iJob : iJob + nJob], 9)
+            Client.killJobs(jobs[iJob: iJob + nJob], 9)
         else:
-            Client.killJobs(jobs[iJob : iJob + nJob])
+            Client.killJobs(jobs[iJob: iJob + nJob])
         iJob += nJob
         time.sleep(1)

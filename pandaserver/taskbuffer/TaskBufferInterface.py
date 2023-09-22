@@ -1,3 +1,5 @@
+from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 import os
 import sys
 import time
@@ -12,8 +14,6 @@ from pandaserver.taskbuffer import FileSpec
 JobSpec.reserveChangedState = True
 FileSpec.reserveChangedState = True
 
-from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 
 _logger = PandaLogger().getLogger("TaskBufferInterface")
 

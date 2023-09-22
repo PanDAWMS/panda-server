@@ -53,10 +53,10 @@ if len(jobs):
     nJob = 100
     iJob = 0
     while iJob < len(jobs):
-        print("kill %s" % str(jobs[iJob : iJob + nJob]))
+        print("kill %s" % str(jobs[iJob: iJob + nJob]))
         if options.forceKill:
-            Client.killJobs(jobs[iJob : iJob + nJob], 9, useMailAsID=useMailAsIDV)
+            Client.killJobs(jobs[iJob: iJob + nJob], 9, useMailAsID=useMailAsIDV)
         else:
-            Client.killJobs(jobs[iJob : iJob + nJob], useMailAsID=useMailAsIDV)
+            Client.killJobs(jobs[iJob: iJob + nJob], useMailAsID=useMailAsIDV)
         iJob += nJob
         time.sleep(1)

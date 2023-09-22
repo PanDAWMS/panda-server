@@ -667,8 +667,7 @@ class ConditionItem(object):
         }
         if is_entry:
             # sort
-            keys = list(dict_form.keys())
-            keys.sort()
+            keys = sorted(dict_form.keys())
             return [(k, dict_form[k]) for k in keys]
         else:
             return serial_id, dict_form

@@ -585,8 +585,7 @@ class JobSpec(object):
                 if tmpFile.lfn not in lfnMap:
                     lfnMap[tmpFile.lfn] = []
                 lfnMap[tmpFile.lfn].append(tmpFile)
-            lfns = list(lfnMap)
-            lfns.sort()
+            lfns = sorted(lfnMap)
             newFiles = []
             for tmpLFN in lfns:
                 for tmpFile in lfnMap[tmpLFN]:

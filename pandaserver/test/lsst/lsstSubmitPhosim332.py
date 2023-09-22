@@ -27,7 +27,7 @@ destName = None
 job = JobSpec()
 job.jobDefinitionID = int(time.time()) % 10000
 job.jobName = "%s" % str(uuid.uuid4())
-### job.transformation    = 'http://www.usatlas.bnl.gov/~wenaus/lsst-trf/lsst-trf.sh'
+# job.transformation    = 'http://www.usatlas.bnl.gov/~wenaus/lsst-trf/lsst-trf.sh'
 # job.transformation    = 'http://pandawms.org/pandawms-jobcache/lsst-trf.sh'
 job.transformation = "http://pandawms.org/pandawms-jobcache/lsst-trf-phosim332.sh"
 job.destinationDBlock = datasetName
@@ -39,7 +39,7 @@ job.currentPriority = 1000
 # job.prodSourceLabel = 'ptest'
 # job.prodSourceLabel = 'test'
 # job.prodSourceLabel = 'ptest'
-### 2014-01-27
+# 2014-01-27
 # job.prodSourceLabel = 'user'
 job.prodSourceLabel = "panda"
 job.computingSite = site

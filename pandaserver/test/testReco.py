@@ -15,10 +15,10 @@ destName = None
 
 files = {
     "misal1_mc12.005802.JF17_pythia_jet_filter.digit.RDO.v12000601_tid008610._11615.pool.root.1": None,
-    #'misal1_mc12.005802.JF17_pythia_jet_filter.digit.RDO.v12000601_tid008610._11639.pool.root.1':None,
-    #'misal1_mc12.005200.T1_McAtNlo_Jimmy.digit.RDO.v12000601_tid007554._03634.pool.root.1':None,
-    #'misal1_mc12.005200.T1_McAtNlo_Jimmy.digit.RDO.v12000601_tid007554._03248.pool.root.1':None,
-    #'misal1_mc12.005200.T1_McAtNlo_Jimmy.digit.RDO.v12000601_tid007554._03634.pool.root.1':None,
+    # 'misal1_mc12.005802.JF17_pythia_jet_filter.digit.RDO.v12000601_tid008610._11639.pool.root.1':None,
+    # 'misal1_mc12.005200.T1_McAtNlo_Jimmy.digit.RDO.v12000601_tid007554._03634.pool.root.1':None,
+    # 'misal1_mc12.005200.T1_McAtNlo_Jimmy.digit.RDO.v12000601_tid007554._03248.pool.root.1':None,
+    # 'misal1_mc12.005200.T1_McAtNlo_Jimmy.digit.RDO.v12000601_tid007554._03634.pool.root.1':None,
 }
 
 jobList = []
