@@ -1,16 +1,18 @@
-# Core package for the PanDA server
+# Core package for PanDA server
 
+## PanDA documentation 
 
-## Documentation
+https://panda-wms.readthedocs.io/en/latest/
 
-https://twiki.cern.ch/twiki/bin/view/PanDA/PanDA
+## PanDA server installation instructions
 
+https://panda-wms.readthedocs.io/en/latest/installation/server.html
 
-## How to install
+## Release notes
 
-See INSTALL.md
+See ChangeLog.txt
 
+## PanDA server cluster details for ATLAS
 
-## Release Notes
+https://github.com/PanDAWMS/panda-server/wiki/ATLAS-production-PanDA-servers-%5BSeptember-2023%5D
 
-ChangeLog.txt

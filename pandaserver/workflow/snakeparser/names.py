@@ -1,3 +1,3 @@
-__author__ = 'retmas'
+__author__ = "retmas"
 
-WORKFLOW_NAMES = ['prun', 'phpo', 'junction', 'reana']
+WORKFLOW_NAMES = ["prun", "phpo", "junction", "reana"]

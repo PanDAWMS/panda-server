@@ -1,12 +1,12 @@
 class AdderResult(object):
     # slot
-    __slot__ = ('statusCode','transferringFiles')
+    __slot__ = ("statusCode", "transferringFiles")
 
     # return code
     RC_Succeeded = 0
     RC_Temporary = 1
-    RC_Fatal     = 2
-            
+    RC_Fatal = 2
+
     # constructor
     def __init__(self):
         # result of interactions with data management system (DMS)

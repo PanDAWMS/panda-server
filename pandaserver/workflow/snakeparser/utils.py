@@ -1,4 +1,4 @@
-__author__ = 'retmas'
+__author__ = "retmas"
 
 from snakemake.workflow import Rule, RuleProxy
 
@@ -9,7 +9,7 @@ class ParamRule(object):
         self._source_rule = source_rule
 
     def __repr__(self):
-        return f'param.{self.name}'
+        return f"param.{self.name}"
 
     @property
     def name(self) -> str:

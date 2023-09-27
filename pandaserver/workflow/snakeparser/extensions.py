@@ -1,4 +1,4 @@
-__author__ = 'retmas'
+__author__ = "retmas"
 
 from snakemake.parser import RuleKeywordState, Rule
 from snakemake.workflow import Workflow
@@ -46,19 +46,15 @@ class Condition(RuleKeywordState):
         return "when"
 
 
-_rule_properties = dict(
-    scatter=Scatter,
-    loop=Loop,
-    when=Condition
-)
+_rule_properties = dict(scatter=Scatter, loop=Loop, when=Condition)
 
 
 def inject():
     Rule.subautomata.update(**_rule_properties)
-    setattr(Workflow, 'scatter', scatter)
-    setattr(Workflow, 'loop', loop)
-    setattr(Workflow, 'when', condition)
-    rule = getattr(Workflow, 'rule')
+    setattr(Workflow, "scatter", scatter)
+    setattr(Workflow, "loop", loop)
+    setattr(Workflow, "when", condition)
+    rule = getattr(Workflow, "rule")
 
     def rule_new(self, name=None, lineno=None, snakefile=None, checkpoint=False):
         decorate = rule(self, name, lineno, snakefile, checkpoint)
@@ -75,4 +71,4 @@ def inject():
 
         return decorate_new
 
-    setattr(Workflow, 'rule', rule_new)
+    setattr(Workflow, "rule", rule_new)

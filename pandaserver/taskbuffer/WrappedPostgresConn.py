@@ -1,6 +1,5 @@
 # wrapper for Postgres Connection
-class WrappedPostgresConn (object):
-
+class WrappedPostgresConn(object):
     def __init__(self, conn):
         self.orig_conn = conn
 
@@ -16,4 +15,4 @@ class WrappedPostgresConn (object):
 
     def ping(self):
         if self.orig_conn.closed:
-            raise RuntimeError('connection closed')
+            raise RuntimeError("connection closed")

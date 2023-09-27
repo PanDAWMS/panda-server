@@ -1,3 +1,3 @@
-__author__ = 'retmas'
+__author__ = "retmas"
 
 from .parser import Parser

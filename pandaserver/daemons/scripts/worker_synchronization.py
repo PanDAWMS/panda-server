@@ -8,7 +8,7 @@ from pandaserver.config import panda_config
 from pandaserver.taskbuffer.Utils import create_shards
 
 # logger
-_logger = PandaLogger().getLogger('worker_sync')
+_logger = PandaLogger().getLogger("worker_sync")
 
 
 def translate_status_to_command(pilot_status):
@@ -33,10 +33,10 @@ class WorkerSync(object):
 
         # timing
         time_start = time.time()
-        self._logger.debug('Start.')
+        self._logger.debug("Start.")
 
         # variables for the harvester command
-        status = 'new'
+        status = "new"
         ack_requested = False
         lock_interval = None
         com_interval = None
@@ -49,16 +49,24 @@ class WorkerSync(object):
                     if command:
                         workers = stale_workers_per_harvester[harvester_id][pilot_status]
                         for worker_shard in create_shards(workers, 100):
-                            self._logger.debug('Processing harvester_id={0} pilot_status={1}. Workers to update: {2}'.
-                                               format(harvester_id, pilot_status, worker_shard))
-                            self.tbuf.commandToHarvester(harvester_id, command, ack_requested, status,
-                                                         lock_interval, com_interval, worker_shard)
+                            self._logger.debug(
+                                "Processing harvester_id={0} pilot_status={1}. Workers to update: {2}".format(harvester_id, pilot_status, worker_shard)
+                            )
+                            self.tbuf.commandToHarvester(
+                                harvester_id,
+                                command,
+                                ack_requested,
+                                status,
+                                lock_interval,
+                                com_interval,
+                                worker_shard,
+                            )
         except Exception:
             self._logger.error(traceback.format_exc())
 
         # timing
         time_stop = time.time()
-        self._logger.debug('Done. Worker sync took: {0} s'.format(time_stop - time_start))
+        self._logger.debug("Done. Worker sync took: {0} s".format(time_stop - time_start))
 
         return
 
@@ -68,9 +76,15 @@ def main(tbuf=None, **kwargs):
     # instantiate TB
     if tbuf is None:
         from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+
         requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
-        taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd,
-                        nDBConnection=1, useTimeout=True, requester=requester_id)
+        taskBuffer.init(
+            panda_config.dbhost,
+            panda_config.dbpasswd,
+            nDBConnection=1,
+            useTimeout=True,
+            requester=requester_id,
+        )
     else:
         taskBuffer = tbuf
     # run
@@ -81,5 +95,5 @@ def main(tbuf=None, **kwargs):
 
 
 # run
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

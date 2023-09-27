@@ -14,7 +14,7 @@ from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.config import panda_config
 
 # logger
-_logger = PandaLogger().getLogger('process_workflow_files')
+_logger = PandaLogger().getLogger("process_workflow_files")
 
 
 # main
@@ -24,21 +24,26 @@ def main(tbuf=None, **kwargs):
     # overall timeout value
     overallTimeout = 300
     # prefix of the files
-    if 'target' in kwargs and kwargs['target']:
-        evpFilePatt = kwargs['target']
+    if "target" in kwargs and kwargs["target"]:
+        evpFilePatt = kwargs["target"]
     else:
-        prefixEVP = '/workflow.'
+        prefixEVP = "/workflow."
         # file pattern of evp files
-        evpFilePatt = panda_config.cache_dir + '/' + prefixEVP + '*'
+        evpFilePatt = panda_config.cache_dir + "/" + prefixEVP + "*"
 
     from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 
     requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
-    taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd,
-                    nDBConnection=1, useTimeout=True, requester=requester_id)
+    taskBuffer.init(
+        panda_config.dbhost,
+        panda_config.dbpasswd,
+        nDBConnection=1,
+        useTimeout=True,
+        requester=requester_id,
+    )
 
-    test_mode = kwargs.get('test_mode', False)
-    dump_workflow = kwargs.get('dump_workflow', False)
+    test_mode = kwargs.get("test_mode", False)
+    dump_workflow = kwargs.get("dump_workflow", False)
 
     # thread pool
     class ThreadPool:
@@ -78,7 +83,13 @@ def main(tbuf=None, **kwargs):
         def run(self):
             self.lock.acquire()
             try:
-                self.processor.process(self.fileName, self.to_delete, test_mode, self.get_log, dump_workflow)
+                self.processor.process(
+                    self.fileName,
+                    self.to_delete,
+                    test_mode,
+                    self.get_log,
+                    dump_workflow,
+                )
             except Exception as e:
                 _logger.error("{} {}".format(str(e), traceback.format_exc()))
             self.pool.remove(self)
@@ -87,8 +98,7 @@ def main(tbuf=None, **kwargs):
     # get files
     timeNow = datetime.datetime.utcnow()
     timeInt = datetime.datetime.utcnow()
-    fileList = glob.glob(evpFilePatt)
-    fileList.sort()
+    fileList = sorted(glob.glob(evpFilePatt))
 
     # create thread pool and semaphore
     adderLock = threading.Semaphore(1)
@@ -106,8 +116,7 @@ def main(tbuf=None, **kwargs):
         if (datetime.datetime.utcnow() - timeInt) > datetime.timedelta(minutes=15):
             timeInt = datetime.datetime.utcnow()
             # get file
-            fileList = glob.glob(evpFilePatt)
-            fileList.sort()
+            fileList = sorted(glob.glob(evpFilePatt))
         # choose a file
         fileName = fileList.pop(0)
         # release lock
@@ -147,13 +156,11 @@ def main(tbuf=None, **kwargs):
 
 
 # run
-if __name__ == '__main__':
+if __name__ == "__main__":
     import sys
 
     if len(sys.argv) > 1:
-        data = {'target': sys.argv[1],
-                'test_mode': True,
-                'dump_workflow': True}
+        data = {"target": sys.argv[1], "test_mode": True, "dump_workflow": True}
     else:
         data = {}
     main(**data)

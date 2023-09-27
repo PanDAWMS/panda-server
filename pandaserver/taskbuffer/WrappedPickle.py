@@ -1,6 +1,7 @@
 import sys
 import decimal
 from io import BytesIO
+
 try:
     # python 2
     import cPickle as pickle
@@ -11,15 +12,15 @@ except ImportError:
     from copyreg import _reconstructor as map__reconstructor
 
 # define Unpickler
-if pickle.__name__ == 'cPickle':
+if pickle.__name__ == "cPickle":
     # python 2
     Common_Unpickler = pickle.Unpickler
 else:
     # python 3
     class Common_Unpickler(pickle.Unpickler):
         def __setattr__(self, key, value):
-            if key == 'find_global':
-                pickle.Unpickler.__setattr__(self, 'find_class', value)
+            if key == "find_global":
+                pickle.Unpickler.__setattr__(self, "find_class", value)
             else:
                 pickle.Unpickler.__setattr__(self, key, value)
 
@@ -42,23 +43,25 @@ def conversion_func(item):
 class WrappedPickle(object):
     # allowed modules and classes
     allowedModClass = {
-        'copy_reg'            : ['_reconstructor'],
-        '__builtin__'         : ['object'],
-        'datetime'            : ['datetime'],
-        'taskbuffer.JobSpec'  : ['JobSpec'],
-        'taskbuffer.FileSpec' : ['FileSpec'],
-        'pandaserver.taskbuffer.JobSpec': ['JobSpec'],
-        'pandaserver.taskbuffer.FileSpec' : ['FileSpec'],
-        }
+        "copy_reg": ["_reconstructor"],
+        "__builtin__": ["object"],
+        "datetime": ["datetime"],
+        "taskbuffer.JobSpec": ["JobSpec"],
+        "taskbuffer.FileSpec": ["FileSpec"],
+        "pandaserver.taskbuffer.JobSpec": ["JobSpec"],
+        "pandaserver.taskbuffer.FileSpec": ["FileSpec"],
+    }
     # bare modules
-    bareMods = {'taskbuffer.': 'pandaserver.'}
+    bareMods = {"taskbuffer.": "pandaserver."}
     # predefined class map
-    predefined_class = {('copy_reg', '_reconstructor'): map__reconstructor,
-                        ('__builtin__', 'object'): object}
+    predefined_class = {
+        ("copy_reg", "_reconstructor"): map__reconstructor,
+        ("__builtin__", "object"): object,
+    }
 
-    # check module and class 
+    # check module and class
     @classmethod
-    def find_class(cls,module,name):
+    def find_class(cls, module, name):
         # append prefix to bare modules
         for bareMod in cls.bareMods:
             if module.startswith(bareMod):
@@ -66,7 +69,7 @@ class WrappedPickle(object):
                 break
         # check module
         if module not in cls.allowedModClass:
-            raise pickle.UnpicklingError('Attempting to import disallowed module %s' % module)
+            raise pickle.UnpicklingError("Attempting to import disallowed module %s" % module)
         # return predefined class
         key = (module, name)
         if key in cls.predefined_class:
@@ -76,13 +79,13 @@ class WrappedPickle(object):
         mod = sys.modules[module]
         # check class
         if name not in cls.allowedModClass[module]:
-            raise pickle.UnpicklingError('Attempting to get disallowed class %s in %s' % (name,module))
-        klass = getattr(mod,name)
+            raise pickle.UnpicklingError("Attempting to get disallowed class %s in %s" % (name, module))
+        klass = getattr(mod, name)
         return klass
 
     # loads
     @classmethod
-    def loads(cls,pickle_string):
+    def loads(cls, pickle_string):
         if isinstance(pickle_string, str):
             pickle_string = pickle_string.encode()
         pickle_obj = Common_Unpickler(BytesIO(pickle_string))

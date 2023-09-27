@@ -5,17 +5,19 @@ import traceback
 from pandaserver.config import panda_config
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
-_logger = PandaLogger().getLogger('carbon')
+_logger = PandaLogger().getLogger("carbon")
+
 
 class CarbonEmissions(threading.Thread):
     """
     Downloads the carbon information from the relevant sources
     """
+
     def __init__(self, taskBuffer):
         threading.Thread.__init__(self)
 
         self.bearer_token = None
-        if hasattr(panda_config, 'CO2_BEARER_TOKEN'):
+        if hasattr(panda_config, "CO2_BEARER_TOKEN"):
             self.bearer_token = panda_config.CO2_BEARER_TOKEN
 
         self.taskBuffer = taskBuffer
@@ -29,27 +31,27 @@ class CarbonEmissions(threading.Thread):
         try:
             results = aux.query_grafana_proxy(query, self.bearer_token)
             if not results:
-                _logger.error('download_region_emissions was not able to download data')
+                _logger.error("download_region_emissions was not able to download data")
                 return None
 
-            status = results['responses'][0]['status']
+            status = results["responses"][0]["status"]
             if status != 200:
-                _logger.error('download_region_emissions was not able to download data with status {0}'.format(status))
+                _logger.error("download_region_emissions was not able to download data with status {0}".format(status))
                 return None
 
-            hits = results['responses'][0]['hits']['hits']  # That's how the json is structured...
+            hits = results["responses"][0]["hits"]["hits"]  # That's how the json is structured...
             results = []
             for entry in hits:
                 simplified_entry = {
-                    'region': entry['_source']['data']['region'],
+                    "region": entry["_source"]["data"]["region"],
                     # timestamps come in ms
-                    'timestamp': datetime.datetime.fromtimestamp(entry['_source']['metadata']['timestamp']/1000),
-                    'value': entry['_source']['data']['gCO2_perkWh']
+                    "timestamp": datetime.datetime.fromtimestamp(entry["_source"]["metadata"]["timestamp"] / 1000),
+                    "value": entry["_source"]["data"]["gCO2_perkWh"],
                 }
                 results.append(simplified_entry)
             return results
         except Exception:
-            _logger.error('download_region_emissions excepted with {0}'.format(traceback.format_exc()))
+            _logger.error("download_region_emissions excepted with {0}".format(traceback.format_exc()))
             return None
 
     def run(self):
@@ -60,4 +62,3 @@ class CarbonEmissions(threading.Thread):
 
             # aggregate the emissions for the grid
             self.taskBuffer.carbon_aggregate_emissions()
-

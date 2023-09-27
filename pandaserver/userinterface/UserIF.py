@@ -1,7 +1,7 @@
-'''
+"""
 provide web interface to users
 
-'''
+"""
 
 import re
 import sys
@@ -37,7 +37,7 @@ except NameError:
     long = int
 
 # logger
-_logger = PandaLogger().getLogger('UserIF')
+_logger = PandaLogger().getLogger("UserIF")
 
 
 # main class
@@ -46,9 +46,8 @@ class UserIF:
     def __init__(self):
         self.taskBuffer = None
 
-
     # initialize
-    def init(self,taskBuffer):
+    def init(self, taskBuffer):
         self.taskBuffer = taskBuffer
 
     # submit jobs
@@ -75,16 +74,18 @@ class UserIF:
                     break
 
                 # check production role
-                if tmpJob.prodSourceLabel in ['managed'] and not prodRole:
+                if tmpJob.prodSourceLabel in ["managed"] and not prodRole:
                     good_labels = False
-                    good_labels_message = "submitJobs {0} missing prod-role for prodSourceLabel={1}".format(user,
-                                                                                                            tmpJob.prodSourceLabel)
+                    good_labels_message = "submitJobs {0} missing prod-role for prodSourceLabel={1}".format(user, tmpJob.prodSourceLabel)
                     break
 
                 # check the job_label is valid
-                if tmpJob.job_label not in [None, '', 'NULL'] and tmpJob.job_label not in JobUtils.job_labels:
+                if tmpJob.job_label not in [None, "", "NULL"] and tmpJob.job_label not in JobUtils.job_labels:
                     good_labels = False
-                    good_labels_message = "submitJobs %s wrong job_label=%s" % (user, tmpJob.job_label)
+                    good_labels_message = "submitJobs %s wrong job_label=%s" % (
+                        user,
+                        tmpJob.job_label,
+                    )
                     break
         except Exception:
             errType, errValue = sys.exc_info()[:2]
@@ -99,116 +100,113 @@ class UserIF:
         job0 = None
 
         # get user VO
-        userVO = 'atlas'
+        userVO = "atlas"
         try:
             job0 = jobs[0]
-            if job0.VO not in [None, '', 'NULL']:
+            if job0.VO not in [None, "", "NULL"]:
                 userVO = job0.VO
         except (IndexError, AttributeError) as e:
-            _logger.error(
-                "submitJobs : checking userVO. userVO not found, defaulting to %s. (Exception %s)" % (userVO, e))
+            _logger.error("submitJobs : checking userVO. userVO not found, defaulting to %s. (Exception %s)" % (userVO, e))
 
         # atlas jobs require FQANs
-        if userVO == 'atlas' and userFQANs == []:
+        if userVO == "atlas" and userFQANs == []:
             _logger.error("submitJobs : VOMS FQANs are missing in your proxy. They are required for {0}".format(userVO))
             # return "ERROR: VOMS FQANs are missing. They are required for {0}".format(userVO)
 
         # get LSST pipeline username
-        if userVO.lower() == 'lsst':
+        if userVO.lower() == "lsst":
             try:
-                if job0.prodUserName and job0.prodUserName.lower() != 'none':
+                if job0.prodUserName and job0.prodUserName.lower() != "none":
                     user = job0.prodUserName
             except AttributeError:
-                _logger.error("submitJobs : checking username for userVO[%s]: username not found, defaulting to %s. %s %s"
-                              % (userVO, user))
+                _logger.error("submitJobs : checking username for userVO[%s]: username not found, defaulting to %s. %s %s" % (userVO, user))
 
         # store jobs
-        ret = self.taskBuffer.storeJobs(jobs, user, forkSetupper=False, fqans=userFQANs,
-                                        hostname=host, toPending=toPending, userVO=userVO)
+        ret = self.taskBuffer.storeJobs(
+            jobs,
+            user,
+            forkSetupper=False,
+            fqans=userFQANs,
+            hostname=host,
+            toPending=toPending,
+            userVO=userVO,
+        )
         _logger.debug("submitJobs %s ->:%s" % (user, len(ret)))
 
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # run task assignment
-    def runTaskAssignment(self,jobsStr):
+    def runTaskAssignment(self, jobsStr):
         try:
             # deserialize jobspecs
             jobs = WrappedPickle.loads(jobsStr)
         except Exception:
             type, value, traceBack = sys.exc_info()
-            _logger.error("runTaskAssignment : %s %s" % (type,value))
+            _logger.error("runTaskAssignment : %s %s" % (type, value))
             jobs = []
         # run
         ret = self.taskBuffer.runTaskAssignment(jobs)
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # get serial number for group job
-    def getSerialNumberForGroupJob(self,name):
+    def getSerialNumberForGroupJob(self, name):
         # get
         ret = self.taskBuffer.getSerialNumberForGroupJob(name)
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # change job priorities
-    def changeJobPriorities(self,user,prodRole,newPrioMapStr):
+    def changeJobPriorities(self, user, prodRole, newPrioMapStr):
         # check production role
         if not prodRole:
-            return False,"production role is required"
+            return False, "production role is required"
         try:
             # deserialize map
             newPrioMap = WrappedPickle.loads(newPrioMapStr)
-            _logger.debug("changeJobPriorities %s : %s" % (user,str(newPrioMap)))
+            _logger.debug("changeJobPriorities %s : %s" % (user, str(newPrioMap)))
             # change
             ret = self.taskBuffer.changeJobPriorities(newPrioMap)
         except Exception:
-            errType,errValue = sys.exc_info()[:2]
-            _logger.error("changeJobPriorities : %s %s" % (errType,errValue))
-            return False,'internal server error'
+            errType, errValue = sys.exc_info()[:2]
+            _logger.error("changeJobPriorities : %s %s" % (errType, errValue))
+            return False, "internal server error"
         # serialize
         return ret
 
-
     # retry failed subjobs in running job
-    def retryFailedJobsInActive(self,dn,jobID):
+    def retryFailedJobsInActive(self, dn, jobID):
         returnVal = False
         try:
-            _logger.debug("retryFailedJobsInActive %s JobID:%s" % (dn,jobID))
+            _logger.debug("retryFailedJobsInActive %s JobID:%s" % (dn, jobID))
             cUID = self.taskBuffer.cleanUserID(dn)
-            tmpRet = self.taskBuffer.finalizePendingJobs(cUID,jobID)
+            tmpRet = self.taskBuffer.finalizePendingJobs(cUID, jobID)
             returnVal = True
         except Exception:
-            errType,errValue = sys.exc_info()[:2]
-            _logger.error("retryFailedJobsInActive: %s %s" % (errType,errValue))
+            errType, errValue = sys.exc_info()[:2]
+            _logger.error("retryFailedJobsInActive: %s %s" % (errType, errValue))
             returnVal = "ERROR: server side crash"
         # return
         return returnVal
 
-
     # set debug mode
-    def setDebugMode(self,dn,pandaID,prodManager,modeOn,workingGroup):
-        ret = self.taskBuffer.setDebugMode(dn,pandaID,prodManager,modeOn,workingGroup)
+    def setDebugMode(self, dn, pandaID, prodManager, modeOn, workingGroup):
+        ret = self.taskBuffer.setDebugMode(dn, pandaID, prodManager, modeOn, workingGroup)
         # return
         return ret
-
 
     # insert sandbox file info
-    def insertSandboxFileInfo(self,userName,hostName,fileName,fileSize,checkSum):
-        ret = self.taskBuffer.insertSandboxFileInfo(userName,hostName,fileName,fileSize,checkSum)
+    def insertSandboxFileInfo(self, userName, hostName, fileName, fileSize, checkSum):
+        ret = self.taskBuffer.insertSandboxFileInfo(userName, hostName, fileName, fileSize, checkSum)
         # return
         return ret
-
 
     # check duplicated sandbox file
-    def checkSandboxFile(self,userName,fileSize,checkSum):
-        ret = self.taskBuffer.checkSandboxFile(userName,fileSize,checkSum)
+    def checkSandboxFile(self, userName, fileSize, checkSum):
+        ret = self.taskBuffer.checkSandboxFile(userName, fileSize, checkSum)
         # return
         return ret
-
 
     # get job status
     def getJobStatus(self, idsStr, use_json):
@@ -225,7 +223,7 @@ class UserIF:
                 ids = ids[:maxIDs]
         except Exception:
             type, value, traceBack = sys.exc_info()
-            _logger.error("getJobStatus : %s %s" % (type,value))
+            _logger.error("getJobStatus : %s %s" % (type, value))
             ids = []
         _logger.debug("getJobStatus start : {0} json={1}".format(str(ids), use_json))
         # peek jobs
@@ -236,9 +234,8 @@ class UserIF:
             return json.dumps(ret)
         return WrappedPickle.dumps(ret)
 
-
     # get PandaID with jobexeID
-    def getPandaIDwithJobExeID(self,idsStr):
+    def getPandaIDwithJobExeID(self, idsStr):
         try:
             # deserialize jobspecs
             ids = WrappedPickle.loads(idsStr)
@@ -248,8 +245,8 @@ class UserIF:
                 _logger.error("too long ID list more than %s" % maxIDs)
                 ids = ids[:maxIDs]
         except Exception:
-            errtype,errvalue = sys.exc_info()[:2]
-            _logger.error("getPandaIDwithJobExeID : %s %s" % (errtype,errvalue))
+            errtype, errvalue = sys.exc_info()[:2]
+            _logger.error("getPandaIDwithJobExeID : %s %s" % (errtype, errvalue))
             ids = []
         _logger.debug("getPandaIDwithJobExeID start : %s" % ids)
         # peek jobs
@@ -258,24 +255,21 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
-
-
     # get PandaIDs with TaskID
-    def getPandaIDsWithTaskID(self,jediTaskID):
+    def getPandaIDsWithTaskID(self, jediTaskID):
         # get PandaIDs
         ret = self.taskBuffer.getPandaIDsWithTaskID(jediTaskID)
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # get assigned cloud for tasks
-    def seeCloudTask(self,idsStr):
+    def seeCloudTask(self, idsStr):
         try:
             # deserialize jobspecs
             ids = WrappedPickle.loads(idsStr)
         except Exception:
             type, value, traceBack = sys.exc_info()
-            _logger.error("seeCloudTask : %s %s" % (type,value))
+            _logger.error("seeCloudTask : %s %s" % (type, value))
             ids = []
         _logger.debug("seeCloudTask start : %s" % ids)
         # peek jobs
@@ -287,14 +281,12 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # get active datasets
-    def getActiveDatasets(self,computingSite,prodSourceLabel):
+    def getActiveDatasets(self, computingSite, prodSourceLabel):
         # run
-        ret = self.taskBuffer.getActiveDatasets(computingSite,prodSourceLabel)
+        ret = self.taskBuffer.getActiveDatasets(computingSite, prodSourceLabel)
         # return
         return ret
-
 
     # get assigning task
     def getAssigningTask(self):
@@ -303,55 +295,61 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # set task by user
-    def setCloudTaskByUser(self,user,tid,cloud,status):
+    def setCloudTaskByUser(self, user, tid, cloud, status):
         # run
-        ret = self.taskBuffer.setCloudTaskByUser(user,tid,cloud,status)
+        ret = self.taskBuffer.setCloudTaskByUser(user, tid, cloud, status)
         return ret
 
-
     # get job statistics
-    def getJobStatistics(self,sourcetype=None):
+    def getJobStatistics(self, sourcetype=None):
         # get job statistics
         ret = self.taskBuffer.getJobStatisticsForExtIF(sourcetype)
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # get highest prio jobs
-    def getHighestPrioJobStat(self,perPG=False,useMorePG=False):
+    def getHighestPrioJobStat(self, perPG=False, useMorePG=False):
         # get job statistics
-        ret = self.taskBuffer.getHighestPrioJobStat(perPG,useMorePG)
+        ret = self.taskBuffer.getHighestPrioJobStat(perPG, useMorePG)
         # serialize
         return WrappedPickle.dumps(ret)
-
 
     # get queued analysis jobs at a site
-    def getQueuedAnalJobs(self,site,dn):
+    def getQueuedAnalJobs(self, site, dn):
         # get job statistics
-        ret = self.taskBuffer.getQueuedAnalJobs(site,dn)
+        ret = self.taskBuffer.getQueuedAnalJobs(site, dn)
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # get job statistics for Bamboo
-    def getJobStatisticsForBamboo(self,useMorePG=False):
+    def getJobStatisticsForBamboo(self, useMorePG=False):
         # get job statistics
         ret = self.taskBuffer.getJobStatisticsForBamboo(useMorePG)
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # get job statistics per site
-    def getJobStatisticsPerSite(self,predefined=False,workingGroup='',countryGroup='',jobType='',
-                                minPriority=None,readArchived=True):
+    def getJobStatisticsPerSite(
+        self,
+        predefined=False,
+        workingGroup="",
+        countryGroup="",
+        jobType="",
+        minPriority=None,
+        readArchived=True,
+    ):
         # get job statistics
-        ret = self.taskBuffer.getJobStatistics(readArchived,predefined,workingGroup,countryGroup,jobType,
-                                               minPriority=minPriority)
+        ret = self.taskBuffer.getJobStatistics(
+            readArchived,
+            predefined,
+            workingGroup,
+            countryGroup,
+            jobType,
+            minPriority=minPriority,
+        )
         # serialize
         return WrappedPickle.dumps(ret, convert_to_safe=True)
-
 
     # get job statistics per site and resource
     def getJobStatisticsPerSiteResource(self, timeWindow):
@@ -374,17 +372,15 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # get job statistics per site with label
-    def getJobStatisticsWithLabel(self,site):
+    def getJobStatisticsWithLabel(self, site):
         # get job statistics
         ret = self.taskBuffer.getJobStatisticsWithLabel(site)
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # query PandaIDs
-    def queryPandaIDs(self,idsStr):
+    def queryPandaIDs(self, idsStr):
         # deserialize IDs
         ids = WrappedPickle.loads(idsStr)
         # query PandaIDs
@@ -392,41 +388,36 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # get number of analysis jobs per user
-    def getNUserJobs(self,siteName):
+    def getNUserJobs(self, siteName):
         # get
         ret = self.taskBuffer.getNUserJobs(siteName)
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # query job info per cloud
-    def queryJobInfoPerCloud(self,cloud,schedulerID):
+    def queryJobInfoPerCloud(self, cloud, schedulerID):
         # query PandaIDs
-        ret = self.taskBuffer.queryJobInfoPerCloud(cloud,schedulerID)
+        ret = self.taskBuffer.queryJobInfoPerCloud(cloud, schedulerID)
         # serialize
         return WrappedPickle.dumps(ret)
-
 
     # query PandaIDs at site
-    def getPandaIDsSite(self,site,status,limit):
+    def getPandaIDsSite(self, site, status, limit):
         # query PandaIDs
-        ret = self.taskBuffer.getPandaIDsSite(site,status,limit)
+        ret = self.taskBuffer.getPandaIDsSite(site, status, limit)
         # serialize
         return WrappedPickle.dumps(ret)
-
 
     # get PandaIDs to be updated in prodDB
-    def getJobsToBeUpdated(self,limit,lockedby):
+    def getJobsToBeUpdated(self, limit, lockedby):
         # query PandaIDs
-        ret = self.taskBuffer.getPandaIDsForProdDB(limit,lockedby)
+        ret = self.taskBuffer.getPandaIDsForProdDB(limit, lockedby)
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # update prodDBUpdateTimes
-    def updateProdDBUpdateTimes(self,paramsStr):
+    def updateProdDBUpdateTimes(self, paramsStr):
         # deserialize IDs
         params = WrappedPickle.loads(paramsStr)
         # get jobs
@@ -434,9 +425,8 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(True)
 
-
     # query last files in datasets
-    def queryLastFilesInDataset(self,datasetStr):
+    def queryLastFilesInDataset(self, datasetStr):
         # deserialize names
         datasets = WrappedPickle.loads(datasetStr)
         # get files
@@ -444,25 +434,22 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # get input files currently in used for analysis
-    def getFilesInUseForAnal(self,outDataset):
+    def getFilesInUseForAnal(self, outDataset):
         # get files
         ret = self.taskBuffer.getFilesInUseForAnal(outDataset)
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # get list of dis dataset to get input files in shadow
-    def getDisInUseForAnal(self,outDataset):
+    def getDisInUseForAnal(self, outDataset):
         # get files
         ret = self.taskBuffer.getDisInUseForAnal(outDataset)
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # get input LFNs currently in use for analysis with shadow dis
-    def getLFNsInUseForAnal(self,inputDisListStr):
+    def getLFNsInUseForAnal(self, inputDisListStr):
         # deserialize IDs
         inputDisList = WrappedPickle.loads(inputDisListStr)
         # get files
@@ -470,58 +457,59 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # kill jobs
-    def killJobs(self,idsStr,user,host,code,prodManager,useMailAsID,fqans,killOpts=[]):
+    def killJobs(self, idsStr, user, host, code, prodManager, useMailAsID, fqans, killOpts=[]):
         # deserialize IDs
         ids = WrappedPickle.loads(idsStr)
         if not isinstance(ids, list):
             ids = [ids]
-        _logger.info("killJob : %s %s %s %s %s" % (user,code,prodManager,fqans,ids))
+        _logger.info("killJob : %s %s %s %s %s" % (user, code, prodManager, fqans, ids))
         try:
             if useMailAsID:
                 _logger.debug("killJob : getting mail address for %s" % user)
                 nTry = 3
                 for iDDMTry in range(nTry):
-                    status,userInfo = rucioAPI.finger(user)
+                    status, userInfo = rucioAPI.finger(user)
                     if status:
-                        _logger.debug("killJob : %s is converted to %s" % (user,userInfo['email']))
-                        user = userInfo['email']
+                        _logger.debug("killJob : %s is converted to %s" % (user, userInfo["email"]))
+                        user = userInfo["email"]
                         break
                     time.sleep(1)
         except Exception:
-            errType,errValue = sys.exc_info()[:2]
-            _logger.error("killJob : failed to convert email address %s : %s %s" % (user,errType,errValue))
+            errType, errValue = sys.exc_info()[:2]
+            _logger.error("killJob : failed to convert email address %s : %s %s" % (user, errType, errValue))
         # get working groups with prod role
         wgProdRole = []
         for fqan in fqans:
-            tmpMatch = re.search('/atlas/([^/]+)/Role=production',fqan)
+            tmpMatch = re.search("/atlas/([^/]+)/Role=production", fqan)
             if tmpMatch is not None:
                 # ignore usatlas since it is used as atlas prod role
                 tmpWG = tmpMatch.group(1)
-                if tmpWG not in ['','usatlas']+wgProdRole:
+                if tmpWG not in ["", "usatlas"] + wgProdRole:
                     wgProdRole.append(tmpWG)
                     # group production
-                    wgProdRole.append('gr_%s' % tmpWG)
+                    wgProdRole.append("gr_%s" % tmpWG)
         # kill jobs
-        ret = self.taskBuffer.killJobs(ids,user,code,prodManager,wgProdRole,killOpts)
+        ret = self.taskBuffer.killJobs(ids, user, code, prodManager, wgProdRole, killOpts)
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # reassign jobs
-    def reassignJobs(self,idsStr,user,host,forPending,firstSubmission):
+    def reassignJobs(self, idsStr, user, host, forPending, firstSubmission):
         # deserialize IDs
         ids = WrappedPickle.loads(idsStr)
         # reassign jobs
-        ret = self.taskBuffer.reassignJobs(ids, forkSetupper=False, forPending=forPending,
-                                           firstSubmission=firstSubmission)
+        ret = self.taskBuffer.reassignJobs(
+            ids,
+            forkSetupper=False,
+            forPending=forPending,
+            firstSubmission=firstSubmission,
+        )
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # resubmit jobs
-    def resubmitJobs(self,idsStr):
+    def resubmitJobs(self, idsStr):
         # deserialize IDs
         ids = WrappedPickle.loads(idsStr)
         # kill jobs
@@ -529,26 +517,30 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # get list of site spec
-    def getSiteSpecs(self,siteType='analysis'):
+    def getSiteSpecs(self, siteType="analysis"):
         # get analysis site list
         specList = {}
         siteMapper = SiteMapper(self.taskBuffer)
         for id in siteMapper.siteSpecList:
             spec = siteMapper.siteSpecList[id]
-            if siteType == 'all' or spec.type == siteType:
+            if siteType == "all" or spec.type == siteType:
                 # convert to map
                 tmpSpec = {}
                 for attr in spec._attributes:
-                    if attr in ['ddm_endpoints_input', 'ddm_endpoints_output', 'ddm_input', 'ddm_output',
-                                'setokens_input', 'num_slots_map']:
+                    if attr in [
+                        "ddm_endpoints_input",
+                        "ddm_endpoints_output",
+                        "ddm_input",
+                        "ddm_output",
+                        "setokens_input",
+                        "num_slots_map",
+                    ]:
                         continue
-                    tmpSpec[attr] = getattr(spec,attr)
+                    tmpSpec[attr] = getattr(spec, attr)
                 specList[id] = tmpSpec
         # serialize
         return WrappedPickle.dumps(specList)
-
 
     # get list of cloud spec
     def getCloudSpecs(self):
@@ -556,7 +548,6 @@ class UserIF:
         siteMapper = SiteMapper(self.taskBuffer)
         # serialize
         return WrappedPickle.dumps(siteMapper.cloudSpec)
-
 
     # get nPilots
     def getNumPilots(self):
@@ -567,26 +558,24 @@ class UserIF:
             siteNumMap = ret[siteID]
             nPilots = 0
             # nPilots = getJob+updateJob
-            if 'getJob' in siteNumMap:
-                nPilots += siteNumMap['getJob']
-            if 'updateJob' in siteNumMap:
-                nPilots += siteNumMap['updateJob']
+            if "getJob" in siteNumMap:
+                nPilots += siteNumMap["getJob"]
+            if "updateJob" in siteNumMap:
+                nPilots += siteNumMap["updateJob"]
             # append
-            numMap[siteID] = {'nPilots':nPilots}
+            numMap[siteID] = {"nPilots": nPilots}
         # serialize
         return WrappedPickle.dumps(numMap)
 
-
     # get script for offline running
-    def getScriptOfflineRunning(self,pandaID,days=None):
+    def getScriptOfflineRunning(self, pandaID, days=None):
         # register
-        ret = self.taskBuffer.getScriptOfflineRunning(pandaID,days)
+        ret = self.taskBuffer.getScriptOfflineRunning(pandaID, days)
         # return
         return ret
 
-
     # register proxy key
-    def registerProxyKey(self,params):
+    def registerProxyKey(self, params):
         # register
         ret = self.taskBuffer.registerProxyKey(params)
         # return
@@ -605,17 +594,15 @@ class UserIF:
         # return
         return ret
 
-
     # get proxy key
-    def getProxyKey(self,dn):
+    def getProxyKey(self, dn):
         # get files
         ret = self.taskBuffer.getProxyKey(dn)
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # get slimmed file info with PandaIDs
-    def getSlimmedFileInfoPandaIDs(self,pandaIDsStr,dn):
+    def getSlimmedFileInfoPandaIDs(self, pandaIDsStr, dn):
         try:
             # deserialize IDs
             pandaIDs = WrappedPickle.loads(pandaIDsStr)
@@ -625,7 +612,7 @@ class UserIF:
                 _logger.error("getSlimmedFileInfoPandaIDs: too long ID list more than %s" % maxIDs)
                 pandaIDs = pandaIDs[:maxIDs]
             # get
-            _logger.debug("getSlimmedFileInfoPandaIDs start : %s %s" % (dn,len(pandaIDs)))
+            _logger.debug("getSlimmedFileInfoPandaIDs start : %s %s" % (dn, len(pandaIDs)))
             ret = self.taskBuffer.getSlimmedFileInfoPandaIDs(pandaIDs)
             _logger.debug("getSlimmedFileInfoPandaIDs end")
         except Exception:
@@ -633,14 +620,12 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # get JobIDs in a time range
-    def getJobIDsInTimeRange(self,dn,timeRange):
+    def getJobIDsInTimeRange(self, dn, timeRange):
         # get IDs
-        ret = self.taskBuffer.getJobIDsInTimeRange(dn,timeRange)
+        ret = self.taskBuffer.getJobIDsInTimeRange(dn, timeRange)
         # serialize
         return WrappedPickle.dumps(ret)
-
 
     # get active JediTasks in a time range
     def getJediTasksInTimeRange(self, dn, timeRange, fullFlag, minTaskID, task_type):
@@ -649,33 +634,29 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # get details of JediTask
-    def getJediTaskDetails(self,jediTaskID,fullFlag,withTaskInfo):
+    def getJediTaskDetails(self, jediTaskID, fullFlag, withTaskInfo):
         # get IDs
-        ret = self.taskBuffer.getJediTaskDetails(jediTaskID,fullFlag,withTaskInfo)
+        ret = self.taskBuffer.getJediTaskDetails(jediTaskID, fullFlag, withTaskInfo)
         # serialize
         return WrappedPickle.dumps(ret)
-
 
     # get PandaIDs for a JobID
-    def getPandIDsWithJobID(self,dn,jobID,nJobs):
+    def getPandIDsWithJobID(self, dn, jobID, nJobs):
         # get IDs
-        ret = self.taskBuffer.getPandIDsWithJobID(dn,jobID,nJobs)
+        ret = self.taskBuffer.getPandIDsWithJobID(dn, jobID, nJobs)
         # serialize
         return WrappedPickle.dumps(ret)
-
 
     # check merge job generation status
-    def checkMergeGenerationStatus(self,dn,jobID):
+    def checkMergeGenerationStatus(self, dn, jobID):
         # check
-        ret = self.taskBuffer.checkMergeGenerationStatus(dn,jobID)
+        ret = self.taskBuffer.checkMergeGenerationStatus(dn, jobID)
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # get full job status
-    def getFullJobStatus(self,idsStr,dn):
+    def getFullJobStatus(self, idsStr, dn):
         try:
             # deserialize jobspecs
             ids = WrappedPickle.loads(idsStr)
@@ -686,78 +667,98 @@ class UserIF:
                 ids = ids[:maxIDs]
         except Exception:
             type, value, traceBack = sys.exc_info()
-            _logger.error("getFullJobStatus : %s %s" % (type,value))
+            _logger.error("getFullJobStatus : %s %s" % (type, value))
             ids = []
-        _logger.debug("getFullJobStatus start : %s %s" % (dn,str(ids)))
+        _logger.debug("getFullJobStatus start : %s %s" % (dn, str(ids)))
         # peek jobs
         ret = self.taskBuffer.getFullJobStatus(ids)
         _logger.debug("getFullJobStatus end")
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # add account to siteaccess
-    def addSiteAccess(self,siteID,dn):
+    def addSiteAccess(self, siteID, dn):
         # add
-        ret = self.taskBuffer.addSiteAccess(siteID,dn)
+        ret = self.taskBuffer.addSiteAccess(siteID, dn)
         # serialize
         return WrappedPickle.dumps(ret)
-
 
     # list site access
-    def listSiteAccess(self,siteID,dn,longFormat=False):
+    def listSiteAccess(self, siteID, dn, longFormat=False):
         # list
-        ret = self.taskBuffer.listSiteAccess(siteID,dn,longFormat)
+        ret = self.taskBuffer.listSiteAccess(siteID, dn, longFormat)
         # serialize
         return WrappedPickle.dumps(ret)
 
-
     # update site access
-    def updateSiteAccess(self,method,siteid,requesterDN,userName,attrValue):
+    def updateSiteAccess(self, method, siteid, requesterDN, userName, attrValue):
         # list
-        ret = self.taskBuffer.updateSiteAccess(method,siteid,requesterDN,userName,attrValue)
+        ret = self.taskBuffer.updateSiteAccess(method, siteid, requesterDN, userName, attrValue)
         # serialize
         return str(ret)
 
-
     # insert task params
-    def insertTaskParams(self,taskParams,user,prodRole,fqans,properErrorCode, parent_tid):
+    def insertTaskParams(self, taskParams, user, prodRole, fqans, properErrorCode, parent_tid):
         # register
-        ret = self.taskBuffer.insertTaskParamsPanda(taskParams,user,prodRole,fqans,properErrorCode=properErrorCode,
-                                                    parent_tid=parent_tid)
+        ret = self.taskBuffer.insertTaskParamsPanda(
+            taskParams,
+            user,
+            prodRole,
+            fqans,
+            properErrorCode=properErrorCode,
+            parent_tid=parent_tid,
+        )
         # return
         return ret
 
     # kill task
     def killTask(self, jediTaskID, user, prodRole, properErrorCode, broadcast):
         # kill
-        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'kill',properErrorCode=properErrorCode,
-                                                   broadcast=broadcast)
+        ret = self.taskBuffer.sendCommandTaskPanda(
+            jediTaskID,
+            user,
+            prodRole,
+            "kill",
+            properErrorCode=properErrorCode,
+            broadcast=broadcast,
+        )
         # return
         return ret
 
     # finish task
     def finishTask(self, jediTaskID, user, prodRole, properErrorCode, qualifier, broadcast):
         # kill
-        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'finish',
-                                                   properErrorCode=properErrorCode,
-                                                   comQualifier=qualifier,
-                                                   broadcast=broadcast)
+        ret = self.taskBuffer.sendCommandTaskPanda(
+            jediTaskID,
+            user,
+            prodRole,
+            "finish",
+            properErrorCode=properErrorCode,
+            comQualifier=qualifier,
+            broadcast=broadcast,
+        )
         # return
         return ret
-
 
     # reload input
-    def reloadInput(self,jediTaskID,user,prodRole):
+    def reloadInput(self, jediTaskID, user, prodRole):
         # kill
-        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'incexec',comComment='{}',properErrorCode=True)
+        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID, user, prodRole, "incexec", comComment="{}", properErrorCode=True)
         # return
         return ret
 
-
     # retry task
-    def retryTask(self, jediTaskID, user, prodRole, properErrorCode, newParams, noChildRetry, discardEvents,
-                  disable_staging_mode):
+    def retryTask(
+        self,
+        jediTaskID,
+        user,
+        prodRole,
+        properErrorCode,
+        newParams,
+        noChildRetry,
+        discardEvents,
+        disable_staging_mode,
+    ):
         # retry with new params
         if newParams is not None:
             try:
@@ -772,134 +773,140 @@ class UserIF:
                     taskParamsJson[newKey] = newVal
                 taskParams = json.dumps(taskParamsJson)
                 # retry with new params
-                ret = self.taskBuffer.insertTaskParamsPanda(taskParams,user,prodRole,[],properErrorCode=properErrorCode,
-                                                            allowActiveTask=True)
+                ret = self.taskBuffer.insertTaskParamsPanda(
+                    taskParams,
+                    user,
+                    prodRole,
+                    [],
+                    properErrorCode=properErrorCode,
+                    allowActiveTask=True,
+                )
             except Exception:
-                errType,errValue = sys.exc_info()[:2]
-                ret = 1,'server error with {0}:{1}'.format(errType,errValue)
+                errType, errValue = sys.exc_info()[:2]
+                ret = 1, "server error with {0}:{1}".format(errType, errValue)
         else:
             if noChildRetry:
-                comQualifier = 'sole'
+                comQualifier = "sole"
             else:
                 comQualifier = None
             if discardEvents:
                 if comQualifier is None:
-                    comQualifier = 'discard'
+                    comQualifier = "discard"
                 else:
-                    comQualifier += ' discard'
+                    comQualifier += " discard"
             if disable_staging_mode:
                 if comQualifier is None:
-                    comQualifier = 'staged'
+                    comQualifier = "staged"
                 else:
-                    comQualifier += ' staged'
+                    comQualifier += " staged"
             # normal retry
-            ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'retry',properErrorCode=properErrorCode,
-                                                       comQualifier=comQualifier)
+            ret = self.taskBuffer.sendCommandTaskPanda(
+                jediTaskID,
+                user,
+                prodRole,
+                "retry",
+                properErrorCode=properErrorCode,
+                comQualifier=comQualifier,
+            )
         if properErrorCode is True and ret[0] == 5:
             # retry failed analysis jobs
             jobdefList = self.taskBuffer.getJobdefIDsForFailedJob(jediTaskID)
             cUID = self.taskBuffer.cleanUserID(user)
             for jobID in jobdefList:
                 self.taskBuffer.finalizePendingJobs(cUID, jobID)
-            self.taskBuffer.increaseAttemptNrPanda(jediTaskID,5)
-            retStr  = 'retry has been triggered for failed jobs '
-            retStr += 'while the task is still {0}'.format(ret[1])
+            self.taskBuffer.increaseAttemptNrPanda(jediTaskID, 5)
+            retStr = "retry has been triggered for failed jobs "
+            retStr += "while the task is still {0}".format(ret[1])
             if newParams is None:
-                ret = 0,retStr
+                ret = 0, retStr
             else:
-                ret = 3,retStr
+                ret = 3, retStr
         # return
         return ret
-
 
     # reassign task
-    def reassignTask(self,jediTaskID,user,prodRole,comComment):
+    def reassignTask(self, jediTaskID, user, prodRole, comComment):
         # reassign
-        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'reassign',
-                                                   comComment=comComment,properErrorCode=True)
+        ret = self.taskBuffer.sendCommandTaskPanda(
+            jediTaskID,
+            user,
+            prodRole,
+            "reassign",
+            comComment=comComment,
+            properErrorCode=True,
+        )
         # return
         return ret
-
 
     # pause task
-    def pauseTask(self,jediTaskID,user,prodRole):
+    def pauseTask(self, jediTaskID, user, prodRole):
         # exec
-        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'pause',properErrorCode=True)
+        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID, user, prodRole, "pause", properErrorCode=True)
         # return
         return ret
-
 
     # resume task
-    def resumeTask(self,jediTaskID,user,prodRole):
+    def resumeTask(self, jediTaskID, user, prodRole):
         # exec
-        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'resume',properErrorCode=True)
+        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID, user, prodRole, "resume", properErrorCode=True)
         # return
         return ret
-
 
     # force avalanche for task
-    def avalancheTask(self,jediTaskID,user,prodRole):
+    def avalancheTask(self, jediTaskID, user, prodRole):
         # exec
-        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID,user,prodRole,'avalanche',properErrorCode=True)
+        ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID, user, prodRole, "avalanche", properErrorCode=True)
         # return
         return ret
 
-
     # get retry history
-    def getRetryHistory(self,jediTaskID,user):
+    def getRetryHistory(self, jediTaskID, user):
         # get
-        _logger.debug("getRetryHistory jediTaskID={0} start {1}".format(jediTaskID,user))
+        _logger.debug("getRetryHistory jediTaskID={0} start {1}".format(jediTaskID, user))
         ret = self.taskBuffer.getRetryHistoryJEDI(jediTaskID)
         _logger.debug("getRetryHistory jediTaskID={0} done".format(jediTaskID))
         # return
         return ret
 
-
     # change task priority
-    def changeTaskPriority(self,jediTaskID,newPriority):
+    def changeTaskPriority(self, jediTaskID, newPriority):
         # kill
-        ret = self.taskBuffer.changeTaskPriorityPanda(jediTaskID,newPriority)
+        ret = self.taskBuffer.changeTaskPriorityPanda(jediTaskID, newPriority)
         # return
         return ret
-
 
     # increase attempt number for unprocessed files
-    def increaseAttemptNrPanda(self,jediTaskID,increasedNr):
+    def increaseAttemptNrPanda(self, jediTaskID, increasedNr):
         # exec
-        ret = self.taskBuffer.increaseAttemptNrPanda(jediTaskID,increasedNr)
+        ret = self.taskBuffer.increaseAttemptNrPanda(jediTaskID, increasedNr)
         # return
         return ret
-
 
     # change task attribute
-    def changeTaskAttributePanda(self,jediTaskID,attrName,attrValue):
+    def changeTaskAttributePanda(self, jediTaskID, attrName, attrValue):
         # kill
-        ret = self.taskBuffer.changeTaskAttributePanda(jediTaskID,attrName,attrValue)
+        ret = self.taskBuffer.changeTaskAttributePanda(jediTaskID, attrName, attrValue)
         # return
         return ret
-
 
     # change split rule for task
-    def changeTaskSplitRulePanda(self,jediTaskID,attrName,attrValue):
+    def changeTaskSplitRulePanda(self, jediTaskID, attrName, attrValue):
         # exec
-        ret = self.taskBuffer.changeTaskSplitRulePanda(jediTaskID,attrName,attrValue)
+        ret = self.taskBuffer.changeTaskSplitRulePanda(jediTaskID, attrName, attrValue)
         # return
         return ret
 
-
     # reactivate task
-    def reactivateTask(self,jediTaskID, keep_attempt_nr, trigger_job_generation):
+    def reactivateTask(self, jediTaskID, keep_attempt_nr, trigger_job_generation):
         # update datasets and task status
         ret = self.taskBuffer.reactivateTask(jediTaskID, keep_attempt_nr, trigger_job_generation)
         return ret
 
-
     # get task status
-    def getTaskStatus(self,jediTaskID):
+    def getTaskStatus(self, jediTaskID):
         # update task status
         ret = self.taskBuffer.getTaskStatus(jediTaskID)
         return ret[0]
-
 
     # reassign share
     def reassignShare(self, jedi_task_ids, share_dest, reassign_running):
@@ -913,7 +920,6 @@ class UserIF:
     def listTasksInShare(self, gshare, status):
         return self.taskBuffer.listTasksInShare(gshare, status)
 
-
     # get taskParamsMap
     def getTaskParamsMap(self, jediTaskID):
         # get taskParamsMap
@@ -921,12 +927,12 @@ class UserIF:
         return ret
 
     # update workers
-    def updateWorkers(self,user,host,harvesterID,data):
+    def updateWorkers(self, user, host, harvesterID, data):
         ret = self.taskBuffer.updateWorkers(harvesterID, data)
         if ret is None:
-            retVal = (False,'database error in the panda server')
+            retVal = (False, "database error in the panda server")
         else:
-            retVal = (True,ret)
+            retVal = (True, ret)
         # serialize
         return json.dumps(retVal)
 
@@ -934,9 +940,9 @@ class UserIF:
     def updateServiceMetrics(self, user, host, harvesterID, data):
         ret = self.taskBuffer.updateServiceMetrics(harvesterID, data)
         if ret is None:
-            retVal = (False,'database error in the panda server')
+            retVal = (False, "database error in the panda server")
         else:
-            retVal = (True,ret)
+            retVal = (True, ret)
         # serialize
         return json.dumps(retVal)
 
@@ -944,20 +950,19 @@ class UserIF:
     def addHarvesterDialogs(self, user, harvesterID, dialogs):
         ret = self.taskBuffer.addHarvesterDialogs(harvesterID, dialogs)
         if not ret:
-            retVal = (False,'database error in the panda server')
+            retVal = (False, "database error in the panda server")
         else:
-            retVal = (True,'')
+            retVal = (True, "")
         # serialize
         return json.dumps(retVal)
 
-
     # heartbeat for harvester
-    def harvesterIsAlive(self,user,host,harvesterID,data):
-        ret = self.taskBuffer.harvesterIsAlive(user,host,harvesterID,data)
+    def harvesterIsAlive(self, user, host, harvesterID, data):
+        ret = self.taskBuffer.harvesterIsAlive(user, host, harvesterID, data)
         if ret is None:
-            retVal = (False,'database error')
+            retVal = (False, "database error")
         else:
-            retVal = (True,ret)
+            retVal = (True, ret)
         # serialize
         return json.dumps(retVal)
 
@@ -979,7 +984,7 @@ class UserIF:
     def enableJumboJobs(self, jediTaskID, totalJumboJobs, nJumboPerSite):
         retVal = self.taskBuffer.enableJumboJobs(jediTaskID, totalJumboJobs, nJumboPerSite)
         if totalJumboJobs > 0 and retVal[0] == 0:
-            self.avalancheTask(jediTaskID, 'panda', True)
+            self.avalancheTask(jediTaskID, "panda", True)
         # serialize
         return json.dumps(retVal)
 
@@ -1004,7 +1009,7 @@ class UserIF:
             ce_list_des = json.loads(ce_list)
             submission_host_list_des = json.loads(submission_host_list)
         except Exception:
-            _logger.error('Problem deserializing variables')
+            _logger.error("Problem deserializing variables")
 
         # reassign jobs
         ret = self.taskBuffer.sweepPQ(panda_queue_des, status_list_des, ce_list_des, submission_host_list_des)
@@ -1035,6 +1040,7 @@ class UserIF:
         # return
         return ret
 
+
 # Singleton
 userIF = UserIF()
 del UserIF
@@ -1046,18 +1052,18 @@ def _getFQAN(req):
     for tmpKey in req.subprocess_env:
         tmpVal = req.subprocess_env[tmpKey]
         # compact credentials
-        if tmpKey.startswith('GRST_CRED_'):
+        if tmpKey.startswith("GRST_CRED_"):
             # VOMS attribute
-            if tmpVal.startswith('VOMS'):
+            if tmpVal.startswith("VOMS"):
                 # FQAN
                 fqan = tmpVal.split()[-1]
                 # append
                 fqans.append(fqan)
         # old style
-        elif tmpKey.startswith('GRST_CONN_'):
-            tmpItems = tmpVal.split(':')
+        elif tmpKey.startswith("GRST_CONN_"):
+            tmpItems = tmpVal.split(":")
             # FQAN
-            if len(tmpItems)==2 and tmpItems[0]=='fqan':
+            if len(tmpItems) == 2 and tmpItems[0] == "fqan":
                 fqans.append(tmpItems[-1])
     # return
     return fqans
@@ -1065,10 +1071,10 @@ def _getFQAN(req):
 
 # get DN
 def _getDN(req):
-    realDN = ''
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    realDN = ""
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         # remove redundant CN
-        realDN = CoreUtils.get_bare_dn(req.subprocess_env['SSL_CLIENT_S_DN'], keep_proxy=True)
+        realDN = CoreUtils.get_bare_dn(req.subprocess_env["SSL_CLIENT_S_DN"], keep_proxy=True)
     return realDN
 
 
@@ -1077,9 +1083,9 @@ def _get_grst_attr(req):
     vomsAttrs = []
     for tmpKey in req.subprocess_env:
         tmpVal = req.subprocess_env[tmpKey]
-        vomsAttrs.append('%s : %s\n' % (tmpKey, tmpVal))
+        vomsAttrs.append("%s : %s\n" % (tmpKey, tmpVal))
     vomsAttrs.sort()
-    retStr = ''
+    retStr = ""
     for tmpStr in vomsAttrs:
         retStr += tmpStr
     return retStr
@@ -1097,7 +1103,11 @@ def _hasProdRole(req):
     # loop over all FQANs
     for fqan in fqans:
         # check production role
-        for rolePat in ['/atlas/usatlas/Role=production', '/atlas/Role=production', '^/[^/]+/Role=production']:
+        for rolePat in [
+            "/atlas/usatlas/Role=production",
+            "/atlas/Role=production",
+            "^/[^/]+/Role=production",
+        ]:
             if fqan.startswith(rolePat):
                 return True
             if re.search(rolePat, fqan):
@@ -1110,12 +1120,12 @@ def _getWGwithPR(req):
     try:
         fqans = _getFQAN(req)
         for fqan in fqans:
-            tmpMatch = re.search('/[^/]+/([^/]+)/Role=production',fqan)
+            tmpMatch = re.search("/[^/]+/([^/]+)/Role=production", fqan)
             if tmpMatch is not None:
                 # ignore usatlas since it is used as atlas prod role
                 tmpWG = tmpMatch.group(1)
-                if tmpWG not in ['','usatlas']:
-                    return tmpWG.split('-')[-1].lower()
+                if tmpWG not in ["", "usatlas"]:
+                    return tmpWG.split("-")[-1].lower()
     except Exception:
         pass
     return None
@@ -1126,26 +1136,27 @@ web service interface
 
 """
 
+
 # security check
 def isSecure(req):
     # check security
     if not Protocol.isSecure(req):
         return False
     # disable limited proxy
-    if '/CN=limited proxy' in req.subprocess_env['SSL_CLIENT_S_DN']:
-        _logger.warning("access via limited proxy : %s" % req.subprocess_env['SSL_CLIENT_S_DN'])
+    if "/CN=limited proxy" in req.subprocess_env["SSL_CLIENT_S_DN"]:
+        _logger.warning("access via limited proxy : %s" % req.subprocess_env["SSL_CLIENT_S_DN"])
         return False
     return True
 
 
 # submit jobs
-def submitJobs(req,jobs,toPending=None):
+def submitJobs(req, jobs, toPending=None):
     # check security
     if not isSecure(req):
         return False
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     # get FQAN
     fqans = _getFQAN(req)
@@ -1154,15 +1165,15 @@ def submitJobs(req,jobs,toPending=None):
     # production Role
     prodRole = _hasProdRole(req)
     # to pending
-    if toPending == 'True':
+    if toPending == "True":
         toPending = True
     else:
         toPending = False
-    return userIF.submitJobs(jobs,user,host,fqans,prodRole,toPending)
+    return userIF.submitJobs(jobs, user, host, fqans, prodRole, toPending)
 
 
 # run task assignment
-def runTaskAssignment(req,jobs):
+def runTaskAssignment(req, jobs):
     # check security
     if not isSecure(req):
         return "False"
@@ -1170,30 +1181,30 @@ def runTaskAssignment(req,jobs):
 
 
 # get job status
-def getJobStatus(req,ids):
+def getJobStatus(req, ids):
     return userIF.getJobStatus(ids, req.acceptJson())
 
 
 # get PandaID with jobexeID
-def getPandaIDwithJobExeID(req,ids):
+def getPandaIDwithJobExeID(req, ids):
     return userIF.getPandaIDwithJobExeID(ids)
 
 
 # get queued analysis jobs at a site
-def getQueuedAnalJobs(req,site):
+def getQueuedAnalJobs(req, site):
     # check security
     if not isSecure(req):
         return "ERROR: SSL is required"
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
-    return userIF.getQueuedAnalJobs(site,user)
+    return userIF.getQueuedAnalJobs(site, user)
 
 
 # get active datasets
-def getActiveDatasets(req,computingSite,prodSourceLabel='managed'):
-    return userIF.getActiveDatasets(computingSite,prodSourceLabel)
+def getActiveDatasets(req, computingSite, prodSourceLabel="managed"):
+    return userIF.getActiveDatasets(computingSite, prodSourceLabel)
 
 
 # get assigning task
@@ -1202,27 +1213,27 @@ def getAssigningTask(req):
 
 
 # get assigned cloud for tasks
-def seeCloudTask(req,ids):
+def seeCloudTask(req, ids):
     return userIF.seeCloudTask(ids)
 
 
 # set task by user
-def setCloudTaskByUser(req,tid,cloud='',status=''):
+def setCloudTaskByUser(req, tid, cloud="", status=""):
     # get DN
-    if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
         return "ERROR: SSL connection is required"
     user = _getDN(req)
     # check role
     if not _hasProdRole(req):
         return "ERROR: production role is required"
-    return userIF.setCloudTaskByUser(user,tid,cloud,status)
+    return userIF.setCloudTaskByUser(user, tid, cloud, status)
 
 
 # set debug mode
-def setDebugMode(req,pandaID,modeOn):
-    tmpLog = LogWrapper(_logger, 'setDebugMode {} {}'.format(pandaID, modeOn))
+def setDebugMode(req, pandaID, modeOn):
+    tmpLog = LogWrapper(_logger, "setDebugMode {} {}".format(pandaID, modeOn))
     # get DN
-    if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
         errStr = "SSL connection is required"
         tmpLog.error(errStr)
         return "ERROR: " + errStr
@@ -1232,23 +1243,22 @@ def setDebugMode(req,pandaID,modeOn):
     fqans = _getFQAN(req)
     grst = _get_grst_attr(req)
     # mode
-    if modeOn == 'True':
+    if modeOn == "True":
         modeOn = True
     else:
         modeOn = False
     # get the primary working group with prod role
     workingGroup = _getWGwithPR(req)
-    tmpLog.error("user={} mgr={} wg={} fqans={} grst={}".format(user, prodManager, workingGroup, str(fqans),
-                 grst))
+    tmpLog.error("user={} mgr={} wg={} fqans={} grst={}".format(user, prodManager, workingGroup, str(fqans), grst))
     # exec
-    return userIF.setDebugMode(user,pandaID,prodManager,modeOn,workingGroup)
+    return userIF.setDebugMode(user, pandaID, prodManager, modeOn, workingGroup)
 
 
 # insert sandbox file info
-def insertSandboxFileInfo(req,userName,fileName,fileSize,checkSum):
-    tmpLog = LogWrapper(_logger, 'insertSandboxFileInfo {} {}'.format(userName,fileName))
+def insertSandboxFileInfo(req, userName, fileName, fileSize, checkSum):
+    tmpLog = LogWrapper(_logger, "insertSandboxFileInfo {} {}".format(userName, fileName))
     # get DN
-    if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
         errStr = "SSL connection is required"
         tmpLog.error(errStr)
         return "ERROR: " + errStr
@@ -1260,47 +1270,47 @@ def insertSandboxFileInfo(req,userName,fileName,fileSize,checkSum):
         tmpLog.error(errStr)
         return "ERROR: " + errStr
     # hostname
-    if hasattr(panda_config, 'sandboxHostname') and panda_config.sandboxHostname:
+    if hasattr(panda_config, "sandboxHostname") and panda_config.sandboxHostname:
         hostName = panda_config.sandboxHostname
     else:
         hostName = req.get_remote_host()
     # exec
-    return userIF.insertSandboxFileInfo(userName,hostName,fileName,fileSize,checkSum)
+    return userIF.insertSandboxFileInfo(userName, hostName, fileName, fileSize, checkSum)
 
 
 # check duplicated sandbox file
-def checkSandboxFile(req,fileSize,checkSum):
+def checkSandboxFile(req, fileSize, checkSum):
     # get DN
-    if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
         return "ERROR: SSL connection is required"
     user = _getDN(req)
     # exec
-    return userIF.checkSandboxFile(user,fileSize,checkSum)
+    return userIF.checkSandboxFile(user, fileSize, checkSum)
 
 
 # query PandaIDs
-def queryPandaIDs(req,ids):
+def queryPandaIDs(req, ids):
     return userIF.queryPandaIDs(ids)
 
 
 # query job info per cloud
-def queryJobInfoPerCloud(req,cloud,schedulerID=None):
-    return userIF.queryJobInfoPerCloud(cloud,schedulerID)
+def queryJobInfoPerCloud(req, cloud, schedulerID=None):
+    return userIF.queryJobInfoPerCloud(cloud, schedulerID)
 
 
 # get PandaIDs at site
-def getPandaIDsSite(req,site,status,limit=500):
-    return userIF.getPandaIDsSite(site,status,limit)
+def getPandaIDsSite(req, site, status, limit=500):
+    return userIF.getPandaIDsSite(site, status, limit)
 
 
 # get PandaIDs to be updated in prodDB
-def getJobsToBeUpdated(req,limit=5000,lockedby=''):
+def getJobsToBeUpdated(req, limit=5000, lockedby=""):
     limit = int(limit)
-    return userIF.getJobsToBeUpdated(limit,lockedby)
+    return userIF.getJobsToBeUpdated(limit, lockedby)
 
 
 # update prodDBUpdateTimes
-def updateProdDBUpdateTimes(req,params):
+def updateProdDBUpdateTimes(req, params):
     # check security
     if not isSecure(req):
         return False
@@ -1308,33 +1318,33 @@ def updateProdDBUpdateTimes(req,params):
 
 
 # get job statistics
-def getJobStatistics(req,sourcetype=None):
+def getJobStatistics(req, sourcetype=None):
     return userIF.getJobStatistics(sourcetype)
 
 
 # get highest prio jobs
-def getHighestPrioJobStat(req,perPG=None,useMorePG=None):
-    if perPG == 'True':
+def getHighestPrioJobStat(req, perPG=None, useMorePG=None):
+    if perPG == "True":
         perPG = True
     else:
         perPG = False
-    if useMorePG == 'True':
+    if useMorePG == "True":
         useMorePG = pandaserver.taskbuffer.ProcessGroups.extensionLevel_1
-    elif useMorePG in ['False',None]:
+    elif useMorePG in ["False", None]:
         useMorePG = False
     else:
         try:
             useMorePG = int(useMorePG)
         except Exception:
             useMorePG = False
-    return userIF.getHighestPrioJobStat(perPG,useMorePG)
+    return userIF.getHighestPrioJobStat(perPG, useMorePG)
 
 
 # get job statistics for Babmoo
-def getJobStatisticsForBamboo(req,useMorePG=None):
-    if useMorePG == 'True':
+def getJobStatisticsForBamboo(req, useMorePG=None):
+    if useMorePG == "True":
         useMorePG = pandaserver.taskbuffer.ProcessGroups.extensionLevel_1
-    elif useMorePG in ['False',None]:
+    elif useMorePG in ["False", None]:
         useMorePG = False
     else:
         try:
@@ -1360,72 +1370,78 @@ def get_job_statistics_per_site_label_resource(req, time_window=None):
 
 
 # get job statistics per site
-def getJobStatisticsPerSite(req,predefined='False',workingGroup='',countryGroup='',jobType='',
-                            minPriority=None,readArchived=None):
-    if predefined=='True':
-        predefined=True
+def getJobStatisticsPerSite(
+    req,
+    predefined="False",
+    workingGroup="",
+    countryGroup="",
+    jobType="",
+    minPriority=None,
+    readArchived=None,
+):
+    if predefined == "True":
+        predefined = True
     else:
-        predefined=False
+        predefined = False
     if minPriority is not None:
         try:
             minPriority = int(minPriority)
         except Exception:
             minPriority = None
-    if readArchived=='True':
+    if readArchived == "True":
         readArchived = True
-    elif readArchived=='False':
+    elif readArchived == "False":
         readArchived = False
     else:
         host = req.get_remote_host()
         # read jobsArchived for panglia
-        if re.search('panglia.*\.triumf\.ca$',host) is not None or host in ['gridweb.triumf.ca']:
+        if re.search("panglia.*\.triumf\.ca$", host) is not None or host in ["gridweb.triumf.ca"]:
             readArchived = True
         else:
             readArchived = False
-    return userIF.getJobStatisticsPerSite(predefined,workingGroup,countryGroup,jobType,
-                                          minPriority,readArchived)
+    return userIF.getJobStatisticsPerSite(predefined, workingGroup, countryGroup, jobType, minPriority, readArchived)
 
 
 # get job statistics per site with label
-def getJobStatisticsWithLabel(req,site=''):
+def getJobStatisticsWithLabel(req, site=""):
     return userIF.getJobStatisticsWithLabel(site)
 
 
 # query last files in datasets
-def queryLastFilesInDataset(req,datasets):
+def queryLastFilesInDataset(req, datasets):
     return userIF.queryLastFilesInDataset(datasets)
 
 
 # get input files currently in used for analysis
-def getFilesInUseForAnal(req,outDataset):
+def getFilesInUseForAnal(req, outDataset):
     return userIF.getFilesInUseForAnal(outDataset)
 
 
 # get list of dis dataset to get input files in shadow
-def getDisInUseForAnal(req,outDataset):
+def getDisInUseForAnal(req, outDataset):
     return userIF.getDisInUseForAnal(outDataset)
 
 
 # get input LFNs currently in use for analysis with shadow dis
-def getLFNsInUseForAnal(req,inputDisList):
+def getLFNsInUseForAnal(req, inputDisList):
     return userIF.getLFNsInUseForAnal(inputDisList)
 
 
 # kill jobs
-def killJobs(req,ids,code=None,useMailAsID=None,killOpts=None):
+def killJobs(req, ids, code=None, useMailAsID=None, killOpts=None):
     # check security
     if not isSecure(req):
         return False
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     # check role
     prodManager = _hasProdRole(req)
     # get FQANs
     fqans = _getFQAN(req)
     # use email address as ID
-    if useMailAsID == 'True':
+    if useMailAsID == "True":
         useMailAsID = True
     else:
         useMailAsID = False
@@ -1435,36 +1451,36 @@ def killJobs(req,ids,code=None,useMailAsID=None,killOpts=None):
     if killOpts is None:
         killOpts = []
     else:
-        killOpts = killOpts.split(',')
-    return userIF.killJobs(ids,user,host,code,prodManager,useMailAsID,fqans,killOpts)
+        killOpts = killOpts.split(",")
+    return userIF.killJobs(ids, user, host, code, prodManager, useMailAsID, fqans, killOpts)
 
 
 # reassign jobs
-def reassignJobs(req,ids,forPending=None,firstSubmission=None):
+def reassignJobs(req, ids, forPending=None, firstSubmission=None):
     # check security
     if not isSecure(req):
         return False
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     # hostname
     host = req.get_remote_host()
     # for pending
-    if forPending == 'True':
+    if forPending == "True":
         forPending = True
     else:
         forPending = False
     # first submission
-    if firstSubmission == 'False':
+    if firstSubmission == "False":
         firstSubmission = False
     else:
         firstSubmission = True
-    return userIF.reassignJobs(ids,user,host,forPending,firstSubmission)
+    return userIF.reassignJobs(ids, user, host, forPending, firstSubmission)
 
 
 # resubmit jobs
-def resubmitJobs(req,ids):
+def resubmitJobs(req, ids):
     # check security
     if not isSecure(req):
         return False
@@ -1472,26 +1488,27 @@ def resubmitJobs(req,ids):
 
 
 # change job priorities
-def changeJobPriorities(req,newPrioMap=None):
+def changeJobPriorities(req, newPrioMap=None):
     # check security
     if not isSecure(req):
-        return WrappedPickle.dumps((False,'secure connection is required'))
+        return WrappedPickle.dumps((False, "secure connection is required"))
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     # check role
     prodRole = _hasProdRole(req)
-    ret = userIF.changeJobPriorities(user,prodRole,newPrioMap)
+    ret = userIF.changeJobPriorities(user, prodRole, newPrioMap)
     return WrappedPickle.dumps(ret)
 
 
 # get list of site spec
-def getSiteSpecs(req,siteType=None):
+def getSiteSpecs(req, siteType=None):
     if siteType is not None:
         return userIF.getSiteSpecs(siteType)
     else:
         return userIF.getSiteSpecs()
+
 
 # get list of cloud spec
 def getCloudSpecs(req):
@@ -1502,9 +1519,11 @@ def getCloudSpecs(req):
 def get_ban_users(req):
     return userIF.get_ban_users()
 
+
 # get client version
 def getPandaClientVer(req):
     return userIF.getPandaClientVer()
+
 
 # get nPilots
 def getNumPilots(req):
@@ -1512,72 +1531,71 @@ def getNumPilots(req):
 
 
 # retry failed subjobs in running job
-def retryFailedJobsInActive(req,jobID):
+def retryFailedJobsInActive(req, jobID):
     # check SSL
-    if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
         return "ERROR: SSL connection is required"
     # get DN
     dn = _getDN(req)
-    if dn == '':
+    if dn == "":
         return "ERROR: could not get DN"
     # convert jobID to long
     try:
         jobID = long(jobID)
     except Exception:
         return "ERROR: jobID is not an integer"
-    return userIF.retryFailedJobsInActive(dn,jobID)
+    return userIF.retryFailedJobsInActive(dn, jobID)
 
 
 # get serial number for group job
 def getSerialNumberForGroupJob(req):
     # check SSL
-    if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
         return "ERROR: SSL connection is required"
     # get DN
     dn = _getDN(req)
-    if dn == '':
+    if dn == "":
         return "ERROR: could not get DN"
     return userIF.getSerialNumberForGroupJob(dn)
 
 
 # get script for offline running
-def getScriptOfflineRunning(req,pandaID,days=None):
+def getScriptOfflineRunning(req, pandaID, days=None):
     try:
         if days is not None:
             days = int(days)
     except Exception:
-        days=None
-    return userIF.getScriptOfflineRunning(pandaID,days)
+        days = None
+    return userIF.getScriptOfflineRunning(pandaID, days)
 
 
 # register proxy key
-def registerProxyKey(req,credname,origin,myproxy):
+def registerProxyKey(req, credname, origin, myproxy):
     # check security
     if not isSecure(req):
         return False
     # get DN
-    if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
         return False
     # get expiration date
-    if 'SSL_CLIENT_V_END' not in req.subprocess_env:
+    if "SSL_CLIENT_V_END" not in req.subprocess_env:
         return False
     params = {}
-    params['dn'] = _getDN(req)
+    params["dn"] = _getDN(req)
     # set parameters
-    params['credname'] = credname
-    params['origin']   = origin
-    params['myproxy']  = myproxy
+    params["credname"] = credname
+    params["origin"] = origin
+    params["myproxy"] = myproxy
     # convert SSL_CLIENT_V_END
     try:
-        expTime = req.subprocess_env['SSL_CLIENT_V_END']
+        expTime = req.subprocess_env["SSL_CLIENT_V_END"]
         # remove redundant white spaces
-        expTime = re.sub('\s+',' ',expTime)
+        expTime = re.sub("\s+", " ", expTime)
         # convert to timestamp
-        expTime = time.strptime(expTime,'%b %d %H:%M:%S %Y %Z')
-        params['expires']  = time.strftime('%Y-%m-%d %H:%M:%S',expTime)
+        expTime = time.strptime(expTime, "%b %d %H:%M:%S %Y %Z")
+        params["expires"] = time.strftime("%Y-%m-%d %H:%M:%S", expTime)
     except Exception:
-        _logger.error("registerProxyKey : failed to convert %s" % \
-                      req.subprocess_env['SSL_CLIENT_V_END'])
+        _logger.error("registerProxyKey : failed to convert %s" % req.subprocess_env["SSL_CLIENT_V_END"])
     # execute
     return userIF.registerProxyKey(params)
 
@@ -1588,7 +1606,7 @@ def getProxyKey(req):
     if not isSecure(req):
         return False
     # get DN
-    if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
         return False
     dn = _getDN(req)
     # execute
@@ -1596,31 +1614,31 @@ def getProxyKey(req):
 
 
 # get JobIDs in a time range
-def getJobIDsInTimeRange(req,timeRange,dn=None):
+def getJobIDsInTimeRange(req, timeRange, dn=None):
     # check security
     if not isSecure(req):
         return False
     # get DN
-    if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
         return False
     if dn is None:
         dn = _getDN(req)
-    _logger.debug("getJobIDsInTimeRange %s %s" % (dn,timeRange))
+    _logger.debug("getJobIDsInTimeRange %s %s" % (dn, timeRange))
     # execute
-    return userIF.getJobIDsInTimeRange(dn,timeRange)
+    return userIF.getJobIDsInTimeRange(dn, timeRange)
 
 
 # get active JediTasks in a time range
-def getJediTasksInTimeRange(req, timeRange, dn=None, fullFlag=None, minTaskID=None, task_type='user'):
+def getJediTasksInTimeRange(req, timeRange, dn=None, fullFlag=None, minTaskID=None, task_type="user"):
     # check security
     if not isSecure(req):
         return False
     # get DN
-    if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
         return False
     if dn is None:
         dn = _getDN(req)
-    if fullFlag == 'True':
+    if fullFlag == "True":
         fullFlag = True
     else:
         fullFlag = False
@@ -1628,89 +1646,89 @@ def getJediTasksInTimeRange(req, timeRange, dn=None, fullFlag=None, minTaskID=No
         minTaskID = long(minTaskID)
     except Exception:
         minTaskID = None
-    _logger.debug("getJediTasksInTimeRange %s %s" % (dn,timeRange))
+    _logger.debug("getJediTasksInTimeRange %s %s" % (dn, timeRange))
     # execute
     return userIF.getJediTasksInTimeRange(dn, timeRange, fullFlag, minTaskID, task_type)
 
 
 # get details of JediTask
-def getJediTaskDetails(req,jediTaskID,fullFlag,withTaskInfo):
+def getJediTaskDetails(req, jediTaskID, fullFlag, withTaskInfo):
     # check security
     if not isSecure(req):
         return False
     # get DN
-    if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
         return False
     # option
-    if fullFlag == 'True':
+    if fullFlag == "True":
         fullFlag = True
     else:
         fullFlag = False
-    if withTaskInfo == 'True':
+    if withTaskInfo == "True":
         withTaskInfo = True
     else:
         withTaskInfo = False
-    _logger.debug("getJediTaskDetails %s %s %s" % (jediTaskID,fullFlag,withTaskInfo))
+    _logger.debug("getJediTaskDetails %s %s %s" % (jediTaskID, fullFlag, withTaskInfo))
     # execute
-    return userIF.getJediTaskDetails(jediTaskID,fullFlag,withTaskInfo)
+    return userIF.getJediTaskDetails(jediTaskID, fullFlag, withTaskInfo)
 
 
 # get PandaIDs for a JobID
-def getPandIDsWithJobID(req,jobID,nJobs,dn=None):
+def getPandIDsWithJobID(req, jobID, nJobs, dn=None):
     # check security
     if not isSecure(req):
         return False
     # get DN
-    if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
         return False
     if dn is None:
         dn = _getDN(req)
-    _logger.debug("getPandIDsWithJobID %s JobID=%s nJobs=%s" % (dn,jobID,nJobs))
+    _logger.debug("getPandIDsWithJobID %s JobID=%s nJobs=%s" % (dn, jobID, nJobs))
     # execute
-    return userIF.getPandIDsWithJobID(dn,jobID,nJobs)
+    return userIF.getPandIDsWithJobID(dn, jobID, nJobs)
 
 
 # check merge job generation status
-def checkMergeGenerationStatus(req,jobID,dn=None):
+def checkMergeGenerationStatus(req, jobID, dn=None):
     # check security
     if not isSecure(req):
         return False
     # get DN
-    if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
         return False
     if dn is None:
         dn = _getDN(req)
-    _logger.debug("checkMergeGenerationStatus %s JobID=%s" % (dn,jobID))
+    _logger.debug("checkMergeGenerationStatus %s JobID=%s" % (dn, jobID))
     # execute
-    return userIF.checkMergeGenerationStatus(dn,jobID)
+    return userIF.checkMergeGenerationStatus(dn, jobID)
 
 
 # get slimmed file info with PandaIDs
-def getSlimmedFileInfoPandaIDs(req,ids):
+def getSlimmedFileInfoPandaIDs(req, ids):
     # check security
     if not isSecure(req):
         return False
     # get DN
-    if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
         return False
     dn = _getDN(req)
-    return userIF.getSlimmedFileInfoPandaIDs(ids,dn)
+    return userIF.getSlimmedFileInfoPandaIDs(ids, dn)
 
 
 # get full job status
-def getFullJobStatus(req,ids):
+def getFullJobStatus(req, ids):
     # check security
     if not isSecure(req):
         return False
     # get DN
-    if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
         return False
     dn = _getDN(req)
-    return userIF.getFullJobStatus(ids,dn)
+    return userIF.getFullJobStatus(ids, dn)
 
 
 # get a list of DN/myproxy pass phrase/queued job count at a site
-def getNUserJobs(req,siteName):
+def getNUserJobs(req, siteName):
     # check security
     prodManager = False
     if not isSecure(req):
@@ -1720,11 +1738,12 @@ def getNUserJobs(req,siteName):
     # loop over all FQANs
     for fqan in fqans:
         # check production role
-        for rolePat in ['/atlas/usatlas/Role=production',
-                        '/atlas/Role=production',
-                        '/atlas/usatlas/Role=pilot',
-                        '/atlas/Role=pilot',
-                        ]:
+        for rolePat in [
+            "/atlas/usatlas/Role=production",
+            "/atlas/Role=production",
+            "/atlas/usatlas/Role=pilot",
+            "/atlas/Role=pilot",
+        ]:
             if fqan.startswith(rolePat):
                 prodManager = True
                 break
@@ -1739,74 +1758,74 @@ def getNUserJobs(req,siteName):
 
 
 # add account to siteaccess
-def addSiteAccess(req,siteID):
+def addSiteAccess(req, siteID):
     # check security
     if not isSecure(req):
         return "False"
     # get DN
-    if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
         return "False"
-    dn = req.subprocess_env['SSL_CLIENT_S_DN']
-    return userIF.addSiteAccess(siteID,dn)
+    dn = req.subprocess_env["SSL_CLIENT_S_DN"]
+    return userIF.addSiteAccess(siteID, dn)
 
 
 # list site access
-def listSiteAccess(req,siteID=None,longFormat=False):
+def listSiteAccess(req, siteID=None, longFormat=False):
     # check security
     if not isSecure(req):
         return "False"
     # get DN
-    if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
         return "False"
     # set DN if siteID is none
     dn = None
     if siteID is None:
-        dn = req.subprocess_env['SSL_CLIENT_S_DN']
+        dn = req.subprocess_env["SSL_CLIENT_S_DN"]
     # convert longFormat option
-    if longFormat == 'True':
+    if longFormat == "True":
         longFormat = True
     else:
         longFormat = False
-    return userIF.listSiteAccess(siteID,dn,longFormat)
+    return userIF.listSiteAccess(siteID, dn, longFormat)
 
 
 # update site access
-def updateSiteAccess(req,method,siteid,userName,attrValue=''):
+def updateSiteAccess(req, method, siteid, userName, attrValue=""):
     # check security
     if not isSecure(req):
         return "non HTTPS"
     # get DN
-    if 'SSL_CLIENT_S_DN' not in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
         return "invalid DN"
     # set requester's DN
-    requesterDN = req.subprocess_env['SSL_CLIENT_S_DN']
+    requesterDN = req.subprocess_env["SSL_CLIENT_S_DN"]
     # update
-    return userIF.updateSiteAccess(method,siteid,requesterDN,userName,attrValue)
+    return userIF.updateSiteAccess(method, siteid, requesterDN, userName, attrValue)
 
 
 # insert task params
 def insertTaskParams(req, taskParams=None, properErrorCode=None, parent_tid=None):
-    tmpLog = LogWrapper(_logger, 'insertTaskParams-{}'.format(datetime.datetime.utcnow().isoformat('/')))
-    tmpLog.debug('start')
-    if properErrorCode == 'True':
+    tmpLog = LogWrapper(_logger, "insertTaskParams-{}".format(datetime.datetime.utcnow().isoformat("/")))
+    tmpLog.debug("start")
+    if properErrorCode == "True":
         properErrorCode = True
     else:
         properErrorCode = False
     # check security
     if not isSecure(req):
-        tmpMsg = 'secure connection is required'
+        tmpMsg = "secure connection is required"
         tmpLog.debug(tmpMsg)
         return WrappedPickle.dumps((False, tmpMsg))
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
 
     # check format
     try:
         json.loads(taskParams)
     except Exception:
-        tmpMsg = 'failed to decode json'
+        tmpMsg = "failed to decode json"
         tmpLog.debug(tmpMsg)
         return WrappedPickle.dumps((False, tmpMsg))
     # check role
@@ -1823,26 +1842,25 @@ def insertTaskParams(req, taskParams=None, properErrorCode=None, parent_tid=None
     return WrappedPickle.dumps(ret)
 
 
-
 # kill task
 def killTask(req, jediTaskID=None, properErrorCode=None, broadcast=None):
-    if properErrorCode == 'True':
+    if properErrorCode == "True":
         properErrorCode = True
     else:
         properErrorCode = False
-    if broadcast == 'True':
+    if broadcast == "True":
         broadcast = True
     else:
         broadcast = False
     # check security
     if not isSecure(req):
         if properErrorCode:
-            return WrappedPickle.dumps((100,'secure connection is required'))
+            return WrappedPickle.dumps((100, "secure connection is required"))
         else:
-            return WrappedPickle.dumps((False,'secure connection is required'))
+            return WrappedPickle.dumps((False, "secure connection is required"))
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     # check role
     prodRole = _hasProdRole(req)
@@ -1851,42 +1869,48 @@ def killTask(req, jediTaskID=None, properErrorCode=None, broadcast=None):
         jediTaskID = long(jediTaskID)
     except Exception:
         if properErrorCode:
-            return WrappedPickle.dumps((101,'jediTaskID must be an integer'))
+            return WrappedPickle.dumps((101, "jediTaskID must be an integer"))
         else:
-            return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
+            return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     ret = userIF.killTask(jediTaskID, user, prodRole, properErrorCode, broadcast)
     return WrappedPickle.dumps(ret)
 
 
-
 # retry task
-def retryTask(req,jediTaskID,properErrorCode=None,newParams=None,noChildRetry=None,
-              discardEvents=None, disable_staging_mode=None):
-    if properErrorCode == 'True':
+def retryTask(
+    req,
+    jediTaskID,
+    properErrorCode=None,
+    newParams=None,
+    noChildRetry=None,
+    discardEvents=None,
+    disable_staging_mode=None,
+):
+    if properErrorCode == "True":
         properErrorCode = True
     else:
         properErrorCode = False
-    if noChildRetry == 'True':
+    if noChildRetry == "True":
         noChildRetry = True
     else:
         noChildRetry = False
-    if discardEvents == 'True':
+    if discardEvents == "True":
         discardEvents = True
     else:
         discardEvents = False
-    if disable_staging_mode == 'True':
+    if disable_staging_mode == "True":
         disable_staging_mode = True
     else:
         disable_staging_mode = False
     # check security
     if not isSecure(req):
         if properErrorCode:
-            return WrappedPickle.dumps((100,'secure connection is required'))
+            return WrappedPickle.dumps((100, "secure connection is required"))
         else:
-            return WrappedPickle.dumps((False,'secure connection is required'))
+            return WrappedPickle.dumps((False, "secure connection is required"))
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     # check role
     prodRole = _hasProdRole(req)
@@ -1895,23 +1919,30 @@ def retryTask(req,jediTaskID,properErrorCode=None,newParams=None,noChildRetry=No
         jediTaskID = long(jediTaskID)
     except Exception:
         if properErrorCode:
-            return WrappedPickle.dumps((101,'jediTaskID must be an integer'))
+            return WrappedPickle.dumps((101, "jediTaskID must be an integer"))
         else:
-            return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
-    ret = userIF.retryTask(jediTaskID,user,prodRole,properErrorCode,newParams,noChildRetry,
-                           discardEvents, disable_staging_mode)
+            return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
+    ret = userIF.retryTask(
+        jediTaskID,
+        user,
+        prodRole,
+        properErrorCode,
+        newParams,
+        noChildRetry,
+        discardEvents,
+        disable_staging_mode,
+    )
     return WrappedPickle.dumps(ret)
 
 
-
 # reassign task to site/cloud
-def reassignTask(req,jediTaskID,site=None,cloud=None,nucleus=None,soft=None,mode=None):
+def reassignTask(req, jediTaskID, site=None, cloud=None, nucleus=None, soft=None, mode=None):
     # check security
     if not isSecure(req):
-        return WrappedPickle.dumps((100,'secure connection is required'))
+        return WrappedPickle.dumps((100, "secure connection is required"))
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     # check role
     prodRole = _hasProdRole(req)
@@ -1919,46 +1950,45 @@ def reassignTask(req,jediTaskID,site=None,cloud=None,nucleus=None,soft=None,mode
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return WrappedPickle.dumps((101,'jediTaskID must be an integer'))
+        return WrappedPickle.dumps((101, "jediTaskID must be an integer"))
     # site or cloud
     if site is not None:
         # set 'y' to go back to oldStatus immediately
-        comComment = 'site:{0}:y'.format(site)
+        comComment = "site:{0}:y".format(site)
     elif nucleus is not None:
-        comComment = 'nucleus:{0}:n'.format(nucleus)
+        comComment = "nucleus:{0}:n".format(nucleus)
     else:
-        comComment = 'cloud:{0}:n'.format(cloud)
-    if mode == 'nokill':
-        comComment += ':nokill reassign'
-    elif mode == 'soft' or soft == 'True':
-        comComment += ':soft reassign'
-    ret = userIF.reassignTask(jediTaskID,user,prodRole,comComment)
+        comComment = "cloud:{0}:n".format(cloud)
+    if mode == "nokill":
+        comComment += ":nokill reassign"
+    elif mode == "soft" or soft == "True":
+        comComment += ":soft reassign"
+    ret = userIF.reassignTask(jediTaskID, user, prodRole, comComment)
     return WrappedPickle.dumps(ret)
 
 
-
 # finish task
-def finishTask(req,jediTaskID=None,properErrorCode=None,soft=None, broadcast=None):
-    if properErrorCode == 'True':
+def finishTask(req, jediTaskID=None, properErrorCode=None, soft=None, broadcast=None):
+    if properErrorCode == "True":
         properErrorCode = True
     else:
         properErrorCode = False
     qualifier = None
-    if soft == 'True':
-        qualifier = 'soft'
-    if broadcast == 'True':
+    if soft == "True":
+        qualifier = "soft"
+    if broadcast == "True":
         broadcast = True
     else:
         broadcast = False
     # check security
     if not isSecure(req):
         if properErrorCode:
-            return WrappedPickle.dumps((100,'secure connection is required'))
+            return WrappedPickle.dumps((100, "secure connection is required"))
         else:
-            return WrappedPickle.dumps((False,'secure connection is required'))
+            return WrappedPickle.dumps((False, "secure connection is required"))
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     # check role
     prodRole = _hasProdRole(req)
@@ -1967,29 +1997,28 @@ def finishTask(req,jediTaskID=None,properErrorCode=None,soft=None, broadcast=Non
         jediTaskID = long(jediTaskID)
     except Exception:
         if properErrorCode:
-            return WrappedPickle.dumps((101,'jediTaskID must be an integer'))
+            return WrappedPickle.dumps((101, "jediTaskID must be an integer"))
         else:
-            return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
-    ret = userIF.finishTask(jediTaskID,user,prodRole,properErrorCode,
-                            qualifier, broadcast)
+            return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
+    ret = userIF.finishTask(jediTaskID, user, prodRole, properErrorCode, qualifier, broadcast)
     return WrappedPickle.dumps(ret)
 
 
 # reload input
 def reloadInput(req, jediTaskID, properErrorCode=None):
-    if properErrorCode == 'True':
+    if properErrorCode == "True":
         properErrorCode = True
     else:
         properErrorCode = False
     # check security
     if not isSecure(req):
         if properErrorCode:
-            return WrappedPickle.dumps((100,'secure connection is required'))
+            return WrappedPickle.dumps((100, "secure connection is required"))
         else:
-            return WrappedPickle.dumps((False,'secure connection is required'))
+            return WrappedPickle.dumps((False, "secure connection is required"))
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     # check role
     prodRole = _hasProdRole(req)
@@ -1998,40 +2027,38 @@ def reloadInput(req, jediTaskID, properErrorCode=None):
         jediTaskID = long(jediTaskID)
     except Exception:
         if properErrorCode:
-            return WrappedPickle.dumps((101,'jediTaskID must be an integer'))
+            return WrappedPickle.dumps((101, "jediTaskID must be an integer"))
         else:
-            return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
-    ret = userIF.reloadInput(jediTaskID,user,prodRole)
+            return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
+    ret = userIF.reloadInput(jediTaskID, user, prodRole)
     return WrappedPickle.dumps(ret)
 
 
-
 # get retry history
-def getRetryHistory(req,jediTaskID=None):
+def getRetryHistory(req, jediTaskID=None):
     # check security
     if not isSecure(req):
-        return WrappedPickle.dumps((False,'secure connection is required'))
+        return WrappedPickle.dumps((False, "secure connection is required"))
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
-    ret = userIF.getRetryHistory(jediTaskID,user)
+        return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
+    ret = userIF.getRetryHistory(jediTaskID, user)
     return WrappedPickle.dumps(ret)
 
 
-
 # change task priority
-def changeTaskPriority(req,jediTaskID=None,newPriority=None):
+def changeTaskPriority(req, jediTaskID=None, newPriority=None):
     # check security
     if not isSecure(req):
-        return WrappedPickle.dumps((False,'secure connection is required'))
+        return WrappedPickle.dumps((False, "secure connection is required"))
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     # check role
     prodRole = _hasProdRole(req)
@@ -2042,38 +2069,37 @@ def changeTaskPriority(req,jediTaskID=None,newPriority=None):
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
+        return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     # check priority
     try:
         newPriority = long(newPriority)
     except Exception:
-        return WrappedPickle.dumps((False,'newPriority must be an integer'))
-    ret = userIF.changeTaskPriority(jediTaskID,newPriority)
+        return WrappedPickle.dumps((False, "newPriority must be an integer"))
+    ret = userIF.changeTaskPriority(jediTaskID, newPriority)
     return WrappedPickle.dumps(ret)
 
 
-
 # increase attempt number for unprocessed files
-def increaseAttemptNrPanda(req,jediTaskID,increasedNr):
+def increaseAttemptNrPanda(req, jediTaskID, increasedNr):
     # check security
     if not isSecure(req):
-        return WrappedPickle.dumps((False,'secure connection is required'))
+        return WrappedPickle.dumps((False, "secure connection is required"))
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     # check role
     prodRole = _hasProdRole(req)
     # only prod managers can use this method
     ret = None
     if not prodRole:
-        ret = 3,"production or pilot role required"
+        ret = 3, "production or pilot role required"
     # check jediTaskID
     if ret is None:
         try:
             jediTaskID = long(jediTaskID)
         except Exception:
-            ret = 4,'jediTaskID must be an integer'
+            ret = 4, "jediTaskID must be an integer"
     # check increase
     if ret is None:
         wrongNr = False
@@ -2081,77 +2107,89 @@ def increaseAttemptNrPanda(req,jediTaskID,increasedNr):
             increasedNr = long(increasedNr)
         except Exception:
             wrongNr = True
-        if wrongNr or increasedNr<0:
-            ret = 4,'increase must be a positive integer'
+        if wrongNr or increasedNr < 0:
+            ret = 4, "increase must be a positive integer"
     # exec
     if ret is None:
-        ret = userIF.increaseAttemptNrPanda(jediTaskID,increasedNr)
+        ret = userIF.increaseAttemptNrPanda(jediTaskID, increasedNr)
     return WrappedPickle.dumps(ret)
 
 
-
 # change task attribute
-def changeTaskAttributePanda(req,jediTaskID,attrName,attrValue):
+def changeTaskAttributePanda(req, jediTaskID, attrName, attrValue):
     # check security
     if not isSecure(req):
-        return WrappedPickle.dumps((False,'secure connection is required'))
+        return WrappedPickle.dumps((False, "secure connection is required"))
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     # check role
     prodRole = _hasProdRole(req)
     # only prod managers can use this method
     if not prodRole:
-        return WrappedPickle.dumps((False,"production or pilot role required"))
+        return WrappedPickle.dumps((False, "production or pilot role required"))
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
+        return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     # check attribute
-    if attrName not in ['ramCount','wallTime','cpuTime','coreCount']:
-        return WrappedPickle.dumps((2,"disallowed to update {0}".format(attrName)))
-    ret = userIF.changeTaskAttributePanda(jediTaskID,attrName,attrValue)
-    return WrappedPickle.dumps((ret,None))
-
+    if attrName not in ["ramCount", "wallTime", "cpuTime", "coreCount"]:
+        return WrappedPickle.dumps((2, "disallowed to update {0}".format(attrName)))
+    ret = userIF.changeTaskAttributePanda(jediTaskID, attrName, attrValue)
+    return WrappedPickle.dumps((ret, None))
 
 
 # change split rule for task
-def changeTaskSplitRulePanda(req,jediTaskID,attrName,attrValue):
+def changeTaskSplitRulePanda(req, jediTaskID, attrName, attrValue):
     # check security
     if not isSecure(req):
-        return WrappedPickle.dumps((False,'secure connection is required'))
+        return WrappedPickle.dumps((False, "secure connection is required"))
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     # check role
     prodRole = _hasProdRole(req)
     # only prod managers can use this method
     if not prodRole:
-        return WrappedPickle.dumps((False,"production or pilot role required"))
+        return WrappedPickle.dumps((False, "production or pilot role required"))
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
+        return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     # check attribute
-    if attrName not in ['TW', 'EC', 'ES', 'MF', 'NG', 'NI', 'NF', 'NJ', 'AV', 'IL', 'LI', 'LC', 'CC', 'OT']:
-        return WrappedPickle.dumps((2,"disallowed to update {0}".format(attrName)))
-    ret = userIF.changeTaskSplitRulePanda(jediTaskID,attrName,attrValue)
-    return WrappedPickle.dumps((ret,None))
-
+    if attrName not in [
+        "TW",
+        "EC",
+        "ES",
+        "MF",
+        "NG",
+        "NI",
+        "NF",
+        "NJ",
+        "AV",
+        "IL",
+        "LI",
+        "LC",
+        "CC",
+        "OT",
+    ]:
+        return WrappedPickle.dumps((2, "disallowed to update {0}".format(attrName)))
+    ret = userIF.changeTaskSplitRulePanda(jediTaskID, attrName, attrValue)
+    return WrappedPickle.dumps((ret, None))
 
 
 # pause task
-def pauseTask(req,jediTaskID):
+def pauseTask(req, jediTaskID):
     # check security
     if not isSecure(req):
-        return WrappedPickle.dumps((False, 'secure connection is required'))
+        return WrappedPickle.dumps((False, "secure connection is required"))
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     # check role
     prodRole = _hasProdRole(req)
@@ -2162,19 +2200,19 @@ def pauseTask(req,jediTaskID):
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return WrappedPickle.dumps((False, 'jediTaskID must be an integer'))
-    ret = userIF.pauseTask(jediTaskID,user,prodRole)
+        return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
+    ret = userIF.pauseTask(jediTaskID, user, prodRole)
     return WrappedPickle.dumps(ret)
 
 
 # resume task
-def resumeTask(req,jediTaskID):
+def resumeTask(req, jediTaskID):
     # check security
     if not isSecure(req):
-        return WrappedPickle.dumps((False, 'secure connection is required'))
+        return WrappedPickle.dumps((False, "secure connection is required"))
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     # check role
     prodRole = _hasProdRole(req)
@@ -2185,19 +2223,19 @@ def resumeTask(req,jediTaskID):
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return WrappedPickle.dumps((False, 'jediTaskID must be an integer'))
-    ret = userIF.resumeTask(jediTaskID,user,prodRole)
+        return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
+    ret = userIF.resumeTask(jediTaskID, user, prodRole)
     return WrappedPickle.dumps(ret)
 
 
 # force avalanche for task
-def avalancheTask(req,jediTaskID):
+def avalancheTask(req, jediTaskID):
     # check security
     if not isSecure(req):
-        return WrappedPickle.dumps((False, 'secure connection is required'))
+        return WrappedPickle.dumps((False, "secure connection is required"))
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     # check role
     prodRole = _hasProdRole(req)
@@ -2208,20 +2246,19 @@ def avalancheTask(req,jediTaskID):
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return WrappedPickle.dumps((False, 'jediTaskID must be an integer'))
-    ret = userIF.avalancheTask(jediTaskID,user,prodRole)
+        return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
+    ret = userIF.avalancheTask(jediTaskID, user, prodRole)
     return WrappedPickle.dumps(ret)
 
 
-
 # kill unfinished jobs
-def killUnfinishedJobs(req,jediTaskID,code=None,useMailAsID=None):
+def killUnfinishedJobs(req, jediTaskID, code=None, useMailAsID=None):
     # check security
     if not isSecure(req):
         return False
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     # check role
     prodManager = False
@@ -2230,7 +2267,7 @@ def killUnfinishedJobs(req,jediTaskID,code=None,useMailAsID=None):
     # loop over all FQANs
     for fqan in fqans:
         # check production role
-        for rolePat in ['/atlas/usatlas/Role=production','/atlas/Role=production']:
+        for rolePat in ["/atlas/usatlas/Role=production", "/atlas/Role=production"]:
             if fqan.startswith(rolePat):
                 prodManager = True
                 break
@@ -2238,7 +2275,7 @@ def killUnfinishedJobs(req,jediTaskID,code=None,useMailAsID=None):
         if prodManager:
             break
     # use email address as ID
-    if useMailAsID == 'True':
+    if useMailAsID == "True":
         useMailAsID = True
     else:
         useMailAsID = False
@@ -2247,45 +2284,43 @@ def killUnfinishedJobs(req,jediTaskID,code=None,useMailAsID=None):
     # get PandaIDs
     ids = userIF.getPandaIDsWithTaskID(jediTaskID)
     # kill
-    return userIF.killJobs(ids,user,host,code,prodManager,useMailAsID,fqans)
-
+    return userIF.killJobs(ids, user, host, code, prodManager, useMailAsID, fqans)
 
 
 # change modificationTime for task
-def changeTaskModTimePanda(req,jediTaskID,diffValue):
+def changeTaskModTimePanda(req, jediTaskID, diffValue):
     # check security
     if not isSecure(req):
-        return WrappedPickle.dumps((False,'secure connection is required'))
+        return WrappedPickle.dumps((False, "secure connection is required"))
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     # check role
     prodRole = _hasProdRole(req)
     # only prod managers can use this method
     if not prodRole:
-        return WrappedPickle.dumps((False,"production or pilot role required"))
+        return WrappedPickle.dumps((False, "production or pilot role required"))
     # check jediTaskID
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
+        return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     try:
         diffValue = int(diffValue)
         attrValue = datetime.datetime.now() + datetime.timedelta(hours=diffValue)
     except Exception:
-        return WrappedPickle.dumps((False,'failed to convert {0} to time diff'.format(diffValue)))
-    ret = userIF.changeTaskAttributePanda(jediTaskID,'modificationTime',attrValue)
-    return WrappedPickle.dumps((ret,None))
-
+        return WrappedPickle.dumps((False, "failed to convert {0} to time diff".format(diffValue)))
+    ret = userIF.changeTaskAttributePanda(jediTaskID, "modificationTime", attrValue)
+    return WrappedPickle.dumps((ret, None))
 
 
 # get PandaIDs with TaskID
-def getPandaIDsWithTaskID(req,jediTaskID):
+def getPandaIDsWithTaskID(req, jediTaskID):
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
+        return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     idsStr = userIF.getPandaIDsWithTaskID(jediTaskID)
     # deserialize
     ids = WrappedPickle.loads(idsStr)
@@ -2293,27 +2328,26 @@ def getPandaIDsWithTaskID(req,jediTaskID):
     return WrappedPickle.dumps(ids)
 
 
-
 # reactivate Task
-def reactivateTask(req,jediTaskID, keep_attempt_nr=None, trigger_job_generation=None):
+def reactivateTask(req, jediTaskID, keep_attempt_nr=None, trigger_job_generation=None):
     # check security
     if not isSecure(req):
-        return WrappedPickle.dumps((False,'secure connection is required'))
+        return WrappedPickle.dumps((False, "secure connection is required"))
     # check role
     prodManager = _hasProdRole(req)
     if not prodManager:
-        msg = 'production role is required'
-        _logger.error("reactivateTask: "+msg)
+        msg = "production role is required"
+        _logger.error("reactivateTask: " + msg)
         return WrappedPickle.dumps((False, msg))
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
-    if keep_attempt_nr == 'True':
+        return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
+    if keep_attempt_nr == "True":
         keep_attempt_nr = True
     else:
         keep_attempt_nr = False
-    if trigger_job_generation == 'True':
+    if trigger_job_generation == "True":
         trigger_job_generation = True
     else:
         trigger_job_generation = False
@@ -2322,13 +2356,12 @@ def reactivateTask(req,jediTaskID, keep_attempt_nr=None, trigger_job_generation=
     return WrappedPickle.dumps(ret)
 
 
-
 # get task status
-def getTaskStatus(req,jediTaskID):
+def getTaskStatus(req, jediTaskID):
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
+        return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     ret = userIF.getTaskStatus(jediTaskID)
     return WrappedPickle.dumps(ret)
 
@@ -2337,23 +2370,21 @@ def getTaskStatus(req,jediTaskID):
 def reassignShare(req, jedi_task_ids_pickle, share, reassign_running):
     # check security
     if not isSecure(req):
-        return WrappedPickle.dumps((False,'secure connection is required'))
+        return WrappedPickle.dumps((False, "secure connection is required"))
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     # check role
     prod_role = _hasProdRole(req)
     if not prod_role:
-        return WrappedPickle.dumps((False,"production or pilot role required"))
+        return WrappedPickle.dumps((False, "production or pilot role required"))
 
     jedi_task_ids = WrappedPickle.loads(jedi_task_ids_pickle)
-    _logger.debug('reassignShare: jedi_task_ids: {0}, share: {1}, reassign_running: {2}'.format(jedi_task_ids,
-                                                                                                share,
-                                                                                                reassign_running))
+    _logger.debug("reassignShare: jedi_task_ids: {0}, share: {1}, reassign_running: {2}".format(jedi_task_ids, share, reassign_running))
 
     if not ((isinstance(jedi_task_ids, list) or (isinstance(jedi_task_ids, tuple)) and isinstance(share, str))):
-        return WrappedPickle.dumps((False, 'jedi_task_ids must be tuple/list and share must be string'))
+        return WrappedPickle.dumps((False, "jedi_task_ids must be tuple/list and share must be string"))
 
     ret = userIF.reassignShare(jedi_task_ids, share, reassign_running)
     return WrappedPickle.dumps(ret)
@@ -2363,39 +2394,40 @@ def reassignShare(req, jedi_task_ids_pickle, share, reassign_running):
 def listTasksInShare(req, gshare, status):
     # check security
     if not isSecure(req):
-        return WrappedPickle.dumps((False,'secure connection is required'))
+        return WrappedPickle.dumps((False, "secure connection is required"))
     # get DN
     user = None
-    if 'SSL_CLIENT_S_DN' in req.subprocess_env:
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     # check role
     prod_role = _hasProdRole(req)
     if not prod_role:
-        return WrappedPickle.dumps((False,"production or pilot role required"))
+        return WrappedPickle.dumps((False, "production or pilot role required"))
 
-    _logger.debug('listTasksInShare: gshare: {0}, status: {1}'.format(gshare, status))
+    _logger.debug("listTasksInShare: gshare: {0}, status: {1}".format(gshare, status))
 
     if not ((isinstance(gshare, str) and isinstance(status, str))):
-        return WrappedPickle.dumps((False, 'gshare and status must be of type string'))
+        return WrappedPickle.dumps((False, "gshare and status must be of type string"))
 
     ret = userIF.listTasksInShare(gshare, status)
     return WrappedPickle.dumps(ret)
 
+
 # get taskParamsMap with TaskID
-def getTaskParamsMap(req,jediTaskID):
+def getTaskParamsMap(req, jediTaskID):
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
+        return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     ret = userIF.getTaskParamsMap(jediTaskID)
     return WrappedPickle.dumps(ret)
 
 
 # update workers
-def updateWorkers(req,harvesterID,workers):
+def updateWorkers(req, harvesterID, workers):
     # check security
     if not isSecure(req):
-        return json.dumps((False,"SSL is required"))
+        return json.dumps((False, "SSL is required"))
     # get DN
     user = _getDN(req)
     # hostname
@@ -2406,12 +2438,12 @@ def updateWorkers(req,harvesterID,workers):
     try:
         data = json.loads(workers)
     except Exception:
-        retVal = json.dumps((False,"failed to load JSON"))
+        retVal = json.dumps((False, "failed to load JSON"))
     # update
     if retVal is None:
-        retVal = userIF.updateWorkers(user,host,harvesterID,data)
+        retVal = userIF.updateWorkers(user, host, harvesterID, data)
     tDelta = datetime.datetime.utcnow() - tStart
-    _logger.debug("updateWorkers %s took %s.%03d sec" % (harvesterID, tDelta.seconds, tDelta.microseconds/1000))
+    _logger.debug("updateWorkers %s took %s.%03d sec" % (harvesterID, tDelta.seconds, tDelta.microseconds / 1000))
     return retVal
 
 
@@ -2419,7 +2451,7 @@ def updateWorkers(req,harvesterID,workers):
 def updateServiceMetrics(req, harvesterID, metrics):
     # check security
     if not isSecure(req):
-        return json.dumps((False,"SSL is required"))
+        return json.dumps((False, "SSL is required"))
 
     user = _getDN(req)
 
@@ -2431,7 +2463,7 @@ def updateServiceMetrics(req, harvesterID, metrics):
     try:
         data = json.loads(metrics)
     except Exception:
-        retVal = json.dumps((False,"failed to load JSON"))
+        retVal = json.dumps((False, "failed to load JSON"))
 
     # update
     if retVal is None:
@@ -2439,30 +2471,31 @@ def updateServiceMetrics(req, harvesterID, metrics):
 
     tDelta = datetime.datetime.utcnow() - tStart
 
-    _logger.debug("updateServiceMetrics %s took %s.%03d sec" % (harvesterID, tDelta.seconds, tDelta.microseconds/1000))
+    _logger.debug("updateServiceMetrics %s took %s.%03d sec" % (harvesterID, tDelta.seconds, tDelta.microseconds / 1000))
     return retVal
+
 
 # add harvester dialog messages
 def addHarvesterDialogs(req, harvesterID, dialogs):
     # check security
     if not isSecure(req):
-        return json.dumps((False,"SSL is required"))
+        return json.dumps((False, "SSL is required"))
     # get DN
     user = _getDN(req)
     # convert
     try:
         data = json.loads(dialogs)
     except Exception:
-        return json.dumps((False,"failed to load JSON"))
+        return json.dumps((False, "failed to load JSON"))
     # update
-    return userIF.addHarvesterDialogs(user,harvesterID,data)
+    return userIF.addHarvesterDialogs(user, harvesterID, data)
 
 
 # heartbeat for harvester
-def harvesterIsAlive(req,harvesterID,data=None):
+def harvesterIsAlive(req, harvesterID, data=None):
     # check security
     if not isSecure(req):
-        return json.dumps((False,"SSL is required"))
+        return json.dumps((False, "SSL is required"))
     # get DN
     user = _getDN(req)
     # hostname
@@ -2474,28 +2507,30 @@ def harvesterIsAlive(req,harvesterID,data=None):
         else:
             data = dict()
     except Exception:
-        return json.dumps((False,"failed to load JSON"))
+        return json.dumps((False, "failed to load JSON"))
     # update
-    return userIF.harvesterIsAlive(user,host,harvesterID,data)
+    return userIF.harvesterIsAlive(user, host, harvesterID, data)
 
 
 # report stat of workers
 def reportWorkerStats(req, harvesterID, siteName, paramsList):
     # check security
     if not isSecure(req):
-        return json.dumps((False,"SSL is required"))
+        return json.dumps((False, "SSL is required"))
     # update
     ret = userIF.reportWorkerStats(harvesterID, siteName, paramsList)
     return json.dumps(ret)
+
 
 # report stat of workers
 def reportWorkerStats_jobtype(req, harvesterID, siteName, paramsList):
     # check security
     if not isSecure(req):
-        return json.dumps((False,"SSL is required"))
+        return json.dumps((False, "SSL is required"))
     # update
     ret = userIF.reportWorkerStats_jobtype(harvesterID, siteName, paramsList)
     return json.dumps(ret)
+
 
 # set num slots for workload provisioning
 def setNumSlotsForWP(req, pandaQueueName, numSlots, gshare=None, resourceType=None, validPeriod=None):
@@ -2540,9 +2575,8 @@ def getUserJobMetadata(req, jediTaskID):
     try:
         jediTaskID = long(jediTaskID)
     except Exception:
-        return WrappedPickle.dumps((False,'jediTaskID must be an integer'))
+        return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     return userIF.getUserJobMetadata(jediTaskID)
-
 
 
 # get jumbo job datasets
@@ -2550,11 +2584,11 @@ def getJumboJobDatasets(req, n_days, grace_period=0):
     try:
         n_days = long(n_days)
     except Exception:
-        return WrappedPickle.dumps((False,'wrong n_days'))
+        return WrappedPickle.dumps((False, "wrong n_days"))
     try:
         grace_period = long(grace_period)
     except Exception:
-        return WrappedPickle.dumps((False,'wrong grace_period'))
+        return WrappedPickle.dumps((False, "wrong grace_period"))
     return userIF.getJumboJobDatasets(n_days, grace_period)
 
 
@@ -2562,7 +2596,7 @@ def getJumboJobDatasets(req, n_days, grace_period=0):
 def getGShareStatus(req):
     # check security
     if not isSecure(req):
-        return json.dumps((False,"SSL is required"))
+        return json.dumps((False, "SSL is required"))
     ret = userIF.getGShareStatus()
     return json.dumps(ret)
 
@@ -2571,7 +2605,7 @@ def getGShareStatus(req):
 def sweepPQ(req, panda_queue, status_list, ce_list, submission_host_list):
     # check security
     if not isSecure(req):
-        return json.dumps((False,"SSL is required"))
+        return json.dumps((False, "SSL is required"))
     # check role
     prod_role = _hasProdRole(req)
     if not prod_role:
@@ -2594,7 +2628,10 @@ def decode_idds_enum(d):
 
 # relay iDDS command
 def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None, json_outputs=None):
-    tmpLog = LogWrapper(_logger, 'relay_idds_command-{}'.format(datetime.datetime.utcnow().isoformat('/')))
+    tmpLog = LogWrapper(
+        _logger,
+        "relay_idds_command-{}".format(datetime.datetime.utcnow().isoformat("/")),
+    )
     # check security
     if not isSecure(req):
         tmpStr = "SSL is required"
@@ -2604,8 +2641,8 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None, 
         manager = resolve_bool(manager)
         if not manager:
             manager = False
-        if '+' in command_name:
-            command_name, idds_host = command_name.split('+')
+        if "+" in command_name:
+            command_name, idds_host = command_name.split("+")
         else:
             idds_host = idds.common.utils.get_rest_host()
         if manager:
@@ -2620,7 +2657,7 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None, 
             try:
                 args = idds.common.utils.json_loads(args)
             except Exception as e:
-                tmpLog.warning('failed to load args json with {}'.format(str(e)))
+                tmpLog.warning("failed to load args json with {}".format(str(e)))
                 args = json.loads(args, object_hook=decode_idds_enum)
         else:
             args = []
@@ -2628,7 +2665,7 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None, 
             try:
                 kwargs = idds.common.utils.json_loads(kwargs)
             except Exception as e:
-                tmpLog.warning('failed to load kwargs json with {}'.format(str(e)))
+                tmpLog.warning("failed to load kwargs json with {}".format(str(e)))
                 kwargs = json.loads(kwargs, object_hook=decode_idds_enum)
         else:
             kwargs = {}
@@ -2636,11 +2673,18 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None, 
         if json_outputs and manager:
             c.setup_json_outputs()
         # set original username
-        dn = req.subprocess_env.get('SSL_CLIENT_S_DN')
+        dn = req.subprocess_env.get("SSL_CLIENT_S_DN")
         if dn:
             c.set_original_user(user_name=clean_user_id(dn))
-        tmpLog.debug("execute: class={} com={} host={} args={} kwargs={}".format(
-            c.__class__.__name__, command_name, idds_host, str(args)[:200], str(kwargs)[:200]))
+        tmpLog.debug(
+            "execute: class={} com={} host={} args={} kwargs={}".format(
+                c.__class__.__name__,
+                command_name,
+                idds_host,
+                str(args)[:200],
+                str(kwargs)[:200],
+            )
+        )
         ret = getattr(c, command_name)(*args, **kwargs)
         tmpLog.debug("ret: {}".format(str(ret)[:200]))
         try:
@@ -2648,7 +2692,7 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None, 
         except Exception:
             return idds.common.utils.json_dumps((True, ret))
     except Exception as e:
-        tmpStr = 'failed to execute command with {}'.format(str(e))
+        tmpStr = "failed to execute command with {}".format(str(e))
         tmpLog.error("{} {}".format(tmpStr, traceback.format_exc()))
         return json.dumps((False, tmpStr))
 
@@ -2656,7 +2700,10 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None, 
 # relay iDDS workflow command with ownership check
 def execute_idds_workflow_command(req, command_name, kwargs=None, json_outputs=None):
     try:
-        tmpLog = LogWrapper(_logger, 'execute_idds_workflow_command-{}'.format(datetime.datetime.utcnow().isoformat('/')))
+        tmpLog = LogWrapper(
+            _logger,
+            "execute_idds_workflow_command-{}".format(datetime.datetime.utcnow().isoformat("/")),
+        )
         if kwargs:
             try:
                 kwargs = idds.common.utils.json_loads(kwargs)
@@ -2664,68 +2711,68 @@ def execute_idds_workflow_command(req, command_name, kwargs=None, json_outputs=N
                 kwargs = json.loads(kwargs, object_hook=decode_idds_enum)
         else:
             kwargs = {}
-        if '+' in command_name:
-            command_name, idds_host = command_name.split('+')
+        if "+" in command_name:
+            command_name, idds_host = command_name.split("+")
         else:
             idds_host = idds.common.utils.get_rest_host()
         # check permission
-        if command_name in ['get_status']:
+        if command_name in ["get_status"]:
             check_owner = False
-        elif command_name in ['abort', 'suspend', 'resume', 'retry', 'finish']:
+        elif command_name in ["abort", "suspend", "resume", "retry", "finish"]:
             check_owner = True
         else:
-            tmpMsg = '{} is unsupported'.format(command_name)
+            tmpMsg = "{} is unsupported".format(command_name)
             tmpLog.error(tmpMsg)
             return json.dumps((False, tmpMsg))
         # check owner
         c = iDDS_ClientManager(idds_host)
         if json_outputs:
             c.setup_json_outputs()
-        dn = req.subprocess_env.get('SSL_CLIENT_S_DN')
+        dn = req.subprocess_env.get("SSL_CLIENT_S_DN")
         if check_owner:
             # requester
             if not dn:
-                tmpMsg = 'SSL_CLIENT_S_DN is missing in HTTP request'
+                tmpMsg = "SSL_CLIENT_S_DN is missing in HTTP request"
                 tmpLog.error(tmpMsg)
                 return json.dumps((False, tmpMsg))
             requester = clean_user_id(dn)
             # get request_id
-            request_id = kwargs.get('request_id')
+            request_id = kwargs.get("request_id")
             if request_id is None:
-                tmpMsg = 'request_id is missing'
+                tmpMsg = "request_id is missing"
                 tmpLog.error(tmpMsg)
                 return json.dumps((False, tmpMsg))
             # get request
             req = c.get_requests(request_id=request_id)
             if not req:
-                tmpMsg = 'request {} is not found'.format(request_id)
+                tmpMsg = "request {} is not found".format(request_id)
                 tmpLog.error(tmpMsg)
                 return json.dumps((False, tmpMsg))
-            user_name = req[0].get('username')
+            user_name = req[0].get("username")
             if user_name and user_name != requester:
-                tmpMsg = 'request {} is not owned by {}'.format(request_id, requester)
+                tmpMsg = "request {} is not owned by {}".format(request_id, requester)
                 tmpLog.error(tmpMsg)
                 return json.dumps((False, tmpMsg))
         # set original username
         if dn:
             c.set_original_user(user_name=clean_user_id(dn))
         # execute command
-        tmpLog.debug('com={} host={} kwargs={}'.format(command_name, idds_host, str(kwargs)))
+        tmpLog.debug("com={} host={} kwargs={}".format(command_name, idds_host, str(kwargs)))
         ret = getattr(c, command_name)(**kwargs)
         tmpLog.debug(str(ret))
-        if isinstance(ret, dict) and 'message' in ret:
-            return json.dumps((True, [ret['status'], ret['message']]))
+        if isinstance(ret, dict) and "message" in ret:
+            return json.dumps((True, [ret["status"], ret["message"]]))
         return json.dumps((True, ret))
     except Exception as e:
-        tmpLog.error('failed with {} {}'.format(str(e), traceback.format_exc()))
-        return json.dumps((False, 'server failed with {}'.format(str(e))))
+        tmpLog.error("failed with {} {}".format(str(e), traceback.format_exc()))
+        return json.dumps((False, "server failed with {}".format(str(e))))
 
 
 # send command to a job
 def send_command_to_job(req, panda_id, com):
     # check security
     if not isSecure(req):
-        return json.dumps((False,"SSL is required"))
+        return json.dumps((False, "SSL is required"))
     # check role
     prod_role = _hasProdRole(req)
     if not prod_role:
@@ -2735,11 +2782,11 @@ def send_command_to_job(req, panda_id, com):
 
 # set user secret
 def set_user_secret(req, key=None, value=None):
-    tmpLog = LogWrapper(_logger, 'set_user_secret-{}'.format(datetime.datetime.utcnow().isoformat('/')))
+    tmpLog = LogWrapper(_logger, "set_user_secret-{}".format(datetime.datetime.utcnow().isoformat("/")))
     # get owner
-    dn = req.subprocess_env.get('SSL_CLIENT_S_DN')
+    dn = req.subprocess_env.get("SSL_CLIENT_S_DN")
     if not dn:
-        tmpMsg = 'SSL_CLIENT_S_DN is missing in HTTP request'
+        tmpMsg = "SSL_CLIENT_S_DN is missing in HTTP request"
         tmpLog.error(tmpMsg)
         return json.dumps((False, tmpMsg))
     owner = clean_user_id(dn)
@@ -2748,15 +2795,15 @@ def set_user_secret(req, key=None, value=None):
 
 # get user secrets
 def get_user_secrets(req, keys=None, get_json=None):
-    tmpLog = LogWrapper(_logger, 'get_user_secrets-{}'.format(datetime.datetime.utcnow().isoformat('/')))
+    tmpLog = LogWrapper(_logger, "get_user_secrets-{}".format(datetime.datetime.utcnow().isoformat("/")))
     # get owner
-    dn = req.subprocess_env.get('SSL_CLIENT_S_DN')
-    if get_json == 'True':
+    dn = req.subprocess_env.get("SSL_CLIENT_S_DN")
+    if get_json == "True":
         get_json = True
     else:
         get_json = False
     if not dn:
-        tmpMsg = 'SSL_CLIENT_S_DN is missing in HTTP request'
+        tmpMsg = "SSL_CLIENT_S_DN is missing in HTTP request"
         tmpLog.error(tmpMsg)
         return json.dumps((False, tmpMsg))
     owner = clean_user_id(dn)
@@ -2764,8 +2811,8 @@ def get_user_secrets(req, keys=None, get_json=None):
 
 
 # get files in datasets
-def get_files_in_datasets(req, task_id, dataset_types='input,pseudo_input'):
+def get_files_in_datasets(req, task_id, dataset_types="input,pseudo_input"):
     # check security
     if not isSecure(req):
-        return json.dumps((False,"SSL is required"))
+        return json.dumps((False, "SSL is required"))
     return json.dumps(userIF.get_files_in_datasets(task_id, dataset_types))

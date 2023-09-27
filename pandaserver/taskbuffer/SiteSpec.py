@@ -8,15 +8,60 @@ import re
 
 class SiteSpec(object):
     # attributes
-    _attributes = ('sitename', 'nickname', 'dq2url', 'cloud', 'ddm', 'ddm_input', 'ddm_output', 'type',
-                   'releases', 'memory', 'maxtime', 'status', 'space', 'setokens_input', 'setokens_output',
-                   'priorityoffset', 'defaulttoken', 'validatedreleases', 'maxinputsize', 'comment', 'cloudlist',
-                   'statusmodtime', 'pledgedCPU', 'coreCount', 'reliabilityLevel', 'iscvmfs', 'transferringlimit',
-                   'maxwdir', 'fairsharePolicy', 'mintime', 'allowfax', 'pandasite',
-                   'corepower', 'wnconnectivity', 'catchall', 'role', 'pandasite_state',
-                   'ddm_endpoints_input', 'ddm_endpoints_output', 'maxrss', 'minrss',
-                   'direct_access_lan', 'direct_access_wan', 'tier', 'objectstores', 'is_unified', 'unified_name',
-                   'jobseed', 'capability', 'num_slots_map', 'workflow', 'maxDiskio')
+    _attributes = (
+        "sitename",
+        "nickname",
+        "dq2url",
+        "cloud",
+        "ddm",
+        "ddm_input",
+        "ddm_output",
+        "type",
+        "releases",
+        "memory",
+        "maxtime",
+        "status",
+        "space",
+        "setokens_input",
+        "setokens_output",
+        "priorityoffset",
+        "defaulttoken",
+        "validatedreleases",
+        "maxinputsize",
+        "comment",
+        "cloudlist",
+        "statusmodtime",
+        "pledgedCPU",
+        "coreCount",
+        "reliabilityLevel",
+        "iscvmfs",
+        "transferringlimit",
+        "maxwdir",
+        "fairsharePolicy",
+        "mintime",
+        "allowfax",
+        "pandasite",
+        "corepower",
+        "wnconnectivity",
+        "catchall",
+        "role",
+        "pandasite_state",
+        "ddm_endpoints_input",
+        "ddm_endpoints_output",
+        "maxrss",
+        "minrss",
+        "direct_access_lan",
+        "direct_access_wan",
+        "tier",
+        "objectstores",
+        "is_unified",
+        "unified_name",
+        "jobseed",
+        "capability",
+        "num_slots_map",
+        "workflow",
+        "maxDiskio",
+    )
 
     # constructor
     def __init__(self):
@@ -26,9 +71,9 @@ class SiteSpec(object):
 
     # serialize
     def __str__(self):
-        str = ''
+        str = ""
         for attr in self._attributes:
-            str += '%s:%s ' % (attr, getattr(self, attr))
+            str += "%s:%s " % (attr, getattr(self, attr))
         return str
 
     # check if direct IO is used when tasks allow it
@@ -39,7 +84,7 @@ class SiteSpec(object):
 
     # get resource type
     def getResourceType(self):
-        if self.type == 'analysis':
+        if self.type == "analysis":
             return "ANALY"
         if self.coreCount > 1:
             return "MCORE"
@@ -49,15 +94,15 @@ class SiteSpec(object):
     def getJobSeed(self):
         tmpVal = self.jobseed
         if tmpVal is None:
-            return 'std'
+            return "std"
         return tmpVal
 
     # get value from catchall
     def getValueFromCatchall(self, key):
         if self.catchall is None:
             return None
-        for tmpItem in self.catchall.split(','):
-            tmpMatch = re.search('^{0}=(.+)'.format(key), tmpItem)
+        for tmpItem in self.catchall.split(","):
+            tmpMatch = re.search("^{0}=(.+)".format(key), tmpItem)
             if tmpMatch is not None:
                 return tmpMatch.group(1)
         return None
@@ -66,8 +111,8 @@ class SiteSpec(object):
     def hasValueInCatchall(self, key):
         if self.catchall is None:
             return False
-        for tmpItem in self.catchall.split(','):
-            tmpMatch = re.search('^{0}(=|)*'.format(key), tmpItem)
+        for tmpItem in self.catchall.split(","):
+            tmpMatch = re.search("^{0}(=|)*".format(key), tmpItem)
             if tmpMatch is not None:
                 return True
         return False
@@ -78,24 +123,24 @@ class SiteSpec(object):
 
     # use jumbo jobs
     def useJumboJobs(self):
-        return self.hasValueInCatchall('useJumboJobs')
+        return self.hasValueInCatchall("useJumboJobs")
 
     # GPU
     def isGPU(self):
-        return self.hasValueInCatchall('gpu')
+        return self.hasValueInCatchall("gpu")
 
     def is_grandly_unified(self):
-        if self.hasValueInCatchall('grandly_unified') or self.type == 'unified':
+        if self.hasValueInCatchall("grandly_unified") or self.type == "unified":
             return True
         return False
 
     def runs_production(self):
-        if self.type == 'production' or self.is_grandly_unified():
+        if self.type == "production" or self.is_grandly_unified():
             return True
         return False
 
     def runs_analysis(self):
-        if self.type == 'analysis' or self.is_grandly_unified():
+        if self.type == "analysis" or self.is_grandly_unified():
             return True
         return False
 
@@ -107,14 +152,14 @@ class SiteSpec(object):
 
     # get number of simulated events for dynamic number of events
     def get_n_sim_events(self):
-        tmpVal = self.getValueFromCatchall('nSimEvents')
+        tmpVal = self.getValueFromCatchall("nSimEvents")
         if tmpVal is None:
             return None
         return int(tmpVal)
 
     # get minimum of remainig events for jumbo jobs
     def getMinEventsForJumbo(self):
-        tmpVal = self.getValueFromCatchall('minEventsForJumbo')
+        tmpVal = self.getValueFromCatchall("minEventsForJumbo")
         if tmpVal is None:
             return None
         return int(tmpVal)
@@ -144,7 +189,7 @@ class SiteSpec(object):
 
     # get max disk per core
     def get_max_disk_per_core(self):
-        tmpVal = self.getValueFromCatchall('maxDiskPerCore')
+        tmpVal = self.getValueFromCatchall("maxDiskPerCore")
         try:
             return int(tmpVal)
         except Exception:
@@ -153,16 +198,15 @@ class SiteSpec(object):
 
     # use local data only
     def use_only_local_data(self):
-        return self.hasValueInCatchall('use_only_local_data')
+        return self.hasValueInCatchall("use_only_local_data")
 
     # check if use VP
     def use_vp(self, scope):
         # use default scope if missing
         if scope not in self.ddm_endpoints_input:
-            scope = 'default'
+            scope = "default"
         # check if VP_DISK is associated
-        if scope in self.ddm_endpoints_input and \
-                [i for i in self.ddm_endpoints_input[scope].getAllEndPoints() if i.endswith('_VP_DISK')]:
+        if scope in self.ddm_endpoints_input and [i for i in self.ddm_endpoints_input[scope].getAllEndPoints() if i.endswith("_VP_DISK")]:
             return True
         return False
 
@@ -172,14 +216,14 @@ class SiteSpec(object):
 
     # disable reassign
     def disable_reassign(self):
-        if self.hasValueInCatchall('disableReassign'):
+        if self.hasValueInCatchall("disableReassign"):
             return True
-        self.status == 'paused'
+        self.status == "paused"
 
     # get job chunk size
     def get_job_chunk_size(self):
         try:
-            return int(self.getValueFromCatchall('jobChunkSize'))
+            return int(self.getValueFromCatchall("jobChunkSize"))
         except Exception:
             return None
 
@@ -187,7 +231,7 @@ class SiteSpec(object):
     def get_wn_connectivity(self):
         if self.wnconnectivity is None:
             return None
-        items = self.wnconnectivity.split('#')
+        items = self.wnconnectivity.split("#")
         if not items or not items[0]:
             return None
         else:
@@ -197,7 +241,7 @@ class SiteSpec(object):
     def get_ipstack(self):
         if self.wnconnectivity is None:
             return None
-        items = self.wnconnectivity.split('#')
+        items = self.wnconnectivity.split("#")
         if len(items) == 2 and items[-1]:
             return items[-1]
         else:
@@ -205,14 +249,14 @@ class SiteSpec(object):
 
     # get bare nucleus mode
     def bare_nucleus_mode(self):
-        mode = self.getValueFromCatchall('bareNucleus')
-        if mode in ['only', 'allow']:
+        mode = self.getValueFromCatchall("bareNucleus")
+        if mode in ["only", "allow"]:
             return mode
         return None
 
     # get secondary nucleus
     def secondary_nucleus(self):
-        n = self.getValueFromCatchall('secondaryNucleus')
+        n = self.getValueFromCatchall("secondaryNucleus")
         if n:
             return n
         return None

@@ -1,4 +1,4 @@
-############## errror code
+# errror code
 
 # killed
 EC_Kill = 100
@@ -15,7 +15,7 @@ EC_Aborted = 103
 # wait timeout
 EC_WaitTimeout = 104
 
-# reassigned by rebrokeage 
+# reassigned by rebrokeage
 EC_Reassigned = 105
 
 # reassigned by server-side retry
@@ -42,7 +42,7 @@ EC_EventServiceMaxAttempt = 114
 # do nothing since other consumers are still running
 EC_EventServiceWaitOthers = 115
 
-# killed since unused and unnecessary any more 
+# killed since unused and unnecessary any more
 EC_EventServiceUnused = 116
 
 # didn't process any events on WN
@@ -85,13 +85,12 @@ EC_JobCloningUnlock = 200
 EC_WorkerDone = 300
 
 
-
-
 # file not found
 class EC_NotFound:
     pass
 
+
 # file relocated
 class EC_Redirect:
-    def __init__(self,url):
+    def __init__(self, url):
         self.url = url

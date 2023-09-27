@@ -6,18 +6,18 @@ except NameError:
     long = int
 
 # list of prod source label for pilot tests
-list_ptest_prod_sources = ['ptest', 'rc_test', 'rc_test2', 'rc_alrb']
+list_ptest_prod_sources = ["ptest", "rc_test", "rc_test2", "rc_alrb"]
 
 # mapping with prodsourcelabels that belong to analysis and production
-analy_sources = ['user', 'panda']
-prod_sources = ['managed', 'prod_test']
-neutral_sources = ['install'] + list_ptest_prod_sources
+analy_sources = ["user", "panda"]
+prod_sources = ["managed", "prod_test"]
+neutral_sources = ["install"] + list_ptest_prod_sources
 
-ANALY_PS = 'user'
-PROD_PS = 'managed'
+ANALY_PS = "user"
+PROD_PS = "managed"
 
-ANALY_TASKTYPE = 'anal'
-PROD_TASKTYPE = 'prod'
+ANALY_TASKTYPE = "anal"
+PROD_TASKTYPE = "prod"
 
 job_labels = [ANALY_PS, PROD_PS]
 
@@ -27,7 +27,7 @@ priorityTasksToJumpOver = 1500
 
 def translate_resourcetype_to_cores(resource_type, cores_queue):
     # resolve the multiplying core factor
-    if 'MCORE' in resource_type:
+    if "MCORE" in resource_type:
         return cores_queue
     else:
         return 1
@@ -41,9 +41,9 @@ def translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel):
         return PROD_PS
 
     if prodsourcelabel in neutral_sources:
-        if queue_type == 'unified' or queue_type == 'production':
+        if queue_type == "unified" or queue_type == "production":
             return PROD_PS
-        if queue_type == 'analysis':
+        if queue_type == "analysis":
             return ANALY_PS
 
     # currently unmapped
@@ -68,7 +68,7 @@ def getCoreCount(actualCoreCount, defCoreCount, jobMetrics):
             tmpMatch = None
             if jobMetrics is not None:
                 # extract coreCount
-                tmpMatch = re.search('coreCount=(\d+)',jobMetrics)
+                tmpMatch = re.search("coreCount=(\d+)", jobMetrics)
             if tmpMatch is not None:
                 coreCount = long(tmpMatch.group(1))
             else:
@@ -87,26 +87,24 @@ def getHS06sec(startTime, endTime, corePower, coreCount, baseWalltime=0, cpuEffi
         if cpuEfficiency == 0:
             return 0
         # get execution time
-        tmpTimeDelta = endTime-startTime
+        tmpTimeDelta = endTime - startTime
         tmpVal = tmpTimeDelta.seconds + tmpTimeDelta.days * 24 * 3600
         if tmpVal <= baseWalltime:
             return 0
-        hs06sec = float(tmpVal-baseWalltime) * corePower * coreCount * float(cpuEfficiency) / 100.0
+        hs06sec = float(tmpVal - baseWalltime) * corePower * coreCount * float(cpuEfficiency) / 100.0
         return hs06sec
     except Exception:
         return None
 
 
 def get_job_co2(start_time, end_time, core_count, energy_emissions, watts_per_core):
-
     energy_emissions_by_ts = {}
     for entry in energy_emissions:
         aux_timestamp, region, value = entry
-        energy_emissions_by_ts[aux_timestamp] = {'value': value}
+        energy_emissions_by_ts[aux_timestamp] = {"value": value}
 
     try:
-        timestamps = [entry[0] for entry in energy_emissions]
-        timestamps.sort()
+        timestamps = sorted([entry[0] for entry in energy_emissions])
 
         started = False
         ended = False
@@ -131,7 +129,7 @@ def get_job_co2(start_time, end_time, core_count, energy_emissions, watts_per_co
                 except IndexError:
                     top = end_time
 
-                g_co2_perkWh = energy_emissions_by_ts[timestamp]['value']
+                g_co2_perkWh = energy_emissions_by_ts[timestamp]["value"]
 
                 duration = max((top - bottom).total_seconds(), 0)
                 g_co2_job = g_co2_job + (duration * g_co2_perkWh * core_count * watts_per_core / 3600 / 1000)
@@ -151,21 +149,21 @@ def get_job_co2(start_time, end_time, core_count, energy_emissions, watts_per_co
 def parseNumStandby(catchall):
     retMap = {}
     if catchall is not None:
-        for tmpItem in catchall.split(','):
-            tmpMatch = re.search('^nStandby=(.+)', tmpItem)
+        for tmpItem in catchall.split(","):
+            tmpMatch = re.search("^nStandby=(.+)", tmpItem)
             if tmpMatch is None:
                 continue
-            for tmpSubStr in tmpMatch.group(1).split('|'):
-                if len(tmpSubStr.split(':')) != 3:
+            for tmpSubStr in tmpMatch.group(1).split("|"):
+                if len(tmpSubStr.split(":")) != 3:
                     continue
-                sw_id, resource_type, num = tmpSubStr.split(':')
+                sw_id, resource_type, num = tmpSubStr.split(":")
                 try:
                     sw_id = int(sw_id)
                 except Exception:
                     pass
                 if sw_id not in retMap:
                     retMap[sw_id] = {}
-                if num == '':
+                if num == "":
                     num = 0
                 else:
                     num = int(num)
@@ -176,9 +174,8 @@ def parseNumStandby(catchall):
 
 # compensate memory count to prevent jobs with ramCount close to the HIMEM border from going to HIMEM PQs
 def compensate_ram_count(ram_count):
-    if ram_count == 'NULL':
+    if ram_count == "NULL":
         ram_count = None
     if ram_count is not None:
         ram_count = int(ram_count * 0.90)
     return ram_count
-

@@ -1,4 +1,4 @@
-__author__ = 'retmas'
+__author__ = "retmas"
 
 import logging
 import logging.handlers
@@ -18,27 +18,17 @@ class Singleton(type):
 
 class Logger(object, metaclass=Singleton):
     _config = {
-        'version': 1,
-        'disable_existing_loggers': False,
-        'formatters': {
-            'default': {
-                'format':
-                    '[%(asctime)s] [%(process)d] [%(levelname)s] [%(module)s] [%(funcName)s:%(lineno)d] - %(message)s'
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {"default": {"format": "[%(asctime)s] [%(process)d] [%(levelname)s] [%(module)s] [%(funcName)s:%(lineno)d] - %(message)s"}},
+        "handlers": {
+            "console": {
+                "level": "DEBUG",
+                "class": "logging.StreamHandler",
+                "formatter": "default",
             }
         },
-        'handlers': {
-            'console': {
-                'level': 'DEBUG',
-                'class': 'logging.StreamHandler',
-                'formatter': 'default'
-            }
-        },
-        'loggers': {
-            'snakeparser.log': {
-                'handlers': ['console'],
-                'level': 'INFO'
-            }
-        }
+        "loggers": {"snakeparser.log": {"handlers": ["console"], "level": "INFO"}},
     }
 
     def __init__(self):
@@ -51,8 +41,7 @@ class Logger(object, metaclass=Singleton):
     @staticmethod
     def set_log_file(filename, max_bytes=0, backup_count=0, remove_console=False):
         logger = Logger().get()
-        handler = logging.handlers.RotatingFileHandler(filename, maxBytes=max_bytes, backupCount=backup_count,
-                                                       encoding='utf-8')
+        handler = logging.handlers.RotatingFileHandler(filename, maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8")
         handler.formatter = logger.handlers[0].formatter
         handler.level = logging.DEBUG
         logger.addHandler(handler)

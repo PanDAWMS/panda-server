@@ -14,7 +14,7 @@ from pandaserver.dataservice import RecoverLostFilesCore
 from pandacommon.pandautils.thread_utils import GenericThread
 
 # logger
-_logger = PandaLogger().getLogger('recover_lost_files')
+_logger = PandaLogger().getLogger("recover_lost_files")
 
 
 # main
@@ -24,15 +24,20 @@ def main(tbuf=None, **kwargs):
     # overall timeout value
     overallTimeout = 300
     # prefix of the files
-    prefixEVP = 'recov.'
+    prefixEVP = "recov."
     # file pattern of evp files
-    evpFilePatt = panda_config.cache_dir + '/' + prefixEVP + '*'
+    evpFilePatt = panda_config.cache_dir + "/" + prefixEVP + "*"
 
     from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 
     requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
-    taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd,
-                    nDBConnection=1, useTimeout=True, requester=requester_id)
+    taskBuffer.init(
+        panda_config.dbhost,
+        panda_config.dbpasswd,
+        nDBConnection=1,
+        useTimeout=True,
+        requester=requester_id,
+    )
 
     # thread pool
     class ThreadPool:
@@ -72,12 +77,12 @@ def main(tbuf=None, **kwargs):
             self.lock.acquire()
             with open(self.fileName) as f:
                 ops = json.load(f)
-                tmpLog = LogWrapper(_logger, '< jediTaskID={} >'.format(ops['jediTaskID']))
-                tmpLog.info('start {}'.format(self.fileName))
+                tmpLog = LogWrapper(_logger, "< jediTaskID={} >".format(ops["jediTaskID"]))
+                tmpLog.info("start {}".format(self.fileName))
                 s, o = RecoverLostFilesCore.main(self.taskBuffer, ops, tmpLog)
-                tmpLog.info('status={}. {}'.format(s, o))
+                tmpLog.info("status={}. {}".format(s, o))
                 if s is not None or self.to_delete:
-                    tmpLog.debug('delete {}'.format(self.fileName))
+                    tmpLog.debug("delete {}".format(self.fileName))
                     try:
                         os.remove(self.fileName)
                     except Exception:
@@ -88,8 +93,7 @@ def main(tbuf=None, **kwargs):
     # get files
     timeNow = datetime.datetime.utcnow()
     timeInt = datetime.datetime.utcnow()
-    fileList = glob.glob(evpFilePatt)
-    fileList.sort()
+    fileList = sorted(glob.glob(evpFilePatt))
 
     # create thread pool and semaphore
     adderLock = threading.Semaphore(1)
@@ -107,8 +111,7 @@ def main(tbuf=None, **kwargs):
         if (datetime.datetime.utcnow() - timeInt) > datetime.timedelta(minutes=15):
             timeInt = datetime.datetime.utcnow()
             # get file
-            fileList = glob.glob(evpFilePatt)
-            fileList.sort()
+            fileList = sorted(glob.glob(evpFilePatt))
         # choose a file
         fileName = fileList.pop(0)
         # release lock
@@ -142,5 +145,5 @@ def main(tbuf=None, **kwargs):
 
 
 # run
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
