@@ -179,7 +179,9 @@ def core_exec(sandbox_url, log_token, dump_workflow, ops_file, user_name, test_m
                 # parse workflow files
                 if is_OK:
                     tmpLog.info("parse workflow")
+                    workflow_name = None
                     if ops["data"]["language"] == "cwl":
+                        workflow_name = ops["data"].get("workflow_name")
                         nodes, root_in = pcwl_utils.parse_workflow_file(ops["data"]["workflowSpecFile"], tmpLog)
                         with open(ops["data"]["workflowInputFile"]) as workflow_input:
                             data = yaml.safe_load(workflow_input)
@@ -229,13 +231,14 @@ def core_exec(sandbox_url, log_token, dump_workflow, ops_file, user_name, test_m
                         (
                             workflow_to_submit,
                             dump_str_list,
-                        ) = workflow_utils.convert_nodes_to_workflow(nodes)
+                        ) = workflow_utils.convert_nodes_to_workflow(nodes, workflow_name=workflow_name)
                         try:
                             if workflow_to_submit:
                                 if not test_mode:
                                     tmpLog.info("submit workflow")
                                     wm = ClientManager(host=get_rest_host())
-                                    request_id = wm.submit(workflow_to_submit, username=user_name)
+                                    request_id = wm.submit(workflow_to_submit, username=user_name,
+                                                           use_dataset_name=False)
                             else:
                                 dump_str = "workflow is empty"
                                 tmpLog.error(dump_str)
