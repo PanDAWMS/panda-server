@@ -917,7 +917,7 @@ def main(tbuf=None, **kwargs):
         # loop over all fetch data methods to run and update to DB
         for metric_name, key_type, period in metric_list:
             # metric lock
-            lock_component_name = "pandaMetr.{0:.30}.{1:0x}".format(metric_name, adler32(metric_name.encode("utf-8")))
+            lock_component_name = "pandaMetr.{0:.16}.{1:0x}".format(metric_name, adler32(metric_name.encode("utf-8")))
             # try to get lock
             got_lock = taskBuffer.lockProcess_PANDA(component=lock_component_name, pid=my_full_pid, time_limit=period)
             if got_lock:
