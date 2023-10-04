@@ -2981,13 +2981,25 @@ class DBProxy:
                 # make SQL
                 if inJobsDefined:
                     sql1 = "UPDATE ATLAS_PANDA.jobsDefined4 SET %s " % job.bindUpdateChangesExpression()
+                    sql_last_jobstatus = "SELECT jobStatus FROM ATLAS_PANDA.jobsDefined4 "
                 else:
                     sql1 = "UPDATE ATLAS_PANDA.jobsActive4 SET %s " % job.bindUpdateChangesExpression()
+                    sql_last_jobstatus = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 "
                 sql1 += "WHERE PandaID=:PandaID "
+                sql_last_jobstatus += "WHERE PandaID=:PandaID "
                 if inJobsDefined:
                     sql1 += " AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2) "
                 # begin transaction
                 self.conn.begin()
+                # get jobstatus before update
+                varMap = {":PandaID": job.PandaID}
+                _logger.debug(sql_last_jobstatus + comment + str(varMap))
+                self.cur.execute(sql_last_jobstatus + comment, varMap)
+                res_last_jobstatus = self.cur.fetchall()
+                last_jobstatus = None
+                for (js,) in res_last_jobstatus:
+                    last_jobstatus = js
+                    break
                 # update
                 varMap = job.valuesMap(onlyChanged=True)
                 varMap[":PandaID"] = job.PandaID
@@ -3168,7 +3180,7 @@ class DBProxy:
                     raise RuntimeError("Commit error")
                 # record status change
                 try:
-                    if updatedFlag:
+                    if updatedFlag and job.jobStatus != last_jobstatus:
                         self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)
                         self.push_job_status_message(job, job.PandaID, job.jobStatus)
                 except Exception:
@@ -15233,8 +15245,7 @@ class DBProxy:
                     inDSs.add(targetName)
             inDSs = sorted(inDSs)
             retDict["inDS"] = ",".join(inDSs)
-            outDSs = list(outDSs)
-            outDSs.sort()
+            outDSs = sorted(outDSs)
             retDict["outDS"] = ",".join(outDSs)
             # get job status
             varMap = {}
@@ -15246,8 +15257,7 @@ class DBProxy:
             jobStatMap = dict()
             for proc_status, ninputs in resJS:
                 jobStatMap[proc_status] = ninputs
-            psList = list(jobStatMap)
-            psList.sort()
+            psList = sorted(jobStatMap)
             retDict["statistics"] = ",".join(["{0}*{1}".format(j, jobStatMap[j]) for j in psList])
             # command line parameters
             varMap = {}
