@@ -3585,7 +3585,7 @@ class DBProxy:
                         raise RuntimeError("Commit error")
                     # record status change
                     try:
-                        if updatedFlag and oldJobStatus != job.jobStatus:
+                        if updatedFlag:
                             self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)
                             self.push_job_status_message(job, job.PandaID, job.jobStatus)
                     except Exception:
