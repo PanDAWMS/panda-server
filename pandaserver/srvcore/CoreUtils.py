@@ -1,5 +1,6 @@
 import re
 import os
+import json
 import datetime
 import subprocess
 from threading import Lock
@@ -158,3 +159,18 @@ class CachedObject:
     def __getitem__(self, name):
         self.update()
         return self.cachedObj[name]
+
+
+# convert datetime to string
+class NonJsonObjectEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime.datetime):
+            return {"_datetime_object": obj.strftime("%Y-%m-%d %H:%M:%S.%f")}
+        return json.JSONEncoder.default(self, obj)
+
+
+# hook for json decoder
+def as_python_object(dct):
+    if "_datetime_object" in dct:
+        return datetime.datetime.strptime(str(dct["_datetime_object"]), "%Y-%m-%d %H:%M:%S.%f")
+    return dct
