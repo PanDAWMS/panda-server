@@ -92,5 +92,4 @@ disable = [
     "R0902",
     "R0913",
     "R0914", #  R0914: Too many local variables
-
 ]
