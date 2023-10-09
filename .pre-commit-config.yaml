@@ -1,0 +1,20 @@
+repos:
+
+-   repo: https://github.com/hhatto/autopep8
+    rev: v2.0.4
+    hooks:
+    -   id: autopep8
+        args: ["--global-config", "package/pyproject.toml"]
+
+-   repo: https://github.com/psf/black
+    rev: 23.9.1
+    hooks:
+    -   id: black
+        types: [python]
+        args: ["--config", "package/pyproject.toml"]
+
+-   repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+    -   id: isort
+        name: isort (python)
