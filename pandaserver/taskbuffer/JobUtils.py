@@ -1,4 +1,9 @@
 import re
+import json
+
+from pandaserver.taskbuffer.JobSpec import JobSpec
+
+from pandaserver.srvcore.CoreUtils import NonJsonObjectEncoder, as_python_object
 
 try:
     long
@@ -179,3 +184,22 @@ def compensate_ram_count(ram_count):
     if ram_count is not None:
         ram_count = int(ram_count * 0.90)
     return ram_count
+
+
+# dump jobs to serialized json
+def dump_jobs_json(jobs):
+    state_objects = []
+    for job_spec in jobs:
+        state_objects.append(job_spec.dump_to_json_serializable())
+    return json.dumps(state_objects, cls=NonJsonObjectEncoder)
+
+
+# load serialized json to jobs
+def load_jobs_json(state):
+    state_objects = json.loads(state, object_hook=as_python_object)
+    jobs = []
+    for job_state in state_objects:
+        job_spec = JobSpec()
+        job_spec.load_from_json_serializable(job_state)
+        jobs.append(job_spec)
+    return jobs

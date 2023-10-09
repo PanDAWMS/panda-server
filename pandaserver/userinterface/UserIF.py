@@ -209,10 +209,10 @@ class UserIF:
         return ret
 
     # get job status
-    def getJobStatus(self, idsStr, use_json):
+    def getJobStatus(self, idsStr, use_json, no_pickle=False):
         try:
             # deserialize IDs
-            if use_json:
+            if use_json or no_pickle:
                 ids = json.loads(idsStr)
             else:
                 ids = WrappedPickle.loads(idsStr)
@@ -232,6 +232,8 @@ class UserIF:
         # serialize
         if use_json:
             return json.dumps(ret)
+        if no_pickle:
+            return JobUtils.dump_jobs_json(ret)
         return WrappedPickle.dumps(ret)
 
     # get PandaID with jobexeID
@@ -1181,8 +1183,8 @@ def runTaskAssignment(req, jobs):
 
 
 # get job status
-def getJobStatus(req, ids):
-    return userIF.getJobStatus(ids, req.acceptJson())
+def getJobStatus(req, ids, no_pickle=None):
+    return userIF.getJobStatus(ids, req.acceptJson(), no_pickle)
 
 
 # get PandaID with jobexeID

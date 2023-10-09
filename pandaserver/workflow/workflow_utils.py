@@ -674,17 +674,18 @@ class ConditionItem(object):
 
 
 # convert nodes to workflow
-def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None):
+def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None, workflow_name=None):
     if workflow is None:
         is_top = True
         workflow = Workflow()
+        workflow.name = workflow_name
     else:
         is_top = False
     id_work_map = {}
     all_sub_id_work_map = {}
     sub_to_id_map = {}
     cond_dump_str = "  Conditions\n"
-    class_dump_str = "===== Workflow ID:{} ====\n".format(workflow_node.id if workflow_node else None)
+    class_dump_str = "===== Workflow ID:{} ====\n".format(workflow_node.id if workflow_node else workflow_name)
     class_dump_str += "  Works\n"
     dump_str_list = []
     # create works or workflows

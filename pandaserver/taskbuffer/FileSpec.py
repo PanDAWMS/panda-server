@@ -269,3 +269,10 @@ class FileSpec(object):
         except Exception:
             pass
         return False
+
+    # dump to be json-serializable
+    def dump_to_json_serializable(self):
+        stat = self.__getstate__()[:-1]
+        # set None as _owner
+        stat.append(None)
+        return stat
