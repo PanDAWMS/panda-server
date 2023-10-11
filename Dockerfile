@@ -4,9 +4,6 @@ FROM docker.io/almalinux:9
 
 ARG PYTHON_VERSION
 
-ENV LANG en_US.UTF-8
-ENV LC_ALL en_US.UTF-8
-
 RUN yum update -y
 RUN yum install -y epel-release
 
