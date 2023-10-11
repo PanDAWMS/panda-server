@@ -3,31 +3,31 @@ provide web interface to users
 
 """
 
+import datetime
+import json
 import re
 import sys
 import time
-import json
-import datetime
 import traceback
+
+from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 import pandaserver.jobdispatcher.Protocol as Protocol
 import pandaserver.taskbuffer.ProcessGroups
-from pandaserver.taskbuffer.WrappedPickle import WrappedPickle
-from pandaserver.srvcore.CoreUtils import clean_user_id, resolve_bool
 from pandaserver.brokerage.SiteMapper import SiteMapper
-from pandaserver.taskbuffer import PrioUtil, JobUtils
-from pandaserver.dataservice.DDM import rucioAPI
 from pandaserver.config import panda_config
+from pandaserver.dataservice.DDM import rucioAPI
 from pandaserver.srvcore import CoreUtils
-
-from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandaserver.srvcore.CoreUtils import clean_user_id, resolve_bool
+from pandaserver.taskbuffer import JobUtils, PrioUtil
+from pandaserver.taskbuffer.WrappedPickle import WrappedPickle
 
 try:
-    from idds.client.client import Client as iDDS_Client
-    from idds.client.clientmanager import ClientManager as iDDS_ClientManager
     import idds.common.constants
     import idds.common.utils
+    from idds.client.client import Client as iDDS_Client
+    from idds.client.clientmanager import ClientManager as iDDS_ClientManager
 except ImportError:
     pass
 
@@ -858,6 +858,13 @@ class UserIF:
     def avalancheTask(self, jediTaskID, user, prodRole):
         # exec
         ret = self.taskBuffer.sendCommandTaskPanda(jediTaskID, user, prodRole, "avalanche", properErrorCode=True)
+        # return
+        return ret
+
+    # send command to task
+    def send_command_to_task(self, jedi_task_id, user, prod_role, command_string):
+        # exec
+        ret = self.taskBuffer.sendCommandTaskPanda(jedi_task_id, user, prod_role, command_string, properErrorCode=True)
         # return
         return ret
 
@@ -2251,6 +2258,29 @@ def avalancheTask(req, jediTaskID):
         return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     ret = userIF.avalancheTask(jediTaskID, user, prodRole)
     return WrappedPickle.dumps(ret)
+
+
+# release task
+def release_task(req, jedi_task_id):
+    # check security
+    if not isSecure(req):
+        return json.dumps((False, "secure connection is required"))
+    # get DN
+    user = None
+    if "SSL_CLIENT_S_DN" in req.subprocess_env:
+        user = _getDN(req)
+    # check role
+    prod_role = _hasProdRole(req)
+    # only prod managers can use this method
+    if not prod_role:
+        return json.dumps((False, "production role required"))
+    # check jediTaskID
+    try:
+        jedi_task_id = long(jedi_task_id)
+    except Exception:
+        return json.dumps((False, "jediTaskID must be an integer"))
+    ret = userIF.send_command_to_task(jedi_task_id, user, prod_role, "release")
+    return json.dumps(ret)
 
 
 # kill unfinished jobs

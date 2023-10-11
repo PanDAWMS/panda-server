@@ -6,164 +6,161 @@ entry point
 """
 
 import datetime
-import traceback
-import six
-import tempfile
-import io
-import signal
-import json
 import gzip
+import io
+import json
+import signal
 import sys
+import tempfile
+import traceback
 
+import six
 from pandacommon.pandautils.thread_utils import GenericThread
 
+import pandaserver.taskbuffer.ErrorCode
 from pandaserver.config import panda_config
+from pandaserver.dataservice.DataService import dataService, datasetCompleted, updateFileStatusInDisp
+from pandaserver.jobdispatcher.JobDispatcher import (
+    ackCommands,
+    checkEventsAvailability,
+    checkJobStatus,
+    genPilotToken,
+    get_events_status,
+    get_max_worker_id,
+    getCommands,
+    getDNsForS3,
+    getEventRanges,
+    getJob,
+    getKeyPair,
+    getProxy,
+    getResourceTypes,
+    getStatus,
+    jobDispatcher,
+    updateEventRange,
+    updateEventRanges,
+    updateJob,
+    updateJobsInBulk,
+    updateWorkerPilotStatus,
+)
 from pandaserver.srvcore import CoreUtils
-
 from pandaserver.taskbuffer.Initializer import initializer
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-from pandaserver.jobdispatcher.JobDispatcher import jobDispatcher
-from pandaserver.dataservice.DataService import dataService
-from pandaserver.userinterface.UserIF import userIF
-
 from pandaserver.taskbuffer.Utils import (
-    isAlive,
-    putFile,
-    deleteFile,
-    getServer,
-    updateLog,
-    fetchLog,
-    touchFile,
-    getVomsAttr,
-    putEventPickingRequest,
-    getAttr,
-    uploadLog,
-    put_checkpoint,
     delete_checkpoint,
+    deleteFile,
+    fetchLog,
+    getAttr,
+    getServer,
+    getVomsAttr,
+    isAlive,
+    put_checkpoint,
     put_file_recovery_request,
     put_workflow_request,
+    putEventPickingRequest,
+    putFile,
+    touchFile,
+    updateLog,
+    uploadLog,
 )
-from pandaserver.dataservice.DataService import datasetCompleted, updateFileStatusInDisp
-from pandaserver.jobdispatcher.JobDispatcher import (
-    getJob,
-    updateJob,
-    getStatus,
-    genPilotToken,
-    getEventRanges,
-    updateEventRange,
-    getKeyPair,
-    updateEventRanges,
-    getDNsForS3,
-    getProxy,
-    getCommands,
-    ackCommands,
-    checkJobStatus,
-    checkEventsAvailability,
-    updateJobsInBulk,
-    getResourceTypes,
-    updateWorkerPilotStatus,
-    get_max_worker_id,
-    get_events_status,
-)
+from pandaserver.userinterface import Client
 from pandaserver.userinterface.UserIF import (
-    submitJobs,
-    getJobStatus,
-    queryPandaIDs,
-    killJobs,
-    reassignJobs,
-    getJobStatistics,
-    getJobStatisticsPerSite,
-    resubmitJobs,
-    queryLastFilesInDataset,
-    getPandaIDsSite,
-    getJobsToBeUpdated,
-    updateProdDBUpdateTimes,
-    runTaskAssignment,
-    getAssigningTask,
-    getSiteSpecs,
-    getCloudSpecs,
-    seeCloudTask,
-    queryJobInfoPerCloud,
-    registerProxyKey,
-    getProxyKey,
-    getJobIDsInTimeRange,
-    getPandIDsWithJobID,
-    getFullJobStatus,
-    getJobStatisticsForBamboo,
-    getNUserJobs,
-    addSiteAccess,
-    listSiteAccess,
-    getFilesInUseForAnal,
-    updateSiteAccess,
-    getPandaClientVer,
-    getSlimmedFileInfoPandaIDs,
-    getQueuedAnalJobs,
-    getHighestPrioJobStat,
-    getActiveDatasets,
-    setCloudTaskByUser,
-    getSerialNumberForGroupJob,
-    checkMergeGenerationStatus,
-    getNumPilots,
-    retryFailedJobsInActive,
-    getJobStatisticsWithLabel,
-    getPandaIDwithJobExeID,
-    getJobStatisticsPerUserSite,
-    getDisInUseForAnal,
-    getLFNsInUseForAnal,
-    getScriptOfflineRunning,
-    setDebugMode,
-    insertSandboxFileInfo,
-    checkSandboxFile,
-    changeJobPriorities,
-    insertTaskParams,
-    killTask,
-    finishTask,
-    getJediTasksInTimeRange,
-    getJediTaskDetails,
-    retryTask,
-    getRetryHistory,
-    changeTaskPriority,
-    reassignTask,
-    changeTaskAttributePanda,
-    pauseTask,
-    resumeTask,
-    increaseAttemptNrPanda,
-    killUnfinishedJobs,
-    changeTaskSplitRulePanda,
-    changeTaskModTimePanda,
-    avalancheTask,
-    getPandaIDsWithTaskID,
-    reactivateTask,
-    getTaskStatus,
-    reassignShare,
-    listTasksInShare,
-    getTaskParamsMap,
-    updateWorkers,
-    harvesterIsAlive,
-    reportWorkerStats,
-    reportWorkerStats_jobtype,
     addHarvesterDialogs,
-    getJobStatisticsPerSiteResource,
-    setNumSlotsForWP,
-    reloadInput,
+    addSiteAccess,
+    avalancheTask,
+    changeJobPriorities,
+    changeTaskAttributePanda,
+    changeTaskModTimePanda,
+    changeTaskPriority,
+    changeTaskSplitRulePanda,
+    checkMergeGenerationStatus,
+    checkSandboxFile,
     enableJumboJobs,
-    updateServiceMetrics,
-    getUserJobMetadata,
-    getJumboJobDatasets,
-    getGShareStatus,
-    sweepPQ,
-    get_job_statistics_per_site_label_resource,
-    relay_idds_command,
-    send_command_to_job,
     execute_idds_workflow_command,
-    set_user_secret,
-    get_user_secrets,
+    finishTask,
     get_ban_users,
     get_files_in_datasets,
+    get_job_statistics_per_site_label_resource,
+    get_user_secrets,
+    getActiveDatasets,
+    getAssigningTask,
+    getCloudSpecs,
+    getDisInUseForAnal,
+    getFilesInUseForAnal,
+    getFullJobStatus,
+    getGShareStatus,
+    getHighestPrioJobStat,
+    getJediTaskDetails,
+    getJediTasksInTimeRange,
+    getJobIDsInTimeRange,
+    getJobStatistics,
+    getJobStatisticsForBamboo,
+    getJobStatisticsPerSite,
+    getJobStatisticsPerSiteResource,
+    getJobStatisticsPerUserSite,
+    getJobStatisticsWithLabel,
+    getJobStatus,
+    getJobsToBeUpdated,
+    getJumboJobDatasets,
+    getLFNsInUseForAnal,
+    getNumPilots,
+    getNUserJobs,
+    getPandaClientVer,
+    getPandaIDsSite,
+    getPandaIDsWithTaskID,
+    getPandaIDwithJobExeID,
+    getPandIDsWithJobID,
+    getProxyKey,
+    getQueuedAnalJobs,
+    getRetryHistory,
+    getScriptOfflineRunning,
+    getSerialNumberForGroupJob,
+    getSiteSpecs,
+    getSlimmedFileInfoPandaIDs,
+    getTaskParamsMap,
+    getTaskStatus,
+    getUserJobMetadata,
+    harvesterIsAlive,
+    increaseAttemptNrPanda,
+    insertSandboxFileInfo,
+    insertTaskParams,
+    killJobs,
+    killTask,
+    killUnfinishedJobs,
+    listSiteAccess,
+    listTasksInShare,
+    pauseTask,
+    queryJobInfoPerCloud,
+    queryLastFilesInDataset,
+    queryPandaIDs,
+    reactivateTask,
+    reassignJobs,
+    reassignShare,
+    reassignTask,
+    registerProxyKey,
+    relay_idds_command,
+    release_task,
+    reloadInput,
+    reportWorkerStats,
+    reportWorkerStats_jobtype,
+    resubmitJobs,
+    resumeTask,
+    retryFailedJobsInActive,
+    retryTask,
+    runTaskAssignment,
+    seeCloudTask,
+    send_command_to_job,
+    set_user_secret,
+    setCloudTaskByUser,
+    setDebugMode,
+    setNumSlotsForWP,
+    submitJobs,
+    sweepPQ,
+    updateProdDBUpdateTimes,
+    updateServiceMetrics,
+    updateSiteAccess,
+    updateWorkers,
+    userIF,
 )
-
-from pandaserver.userinterface import Client
-import pandaserver.taskbuffer.ErrorCode
 
 # initialize cx_Oracle using dummy connection
 initializer.init()
@@ -330,15 +327,17 @@ allowedMethods += [
     "get_user_secrets",
     "get_ban_users",
     "get_files_in_datasets",
+    "release_task",
 ]
 
 
 # FastCGI/WSGI entry
 if panda_config.useFastCGI or panda_config.useWSGI:
-    import os
     import cgi
-    from pandacommon.pandalogger.PandaLogger import PandaLogger
+    import os
+
     from pandacommon.pandalogger.LogWrapper import LogWrapper
+    from pandacommon.pandalogger.PandaLogger import PandaLogger
 
     if panda_config.token_authType is None:
         pass
