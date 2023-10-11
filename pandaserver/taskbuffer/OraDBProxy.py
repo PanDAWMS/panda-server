@@ -2,52 +2,47 @@
 proxy for database connection
 
 """
-import re
-import os
-import sys
-import json
-import time
-import math
-import copy
-import glob
-import uuid
-import random
-import urllib
-import socket
-import logging
-import datetime
-import traceback
-import warnings
-import operator
 import atexit
-from pandaserver.taskbuffer import ErrorCode
-from pandaserver.taskbuffer import SiteSpec
-from pandaserver.taskbuffer import CloudSpec
-from pandaserver.taskbuffer import PrioUtil
-from pandaserver.taskbuffer import ProcessGroups
-from pandaserver.taskbuffer import JobUtils
-from pandaserver.taskbuffer import EventServiceUtils
-from pandaserver.taskbuffer import GlobalShares
-from pandaserver.taskbuffer.DdmSpec import DdmSpec
-from pandaserver.taskbuffer.JobSpec import JobSpec, push_status_changes
-from pandaserver.taskbuffer.FileSpec import FileSpec
-from pandaserver.taskbuffer.WorkerSpec import WorkerSpec
-from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
-from pandaserver.taskbuffer.ResourceSpec import ResourceSpec
-from pandaserver.taskbuffer.CloudTaskSpec import CloudTaskSpec
-from pandaserver.taskbuffer.HarvesterMetricsSpec import HarvesterMetricsSpec
-from pandaserver.taskbuffer.WrappedCursor import WrappedCursor
-from pandaserver.taskbuffer.Utils import create_shards
-from pandacommon.pandalogger.PandaLogger import PandaLogger
+import copy
+import datetime
+import glob
+import json
+import logging
+import math
+import operator
+import os
+import random
+import re
+import socket
+import sys
+import time
+import traceback
+import urllib
+import uuid
+import warnings
+
 from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+
 from pandaserver.config import panda_config
-from pandaserver.taskbuffer.SupErrors import SupErrors
 from pandaserver.srvcore import CoreUtils, srv_msg_utils
+from pandaserver.taskbuffer import CloudSpec, ErrorCode, EventServiceUtils, GlobalShares, JobUtils, PrioUtil, ProcessGroups, SiteSpec
+from pandaserver.taskbuffer.CloudTaskSpec import CloudTaskSpec
+from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
+from pandaserver.taskbuffer.DdmSpec import DdmSpec
+from pandaserver.taskbuffer.FileSpec import FileSpec
+from pandaserver.taskbuffer.HarvesterMetricsSpec import HarvesterMetricsSpec
+from pandaserver.taskbuffer.JobSpec import JobSpec, push_status_changes
+from pandaserver.taskbuffer.ResourceSpec import ResourceSpec
+from pandaserver.taskbuffer.SupErrors import SupErrors
+from pandaserver.taskbuffer.Utils import create_shards
+from pandaserver.taskbuffer.WorkerSpec import WorkerSpec
+from pandaserver.taskbuffer.WrappedCursor import WrappedCursor
 
 try:
-    from idds.client.client import Client as iDDS_Client
     import idds.common.constants
     import idds.common.utils
+    from idds.client.client import Client as iDDS_Client
 except ImportError:
     pass
 
@@ -66,6 +61,7 @@ if panda_config.backend == "oracle":
     varNUMBER = cx_Oracle.NUMBER
 elif panda_config.backend == "postgres":
     import psycopg2 as psycopg
+
     from . import WrappedPostgresConn
 
     varNUMBER = long
@@ -14045,18 +14041,8 @@ class DBProxy:
                     error_Codes += ["ORA-01861", "ORA-01008"]
             else:
                 # mysql error codes for connection error
-                from MySQLdb.constants.ER import (
-                    ACCESS_DENIED_ERROR,
-                    DBACCESS_DENIED_ERROR,
-                    SERVER_SHUTDOWN,
-                    ILLEGAL_VALUE_FOR_TYPE,
-                )
-                from MySQLdb.constants.CR import (
-                    CONNECTION_ERROR,
-                    CONN_HOST_ERROR,
-                    LOCALHOST_CONNECTION,
-                    SERVER_LOST,
-                )
+                from MySQLdb.constants.CR import CONN_HOST_ERROR, CONNECTION_ERROR, LOCALHOST_CONNECTION, SERVER_LOST
+                from MySQLdb.constants.ER import ACCESS_DENIED_ERROR, DBACCESS_DENIED_ERROR, ILLEGAL_VALUE_FOR_TYPE, SERVER_SHUTDOWN
 
                 error_Codes = [
                     ACCESS_DENIED_ERROR,
@@ -14612,6 +14598,9 @@ class DBProxy:
                         goForward = False
                 if comStr == "avalanche":
                     if taskStatus not in ["scouting"]:
+                        goForward = False
+                if comStr == "release":
+                    if taskStatus not in ["scouting", "pending", "running", "ready", "assigning", "defined"]:
                         goForward = False
                 if not goForward:
                     retStr = f"Command rejected: the {comStr} command is not accepted " f"if the task is in {taskStatus} status {add_msg}"

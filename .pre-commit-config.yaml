@@ -13,8 +13,8 @@ repos:
         types: [python]
         args: ["--config", "package/pyproject.toml"]
 
--   repo: https://github.com/pycqa/isort
-    rev: 5.12.0
-    hooks:
-    -   id: isort
-        name: isort (python)
+#-   repo: https://github.com/pycqa/isort
+#    rev: 5.12.0
+#    hooks:
+#    -   id: isort
+#        name: isort (python)

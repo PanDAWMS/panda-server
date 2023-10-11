@@ -3,18 +3,19 @@ client methods
 
 """
 
+import gzip
 import os
 import re
 import sys
-import gzip
 import uuid
 
 try:
     from urllib import urlencode
 except ImportError:
     from urllib.parse import urlencode
-import socket
+
 import getpass
+import socket
 import tempfile
 
 try:
@@ -2599,3 +2600,37 @@ def get_ban_users(verbose=False):
             return False, "bad response: {}".format(output)
     except Exception:
         return False, "broken response: {}".format(output)
+
+
+def release_task(jedi_task_id, verbose=False):
+    """release task from staging
+
+    args:
+        jedi_task_id: jediTaskID of the task to avalanche
+    returns:
+        status code
+              0: communication succeeded to the panda server
+              255: communication failure
+        tuple of return code and diagnostic message
+              0: request is registered
+              1: server error
+              2: task not found
+              3: permission denied
+              4: irrelevant task status
+            100: non SSL connection
+            101: irrelevant taskID
+    """
+    # instantiate curl
+    curl = _Curl()
+    curl.sslCert = _x509()
+    curl.sslKey = _x509()
+    curl.verbose = verbose
+    # execute
+    url = baseURLSSL + "/release_task"
+    data = {"jedi_task_id": jedi_task_id}
+    status, output = curl.post(url, data)
+    try:
+        return status, json.loads(output)
+    except Exception as e:
+        err_str = "ERROR release_task : failed with {0}".format(str(e))
+        return EC_Failed, output + "\n" + err_str
