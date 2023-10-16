@@ -83,6 +83,7 @@ warnings.filterwarnings("ignore")
 # logger
 _logger = PandaLogger().getLogger("DBProxy")
 _loggerFiltered = PandaLogger().getLogger("DBProxyFiltered")
+
 # add handlers
 for hdr in _loggerFiltered.handlers:
     hdr.setLevel(logging.INFO)
