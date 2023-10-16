@@ -1,17 +1,18 @@
 __author__ = "retmas"
 
-import logging
-import sys
-import os
 import json
-from snakeparser import Parser
+import logging
+import os
+import sys
+
 from pandaserver.workflow.pcwl_utils import resolve_nodes
 from pandaserver.workflow.workflow_utils import (
-    get_node_id_map,
-    dump_nodes,
-    set_workflow_outputs,
     convert_nodes_to_workflow,
+    dump_nodes,
+    get_node_id_map,
+    set_workflow_outputs,
 )
+from snakeparser import Parser
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.DEBUG)
 

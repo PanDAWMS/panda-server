@@ -3,31 +3,28 @@ setup dataset for ATLAS
 
 """
 
+import datetime
 import re
 import sys
 import time
-import uuid
-import datetime
 import traceback
-from pandaserver.dataservice import ErrorCode
-from pandaserver.dataservice.DDM import rucioAPI
-from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
-from pandaserver.taskbuffer import EventServiceUtils
-from pandaserver.taskbuffer import JobUtils
-from pandaserver.brokerage.SiteMapper import SiteMapper
+import uuid
+
 import pandaserver.brokerage.broker
-from pandaserver.dataservice import DataServiceUtils
-from pandaserver.dataservice.DataServiceUtils import select_scope
-from rucio.common.exception import (
-    FileAlreadyExists,
-    DataIdentifierAlreadyExists,
-    Duplicate,
-    DataIdentifierNotFound,
-)
-
-from pandaserver.dataservice.SetupperPluginBase import SetupperPluginBase
-
+from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
+from pandaserver.dataservice import DataServiceUtils, ErrorCode
+from pandaserver.dataservice.DataServiceUtils import select_scope
+from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.dataservice.SetupperPluginBase import SetupperPluginBase
+from pandaserver.taskbuffer import EventServiceUtils, JobUtils
+from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
+from rucio.common.exception import (
+    DataIdentifierAlreadyExists,
+    DataIdentifierNotFound,
+    Duplicate,
+    FileAlreadyExists,
+)
 
 try:
     long
@@ -496,7 +493,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         if startIdx == -1:
             jobsList = self.jobs
         else:
-            jobsList = self.jobs[startIdx: startIdx + nJobsInLoop]
+            jobsList = self.jobs[startIdx : startIdx + nJobsInLoop]
         for job in jobsList:
             # ignore failed jobs
             if job.jobStatus in ["failed", "cancelled"] or job.isCancelled():
@@ -1712,7 +1709,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     iFiles = 0
                     iLoop = 0
                     while iFiles < len(tmpFileList):
-                        subFileNames = list(tmpFileList)[iFiles: iFiles + nMaxFiles]
+                        subFileNames = list(tmpFileList)[iFiles : iFiles + nMaxFiles]
                         if len(subFileNames) == 0:
                             break
                         # dis name

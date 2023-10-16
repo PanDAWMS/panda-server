@@ -7,14 +7,16 @@ try:
     from Queue import Queue
 except ImportError:
     from queue import Queue
-from pandaserver.taskbuffer import OraDBProxy as DBProxy
+
 import os
-import time
 import random
+import time
 from threading import Lock
-from pandaserver.config import panda_config
-from pandaserver.taskbuffer.ConBridge import ConBridge
+
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.config import panda_config
+from pandaserver.taskbuffer import OraDBProxy as DBProxy
+from pandaserver.taskbuffer.ConBridge import ConBridge
 
 # logger
 _logger = PandaLogger().getLogger("DBProxyPool")

@@ -1,22 +1,21 @@
-import sys
 import json
 import os.path
-import traceback
+import sys
 import tempfile
+import traceback
+
 import requests
-from ruamel import yaml
+from idds.client.clientmanager import ClientManager
+from idds.common.utils import get_rest_host
+from pandacommon.pandalogger.LogWrapper import LogWrapper
 
 # import PandaLogger before idds modules not to change message levels of other modules
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandacommon.pandalogger.LogWrapper import LogWrapper
-from pandaserver.workflow import pcwl_utils
-from pandaserver.workflow import workflow_utils
-from pandaserver.workflow.snakeparser import Parser
-from pandaserver.srvcore.CoreUtils import commands_get_status_output, clean_user_id
+from pandaserver.srvcore.CoreUtils import clean_user_id, commands_get_status_output
 from pandaserver.srvcore.MailUtils import MailUtils
-
-from idds.client.clientmanager import ClientManager
-from idds.common.utils import get_rest_host
+from pandaserver.workflow import pcwl_utils, workflow_utils
+from pandaserver.workflow.snakeparser import Parser
+from ruamel import yaml
 
 _logger = PandaLogger().getLogger("workflow_processor")
 
@@ -237,8 +236,7 @@ def core_exec(sandbox_url, log_token, dump_workflow, ops_file, user_name, test_m
                                 if not test_mode:
                                     tmpLog.info("submit workflow")
                                     wm = ClientManager(host=get_rest_host())
-                                    request_id = wm.submit(workflow_to_submit, username=user_name,
-                                                           use_dataset_name=False)
+                                    request_id = wm.submit(workflow_to_submit, username=user_name, use_dataset_name=False)
                             else:
                                 dump_str = "workflow is empty"
                                 tmpLog.error(dump_str)

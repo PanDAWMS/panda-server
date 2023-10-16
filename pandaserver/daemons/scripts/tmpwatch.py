@@ -1,8 +1,8 @@
-import sys
-import os
+import datetime
 import glob
 import optparse
-import datetime
+import os
+import sys
 
 
 # main

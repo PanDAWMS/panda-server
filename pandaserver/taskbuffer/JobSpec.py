@@ -3,9 +3,9 @@ job specification
 
 """
 
-import re
-import json
 import datetime
+import json
+import re
 
 from pandaserver.taskbuffer.FileSpec import FileSpec
 

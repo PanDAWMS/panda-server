@@ -1,13 +1,11 @@
-import sys
 import optparse
-
-from pandaserver.taskbuffer.OraDBProxy import DBProxy
-
-# password
-from pandaserver.config import panda_config
+import sys
 
 import pandaserver.userinterface.Client as Client
 
+# password
+from pandaserver.config import panda_config
+from pandaserver.taskbuffer.OraDBProxy import DBProxy
 
 optP = optparse.OptionParser(conflict_handler="resolve")
 optP.add_option("--user", action="store", dest="user", default=None, help="prodUserName")
@@ -79,7 +77,7 @@ if len(jobs):
     iJob = 0
     nJob = 1000
     while iJob < len(jobs):
-        subJobs = jobs[iJob: iJob + nJob]
+        subJobs = jobs[iJob : iJob + nJob]
         print("kill %s %s/%s" % (str(subJobs), iJob, len(jobs)))
         Client.killJobs(subJobs, code=9)
         iJob += nJob

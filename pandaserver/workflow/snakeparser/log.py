@@ -1,8 +1,8 @@
 __author__ = "retmas"
 
 import logging
-import logging.handlers
 import logging.config
+import logging.handlers
 
 
 class Singleton(type):

@@ -1,13 +1,12 @@
-import shutil
-import subprocess
+import datetime
 import hashlib
 import os
-import datetime
+import shutil
+import subprocess
 
 import six
-
-from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 # logger
 _logger = PandaLogger().getLogger("ProxyCache")

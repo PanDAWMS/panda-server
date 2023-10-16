@@ -1,26 +1,24 @@
-import re
-import sys
-import json
-import shlex
-import time
 import datetime
+import json
+import re
+import shlex
+import sys
+import time
 import traceback
-from pandaserver.taskbuffer import ProcessGroups
-from pandaserver.taskbuffer import EventServiceUtils
-from pandaserver.taskbuffer import ErrorCode
-from pandaserver.taskbuffer import JobUtils
 from threading import Lock
-from pandaserver.taskbuffer.DBProxyPool import DBProxyPool
-from pandaserver.brokerage.SiteMapper import SiteMapper
-from pandaserver.dataservice.Setupper import Setupper
-from pandaserver.dataservice.Closer import Closer
-from pandaserver.dataservice.ProcessLimiter import ProcessLimiter
-from pandaserver.srvcore import CoreUtils
-from pandaserver.config import panda_config
+
+from pandacommon.pandalogger.LogWrapper import LogWrapper
 
 # logger
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandaserver.brokerage.SiteMapper import SiteMapper
+from pandaserver.config import panda_config
+from pandaserver.dataservice.Closer import Closer
+from pandaserver.dataservice.ProcessLimiter import ProcessLimiter
+from pandaserver.dataservice.Setupper import Setupper
+from pandaserver.srvcore import CoreUtils
+from pandaserver.taskbuffer import ErrorCode, EventServiceUtils, JobUtils, ProcessGroups
+from pandaserver.taskbuffer.DBProxyPool import DBProxyPool
 
 _logger = PandaLogger().getLogger("TaskBuffer")
 
@@ -553,7 +551,7 @@ class TaskBuffer:
                     ret.append((job.PandaID, job.jobDefinitionID, job.jobName))
                 serNum += 1
                 try:
-                    fileIDPool = fileIDPool[len(job.Files):]
+                    fileIDPool = fileIDPool[len(job.Files) :]
                 except Exception:
                     fileIDPool = []
             # release DB proxy
@@ -1218,7 +1216,7 @@ class TaskBuffer:
             # get DBproxy
             proxy = self.proxyPool.getProxy()
             # get
-            tmpRetInfo = proxy.getSlimmedFileInfoPandaIDs(pandaIDs[iPandaID: iPandaID + nPandaID])
+            tmpRetInfo = proxy.getSlimmedFileInfoPandaIDs(pandaIDs[iPandaID : iPandaID + nPandaID])
             # release proxy
             self.proxyPool.putProxy(proxy)
             iPandaID += nPandaID

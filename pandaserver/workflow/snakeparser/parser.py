@@ -1,22 +1,24 @@
 __author__ = "retmas"
 
 import logging
-import re
 import os
-import six
-import pathlib
 import os.path
-from types import SimpleNamespace
+import pathlib
+import re
 from itertools import chain
-import snakemake.workflow
-import snakemake.parser
+from types import SimpleNamespace
+
+import six
 import snakemake.dag
+import snakemake.parser
 import snakemake.persistence
-from pandaserver.workflow.workflow_utils import Node, ConditionItem
+import snakemake.workflow
+from pandaserver.workflow.snakeparser.utils import ParamRule, param_of
+from pandaserver.workflow.workflow_utils import ConditionItem, Node
+
+from .extensions import inject
 from .log import Logger
 from .names import WORKFLOW_NAMES
-from .extensions import inject
-from pandaserver.workflow.snakeparser.utils import ParamRule, param_of
 
 
 class ParamNotFoundException(Exception):

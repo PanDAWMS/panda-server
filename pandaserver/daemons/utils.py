@@ -1,25 +1,22 @@
-import os
-import sys
-import time
-import datetime
-import json
 import copy
-import threading
-import multiprocessing
-import queue
-import socket
-import importlib
-import traceback
-import signal
+import datetime
 import gc
+import importlib
+import json
+import multiprocessing
+import os
+import queue
+import signal
+import socket
+import sys
+import threading
+import time
+import traceback
 
 import psutil
-
 from pandacommon.pandalogger import logger_utils
-from pandacommon.pandautils.thread_utils import LockPool
-from pandacommon.pandautils.thread_utils import GenericThread
-from pandaserver.config import panda_config, daemon_config
-
+from pandacommon.pandautils.thread_utils import GenericThread, LockPool
+from pandaserver.config import daemon_config, panda_config
 
 # list of signals accepted to end the main process
 END_SIGNALS = [

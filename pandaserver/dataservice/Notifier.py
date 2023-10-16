@@ -3,24 +3,24 @@ notifier
 
 """
 
-import re
-import sys
-import uuid
 import datetime
-import traceback
-import time
+import re
 import smtplib
+import sys
+import time
+import traceback
+import uuid
 
 try:  # Python 2
     from urllib import urlencode
 except ImportError:  # Python 3
     from urllib.parse import urlencode
 
-from pandaserver.config import panda_config
-from pandaserver.taskbuffer.OraDBProxy import DBProxy
-from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandaserver.dataservice.DDM import rucioAPI
 import pandaserver.taskbuffer.ErrorCode
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.config import panda_config
+from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.taskbuffer.OraDBProxy import DBProxy
 
 # logger
 _logger = PandaLogger().getLogger("Notifier")

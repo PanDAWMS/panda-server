@@ -3,36 +3,32 @@ add data to dataset
 
 """
 
+import copy
+import datetime
+import gc
 import re
 import sys
 import time
-import copy
-import datetime
 import traceback
-import gc
 
 from pandaserver.config import panda_config
-from pandaserver.dataservice import ErrorCode
+from pandaserver.dataservice import DataServiceUtils, ErrorCode
 from pandaserver.dataservice.AdderPluginBase import AdderPluginBase
+from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.DDM import rucioAPI
 from pandaserver.srvcore.MailUtils import MailUtils
-from pandaserver.dataservice import DataServiceUtils
-from pandaserver.dataservice.DataServiceUtils import select_scope
-from pandaserver.taskbuffer import EventServiceUtils
-from pandaserver.taskbuffer import JobUtils
-
+from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 from rucio.common.exception import (
-    FileConsistencyMismatch,
     DataIdentifierNotFound,
-    UnsupportedOperation,
-    InvalidPath,
-    RSENotFound,
+    FileConsistencyMismatch,
     InsufficientAccountLimit,
-    RSEProtocolNotSupported,
-    InvalidRSEExpression,
     InvalidObject,
+    InvalidPath,
+    InvalidRSEExpression,
+    RSENotFound,
+    RSEProtocolNotSupported,
+    UnsupportedOperation,
 )
-
 
 try:
     long

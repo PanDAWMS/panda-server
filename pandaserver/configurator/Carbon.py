@@ -1,9 +1,10 @@
-import threading
 import datetime
-from pandaserver.configurator import aux
+import threading
 import traceback
-from pandaserver.config import panda_config
+
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.config import panda_config
+from pandaserver.configurator import aux
 
 _logger = PandaLogger().getLogger("carbon")
 

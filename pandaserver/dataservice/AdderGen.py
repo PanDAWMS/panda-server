@@ -3,27 +3,24 @@ add data to dataset
 
 """
 
+import datetime
 import os
 import re
 import sys
 import time
-import datetime
 
 # import fcntl
 import traceback
-import xml.dom.minidom
 import uuid
+import xml.dom.minidom
 
-from pandaserver.config import panda_config
-from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandacommon.pandalogger.LogWrapper import LogWrapper
-from pandaserver.taskbuffer import EventServiceUtils
-from pandaserver.taskbuffer import retryModule
-from pandaserver.taskbuffer import JobUtils
-import pandaserver.taskbuffer.ErrorCode
 import pandaserver.dataservice.ErrorCode
+import pandaserver.taskbuffer.ErrorCode
+from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.config import panda_config
 from pandaserver.dataservice import Closer
-
+from pandaserver.taskbuffer import EventServiceUtils, JobUtils, retryModule
 
 try:
     long

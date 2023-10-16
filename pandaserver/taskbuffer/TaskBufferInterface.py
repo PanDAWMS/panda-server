@@ -1,15 +1,14 @@
-from pandacommon.pandalogger.LogWrapper import LogWrapper
-from pandacommon.pandalogger.PandaLogger import PandaLogger
-import os
-import sys
-import time
-import pickle
-import threading
 import multiprocessing
+import os
+import pickle
+import sys
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 
-from pandaserver.taskbuffer import JobSpec
-from pandaserver.taskbuffer import FileSpec
+from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.taskbuffer import FileSpec, JobSpec
 
 JobSpec.reserveChangedState = True
 FileSpec.reserveChangedState = True

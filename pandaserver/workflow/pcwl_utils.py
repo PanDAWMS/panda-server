@@ -1,11 +1,12 @@
 import copy
-import re
-import six
 import os.path
+import re
 from pathlib import Path
 from urllib.parse import urlparse
 
-from .workflow_utils import Node, ConditionItem
+import six
+
+from .workflow_utils import ConditionItem, Node
 
 WORKFLOW_NAMES = ["prun", "phpo", "junction", "reana", "gitlab"]
 

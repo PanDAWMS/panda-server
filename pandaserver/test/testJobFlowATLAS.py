@@ -9,16 +9,18 @@ You can run the test as
 $ nosetests test_job_flow_ATLAS.py
 $ python test_job_flow_ATLAS.py
 """
-import nose
-import time
-import uuid
 import socket
 import sys
+import time
+import uuid
+
+import nose
 
 try:
     from urlparse import parse_qs
 except ImportError:
     from urllib.parse import parse_qs
+
 import hashlib
 
 try:
@@ -27,13 +29,13 @@ except NameError:
     long = int
 
 import pandaserver.userinterface.Client as Client
-from pandaserver.taskbuffer.JobSpec import JobSpec
-from pandaserver.taskbuffer.FileSpec import FileSpec
-from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-from pandaserver.config import panda_config
-from pandaserver.test.testutils import sendCommand
-from pandacommon.pandautils.thread_utils import GenericThread
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.thread_utils import GenericThread
+from pandaserver.config import panda_config
+from pandaserver.taskbuffer.FileSpec import FileSpec
+from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+from pandaserver.test.testutils import sendCommand
 
 _logger = PandaLogger().getLogger("testJobFlowATLAS")
 

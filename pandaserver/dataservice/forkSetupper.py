@@ -1,8 +1,8 @@
 import sys
 import traceback
 
-from pandaserver.srvcore.CoreUtils import commands_get_status_output
 from pandacommon.pandautils.thread_utils import GenericThread
+from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
 
 # exec
@@ -55,8 +55,8 @@ def _onExit(fname):
 ####################################################################
 # main
 def main():
-    import getopt
     import atexit
+    import getopt
 
     # option class
     class _options:

@@ -1,14 +1,14 @@
-import sys
-import glob
-import time
-import os.path
 import datetime
+import glob
+import os.path
+import sys
 import threading
+import time
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
-from pandaserver.config import panda_config
 from pandaserver.brokerage import SiteMapper
+from pandaserver.config import panda_config
 from pandaserver.dataservice.EventPicker import EventPicker
 
 # logger

@@ -1,9 +1,9 @@
 import sys
 import time
 
-from pandaserver.config import panda_config
 from pandacommon.pandalogger import logger_utils
 from pandacommon.pandautils.thread_utils import GenericThread
+from pandaserver.config import panda_config
 from pandaserver.configurator import Configurator as configurator_module
 from pandaserver.configurator.Configurator import (
     Configurator,

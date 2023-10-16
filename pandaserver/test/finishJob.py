@@ -1,8 +1,8 @@
+import hashlib
+import json
 import os
 import re
 import sys
-import json
-import hashlib
 import uuid
 
 try:
@@ -14,14 +14,13 @@ try:
 except ImportError:
     from http.client import HTTPSConnection
 
-from pandaserver.userinterface.Client import baseURLSSL
-
-from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.dataservice.DataServiceUtils import select_scope
-from pandacommon.pandautils.thread_utils import GenericThread
+from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+from pandaserver.userinterface.Client import baseURLSSL
 
 # instantiate TB
 requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)

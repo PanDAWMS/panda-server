@@ -1,9 +1,8 @@
-import re
 import json
-
-from pandaserver.taskbuffer.JobSpec import JobSpec
+import re
 
 from pandaserver.srvcore.CoreUtils import NonJsonObjectEncoder, as_python_object
+from pandaserver.taskbuffer.JobSpec import JobSpec
 
 try:
     long

@@ -1,6 +1,6 @@
+import sys
 import time
 import traceback
-import sys
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread

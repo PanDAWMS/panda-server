@@ -1,10 +1,9 @@
-import sys
 import optparse
-
-from pandaserver.taskbuffer.OraDBProxy import DBProxy
+import sys
 
 # password
 from pandaserver.config import panda_config
+from pandaserver.taskbuffer.OraDBProxy import DBProxy
 
 optP = optparse.OptionParser(conflict_handler="resolve")
 optP.add_option("--user", action="store", dest="user", default=None, help="prodUserName")

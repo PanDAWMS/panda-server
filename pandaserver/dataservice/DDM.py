@@ -3,23 +3,22 @@ provide primitive methods for DDM
 
 """
 
+import hashlib
 import re
 import sys
-import hashlib
 import traceback
 
+from pandaserver.srvcore import CoreUtils
 from rucio.client import Client as RucioClient
 from rucio.common.exception import (
-    UnsupportedOperation,
-    DataIdentifierNotFound,
-    FileAlreadyExists,
-    Duplicate,
     DataIdentifierAlreadyExists,
-    DuplicateRule,
+    DataIdentifierNotFound,
+    Duplicate,
     DuplicateContent,
+    DuplicateRule,
+    FileAlreadyExists,
+    UnsupportedOperation,
 )
-
-from pandaserver.srvcore import CoreUtils
 
 
 # rucio
@@ -91,7 +90,7 @@ class RucioAPI:
             iFiles = 0
             nFiles = 1000
             while iFiles < len(files):
-                tmpFiles = files[iFiles: iFiles + nFiles]
+                tmpFiles = files[iFiles : iFiles + nFiles]
                 try:
                     client.add_files_to_dataset(scope=scope, name=dsn, files=tmpFiles, rse=None)
                 except FileAlreadyExists:
@@ -286,7 +285,7 @@ class RucioAPI:
                         attachment = {
                             "scope": scope,
                             "name": dsn,
-                            "dids": filesWithRSE[iFiles: iFiles + nFiles],
+                            "dids": filesWithRSE[iFiles : iFiles + nFiles],
                             "rse": rse,
                         }
                         attachmentList.append(attachment)
@@ -298,7 +297,7 @@ class RucioAPI:
                         attachment = {
                             "scope": scope,
                             "name": dsn,
-                            "dids": filesWoRSE[iFiles: iFiles + nFiles],
+                            "dids": filesWoRSE[iFiles : iFiles + nFiles],
                         }
                         attachmentList.append(attachment)
                         iFiles += nFiles
@@ -340,7 +339,7 @@ class RucioAPI:
                 client.add_files_to_archive(
                     scope=zipFile["scope"],
                     name=zipFile["name"],
-                    files=files[iFiles: iFiles + nFiles],
+                    files=files[iFiles : iFiles + nFiles],
                 )
                 iFiles += nFiles
 

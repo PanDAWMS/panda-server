@@ -1,11 +1,11 @@
+import json
+import math
 import re
 import sys
-import json
 import uuid
-import math
 
-from pandaserver.taskbuffer.Initializer import initializer
 from pandajedi.jedicore import JediTaskBuffer
+from pandaserver.taskbuffer.Initializer import initializer
 
 jediTaskID = sys.argv[1]
 

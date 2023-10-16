@@ -4,10 +4,10 @@ provide web service for DDM
 """
 
 import sys
-from pandaserver.taskbuffer.WrappedPickle import WrappedPickle
-from pandacommon.pandalogger.PandaLogger import PandaLogger
 
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.dataservice.DDMHandler import DDMHandler
+from pandaserver.taskbuffer.WrappedPickle import WrappedPickle
 
 # logger
 _logger = PandaLogger().getLogger("DataService")

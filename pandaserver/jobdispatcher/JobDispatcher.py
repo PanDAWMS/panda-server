@@ -3,26 +3,26 @@ dispatch jobs
 
 """
 
-import re
-import os
-import sys
-import json
-import threading
-from pandaserver.jobdispatcher import Protocol
-import time
-import socket
 import datetime
+import json
+import os
+import re
+import socket
+import sys
+import threading
+import time
 import traceback
 from threading import Lock
+
+from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice.AdderGen import AdderGen
-from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandacommon.pandalogger.LogWrapper import LogWrapper
-from pandaserver.jobdispatcher import DispatcherUtils
-from pandaserver.taskbuffer import EventServiceUtils
-from pandaserver.brokerage.SiteMapper import SiteMapper
+from pandaserver.jobdispatcher import DispatcherUtils, Protocol
 from pandaserver.proxycache import panda_proxy_cache
 from pandaserver.srvcore import CoreUtils
+from pandaserver.taskbuffer import EventServiceUtils
 
 # logger
 _logger = PandaLogger().getLogger("JobDispatcher")

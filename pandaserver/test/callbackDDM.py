@@ -1,15 +1,18 @@
 import os
 import sys
+
 import six
 
 try:
     from urllib import urlencode, urlopen
+
     from urllib2 import Request
 except ImportError:
     from urllib.parse import urlencode
     from urllib.request import urlopen, Request
-from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+
 from pandaserver.config import panda_config
+from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 
 taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
 

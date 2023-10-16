@@ -1,6 +1,6 @@
 __author__ = "retmas"
 
-from snakemake.parser import RuleKeywordState, Rule
+from snakemake.parser import Rule, RuleKeywordState
 from snakemake.workflow import Workflow
 
 

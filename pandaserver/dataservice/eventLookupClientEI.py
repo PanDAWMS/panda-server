@@ -1,6 +1,6 @@
 import os
-import tempfile
 import subprocess
+import tempfile
 
 try:
     long

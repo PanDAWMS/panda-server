@@ -4,13 +4,13 @@ setup dataset
 """
 
 import sys
-import uuid
-import traceback
 import threading
+import traceback
+import uuid
 
-from pandaserver.config import panda_config
-from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.config import panda_config
 from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.taskbuffer.PickleJobSpec import PickleJobSpec
 

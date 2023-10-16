@@ -1,24 +1,19 @@
+import copy
+import datetime
+import functools
+import json
 import os
 import socket
-import datetime
-import json
-import functools
-import traceback
-import copy
 import sys
-
-import numpy as np
-
+import traceback
 from zlib import adler32
 
-from pandacommon.pandalogger.PandaLogger import PandaLogger
+import numpy as np
 from pandacommon.pandalogger import logger_utils
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
-
 from pandaserver.config import panda_config
-
 from scipy import stats
-
 
 # logger
 main_logger = PandaLogger().getLogger("metric_collector")

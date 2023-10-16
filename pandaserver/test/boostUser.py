@@ -1,10 +1,10 @@
 import sys
 
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.Initializer import initializer
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandacommon.pandautils.thread_utils import GenericThread
 
 # initialize cx_Oracle using dummy connection
 initializer.init()
