@@ -26642,7 +26642,7 @@ class DBProxy:
         )
         varMap = {
             ":topic": topic,
-            "PandaID": panda_id,
+            ":PandaID": panda_id,
             ":taskID": task_id,
             ":creationTime": datetime.datetime.utcnow(),
             ":execution_order": exec_order,
