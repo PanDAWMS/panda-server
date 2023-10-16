@@ -4,13 +4,11 @@ If there is an issue and the pandaEmailNotification var is
 defined in panda_config, it will send an email notification.
 """
 
-from pandaserver.config import panda_config
-from pandaserver.taskbuffer.OraDBProxy import DBProxy
-from pandaserver.srvcore.MailUtils import MailUtils
-
-from pandaserver.taskbuffer import PandaDBSchemaInfo
-
 from packaging import version
+from pandaserver.config import panda_config
+from pandaserver.srvcore.MailUtils import MailUtils
+from pandaserver.taskbuffer import PandaDBSchemaInfo
+from pandaserver.taskbuffer.OraDBProxy import DBProxy
 
 proxyS = DBProxy()
 proxyS.connect(panda_config.dbhost, panda_config.dbpasswd, panda_config.dbuser, panda_config.dbname)

@@ -1,10 +1,9 @@
 import sys
 from threading import Lock
 
-from pandaserver.config import panda_config
-
 # logger
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.config import panda_config
 
 _logger = PandaLogger().getLogger("Initializer")
 

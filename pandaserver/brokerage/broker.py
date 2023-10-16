@@ -1,19 +1,19 @@
+import datetime
+import functools
+import random
 import re
 import sys
-import traceback
 import time
-import random
-import datetime
+import traceback
 import uuid
-import functools
+
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.brokerage import ErrorCode
-from pandaserver.taskbuffer import ProcessGroups
+from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.DDM import rucioAPI
-from pandaserver.config import panda_config
-
-from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.taskbuffer import ProcessGroups
 
 _log = PandaLogger().getLogger("broker")
 
@@ -653,7 +653,7 @@ def schedule(
                 # determine site
                 if (iJob == 0 or chosen_ce != "TOBEDONE") and prevBrokergageSiteList in [None, []]:
                     # file scan for pre-assigned jobs
-                    jobsInBunch = jobs[indexJob - iJob - 1: indexJob - 1]
+                    jobsInBunch = jobs[indexJob - iJob - 1 : indexJob - 1]
                     if (
                         jobsInBunch != []
                         and fileList != []
@@ -1366,7 +1366,7 @@ def schedule(
                     tmpLog.debug("indexJob      : %s" % indexJob)
                     tmpLog.debug("nInputs/Job   : %s" % nFilesPerJob)
                     tmpLog.debug("inputSize/Job : %s" % inputSizePerJob)
-                    for tmpJob in jobs[indexJob - iJob - 1: indexJob - 1]:
+                    for tmpJob in jobs[indexJob - iJob - 1 : indexJob - 1]:
                         # set computingSite
                         if (not candidateForAnal) and forAnalysis and trustIS:
                             resultsForAnalStr = "ERROR : No candidate. "

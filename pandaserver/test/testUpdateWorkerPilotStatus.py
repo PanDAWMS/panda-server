@@ -1,6 +1,5 @@
-from pandaserver.test.testutils import sendCommand
-
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.test.testutils import sendCommand
 
 _logger = PandaLogger().getLogger("testUpdateWorkerPilotStatus")
 

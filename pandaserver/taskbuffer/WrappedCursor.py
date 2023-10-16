@@ -3,9 +3,10 @@ WrappedCursor for a generic database connection proxy
 
 """
 
-import re
 import os
+import re
 import warnings
+
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.config import panda_config
 

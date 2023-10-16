@@ -1,7 +1,8 @@
-from pandaserver.taskbuffer.OraDBProxy import DBProxy
 import socket
-from pandaserver.config import panda_config
 import time
+
+from pandaserver.config import panda_config
+from pandaserver.taskbuffer.OraDBProxy import DBProxy
 
 try:
     from urlparse import parse_qs
@@ -10,7 +11,6 @@ except ImportError:
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from testutils import sendCommand
-
 
 _logger = PandaLogger().getLogger("testGetCriteriaGlobalShares")
 

@@ -2,23 +2,23 @@
 utility service
 
 """
+import datetime
+import gzip
+import json
 import os
 import re
+import struct
 import sys
 import traceback
-import zlib
 import uuid
-import struct
-import datetime
-import json
-import gzip
+import zlib
+
 import pandaserver.jobdispatcher.Protocol as Protocol
-from pandaserver.userinterface import Client
+from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
-
-from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandaserver.userinterface import Client
 
 try:
     long

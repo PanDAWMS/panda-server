@@ -1,17 +1,15 @@
+import datetime
+import functools
+import json
 import os
 import socket
-import datetime
-import json
-import functools
-import traceback
 import sys
-
+import traceback
 from zlib import adler32
 
-from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger import logger_utils
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
-
 from pandaserver.config import panda_config
 from pandaserver.daemons.scripts.metric_collector import MetricsDB
 

@@ -1,5 +1,5 @@
-import sys
 import decimal
+import sys
 from io import BytesIO
 
 try:

@@ -3,11 +3,11 @@ proxy for database connection
 
 """
 import re
-
 import warnings
-from pandaserver.config import panda_config
-from pandacommon.pandalogger.PandaLogger import PandaLogger
+
 from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.config import panda_config
 from pandaserver.taskbuffer import OraDBProxy
 
 warnings.filterwarnings("ignore")

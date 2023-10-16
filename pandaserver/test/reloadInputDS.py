@@ -1,10 +1,11 @@
 import argparse
-from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+
 from pandaserver.config import panda_config
+from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 from pandaserver.userinterface import Client
 from rucio.client import Client as RucioClient
 from rucio.common.exception import DataIdentifierNotFound
-from pandaserver.dataservice.DDM import rucioAPI
 
 taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
 

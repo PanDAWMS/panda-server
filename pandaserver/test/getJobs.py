@@ -1,15 +1,16 @@
+import datetime
 import os
 import re
-import sys
 import socket
-import datetime
+import sys
 import threading
 
 try:
     from urllib import urlencode
+
     from urlparse import parse_qs
 except ImportError:
-    from urllib.parse import urlencode, parse_qs
+    from urllib.parse import parse_qs, urlencode
 try:
     from httplib import HTTPSConnection
 except ImportError:

@@ -4,27 +4,26 @@ This avoids clogged httpd processes due to stalled database accesses.
 """
 
 import os
-import sys
-import time
-import types
-import socket
-import signal
 import random
+import signal
+import socket
+import sys
 import threading
+import time
 import traceback
+import types
 
 try:
     import cPickle as pickle
 except ImportError:
     import pickle
 
-from pandaserver.taskbuffer import OraDBProxy as DBProxy
-
-from pandaserver.config import panda_config
-from pandaserver.taskbuffer.JobSpec import JobSpec
-from pandaserver.taskbuffer.FileSpec import FileSpec
-from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.config import panda_config
+from pandaserver.taskbuffer import OraDBProxy as DBProxy
+from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
+from pandaserver.taskbuffer.FileSpec import FileSpec
+from pandaserver.taskbuffer.JobSpec import JobSpec
 
 try:
     long

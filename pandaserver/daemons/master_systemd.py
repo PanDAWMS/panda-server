@@ -1,15 +1,14 @@
-import os
-import sys
-import pwd
-import grp
-import signal
 import argparse
+import grp
 import logging
+import os
+import pwd
+import signal
+import sys
 
 import daemon
 import lockfile
-
-from pandaserver.config import panda_config, daemon_config
+from pandaserver.config import daemon_config, panda_config
 from pandaserver.daemons.utils import END_SIGNALS, DaemonMaster
 
 

@@ -3,15 +3,15 @@ finish transferring jobs
 
 """
 
+import datetime
 import re
 import sys
-import uuid
 import threading
-import datetime
+import uuid
 
-from pandaserver.config import panda_config
-from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.brokerage.SiteMapper import SiteMapper
+from pandaserver.config import panda_config
 
 # logger
 _logger = PandaLogger().getLogger("Finisher")

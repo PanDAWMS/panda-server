@@ -1,20 +1,19 @@
+import datetime
+import glob
 import os
 import re
 import sys
-import time
-import glob
-import datetime
-import traceback
 import threading
+import time
+import traceback
 
-import pandaserver.userinterface.Client as Client
 import pandaserver.taskbuffer.ErrorCode
-
-from pandacommon.pandalogger.PandaLogger import PandaLogger
+import pandaserver.userinterface.Client as Client
 from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
-from pandaserver.config import panda_config
 from pandaserver.brokerage.SiteMapper import SiteMapper
+from pandaserver.config import panda_config
 from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
 # logger
@@ -246,8 +245,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 nJob = 100
                 iJob = 0
                 while iJob < len(jediJobs):
-                    tmp_log.debug(" killing %s" % str(jediJobs[iJob: iJob + nJob]))
-                    Client.killJobs(jediJobs[iJob: iJob + nJob], 51, keepUnmerged=True)
+                    tmp_log.debug(" killing %s" % str(jediJobs[iJob : iJob + nJob]))
+                    Client.killJobs(jediJobs[iJob : iJob + nJob], 51, keepUnmerged=True)
                     iJob += nJob
     except Exception:
         errStr = traceback.format_exc()

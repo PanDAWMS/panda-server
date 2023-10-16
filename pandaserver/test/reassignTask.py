@@ -1,14 +1,12 @@
-import time
-import datetime
 import argparse
-
-from pandaserver.taskbuffer.OraDBProxy import DBProxy
-
-# password
-from pandaserver.config import panda_config
+import datetime
+import time
 
 import pandaserver.userinterface.Client as Client
 
+# password
+from pandaserver.config import panda_config
+from pandaserver.taskbuffer.OraDBProxy import DBProxy
 
 proxyS = DBProxy()
 proxyS.connect(panda_config.dbhost, panda_config.dbpasswd, panda_config.dbuser, panda_config.dbname)
@@ -102,8 +100,8 @@ if len(jobs):
     nJob = 100
     iJob = 0
     while iJob < len(jobs):
-        print("reassign  %s" % str(jobs[iJob: iJob + nJob]))
-        Client.reassignJobs(jobs[iJob: iJob + nJob])
+        print("reassign  %s" % str(jobs[iJob : iJob + nJob]))
+        Client.reassignJobs(jobs[iJob : iJob + nJob])
         iJob += nJob
         time.sleep(10)
 
@@ -111,8 +109,8 @@ if len(jediJobs) != 0:
     nJob = 100
     iJob = 0
     while iJob < len(jediJobs):
-        print("kill JEDI jobs %s" % str(jediJobs[iJob: iJob + nJob]))
-        Client.killJobs(jediJobs[iJob: iJob + nJob], codeV, keepUnmerged=options.keepUnmerged)
+        print("kill JEDI jobs %s" % str(jediJobs[iJob : iJob + nJob]))
+        Client.killJobs(jediJobs[iJob : iJob + nJob], codeV, keepUnmerged=options.keepUnmerged)
         iJob += nJob
 
 print("\nreassigned {0} jobs".format(len(jobs + jediJobs)))

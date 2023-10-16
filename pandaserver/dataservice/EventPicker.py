@@ -3,26 +3,25 @@ add data to dataset
 
 """
 
+import datetime
+import fcntl
 import os
 import re
 import sys
-import fcntl
-import datetime
 import traceback
+
 import pandaserver.brokerage.broker
-from pandaserver.dataservice import DynDataDistributer
-from pandaserver.srvcore.MailUtils import MailUtils
-from pandaserver.dataservice.Notifier import Notifier
-from pandaserver.taskbuffer.JobSpec import JobSpec
-from pandaserver.taskbuffer import JobUtils
-from pandaserver.userinterface import Client
-from pandaserver.srvcore import CoreUtils
-
-from pandaserver.dataservice.DDM import rucioAPI
-from pandaserver.dataservice.DataServiceUtils import select_scope
-
-from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.dataservice import DynDataDistributer
+from pandaserver.dataservice.DataServiceUtils import select_scope
+from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.dataservice.Notifier import Notifier
+from pandaserver.srvcore import CoreUtils
+from pandaserver.srvcore.MailUtils import MailUtils
+from pandaserver.taskbuffer import JobUtils
+from pandaserver.taskbuffer.JobSpec import JobSpec
+from pandaserver.userinterface import Client
 
 # logger
 _logger = PandaLogger().getLogger("EventPicker")

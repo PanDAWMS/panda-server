@@ -1,13 +1,11 @@
-import time
 import optparse
+import time
 
 import pandaserver.userinterface.Client as Client
 
-from pandaserver.taskbuffer.OraDBProxy import DBProxy
-
 # password
 from pandaserver.config import panda_config
-
+from pandaserver.taskbuffer.OraDBProxy import DBProxy
 
 aSrvID = None
 
@@ -96,10 +94,10 @@ if len(jobs):
     nJob = 100
     iJob = 0
     while iJob < len(jobs):
-        print("kill %s" % str(jobs[iJob: iJob + nJob]))
+        print("kill %s" % str(jobs[iJob : iJob + nJob]))
         if options.forceKill:
-            Client.killJobs(jobs[iJob: iJob + nJob], 9)
+            Client.killJobs(jobs[iJob : iJob + nJob], 9)
         else:
-            Client.killJobs(jobs[iJob: iJob + nJob])
+            Client.killJobs(jobs[iJob : iJob + nJob])
         iJob += nJob
         time.sleep(1)

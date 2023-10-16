@@ -1,12 +1,13 @@
-import jwt
 import base64
-import requests
 import datetime
 from threading import Lock
-from jwt.exceptions import InvalidTokenError
-from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicNumbers
+
+import jwt
+import requests
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicNumbers
+from jwt.exceptions import InvalidTokenError
 
 
 def decode_value(val):

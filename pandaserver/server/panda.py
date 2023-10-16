@@ -14,12 +14,15 @@ import sys
 import tempfile
 import traceback
 
+import pandaserver.taskbuffer.ErrorCode
 import six
 from pandacommon.pandautils.thread_utils import GenericThread
-
-import pandaserver.taskbuffer.ErrorCode
 from pandaserver.config import panda_config
-from pandaserver.dataservice.DataService import dataService, datasetCompleted, updateFileStatusInDisp
+from pandaserver.dataservice.DataService import (
+    dataService,
+    datasetCompleted,
+    updateFileStatusInDisp,
+)
 from pandaserver.jobdispatcher.JobDispatcher import (
     ackCommands,
     checkEventsAvailability,

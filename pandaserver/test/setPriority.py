@@ -1,11 +1,9 @@
-import sys
 import optparse
-
-
-from pandaserver.taskbuffer.OraDBProxy import DBProxy
+import sys
 
 # password
 from pandaserver.config import panda_config
+from pandaserver.taskbuffer.OraDBProxy import DBProxy
 
 usage = """%prog <taskID> <priority>
 

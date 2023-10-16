@@ -1,9 +1,8 @@
 import sys
 
-from pandaserver.taskbuffer.OraDBProxy import DBProxy
-
 # password
 from pandaserver.config import panda_config
+from pandaserver.taskbuffer.OraDBProxy import DBProxy
 
 proxyS = DBProxy()
 proxyS.connect(panda_config.dbhost, panda_config.dbpasswd, panda_config.dbuser, panda_config.dbname)

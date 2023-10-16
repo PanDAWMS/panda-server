@@ -1,8 +1,7 @@
-import cx_Oracle
-
 import sys
 from types import TupleType
 
+import cx_Oracle
 from pandaserver.config import panda_config
 
 # Common items

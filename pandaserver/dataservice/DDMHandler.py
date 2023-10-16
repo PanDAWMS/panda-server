@@ -6,11 +6,10 @@ master hander for DDM
 import re
 import threading
 
-from pandaserver.dataservice.Finisher import Finisher
-from pandaserver.dataservice.Activator import Activator
-
-from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.dataservice.Activator import Activator
+from pandaserver.dataservice.Finisher import Finisher
 
 # logger
 _logger = PandaLogger().getLogger("DDMHandler")

@@ -3,23 +3,19 @@ watch job
 
 """
 
-import sys
-import time
 import datetime
+import sys
 import threading
+import time
 import traceback
 
+from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.dataservice.Closer import Closer
 from pandaserver.jobdispatcher import ErrorCode
-
+from pandaserver.taskbuffer import EventServiceUtils, retryModule
 from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.taskbuffer.SupErrors import SupErrors
-
-from pandaserver.taskbuffer import EventServiceUtils
-from pandaserver.taskbuffer import retryModule
-
-from pandaserver.dataservice.Closer import Closer
-from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 
 # logger
 _logger = PandaLogger().getLogger("Watcher")

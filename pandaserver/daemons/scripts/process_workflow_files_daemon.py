@@ -1,17 +1,15 @@
-import glob
-import time
-import sys
-
-import os.path
 import datetime
+import glob
+import os.path
+import sys
 import threading
+import time
 import traceback
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandaserver.taskbuffer.workflow_processor import WorkflowProcessor
 from pandacommon.pandautils.thread_utils import GenericThread
-
 from pandaserver.config import panda_config
+from pandaserver.taskbuffer.workflow_processor import WorkflowProcessor
 
 # logger
 _logger = PandaLogger().getLogger("process_workflow_files")

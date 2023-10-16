@@ -1,9 +1,9 @@
-import requests
-import time
-import os
 import json
+import os
+import time
 from urllib.parse import urlparse
 
+import requests
 from pandaserver.config import panda_config
 
 GB = 1024**3

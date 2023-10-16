@@ -1,9 +1,10 @@
 import sys
 import time
 import uuid
+
 import pandaserver.userinterface.Client as Client
-from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.taskbuffer.FileSpec import FileSpec
+from pandaserver.taskbuffer.JobSpec import JobSpec
 
 if len(sys.argv) > 1:
     site = sys.argv[1]

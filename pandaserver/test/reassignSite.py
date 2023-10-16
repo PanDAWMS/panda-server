@@ -1,11 +1,10 @@
-import re
 import datetime
-
 import optparse
+import re
 
-from pandaserver.taskbuffer.OraDBProxy import DBProxy
-from pandaserver.config import panda_config
 import pandaserver.userinterface.Client as Client
+from pandaserver.config import panda_config
+from pandaserver.taskbuffer.OraDBProxy import DBProxy
 
 usage = "%prog [options] siteName"
 optP = optparse.OptionParser(usage=usage, conflict_handler="resolve")
@@ -69,13 +68,13 @@ if len(jobs):
     nJob = 100
     iJob = 0
     while iJob < len(jobs):
-        print("reassign  %s" % str(jobs[iJob: iJob + nJob]))
-        Client.reassignJobs(jobs[iJob: iJob + nJob])
+        print("reassign  %s" % str(jobs[iJob : iJob + nJob]))
+        Client.reassignJobs(jobs[iJob : iJob + nJob])
         iJob += nJob
 if len(jediJobs) != 0:
     nJob = 100
     iJob = 0
     while iJob < len(jediJobs):
-        print("kill JEDI jobs %s" % str(jediJobs[iJob: iJob + nJob]))
-        Client.killJobs(jediJobs[iJob: iJob + nJob], 51)
+        print("kill JEDI jobs %s" % str(jediJobs[iJob : iJob + nJob]))
+        Client.killJobs(jediJobs[iJob : iJob + nJob], 51)
         iJob += nJob

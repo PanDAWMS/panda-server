@@ -4,20 +4,18 @@
 #
 #
 
-import sys
+import json
 import os
 import shutil
-import json
+import sys
 import traceback
-
 from argparse import ArgumentParser
 from copy import deepcopy
 from pathlib import Path
 
-from pandaserver.config import panda_config
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
-
+from pandaserver.config import panda_config
 
 # logger
 _logger = PandaLogger().getLogger("cache_schedconfig")

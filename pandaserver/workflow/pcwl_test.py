@@ -1,14 +1,14 @@
-from ruamel import yaml
 import logging
 import sys
 
-from pandaserver.workflow.workflow_utils import (
-    get_node_id_map,
-    dump_nodes,
-    set_workflow_outputs,
-    convert_nodes_to_workflow,
-)
 from pandaserver.workflow.pcwl_utils import parse_workflow_file, resolve_nodes
+from pandaserver.workflow.workflow_utils import (
+    convert_nodes_to_workflow,
+    dump_nodes,
+    get_node_id_map,
+    set_workflow_outputs,
+)
+from ruamel import yaml
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.DEBUG)
 with open(sys.argv[2]) as f:

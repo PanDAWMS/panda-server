@@ -1,13 +1,15 @@
+import glob
+import json
 import os
 import re
-import sys
-import json
 import socket
-import glob
+import sys
+
 from pandacommon.liveconfigparser.LiveConfigParser import (
     LiveConfigParser,
     expand_values,
 )
+
 from . import config_utils
 
 # get ConfigParser

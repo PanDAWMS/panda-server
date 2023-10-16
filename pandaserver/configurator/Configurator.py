@@ -1,12 +1,12 @@
 import sys
 import threading
 import traceback
-from pandaserver.configurator import aux
-from pandaserver.configurator.aux import *
 from datetime import datetime, timedelta
 
-from pandaserver.config import panda_config
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.config import panda_config
+from pandaserver.configurator import aux
+from pandaserver.configurator.aux import *
 
 _logger = PandaLogger().getLogger("configurator")
 
@@ -448,8 +448,7 @@ class Configurator(threading.Thread):
         schedconfig_panda_sites = self.taskBuffer.configurator_read_cric_panda_sites()
         self.log_stream.debug("PanDA sites in Schedconfig {0}".format(schedconfig_panda_sites))
 
-        all_panda_sites = list(CRIC_panda_sites | configurator_panda_sites | schedconfig_panda_sites)
-        all_panda_sites.sort()
+        all_panda_sites = sorted(CRIC_panda_sites | configurator_panda_sites | schedconfig_panda_sites)
 
         for site in all_panda_sites:
             missing = []
@@ -468,8 +467,7 @@ class Configurator(threading.Thread):
         configurator_ddm_endpoints = self.taskBuffer.configurator_read_ddm_endpoints()
         self.log_stream.debug("DDM endpoints in Configurator {0}".format(configurator_ddm_endpoints))
 
-        all_ddm_endpoints = list(CRIC_ddm_endpoints | configurator_ddm_endpoints)
-        all_ddm_endpoints.sort()
+        all_ddm_endpoints = sorted(CRIC_ddm_endpoints | configurator_ddm_endpoints)
 
         for site in all_ddm_endpoints:
             missing = []

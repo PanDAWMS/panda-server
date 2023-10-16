@@ -1,18 +1,18 @@
+import datetime
+import multiprocessing
 import random
 import sys
 import time
-import datetime
-import multiprocessing
 import traceback
 
-from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread, WeightedLists
-from pandaserver.config import panda_config
 from pandaserver.brokerage.SiteMapper import SiteMapper
+from pandaserver.config import panda_config
+from pandaserver.dataservice.AdderGen import AdderGen
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 from pandaserver.taskbuffer.TaskBufferInterface import TaskBufferInterface
-from pandaserver.dataservice.AdderGen import AdderGen
 
 # logger
 _logger = PandaLogger().getLogger("add_main")

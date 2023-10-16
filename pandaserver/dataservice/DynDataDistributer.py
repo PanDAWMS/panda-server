@@ -3,23 +3,22 @@ find candidate site to distribute input datasets
 
 """
 
-import re
+import datetime
 import fnmatch
-import sys
-import time
 import math
 import random
-import datetime
+import re
+import sys
+import time
 import uuid
 
-from pandaserver.dataservice.DDM import rucioAPI
-from pandaserver.dataservice.DataServiceUtils import select_scope
-from pandaserver.taskbuffer.JobSpec import JobSpec
 import pandaserver.brokerage.broker
-from pandaserver.taskbuffer import JobUtils
-
-from pandaserver.config import panda_config
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.config import panda_config
+from pandaserver.dataservice.DataServiceUtils import select_scope
+from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.taskbuffer import JobUtils
+from pandaserver.taskbuffer.JobSpec import JobSpec
 
 try:
     long
@@ -871,7 +870,7 @@ class DynDataDistributer:
                 tmpDsName = containerName[:-1] + "_%04d" % tmpIndex
                 tmpRet = self.registerDatasetWithLocation(
                     tmpDsName,
-                    tmpFiles[tmpSubIndex: tmpSubIndex + nFilesPerDataset],
+                    tmpFiles[tmpSubIndex : tmpSubIndex + nFilesPerDataset],
                     # tmpLocations,owner=owner)
                     tmpLocations,
                     owner=None,
@@ -1078,7 +1077,7 @@ class DynDataDistributer:
             nEventsPerLoop = 500
             iEventsTotal = 0
             while iEventsTotal < len(runEvtList):
-                tmpRunEvtList = runEvtList[iEventsTotal: iEventsTotal + nEventsPerLoop]
+                tmpRunEvtList = runEvtList[iEventsTotal : iEventsTotal + nEventsPerLoop]
                 self.putLog("EI lookup for {}/{}".format(iEventsTotal, len(runEvtList)))
                 iEventsTotal += nEventsPerLoop
                 regStart = datetime.datetime.utcnow()

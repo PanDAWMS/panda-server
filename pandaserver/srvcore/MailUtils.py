@@ -2,11 +2,11 @@
 email utilities
 """
 
-import sys
 import smtplib
+import sys
 
-from pandaserver.config import panda_config
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.config import panda_config
 
 # logger
 _logger = PandaLogger().getLogger("MailUtils")

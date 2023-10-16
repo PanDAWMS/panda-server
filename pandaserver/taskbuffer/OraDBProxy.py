@@ -23,10 +23,18 @@ import warnings
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils, srv_msg_utils
-from pandaserver.taskbuffer import CloudSpec, ErrorCode, EventServiceUtils, GlobalShares, JobUtils, PrioUtil, ProcessGroups, SiteSpec
+from pandaserver.taskbuffer import (
+    CloudSpec,
+    ErrorCode,
+    EventServiceUtils,
+    GlobalShares,
+    JobUtils,
+    PrioUtil,
+    ProcessGroups,
+    SiteSpec,
+)
 from pandaserver.taskbuffer.CloudTaskSpec import CloudTaskSpec
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
 from pandaserver.taskbuffer.DdmSpec import DdmSpec
@@ -75,6 +83,7 @@ warnings.filterwarnings("ignore")
 # logger
 _logger = PandaLogger().getLogger("DBProxy")
 _loggerFiltered = PandaLogger().getLogger("DBProxyFiltered")
+
 # add handlers
 for hdr in _loggerFiltered.handlers:
     hdr.setLevel(logging.INFO)
@@ -14041,8 +14050,18 @@ class DBProxy:
                     error_Codes += ["ORA-01861", "ORA-01008"]
             else:
                 # mysql error codes for connection error
-                from MySQLdb.constants.CR import CONN_HOST_ERROR, CONNECTION_ERROR, LOCALHOST_CONNECTION, SERVER_LOST
-                from MySQLdb.constants.ER import ACCESS_DENIED_ERROR, DBACCESS_DENIED_ERROR, ILLEGAL_VALUE_FOR_TYPE, SERVER_SHUTDOWN
+                from MySQLdb.constants.CR import (
+                    CONN_HOST_ERROR,
+                    CONNECTION_ERROR,
+                    LOCALHOST_CONNECTION,
+                    SERVER_LOST,
+                )
+                from MySQLdb.constants.ER import (
+                    ACCESS_DENIED_ERROR,
+                    DBACCESS_DENIED_ERROR,
+                    ILLEGAL_VALUE_FOR_TYPE,
+                    SERVER_SHUTDOWN,
+                )
 
                 error_Codes = [
                     ACCESS_DENIED_ERROR,

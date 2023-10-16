@@ -1,15 +1,13 @@
 import copy
-import six
+import json
 import re
 import shlex
-import json
 
-from pandaclient import PrunScript
-from pandaclient import PhpoScript
-
-from idds.workflowv2.workflow import Workflow, Condition, AndCondition, OrCondition
-from idds.atlas.workflowv2.atlaspandawork import ATLASPandaWork
+import six
 from idds.atlas.workflowv2.atlaslocalpandawork import ATLASLocalPandaWork
+from idds.atlas.workflowv2.atlaspandawork import ATLASPandaWork
+from idds.workflowv2.workflow import AndCondition, Condition, OrCondition, Workflow
+from pandaclient import PhpoScript, PrunScript
 
 
 # extract argument value from execution string

@@ -5,11 +5,12 @@ update dataset DB, and then close dataset and start Activator if needed
 
 import re
 import sys
+
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandaserver.config import panda_config
 from pandaserver.dataservice import Notifier
 from pandaserver.dataservice.Activator import Activator
-from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.taskbuffer import EventServiceUtils
-from pandaserver.config import panda_config
 
 # logger
 _logger = PandaLogger().getLogger("Closer")

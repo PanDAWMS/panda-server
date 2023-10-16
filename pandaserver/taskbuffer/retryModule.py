@@ -1,8 +1,9 @@
+import re
 import sys
 import time
-from pandacommon.pandalogger.PandaLogger import PandaLogger
-import re
 from re import error as ReError
+
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 # logger
 _logger = PandaLogger().getLogger("RetrialModule")
