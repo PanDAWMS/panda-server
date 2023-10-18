@@ -30,12 +30,6 @@ cache_dir = /var/log/panda/pandacache
 # DDM parameters
 #
 
-# dq2 dir
-dq2_dir = /opt/dq2
-
-# globus dir
-globus_dir = /opt/globus
-
 # path to native python
 native_python = @@virtual_env@@/bin
 
@@ -47,9 +41,6 @@ pandaCommon_dir = @@install_purelib@@/pandacommon
 
 # location for Panda server
 pandaPython_dir = @@install_purelib@@/pandaserver
-
-# location for LFCclient
-lfcClient_dir = %(pandaPython_dir)s/brokerage
 
 # home dir to change CWD
 home_dir_cwd = /home/atlpan
@@ -145,24 +136,10 @@ pserveralias = pandaserver.cern.ch
 keyDir = /var/keys
 
 
-
-##########################
-#
-# proxy parameters
-#
-
-# http
-httpProxy = ""
-
-
-
 ##########################
 #
 # E-mail DB parameters
 #
-
-# database name for local caching
-emailDB = %(logdir)s/email_db
 
 # SMTP server
 emailSMTPsrv = cernmx.cern.ch
@@ -175,26 +152,6 @@ emailLogin  = atlpan
 
 # login password for SMTP
 emailPass = FIXME
-
-
-
-##########################
-#
-# parameters for dynamic task assignment
-#
-
-# enable dynamic task assignment
-enableDynamicTA = True
-
-
-
-##########################
-#
-# parameters for redirection service
-#
-
-# enable redirection service
-enableRedirection = False
 
 
 
@@ -226,26 +183,6 @@ nrun_hosts = 3
 
 # serial number
 nrun_snum = 999
-
-
-
-##########################
-#
-# Cassandra
-#
-
-# use Cassandra for PandaCache
-cacheUseCassandra = False
-
-# ignore Cassandra error
-cacheIgnoreCassandraError = True
-
-# keyspace for PandaCache
-cacheKeySpace = PandaCacheKeySpace
-
-# column family for files
-cacheFileTable = FileTable
-
 
 
 ##########################
@@ -304,20 +241,6 @@ pandaProxy_URLSSL = https://aipanda084.cern.ch:25128/proxy/panda
 
 # CA cert
 pandaProxy_ca_certs = /etc/pki/tls/certs/CERN-bundle.pem
-#########################
-#
-# Default site
-#
-
-#def_sitename   = BNL_ATLAS_1
-#def_queue   = ANALY_BNL_ATLAS_1
-#def_nickname   = BNL_ATLAS_1-condor
-#def_dq2url     = http://dms02.usatlas.bnl.gov:8000/dq2/
-#def_ddm        = PANDA_UNDEFINED
-#def_type       = production
-#def_status     = online
-#def_gatekeeper = gridgk01.racf.bnl.gov
-
 
 
 
