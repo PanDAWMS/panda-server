@@ -94,7 +94,7 @@ for hdr in _loggerFiltered.handlers:
 # get mb proxies used in DBProxy methods
 def get_mb_proxy_dict():
     try:
-        if hasattr(panda_config, "mbproxy_configFile") and panda_config.mbproxy_configFile:
+        if hasattr(panda_config, "mq_configFile") and panda_config.mq_configFile:
             # delay import to open logger file inside python daemon
             from pandaserver.taskbuffer.PanDAMsgProcessor import MsgProcAgent
 
@@ -104,7 +104,7 @@ def get_mb_proxy_dict():
                 "panda_pilot_topic",
                 "panda_pilot_queue",
             ]
-            mp_agent = MsgProcAgent(config_file=panda_config.mbproxy_configFile)
+            mp_agent = MsgProcAgent(config_file=panda_config.mq_configFile)
             mb_proxy_dict = mp_agent.start_passive_mode(in_q_list=[], out_q_list=out_q_list)
             # stop with atexit
             atexit.register(mp_agent.stop_passive_mode)
@@ -13058,7 +13058,7 @@ class DBProxy:
         special_handling=None,
         extra_data=None,
     ):
-        if not (hasattr(panda_config, "mbproxy_configFile") and panda_config.mbproxy_configFile):
+        if not (hasattr(panda_config, "mq_configFile") and panda_config.mq_configFile):
             # skip if not configured
             return
         to_push = False

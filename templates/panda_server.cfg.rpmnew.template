@@ -366,11 +366,11 @@ auth_config = /opt/panda/etc/panda/auth/
 
 ##########################
 #
-# Message Broker Proxies
+# Message Queue parameters
 #
 
-# json config file of message broker proxies
-#mbproxy_configFile = /etc/panda/panda_mbproxy_config.json
+# json config file of message queues for PanDA functions to send to
+#mq_configFile = /etc/panda/panda_mq_config.json
 
 
 
