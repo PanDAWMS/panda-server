@@ -19,6 +19,15 @@ MaxClients           ${PANDA_SERVER_CONF_MAX_WORKERS}
 MaxRequestsPerChild  2000
 </IfModule>
 
+<IfModule mpm_event_module>
+StartServers           ${PANDA_SERVER_CONF_MIN_WORKERS}
+MinSpareThreads        ${PANDA_SERVER_CONF_MIN_WORKERS}
+ServerLimit            ${PANDA_SERVER_CONF_MAX_WORKERS}
+MaxSpareThreads        ${PANDA_SERVER_CONF_MAX_WORKERS}
+MaxRequestWorkers      ${PANDA_SERVER_CONF_MAX_WORKERS}
+MaxConnectionsPerChild 2000
+</IfModule>
+
 ServerName ${PANDA_SERVER_CONF_SERVERNAME}
 
 DocumentRoot "@@install_purelib@@/pandaserver"
@@ -67,21 +76,6 @@ Alias /auth/ "/opt/panda/etc/panda/auth/"
     Header set Content-Encoding gzip
 </Directory>
 
-<IfModule mod_fastcgi.c>
-    FastCgiIpcDir /var/log/panda/fastsocks
-    FastCgiServer /pandaserver/server/panda.py \
-	-processes 25 -idle-timeout 300 -listen-queue-depth 1 -flush \
-	-initial-env PYTHONPATH \
-	-initial-env TZ \
-	-initial-env HOME \
-	-initial-env PANDA_HOME \
-	-initial-env X509_CERT_DIR \
-	-initial-env X509_USER_PROXY \
-	-initial-env PANDA_URL \
-	-initial-env PANDA_URL_SSL
-    ScriptAliasMatch ^/server/panda/(.+)$ @@install_purelib@@/pandaserver/server/panda.py
-</IfModule>
-
 <IfModule mod_wsgi.c>
    WSGIPythonHome /opt/panda
    WSGIDaemonProcess pandasrv_daemon processes=${PANDA_SERVER_CONF_NUM_WSGI} threads=1 home=/home/atlpan
@@ -99,8 +93,6 @@ Listen ${PANDA_SERVER_CONF_PORT}
 RewriteEngine on
 RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)
 RewriteRule .* - [F]
-# use Cassandra for cache
-RewriteRule ^/cscache/(.*)$ /server/panda/getFile?fileName=$1 [PT,L]
 
 <Directory "@@install_purelib@@/pandaserver/server">
 
@@ -135,8 +127,6 @@ Listen ${PANDA_SERVER_CONF_PORT_SSL}
 RewriteEngine on
 RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)
 RewriteRule .* - [F]
-# use Cassandra for cache
-RewriteRule ^/cscache/(.*)$ /server/panda/getFile?fileName=$1 [PT,L]
 
 # CERN security recommendation to only allow the seven strongest ssl ciphers
 SSLProtocol all -SSLv2 -SSLv3 -TLSv1 -TLSv1.1
