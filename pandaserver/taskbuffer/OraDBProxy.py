@@ -18726,13 +18726,13 @@ class DBProxy:
 
                 # set default value
                 retryRamOffset = 0
-                retryRamStep = 0
+                retryRamStep = 1.0
                 # set values from task
                 for tmpItem in items:
                     if tmpItem.startswith("RX="):
                         retryRamOffset = int(tmpItem.replace("RX=", ""))
                     if tmpItem.startswith("RY="):
-                        retryRamStep = int(tmpItem.replace("RY=", ""))
+                        retryRamStep = float(tmpItem.replace("RY=", ""))
 
                 _logger.debug(
                     "{0} : RAM limit task={1}{2} cores={3} baseRamCount={4} job={5}{6} jobPSS={7}kB retryRamOffset={8} retryRamStep={9} attemptNr={10}".format(
@@ -18750,7 +18750,7 @@ class DBProxy:
                     )
                 )
 
-                minimumRam = retryRamOffset + attemptNr * retryRamStep
+                minimumRam = retryRamOffset * attemptNr * retryRamStep
 
                 if taskRamUnit != "MBPerCoreFixed":
                     # If more than x% of the task's jobs needed a memory increase, increase the task's memory instead
