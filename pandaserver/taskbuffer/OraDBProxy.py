@@ -18725,10 +18725,8 @@ class DBProxy:
                     items = splitRule.split(",")
 
                 # set default value
-                retryRamOffset = taskBaseRamCount
-                retryRamStep = taskBaseRamCount / 4
-                if retryRamStep < 1:
-                    retryRamStep = taskRamCount / 4
+                retryRamOffset = 0
+                retryRamStep = 0
                 # set values from task
                 for tmpItem in items:
                     if tmpItem.startswith("RX="):
