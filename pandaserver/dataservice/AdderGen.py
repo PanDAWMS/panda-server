@@ -168,7 +168,11 @@ class AdderGen(object):
                             self.taskBuffer.deleteJobOutputReport(panda_id=self.jobID, attempt_nr=self.attemptNr)
                             return
                     # check for cloned jobs
-                    if EventServiceUtils.isJobCloningJob(self.job):
+                    if EventServiceUtils.isJobCloningJob(self.job) and self.jobStatus == "finished":
+                        # get semaphore for storeonce
+                        if EventServiceUtils.getJobCloningType(self.job) == "storeonce":
+                            self.taskBuffer.getEventRanges(self.job.PandaID, self.job.jobsetID, self.jediTaskID, 1, False, False, None)
+                        # check semaphore
                         checkJC = self.taskBuffer.checkClonedJob(self.job)
                         if checkJC is None:
                             raise RuntimeError("failed to check the cloned job")

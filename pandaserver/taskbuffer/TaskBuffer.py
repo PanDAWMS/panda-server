@@ -761,7 +761,14 @@ class TaskBuffer:
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # update DB and buffer
-        ret = proxy.updateJobStatus(jobID, jobStatus, param, updateStateChange, attemptNr)
+        ret, post_action = proxy.updateJobStatus(jobID, jobStatus, param, updateStateChange, attemptNr)
+        # take post-action
+        if post_action:
+            # get semaphore for job cloning with runonce
+            if post_action["action"] == "get_event":
+                event_ret = proxy.getEventRanges(post_action["pandaID"], post_action["jobsetID"], post_action["jediTaskID"], 1, False, False, None)
+                if not event_ret:
+                    ret = "tobekilled"
         # get secrets for debug mode
         if isinstance(ret, str) and "debug" in ret:
             tmpS, secrets = proxy.get_user_secrets(panda_config.pilot_secrets)
