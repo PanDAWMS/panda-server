@@ -2673,10 +2673,10 @@ class DBProxy:
                         tmp_log.debug("skip to change from merging")
                     elif oldJobStatus in ["holding", "transferring"] and jobStatus == "starting":
                         # don't update holding
-                        tmp_log.debug("skip to change {1} to {2} to avoid inconsistency".format(oldJobStatus, jobStatus))
+                        tmp_log.debug(f"skip to change {oldJobStatus} to {jobStatus} to avoid inconsistency")
                     elif oldJobStatus == "holding" and jobStatus == "running":
                         # don't update holding
-                        tmp_log.debug("skip to change {1} to {2} not to return to active".format(oldJobStatus, jobStatus))
+                        tmp_log.debug(f"skip to change {oldJobStatus} to {jobStatus} not to return to active")
                     elif (
                         batchID not in ["", None]
                         and "batchID" in param
