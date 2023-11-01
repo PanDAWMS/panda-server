@@ -2526,7 +2526,10 @@ class DBProxy:
     # update Job status in jobsActive
     def updateJobStatus(self, pandaID, jobStatus, param, updateStateChange=False, attemptNr=None):
         comment = " /* DBProxy.updateJobStatus */"
-        _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s status=%s" % (pandaID, attemptNr, jobStatus))
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        method_name += f" <PandaID={pandaID}> "
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug(f"attemptNr={attemptNr} status={jobStatus}")
         sql0 = "SELECT commandToPilot,endTime,specialHandling,jobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID,"
         sql0 += "jobsetID,jobDispatcherErrorDiag,supErrorCode,eventService,batchID "
         sql0 += "FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
@@ -2585,6 +2588,7 @@ class DBProxy:
             sql1W += "AND NOT jobStatus=:ngStatus "
             varMap[":ngStatus"] = "holding"
         updatedFlag = False
+        action_in_downstream = None
         nTry = 1
         for iTry in range(nTry):
             try:
@@ -2612,12 +2616,15 @@ class DBProxy:
                         eventService,
                         batchID,
                     ) = res
-                    # debug mode
+                    # check debug mode and job cloning with runonce
+                    is_job_cloning = False
                     if specialHandling:
                         tmpJobSpec = JobSpec()
                         tmpJobSpec.specialHandling = specialHandling
                         if tmpJobSpec.is_debug_mode():
                             ret += "debug,"
+                        if EventServiceUtils.getJobCloningType(tmpJobSpec) == "runonce":
+                            is_job_cloning = True
                     # FIXME
                     # else:
                     #    ret += 'debugoff,'
@@ -2638,11 +2645,11 @@ class DBProxy:
                         "starting",
                         "running",
                     ]:
-                        _logger.debug("updateJobStatus : PandaID=%s skip to set %s since it is already %s" % (pandaID, jobStatus, oldJobStatus))
+                        tmp_log.debug("skip to set %s since it is already %s" % (jobStatus, oldJobStatus))
                         ret = "alreadydone"
                     elif oldJobStatus == "transferring" and jobStatus == "holding" and jobDispatcherErrorDiag in [None, ""]:
                         # skip transferring -> holding
-                        _logger.debug("updateJobStatus : PandaID=%s skip to set holding since it is alredy in transferring" % pandaID)
+                        tmp_log.debug("skip to set holding since it is alredy in transferring")
                         ret = "alreadydone"
                     elif (
                         oldJobStatus == "holding"
@@ -2650,7 +2657,7 @@ class DBProxy:
                         and ("jobDispatcherErrorDiag" not in param or param["jobDispatcherErrorDiag"] not in [None, ""])
                     ):
                         # just ignore hearbeats for job recovery
-                        _logger.debug("updateJobStatus : PandaID=%s skip to reset holding" % pandaID)
+                        tmp_log.debug("skip to reset holding")
                     elif (
                         oldJobStatus == "holding"
                         and jobStatus == "holding"
@@ -2659,19 +2666,17 @@ class DBProxy:
                         and param["jobDispatcherErrorDiag"] in [None, ""]
                     ):
                         # special return to avoid duplicated XMLs
-                        _logger.debug("updateJobStatus : PandaID=%s skip to set holding since it was already set to holding by the final heartbeat" % pandaID)
+                        tmp_log.debug("skip to set holding since it was already set to holding by the final heartbeat")
                         ret = "alreadydone"
                     elif oldJobStatus == "merging":
                         # don't update merging
-                        _logger.debug("updateJobStatus : PandaID=%s skip to change from merging" % pandaID)
+                        tmp_log.debug("skip to change from merging")
                     elif oldJobStatus in ["holding", "transferring"] and jobStatus == "starting":
                         # don't update holding
-                        _logger.debug("updateJobStatus : PandaID={0} skip to change {1} to {2} to avoid inconsistency".format(pandaID, oldJobStatus, jobStatus))
+                        tmp_log.debug("skip to change {1} to {2} to avoid inconsistency".format(oldJobStatus, jobStatus))
                     elif oldJobStatus == "holding" and jobStatus == "running":
                         # don't update holding
-                        _logger.debug(
-                            "updateJobStatus : PandaID={0} skip to change {1} to {2} not to return to active".format(pandaID, oldJobStatus, jobStatus)
-                        )
+                        tmp_log.debug("skip to change {1} to {2} not to return to active".format(oldJobStatus, jobStatus))
                     elif (
                         batchID not in ["", None]
                         and "batchID" in param
@@ -2681,9 +2686,8 @@ class DBProxy:
                         and re.search("^\d+\.*\d+$", param["batchID"]) is None
                     ):
                         # invalid batchID
-                        _logger.debug(
-                            "updateJobStatus : to be killed since PandaID={0} batchID mismatch old {1} in {2} vs new {3} in {4}".format(
-                                pandaID,
+                        tmp_log.debug(
+                            "to be killed since batchID mismatch old {} in {} vs new {} in {}".format(
                                 batchID.replace("\n", ""),
                                 oldJobStatus,
                                 param["batchID"].replace("\n", ""),
@@ -2703,9 +2707,7 @@ class DBProxy:
                     else:
                         # change starting to running
                         if oldJobStatus == "running" and jobStatus == "starting":
-                            _logger.debug(
-                                "updateJobStatus : PandaID={0} changed to {1} from {2} to avoid inconsistency".format(pandaID, oldJobStatus, jobStatus)
-                            )
+                            tmp_log.debug("changed to {} from {} to avoid inconsistent update".format(oldJobStatus, jobStatus))
                             jobStatus = oldJobStatus
                         # update stateChangeTime
                         if updateStateChange or (jobStatus != oldJobStatus):
@@ -2722,13 +2724,11 @@ class DBProxy:
                         varMap[":jobStatus"] = jobStatus
                         self.cur.execute(sql1 + sql1W + comment, varMap)
                         nUp = self.cur.rowcount
-                        _logger.debug(
-                            "updateJobStatus : PandaID={0} attemptNr={1} nUp={2} old={3} new={4}".format(pandaID, attemptNr, nUp, oldJobStatus, jobStatus)
-                        )
+                        tmp_log.debug("attemptNr={} nUp={} old={} new={}".format(attemptNr, nUp, oldJobStatus, jobStatus))
                         if nUp == 1:
                             updatedFlag = True
                         if nUp == 0 and jobStatus == "transferring":
-                            _logger.debug("updateJobStatus : PandaID=%s ignore to update for transferring" % pandaID)
+                            tmp_log.debug("ignore to update for transferring")
                         # update waiting ES jobs not to get reassigned
                         if updatedFlag and EventServiceUtils.isEventServiceSH(specialHandling):
                             # sql to update ES jobs
@@ -2755,11 +2755,11 @@ class DBProxy:
                                     if resUEL is None:
                                         continue
                                 except Exception:
-                                    _logger.debug("updateJobStatus : PandaID=%s skip to update associated ES=%s" % (pandaID, ueaPandaID))
+                                    tmp_log.debug(f"skip to update associated ES={ueaPandaID}")
                                     continue
                                 self.cur.execute(sqlUE + comment, varMap)
                                 nUE += self.cur.rowcount
-                            _logger.debug("updateJobStatus : PandaID=%s updated %s ES jobs" % (pandaID, nUE))
+                            tmp_log.debug(f"updated {nUE} ES jobs")
                         # update fake co-jumbo jobs
                         if updatedFlag and eventService == EventServiceUtils.jumboJobFlagNumber:
                             # sql to update fake co-jumbo
@@ -2778,9 +2778,9 @@ class DBProxy:
                                 resIFL = self.cur.fetchall()
                                 self.cur.execute(sqlIF + comment, varMap)
                                 nUE = self.cur.rowcount
-                                _logger.debug("updateJobStatus : PandaID=%s updated %s fake co-jumbo jobs" % (pandaID, nUE))
+                                tmp_log.debug(f"updated {nUE} fake co-jumbo jobs")
                             except Exception:
-                                _logger.debug("updateJobStatus : PandaID=%s skip to update fake co-jumbo jobs" % pandaID)
+                                tmp_log.debug("skip to update fake co-jumbo jobs")
                         # update nFilesOnHold for JEDI RW calculation
                         if (
                             updatedFlag
@@ -2842,7 +2842,7 @@ class DBProxy:
                                 varMap = {}
                                 varMap[":jediTaskID"] = jediTaskID
                                 varMap[":datasetID"] = tmpDatasetID
-                                _logger.debug(sqlJediDL + comment + str(varMap))
+                                tmp_log.debug(sqlJediDL + comment + str(varMap))
                                 self.cur.execute(sqlJediDL + comment, varMap)
                                 # SQL to update
                                 sqlJediDU = "UPDATE ATLAS_PANDA.JEDI_Datasets SET "
@@ -2858,7 +2858,7 @@ class DBProxy:
                                 varMap[":diffNum"] = abs(diffNum)
                                 varMap[":ngType1"] = "trn_log"
                                 varMap[":ngType2"] = "trn_output"
-                                _logger.debug(sqlJediDU + comment + str(varMap))
+                                tmp_log.debug(sqlJediDU + comment + str(varMap))
                                 self.cur.execute(sqlJediDU + comment, varMap)
                         # update lastStart
                         if oldJobStatus in ("starting", "sent") and jobStatus == "running":
@@ -2870,7 +2870,7 @@ class DBProxy:
                             varMap[":flag1"] = "production"
                             varMap[":flag2"] = "analysis"
                             self.cur.execute(sqlLS + comment, varMap)
-                            _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s updated lastStart" % (pandaID, attemptNr))
+                            tmp_log.debug("updated lastStart")
                         # update input
                         if updatedFlag and jediTaskID is not None and jobStatus == "running" and oldJobStatus != jobStatus:
                             self.updateInputStatusJedi(jediTaskID, pandaID, jobStatus)
@@ -2904,6 +2904,10 @@ class DBProxy:
                                 tmpJobSpec.addFile(tmpFileSpec)
                                 varMap = tmpFileSpec.valuesMap(useSeq=True)
                                 self.cur.execute(sqlCorIN + comment, varMap)
+                        # add params to execute getEventRanges later
+                        if updatedFlag and is_job_cloning and jobStatus == "running" and oldJobStatus in ["sent", "starting"]:
+                            action_in_downstream = {"action": "get_event", "pandaID": pandaID, "jobsetID": jobsetID, "jediTaskID": jediTaskID}
+                            tmp_log.debug(f'take action={action_in_downstream["action"]} in downstream')
                         # try to update the lastupdate column in the harvester_rel_job_worker table to propagate
                         # changes to Elastic Search
                         sqlJWU = "UPDATE ATLAS_PANDA.Harvester_Rel_Jobs_Workers SET lastUpdate=:lastUpdate "
@@ -2914,7 +2918,7 @@ class DBProxy:
                         }
                         self.cur.execute(sqlJWU + comment, varMap)
                         nRow = self.cur.rowcount
-                        _logger.debug("updateJobStatus : {0} workers updated for pandaID {1}".format(nRow, pandaID))
+                        tmp_log.debug(f"{nRow} workers updated")
 
                         try:
                             # try to update the computing element from the harvester worker table
@@ -2929,15 +2933,13 @@ class DBProxy:
                             varMap = {":PandaID": pandaID}
                             self.cur.execute(sql_ce + comment, varMap)
                             nRow = self.cur.rowcount
-                            _logger.debug("updateJobStatus : succeeded to update CE from harvester table for pandaID {0} (rowcount={1})".format(pandaID, nRow))
+                            tmp_log.debug(f"succeeded to update CE from harvester table (rowcount={nRow})")
                         except Exception:
-                            _logger.error(
-                                "updateJobStatus : failed to update CE from harvester table with {0} for PanDAID {1}".format(traceback.format_exc(), pandaID)
-                            )
+                            tmp_log.error("updateJobStatus : failed to update CE from harvester table with {0}".format(traceback.format_exc()))
                     # push status change
                     self.push_job_status_message(None, pandaID, jobStatus, jediTaskID, specialHandling)
                 else:
-                    _logger.debug("updateJobStatus : PandaID=%s attemptNr=%s notFound" % (pandaID, attemptNr))
+                    tmp_log.debug("not found")
                     # already deleted or bad attempt number
                     ret = "tobekilled"
                 # commit
@@ -2956,20 +2958,19 @@ class DBProxy:
                             },
                         )
                 except Exception:
-                    _logger.error("recordStatusChange in updateJobStatus")
-                _logger.debug("updateJobStatus : PandaID=%s done" % pandaID)
-                return ret
-            except Exception:
+                    tmp_log.error("recordStatusChange in updateJobStatus")
+                tmp_log.debug("done")
+                return ret, action_in_downstream
+            except Exception as e:
                 # roll back
                 self._rollback(True)
                 if iTry + 1 < nTry:
-                    _logger.debug("updateJobStatus : %s retry : %s" % (pandaID, iTry))
+                    tmp_log.debug(f"retry : {iTry}")
                     time.sleep(random.randint(10, 20))
                     continue
-                type, value, traceBack = sys.exc_info()
-                _logger.error("updateJobStatus : %s %s %s" % (type, value, traceback.format_exc()))
-                _logger.error("updateJobStatus : %s" % pandaID)
-                return False
+                # dump error
+                self.dumpErrorMessage(_logger, method_name)
+                return False, None
 
     # update job information in jobsActive or jobsDefined
     def updateJob(self, job, inJobsDefined, oldJobStatus=None, extraInfo=None):
