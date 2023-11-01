@@ -59,11 +59,18 @@ class DBProxyPool:
 
     # return a free proxy. this method blocks until a proxy is available
     def getProxy(self):
+        # time how long it took to get a proxy
+        start_time = time.time()
+
         # get proxy
         proxy = self.proxyList.get()
         # wake up connection
         proxy.wakeUp()
-        # return
+
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        _logger.debug(f"Elapsed time: {elapsed_time} seconds")
+
         return proxy
 
     # put back a proxy
