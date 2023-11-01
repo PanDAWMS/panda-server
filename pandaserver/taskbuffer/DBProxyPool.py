@@ -69,7 +69,7 @@ class DBProxyPool:
 
         end_time = time.time()
         elapsed_time = end_time - start_time
-        _logger.debug(f"Elapsed time: {elapsed_time} seconds")
+        _logger.debug(f"Getting proxy took: {elapsed_time} seconds")
 
         return proxy
 
