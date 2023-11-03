@@ -766,8 +766,9 @@ class TaskBuffer:
         if post_action:
             # get semaphore for job cloning with runonce
             if post_action["action"] == "get_event":
-                event_ret = proxy.getEventRanges(post_action["pandaID"], post_action["jobsetID"], post_action["jediTaskID"], 1, False, False, None)
+                event_ret = proxy.getEventRanges(post_action["pandaID"], post_action["jobsetID"], post_action["jediTaskID"], 1, True, False, None)
                 if not event_ret:
+                    proxy.killJob(post_action["pandaID"], "job cloning", "", True)
                     ret = "tobekilled"
         # get secrets for debug mode
         if isinstance(ret, str) and "debug" in ret:
