@@ -7,7 +7,6 @@ entry point
 
 import datetime
 import gzip
-import io
 import json
 import signal
 import sys
@@ -551,8 +550,8 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         raise OSError("partial read from client. {} bytes remaining".format(cont_length))
                     if not json_body:
                         # get the request body with the query string
-                        environ["wsgi.input"] = io.BytesIO(body)
-                        tmp_params = parse_qs(environ["wsgi.input"], keep_blank_values=True)
+                        request_body = environ["wsgi.input"].read()
+                        tmp_params = parse_qs(request_body, keep_blank_values=True)
 
                         # convert to map
                         params = {}
