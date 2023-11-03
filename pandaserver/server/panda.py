@@ -335,8 +335,8 @@ allowedMethods += [
 
 # FastCGI/WSGI entry
 if panda_config.useFastCGI or panda_config.useWSGI:
-    import cgi
     import os
+    from urllib.parse import parse_qs
 
     from pandacommon.pandalogger.LogWrapper import LogWrapper
     from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -550,10 +550,10 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                     if cont_length > 0:
                         raise OSError("partial read from client. {} bytes remaining".format(cont_length))
                     if not json_body:
-                        # query string
+                        # get the request body with the query string
                         environ["wsgi.input"] = io.BytesIO(body)
-                        # get params
-                        tmp_params = cgi.FieldStorage(environ["wsgi.input"], environ=environ, keep_blank_values=1)
+                        tmp_params = parse_qs(environ["wsgi.input"], keep_blank_values=True)
+
                         # convert to map
                         params = {}
                         for tmp_key in list(tmp_params):
