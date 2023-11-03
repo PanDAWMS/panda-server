@@ -23,11 +23,6 @@ except ImportError:
 
 import hashlib
 
-try:
-    long
-except NameError:
-    long = int
-
 import pandaserver.userinterface.Client as Client
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
@@ -209,7 +204,7 @@ class JobFlowATLAS(object):
         # This needs to be improved. Currently it tries to get the jobs that were submitted. But what to do when other jobs come in between?
         while idList and counter < max:
             jobD = self.retrieveJob()
-            pandaID = long(jobD["PandaID"][0])
+            pandaID = int(jobD["PandaID"][0])
 
             assert pandaID in idList, "There were other jobs queued for the site. Please do some cleanup to let the test complete"
 

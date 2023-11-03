@@ -627,23 +627,23 @@ if panda_config.useFastCGI or panda_config.useWSGI:
         duration = datetime.datetime.utcnow() - start_time
         tmp_log.info("exec_time=%s.%03d sec, return len=%s B" % (duration.seconds, duration.microseconds / 1000, len(str(exec_result))))
 
-        # return
         if exec_result == pandaserver.taskbuffer.ErrorCode.EC_NotFound:
             start_response("404 Not Found", [("Content-Type", "text/plain")])
             return ["not found".encode()]
 
-        elif exec_result == pandaserver.taskbuffer.ErrorCode.EC_Forbidden:
+        if exec_result == pandaserver.taskbuffer.ErrorCode.EC_Forbidden:
             start_response("403 Forbidden", [("Content-Type", "text/plain")])
             return ["forbidden".encode()]
 
+        if return_type == "json":
+            start_response("200 OK", [("Content-Type", "application/json")])
         else:
-            if return_type == "json":
-                start_response("200 OK", [("Content-Type", "application/json")])
-            else:
-                start_response("200 OK", [("Content-Type", "text/plain")])
-            if isinstance(exec_result, str):
-                exec_result = exec_result.encode()
-            return [exec_result]
+            start_response("200 OK", [("Content-Type", "text/plain")])
+
+        if isinstance(exec_result, str):
+            exec_result = exec_result.encode()
+
+        return [exec_result]
 
     # start server
     if panda_config.useFastCGI:

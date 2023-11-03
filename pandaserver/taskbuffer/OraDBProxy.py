@@ -55,10 +55,6 @@ except ImportError:
     pass
 
 try:
-    long
-except NameError:
-    long = int
-try:
     unicode
 except NameError:
     unicode = str
@@ -72,11 +68,11 @@ elif panda_config.backend == "postgres":
 
     from . import WrappedPostgresConn
 
-    varNUMBER = long
+    varNUMBER = int
 else:
     import MySQLdb
 
-    varNUMBER = long
+    varNUMBER = int
 
 warnings.filterwarnings("ignore")
 
@@ -681,7 +677,7 @@ class DBProxy:
 
             # set PandaID
             val = self.getvalue_corrector(self.cur.getvalue(varMap[":newPandaID"]))
-            job.PandaID = long(val)
+            job.PandaID = int(val)
 
             # get jobsetID
             if job.jobsetID in [None, "NULL", -1]:
@@ -806,7 +802,7 @@ class DBProxy:
                         self.cur.execute(sqlFile + comment, varMap)
                         # get rowID
                         val = self.getvalue_corrector(self.cur.getvalue(varMap[":newRowID"]))
-                        file.row_ID = long(val)
+                        file.row_ID = int(val)
                     dynLfnIdMap[file.lfn] = file.row_ID
                     # reset changed attribute list
                     file.resetChangedList()
@@ -2558,7 +2554,7 @@ class DBProxy:
                 try:
                     tmpM = re.search("leak=(-?\d+\.*\d+)", param[key])
                     if tmpM is not None:
-                        memoryLeak = long(float(tmpM.group(1)))
+                        memoryLeak = int(float(tmpM.group(1)))
                         tmpKey = "memory_leak"
                         sql1 += ",{0}=:{0}".format(tmpKey)
                         varMap[":{0}".format(tmpKey)] = memoryLeak
@@ -3551,7 +3547,7 @@ class DBProxy:
                                 retI = self.cur.execute(sql1 + comment, varMap)
                                 # set PandaID
                                 val = self.getvalue_corrector(self.cur.getvalue(varMap[":newPandaID"]))
-                                job.PandaID = long(val)
+                                job.PandaID = int(val)
                                 tmpLog.debug("Generate new PandaID %s -> %s #%s" % (job.parentID, job.PandaID, job.attemptNr))
                                 # insert files
                                 sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
@@ -3565,7 +3561,7 @@ class DBProxy:
                                     varMap[":newRowID"] = self.cur.var(varNUMBER)
                                     self.cur.execute(sqlFile + comment, varMap)
                                     val = self.getvalue_corrector(self.cur.getvalue(varMap[":newRowID"]))
-                                    file.row_ID = long(val)
+                                    file.row_ID = int(val)
                                 # job parameters
                                 sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param)"
                                 varMap = {}

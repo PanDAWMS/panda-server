@@ -30,11 +30,6 @@ from rucio.common.exception import (
     UnsupportedOperation,
 )
 
-try:
-    long
-except NameError:
-    long = int
-
 
 class AdderAtlasPlugin(AdderPluginBase):
     # constructor
@@ -293,7 +288,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                     fsize = None
                     if file.fsize not in ["NULL", "", 0]:
                         try:
-                            fsize = long(file.fsize)
+                            fsize = int(file.fsize)
                         except Exception:
                             type, value, traceBack = sys.exc_info()
                             self.logger.error("%s : %s %s" % (self.jobID, type, value))
@@ -996,7 +991,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                     fileData["guid"] = fileSpec.GUID
                 if fileSpec.dispatchDBlockToken not in [None, "NULL", ""]:
                     try:
-                        fileData["events"] = long(fileSpec.dispatchDBlockToken)
+                        fileData["events"] = int(fileSpec.dispatchDBlockToken)
                     except Exception:
                         pass
                 if fileSpec.checksum not in [None, "NULL", ""]:

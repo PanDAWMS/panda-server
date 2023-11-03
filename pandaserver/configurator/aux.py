@@ -60,7 +60,7 @@ def get_dump(url):
 def query_grafana_proxy(query, bearer_token):
     headers = {
         "Content-Type": "application/x-ndjson",
-        "Authorization": "Bearer {0}".format(bearer_token),
+        "Authorization": f"Bearer {bearer_token}",
     }
     grafana_proxy_url = "https://monit-grafana.cern.ch/api/datasources/proxy/10349/_msearch"
     for i in range(1, 4):  # 3 retries

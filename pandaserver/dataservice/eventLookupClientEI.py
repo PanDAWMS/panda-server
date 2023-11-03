@@ -2,11 +2,6 @@ import os
 import subprocess
 import tempfile
 
-try:
-    long
-except NameError:
-    long = int
-
 
 class eventLookupClientEI:
     def __init__(self):
@@ -24,7 +19,7 @@ class eventLookupClientEI:
         tempEvtFile = tempfile.NamedTemporaryFile(mode="w+t")
         command += " -F {0} ".format(tempEvtFile.name)
         for runEvt in runEvtList:
-            tmpStr = "{0:08d} {1:09d}\n".format(long(runEvt[0]), long(runEvt[1]))
+            tmpStr = "{0:08d} {1:09d}\n".format(int(runEvt[0]), int(runEvt[1]))
             tempEvtFile.write(tmpStr)
         tempEvtFile.flush()
         if stream not in [None, ""]:

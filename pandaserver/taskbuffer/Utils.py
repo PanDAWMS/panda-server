@@ -20,14 +20,7 @@ from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
 from pandaserver.userinterface import Client
 
-try:
-    long
-except NameError:
-    long = int
-
-# logger
 _logger = PandaLogger().getLogger("Utils")
-
 
 IGNORED_SUFFIX = [".out"]
 
@@ -59,7 +52,7 @@ def putFile(req, file):
     # get file size
     contentLength = 0
     try:
-        contentLength = long(req.headers_in["content-length"])
+        contentLength = int(req.headers_in["content-length"])
     except Exception:
         if "content-length" in req.headers_in:
             tmpLog.error("cannot get CL : %s" % req.headers_in["content-length"])
@@ -174,7 +167,7 @@ def putEventPickingRequest(
     sizeLimit = 10 * 1024 * 1024
     # get total size
     try:
-        contentLength = long(req.headers_in["content-length"])
+        contentLength = int(req.headers_in["content-length"])
     except Exception:
         errStr = "cannot get content-length from HTTP request."
         _logger.error("putEventPickingRequest : " + errStr + " " + userName)
@@ -375,7 +368,7 @@ def fetchLog(req, logName, offset=0):
         fullLogName = "%s/%s" % (panda_config.cache_dir, logName.split("/")[-1])
         # read
         ft = open(fullLogName, "r")
-        ft.seek(long(offset))
+        ft.seek(int(offset))
         retStr += ft.read()
         ft.close()
     except Exception:
@@ -430,7 +423,7 @@ def uploadLog(req, file):
     # get file size
     contentLength = 0
     try:
-        contentLength = long(req.headers_in["content-length"])
+        contentLength = int(req.headers_in["content-length"])
     except Exception:
         if "content-length" in req.headers_in:
             tmpLog.error("cannot get CL : %s" % req.headers_in["content-length"])
@@ -513,7 +506,7 @@ def put_checkpoint(req, file):
     sizeLimit = 500 * 1024 * 1024
     # get file size
     try:
-        contentLength = long(req.headers_in["content-length"])
+        contentLength = int(req.headers_in["content-length"])
     except Exception as e:
         errStr = "cannot get int(content-length) due to {0}".format(str(e))
         tmpLog.error(errStr)

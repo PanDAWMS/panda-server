@@ -30,12 +30,6 @@ try:
 except ImportError:
     pass
 
-try:
-    long()
-except NameError:
-    long = int
-
-# logger
 _logger = PandaLogger().getLogger("UserIF")
 
 
@@ -1549,7 +1543,7 @@ def retryFailedJobsInActive(req, jobID):
         return "ERROR: could not get DN"
     # convert jobID to long
     try:
-        jobID = long(jobID)
+        jobID = int(jobID)
     except Exception:
         return "ERROR: jobID is not an integer"
     return userIF.retryFailedJobsInActive(dn, jobID)
@@ -1651,7 +1645,7 @@ def getJediTasksInTimeRange(req, timeRange, dn=None, fullFlag=None, minTaskID=No
     else:
         fullFlag = False
     try:
-        minTaskID = long(minTaskID)
+        minTaskID = int(minTaskID)
     except Exception:
         minTaskID = None
     _logger.debug("getJediTasksInTimeRange %s %s" % (dn, timeRange))

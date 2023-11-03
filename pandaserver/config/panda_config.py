@@ -180,7 +180,7 @@ def parsePluginConf(modConfigName):
                 # get class
                 cls = getattr(mod, className)
                 if group:
-                    vo_key = "{}_{}".format(vo, group)
+                    vo_key = f"{vo}_{group}"
                 else:
                     vo_key = vo
                 g_pluginMap[modConfigName][vo_key] = cls
@@ -193,7 +193,7 @@ def getPlugin(modConfigName, vo, group=None):
     if modConfigName not in g_pluginMap:
         return None
     if group:
-        vo_group = "{}_{}".format(vo, group)
+        vo_group = f"{vo}_{group}"
         if vo_group in g_pluginMap[modConfigName]:
             # VO+group specified
             return g_pluginMap[modConfigName][vo_group]

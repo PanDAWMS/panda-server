@@ -77,7 +77,7 @@ class SiteMapper:
                     self.worldCloudSpec = cloudSpec
                 else:
                     self.cloudSpec[tmpName] = cloudSpec
-                    _logger.debug("Cloud->%s %s" % (tmpName, str(self.cloudSpec[tmpName])))
+                    _logger.debug(f"Cloud->{tmpName} {str(self.cloudSpec[tmpName])}")
             # add WORLD cloud
             self.worldCloudSpec["sites"] = []
             firstDefault = True
@@ -98,7 +98,7 @@ class SiteMapper:
                     ret = siteFullList[tmpNickname]
                     # append
                     if ret is None:
-                        _logger.error("Could not read site info for %s:%s" % (tmpID, tmpNickname))
+                        _logger.error(f"Could not read site info for {tmpID}:{tmpNickname}")
                     elif (
                         (firstDefault and tmpID == defSite.sitename)
                         or (tmpID not in self.siteSpecList)
@@ -114,7 +114,7 @@ class SiteMapper:
                         if tmpID not in self.siteSpecList:
                             # don't use site for production when cloud is undefined
                             if ret.runs_production() and ret.cloud == "":
-                                _logger.error("Empty cloud for %s:%s" % (tmpID, tmpNickname))
+                                _logger.error(f"Empty cloud for {tmpID}:{tmpNickname}")
                             else:
                                 self.siteSpecList[tmpID] = ret
                     else:
@@ -131,7 +131,7 @@ class SiteMapper:
                                         self.siteSpecList[tmpID].memory = ret.memory
                             except Exception:
                                 errtype, errvalue = sys.exc_info()[:2]
-                                _logger.error("%s memory/inputsize failure : %s %s" % (tmpID, errtype, errvalue))
+                                _logger.error(f"{tmpID} memory/inputsize failure : {errtype} {errvalue}")
                     # collect nuclei and satellites
                     self.collectNS(ret)
             # make virtual queues from unified queues
@@ -142,7 +142,7 @@ class SiteMapper:
                         for resourceSpec in resourceTypes:
                             # make site spec for child
                             childSiteSpec = copy.copy(siteSpec)
-                            childSiteSpec.sitename = "{0}/{1}".format(siteSpec.sitename, resourceSpec.resource_name)
+                            childSiteSpec.sitename = f"{siteSpec.sitename}/{resourceSpec.resource_name}"
                             coreCount = max(1, siteSpec.coreCount)
                             # skip if not good for core count requirement
                             if resourceSpec.mincore is not None and coreCount < resourceSpec.mincore:
@@ -216,7 +216,7 @@ class SiteMapper:
                 _logger.debug("========= dump =========")
                 for tmpSite in self.siteSpecList:
                     tmpSiteSpec = self.siteSpecList[tmpSite]
-                    _logger.debug("Site->%s" % str(tmpSiteSpec))
+                    _logger.debug(f"Site->{str(tmpSiteSpec)}")
             # check
             for tmpCloud in self.cloudSpec:
                 tmpVals = self.cloudSpec[tmpCloud]
@@ -227,18 +227,18 @@ class SiteMapper:
                     pass
                 tmpVals["sites"].insert(0, tmpVals["dest"])
                 # dump
-                _logger.debug("Cloud:%s has %s" % (tmpCloud, tmpVals["sites"]))
+                _logger.debug(f"Cloud:{tmpCloud} has {tmpVals['sites']}")
                 for tmpSite in tmpVals["sites"]:
                     if tmpSite not in self.siteSpecList:
-                        _logger.debug("  '%s' doesn't exist" % tmpSite)
+                        _logger.debug(f"  '{tmpSite}' doesn't exist")
                         continue
                     tmpSiteSpec = self.siteSpecList[tmpSite]
                     if tmpSiteSpec.status in ["offline"]:
-                        _logger.debug("  %s:%s" % (tmpSite, tmpSiteSpec.status))
-            _logger.debug("Cloud:XX has %s" % self.defCloudSites)
+                        _logger.debug(f"  {tmpSite}:{tmpSiteSpec.status}")
+            _logger.debug(f"Cloud:XX has {self.defCloudSites}")
         except Exception:
             type, value, traceBack = sys.exc_info()
-            _logger.error("__init__ SiteMapper : %s %s" % (type, value))
+            _logger.error(f"__init__ SiteMapper : {type} {value}")
             _logger.error(traceback.format_exc())
         _logger.debug("__init__ SiteMapper done")
 

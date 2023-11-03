@@ -22,12 +22,6 @@ from pandaserver.config import panda_config
 from pandaserver.dataservice import Closer
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils, retryModule
 
-try:
-    long
-except NameError:
-    long = int
-
-# logger
 _logger = PandaLogger().getLogger("Adder")
 
 panda_config.setupPlugin()
@@ -586,7 +580,7 @@ class AdderGen(object):
                     # get fsize
                     name = str(meta.getAttribute("att_name"))
                     if name == "fsize":
-                        fsize = long(meta.getAttribute("att_value"))
+                        fsize = int(meta.getAttribute("att_value"))
                     elif name == "md5sum":
                         md5sum = str(meta.getAttribute("att_value"))
                         # check
@@ -638,7 +632,7 @@ class AdderGen(object):
                     fullLFN = None
                     guid = str(fileData["guid"])
                     if "fsize" in fileData:
-                        fsize = long(fileData["fsize"])
+                        fsize = int(fileData["fsize"])
                     if "md5sum" in fileData:
                         md5sum = str(fileData["md5sum"])
                         # check
@@ -713,7 +707,7 @@ class AdderGen(object):
                     # get fsize
                     name = str(meta.getAttribute("att_name"))
                     if name == "events":
-                        nevents = long(meta.getAttribute("att_value"))
+                        nevents = int(meta.getAttribute("att_value"))
                         nEventsMap[lfn] = nevents
                         break
             nEventsFrom = "xml"
@@ -728,7 +722,7 @@ class AdderGen(object):
                 for jsonSubFileItem in jsonFileItem["subFiles"]:
                     lfn = str(jsonSubFileItem["name"])
                     try:
-                        nevents = long(jsonSubFileItem["nentries"])
+                        nevents = int(jsonSubFileItem["nentries"])
                         nEventsMap[lfn] = nevents
                     except Exception:
                         pass

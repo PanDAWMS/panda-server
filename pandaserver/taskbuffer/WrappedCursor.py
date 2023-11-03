@@ -10,14 +10,8 @@ import warnings
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.config import panda_config
 
-try:
-    long
-except NameError:
-    long = int
-
 warnings.filterwarnings("ignore")
 
-# logger
 _logger = PandaLogger().getLogger("WrappedCursor")
 
 
@@ -349,7 +343,7 @@ class WrappedCursor(object):
 
     def _returningIntoMySQLpost(self, returningInputData, varDict, cur):
         # returningInputData=[{'returning': 'PandaID', 'into': ':newPandaID'}, {'returning': 'row_ID', 'into': ':newRowID'}]
-        result = long(0)
+        result = int(0)
         if len(returningInputData) == 1:
             ret = self.cur.execute(""" SELECT LAST_INSERT_ID() """)
             (result,) = self.cur.fetchone()
@@ -359,7 +353,7 @@ class WrappedCursor(object):
                     listInto = [x["into"] for x in returningInputData]
                     for x in listInto:
                         try:
-                            varDict[x] = long(result)
+                            varDict[x] = int(result)
                         except KeyError:
                             pass
                 except Exception:
