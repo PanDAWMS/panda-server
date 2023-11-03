@@ -15,7 +15,6 @@ import tempfile
 import traceback
 
 import pandaserver.taskbuffer.ErrorCode
-import six
 from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.config import panda_config
 from pandaserver.dataservice.DataService import (
