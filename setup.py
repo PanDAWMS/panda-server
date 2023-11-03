@@ -244,7 +244,6 @@ setup(
         "pyOpenSSL",
         "python-daemon",
         "mod_wsgi",
-        "six",
         "stomp.py",
         "pyyaml",
         "pyjwt",

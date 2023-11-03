@@ -443,7 +443,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         if panda_config.token_authType == "scitokens":
                             items = token.claims()
                         else:
-                            items = six.iteritems(token)
+                            items = token.items()
                         for c, v in items:
                             self.subprocess_env["PANDA_OIDC_CLAIM_{0}".format(str(c))] = str(v)
                         # use sub and scope as DN and FQAN

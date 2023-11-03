@@ -4,17 +4,8 @@ import re
 import socket
 import sys
 import threading
-
-try:
-    from urllib import urlencode
-
-    from urlparse import parse_qs
-except ImportError:
-    from urllib.parse import parse_qs, urlencode
-try:
-    from httplib import HTTPSConnection
-except ImportError:
-    from http.client import HTTPSConnection
+from http.client import HTTPSConnection
+from urllib.parse import parse_qs, urlencode
 
 from pandaserver.userinterface.Client import baseURLSSL
 

@@ -3,7 +3,6 @@ import json
 import re
 import shlex
 
-import six
 from idds.atlas.workflowv2.atlaslocalpandawork import ATLASLocalPandaWork
 from idds.atlas.workflowv2.atlaspandawork import ATLASPandaWork
 from idds.workflowv2.workflow import AndCondition, Condition, OrCondition, Workflow
@@ -107,7 +106,7 @@ class Node(object):
     # convert inputs to dict inputs
     def convert_dict_inputs(self, skip_suppressed=False):
         data = {}
-        for k, v in six.iteritems(self.inputs):
+        for k, v in self.inputs.items():
             if skip_suppressed and "suppressed" in v and v["suppressed"]:
                 continue
             y_name = k.split("/")[-1]
@@ -122,7 +121,7 @@ class Node(object):
     # convert outputs to set
     def convert_set_outputs(self):
         data = set()
-        for k, v in six.iteritems(self.outputs):
+        for k, v in self.outputs.items():
             if "value" in v:
                 data.add(v["value"])
         return data
@@ -132,7 +131,7 @@ class Node(object):
         if self.is_leaf:
             dict_inputs = self.convert_dict_inputs(True)
             # check input
-            for k, v in six.iteritems(dict_inputs):
+            for k, v in dict_inputs.items():
                 if v is None:
                     return False, "{} is unresolved".format(k)
             # check args
@@ -200,10 +199,10 @@ class Node(object):
         outstr = "ID:{} Name:{} Type:{}\n".format(self.id, self.name, self.type)
         outstr += "  Parent:{}\n".format(",".join([str(p) for p in self.parents]))
         outstr += "  Input:\n"
-        for k, v in six.iteritems(self.convert_dict_inputs()):
+        for k, v in self.convert_dict_inputs().items():
             outstr += "     {}: {}\n".format(k, v)
         outstr += "  Output:\n"
-        for k, v in six.iteritems(self.outputs):
+        for k, v in self.outputs.items():
             if "value" in v:
                 v = v["value"]
             else:
@@ -259,7 +258,7 @@ class Node(object):
                         dict_inputs["opt_exec"] = re.sub(src, ",".join(list_sec_ds), dict_inputs["opt_exec"])
                     if "opt_args" in dict_inputs:
                         dict_inputs["opt_args"] = re.sub(src, ",".join(list_sec_ds), dict_inputs["opt_args"])
-                for k, v in six.iteritems(self.inputs):
+                for k, v in self.inputs.items():
                     if k.endswith("opt_exec"):
                         v["value"] = dict_inputs["opt_exec"]
                     elif k.endswith("opt_args"):
@@ -271,7 +270,7 @@ class Node(object):
     # create task params
     def make_task_params(self, task_template, id_map, workflow_node):
         # task name
-        for k, v in six.iteritems(self.outputs):
+        for k, v in self.outputs.items():
             task_name = v["value"]
             break
         if self.type in ["prun", "junction", "reana"]:
@@ -324,7 +323,7 @@ class Node(object):
                             dict_inputs["opt_exec"] = re.sub(src, ",".join(list_in_ds), dict_inputs["opt_exec"])
                         if "opt_args" in dict_inputs:
                             dict_inputs["opt_args"] = re.sub(src, ",".join(list_in_ds), dict_inputs["opt_args"])
-                    for k, v in six.iteritems(self.inputs):
+                    for k, v in self.inputs.items():
                         if k.endswith("opt_exec"):
                             v["value"] = dict_inputs["opt_exec"]
                         elif k.endswith("opt_args"):
@@ -341,7 +340,7 @@ class Node(object):
                         src_dst_list.append((tmp_src, tmp_dst))
                 # workflow globls
                 if tmp_workflow_global:
-                    for k, v in six.iteritems(tmp_workflow_global):
+                    for k, v in tmp_workflow_global.items():
                         tmp_src = "%{{{}}}".format(k)
                         tmp_dst = "{}".format(v)
                         src_dst_list.append((tmp_src, tmp_dst))
@@ -378,7 +377,7 @@ class Node(object):
             parsed_params = PrunScript.main(True, parse_com, dry_mode=True)
             task_params["cliParams"] = " ".join(shlex.quote(x) for x in com)
             # set parsed parameters
-            for p_key, p_value in six.iteritems(parsed_params):
+            for p_key, p_value in parsed_params.items():
                 if p_key in ["buildSpec"]:
                     continue
                 if p_key not in task_params or p_key in [
@@ -514,7 +513,7 @@ class Node(object):
             return None, None
         loop_params = {}
         workflow_params = {}
-        for k, v in six.iteritems(root_inputs):
+        for k, v in root_inputs.items():
             m = self.get_loop_param_name(k)
             if m:
                 loop_params[m] = v
@@ -842,7 +841,7 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None, workflow
         if tmp_global:
             loop_locals = {}
             loop_slices = []
-            for k, v in six.iteritems(tmp_global):
+            for k, v in tmp_global.items():
                 if not isinstance(v, dict):
                     # normal looping locals
                     loop_locals["user_" + k] = tmp_global[k]

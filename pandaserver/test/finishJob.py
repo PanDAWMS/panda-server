@@ -4,15 +4,8 @@ import os
 import re
 import sys
 import uuid
-
-try:
-    from urllib import urlencode
-except ImportError:
-    from urllib.parse import urlencode
-try:
-    from httplib import HTTPSConnection
-except ImportError:
-    from http.client import HTTPSConnection
+from http.client import HTTPSConnection
+from urllib.parse import urlencode
 
 from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.brokerage.SiteMapper import SiteMapper

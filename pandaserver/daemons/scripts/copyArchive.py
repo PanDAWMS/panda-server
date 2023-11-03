@@ -8,7 +8,6 @@ import traceback
 
 import pandaserver.userinterface.Client as Client
 import requests
-import six
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.brokerage.SiteMapper import SiteMapper
@@ -541,8 +540,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             ") WHERE rownum<:nRows "
         )
         nQueueLimitMap = {}
-        for computingSite, shareStat in six.iteritems(statsPerPQ):
-            for gshare, nStat in six.iteritems(shareStat):
+        for computingSite, shareStat in statsPerPQ.items():
+            for gshare, nStat in shareStat.items():
                 # get limit
                 if gshare not in nQueueLimitMap:
                     key = "FAST_REBRO_THRESHOLD_NQUEUE_{}".format(gshare)

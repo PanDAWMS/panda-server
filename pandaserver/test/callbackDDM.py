@@ -1,15 +1,7 @@
 import os
 import sys
-
-import six
-
-try:
-    from urllib import urlencode, urlopen
-
-    from urllib2 import Request
-except ImportError:
-    from urllib.parse import urlencode
-    from urllib.request import urlopen, Request
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
@@ -18,9 +10,7 @@ taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1)
 
 d = taskBuffer.queryDatasetWithMap({"name": sys.argv[1]})
 
-node = {}
-node["vuid"] = d.vuid
-node["site"] = sys.argv[2]
+node = {"vuid": d.vuid, "site": sys.argv[2]}
 
 try:
     baseURLSSL = os.environ["PANDA_URL_SSL"]
@@ -28,7 +18,7 @@ except KeyError:
     baseURLSSL = "https://localhost:25443/server/panda"
 
 url = "{0}/datasetCompleted".format(baseURLSSL)
-rdata = six.b(urlencode(node))
+rdata = (urlencode(node)).encode("utf-8")
 req = Request(url)
 fd = urlopen(req, rdata)
 data = fd.read()

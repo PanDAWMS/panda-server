@@ -1,15 +1,8 @@
 import os
 import re
 import time
-
-try:
-    from urllib import urlencode
-except ImportError:
-    from urllib.parse import urlencode
-try:
-    from httplib import HTTPSConnection
-except ImportError:
-    from http.client import HTTPSConnection
+from http.client import HTTPSConnection
+from urllib.parse import urlencode
 
 import pandaserver.userinterface.Client as Client
 
