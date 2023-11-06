@@ -76,13 +76,13 @@ class DynDataDistributer:
     # main
     def run(self):
         try:
-            self.putLog("start for %s" % self.jobs[0].PandaID)
+            self.putLog(f"start for {self.jobs[0].PandaID}")
             # check cloud
             if self.jobs[0].cloud not in self.pd2pClouds + [
                 "CERN",
             ]:
-                self.putLog("skip cloud=%s not one of PD2P clouds %s" % (self.jobs[0].cloud, str(self.pd2pClouds)))
-                self.putLog("end for %s" % self.jobs[0].PandaID)
+                self.putLog(f"skip cloud={self.jobs[0].cloud} not one of PD2P clouds {str(self.pd2pClouds)}")
+                self.putLog(f"end for {self.jobs[0].PandaID}")
                 return
             # ignore HC and group production
             if self.jobs[0].processingType in [
@@ -91,13 +91,13 @@ class DynDataDistributer:
             ] or self.jobs[
                 0
             ].processingType.startswith("gangarobot"):
-                self.putLog("skip due to processingType=%s" % self.jobs[0].processingType)
-                self.putLog("end for %s" % self.jobs[0].PandaID)
+                self.putLog(f"skip due to processingType={self.jobs[0].processingType}")
+                self.putLog(f"end for {self.jobs[0].PandaID}")
                 return
             # ignore HC and group production
             if self.jobs[0].workingGroup not in ["NULL", None, ""]:
-                self.putLog("skip due to workingGroup=%s" % self.jobs[0].workingGroup)
-                self.putLog("end for %s" % self.jobs[0].PandaID)
+                self.putLog(f"skip due to workingGroup={self.jobs[0].workingGroup}")
+                self.putLog(f"end for {self.jobs[0].PandaID}")
                 return
             # get input datasets
             inputDatasets = []
@@ -119,21 +119,21 @@ class DynDataDistributer:
                     if inputDS.startswith(projectName):
                         moveFlag = True
                 if not moveFlag:
-                    self.putLog("skip non official dataset %s" % inputDS)
+                    self.putLog(f"skip non official dataset {inputDS}")
                     continue
                 if re.search("_sub\d+$", inputDS) is not None or re.search("_dis\d+$", inputDS) is not None:
-                    self.putLog("skip dis/sub dataset %s" % inputDS)
+                    self.putLog(f"skip dis/sub dataset {inputDS}")
                     continue
                 # check type
                 tmpItems = inputDS.split(".")
                 if len(tmpItems) < 5:
-                    self.putLog("cannot get type from %s" % inputDS)
+                    self.putLog(f"cannot get type from {inputDS}")
                     continue
                 if tmpItems[4] in ngDataTypes:
-                    self.putLog("don't move %s : %s" % (tmpItems[4], inputDS))
+                    self.putLog(f"don't move {tmpItems[4]} : {inputDS}")
                     continue
                 # get candidate sites
-                self.putLog("get candidates for %s" % inputDS)
+                self.putLog(f"get candidates for {inputDS}")
                 status, sitesMaps = self.getCandidates(inputDS, prodsourcelabel, job_label, useCloseSites=True)
                 if not status:
                     self.putLog("failed to get candidates")
@@ -143,7 +143,7 @@ class DynDataDistributer:
                 if inputDS.endswith("/"):
                     status, totalInputSize = rucioAPI.getDatasetSize(inputDS)
                     if not status:
-                        self.putLog("failed to get size of %s" % inputDS)
+                        self.putLog(f"failed to get size of {inputDS}")
                         continue
                 # get number of waiting jobs and jobsets
                 nWaitingJobsAll = self.taskBuffer.getNumWaitingJobsForPD2P(inputDS)
@@ -152,7 +152,7 @@ class DynDataDistributer:
                 usedSites = []
                 for tmpDS in sitesMaps:
                     tmpVal = sitesMaps[tmpDS]
-                    self.putLog("triggered for %s" % tmpDS, sendLog=True)
+                    self.putLog(f"triggered for {tmpDS}", sendLog=True)
                     # increment used counter
                     if not self.simul:
                         nUsed = self.taskBuffer.incrementUsedCounterSubscription(tmpDS)
@@ -163,7 +163,7 @@ class DynDataDistributer:
                         retAddUserSub = self.taskBuffer.addUserSubscription(tmpDS, ["DUMMY"])
                         if not retAddUserSub:
                             self.putLog(
-                                "failed to add dummy subscription to database for %s " % tmpDS,
+                                f"failed to add dummy subscription to database for {tmpDS} ",
                                 type="error",
                                 sendLog=True,
                             )
@@ -231,25 +231,25 @@ class DynDataDistributer:
                         # add clouds
                         if tmpCloud not in allOKClouds:
                             allOKClouds.append(tmpCloud)
-                    self.putLog("PD2P sites with comp replicas : %s" % str(allCompPd2pSites))
-                    self.putLog("PD2P T2 candidates : %s" % str(allCandidates))
-                    self.putLog("PD2P T2 MoU candidates : %s" % str(allCandidatesMoU))
-                    self.putLog("PD2P # of T2 subscriptions : %s" % totalUserSub)
-                    self.putLog("PD2P # of T1 secondaries   : %s" % totalSecReplicas)
-                    self.putLog("PD2P # of T1 subscriptions : %s" % nT1Sub)
-                    self.putLog("PD2P # of T1 replicas : %s" % nTier1Copies)
-                    self.putLog("PD2P T1 candidates : %s" % str(allT1Candidates))
-                    self.putLog("PD2P nUsed : %s" % nUsed)
+                    self.putLog(f"PD2P sites with comp replicas : {str(allCompPd2pSites)}")
+                    self.putLog(f"PD2P T2 candidates : {str(allCandidates)}")
+                    self.putLog(f"PD2P T2 MoU candidates : {str(allCandidatesMoU)}")
+                    self.putLog(f"PD2P # of T2 subscriptions : {totalUserSub}")
+                    self.putLog(f"PD2P # of T1 secondaries   : {totalSecReplicas}")
+                    self.putLog(f"PD2P # of T1 subscriptions : {nT1Sub}")
+                    self.putLog(f"PD2P # of T1 replicas : {nTier1Copies}")
+                    self.putLog(f"PD2P T1 candidates : {str(allT1Candidates)}")
+                    self.putLog(f"PD2P nUsed : {nUsed}")
                     # get dataset size
                     retDsSize, dsSize = rucioAPI.getDatasetSize(tmpDS)
                     if not retDsSize:
                         self.putLog(
-                            "failed to get dataset size of %s" % tmpDS,
+                            f"failed to get dataset size of {tmpDS}",
                             type="error",
                             sendLog=True,
                         )
                         continue
-                    self.putLog("PD2P nWaitingJobsets : %s" % nWaitingJobsets)
+                    self.putLog(f"PD2P nWaitingJobsets : {nWaitingJobsets}")
                     if totalInputSize != 0:
                         self.putLog(
                             "PD2P nWaitingJobs    : %s = %s(all)*%s(dsSize)/%s(contSize)"
@@ -261,7 +261,7 @@ class DynDataDistributer:
                             )
                         )
                     else:
-                        self.putLog("PD2P nWaitingJobs    : %s = %s(all)" % (nWaitingJobsAll, nWaitingJobsAll))
+                        self.putLog(f"PD2P nWaitingJobs    : {nWaitingJobsAll} = {nWaitingJobsAll}(all)")
                     # make T1-T1
                     triggeredT1PD2P = False
                     if nUsed > 0:
@@ -320,7 +320,7 @@ class DynDataDistributer:
                         maxSitesHaveDS = max(maxSitesHaveDS, tmpN)
                     # protection against too many replications
                     maxSitesHaveDS = min(maxSitesHaveDS, protectionMaxNumReplicas)
-                    self.putLog("PD2P maxSitesHaveDS : %s" % maxSitesHaveDS)
+                    self.putLog(f"PD2P maxSitesHaveDS : {maxSitesHaveDS}")
                     # ignore the first job
                     if nUsed == 0:
                         self.putLog(
@@ -334,7 +334,7 @@ class DynDataDistributer:
                     # check number of replicas
                     if len(allCompPd2pSites) >= maxSitesHaveDS and nUsed != 1:
                         self.putLog(
-                            "skip since many T2 PD2P sites (%s>=%s) have the replica" % (len(allCompPd2pSites), maxSitesHaveDS),
+                            f"skip since many T2 PD2P sites ({len(allCompPd2pSites)}>={maxSitesHaveDS}) have the replica",
                             sendLog=True,
                             actionTag="SKIPPED",
                             tagsMap={
@@ -347,10 +347,10 @@ class DynDataDistributer:
                     # check the number of subscriptions
                     maxNumSubInAllCloud = max(0, maxSitesHaveDS - len(allCompPd2pSites))
                     maxNumSubInAllCloud = min(2, maxNumSubInAllCloud)
-                    self.putLog("PD2P maxNumSubInAllCloud : %s" % maxNumSubInAllCloud)
+                    self.putLog(f"PD2P maxNumSubInAllCloud : {maxNumSubInAllCloud}")
                     if totalUserSub >= maxNumSubInAllCloud:
                         self.putLog(
-                            "skip since enough subscriptions (%s>=%s) were already made for T2 PD2P" % (totalUserSub, maxNumSubInAllCloud),
+                            f"skip since enough subscriptions ({totalUserSub}>={maxNumSubInAllCloud}) were already made for T2 PD2P",
                             sendLog=True,
                             actionTag="SKIPPED",
                             tagsMap={
@@ -377,7 +377,7 @@ class DynDataDistributer:
                         prodsourcelabel,
                         job_label,
                     )
-                    self.putLog("inverse weight %s" % str(weightForBrokerage))
+                    self.putLog(f"inverse weight {str(weightForBrokerage)}")
                     # get free disk size
                     self.putLog("getting free disk size for T2 PD2P")
                     retFreeSizeMap, freeSizeMap = self.getFreeDiskSize(tmpDS, allCandidates, prodsourcelabel, job_label)
@@ -387,7 +387,7 @@ class DynDataDistributer:
                     # run brokerage
                     tmpJob = JobSpec()
                     tmpJob.AtlasRelease = ""
-                    self.putLog("run brokerage for %s" % tmpDS)
+                    self.putLog(f"run brokerage for {tmpDS}")
                     usedWeight = pandaserver.brokerage.broker.schedule(
                         [tmpJob],
                         self.taskBuffer,
@@ -422,12 +422,12 @@ class DynDataDistributer:
                         else:
                             tmpActionTag = "UNSELECTEDT2"
                         self.putLog(
-                            "weight %s %s" % (tmpWeightSite, tmpWeightStr),
+                            f"weight {tmpWeightSite} {tmpWeightStr}",
                             sendLog=True,
                             actionTag=tmpActionTag,
                             tagsMap=tmpTagsMap,
                         )
-                    self.putLog("site for T2 PD2P -> %s" % selectedSite)
+                    self.putLog(f"site for T2 PD2P -> {selectedSite}")
                     # remove from candidate list
                     if selectedSite in allCandidates:
                         allCandidates.remove(selectedSite)
@@ -439,7 +439,7 @@ class DynDataDistributer:
                         scope_input, scope_output = select_scope(selectedSiteSpec, prodsourcelabel, job_label)
                         subRet, dq2ID = self.makeSubscription(tmpDS, selectedSite, scope_input, ddmShare="secondary")
                         self.putLog(
-                            "made subscription to %s:%s" % (selectedSite, dq2ID),
+                            f"made subscription to {selectedSite}:{dq2ID}",
                             sendLog=True,
                         )
                         usedSites.append(selectedSite)
@@ -457,10 +457,10 @@ class DynDataDistributer:
                             job_label,
                             nUsed,
                         )
-            self.putLog("end for %s" % self.jobs[0].PandaID)
+            self.putLog(f"end for {self.jobs[0].PandaID}")
         except Exception:
             errType, errValue = sys.exc_info()[:2]
-            self.putLog("%s %s" % (errType, errValue), "error")
+            self.putLog(f"{errType} {errValue}", "error")
 
     # get candidate sites for subscription
     def getCandidates(
@@ -494,7 +494,7 @@ class DynDataDistributer:
             tmpRepMaps = {inputDS: tmpRepMap}
         if not status:
             # failed
-            self.putLog("failed to get replica locations for %s" % inputDS, "error")
+            self.putLog(f"failed to get replica locations for {inputDS}", "error")
             return failedRet
         # get close sites
         closeSitesMap = {}
@@ -576,7 +576,7 @@ class DynDataDistributer:
     def getDQ2ID(self, sitename, dataset, scope):
         # get DQ2 ID
         if not self.siteMapper.checkSite(sitename):
-            self.putLog("cannot find SiteSpec for %s" % sitename)
+            self.putLog(f"cannot find SiteSpec for {sitename}")
             return ""
         dq2ID = self.siteMapper.getSite(sitename).ddm_input[scope]
         if True:
@@ -588,7 +588,7 @@ class DynDataDistributer:
                 dq2ID = re.sub("_[^_]+DISK", "_DATADISK", dq2ID)
         else:
             # unsupported prefix for subscription
-            self.putLog("%s has unsupported prefix for subscription" % dataset, "error")
+            self.putLog(f"{dataset} has unsupported prefix for subscription", "error")
             return ""
         # patch for MWT2_UC
         if dq2ID == "MWT2_UC_DATADISK":
@@ -606,10 +606,10 @@ class DynDataDistributer:
         else:
             dq2ID = givenDQ2ID
         if dq2ID == "":
-            self.putLog("cannot find DQ2 ID for %s:%s" % (sitename, dataset))
+            self.putLog(f"cannot find DQ2 ID for {sitename}:{dataset}")
             return retFailed
         # register subscription
-        self.putLog("registerDatasetSubscription %s %s" % (dataset, dq2ID))
+        self.putLog(f"registerDatasetSubscription {dataset} {dq2ID}")
         nTry = 3
         for iDDMTry in range(nTry):
             try:
@@ -619,15 +619,15 @@ class DynDataDistributer:
             except Exception:
                 status = False
                 errType, errValue = sys.exc_info()[:2]
-                out = "%s %s" % (errType, errValue)
+                out = f"{errType} {errValue}"
                 time.sleep(30)
         # result
         if not status:
             self.putLog(out, "error")
-            self.putLog("bad DDM response for %s" % dataset, "error")
+            self.putLog(f"bad DDM response for {dataset}", "error")
             return retFailed
         # update
-        self.putLog("%s %s" % (status, out))
+        self.putLog(f"{status} {out}")
         return True, dq2ID
 
     # get weight for brokerage
@@ -644,7 +644,7 @@ class DynDataDistributer:
             scope_input, scope_output = select_scope(siteSpec, prodsourcelabel, job_label)
             dq2ID = self.getDQ2ID(sitename, dataset, scope_input)
             if dq2ID == "":
-                self.putLog("cannot find DQ2 ID for %s:%s" % (sitename, dataset))
+                self.putLog(f"cannot find DQ2 ID for {sitename}:{dataset}")
                 return retFailed
             # append
             if dq2ID in numUserSubs:
@@ -673,24 +673,24 @@ class DynDataDistributer:
             scope_input, scope_output = select_scope(siteSpec, prodsourcelabel, job_label)
             dq2ID = self.getDQ2ID(sitename, dataset, scope_input)
             if dq2ID == "":
-                self.putLog("cannot find DQ2 ID for %s:%s" % (sitename, dataset))
+                self.putLog(f"cannot find DQ2 ID for {sitename}:{dataset}")
                 return retFailed
             tmpMap = rucioAPI.getRseUsage(dq2ID)
             if tmpMap == {}:
-                self.putLog("getRseUsage failed for {0}".format(sitename))
+                self.putLog(f"getRseUsage failed for {sitename}")
             # append
             sizeMap[sitename] = tmpMap
             # cache
             self.cachedSizeMap[sitename] = sizeMap[sitename]
         # return
-        self.putLog("getFreeDiskSize done->%s" % str(sizeMap))
+        self.putLog(f"getFreeDiskSize done->{str(sizeMap)}")
         return True, sizeMap
 
     # get list of replicas for a dataset
     def getListDatasetReplicas(self, dataset):
         nTry = 3
         for iDDMTry in range(nTry):
-            self.putLog("%s/%s listDatasetReplicas %s" % (iDDMTry, nTry, dataset))
+            self.putLog(f"{iDDMTry}/{nTry} listDatasetReplicas {dataset}")
             status, out = rucioAPI.listDatasetReplicas(dataset)
             if status != 0:
                 time.sleep(10)
@@ -699,9 +699,9 @@ class DynDataDistributer:
         # result
         if status != 0:
             self.putLog(out, "error")
-            self.putLog("bad response for %s" % dataset, "error")
+            self.putLog(f"bad response for {dataset}", "error")
             return False, {}
-        self.putLog("getListDatasetReplicas->%s" % str(out))
+        self.putLog(f"getListDatasetReplicas->{str(out)}")
         return True, out
 
     # get replicas for a container
@@ -711,7 +711,7 @@ class DynDataDistributer:
         # get datasets in container
         nTry = 3
         for iDDMTry in range(nTry):
-            self.putLog("%s/%s listDatasetsInContainer %s" % (iDDMTry, nTry, container))
+            self.putLog(f"{iDDMTry}/{nTry} listDatasetsInContainer {container}")
             datasets, out = rucioAPI.listDatasetsInContainer(container)
             if datasets is None:
                 time.sleep(60)
@@ -719,7 +719,7 @@ class DynDataDistributer:
                 break
         if datasets is None:
             self.putLog(out, "error")
-            self.putLog("bad DDM response for %s" % container, "error")
+            self.putLog(f"bad DDM response for {container}", "error")
             return resForFailure
         # loop over all datasets
         allRepMap = {}
@@ -744,18 +744,18 @@ class DynDataDistributer:
             nTry = 3
             for iDDMTry in range(nTry):
                 try:
-                    self.putLog("%s/%s listFilesInDataset %s" % (iDDMTry, nTry, datasetName))
+                    self.putLog(f"{iDDMTry}/{nTry} listFilesInDataset {datasetName}")
                     fileItems, out = rucioAPI.listFilesInDataset(datasetName)
                     status = True
                     break
                 except Exception:
                     status = False
                     errType, errValue = sys.exc_info()[:2]
-                    out = "{0} {1}".format(errType, errValue)
+                    out = f"{errType} {errValue}"
                     time.sleep(60)
             if not status:
                 self.putLog(out, "error")
-                self.putLog("bad DDM response to get size of %s" % datasetName, "error")
+                self.putLog(f"bad DDM response to get size of {datasetName}", "error")
                 return resForFailure
             # get
             # check if jobs use the dataset
@@ -772,7 +772,7 @@ class DynDataDistributer:
             if usedFlag:
                 usedDsList.append(datasetName)
         # return
-        self.putLog("used datasets = %s" % str(usedDsList))
+        self.putLog(f"used datasets = {str(usedDsList)}")
         return True, usedDsList
 
     # get file from dataset
@@ -784,18 +784,18 @@ class DynDataDistributer:
             nTry = 3
             for iDDMTry in range(nTry):
                 try:
-                    self.putLog("%s/%s listFilesInDataset %s" % (iDDMTry, nTry, datasetName))
+                    self.putLog(f"{iDDMTry}/{nTry} listFilesInDataset {datasetName}")
                     fileItems, out = rucioAPI.listFilesInDataset(datasetName)
                     status = True
                     break
                 except Exception:
                     status = False
                     errType, errValue = sys.exc_info()[:2]
-                    out = "{0} {1}".format(errType, errValue)
+                    out = f"{errType} {errValue}"
                     time.sleep(60)
             if not status:
                 self.putLog(out, "error")
-                self.putLog("bad DDM response to get size of %s" % datasetName, "error")
+                self.putLog(f"bad DDM response to get size of {datasetName}", "error")
                 return resForFailure
             # append
             g_filesInDsMap[datasetName] = fileItems
@@ -828,10 +828,10 @@ class DynDataDistributer:
         if owner is not None:
             status, userInfo = rucioAPI.finger(owner)
             if not status:
-                self.putLog("failed to finger: {0}".format(userInfo))
+                self.putLog(f"failed to finger: {userInfo}")
             else:
                 owner = userInfo["nickname"]
-            self.putLog("parsed DN={0}".format(owner))
+            self.putLog(f"parsed DN={owner}")
         # sort by locations
         filesMap = {}
         for tmpFile in files:
@@ -872,7 +872,7 @@ class DynDataDistributer:
                 )
                 # failed
                 if not tmpRet:
-                    self.putLog("failed to register %s" % tmpDsName, "error")
+                    self.putLog(f"failed to register {tmpDsName}", "error")
                     return False
                 # append dataset
                 datasetNames.append(tmpDsName)
@@ -882,18 +882,18 @@ class DynDataDistributer:
         nTry = 3
         for iDDMTry in range(nTry):
             try:
-                self.putLog("%s/%s registerContainer %s" % (iDDMTry, nTry, containerName))
+                self.putLog(f"{iDDMTry}/{nTry} registerContainer {containerName}")
                 status = rucioAPI.registerContainer(containerName, datasetNames)
                 out = "OK"
                 break
             except Exception:
                 status = False
                 errType, errValue = sys.exc_info()[:2]
-                out = "{0} {1}".format(errType, errValue)
+                out = f"{errType} {errValue}"
                 time.sleep(10)
         if not status:
             self.putLog(out, "error")
-            self.putLog("bad DDM response to register %s" % containerName, "error")
+            self.putLog(f"bad DDM response to register {containerName}", "error")
             return False
         # return
         self.putLog(out)
@@ -916,27 +916,27 @@ class DynDataDistributer:
         nTry = 3
         for iDDMTry in range(nTry):
             try:
-                self.putLog("%s/%s registerNewDataset %s len=%s" % (iDDMTry, nTry, datasetName, len(files)))
+                self.putLog(f"{iDDMTry}/{nTry} registerNewDataset {datasetName} len={len(files)}")
                 out = rucioAPI.registerDataset(datasetName, lfns, guids, fsizes, chksums, lifetime=14)
                 self.putLog(out)
                 break
             except Exception:
                 errType, errValue = sys.exc_info()[:2]
-                self.putLog("%s %s" % (errType, errValue), "error")
+                self.putLog(f"{errType} {errValue}", "error")
                 if iDDMTry + 1 == nTry:
-                    self.putLog("failed to register {0} in rucio".format(datasetName))
+                    self.putLog(f"failed to register {datasetName} in rucio")
                     return resForFailure
                 time.sleep(10)
         # freeze dataset
         nTry = 3
         for iDDMTry in range(nTry):
-            self.putLog("%s/%s freezeDataset %s" % (iDDMTry, nTry, datasetName))
+            self.putLog(f"{iDDMTry}/{nTry} freezeDataset {datasetName}")
             try:
                 rucioAPI.closeDataset(datasetName)
                 status = True
             except Exception:
                 errtype, errvalue = sys.exc_info()[:2]
-                out = "failed to freeze : {0} {1}".format(errtype, errvalue)
+                out = f"failed to freeze : {errtype} {errvalue}"
                 status = False
             if not status:
                 time.sleep(10)
@@ -944,14 +944,14 @@ class DynDataDistributer:
                 break
         if not status:
             self.putLog(out, "error")
-            self.putLog("bad DDM response to freeze %s" % datasetName, "error")
+            self.putLog(f"bad DDM response to freeze {datasetName}", "error")
             return resForFailure
         # register locations
         for tmpLocation in locations:
             nTry = 3
             for iDDMTry in range(nTry):
                 try:
-                    self.putLog("%s/%s registerDatasetLocation %s %s" % (iDDMTry, nTry, datasetName, tmpLocation))
+                    self.putLog(f"{iDDMTry}/{nTry} registerDatasetLocation {datasetName} {tmpLocation}")
                     out = rucioAPI.registerDatasetLocation(datasetName, [tmpLocation], 14, owner)
                     self.putLog(out)
                     status = True
@@ -959,14 +959,14 @@ class DynDataDistributer:
                 except Exception:
                     status = False
                     errType, errValue = sys.exc_info()[:2]
-                    self.putLog("%s %s" % (errType, errValue), "error")
+                    self.putLog(f"{errType} {errValue}", "error")
                     if iDDMTry + 1 == nTry:
-                        self.putLog("failed to register {0} in rucio".format(datasetName))
+                        self.putLog(f"failed to register {datasetName} in rucio")
                         return resForFailure
                     time.sleep(10)
             if not status:
                 self.putLog(out, "error")
-                self.putLog("bad DDM response to set owner %s" % datasetName, "error")
+                self.putLog(f"bad DDM response to set owner {datasetName}", "error")
                 return resForFailure
         return True
 
@@ -977,14 +977,14 @@ class DynDataDistributer:
         # get size of datasets
         nTry = 3
         for iDDMTry in range(nTry):
-            self.putLog("%s/%s listDatasetsByGUIDs GUIDs=%s" % (iDDMTry, nTry, str(guids)))
+            self.putLog(f"{iDDMTry}/{nTry} listDatasetsByGUIDs GUIDs={str(guids)}")
             try:
                 out = rucioAPI.listDatasetsByGUIDs(guids)
                 status = True
                 break
             except Exception:
                 errtype, errvalue = sys.exc_info()[:2]
-                out = "failed to get datasets with GUIDs : {0} {1}".format(errtype, errvalue)
+                out = f"failed to get datasets with GUIDs : {errtype} {errvalue}"
                 status = False
                 time.sleep(10)
         if not status:
@@ -1002,7 +1002,7 @@ class DynDataDistributer:
                 tmpDsNames = []
                 # GUID not found
                 if guid not in outMap:
-                    self.putLog("GUID=%s not found" % guid, "error")
+                    self.putLog(f"GUID={guid} not found", "error")
                     return resForFatal
                 # ignore junk datasets
                 for tmpDsName in outMap[guid]:
@@ -1030,11 +1030,11 @@ class DynDataDistributer:
                     tmpDsNames.append(tmpDsName)
                 # empty
                 if tmpDsNames == []:
-                    self.putLog("no datasets found for GUID=%s" % guid)
+                    self.putLog(f"no datasets found for GUID={guid}")
                     continue
                 # duplicated
                 if len(tmpDsNames) != 1:
-                    self.putLog("use the first dataset in %s for GUID:%s" % (str(tmpDsNames), guid))
+                    self.putLog(f"use the first dataset in {str(tmpDsNames)} for GUID:{guid}")
                 # append
                 retMap[guid] = tmpDsNames[0]
         except Exception:
@@ -1054,7 +1054,7 @@ class DynDataDistributer:
         runEvtGuidMap,
         ei_api,
     ):
-        self.putLog("convertEvtRunToDatasets type=%s stream=%s dsPatt=%s amitag=%s" % (dsType, streamName, str(dsFilters), amiTag))
+        self.putLog(f"convertEvtRunToDatasets type={dsType} stream={streamName} dsPatt={str(dsFilters)} amitag={amiTag}")
         # check data type
         failedRet = False, {}, []
         fatalRet = False, {"isFatal": True}, []
@@ -1073,7 +1073,7 @@ class DynDataDistributer:
             iEventsTotal = 0
             while iEventsTotal < len(runEvtList):
                 tmpRunEvtList = runEvtList[iEventsTotal : iEventsTotal + nEventsPerLoop]
-                self.putLog("EI lookup for {}/{}".format(iEventsTotal, len(runEvtList)))
+                self.putLog(f"EI lookup for {iEventsTotal}/{len(runEvtList)}")
                 iEventsTotal += nEventsPerLoop
                 regStart = datetime.datetime.utcnow()
                 guidListELSSI, tmpCom, tmpOut, tmpErr = elssiIF.doLookup(
@@ -1085,8 +1085,8 @@ class DynDataDistributer:
                     ei_api=ei_api,
                 )
                 regTime = datetime.datetime.utcnow() - regStart
-                self.putLog("EI command: {0}".format(tmpCom))
-                self.putLog("took {0}.{1:03f} sec for {2} events".format(regTime.seconds, regTime.microseconds / 1000, len(tmpRunEvtList)))
+                self.putLog(f"EI command: {tmpCom}")
+                self.putLog(f"took {regTime.seconds}.{regTime.microseconds / 1000:03f} sec for {len(tmpRunEvtList)} events")
                 # failed
                 if tmpErr not in [None, ""] or len(guidListELSSI) == 0:
                     self.putLog(tmpCom)
@@ -1096,7 +1096,7 @@ class DynDataDistributer:
                     return failedRet
                 # check events
                 for runNr, evtNr in tmpRunEvtList:
-                    paramStr = "Run:%s Evt:%s Stream:%s" % (runNr, evtNr, streamName)
+                    paramStr = f"Run:{runNr} Evt:{evtNr} Stream:{streamName}"
                     self.putLog(paramStr)
                     tmpRunEvtKey = (int(runNr), int(evtNr))
                     # not found
@@ -1104,7 +1104,7 @@ class DynDataDistributer:
                         self.putLog(tmpCom)
                         self.putLog(tmpOut)
                         self.putLog(tmpErr)
-                        errStr = "no GUIDs were found in EventIndex for %s" % paramStr
+                        errStr = f"no GUIDs were found in EventIndex for {paramStr}"
                         self.putLog(errStr, type="error")
                         return fatalRet
                     # append
@@ -1126,13 +1126,13 @@ class DynDataDistributer:
             # empty
             if tmpDsMap == {}:
                 self.putLog(
-                    "there is no dataset for Run:%s Evt:%s GUIDs:%s" % (runNr, evtNr, str(tmpguids)),
+                    f"there is no dataset for Run:{runNr} Evt:{evtNr} GUIDs:{str(tmpguids)}",
                     type="error",
                 )
                 return fatalRet
             if len(tmpDsMap) != 1:
                 self.putLog(
-                    "there are multiple datasets %s for Run:%s Evt:%s GUIDs:%s" % (str(tmpDsMap), runNr, evtNr, str(tmpguids)),
+                    f"there are multiple datasets {str(tmpDsMap)} for Run:{runNr} Evt:{evtNr} GUIDs:{str(tmpguids)}",
                     type="error",
                 )
                 return fatalRet
@@ -1147,7 +1147,7 @@ class DynDataDistributer:
                     # failed
                     if not statRep:
                         self.putLog(
-                            "failed to get locations for DS:%s" % tmpDsName,
+                            f"failed to get locations for DS:{tmpDsName}",
                             type="error",
                         )
                         return failedRet
@@ -1165,14 +1165,14 @@ class DynDataDistributer:
                 # failed
                 if not tmpFileRet:
                     self.putLog(
-                        "failed to get fileinfo for GUID:%s DS:%s" % (tmpGUID, tmpDsName),
+                        f"failed to get fileinfo for GUID:{tmpGUID} DS:{tmpDsName}",
                         type="error",
                     )
                     return failedRet
                 # collect files
                 allFiles.append(tmpFileInfo)
         # return
-        self.putLog("converted to %s, %s, %s" % (str(allDatasets), str(allLocations), str(allFiles)))
+        self.putLog(f"converted to {str(allDatasets)}, {str(allLocations)}, {str(allFiles)}")
         return True, allLocations, allFiles
 
     # put log
@@ -1197,10 +1197,10 @@ class DynDataDistributer:
         if sendLog:
             tmpMsg = self.token + " - "
             if actionTag != "":
-                tmpMsg += "action=%s " % actionTag
+                tmpMsg += f"action={actionTag} "
                 for tmpTag in tagsMap:
                     tmpTagVal = tagsMap[tmpTag]
-                    tmpMsg += "%s=%s " % (tmpTag, tmpTagVal)
+                    tmpMsg += f"{tmpTag}={tmpTagVal} "
             tmpMsg += "- " + msg
             tmpPandaLogger = PandaLogger()
             tmpPandaLogger.lock()
@@ -1257,9 +1257,9 @@ class DynDataDistributer:
         # run brokerage
         tmpJob = JobSpec()
         tmpJob.AtlasRelease = ""
-        self.putLog("run brokerage for T1-T1 for %s" % tmpDS)
+        self.putLog(f"run brokerage for T1-T1 for {tmpDS}")
         selectedSite = self.chooseSite(t1Weights, freeSizeMap, dsSize)
-        self.putLog("site for T1 PD2P -> %s" % selectedSite)
+        self.putLog(f"site for T1 PD2P -> {selectedSite}")
         # simulation
         if self.simul:
             return True, useSmallT1
@@ -1280,7 +1280,7 @@ class DynDataDistributer:
         if nWaitingJobsets is not None:
             tmpTagsMap["nwaitingjobsets"] = nWaitingJobsets
         self.putLog(
-            "made subscription for T1-T1 to %s:%s" % (tmpJob.computingSite, dq2ID),
+            f"made subscription for T1-T1 to {tmpJob.computingSite}:{dq2ID}",
             sendLog=True,
             actionTag="SELECTEDT1",
             tagsMap=tmpTagsMap,
@@ -1328,16 +1328,16 @@ class DynDataDistributer:
                 # get MoU share
                 if tmpDQ2ID not in self.shareMoUForT2:
                     # site is undefined in t_regions_replication
-                    self.putLog("%s is not in MoU table" % tmpDQ2ID, type="error")
+                    self.putLog(f"{tmpDQ2ID} is not in MoU table", type="error")
                     continue
                 if self.shareMoUForT2[tmpDQ2ID]["status"] not in ["ready"]:
                     # site is not ready
-                    self.putLog("%s is not ready in MoU table" % tmpDQ2ID)
+                    self.putLog(f"{tmpDQ2ID} is not ready in MoU table")
                     continue
                 tmpWeight = self.shareMoUForT2[tmpDQ2ID]["weight"]
                 # skip if the weight is 0
                 if tmpWeight == 0:
-                    self.putLog("%s has 0 weight in MoU table" % tmpDQ2ID)
+                    self.putLog(f"{tmpDQ2ID} has 0 weight in MoU table")
                     continue
                 # collect siteIDs and weights for brokerage
                 t2Candidates.append(tmpCandidate)
@@ -1345,7 +1345,7 @@ class DynDataDistributer:
         # sort for reproducibility
         t2Candidates.sort()
         # get free disk size
-        self.putLog("getting free disk size for T2 %s PD2P" % pd2pType)
+        self.putLog(f"getting free disk size for T2 {pd2pType} PD2P")
         retFreeSizeMap, freeSizeMap = self.getFreeDiskSize(tmpDS, t2Candidates, prodsourcelabel, job_label)
         if not retFreeSizeMap:
             self.putLog("failed to get free disk size", type="error", sendLog=True)
@@ -1353,15 +1353,15 @@ class DynDataDistributer:
         # run brokerage
         tmpJob = JobSpec()
         tmpJob.AtlasRelease = ""
-        self.putLog("run brokerage for T2 with %s for %s" % (pd2pType, tmpDS))
+        self.putLog(f"run brokerage for T2 with {pd2pType} for {tmpDS}")
         selectedSite = self.chooseSite(t2Weights, freeSizeMap, dsSize)
-        self.putLog("site for T2 %s PD2P -> %s" % (pd2pType, selectedSite))
+        self.putLog(f"site for T2 {pd2pType} PD2P -> {selectedSite}")
         # simulation
         if self.simul:
             return True, selectedSite
         # no candidate
         if selectedSite is None:
-            self.putLog("no candidate for T2 with %s" % pd2pType)
+            self.putLog(f"no candidate for T2 with {pd2pType}")
             return False, None
         # make subscription
         selectedSiteSpec = self.siteMapper.getSite(selectedSite)
@@ -1375,9 +1375,9 @@ class DynDataDistributer:
         if nWaitingJobsets is not None:
             tmpTagsMap["nwaitingjobsets"] = nWaitingJobsets
         self.putLog(
-            "made subscription for T2 with %s to %s:%s" % (pd2pType, selectedSite, dq2ID),
+            f"made subscription for T2 with {pd2pType} to {selectedSite}:{dq2ID}",
             sendLog=True,
-            actionTag="SELECTEDT2_%s" % pd2pType,
+            actionTag=f"SELECTEDT2_{pd2pType}",
             tagsMap=tmpTagsMap,
         )
         # update database
@@ -1403,9 +1403,9 @@ class DynDataDistributer:
                     thrForThisSite = diskThresholdPD2P
                 remSpace = freeSizeMap[tmpCan]["total"] - freeSizeMap[tmpCan]["used"]
                 if remSpace - datasetSize < thrForThisSite:
-                    self.putLog("  skip: disk shortage %s-%s< %s" % (remSpace, datasetSize, thrForThisSite))
+                    self.putLog(f"  skip: disk shortage {remSpace}-{datasetSize}< {thrForThisSite}")
                     continue
-            self.putLog("weight %s %s" % (tmpCan, tmpW))
+            self.putLog(f"weight {tmpCan} {tmpW}")
             # get total weight
             totalW += tmpW
             # append candidate

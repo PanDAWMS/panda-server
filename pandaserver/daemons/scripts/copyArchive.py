@@ -53,11 +53,11 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         vmRSS += item
                     continue
             procfile.close()
-            _logger.debug("MemCheck - %s Name=%s VSZ=%s RSS=%s : %s" % (os.getpid(), name, vmSize, vmRSS, str))
+            _logger.debug(f"MemCheck - {os.getpid()} Name={name} VSZ={vmSize} RSS={vmRSS} : {str}")
         except Exception:
             type, value, traceBack = sys.exc_info()
-            _logger.error("memoryCheck() : %s %s" % (type, value))
-            _logger.debug("MemCheck - %s unknown : %s" % (os.getpid(), str))
+            _logger.error(f"memoryCheck() : {type} {value}")
+            _logger.debug(f"MemCheck - {os.getpid()} unknown : {str}")
         return
 
     _memoryCheck("start")
@@ -96,7 +96,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 computingSite,
             ) in res:
                 # check
-                _logger.debug("check finalization for %s task=%s jobdefID=%s site=%s" % (prodUserName, jediTaskID, jobDefinitionID, computingSite))
+                _logger.debug(f"check finalization for {prodUserName} task={jediTaskID} jobdefID={jobDefinitionID} site={computingSite}")
                 sqlC = "SELECT COUNT(*) FROM ("
                 sqlC += "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
                 sqlC += "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
@@ -123,7 +123,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 statC, resC = taskBuffer.querySQLS(sqlC, varMap)
                 # finalize if there is no non-failed jobs
                 if resC is not None:
-                    _logger.debug("n of non-failed jobs : %s" % resC[0][0])
+                    _logger.debug(f"n of non-failed jobs : {resC[0][0]}")
                     if resC[0][0] == 0:
                         jobSpecs = taskBuffer.peekJobs(
                             [pandaID],
@@ -133,11 +133,11 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         )
                         jobSpec = jobSpecs[0]
                         if jobSpec is None:
-                            _logger.debug("skip PandaID={0} not found in jobsActive".format(pandaID))
+                            _logger.debug(f"skip PandaID={pandaID} not found in jobsActive")
                             continue
-                        _logger.debug("finalize %s %s" % (prodUserName, jobDefinitionID))
+                        _logger.debug(f"finalize {prodUserName} {jobDefinitionID}")
                         finalizedFlag = taskBuffer.finalizePendingJobs(prodUserName, jobDefinitionID)
-                        _logger.debug("finalized with %s" % finalizedFlag)
+                        _logger.debug(f"finalized with {finalizedFlag}")
                         if finalizedFlag and jobSpec.produceUnMerge():
                             # collect sub datasets
                             subDsNames = set()
@@ -155,7 +155,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                     _logger.debug("n of non-failed jobs : None")
     except Exception:
         errType, errValue = sys.exc_info()[:2]
-        _logger.error("AnalFinalizer failed with %s %s" % (errType, errValue))
+        _logger.error(f"AnalFinalizer failed with {errType} {errValue}")
 
     # finalize failed jobs
     _logger.debug("check stuck mergeing jobs")
@@ -211,11 +211,11 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                                 subDsNames.add(tmpFileSpec.destinationDBlock)
                                 datasetSpec = taskBuffer.queryDatasetWithMap({"name": tmpFileSpec.destinationDBlock})
                                 subDsList.append(datasetSpec)
-                        _logger.debug("update unmerged datasets for jediTaskID={0} PandaID={1}".format(jediTaskID, PandaID))
+                        _logger.debug(f"update unmerged datasets for jediTaskID={jediTaskID} PandaID={PandaID}")
                         taskBuffer.updateUnmergedDatasets(jobSpec, subDsList, updateCompleted=True)
     except Exception:
         errType, errValue = sys.exc_info()[:2]
-        _logger.error("check for stuck merging jobs failed with %s %s" % (errType, errValue))
+        _logger.error(f"check for stuck merging jobs failed with {errType} {errValue}")
 
     # get sites to skip various timeout
     varMap = {}
@@ -225,7 +225,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     status, res = taskBuffer.querySQLS(sql, varMap)
     for (siteid,) in res:
         sitesToSkipTO.add(siteid)
-    _logger.debug("PQs to skip timeout : {0}".format(",".join(sitesToSkipTO)))
+    _logger.debug(f"PQs to skip timeout : {','.join(sitesToSkipTO)}")
 
     sitesToDisableReassign = set()
     # get sites to disable reassign
@@ -235,7 +235,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             continue
         if siteSpec.disable_reassign():
             sitesToDisableReassign.add(siteName)
-    _logger.debug("PQs to disable reassign : {0}".format(",".join(sitesToDisableReassign)))
+    _logger.debug(f"PQs to disable reassign : {','.join(sitesToDisableReassign)}")
 
     _memoryCheck("watcher")
 
@@ -246,7 +246,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     status, res = taskBuffer.querySQLS(sql, {})
     workflow_timeout_map = {}
     for (workflow,) in res + [("production",), ("analysis",)]:
-        timeout = taskBuffer.getConfigValue("watcher", "HEARTBEAT_TIMEOUT_{0}".format(workflow), "pandaserver", "atlas")
+        timeout = taskBuffer.getConfigValue("watcher", f"HEARTBEAT_TIMEOUT_{workflow}", "pandaserver", "atlas")
         if timeout is not None:
             workflow_timeout_map[workflow] = timeout
         elif workflow in ["production", "analysis"]:
@@ -254,7 +254,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
     workflows = list(workflow_timeout_map)
 
-    _logger.debug("timeout : {0}".format(str(workflow_timeout_map)))
+    _logger.debug(f"timeout : {str(workflow_timeout_map)}")
 
     # check heartbeat for analysis jobs
     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=workflow_timeout_map["analysis"])
@@ -270,11 +270,11 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     sql += "AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4) AND modificationTime<:modificationTime"
     status, res = taskBuffer.querySQLS(sql, varMap)
     if res is None:
-        _logger.debug("# of Anal Watcher : %s" % res)
+        _logger.debug(f"# of Anal Watcher : {res}")
     else:
-        _logger.debug("# of Anal Watcher : %s" % len(res))
+        _logger.debug(f"# of Anal Watcher : {len(res)}")
         for (id,) in res:
-            _logger.debug("Anal Watcher %s" % id)
+            _logger.debug(f"Anal Watcher {id}")
             thr = Watcher(taskBuffer, id, single=True, sleepTime=60, sitemapper=siteMapper)
             thr.start()
             thr.join()
@@ -290,11 +290,11 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     sql += "AND jobStatus=:jobStatus1 AND modificationTime<:modificationTime"
     status, res = taskBuffer.querySQLS(sql, varMap)
     if res is None:
-        _logger.debug("# of Transferring Anal Watcher : %s" % res)
+        _logger.debug(f"# of Transferring Anal Watcher : {res}")
     else:
-        _logger.debug("# of Transferring Anal Watcher : %s" % len(res))
+        _logger.debug(f"# of Transferring Anal Watcher : {len(res)}")
         for (id,) in res:
-            _logger.debug("Trans Anal Watcher %s" % id)
+            _logger.debug(f"Trans Anal Watcher {id}")
             thr = Watcher(taskBuffer, id, single=True, sleepTime=60, sitemapper=siteMapper)
             thr.start()
             thr.join()
@@ -309,11 +309,11 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         varMap,
     )
     if res is None:
-        _logger.debug("# of Sent Watcher : %s" % res)
+        _logger.debug(f"# of Sent Watcher : {res}")
     else:
-        _logger.debug("# of Sent Watcher : %s" % len(res))
+        _logger.debug(f"# of Sent Watcher : {len(res)}")
         for (id,) in res:
-            _logger.debug("Sent Watcher %s" % id)
+            _logger.debug(f"Sent Watcher {id}")
             thr = Watcher(taskBuffer, id, single=True, sleepTime=30, sitemapper=siteMapper)
             thr.start()
             thr.join()
@@ -342,13 +342,13 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     varMap[":prodSourceLabel3"] = "ddm"
     status, res = taskBuffer.querySQLS(sql, varMap)
     if res is None:
-        _logger.debug("# of Holding Anal/DDM Watcher : %s" % res)
+        _logger.debug(f"# of Holding Anal/DDM Watcher : {res}")
     else:
-        _logger.debug("# of Holding Anal/DDM Watcher : %s - XMLs : %s" % (len(res), len(xmlIDs)))
+        _logger.debug(f"# of Holding Anal/DDM Watcher : {len(res)} - XMLs : {len(xmlIDs)}")
         for (id,) in res:
-            _logger.debug("Holding Anal/DDM Watcher %s" % id)
+            _logger.debug(f"Holding Anal/DDM Watcher {id}")
             if int(id) in xmlIDs:
-                _logger.debug("   found XML -> skip %s" % id)
+                _logger.debug(f"   found XML -> skip {id}")
                 continue
             thr = Watcher(taskBuffer, id, single=True, sleepTime=180, sitemapper=siteMapper)
             thr.start()
@@ -366,11 +366,11 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     varMap[":pLimit"] = 800
     status, res = taskBuffer.querySQLS(sql, varMap)
     if res is None:
-        _logger.debug("# of High prio Holding Watcher : %s" % res)
+        _logger.debug(f"# of High prio Holding Watcher : {res}")
     else:
-        _logger.debug("# of High prio Holding Watcher : %s" % len(res))
+        _logger.debug(f"# of High prio Holding Watcher : {len(res)}")
         for (id,) in res:
-            _logger.debug("High prio Holding Watcher %s" % id)
+            _logger.debug(f"High prio Holding Watcher {id}")
             thr = Watcher(
                 taskBuffer,
                 id,
@@ -393,11 +393,11 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     varMap[":jobStatus"] = "holding"
     status, res = taskBuffer.querySQLS(sql, varMap)
     if res is None:
-        _logger.debug("# of Holding Watcher with timeout {}min: {}".format(timeOutVal, str(res)))
+        _logger.debug(f"# of Holding Watcher with timeout {timeOutVal}min: {str(res)}")
     else:
-        _logger.debug("# of Holding Watcher with timeout {}min: {}".format(timeOutVal, len(res)))
+        _logger.debug(f"# of Holding Watcher with timeout {timeOutVal}min: {len(res)}")
         for (id,) in res:
-            _logger.debug("Holding Watcher %s" % id)
+            _logger.debug(f"Holding Watcher {id}")
             thr = Watcher(taskBuffer, id, single=True, sleepTime=timeOutVal, sitemapper=siteMapper)
             thr.start()
             thr.join()
@@ -424,28 +424,28 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 for ng_workflow in workflows:
                     if ng_workflow in ["production", "analysis"]:
                         continue
-                    tmp_key = ":w_{0}".format(ng_workflow)
+                    tmp_key = f":w_{ng_workflow}"
                     varMap[tmp_key] = ng_workflow
-                    sqlX += "{0},".format(tmp_key)
+                    sqlX += f"{tmp_key},"
                 sqlX = sqlX[:-1]
                 sqlX += ")) "
         else:
-            tmp_key = ":w_{0}".format(workflow)
-            sqlX += "AND s.data.workflow={0} ".format(tmp_key)
+            tmp_key = f":w_{workflow}"
+            sqlX += f"AND s.data.workflow={tmp_key} "
             varMap[tmp_key] = workflow
         timeOutVal = workflow_timeout_map[workflow]
         timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeOutVal)
         varMap[":modificationTime"] = timeLimit
         status, res = taskBuffer.querySQLS(sqlX, varMap)
         if res is None:
-            _logger.debug("# of General Watcher with workflow={0}: {1}".format(workflow, res))
+            _logger.debug(f"# of General Watcher with workflow={workflow}: {res}")
         else:
-            _logger.debug("# of General Watcher with workflow={0}: {1}".format(workflow, len(res)))
+            _logger.debug(f"# of General Watcher with workflow={workflow}: {len(res)}")
             for pandaID, jobStatus, computingSite in res:
                 if computingSite in sitesToSkipTO:
-                    _logger.debug("skip General Watcher for PandaID={0} at {1} since timeout is disabled for {2}".format(pandaID, computingSite, jobStatus))
+                    _logger.debug(f"skip General Watcher for PandaID={pandaID} at {computingSite} since timeout is disabled for {jobStatus}")
                     continue
-                _logger.debug("General Watcher %s" % pandaID)
+                _logger.debug(f"General Watcher {pandaID}")
                 thr = Watcher(
                     taskBuffer,
                     pandaID,
@@ -471,7 +471,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             # collect PandaIDs
             jobs.append(pandaID)
     if len(jobs):
-        _logger.debug("killJobs for Defined (%s)" % str(jobs))
+        _logger.debug(f"killJobs for Defined ({str(jobs)})")
         Client.killJobs(jobs, 2)
 
     # kill long-waiting jobs in active table
@@ -488,7 +488,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         for (id,) in res:
             jobs.append(id)
     if len(jobs):
-        _logger.debug("killJobs for Active (%s)" % str(jobs))
+        _logger.debug(f"killJobs for Active ({str(jobs)})")
         Client.killJobs(jobs, 2)
 
     # fast rebrokerage at PQs where Nq/Nr overshoots
@@ -544,7 +544,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             for gshare, nStat in shareStat.items():
                 # get limit
                 if gshare not in nQueueLimitMap:
-                    key = "FAST_REBRO_THRESHOLD_NQUEUE_{}".format(gshare)
+                    key = f"FAST_REBRO_THRESHOLD_NQUEUE_{gshare}"
                     nQueueLimitMap[gshare] = taskBuffer.getConfigValue("rebroker", key)
                 nQueueLimit = nQueueLimitMap[gshare]
                 if not nQueueLimit:
@@ -572,7 +572,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                     )
                 )
                 if ratioCheck and statCheck and fracCheck:
-                    _logger.debug("{} overshoot in {}".format(computingSite, gshare))
+                    _logger.debug(f"{computingSite} overshoot in {gshare}")
                     if not dry_run:
                         # calculate excess
                         excess = min(
@@ -594,16 +594,16 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         varMap[":nRows"] = excess
                         status, res = taskBuffer.querySQLS(sql, varMap)
                         jediJobs = [p for p, in res]
-                        _logger.debug("got {} jobs to kill excess={}".format(len(jediJobs), excess))
+                        _logger.debug(f"got {len(jediJobs)} jobs to kill excess={excess}")
                         if jediJobs:
                             nJob = 100
                             iJob = 0
                             while iJob < len(jediJobs):
-                                _logger.debug("reassignJobs for JEDI at Nq/Nr overshoot site {} ({})".format(computingSite, str(jediJobs[iJob : iJob + nJob])))
+                                _logger.debug(f"reassignJobs for JEDI at Nq/Nr overshoot site {computingSite} ({str(jediJobs[iJob:iJob + nJob])})")
                                 Client.killJobs(jediJobs[iJob : iJob + nJob], 10, keepUnmerged=True)
                                 iJob += nJob
     except Exception as e:
-        _logger.error("failed with {} {}".format(str(e), traceback.format_exc()))
+        _logger.error(f"failed with {str(e)} {traceback.format_exc()}")
 
     # reassign activated jobs in inactive sites
     inactiveTimeLimitSite = 2
@@ -637,7 +637,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     sqlPI += "AND computingSite=:site AND NOT processingType IN (:pType1) AND relocationFlag<>:rFlag1 "
     for (tmpSite,) in resDS:
         if tmpSite in sitesToDisableReassign:
-            _logger.debug("skip reassignJobs at inactive site %s since reassign is disabled" % (tmpSite))
+            _logger.debug(f"skip reassignJobs at inactive site {tmpSite} since reassign is disabled")
             continue
         # check if the site is inactive
         varMap = {}
@@ -661,11 +661,11 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             stPI, resPI = taskBuffer.querySQLS(sqlPI, varMap)
             jediJobs = []
             # reassign
-            _logger.debug("reassignJobs for JEDI at inactive site %s laststart=%s" % (tmpSite, resSS[0][0]))
+            _logger.debug(f"reassignJobs for JEDI at inactive site {tmpSite} laststart={resSS[0][0]}")
             if resPI is not None:
                 for pandaID, eventService, attemptNr in resPI:
                     if eventService in [EventServiceUtils.esMergeJobFlagNumber]:
-                        _logger.debug("retrying es merge %s at inactive site %s" % (pandaID, tmpSite))
+                        _logger.debug(f"retrying es merge {pandaID} at inactive site {tmpSite}")
                         taskBuffer.retryJob(
                             pandaID,
                             {},
@@ -678,7 +678,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 nJob = 100
                 iJob = 0
                 while iJob < len(jediJobs):
-                    _logger.debug("reassignJobs for JEDI at inactive site %s (%s)" % (tmpSite, jediJobs[iJob : iJob + nJob]))
+                    _logger.debug(f"reassignJobs for JEDI at inactive site {tmpSite} ({jediJobs[iJob:iJob + nJob]})")
                     Client.killJobs(jediJobs[iJob : iJob + nJob], 51, keepUnmerged=True)
                     iJob += nJob
 
@@ -707,20 +707,20 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             else:
                 jobs.append(id)
     # reassign
-    _logger.debug("reassignJobs for defined jobs with timeout {}min -> {} jobs".format(timeoutValue, len(jobs)))
+    _logger.debug(f"reassignJobs for defined jobs with timeout {timeoutValue}min -> {len(jobs)} jobs")
     if len(jobs) > 0:
         nJob = 100
         iJob = 0
         while iJob < len(jobs):
-            _logger.debug("reassignJobs for defined jobs (%s)" % jobs[iJob : iJob + nJob])
+            _logger.debug(f"reassignJobs for defined jobs ({jobs[iJob:iJob + nJob]})")
             taskBuffer.reassignJobs(jobs[iJob : iJob + nJob], joinThr=True)
             iJob += nJob
-    _logger.debug("reassignJobs for JEDI defined jobs -> #%s" % len(jediJobs))
+    _logger.debug(f"reassignJobs for JEDI defined jobs -> #{len(jediJobs)}")
     if len(jediJobs) != 0:
         nJob = 100
         iJob = 0
         while iJob < len(jediJobs):
-            _logger.debug("reassignJobs for JEDI defined jobs (%s)" % jediJobs[iJob : iJob + nJob])
+            _logger.debug(f"reassignJobs for JEDI defined jobs ({jediJobs[iJob:iJob + nJob]})")
             Client.killJobs(jediJobs[iJob : iJob + nJob], 51, keepUnmerged=True)
             iJob += nJob
 
@@ -736,20 +736,20 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             else:
                 jobs.append(id)
     # reassign
-    _logger.debug("reassignJobs for long in defined table -> #%s" % len(jobs))
+    _logger.debug(f"reassignJobs for long in defined table -> #{len(jobs)}")
     if len(jobs) > 0:
         nJob = 100
         iJob = 0
         while iJob < len(jobs):
-            _logger.debug("reassignJobs for long in defined table (%s)" % jobs[iJob : iJob + nJob])
+            _logger.debug(f"reassignJobs for long in defined table ({jobs[iJob:iJob + nJob]})")
             taskBuffer.reassignJobs(jobs[iJob : iJob + nJob], joinThr=True)
             iJob += nJob
-    _logger.debug("reassignJobs for long JEDI in defined table -> #%s" % len(jediJobs))
+    _logger.debug(f"reassignJobs for long JEDI in defined table -> #{len(jediJobs)}")
     if len(jediJobs) != 0:
         nJob = 100
         iJob = 0
         while iJob < len(jediJobs):
-            _logger.debug("reassignJobs for long JEDI in defined table (%s)" % jediJobs[iJob : iJob + nJob])
+            _logger.debug(f"reassignJobs for long JEDI in defined table ({jediJobs[iJob:iJob + nJob]})")
             Client.killJobs(jediJobs[iJob : iJob + nJob], 51, keepUnmerged=True)
             iJob += nJob
 
@@ -772,7 +772,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     if res is not None:
         for pandaID, lockedby, eventService, attemptNr, computingSite in res:
             if computingSite in sitesToDisableReassign:
-                _logger.debug("skip reassignJobs for long activated PandaID={0} since disabled at {1}".format(pandaID, computingSite))
+                _logger.debug(f"skip reassignJobs for long activated PandaID={pandaID} since disabled at {computingSite}")
                 continue
             if lockedby == "jedi":
                 if eventService in [EventServiceUtils.esMergeJobFlagNumber]:
@@ -787,20 +787,20 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 jediJobs.append(pandaID)
             else:
                 jobs.append(pandaID)
-    _logger.debug("reassignJobs for long activated in active table -> #%s" % len(jobs))
+    _logger.debug(f"reassignJobs for long activated in active table -> #{len(jobs)}")
     if len(jobs) != 0:
         nJob = 100
         iJob = 0
         while iJob < len(jobs):
-            _logger.debug("reassignJobs for long activated in active table (%s)" % jobs[iJob : iJob + nJob])
+            _logger.debug(f"reassignJobs for long activated in active table ({jobs[iJob:iJob + nJob]})")
             taskBuffer.reassignJobs(jobs[iJob : iJob + nJob], joinThr=True)
             iJob += nJob
-    _logger.debug("reassignJobs for long activated JEDI in active table -> #%s" % len(jediJobs))
+    _logger.debug(f"reassignJobs for long activated JEDI in active table -> #{len(jediJobs)}")
     if len(jediJobs) != 0:
         nJob = 100
         iJob = 0
         while iJob < len(jediJobs):
-            _logger.debug("reassignJobs for long activated JEDI in active table (%s)" % jediJobs[iJob : iJob + nJob])
+            _logger.debug(f"reassignJobs for long activated JEDI in active table ({jediJobs[iJob:iJob + nJob]})")
             Client.killJobs(jediJobs[iJob : iJob + nJob], 51, keepUnmerged=True)
             iJob += nJob
 
@@ -824,26 +824,26 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     if res is not None:
         for pandaID, lockedby, eventService, attemptNr, computingSite in res:
             if computingSite in sitesToDisableReassign:
-                _logger.debug("skip reassignJobs for long starting PandaID={0} since disabled at {1}".format(pandaID, computingSite))
+                _logger.debug(f"skip reassignJobs for long starting PandaID={pandaID} since disabled at {computingSite}")
                 continue
             if lockedby == "jedi":
                 jediJobs.append(pandaID)
             else:
                 jobs.append(pandaID)
-    _logger.debug("reassignJobs for long starting in active table -> #%s" % len(jobs))
+    _logger.debug(f"reassignJobs for long starting in active table -> #{len(jobs)}")
     if len(jobs) != 0:
         nJob = 100
         iJob = 0
         while iJob < len(jobs):
-            _logger.debug("reassignJobs for long starting in active table (%s)" % jobs[iJob : iJob + nJob])
+            _logger.debug(f"reassignJobs for long starting in active table ({jobs[iJob:iJob + nJob]})")
             taskBuffer.reassignJobs(jobs[iJob : iJob + nJob], joinThr=True)
             iJob += nJob
-    _logger.debug("reassignJobs for long starting JEDI in active table -> #%s" % len(jediJobs))
+    _logger.debug(f"reassignJobs for long starting JEDI in active table -> #{len(jediJobs)}")
     if len(jediJobs) != 0:
         nJob = 100
         iJob = 0
         while iJob < len(jediJobs):
-            _logger.debug("reassignJobs for long stating JEDI in active table (%s)" % jediJobs[iJob : iJob + nJob])
+            _logger.debug(f"reassignJobs for long stating JEDI in active table ({jediJobs[iJob:iJob + nJob]})")
             Client.killJobs(jediJobs[iJob : iJob + nJob], 51, keepUnmerged=True)
             iJob += nJob
 
@@ -865,7 +865,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # kill
     if len(jobs):
         Client.killJobs(jobs, 2)
-        _logger.debug("killJobs for Anal Active (%s)" % str(jobs))
+        _logger.debug(f"killJobs for Anal Active ({str(jobs)})")
 
     # kill too long pending jobs
     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
@@ -886,7 +886,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             nJob = 100
             iJob = 0
             while iJob < len(jobs):
-                _logger.debug("killJobs for Pending (%s)" % str(jobs[iJob : iJob + nJob]))
+                _logger.debug(f"killJobs for Pending ({str(jobs[iJob:iJob + nJob])})")
                 Client.killJobs(jobs[iJob : iJob + nJob], 4)
                 iJob += nJob
 
@@ -912,7 +912,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             nJob = 100
             iJob = 0
             while iJob < len(jobs):
-                _logger.debug("kick waiting ES merge (%s)" % str(jobs[iJob : iJob + nJob]))
+                _logger.debug(f"kick waiting ES merge ({str(jobs[iJob:iJob + nJob])})")
                 Client.reassignJobs(
                     jobs[iJob : iJob + nJob],
                 )
@@ -937,7 +937,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             nJob = 100
             iJob = 0
             while iJob < len(jobs):
-                _logger.debug("killJobs for Waiting (%s)" % str(jobs[iJob : iJob + nJob]))
+                _logger.debug(f"killJobs for Waiting ({str(jobs[iJob:iJob + nJob])})")
                 Client.killJobs(jobs[iJob : iJob + nJob], 4)
                 iJob += nJob
 
@@ -961,7 +961,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         nJob = 100
         iJob = 0
         while iJob < len(jobs):
-            _logger.debug("killJobs for long running ES jobs (%s)" % str(jobs[iJob : iJob + nJob]))
+            _logger.debug(f"killJobs for long running ES jobs ({str(jobs[iJob:iJob + nJob])})")
             Client.killJobs(
                 jobs[iJob : iJob + nJob],
                 2,
@@ -989,7 +989,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         nJob = 100
         iJob = 0
         while iJob < len(jobs):
-            _logger.debug("killJobs for long running ES merge jobs (%s)" % str(jobs[iJob : iJob + nJob]))
+            _logger.debug(f"killJobs for long running ES merge jobs ({str(jobs[iJob:iJob + nJob])})")
             Client.killJobs(jobs[iJob : iJob + nJob], 2)
             iJob += nJob
 
@@ -1008,7 +1008,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # kill
     if len(jobs):
         Client.killJobs(jobs, 4)
-        _logger.debug("killJobs in jobsWaiting (%s)" % str(jobs))
+        _logger.debug(f"killJobs in jobsWaiting ({str(jobs)})")
 
     # rebrokerage
     _logger.debug("Rebrokerage start")
@@ -1017,7 +1017,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     timeoutVal = taskBuffer.getConfigValue("rebroker", "ANALY_TIMEOUT")
     if timeoutVal is None:
         timeoutVal = 12
-    _logger.debug("timeout value : {0}h".format(timeoutVal))
+    _logger.debug(f"timeout value : {timeoutVal}h")
     try:
         normalTimeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=timeoutVal)
         sortTimeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
@@ -1110,7 +1110,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             # loop over all user/jobID combinations
             iComb = 0
             nComb = len(resList)
-            _logger.debug("total combinations = %s" % nComb)
+            _logger.debug(f"total combinations = {nComb}")
             for (
                 jobDefinitionID,
                 prodUserName,
@@ -1131,29 +1131,19 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 varMap[":jobStatus1"] = "closed"
                 varMap[":jobStatus2"] = "failed"
                 varMap[":jobStatus3"] = "starting"
-                _logger.debug(
-                    " rebro:%s/%s:ID=%s:%s jediTaskID=%s site=%s"
-                    % (
-                        iComb,
-                        nComb,
-                        jobDefinitionID,
-                        prodUserName,
-                        jediTaskID,
-                        computingSite,
-                    )
-                )
+                _logger.debug(f" rebro:{iComb}/{nComb}:ID={jobDefinitionID}:{prodUserName} jediTaskID={jediTaskID} site={computingSite}")
                 iComb += 1
                 hasRecentJobs = False
                 # check site
                 if not siteMapper.checkSite(computingSite):
-                    _logger.debug("    -> skip unknown site=%s" % computingSite)
+                    _logger.debug(f"    -> skip unknown site={computingSite}")
                     continue
                 # check site status
                 tmpSiteStatus = siteMapper.getSite(computingSite).status
                 if tmpSiteStatus not in ["offline", "test"]:
                     if workingGroup:
                         if workingGroup not in timeoutMap:
-                            tmp_timeoutVal = taskBuffer.getConfigValue("rebroker", "ANALY_TIMEOUT_{}".format(workingGroup))
+                            tmp_timeoutVal = taskBuffer.getConfigValue("rebroker", f"ANALY_TIMEOUT_{workingGroup}")
                             if tmp_timeoutVal:
                                 timeoutMap[workingGroup] = datetime.datetime.utcnow() - datetime.timedelta(hours=tmp_timeoutVal)
                             else:
@@ -1163,7 +1153,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         tmp_normalTimeLimit = normalTimeLimit
                     # use normal time limit for normal site status
                     if maxModificationTime > tmp_normalTimeLimit:
-                        _logger.debug("    -> skip wait for normal timelimit=%s<maxModTime=%s" % (tmp_normalTimeLimit, maxModificationTime))
+                        _logger.debug(f"    -> skip wait for normal timelimit={tmp_normalTimeLimit}<maxModTime={maxModificationTime}")
                         continue
                     for tableName in [
                         "ATLAS_PANDA.jobsActive4",
@@ -1176,10 +1166,10 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         if resU != []:
                             # found recent jobs
                             hasRecentJobs = True
-                            _logger.debug("    -> skip due to recent activity %s to %s at %s" % (resU[0][0], resU[0][2], resU[0][1]))
+                            _logger.debug(f"    -> skip due to recent activity {resU[0][0]} to {resU[0][2]} at {resU[0][1]}")
                             break
                 else:
-                    _logger.debug("    -> immediate rebro due to site status=%s" % tmpSiteStatus)
+                    _logger.debug(f"    -> immediate rebro due to site status={tmpSiteStatus}")
                 if hasRecentJobs:
                     # skip since some jobs have run recently
                     continue
@@ -1211,7 +1201,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         # kill to reassign
                         taskBuffer.killJobs(killJobs, "JEDI", "51", True)
     except Exception as e:
-        _logger.error("rebrokerage failed with {0} : {1}".format(str(e), traceback.format_exc()))
+        _logger.error(f"rebrokerage failed with {str(e)} : {traceback.format_exc()}")
 
     # kill too long running jobs
     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=21)
@@ -1229,7 +1219,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         iJob = 0
         while iJob < len(jobs):
             # set tobekill
-            _logger.debug("killJobs for Running (%s)" % jobs[iJob : iJob + nJob])
+            _logger.debug(f"killJobs for Running ({jobs[iJob:iJob + nJob]})")
             Client.killJobs(jobs[iJob : iJob + nJob], 2)
             # run watcher
             for id in jobs[iJob : iJob + nJob]:
@@ -1262,7 +1252,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # kill
     if len(jobs):
         Client.killJobs(jobs, 2)
-        _logger.debug("killJobs for DDM (%s)" % str(jobs))
+        _logger.debug(f"killJobs for DDM ({str(jobs)})")
 
     # kill too long throttled jobs
     timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=7)
@@ -1280,7 +1270,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # kill
     if len(jobs):
         Client.killJobs(jobs, 2)
-        _logger.debug("killJobs for throttled (%s)" % str(jobs))
+        _logger.debug(f"killJobs for throttled ({str(jobs)})")
 
     # check if merge job is valid
     _logger.debug("kill invalid pmerge")
@@ -1293,20 +1283,20 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     status, res = taskBuffer.querySQLS(sql, varMap)
     nPmerge = 0
     badPmerge = 0
-    _logger.debug("check {0} pmerge".format(len(res)))
+    _logger.debug(f"check {len(res)} pmerge")
     for pandaID, jediTaskID in res:
         nPmerge += 1
         isValid, tmpMsg = taskBuffer.isValidMergeJob(pandaID, jediTaskID)
         if isValid is False:
-            _logger.debug("kill pmerge {0} since {1} gone".format(pandaID, tmpMsg))
+            _logger.debug(f"kill pmerge {pandaID} since {tmpMsg} gone")
             taskBuffer.killJobs(
                 [pandaID],
-                "killed since pre-merge job {0} gone".format(tmpMsg),
+                f"killed since pre-merge job {tmpMsg} gone",
                 "52",
                 True,
             )
             badPmerge += 1
-    _logger.debug("killed invalid pmerge {0}/{1}".format(badPmerge, nPmerge))
+    _logger.debug(f"killed invalid pmerge {badPmerge}/{nPmerge}")
 
     # cleanup of jumbo jobs
     _logger.debug("jumbo job cleanup")
@@ -1326,23 +1316,23 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             continue
         try:
             # get timestamp
-            timestamp = datetime.datetime.fromtimestamp(os.stat("%s/%s" % (panda_config.cache_dir, file)).st_mtime)
+            timestamp = datetime.datetime.fromtimestamp(os.stat(f"{panda_config.cache_dir}/{file}").st_mtime)
             # delete
             if timestamp < timeLimit:
-                _logger.debug("delete %s " % file)
-                os.remove("%s/%s" % (panda_config.cache_dir, file))
+                _logger.debug(f"delete {file} ")
+                os.remove(f"{panda_config.cache_dir}/{file}")
         except Exception:
             pass
 
     _memoryCheck("delete core")
 
     # delete core
-    dirName = "%s/.." % panda_config.logdir
+    dirName = f"{panda_config.logdir}/.."
     for file in os.listdir(dirName):
         if file.startswith("core."):
-            _logger.debug("delete %s " % file)
+            _logger.debug(f"delete {file} ")
             try:
-                os.remove("%s/%s" % (dirName, file))
+                os.remove(f"{dirName}/{file}")
             except Exception:
                 pass
 
@@ -1359,10 +1349,10 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     if res is None:
         _logger.error("failed to get files")
     elif len(res) > 0:
-        _logger.debug("{0} files to touch".format(len(res)))
+        _logger.debug(f"{len(res)} files to touch")
         for hostName, fileName, creationTime, userName in res:
-            base_url = "https://{0}:{1}".format(hostName, panda_config.pserverport)
-            _logger.debug("touch {0} on {1} created at {2}".format(fileName, hostName, creationTime))
+            base_url = f"https://{hostName}:{panda_config.pserverport}"
+            _logger.debug(f"touch {fileName} on {hostName} created at {creationTime}")
             s, o = Client.touchFile(base_url, fileName)
             _logger.debug(o)
             if o == "True":
@@ -1377,7 +1367,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     sqlD = "DELETE FROM ATLAS_PANDAMETA.userCacheUsage WHERE userName=:userName AND fileName=:fileName "
     nRange = 100
     for i in range(nRange):
-        _logger.debug("{0}/{1} {2} files to check".format(nRange, i, len(res)))
+        _logger.debug(f"{nRange}/{i} {len(res)} files to check")
         res = taskBuffer.getLockSandboxFiles(timeLimit, 1000)
         if res is None:
             _logger.error("failed to get files")
@@ -1385,20 +1375,20 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         elif len(res) == 0:
             break
         for userName, hostName, fileName, creationTime, modificationTime in res:
-            url = "https://{0}:{1}/cache/{2}".format(hostName, panda_config.pserverport, fileName)
-            _logger.debug("checking {0} created at {1}".format(url, creationTime))
+            url = f"https://{hostName}:{panda_config.pserverport}/cache/{fileName}"
+            _logger.debug(f"checking {url} created at {creationTime}")
             toDelete = False
             try:
                 x = requests.head(url, verify=False)
-                _logger.debug("code {0}".format(x.status_code))
+                _logger.debug(f"code {x.status_code}")
                 if x.status_code == 404:
                     _logger.debug("delete")
                     toDelete = True
             except Exception as e:
-                _logger.debug("failed with {0}".format(str(e)))
+                _logger.debug(f"failed with {str(e)}")
                 if creationTime < expireLimit:
                     toDelete = True
-                    _logger.debug("delete due to creationTime={0}".format(creationTime))
+                    _logger.debug(f"delete due to creationTime={creationTime}")
             # update or delete
             varMap = dict()
             varMap[":userName"] = userName

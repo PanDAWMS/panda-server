@@ -49,9 +49,9 @@ class WorkflowProcessor(object):
                     ops["data"]["taskParams"][task_type]["userName"] = user_name
                     if base_platform:
                         ops["data"]["taskParams"][task_type]["basePlatform"] = base_platform
-                log_token = '< id="{}" test={} outDS={} >'.format(user_name, test_mode, ops["data"]["outDS"])
+                log_token = f"< id=\"{user_name}\" test={test_mode} outDS={ops['data']['outDS']} >"
                 tmpLog = LogWrapper(self.log, log_token)
-                tmpLog.info("start {}".format(file_name))
+                tmpLog.info(f"start {file_name}")
                 sandbox_url = os.path.join(ops["data"]["sourceURL"], "cache", ops["data"]["sandbox"])
                 # IO through json files
                 ops_file = tempfile.NamedTemporaryFile(delete=False, mode="w")
@@ -59,19 +59,11 @@ class WorkflowProcessor(object):
                 ops_file.close()
                 # execute main in another process to avoid chdir mess
                 tmp_stat, tmp_out = commands_get_status_output(
-                    "python {} {} '{}' {} {} '{}' {}".format(
-                        __file__,
-                        sandbox_url,
-                        log_token,
-                        dump_workflow,
-                        ops_file.name,
-                        user_name,
-                        test_mode,
-                    )
+                    f"python {__file__} {sandbox_url} '{log_token}' {dump_workflow} {ops_file.name} '{user_name}' {test_mode}"
                 )
                 if tmp_stat:
                     is_OK = False
-                    tmpLog.error("main execution failed with {}:{}".format(tmp_stat, tmp_out))
+                    tmpLog.error(f"main execution failed with {tmp_stat}:{tmp_out}")
                 else:
                     with open(tmp_out.split("\n")[-1]) as tmp_out_file:
                         is_OK, is_fatal, request_id, dump_str = json.load(tmp_out_file)
@@ -81,15 +73,15 @@ class WorkflowProcessor(object):
                         pass
                 if not get_log:
                     if is_OK:
-                        tmpLog.info("is_OK={} request_id={}".format(is_OK, request_id))
+                        tmpLog.info(f"is_OK={is_OK} request_id={request_id}")
                     else:
-                        tmpLog.info("is_OK={} is_fatal={} request_id={}".format(is_OK, is_fatal, request_id))
+                        tmpLog.info(f"is_OK={is_OK} is_fatal={is_fatal} request_id={request_id}")
                 if to_delete or (not test_mode and (is_OK or is_fatal)):
                     if dump_str:
                         dump_str = tmpLog.dumpToString() + dump_str
                     else:
                         dump_str = tmpLog.dumpToString()
-                    tmpLog.debug("delete {}".format(file_name))
+                    tmpLog.debug(f"delete {file_name}")
                     try:
                         os.remove(file_name)
                     except Exception:
@@ -102,18 +94,18 @@ class WorkflowProcessor(object):
                         else:
                             # message
                             if is_OK:
-                                mailSubject = "PANDA Notification for Workflow {}".format(ops["data"]["outDS"])
-                                mailBody = "Hello,\n\nWorkflow:{} has been accepted with RequestID:{}\n\n".format(ops["data"]["outDS"], request_id)
+                                mailSubject = f"PANDA Notification for Workflow {ops['data']['outDS']}"
+                                mailBody = f"Hello,\n\nWorkflow:{ops['data']['outDS']} has been accepted with RequestID:{request_id}\n\n"
                             else:
-                                mailSubject = "PANDA WARNING for Workflow={}".format(ops["data"]["outDS"])
+                                mailSubject = f"PANDA WARNING for Workflow={ops['data']['outDS']}"
                                 mailBody = "Hello,\n\nWorkflow {} was not accepted\n\n".format(ops["data"]["outDS"], request_id)
-                                mailBody += "Reason : %s\n" % dump_str
+                                mailBody += f"Reason : {dump_str}\n"
                             # send
                             tmpSM = MailUtils().send(toAdder, mailSubject, mailBody)
-                            tmpLog.debug("sent message with {}".format(tmpSM))
+                            tmpLog.debug(f"sent message with {tmpSM}")
         except Exception as e:
             is_OK = False
-            tmpLog.error("failed to run with {} {}".format(str(e), traceback.format_exc()))
+            tmpLog.error(f"failed to run with {str(e)} {traceback.format_exc()}")
         if get_log:
             ret_val = {"status": is_OK}
             if is_OK:
@@ -152,14 +144,14 @@ def core_exec(sandbox_url, log_token, dump_workflow, ops_file, user_name, test_m
         with tempfile.TemporaryDirectory() as tmp_dirname:
             os.chdir(tmp_dirname)
             # download sandbox
-            tmpLog.info("downloading sandbox from {}".format(sandbox_url))
+            tmpLog.info(f"downloading sandbox from {sandbox_url}")
             with requests.get(sandbox_url, allow_redirects=True, verify=False, stream=True) as r:
                 if r.status_code == 400:
                     tmpLog.error("not found")
                     is_fatal = True
                     is_OK = False
                 elif r.status_code != 200:
-                    tmpLog.error("bad HTTP response {}".format(r.status_code))
+                    tmpLog.error(f"bad HTTP response {r.status_code}")
                     is_OK = False
                 # extract sandbox
                 if is_OK:
@@ -168,10 +160,10 @@ def core_exec(sandbox_url, log_token, dump_workflow, ops_file, user_name, test_m
                             if chunk:
                                 fs.write(chunk)
                         fs.close()
-                        tmp_stat, tmp_out = commands_get_status_output("tar xvfz {}".format(ops["data"]["sandbox"]))
+                        tmp_stat, tmp_out = commands_get_status_output(f"tar xvfz {ops['data']['sandbox']}")
                         if tmp_stat != 0:
                             tmpLog.error(tmp_out)
-                            dump_str = "failed to extract {}".format(ops["data"]["sandbox"])
+                            dump_str = f"failed to extract {ops['data']['sandbox']}"
                             tmpLog.error(dump_str)
                             is_fatal = True
                             is_OK = False
@@ -193,7 +185,7 @@ def core_exec(sandbox_url, log_token, dump_workflow, ops_file, user_name, test_m
                         tmpLog.info(dump_str)
                         for node in nodes:
                             s_check, o_check = node.verify()
-                            tmp_str = "Verification failure in ID:{} {}".format(node.id, o_check)
+                            tmp_str = f"Verification failure in ID:{node.id} {o_check}"
                             if not s_check:
                                 tmpLog.error(tmp_str)
                                 dump_str += tmp_str
@@ -213,7 +205,7 @@ def core_exec(sandbox_url, log_token, dump_workflow, ops_file, user_name, test_m
                         tmpLog.info(dump_str)
                         for node in nodes:
                             s_check, o_check = node.verify()
-                            tmp_str = "Verification failure in ID:{} {}".format(node.id, o_check)
+                            tmp_str = f"Verification failure in ID:{node.id} {o_check}"
                             if not s_check:
                                 tmpLog.error(tmp_str)
                                 dump_str += tmp_str
@@ -243,15 +235,15 @@ def core_exec(sandbox_url, log_token, dump_workflow, ops_file, user_name, test_m
                                 is_fatal = True
                                 is_OK = False
                         except Exception as e:
-                            dump_str = "failed to submit the workflow with {}".format(str(e))
-                            tmpLog.error("{} {}".format(dump_str, traceback.format_exc()))
+                            dump_str = f"failed to submit the workflow with {str(e)}"
+                            tmpLog.error(f"{dump_str} {traceback.format_exc()}")
                         if dump_workflow:
                             tmpLog.debug("\n" + "".join(dump_str_list))
         os.chdir(cur_dir)
     except Exception as e:
         is_OK = False
         is_fatal = True
-        tmpLog.error("failed to run with {} {}".format(str(e), traceback.format_exc()))
+        tmpLog.error(f"failed to run with {str(e)} {traceback.format_exc()}")
 
     with tempfile.NamedTemporaryFile(delete=False, mode="w") as tmp_json:
         json.dump([is_OK, is_fatal, request_id, tmpLog.dumpToString()], tmp_json)

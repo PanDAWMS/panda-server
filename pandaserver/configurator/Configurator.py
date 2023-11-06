@@ -373,9 +373,7 @@ class Configurator(threading.Thread):
                             storage_site_name = self.endpoint_token_dict[ddm_endpoint_name]["site_name"]
                         except KeyError:
                             self.log_stream.warning(
-                                "Skipped {0}, because primary associated DDM endpoint {1} not found (e.g.DISABLED)".format(
-                                    long_panda_site_name, ddm_endpoint_name
-                                )
+                                f"Skipped {long_panda_site_name}, because primary associated DDM endpoint {ddm_endpoint_name} not found (e.g.DISABLED)"
                             )
                             continue
 
@@ -708,9 +706,7 @@ class NetworkConfigurator(threading.Thread):
                                 )
                             except KeyError:
                                 self.log_stream.debug(
-                                    "Entry {0} ({1}->{2}) system {3} duration {4} not available or wrongly formatted".format(
-                                        mbps, source, destination, system, duration
-                                    )
+                                    f"Entry {mbps} ({source}->{destination}) system {system} duration {duration} not available or wrongly formatted"
                                 )
                                 self.log_stream.debug(sys.exc_info())
             except KeyError:

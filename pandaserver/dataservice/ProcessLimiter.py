@@ -25,26 +25,26 @@ class ProcessLimiter:
             self.summary[dataName] += change
         # release
         self.dataLock.release()
-        _logger.debug("Summary : %s" % str(self.summary))
+        _logger.debug(f"Summary : {str(self.summary)}")
 
     # execute command
     def getstatusoutput(self, commandStr):
         # time stamp
         timestamp = datetime.datetime.utcnow().isoformat(" ")
-        _logger.debug('%s start for "%s"' % (timestamp, commandStr))
+        _logger.debug(f'{timestamp} start for "{commandStr}"')
         self.updateSummary("nQueued", 1)
-        _logger.debug("%s getting lock" % timestamp)
+        _logger.debug(f"{timestamp} getting lock")
         # get semaphore
         self.processLock.acquire()
-        _logger.debug("%s got lock" % timestamp)
+        _logger.debug(f"{timestamp} got lock")
         # execute
         self.updateSummary("nRunning", 1)
         status, output = commands_get_status_output(commandStr)
-        _logger.debug("%s executed" % timestamp)
+        _logger.debug(f"{timestamp} executed")
         self.updateSummary("nRunning", -1)
         # release queue
         self.processLock.release()
-        _logger.debug("%s end" % timestamp)
+        _logger.debug(f"{timestamp} end")
         self.updateSummary("nQueued", -1)
         # return
         return status, output

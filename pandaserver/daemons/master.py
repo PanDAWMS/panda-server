@@ -79,7 +79,7 @@ def main():
         tmp_log = get_logger()
         # record in PID file
         with open(options.pidfile, "w") as pid_file:
-            pid_file.write("{0}".format(os.getpid()))
+            pid_file.write(f"{os.getpid()}")
         # master object
         master = DaemonMaster(
             logger=tmp_log,
@@ -91,7 +91,7 @@ def main():
 
         # function to end master when end signal caught
         def end_master(sig, frame):
-            tmp_log.info("got end signal: {sig}".format(sig=sig))
+            tmp_log.info(f"got end signal: {sig}")
             master.stop()
             kill_whole()
 

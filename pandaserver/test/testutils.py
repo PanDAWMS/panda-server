@@ -19,10 +19,10 @@ def sendCommand(function, node, _logger):
     if "X509_USER_PROXY" in os.environ:
         certKey = os.environ["X509_USER_PROXY"]
     else:
-        certKey = "/tmp/x509up_u%s" % os.getuid()
+        certKey = f"/tmp/x509up_u{os.getuid()}"
 
     # Prepare the URL (host+path) to connect
-    url = "%s/%s" % (Client.baseURLSSL, function)
+    url = f"{Client.baseURLSSL}/{function}"
     match = re.search("[^:/]+://([^/]+)(/.+)", url)
     host = match.group(1)
     path = match.group(2)
@@ -36,6 +36,6 @@ def sendCommand(function, node, _logger):
     conn.close()
     elapsed = round(time.time() - st, 2)
 
-    _logger.info("Called URL {0} with request {1}. Took {2}s".format(url, request, elapsed))
+    _logger.info(f"Called URL {url} with request {request}. Took {elapsed}s")
 
     return data

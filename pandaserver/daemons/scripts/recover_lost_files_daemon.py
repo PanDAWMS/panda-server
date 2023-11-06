@@ -77,12 +77,12 @@ def main(tbuf=None, **kwargs):
             self.lock.acquire()
             with open(self.fileName) as f:
                 ops = json.load(f)
-                tmpLog = LogWrapper(_logger, "< jediTaskID={} >".format(ops["jediTaskID"]))
-                tmpLog.info("start {}".format(self.fileName))
+                tmpLog = LogWrapper(_logger, f"< jediTaskID={ops['jediTaskID']} >")
+                tmpLog.info(f"start {self.fileName}")
                 s, o = RecoverLostFilesCore.main(self.taskBuffer, ops, tmpLog)
-                tmpLog.info("status={}. {}".format(s, o))
+                tmpLog.info(f"status={s}. {o}")
                 if s is not None or self.to_delete:
-                    tmpLog.debug("delete {}".format(self.fileName))
+                    tmpLog.debug(f"delete {self.fileName}")
                     try:
                         os.remove(self.fileName)
                     except Exception:
@@ -122,18 +122,18 @@ def main(tbuf=None, **kwargs):
             modTime = datetime.datetime(*(time.gmtime(os.path.getmtime(fileName))[:7]))
             if (timeNow - modTime) > datetime.timedelta(hours=2):
                 # last chance
-                _logger.debug("Last attempt : %s" % fileName)
+                _logger.debug(f"Last attempt : {fileName}")
                 thr = EvpThr(adderLock, adderThreadPool, taskBuffer, fileName, False)
                 thr.start()
             elif (timeInt - modTime) > datetime.timedelta(seconds=5):
                 # try
-                _logger.debug("Normal attempt : %s" % fileName)
+                _logger.debug(f"Normal attempt : {fileName}")
                 thr = EvpThr(adderLock, adderThreadPool, taskBuffer, fileName, True)
                 thr.start()
             else:
-                _logger.debug("Wait %s : %s" % ((timeInt - modTime), fileName))
+                _logger.debug(f"Wait {timeInt - modTime} : {fileName}")
         except Exception as e:
-            _logger.error("{} {}".format(str(e), traceback.format_exc()))
+            _logger.error(f"{str(e)} {traceback.format_exc()}")
 
     # join all threads
     adderThreadPool.join()

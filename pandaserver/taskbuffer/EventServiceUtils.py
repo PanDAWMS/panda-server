@@ -97,18 +97,18 @@ def encodeFileInfo(
     if maxAttempt is None:
         maxAttempt = 10
     if firstOffset is None:
-        return "{0}/{1}/{2}/{3}/{4}^".format(lfn, startEvent, endEvent, nEventsPerWorker, maxAttempt)
+        return f"{lfn}/{startEvent}/{endEvent}/{nEventsPerWorker}/{maxAttempt}^"
     else:
         try:
             totalOffset = firstEvent - firstOffset
         except Exception:
             totalOffset = 0
-        return "{0}/{1}/{2}/{3}/{4}/{5}^".format(lfn, startEvent, endEvent, nEventsPerWorker, maxAttempt, totalOffset)
+        return f"{lfn}/{startEvent}/{endEvent}/{nEventsPerWorker}/{maxAttempt}/{totalOffset}^"
 
 
 # get header for specialHandling
 def getHeaderForES(esIndex):
-    return "{0}{1}:".format(esHeader, esIndex)
+    return f"{esHeader}{esIndex}:"
 
 
 # decode file info
@@ -157,9 +157,9 @@ def decodeFileInfo(specialHandling):
                         "maxAttempt": int(maxAttempt),
                         "offset": int(esOffset),
                     }
-                newSpecialHandling += "{0},".format(esToken)
+                newSpecialHandling += f"{esToken},"
             else:
-                newSpecialHandling += "{0},".format(tmpItem)
+                newSpecialHandling += f"{tmpItem},"
         newSpecialHandling = newSpecialHandling[:-1]
     except Exception:
         newSpecialHandling = specialHandling
@@ -253,7 +253,7 @@ def setHeaderForJobCloning(specialHandling, scType):
         except Exception:
             break
     if scType in singleConsumerType.values():
-        tokens.append("{0}:{1}".format(singleToken, scType))
+        tokens.append(f"{singleToken}:{scType}")
     return ",".join(tokens)
 
 
@@ -350,7 +350,7 @@ def isMergeAtOS(specialHandling):
 
 # get dataset name for event service
 def getEsDatasetName(taskID):
-    esDataset = "{0}:{1}{2}".format(esScopeDDM, taskID, esSuffixDDM)
+    esDataset = f"{esScopeDDM}:{taskID}{esSuffixDDM}"
     return esDataset
 
 

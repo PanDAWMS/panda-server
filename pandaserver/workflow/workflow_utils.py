@@ -115,7 +115,7 @@ class Node(object):
             elif "default" in v:
                 data[y_name] = v["default"]
             else:
-                raise ReferenceError("{} is not resolved".format(k))
+                raise ReferenceError(f"{k} is not resolved")
         return data
 
     # convert outputs to set
@@ -133,14 +133,14 @@ class Node(object):
             # check input
             for k, v in dict_inputs.items():
                 if v is None:
-                    return False, "{} is unresolved".format(k)
+                    return False, f"{k} is unresolved"
             # check args
             for k in ["opt_exec", "opt_args"]:
                 test_str = dict_inputs.get(k)
                 if test_str:
                     m = re.search(r"%{[A-Z]*DS(\d+|\*)}", test_str)
                     if m:
-                        return False, "{} is unresolved in {}".format(m.group(0), k)
+                        return False, f"{m.group(0)} is unresolved in {k}"
             if self.type == "prun":
                 for k in dict_inputs:
                     if k not in [
@@ -153,7 +153,7 @@ class Node(object):
                         "opt_useAthenaPackages",
                         "opt_containerImage",
                     ]:
-                        return False, "unknown input parameter {} for {}".format(k, self.type)
+                        return False, f"unknown input parameter {k} for {self.type}"
             elif self.type in ["junction", "reana"]:
                 for k in dict_inputs:
                     if k not in [
@@ -163,11 +163,11 @@ class Node(object):
                         "opt_exec",
                         "opt_containerImage",
                     ]:
-                        return False, "unknown input parameter {} for {}".format(k, self.type)
+                        return False, f"unknown input parameter {k} for {self.type}"
             elif self.type == "phpo":
                 for k in dict_inputs:
                     if k not in ["opt_trainingDS", "opt_trainingDsType", "opt_args"]:
-                        return False, "unknown input parameter {} for {}".format(k, self.type)
+                        return False, f"unknown input parameter {k} for {self.type}"
             elif self.type == "gitlab":
                 for k in dict_inputs:
                     if k not in [
@@ -181,7 +181,7 @@ class Node(object):
                         "opt_site",
                         "opt_input_location",
                     ]:
-                        return False, "unknown input parameter {} for {}".format(k, self.type)
+                        return False, f"unknown input parameter {k} for {self.type}"
         elif self.type == "workflow":
             reserved_params = ["i"]
             loop_global, workflow_global = self.get_global_parameters()
@@ -190,29 +190,29 @@ class Node(object):
                     if k in loop_global:
                         return (
                             False,
-                            "parameter {} cannot be used since it is reserved by the system".format(k),
+                            f"parameter {k} cannot be used since it is reserved by the system",
                         )
         return True, ""
 
     # string representation
     def __str__(self):
-        outstr = "ID:{} Name:{} Type:{}\n".format(self.id, self.name, self.type)
-        outstr += "  Parent:{}\n".format(",".join([str(p) for p in self.parents]))
+        outstr = f"ID:{self.id} Name:{self.name} Type:{self.type}\n"
+        outstr += f"  Parent:{','.join([str(p) for p in self.parents])}\n"
         outstr += "  Input:\n"
         for k, v in self.convert_dict_inputs().items():
-            outstr += "     {}: {}\n".format(k, v)
+            outstr += f"     {k}: {v}\n"
         outstr += "  Output:\n"
         for k, v in self.outputs.items():
             if "value" in v:
                 v = v["value"]
             else:
                 v = "NA"
-            outstr += "     {}\n".format(v)
+            outstr += f"     {v}\n"
         return outstr
 
     # short description
     def short_desc(self):
-        return "ID:{} Name:{} Type:{}".format(self.id, self.name, self.type)
+        return f"ID:{self.id} Name:{self.name} Type:{self.type}"
 
     # resolve workload-specific parameters
     def resolve_params(self, task_template=None, id_map=None, workflow=None):
@@ -243,9 +243,9 @@ class Node(object):
                     if ds_type and "*" in ds_type:
                         ds_type = ds_type.replace("*", "XYZ")
                         ds_type += ".tgz"
-                    src = "%{{SECDS{}}}".format(idx)
+                    src = f"%{{SECDS{idx}}}"
                     if ds_type:
-                        dst = "{}_{}/".format(ds_name, ds_type)
+                        dst = f"{ds_name}_{ds_type}/"
                     else:
                         dst = f"{ds_name}/"
                     dict_inputs["opt_exec"] = re.sub(src, dst, dict_inputs["opt_exec"])
@@ -295,7 +295,7 @@ class Node(object):
                     dict_inputs["opt_args"] = ""
                 results_json = "results.json"
                 if "--outputs" not in dict_inputs["opt_args"]:
-                    dict_inputs["opt_args"] += " --outputs {}".format(results_json)
+                    dict_inputs["opt_args"] += f" --outputs {results_json}"
                 else:
                     m = re.search("(--outputs)( +|=)([^ ]+)", dict_inputs["opt_args"])
                     if results_json not in m.group(3):
@@ -312,7 +312,7 @@ class Node(object):
                 if self.type in ["prun", "junction", "reana"]:
                     # replace placeholders in opt_exec and opt_args
                     for idx, dst in enumerate(list_in_ds):
-                        src = "%{{DS{}}}".format(idx + 1)
+                        src = f"%{{DS{idx + 1}}}"
                         if "opt_exec" in dict_inputs:
                             dict_inputs["opt_exec"] = re.sub(src, dst, dict_inputs["opt_exec"])
                         if "opt_args" in dict_inputs:
@@ -335,14 +335,14 @@ class Node(object):
                 # looping globals
                 if tmp_global:
                     for k in tmp_global:
-                        tmp_src = "%{{{}}}".format(k)
-                        tmp_dst = "___idds___user_{}___".format(k)
+                        tmp_src = f"%{{{k}}}"
+                        tmp_dst = f"___idds___user_{k}___"
                         src_dst_list.append((tmp_src, tmp_dst))
                 # workflow globls
                 if tmp_workflow_global:
                     for k, v in tmp_workflow_global.items():
-                        tmp_src = "%{{{}}}".format(k)
-                        tmp_dst = "{}".format(v)
+                        tmp_src = f"%{{{k}}}"
+                        tmp_dst = f"{v}"
                         src_dst_list.append((tmp_src, tmp_dst))
                 # iteration count
                 tmp_src = "%{i}"
@@ -395,7 +395,7 @@ class Node(object):
                         if task_params[p_key] is None:
                             task_params[p_key] = ""
                         if "@" not in task_params[p_key] and "basePlatform" in task_params:
-                            task_params[p_key] = "{}@{}".format(task_params[p_key], task_params["basePlatform"])
+                            task_params[p_key] = f"{task_params[p_key]}@{task_params['basePlatform']}"
                 elif athena_tag:
                     if p_key in ["transUses", "transHome"]:
                         task_params[p_key] = p_value
@@ -420,7 +420,7 @@ class Node(object):
             if use_athena and "--noBuild" in parse_com:
                 for tmp_item in task_params["jobParameters"]:
                     if tmp_item["type"] == "constant" and tmp_item["value"] == "-l ${LIB}":
-                        tmp_item["value"] = "-a {}".format(task_params["buildSpec"]["archiveName"])
+                        tmp_item["value"] = f"-a {task_params['buildSpec']['archiveName']}"
                 del task_params["buildSpec"]
             # parent
             if self.parents and len(self.parents) == 1:
@@ -453,7 +453,7 @@ class Node(object):
                             break
                 else:
                     in_ds_suffix = dict_inputs["opt_inDsType"]
-                in_ds_str = "{}_{}/".format(dict_inputs["opt_trainingDS"], in_ds_suffix)
+                in_ds_str = f"{dict_inputs['opt_trainingDS']}_{in_ds_suffix}/"
                 com += ["--trainingDS", in_ds_str]
             com += ["--outDS", task_name]
             # get task params
@@ -462,7 +462,7 @@ class Node(object):
             new_job_params = []
             for tmp_item in task_params["jobParameters"]:
                 if tmp_item["type"] == "constant" and tmp_item["value"].startswith("-a "):
-                    tmp_item["value"] = "-a {} --sourceURL {}".format(source_name, source_url)
+                    tmp_item["value"] = f"-a {source_name} --sourceURL {source_url}"
                 new_job_params.append(tmp_item)
             task_params["jobParameters"] = new_job_params
             # return
@@ -479,7 +479,7 @@ class Node(object):
             task_params["useSecrets"] = True
             task_params["site"] = dict_inputs["opt_site"]
             task_params["cliParams"] = ""
-            task_params["log"]["container"] = task_params["log"]["dataset"] = "{}.log/".format(task_name)
+            task_params["log"]["container"] = task_params["log"]["dataset"] = f"{task_name}.log/"
             # set gitlab parameters
             task_params["jobParameters"] = [
                 {
@@ -570,9 +570,9 @@ class Node(object):
             if "*" in in_ds_suffix:
                 in_ds_suffix = in_ds_suffix.replace("*", "XYZ") + ".tgz"
         if is_list_in_ds:
-            list_in_ds = ["{}_{}/".format(s1, s2) if s2 else s1 for s1, s2 in zip(dict_inputs["opt_inDS"], in_ds_suffix)]
+            list_in_ds = [f"{s1}_{s2}/" if s2 else s1 for s1, s2 in zip(dict_inputs["opt_inDS"], in_ds_suffix)]
         else:
-            list_in_ds = ["{}_{}/".format(dict_inputs["opt_inDS"], in_ds_suffix) if in_ds_suffix else dict_inputs["opt_inDS"]]
+            list_in_ds = [f"{dict_inputs['opt_inDS']}_{in_ds_suffix}/" if in_ds_suffix else dict_inputs["opt_inDS"]]
         return list_in_ds
 
 
@@ -582,13 +582,13 @@ def dump_nodes(node_list, dump_str=None, only_leaves=False):
         dump_str = "\n"
     for node in node_list:
         if node.is_leaf:
-            dump_str += "{}".format(node)
+            dump_str += f"{node}"
             if node.task_params is not None:
                 dump_str += json.dumps(node.task_params, indent=4, sort_keys=True)
                 dump_str += "\n\n"
         else:
             if not only_leaves:
-                dump_str += "{}\n".format(node)
+                dump_str += f"{node}\n"
             dump_str = dump_nodes(node.sub_nodes, dump_str, only_leaves)
     return dump_str
 
@@ -630,9 +630,9 @@ def set_workflow_outputs(node_list, all_parents=None):
 class ConditionItem(object):
     def __init__(self, left, right=None, operator=None):
         if operator not in ["and", "or", "not", None]:
-            raise TypeError("unknown operator '{}'".format(operator))
+            raise TypeError(f"unknown operator '{operator}'")
         if operator in ["not", None] and right:
-            raise TypeError("right param is given for operator '{}'".format(operator))
+            raise TypeError(f"right param is given for operator '{operator}'")
         self.left = left
         self.right = right
         self.operator = operator
@@ -682,7 +682,7 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None, workflow
     all_sub_id_work_map = {}
     sub_to_id_map = {}
     cond_dump_str = "  Conditions\n"
-    class_dump_str = "===== Workflow ID:{} ====\n".format(workflow_node.id if workflow_node else workflow_name)
+    class_dump_str = f"===== Workflow ID:{workflow_node.id if workflow_node else workflow_name} ====\n"
     class_dump_str += "  Works\n"
     dump_str_list = []
     # create works or workflows
@@ -696,12 +696,12 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None, workflow
                 work = ATLASPandaWork(task_parameters=node.task_params)
             workflow.add_work(work)
             id_work_map[node.id] = work
-            class_dump_str += "    {} Class:{}\n".format(node.short_desc(), work.__class__.__name__)
+            class_dump_str += f"    {node.short_desc()} Class:{work.__class__.__name__}\n"
         else:
             # sub workflow
             sub_workflow = Workflow()
             id_work_map[node.id] = sub_workflow
-            class_dump_str += "    {} Class:{}\n".format(node.short_desc(), sub_workflow.__class__.__name__)
+            class_dump_str += f"    {node.short_desc()} Class:{sub_workflow.__class__.__name__}\n"
             sub_id_work_map, tmp_dump_str_list = convert_nodes_to_workflow(node.sub_nodes, node, sub_workflow)
             dump_str_list += tmp_dump_str_list
             for sub_id in node.get_all_sub_node_ids():
@@ -716,7 +716,7 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None, workflow
                         j_work.add_custom_condition(key="to_continue", value=True)
                         cond = Condition(cond=j_work.get_custom_condition_status)
                         sub_workflow.add_loop_condition(cond)
-                        cond_dump_str += "    Loop in ID:{} with terminator ID:{}\n".format(node.id, sub_node.id)
+                        cond_dump_str += f"    Loop in ID:{node.id} with terminator ID:{sub_node.id}\n"
                         break
             workflow.add_work(sub_workflow)
     # add conditions
@@ -739,7 +739,7 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None, workflow
                         cond_function = p_work.is_started
                     if cond_function not in cond_func_list:
                         cond_func_list.append(cond_function)
-                        cond_dump_str += "    Default Link ID:{} {} -> ID:{}\n".format(str_p_id, cond_function.__name__, node.id)
+                        cond_dump_str += f"    Default Link ID:{str_p_id} {cond_function.__name__} -> ID:{node.id}\n"
                 cond = AndCondition(true_works=[c_work], conditions=cond_func_list)
                 workflow.add_condition(cond)
             else:
@@ -767,12 +767,12 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None, workflow
                             else:
                                 cond_function = p_work.is_failed
                             cond_func_list.append(cond_function)
-                            str_func_list.append("ID:{} {}".format(str_p_id, cond_function.__name__))
+                            str_func_list.append(f"ID:{str_p_id} {cond_function.__name__}")
                         cond = AndCondition(conditions=cond_func_list)
                         base_cond_map[tmp_idx] = cond
                         str_func = "AND ".join(str_func_list)
                         str_cond_map[tmp_idx] = str_func
-                        cond_dump_str += "    Unary Ops {}({}) -> ID:{}\n".format(cond.__class__.__name__, str_func, node.id)
+                        cond_dump_str += f"    Unary Ops {cond.__class__.__name__}({str_func}) -> ID:{node.id}\n"
                         root_condition = cond
                     else:
                         # composite condition
@@ -789,7 +789,7 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None, workflow
                                     str_p_id = sub_to_id_map[p_id]
                                 cond_function = p_work.is_finished
                                 cond_func_list.append(cond_function)
-                                l_str_func_list.append("ID:{} {}".format(str_p_id, cond_function.__name__))
+                                l_str_func_list.append(f"ID:{str_p_id} {cond_function.__name__}")
                             l_cond = AndCondition(conditions=cond_func_list)
                             l_str_func = "AND ".join(l_str_func_list)
                             str_cond_map[base_cond["left"]] = l_str_func
@@ -807,7 +807,7 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None, workflow
                                     str_p_id = sub_to_id_map[p_id]
                                 cond_function = p_work.is_finished
                                 cond_func_list.append(cond_function)
-                                r_str_func_list.append("ID:{} {}".format(str_p_id, cond_function.__name__))
+                                r_str_func_list.append(f"ID:{str_p_id} {cond_function.__name__}")
                             r_cond = AndCondition(conditions=cond_func_list)
                             r_str_func = "AND ".join(r_str_func_list)
                             str_cond_map[base_cond["right"]] = r_str_func
@@ -829,7 +829,7 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None, workflow
                                 ]
                             )
                         base_cond_map[tmp_idx] = cond
-                        cond_dump_str += "    Binary Ops {}({}, {}) for ID:{}\n".format(cond.__class__.__name__, l_str_func, r_str_func, node.id)
+                        cond_dump_str += f"    Binary Ops {cond.__class__.__name__}({l_str_func}, {r_str_func}) for ID:{node.id}\n"
                         root_condition = cond
                 # set root condition
                 if root_condition:
@@ -854,10 +854,10 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None, workflow
             for k, v in loop_slices:
                 workflow.set_sliced_global_parameters(source=v["src"], index=v["idx"], name="user_" + k)
             cond_dump_str += "\n  Looping local variables\n"
-            cond_dump_str += "    {}\n".format(tmp_global)
+            cond_dump_str += f"    {tmp_global}\n"
         if tmp_workflow_global:
             cond_dump_str += "\n  Workflow local variable\n"
-            cond_dump_str += "    {}\n".format(tmp_workflow_global)
+            cond_dump_str += f"    {tmp_workflow_global}\n"
     # dump strings
     dump_str_list.insert(0, class_dump_str + "\n" + cond_dump_str + "\n\n")
     # return

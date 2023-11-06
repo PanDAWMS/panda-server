@@ -89,12 +89,12 @@ for prio in prioList:
 if options.maxJobs is not None:
     jobs = jobs[: int(options.maxJobs)]
 
-print("The number of jobs with priorities below %s : %s" % (args[0], len(jobs)))
+print(f"The number of jobs with priorities below {args[0]} : {len(jobs)}")
 if len(jobs):
     nJob = 100
     iJob = 0
     while iJob < len(jobs):
-        print("kill %s" % str(jobs[iJob : iJob + nJob]))
+        print(f"kill {str(jobs[iJob:iJob + nJob])}")
         if options.forceKill:
             Client.killJobs(jobs[iJob : iJob + nJob], 9)
         else:

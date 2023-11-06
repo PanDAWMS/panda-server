@@ -17,13 +17,13 @@ class SQLDumper(object):
     def my_execute(self, sql, var=None):
         if var is None:
             var = {}
-        _logger.debug("SQL=%s var=%s" % (sql, str(var)))
+        _logger.debug(f"SQL={sql} var={str(var)}")
         return self.cursor.execute(sql, var)
 
     def my_executemany(self, sql, vars=None):
         if vars is None:
             vars = []
-        _logger.debug("SQL=%s var=%s" % (sql, str(vars)))
+        _logger.debug(f"SQL={sql} var={str(vars)}")
         return self.cursor.executemany(sql, vars)
 
     def __getattribute__(self, name):

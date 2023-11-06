@@ -95,3 +95,6 @@ disable = [
 
 [tool.isort]
 profile = "black"
+
+[tool.flynt]
+line-length = 160

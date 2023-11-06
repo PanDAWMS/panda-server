@@ -47,7 +47,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         if not configurator.run():
             _logger.error("Configurator loop FAILED")
         t2 = time.time()
-        _logger.debug("Configurator run took {0}s".format(t2 - t1))
+        _logger.debug(f"Configurator run took {t2 - t1}s")
 
     # If --network argument, call the network configurator
     elif len(argv) == 2 and argv[1].lower() == "--network":
@@ -60,7 +60,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         if not network_configurator.run():
             _logger.error("Configurator loop FAILED")
         t2 = time.time()
-        _logger.debug(" run took {0}s".format(t2 - t1))
+        _logger.debug(f" run took {t2 - t1}s")
 
     # If --json_dump
     elif len(argv) == 2 and argv[1].lower() == "--json_dump":
@@ -68,9 +68,9 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         t1 = time.time()
         json_dumper = SchedconfigJsonDumper(taskBuffer=taskBuffer, log_stream=_logger)
         out_msg = json_dumper.run()
-        _logger.debug("Json_dumper finished with {0}".format(out_msg))
+        _logger.debug(f"Json_dumper finished with {out_msg}")
         t2 = time.time()
-        _logger.debug(" run took {0}s".format(t2 - t1))
+        _logger.debug(f" run took {t2 - t1}s")
 
     # If --sw_tags
     elif len(argv) == 2 and argv[1].lower() == "--sw_tags":
@@ -78,9 +78,9 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         t1 = time.time()
         sw_tag_collector = SWTagsDumper(taskBuffer=taskBuffer, log_stream=_logger)
         out_msg = sw_tag_collector.run()
-        _logger.debug("sw_tag_collector finished with {0}".format(out_msg))
+        _logger.debug(f"sw_tag_collector finished with {out_msg}")
         t2 = time.time()
-        _logger.debug(" run took {0}s".format(t2 - t1))
+        _logger.debug(f" run took {t2 - t1}s")
 
     else:
         base_logger.error("Configurator being called with wrong arguments. Use either no arguments or --network or --json_dump")

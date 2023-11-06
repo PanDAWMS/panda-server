@@ -119,7 +119,7 @@ def get_site_strr_stats(tbuf, time_window=21600, cutoff=300):
         # tmp_log.debug('done')
         return True, return_map
     except Exception as e:
-        tmp_log.error("Exception {0}: {1}".format(e.__class__.__name__, e))
+        tmp_log.error(f"Exception {e.__class__.__name__}: {e}")
         return False, {}
 
 
@@ -240,16 +240,14 @@ class MetricsDB(object):
         # try insert if not all rows updated
         if n_row < len(varMap_list):
             try:
-                tmp_log.debug(
-                    "only {n_row}/{len_list} rows updated for metric={metric} ; trying insert".format(n_row=n_row, len_list=len(varMap_list), metric=metric)
-                )
+                tmp_log.debug(f"only {n_row}/{len(varMap_list)} rows updated for metric={metric} ; trying insert")
                 for varMap in varMap_list:
                     self.tbuf.querySQLS(sql_insert, varMap)
-                tmp_log.debug("inserted for metric={metric}".format(metric=metric))
+                tmp_log.debug(f"inserted for metric={metric}")
             except Exception:
-                tmp_log.warning("failed to insert for metric={metric}".format(metric=metric))
+                tmp_log.warning(f"failed to insert for metric={metric}")
         else:
-            tmp_log.debug("updated for metric={metric}".format(metric=metric))
+            tmp_log.debug(f"updated for metric={metric}")
         # done
         # tmp_log.debug('done key={0} site={1}, gshare={2}'.format(key, site, gshare))
 
@@ -270,7 +268,7 @@ class MetricsDB(object):
         # query
         res = self.tbuf.querySQL(sql_query, varMap)
         if res is None:
-            tmp_log.warning("failed to query metric={metric}".format(metric=metric))
+            tmp_log.warning(f"failed to query metric={metric}")
             return
         # key type default
         if key_type is None:
@@ -361,7 +359,7 @@ class FetchData(object):
             all_jobs_set.update(archived4_jobs_list)
             all_jobs_set.update(active4_jobs_list)
             n_tot_jobs = len(all_jobs_set)
-            tmp_log.debug("got total {0} jobs".format(n_tot_jobs))
+            tmp_log.debug(f"got total {n_tot_jobs} jobs")
             # loop over jobs to get modificationTime when activated and running
             cc = 0
             for pandaID, site in all_jobs_set:
@@ -375,20 +373,20 @@ class FetchData(object):
                 wait_time = status_mtime_dict["running"] - status_mtime_dict["activated"]
                 wait_time_sec = wait_time.total_seconds()
                 if wait_time_sec < 0:
-                    tmp_log.warning("job {0} has negative wait time".format(pandaID))
+                    tmp_log.warning(f"job {pandaID} has negative wait time")
                     continue
                 run_age_sec = int((now_time - status_mtime_dict["running"]).total_seconds())
                 if run_age_sec < 0:
-                    tmp_log.warning("job {0} has negative run age".format(pandaID))
+                    tmp_log.warning(f"job {pandaID} has negative run age")
                     continue
                 tmp_site_dict.setdefault(site, {"wait_time": [], "run_age": []})
                 tmp_site_dict[site]["wait_time"].append(wait_time_sec)
                 tmp_site_dict[site]["run_age"].append(run_age_sec)
                 # log message
                 if cc > 0 and cc % 5000 == 0:
-                    tmp_log.debug("... queried {0:9d} jobs ...".format(cc))
+                    tmp_log.debug(f"... queried {cc:9d} jobs ...")
                 cc += 1
-            tmp_log.debug("queried {0} jobs".format(cc))
+            tmp_log.debug(f"queried {cc} jobs")
             # evaluate stats
             site_dict = dict()
             for site, data_dict in tmp_site_dict.items():
@@ -510,7 +508,7 @@ class FetchData(object):
                 tmp_L1_leaves_map.setdefault(l1_share, [])
                 fill_leaf_shares(l1_share, val, tmp_L1_leaves_map[l1_share])
             for l1_share, leaves_list in tmp_L1_leaves_map.items():
-                l1_share_name = "L1 {}".format(l1_share)
+                l1_share_name = f"L1 {l1_share}"
                 l1_share_dict.setdefault(
                     l1_share_name,
                     {
@@ -609,13 +607,7 @@ class FetchData(object):
                     continue
             first_one_third_wait_time = np.nanquantile(np.array(ranking_wait_time_list), 0.333)
             last_one_third_wait_time = np.nanquantile(np.array(ranking_wait_time_list), 0.667)
-            tmp_log.debug(
-                "GRID n_sites= {} wait time PR33={:.3f} PR67={:.3f}".format(
-                    len(ranking_wait_time_list),
-                    first_one_third_wait_time,
-                    last_one_third_wait_time,
-                )
-            )
+            tmp_log.debug(f"GRID n_sites= {len(ranking_wait_time_list)} wait time PR33={first_one_third_wait_time:.3f} PR67={last_one_third_wait_time:.3f}")
             # get to-running rate of sites
             tmp_st, site_6h_strr_map = get_site_strr_stats(self.tbuf, time_window=60 * 60 * 6)
             if not tmp_st:
@@ -634,16 +626,10 @@ class FetchData(object):
                         v["ranking_wait_time"] = np.maximum(v["w_cl95upp"], v["long_q_mean"])
                         # v['is_slowing_down'] = (v['long_q_mean'] > v['w_cl95upp'] and v['long_q_n'] >= 3)
                     else:
-                        tmp_log.warning(
-                            ("site={site} none value, skipped : w_cl95upp={w_cl95upp} long_q_mean={long_q_mean} ").format(
-                                site=site,
-                                w_cl95upp=v["w_cl95upp"],
-                                long_q_mean=v["long_q_mean"],
-                            )
-                        )
+                        tmp_log.warning(f"site={site} none value, skipped : w_cl95upp={v['w_cl95upp']} long_q_mean={v['long_q_mean']} ")
                         continue
                 except KeyError as e:
-                    tmp_log.warning(("site={site} misses value, skipped : {err} ").format(site=site, err=e))
+                    tmp_log.warning(f"site={site} misses value, skipped : {e} ")
                     continue
                 # initialize
                 site_dict[site] = dict()
@@ -719,9 +705,9 @@ class FetchData(object):
             # result
             res = self.tbuf.querySQL(sqlJ, varMap)
             if res is None:
-                tmp_log.debug("got %s " % res)
+                tmp_log.debug(f"got {res} ")
             else:
-                tmp_log.debug("total %s " % len(res))
+                tmp_log.debug(f"total {len(res)} ")
                 # make map
                 for cnt, n_slots, prodUserName, jobStatus, gshare, computingSite in res:
                     # append to PerUser map
@@ -763,8 +749,8 @@ class FetchData(object):
                     )
                     # count # of running/done and activated
                     if jobStatus in ["defined", "assigned", "activated", "starting"]:
-                        status_name = "n{0}".format(jobStatus.capitalize())
-                        slots_status_name = "slots{0}".format(jobStatus.capitalize())
+                        status_name = f"n{jobStatus.capitalize()}"
+                        slots_status_name = f"slots{jobStatus.capitalize()}"
                         jobsStatsPerUser[computingSite][gshare][prodUserName][status_name] += cnt
                         jobsStatsPerUser[computingSite][gshare][prodUserName]["nQueue"] += cnt
                         jobsStatsPerUser[computingSite][gshare]["_total"][status_name] += cnt
@@ -784,7 +770,7 @@ class FetchData(object):
                 for gshare in g_dict:
                     data_dict = g_dict[gshare]
                     site_gshare_dict[(computingSite, gshare)] = data_dict
-                    tmp_log.debug("site={}, gshare={}, stats={}".format(computingSite, gshare, data_dict))
+                    tmp_log.debug(f"site={computingSite}, gshare={gshare}, stats={data_dict}")
             # done
             tmp_log.debug("done")
             return site_gshare_dict
@@ -811,13 +797,13 @@ class FetchData(object):
                 try:
                     site_eval_dict = ase_dict[site]
                 except KeyError:
-                    tmp_log.warning(("analy_site_eval missed site={site} gshare={gshare}, skipped ").format(site=site, gshare=gshare))
+                    tmp_log.warning(f"analy_site_eval missed site={site} gshare={gshare}, skipped ")
                     continue
                 # get site class value
                 try:
                     site_class_value = site_eval_dict["class"]
                 except KeyError:
-                    tmp_log.warning(("analy_site_eval class missed for site={site} gshare={gshare}, skipped ").format(site=site, gshare=gshare))
+                    tmp_log.warning(f"analy_site_eval class missed for site={site} gshare={gshare}, skipped ")
                     continue
                 else:
                     site_class_rank = class_value_rank_map[site_class_value]
@@ -863,7 +849,7 @@ class FetchData(object):
                 user_dict[user]["rem_slot_ratio_A"] = rem_slots_A / threshold_A
                 user_dict[user]["rem_slot_ratio_B"] = rem_slots_B / threshold_B
             # log
-            tmp_log.debug("{}".format(user_dict))
+            tmp_log.debug(f"{user_dict}")
             # return
             return user_dict
         except Exception:
@@ -889,21 +875,21 @@ def main(tbuf=None, **kwargs):
         taskBuffer = tbuf
     # pid
     my_pid = os.getpid()
-    my_full_pid = "{0}-{1}-{2}".format(socket.getfqdn().split(".")[0], os.getpgrp(), my_pid)
+    my_full_pid = f"{socket.getfqdn().split('.')[0]}-{os.getpgrp()}-{my_pid}"
     # go
     if DRY_RUN:
         # dry run, regardless of lock, not update DB
         fetcher = FetchData(taskBuffer)
         # loop over all fetch data methods to run and update to DB
         for metric_name, key_type, period in metric_list:
-            main_logger.debug("(dry-run) start {metric_name}".format(metric_name=metric_name))
+            main_logger.debug(f"(dry-run) start {metric_name}")
             # fetch data and update DB
             the_method = getattr(fetcher, metric_name)
             fetched_data = the_method()
             if fetched_data is None:
-                main_logger.warning("(dry-run) {metric_name} got no valid data".format(metric_name=metric_name))
+                main_logger.warning(f"(dry-run) {metric_name} got no valid data")
                 continue
-            main_logger.debug("(dry-run) done {metric_name}".format(metric_name=metric_name))
+            main_logger.debug(f"(dry-run) done {metric_name}")
     else:
         # real run, will update DB
         # instantiate
@@ -912,23 +898,23 @@ def main(tbuf=None, **kwargs):
         # loop over all fetch data methods to run and update to DB
         for metric_name, key_type, period in metric_list:
             # metric lock
-            lock_component_name = "pandaMetr.{0:.16}.{1:0x}".format(metric_name, adler32(metric_name.encode("utf-8")))
+            lock_component_name = f"pandaMetr.{metric_name:.16}.{adler32(metric_name.encode('utf-8')):0x}"
             # try to get lock
             got_lock = taskBuffer.lockProcess_PANDA(component=lock_component_name, pid=my_full_pid, time_limit=period)
             if got_lock:
-                main_logger.debug("got lock of {metric_name}".format(metric_name=metric_name))
+                main_logger.debug(f"got lock of {metric_name}")
             else:
-                main_logger.debug("{metric_name} locked by other process; skipped...".format(metric_name=metric_name))
+                main_logger.debug(f"{metric_name} locked by other process; skipped...")
                 continue
-            main_logger.debug("start {metric_name}".format(metric_name=metric_name))
+            main_logger.debug(f"start {metric_name}")
             # fetch data and update DB
             the_method = getattr(fetcher, metric_name)
             fetched_data = the_method()
             if fetched_data is None:
-                main_logger.warning("{metric_name} got no valid data".format(metric_name=metric_name))
+                main_logger.warning(f"{metric_name} got no valid data")
                 continue
             mdb.update(metric=metric_name, key_type=key_type, entity_dict=fetched_data)
-            main_logger.debug("done {metric_name}".format(metric_name=metric_name))
+            main_logger.debug(f"done {metric_name}")
     # stop taskBuffer if created inside this script
     if tbuf is None:
         taskBuffer.cleanup(requester=requester_id)

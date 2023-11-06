@@ -17,15 +17,15 @@ class eventLookupClientEI:
             "event-lookup",
         )
         tempEvtFile = tempfile.NamedTemporaryFile(mode="w+t")
-        command += " -F {0} ".format(tempEvtFile.name)
+        command += f" -F {tempEvtFile.name} "
         for runEvt in runEvtList:
-            tmpStr = "{0:08d} {1:09d}\n".format(int(runEvt[0]), int(runEvt[1]))
+            tmpStr = f"{int(runEvt[0]):08d} {int(runEvt[1]):09d}\n"
             tempEvtFile.write(tmpStr)
         tempEvtFile.flush()
         if stream not in [None, ""]:
-            command += "-s {0} ".format(stream)
+            command += f"-s {stream} "
         if amitag not in [None, ""]:
-            command += "-a {0} ".format(amitag)
+            command += f"-a {amitag} "
         command += "-c plain "
         p = subprocess.Popen(
             command,

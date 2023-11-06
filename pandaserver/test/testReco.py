@@ -11,7 +11,7 @@ if len(sys.argv) > 1:
 else:
     site = None
 
-datasetName = "panda.destDB.%s" % str(uuid.uuid4())
+datasetName = f"panda.destDB.{str(uuid.uuid4())}"
 destName = None
 
 files = {
@@ -59,7 +59,7 @@ for lfn in files:
     job.addFile(fileD)
 
     fileOE = FileSpec()
-    fileOE.lfn = "%s.ESD.pool.root" % job.jobName
+    fileOE.lfn = f"{job.jobName}.ESD.pool.root"
     fileOE.destinationDBlock = job.destinationDBlock
     fileOE.destinationSE = job.destinationSE
     fileOE.dataset = job.destinationDBlock
@@ -68,7 +68,7 @@ for lfn in files:
     job.addFile(fileOE)
 
     fileOA = FileSpec()
-    fileOA.lfn = "%s.AOD.pool.root" % job.jobName
+    fileOA.lfn = f"{job.jobName}.AOD.pool.root"
     fileOA.destinationDBlock = job.destinationDBlock
     fileOA.destinationSE = job.destinationSE
     fileOA.dataset = job.destinationDBlock
@@ -77,7 +77,7 @@ for lfn in files:
     job.addFile(fileOA)
 
     fileOC = FileSpec()
-    fileOC.lfn = "%s.NTUP.root" % job.jobName
+    fileOC.lfn = f"{job.jobName}.NTUP.root"
     fileOC.destinationDBlock = job.destinationDBlock
     fileOC.destinationSE = job.destinationSE
     fileOC.dataset = job.destinationDBlock
@@ -86,7 +86,7 @@ for lfn in files:
     job.addFile(fileOC)
 
     fileOL = FileSpec()
-    fileOL.lfn = "%s.job.log.tgz" % job.jobName
+    fileOL.lfn = f"{job.jobName}.job.log.tgz"
     fileOL.destinationDBlock = job.destinationDBlock
     fileOL.destinationSE = job.destinationSE
     fileOL.dataset = job.destinationDBlock
@@ -94,13 +94,7 @@ for lfn in files:
     fileOL.type = "log"
     job.addFile(fileOL)
 
-    job.jobParameters = "%s %s %s %s 250 0 ATLAS-CSC-01-02-00 CSC-06 NoRestrictedESDRecConfig.py %s" % (
-        fileI.lfn,
-        fileOE.lfn,
-        fileOA.lfn,
-        fileOC.lfn,
-        fileD.lfn,
-    )
+    job.jobParameters = f"{fileI.lfn} {fileOE.lfn} {fileOA.lfn} {fileOC.lfn} 250 0 ATLAS-CSC-01-02-00 CSC-06 NoRestrictedESDRecConfig.py {fileD.lfn}"
 
     jobList.append(job)
 
@@ -108,4 +102,4 @@ s, o = Client.submitJobs(jobList)
 print("---------------------")
 print(s)
 for x in o:
-    print("PandaID=%s" % x[0])
+    print(f"PandaID={x[0]}")

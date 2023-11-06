@@ -18,7 +18,7 @@ if len(sys.argv) == 5:
     prodDBlock = sys.argv[3]
     inputFile = sys.argv[4]
 
-datasetName = "panda.destDB.%s" % str(uuid.uuid4())
+datasetName = f"panda.destDB.{str(uuid.uuid4())}"
 
 files = {
     inputFile: None,
@@ -60,7 +60,7 @@ for lfn in files:
     job.addFile(fileD)
 
     fileOA = FileSpec()
-    fileOA.lfn = "%s.HITS.pool.root" % job.jobName
+    fileOA.lfn = f"{job.jobName}.HITS.pool.root"
     fileOA.destinationDBlock = job.destinationDBlock
     fileOA.destinationSE = job.destinationSE
     fileOA.dataset = job.destinationDBlock
@@ -69,7 +69,7 @@ for lfn in files:
     job.addFile(fileOA)
 
     fileOL = FileSpec()
-    fileOL.lfn = "%s.job.log.tgz" % job.jobName
+    fileOL.lfn = f"{job.jobName}.job.log.tgz"
     fileOL.destinationDBlock = job.destinationDBlock
     fileOL.destinationSE = job.destinationSE
     fileOL.dataset = job.destinationDBlock
@@ -88,4 +88,4 @@ s, o = Client.submitJobs(jobList)
 print("---------------------")
 print(s)
 for x in o:
-    print("PandaID=%s" % x[0])
+    print(f"PandaID={x[0]}")

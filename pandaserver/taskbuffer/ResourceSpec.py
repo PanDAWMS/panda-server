@@ -112,8 +112,8 @@ class ResourceSpec(object):
         ret = ""
         for attr in cls.attributes:
             if prefix is not None:
-                ret += "{0}.".format(prefix)
-            ret += "{0},".format(attr)
+                ret += f"{prefix}."
+            ret += f"{attr},"
         ret = ret[:-1]
         return ret
 

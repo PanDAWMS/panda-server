@@ -55,7 +55,7 @@ class DatasetSpec(object):
                     val = 0
                 else:
                     val = None
-            ret[":%s" % attr] = val
+            ret[f":{attr}"] = val
         return ret
 
     # pack tuple into DatasetSpec
@@ -92,7 +92,7 @@ class DatasetSpec(object):
     def bindValuesExpression(cls):
         ret = "VALUES("
         for attr in cls._attributes:
-            ret += ":%s," % attr
+            ret += f":{attr},"
         ret = ret[:-1]
         ret += ")"
         return ret
@@ -114,7 +114,7 @@ class DatasetSpec(object):
     def bindUpdateExpression(cls):
         ret = ""
         for attr in cls._attributes:
-            ret += "%s=:%s," % (attr, attr)
+            ret += f"{attr}=:{attr},"
         ret = ret[:-1]
         return ret
 

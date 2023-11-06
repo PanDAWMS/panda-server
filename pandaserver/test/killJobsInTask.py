@@ -46,12 +46,12 @@ for table in [
             if id not in jobs:
                 jobs.append(id)
 
-print("The number of jobs to be killed : %s" % len(jobs))
+print(f"The number of jobs to be killed : {len(jobs)}")
 if len(jobs):
     nJob = 100
     iJob = 0
     while iJob < len(jobs):
-        print("kill %s" % str(jobs[iJob : iJob + nJob]))
+        print(f"kill {str(jobs[iJob:iJob + nJob])}")
         if options.forceKill:
             Client.killJobs(jobs[iJob : iJob + nJob], 9, useMailAsID=useMailAsIDV)
         else:

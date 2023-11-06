@@ -73,7 +73,7 @@ class SiteSpec(object):
     def __str__(self):
         str = ""
         for attr in self._attributes:
-            str += "%s:%s " % (attr, getattr(self, attr))
+            str += f"{attr}:{getattr(self, attr)} "
         return str
 
     # check if direct IO is used when tasks allow it
@@ -102,7 +102,7 @@ class SiteSpec(object):
         if self.catchall is None:
             return None
         for tmpItem in self.catchall.split(","):
-            tmpMatch = re.search("^{0}=(.+)".format(key), tmpItem)
+            tmpMatch = re.search(f"^{key}=(.+)", tmpItem)
             if tmpMatch is not None:
                 return tmpMatch.group(1)
         return None
@@ -112,7 +112,7 @@ class SiteSpec(object):
         if self.catchall is None:
             return False
         for tmpItem in self.catchall.split(","):
-            tmpMatch = re.search("^{0}(=|)*".format(key), tmpItem)
+            tmpMatch = re.search(f"^{key}(=|)*", tmpItem)
             if tmpMatch is not None:
                 return True
         return False

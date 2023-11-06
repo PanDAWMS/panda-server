@@ -135,7 +135,7 @@ class cacheSchedConfig:
     def getQueueData(self, site=None, queue=None):
         # Dump schedconfig in a single query (it's not very big)
         varDict = {}
-        sql = "SELECT panda_queue, data from {0}.SCHEDCONFIG_JSON".format(panda_config.schemaPANDA)
+        sql = f"SELECT panda_queue, data from {panda_config.schemaPANDA}.SCHEDCONFIG_JSON"
         if site:
             sql += " where panda_queue=:site"
             varDict[":site"] = site
@@ -148,7 +148,7 @@ class cacheSchedConfig:
             self.queueData = self.query_column_sql(sql)
 
     def getCloudStatus(self):
-        sql = "SELECT name, status from {0}.CLOUDCONFIG".format(panda_config.schemaMETA)
+        sql = f"SELECT name, status from {panda_config.schemaMETA}.CLOUDCONFIG"
         r = self.tbuf.querySQL(sql, None)
         self.cloudStatus = dict()
         for row in r:
@@ -160,9 +160,9 @@ class cacheSchedConfig:
             try:
                 if self.cloudStatus[queue["cloud"]] == "offline":
                     queue["status"] = "offline"
-                    _logger.info("Queue %s forced offline (cloud = %s is offline)" % (queue["nickname"], queue["cloud"]))
+                    _logger.info(f"Queue {queue['nickname']} forced offline (cloud = {queue['cloud']} is offline)")
             except KeyError:
-                _logger.error("No valid cloud status for queue %s (cloud = %s)" % (queue["nickname"], queue["cloud"]))
+                _logger.error(f"No valid cloud status for queue {queue['nickname']} (cloud = {queue['cloud']})")
 
     def dumpSingleQueue(self, queueDict, dest="/tmp", outputSet="all", format="txt"):
         try:
@@ -239,14 +239,14 @@ class cacheSchedConfig:
     def dump_pilot_gdp_config(self, dest="/tmp"):
         app = "pilot"
         dump_me = {}
-        sql = "SELECT key, component, vo from {}.config where app=:app".format(panda_config.schemaPANDA)
+        sql = f"SELECT key, component, vo from {panda_config.schemaPANDA}.config where app=:app"
         r = self.tbuf.querySQL(sql, {":app": app})
         for key, component, vo in r:
             dump_me.setdefault(vo, {})
             value = self.tbuf.getConfigValue(component, key, app, vo)
             dump_me[vo][key] = value
         # dump
-        _logger.debug("pilot GDP config: {}".format(str(dump_me)))
+        _logger.debug(f"pilot GDP config: {str(dump_me)}")
         with open(os.path.join(dest, "pilot_gdp_config.json"), "w") as f:
             json.dump(dump_me, f, sort_keys=True, indent=4)
 

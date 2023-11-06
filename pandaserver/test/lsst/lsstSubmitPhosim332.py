@@ -21,12 +21,12 @@ site = "ANALY_BNL-LSST"  # orig
 # site = 'UTA_SWT2-LSST'
 # site = 'ANALY_SWT2_CPB-LSST'
 
-datasetName = "panda.user.jschovan.lsst.%s" % str(uuid.uuid4())
+datasetName = f"panda.user.jschovan.lsst.{str(uuid.uuid4())}"
 destName = None
 
 job = JobSpec()
 job.jobDefinitionID = int(time.time()) % 10000
-job.jobName = "%s" % str(uuid.uuid4())
+job.jobName = f"{str(uuid.uuid4())}"
 # job.transformation    = 'http://www.usatlas.bnl.gov/~wenaus/lsst-trf/lsst-trf.sh'
 # job.transformation    = 'http://pandawms.org/pandawms-jobcache/lsst-trf.sh'
 job.transformation = "http://pandawms.org/pandawms-jobcache/lsst-trf-phosim332.sh"
@@ -47,7 +47,7 @@ job.jobParameters = ""
 job.VO = "lsst"
 
 fileOL = FileSpec()
-fileOL.lfn = "%s.job.log.tgz" % job.jobName
+fileOL.lfn = f"{job.jobName}.job.log.tgz"
 fileOL.destinationDBlock = job.destinationDBlock
 fileOL.destinationSE = job.destinationSE
 fileOL.dataset = job.destinationDBlock
@@ -58,4 +58,4 @@ job.addFile(fileOL)
 s, o = Client.submitJobs([job], srvID=aSrvID)
 print(s)
 for x in o:
-    print("PandaID=%s" % x[0])
+    print(f"PandaID={x[0]}")

@@ -42,7 +42,7 @@ class JobFlowATLAS(object):
     for nostests that check the output is as expected.
     """
 
-    __datasetName = "panda.destDB.%s" % uuid.uuid1()
+    __datasetName = f"panda.destDB.{uuid.uuid1()}"
     __destName = None
     __jobList = []
 
@@ -127,7 +127,7 @@ class JobFlowATLAS(object):
 
         # Output file
         fileO = FileSpec()
-        fileO.lfn = "%s.evgen.pool.root" % job.jobName
+        fileO.lfn = f"{job.jobName}.evgen.pool.root"
         fileO.destinationDBlock = job.destinationDBlock
         fileO.destinationSE = job.destinationSE
         fileO.dataset = job.destinationDBlock
@@ -137,7 +137,7 @@ class JobFlowATLAS(object):
 
         # Log file
         fileL = FileSpec()
-        fileL.lfn = "%s.job.log.tgz" % job.jobName
+        fileL.lfn = f"{job.jobName}.job.log.tgz"
         fileL.destinationDBlock = job.destinationDBlock
         fileL.destinationSE = job.destinationSE
         fileL.dataset = job.destinationDBlock
@@ -145,7 +145,7 @@ class JobFlowATLAS(object):
         fileL.type = "log"
         job.addFile(fileL)
 
-        job.jobParameters = "2760 105048 19901 101 200 MC10.105048.PythiaB_ccmu3mu1X.py %s NONE NONE NONE MC10JobOpts-latest-test.tar.gz" % fileO.lfn
+        job.jobParameters = f"2760 105048 19901 101 200 MC10.105048.PythiaB_ccmu3mu1X.py {fileO.lfn} NONE NONE NONE MC10JobOpts-latest-test.tar.gz"
         return job
 
     def generateJobs(self):
@@ -157,24 +157,24 @@ class JobFlowATLAS(object):
             [job["jobSpec"] for job in self.__jobList]
         )  # Return from submitJobs: ret.append((job.PandaID,job.jobDefinitionID,{'jobsetID':job.jobsetID}))
 
-        assert status == 0, "Submission of jobs finished with status: %s" % status
+        assert status == 0, f"Submission of jobs finished with status: {status}"
 
         assert len(self.__jobList) == len(output), "Not all jobs seem to have been submitted properly"
 
         for job, ids in zip(self.__jobList, output):
             jobID = ids[0]
             job["jobID"] = jobID
-            _logger.info("Generated job PandaID = %s" % jobID)
+            _logger.info(f"Generated job PandaID = {jobID}")
 
         return
 
     def getStatus(self, expectedStates):
         idList = [job["jobID"] for job in self.__jobList]
-        _logger.info("%s" % idList)
+        _logger.info(f"{idList}")
         status, jobInfoList = Client.getJobStatus(idList)
-        _logger.info("%s" % jobInfoList)
+        _logger.info(f"{jobInfoList}")
 
-        assert status == 0, "Retrieval of job state finished with status: %s" % status
+        assert status == 0, f"Retrieval of job state finished with status: {status}"
 
         for job in jobInfoList:
             assert job.jobStatus in expectedStates, "Recently defined job was not in states %s (PandaID: %s jobStatus: %s)" % (
@@ -212,8 +212,8 @@ class JobFlowATLAS(object):
             counter += 1
 
     def __calculate_path(self, name, scope="panda"):
-        hstr = hashlib.md5("%s:%s" % (scope, name)).hexdigest()
-        return "%s/%s/" % (hstr[0:2], hstr[2:4])
+        hstr = hashlib.md5(f"{scope}:{name}").hexdigest()
+        return f"{hstr[0:2]}/{hstr[2:4]}/"
 
     def __finishJob(self, job, jobID):
         files_xml = ""
@@ -225,14 +225,14 @@ class JobFlowATLAS(object):
                 path = self.__calculate_path(file.lfn)
                 pfn = srm + path + file.lfn
 
-                _logger.info("pfn: %s" % pfn)
+                _logger.info(f"pfn: {pfn}")
                 files_xml += self.__XMLTEMPLATE_FILE.format(lfn=file.lfn, guid=file.GUID, srm=srm, pfn=pfn)
                 files_meta += self.__XMLTEMPLATE_FILEMETA.format(guid=file.GUID, lfn=file.lfn)
 
         xml = self.__XMLTEMPLATE_BASE.format(info=files_xml)
-        _logger.info("%s" % xml)
+        _logger.info(f"{xml}")
         meta = self.__XMLTEMPLATE_BASE.format(info=self.__XMLTEMPLATE_META.format(files=files_meta))
-        _logger.info("%s" % meta)
+        _logger.info(f"{meta}")
 
         node = {}
         node["jobId"] = jobID
@@ -250,7 +250,7 @@ class JobFlowATLAS(object):
 
         function = "updateJob"
         data = sendCommand(function, node)
-        _logger.info("%s" % data)
+        _logger.info(f"{data}")
 
     def finishJobs(self):
         for job in self.__jobList:
@@ -270,7 +270,7 @@ class JobFlowATLAS(object):
         function = "datasetCompleted"
         data = sendCommand(function, node)
 
-        assert data == "True", "DDM Callback did not return as expected for OUTPUT dataset. data = %s" % data
+        assert data == "True", f"DDM Callback did not return as expected for OUTPUT dataset. data = {data}"
 
 
 def testFlow():

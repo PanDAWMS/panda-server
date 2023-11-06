@@ -72,7 +72,7 @@ class AdderSimplePlugin(AdderPluginBase):
                     isFailed = False
                     regStart = datetime.datetime.utcnow()
                     try:
-                        self.logger.debug("{} {}".format("registerFilesInDatasets", str(destIdMap)))
+                        self.logger.debug(f"registerFilesInDatasets {str(destIdMap)}")
                         out = rucioAPI.registerFilesInDataset(destIdMap, {})
                     except (
                         DataIdentifierNotFound,
@@ -87,13 +87,13 @@ class AdderSimplePlugin(AdderPluginBase):
                         KeyError,
                     ) as e:
                         # fatal errors
-                        out = "failed with {}\n {}".format(str(e), traceback.format_exc())
+                        out = f"failed with {str(e)}\n {traceback.format_exc()}"
                         isFatal = True
                         isFailed = True
                     except Exception as e:
                         # unknown errors
                         isFailed = True
-                        out = "failed with unknown error: {}\n {}".format(str(e), traceback.format_exc())
+                        out = f"failed with unknown error: {str(e)}\n {traceback.format_exc()}"
                         if (
                             "value too large for column" in out
                             or "unique constraint (ATLAS_RUCIO.DIDS_GUID_IDX) violate" in out
@@ -108,7 +108,7 @@ class AdderSimplePlugin(AdderPluginBase):
 
                     # failed
                     if isFailed or isFatal:
-                        self.logger.error("%s" % out)
+                        self.logger.error(f"{out}")
                         if (iTry + 1) == nTry or isFatal:
                             self.job.ddmErrorCode = ErrorCode.EC_Adder
                             # extract important error string
@@ -123,17 +123,17 @@ class AdderSimplePlugin(AdderPluginBase):
                             else:
                                 self.result.setTemporary()
                             return 1
-                        self.logger.error("Try:%s" % iTry)
+                        self.logger.error(f"Try:{iTry}")
                         # sleep
                         time.sleep(10)
                     else:
-                        self.logger.debug("%s" % str(out))
+                        self.logger.debug(f"{str(out)}")
                         break
             # done
             self.result.setSucceeded()
             self.logger.debug("end plugin")
         except Exception as e:
-            errStr = "failed to execute with {}\n".format(str(e))
+            errStr = f"failed to execute with {str(e)}\n"
             errStr += traceback.format_exc()
             self.logger.error(errStr)
             self.result.setTemporary()

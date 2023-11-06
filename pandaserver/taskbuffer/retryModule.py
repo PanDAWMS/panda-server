@@ -25,7 +25,7 @@ def timeit(method):
         result = method(*args, **kwargs)
         te = time.time()
 
-        _logger.debug("%r (%r, %r) took %.2f sec" % (method.__name__, args, kwargs, te - ts))
+        _logger.debug(f"{method.__name__!r} ({args!r}, {kwargs!r}) took {te - ts:.2f} sec")
         return result
 
     return timed
@@ -39,7 +39,7 @@ def safe_match(pattern, message):
     try:
         matches = re.match(pattern, message)
     except ReError:
-        _logger.error("Regexp matching excepted. \nPattern: %s \nString: %s" % (pattern, message))
+        _logger.error(f"Regexp matching excepted. \nPattern: {pattern} \nString: {message}")
     finally:
         return matches
 
@@ -58,7 +58,7 @@ def conditions_apply(
     Checks that the error regexp, architecture, release and work queue of rule and job match,
     only in case the attributes are defined for the rule
     """
-    _logger.debug("Entered conditions_apply %s" % (locals()))
+    _logger.debug(f"Entered conditions_apply {locals()}")
     if (
         (errordiag_rule and not safe_match(errordiag_rule, errordiag_job))
         or (architecture_rule and architecture_rule != architecture_job)
@@ -192,7 +192,7 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
                 elif comparison == -1:
                     pass
     except KeyError:
-        _logger.error("Rules are not properly defined. Rules: %s" % rules)
+        _logger.error(f"Rules are not properly defined. Rules: {rules}")
 
     if limit_retry_rule:
         filtered_rules.append(limit_retry_rule)
@@ -208,7 +208,7 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
     - limit the number of retries
     - increase the memory of a job if it failed because of insufficient memory
     """
-    _logger.debug("Entered apply_retrial_rules for PandaID=%s, errors=%s, attemptNr=%s" % (jobID, errors, attemptNr))
+    _logger.debug(f"Entered apply_retrial_rules for PandaID={jobID}, errors={errors}, attemptNr={attemptNr}")
 
     retrial_rules = task_buffer.getRetrialRules()
     _logger.debug("Back from getRetrialRules")
@@ -230,16 +230,16 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
             try:
                 error_code = int(error_code)
             except ValueError:
-                _logger.error("Error code ({0}) can not be casted to int".format(error_code))
+                _logger.error(f"Error code ({error_code}) can not be casted to int")
                 continue
             try:
                 rule = retrial_rules[error_source][error_code]
             except KeyError as e:
-                _logger.debug("Retry rule does not apply for jobID {0}, attemptNr {1}, failed with {2}. (Exception {3})".format(jobID, attemptNr, errors, e))
+                _logger.debug(f"Retry rule does not apply for jobID {jobID}, attemptNr {attemptNr}, failed with {errors}. (Exception {e})")
                 continue
 
             applicable_rules = preprocess_rules(rule, error_diag, job.AtlasRelease, job.cmtConfig, job.workQueue_ID)
-            _logger.debug("Applicable rules for PandaID={0}: {1}".format(jobID, applicable_rules))
+            _logger.debug(f"Applicable rules for PandaID={jobID}: {applicable_rules}")
             for rule in applicable_rules:
                 try:
                     error_id = rule["error_id"]
@@ -263,11 +263,7 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
                         )
                     )
 
-                    _logger.debug(
-                        "Processing rule {0} for jobID {1}, error_source {2}, error_code {3}, attemptNr {4}".format(
-                            rule, jobID, error_source, error_code, attemptNr
-                        )
-                    )
+                    _logger.debug(f"Processing rule {rule} for jobID {jobID}, error_source {error_source}, error_code {error_code}, attemptNr {attemptNr}")
                     if not conditions_apply(
                         error_diag,
                         job.cmtConfig,
@@ -279,13 +275,7 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
                         wqid,
                     ):
                         _logger.debug(
-                            "Skipped rule {0}. cmtConfig ({1} : {2}) or Release ({3} : {4}) did NOT match".format(
-                                rule,
-                                architecture,
-                                job.cmtConfig,
-                                release,
-                                job.AtlasRelease,
-                            )
+                            f"Skipped rule {rule}. cmtConfig ({architecture} : {job.cmtConfig}) or Release ({release} : {job.AtlasRelease}) did NOT match"
                         )
                         continue
 
@@ -328,7 +318,7 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
                             acted_on_job = True
                             _logger.info(message)
                         except (KeyError, ValueError):
-                            _logger.error("Inconsistent definition of limit_retry rule - maxAttempt not defined. parameters: %s" % parameters)
+                            _logger.error(f"Inconsistent definition of limit_retry rule - maxAttempt not defined. parameters: {parameters}")
 
                     elif action == INCREASE_MEM:
                         try:
@@ -348,7 +338,7 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
                             _logger.info(message)
                         except Exception:
                             errtype, errvalue = sys.exc_info()[:2]
-                            _logger.error("Failed to increase RAM limit : %s %s" % (errtype, errvalue))
+                            _logger.error(f"Failed to increase RAM limit : {errtype} {errvalue}")
 
                     elif action == INCREASE_CPU:
                         try:
@@ -379,16 +369,12 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
                             _logger.info(message)
                         except Exception:
                             errtype, errvalue = sys.exc_info()[:2]
-                            _logger.error("Failed to increase CPU-Time : %s %s" % (errtype, errvalue))
+                            _logger.error(f"Failed to increase CPU-Time : {errtype} {errvalue}")
 
-                    _logger.debug(
-                        "Finished rule {0} for PandaID={1} error_source={2} error_code={3} attemptNr={4}".format(
-                            rule, jobID, error_source, error_code, attemptNr
-                        )
-                    )
+                    _logger.debug(f"Finished rule {rule} for PandaID={jobID} error_source={error_source} error_code={error_code} attemptNr={attemptNr}")
 
                 except KeyError:
-                    _logger.error("Rule was missing some field(s). Rule: %s" % rule)
+                    _logger.error(f"Rule was missing some field(s). Rule: {rule}")
 
     except KeyError as e:
-        _logger.debug("No retrial rules to apply for jobID {0}, attemptNr {1}, failed with {2}. (Exception {3})".format(jobID, attemptNr, errors, e))
+        _logger.debug(f"No retrial rules to apply for jobID {jobID}, attemptNr {attemptNr}, failed with {errors}. (Exception {e})")

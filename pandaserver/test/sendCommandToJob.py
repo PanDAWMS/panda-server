@@ -26,6 +26,6 @@ if s != 0:
     print(o)
 else:
     if not o[0]:
-        print("ERROR: {}".format(o[1]))
+        print(f"ERROR: {o[1]}")
     else:
-        print("INFO: {}".format(o[1]))
+        print(f"INFO: {o[1]}")

@@ -1,5 +1,11 @@
 repos:
 
+-   repo: https://github.com/ikamensh/flynt
+    rev: ''  # Specify a specific version if desired
+    hooks:
+    -   id: flynt
+        args: [ "--line-length", "160"]  # Flynt does not support pyproject.toml in special locations
+
 -   repo: https://github.com/psf/black
     rev: 23.9.1
     hooks:

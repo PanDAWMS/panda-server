@@ -30,7 +30,7 @@ class DDMHandler(threading.Thread):
         # get logger
         tmpLog = LogWrapper(
             _logger,
-            "<vuid={0} site={1} name={2}>".format(self.vuid, self.site, self.dataset),
+            f"<vuid={self.vuid} site={self.site} name={self.dataset}>",
         )
         # query dataset
         tmpLog.debug("start")
@@ -42,7 +42,7 @@ class DDMHandler(threading.Thread):
             tmpLog.error("Not found")
             tmpLog.debug("end")
             return
-        tmpLog.debug("type:%s name:%s" % (dataset.type, dataset.name))
+        tmpLog.debug(f"type:{dataset.type} name:{dataset.name}")
         if dataset.type == "dispatch":
             # activate jobs in jobsDefined
             Activator(self.taskBuffer, dataset).start()

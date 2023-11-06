@@ -53,7 +53,7 @@ class HarvesterMetricsSpec(object):
             if val is None:
                 if attr in self._zeroAttrs:
                     val = 0
-            ret[":%s" % attr] = val
+            ret[f":{attr}"] = val
         return ret
 
     # pack tuple into FileSpec
@@ -67,7 +67,7 @@ class HarvesterMetricsSpec(object):
     def columnNames(cls):
         ret = ""
         for attr in cls._attributes:
-            ret += "{0},".format(attr)
+            ret += f"{attr},"
         ret = ret[:-1]
         return ret
 
@@ -79,7 +79,7 @@ class HarvesterMetricsSpec(object):
 
         ret = "VALUES("
         for attr in cls._attributes:
-            ret += ":%s," % attr
+            ret += f":{attr},"
         ret = ret[:-1]
         ret += ")"
         return ret

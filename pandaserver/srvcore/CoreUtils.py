@@ -131,14 +131,14 @@ class CachedObject:
         current = datetime.datetime.utcnow()
         # update if old
         if self.cachedObj is None or current - self.lastUpdated > self.timeInterval:
-            self.log_stream.debug("PID={} renewing {} cache".format(os.getpid(), self.name))
+            self.log_stream.debug(f"PID={os.getpid()} renewing {self.name} cache")
             try:
                 tmp_stat, tmp_out = self.updateFunc()
-                self.log_stream.debug("PID={} got for {} {} {}".format(os.getpid(), self.name, tmp_stat, str(tmp_out)))
+                self.log_stream.debug(f"PID={os.getpid()} got for {self.name} {tmp_stat} {str(tmp_out)}")
                 if tmp_stat:
                     self.cachedObj = tmp_out
             except Exception as e:
-                self.log_stream.error("PID={} failed to renew {} due to {}".format(os.getpid(), self.name, str(e)))
+                self.log_stream.error(f"PID={os.getpid()} failed to renew {self.name} due to {str(e)}")
             self.lastUpdated = current
         # release
         self.lock.release()

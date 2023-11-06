@@ -70,7 +70,7 @@ if __name__ == "__main__":
             t_after = time.time()
 
             total = t_after - t_before
-            _logger.info("Took {0}s".format(total))
+            _logger.info(f"Took {total}s")
 
     elif mode == WEB:
         job = retrieveJob(site)

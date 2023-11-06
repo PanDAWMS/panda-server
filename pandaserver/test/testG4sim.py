@@ -11,7 +11,7 @@ if len(sys.argv) > 1:
 else:
     site = None
 
-datasetName = "panda.destDB.%s" % str(uuid.uuid4())
+datasetName = f"panda.destDB.{str(uuid.uuid4())}"
 destName = "BNL_ATLAS_2"
 # destName    = 'BU_ATLAS_Tier2'
 
@@ -46,7 +46,7 @@ for lfn in files:
     job.addFile(fileI)
 
     fileOE = FileSpec()
-    fileOE.lfn = "%s.HITS.pool.root" % str(uuid.uuid4())
+    fileOE.lfn = f"{str(uuid.uuid4())}.HITS.pool.root"
     fileOE.destinationDBlock = job.destinationDBlock
     fileOE.destinationSE = job.destinationSE
     fileOE.dataset = job.destinationDBlock
@@ -55,7 +55,7 @@ for lfn in files:
     job.addFile(fileOE)
 
     fileOA = FileSpec()
-    fileOA.lfn = "%s.RDO.pool.root" % str(uuid.uuid4())
+    fileOA.lfn = f"{str(uuid.uuid4())}.RDO.pool.root"
     fileOA.destinationDBlock = job.destinationDBlock
     fileOA.destinationSE = job.destinationSE
     fileOA.dataset = job.destinationDBlock
@@ -64,7 +64,7 @@ for lfn in files:
     job.addFile(fileOA)
 
     fileOL = FileSpec()
-    fileOL.lfn = "%s.job.log.tgz" % str(uuid.uuid4())
+    fileOL.lfn = f"{str(uuid.uuid4())}.job.log.tgz"
     fileOL.destinationDBlock = job.destinationDBlock
     fileOL.destinationSE = job.destinationSE
     fileOL.dataset = job.destinationDBlock
@@ -72,7 +72,7 @@ for lfn in files:
     fileOL.type = "log"
     job.addFile(fileOL)
 
-    job.jobParameters = "%s %s %s  100 700 2158" % (fileI.lfn, fileOE.lfn, fileOA.lfn)
+    job.jobParameters = f"{fileI.lfn} {fileOE.lfn} {fileOA.lfn}  100 700 2158"
 
     jobList.append(job)
 
@@ -80,4 +80,4 @@ s, o = Client.submitJobs(jobList)
 print("---------------------")
 print(s)
 for x in o:
-    print("PandaID=%s" % x[0])
+    print(f"PandaID={x[0]}")

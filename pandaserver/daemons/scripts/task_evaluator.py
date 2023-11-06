@@ -51,7 +51,7 @@ class TaskEvaluationDB(object):
 
     def update(self, metric, entity_dict):
         tmp_log = logger_utils.make_logger(main_logger, "TaskEvaluationDB.update")
-        tmp_log.debug("start metric={}".format(metric))
+        tmp_log.debug(f"start metric={metric}")
         # sql
         sql_query_taskid = """SELECT jediTaskID """ """FROM ATLAS_PANDA.Task_Evaluation """ """WHERE metric = :metric """
         sql_update = (
@@ -95,9 +95,9 @@ class TaskEvaluationDB(object):
         # update
         n_row = self.tbuf.executemanySQL(sql_update, update_varMap_list)
         if n_row < len(update_varMap_list):
-            tmp_log.warning("only {n_row}/{len_list} rows updated for metric={metric}".format(n_row=n_row, len_list=len(update_varMap_list), metric=metric))
+            tmp_log.warning(f"only {n_row}/{len(update_varMap_list)} rows updated for metric={metric}")
         else:
-            tmp_log.debug("updated {len_list} rows for metric={metric}".format(metric=metric, len_list=len(update_varMap_list)))
+            tmp_log.debug(f"updated {len(update_varMap_list)} rows for metric={metric}")
         # insert
         n_row = self.tbuf.executemanySQL(sql_insert, insert_varMap_list)
         if n_row is None:
@@ -110,15 +110,15 @@ class TaskEvaluationDB(object):
                 except TypeError:
                     pass
         if n_row < len(insert_varMap_list):
-            tmp_log.warning("only {n_row}/{len_list} rows inserted for metric={metric}".format(n_row=n_row, len_list=len(insert_varMap_list), metric=metric))
+            tmp_log.warning(f"only {n_row}/{len(insert_varMap_list)} rows inserted for metric={metric}")
         else:
-            tmp_log.debug("inserted {len_list} rows for metric={metric}".format(metric=metric, len_list=len(insert_varMap_list)))
+            tmp_log.debug(f"inserted {len(insert_varMap_list)} rows for metric={metric}")
         # done
-        tmp_log.debug("done metric={}".format(metric))
+        tmp_log.debug(f"done metric={metric}")
 
     def get_metrics(self, metric, fresher_than_minutes_ago=120):
         tmp_log = logger_utils.make_logger(main_logger, "TaskEvaluationDB.update")
-        tmp_log.debug("start metric={}".format(metric))
+        tmp_log.debug(f"start metric={metric}")
         # sql
         sql_query = (
             """SELECT jediTaskID, value_json """ """FROM ATLAS_PANDA.Task_Evaluation """ """WHERE metric = :metric """ """AND timestamp >= :min_timestamp """
@@ -133,7 +133,7 @@ class TaskEvaluationDB(object):
         # query
         res = self.tbuf.querySQL(sql_query, varMap)
         if res is None:
-            tmp_log.warning("failed to query metric={metric}".format(metric=metric))
+            tmp_log.warning(f"failed to query metric={metric}")
             return
         # return map
         ret_map = {}
@@ -148,7 +148,7 @@ class TaskEvaluationDB(object):
 
     def clean_up(self, metric, fresher_than_minutes_ago=120):
         tmp_log = logger_utils.make_logger(main_logger, "TaskEvaluationDB.clean_up")
-        tmp_log.debug("start metric={}".format(metric))
+        tmp_log.debug(f"start metric={metric}")
         # sql
         sql_delete_terminated_tasks = (
             "DELETE "
@@ -171,7 +171,7 @@ class TaskEvaluationDB(object):
         }
         # clean up
         n_row = self.tbuf.querySQL(sql_delete_terminated_tasks, varMap)
-        tmp_log.debug("cleaned up {n_row} rows for metric={metric}".format(metric=metric, n_row=n_row))
+        tmp_log.debug(f"cleaned up {n_row} rows for metric={metric}")
 
 
 class FetchData(object):
@@ -219,7 +219,7 @@ class FetchData(object):
             active_tasks_list = self.tbuf.querySQL(sql_get_active_tasks, varMap)
             taskID_list = [task[0] for task in active_tasks_list]
             n_tot_tasks = len(active_tasks_list)
-            tmp_log.debug("got total {0} tasks".format(n_tot_tasks))
+            tmp_log.debug(f"got total {n_tot_tasks} tasks")
             # counter
             cc = 0
             n_tasks_dict = {
@@ -300,17 +300,9 @@ class FetchData(object):
                 # counter
                 cc += 1
                 if cc % 5000 == 0:
-                    tmp_log.debug("evaluated {0:6d} tasks".format(cc))
+                    tmp_log.debug(f"evaluated {cc:6d} tasks")
                 n_tasks_dict[task_class] += 1
-            tmp_log.debug(
-                "evaluated {tot:6d} tasks in total (S:{nS}, A:{nA}, B:{nB}, C:{nC})".format(
-                    tot=cc,
-                    nS=n_tasks_dict[2],
-                    nA=n_tasks_dict[1],
-                    nB=n_tasks_dict[0],
-                    nC=n_tasks_dict[-1],
-                )
-            )
+            tmp_log.debug(f"evaluated {cc:6d} tasks in total (S:{n_tasks_dict[2]}, A:{n_tasks_dict[1]}, B:{n_tasks_dict[0]}, C:{n_tasks_dict[-1]})")
             # return
             # tmp_log.debug('{}'.format(str([ v for v in task_dict.values() if v['class'] != 1 ])[:3000]))
             tmp_log.debug("done")
@@ -337,21 +329,21 @@ def main(tbuf=None, **kwargs):
         taskBuffer = tbuf
     # pid
     my_pid = os.getpid()
-    my_full_pid = "{0}-{1}-{2}".format(socket.getfqdn().split(".")[0], os.getpgrp(), my_pid)
+    my_full_pid = f"{socket.getfqdn().split('.')[0]}-{os.getpgrp()}-{my_pid}"
     # go
     if DRY_RUN:
         # dry run, regardless of lock, not update DB
         fetcher = FetchData(taskBuffer)
         # loop over all fetch data methods to run and update to DB
         for metric_name, period in metric_list:
-            main_logger.debug("(dry-run) start {metric_name}".format(metric_name=metric_name))
+            main_logger.debug(f"(dry-run) start {metric_name}")
             # fetch data and update DB
             the_method = getattr(fetcher, metric_name)
             fetched_data = the_method()
             if fetched_data is None:
-                main_logger.warning("(dry-run) {metric_name} got no valid data".format(metric_name=metric_name))
+                main_logger.warning(f"(dry-run) {metric_name} got no valid data")
                 continue
-            main_logger.debug("(dry-run) done {metric_name}".format(metric_name=metric_name))
+            main_logger.debug(f"(dry-run) done {metric_name}")
     else:
         # real run, will update DB
         # instantiate
@@ -360,26 +352,26 @@ def main(tbuf=None, **kwargs):
         # loop over all fetch data methods to run and update to DB
         for metric_name, period in metric_list:
             # metric lock
-            lock_component_name = "pandaTaskEval.{0:.30}.{1:0x}".format(metric_name, adler32(metric_name.encode("utf-8")))
+            lock_component_name = f"pandaTaskEval.{metric_name:.30}.{adler32(metric_name.encode('utf-8')):0x}"
             # try to get lock
             got_lock = taskBuffer.lockProcess_PANDA(component=lock_component_name, pid=my_full_pid, time_limit=period)
             if got_lock:
-                main_logger.debug("got lock of {metric_name}".format(metric_name=metric_name))
+                main_logger.debug(f"got lock of {metric_name}")
             else:
-                main_logger.debug("{metric_name} locked by other process; skipped...".format(metric_name=metric_name))
+                main_logger.debug(f"{metric_name} locked by other process; skipped...")
                 continue
-            main_logger.debug("start {metric_name}".format(metric_name=metric_name))
+            main_logger.debug(f"start {metric_name}")
             # clean up
             tedb.clean_up(metric=metric_name, fresher_than_minutes_ago=120)
-            main_logger.debug("cleaned up {metric_name}".format(metric_name=metric_name))
+            main_logger.debug(f"cleaned up {metric_name}")
             # fetch data and update DB
             the_method = getattr(fetcher, metric_name)
             fetched_data = the_method()
             if fetched_data is None:
-                main_logger.warning("{metric_name} got no valid data".format(metric_name=metric_name))
+                main_logger.warning(f"{metric_name} got no valid data")
                 continue
             tedb.update(metric=metric_name, entity_dict=fetched_data)
-            main_logger.debug("done {metric_name}".format(metric_name=metric_name))
+            main_logger.debug(f"done {metric_name}")
     # stop taskBuffer if created inside this script
     if tbuf is None:
         taskBuffer.cleanup(requester=requester_id)

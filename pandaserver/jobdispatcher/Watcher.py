@@ -48,7 +48,7 @@ class Watcher(threading.Thread):
                 if job is None:
                     self.logger.debug("escape : not found")
                     return
-                self.logger.debug("in %s" % job.jobStatus)
+                self.logger.debug(f"in {job.jobStatus}")
                 if job.jobStatus not in [
                     "running",
                     "sent",
@@ -60,12 +60,12 @@ class Watcher(threading.Thread):
                     if job.jobStatus == "transferring" and (job.prodSourceLabel in ["user", "panda"] or job.jobSubStatus not in [None, "NULL", ""]):
                         pass
                     else:
-                        self.logger.debug("escape : wrong status %s" % job.jobStatus)
+                        self.logger.debug(f"escape : wrong status {job.jobStatus}")
                         return
                 # time limit
                 timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=self.sleepTime)
                 if job.modificationTime < timeLimit or (job.endTime != "NULL" and job.endTime < timeLimit):
-                    self.logger.debug("%s lastmod:%s endtime:%s" % (job.jobStatus, str(job.modificationTime), str(job.endTime)))
+                    self.logger.debug(f"{job.jobStatus} lastmod:{str(job.modificationTime)} endtime:{str(job.endTime)}")
                     destDBList = []
                     if job.jobStatus == "sent":
                         # sent job didn't receive reply from pilot within 30 min
@@ -77,7 +77,7 @@ class Watcher(threading.Thread):
                             if job.endTime == "NULL":
                                 # normal lost heartbeat
                                 job.jobDispatcherErrorCode = ErrorCode.EC_Watcher
-                                job.jobDispatcherErrorDiag = "lost heartbeat : %s" % str(job.modificationTime)
+                                job.jobDispatcherErrorDiag = f"lost heartbeat : {str(job.modificationTime)}"
                             else:
                                 if job.jobStatus == "holding":
                                     job.jobDispatcherErrorCode = ErrorCode.EC_Holding
@@ -85,7 +85,7 @@ class Watcher(threading.Thread):
                                     job.jobDispatcherErrorCode = ErrorCode.EC_Transferring
                                 else:
                                     job.jobDispatcherErrorCode = ErrorCode.EC_Timeout
-                                job.jobDispatcherErrorDiag = "timeout in {0} : last heartbeat at {1}".format(job.jobStatus, str(job.endTime))
+                                job.jobDispatcherErrorDiag = f"timeout in {job.jobStatus} : last heartbeat at {str(job.endTime)}"
                             # get worker
                             workerSpecs = self.taskBuffer.getWorkersForJob(job.PandaID)
                             if len(workerSpecs) > 0:
@@ -97,16 +97,12 @@ class Watcher(threading.Thread):
                                     "missed",
                                 ]:
                                     job.supErrorCode = SupErrors.error_codes["WORKER_ALREADY_DONE"]
-                                    job.supErrorDiag = "worker already {0} at {1} with {2}".format(
-                                        workerSpec.status,
-                                        str(workerSpec.endTime),
-                                        workerSpec.diagMessage,
-                                    )
+                                    job.supErrorDiag = f"worker already {workerSpec.status} at {str(workerSpec.endTime)} with {workerSpec.diagMessage}"
                                     job.supErrorDiag = JobSpec.truncateStringAttr("supErrorDiag", job.supErrorDiag)
                     else:
                         # job recovery failed
                         job.jobDispatcherErrorCode = ErrorCode.EC_Recovery
-                        job.jobDispatcherErrorDiag = "job recovery failed for %s hours" % (self.sleepTime / 60)
+                        job.jobDispatcherErrorDiag = f"job recovery failed for {self.sleepTime / 60} hours"
                     # set job status
                     job.jobStatus = "failed"
                     # set endTime for lost heartbeat
@@ -145,7 +141,7 @@ class Watcher(threading.Thread):
                             retryModule.apply_retrial_rules(self.taskBuffer, job.PandaID, errors, job.attemptNr)
                             self.logger.debug("apply_retrial_rules is back")
                         except Exception as e:
-                            self.logger.debug("apply_retrial_rules excepted and needs to be investigated (%s): %s" % (e, traceback.format_exc()))
+                            self.logger.debug(f"apply_retrial_rules excepted and needs to be investigated ({e}): {traceback.format_exc()}")
 
                         # updateJobs was successful and it failed a job with taskBufferErrorCode
                         try:
@@ -173,7 +169,7 @@ class Watcher(threading.Thread):
                         except IndexError:
                             pass
                         except Exception as e:
-                            self.logger.error("apply_retrial_rules 2 excepted and needs to be investigated (%s): %s" % (e, traceback.format_exc()))
+                            self.logger.error(f"apply_retrial_rules 2 excepted and needs to be investigated ({e}): {traceback.format_exc()}")
 
                         cThr = Closer(self.taskBuffer, destDBList, job)
                         cThr.start()
@@ -186,5 +182,5 @@ class Watcher(threading.Thread):
                 # sleep
                 time.sleep(60 * self.sleepTime)
         except Exception as e:
-            self.logger.error("run() : {} {}".format(str(e), traceback.format_exc()))
+            self.logger.error(f"run() : {str(e)} {traceback.format_exc()}")
             return

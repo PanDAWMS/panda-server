@@ -55,18 +55,18 @@ class EiDBProxy(OraDBProxy.DBProxy):
         methodName = comment.split(" ")[-2].split(".")[-1]
         tmpLog = LogWrapper(
             _logger,
-            methodName + " <streamName={0} amiTags={1} dataType={2}>".format(streamName, amiTags, dataType),
+            methodName + f" <streamName={streamName} amiTags={amiTags} dataType={dataType}>",
         )
         try:
             # change to list
             if amiTags not in [None, ""]:
                 amiTags = amiTags.replace("*", ".*").split(",")
-            tmpLog.debug("start for {0} events".format(len(runEventList)))
+            tmpLog.debug(f"start for {len(runEventList)} events")
             # check data type
             if dataType not in ["RAW", "ESD", "AOD"]:
-                return False, "dataType={0} is unsupported".format(dataType)
+                return False, f"dataType={dataType} is unsupported"
             # sql to insert runs and events
-            sqlRE = "INSERT INTO {0}.TMP_RUN_EVENT_PAIRS (runNumber,eventNumber) ".format(panda_config.schemaEI)
+            sqlRE = f"INSERT INTO {panda_config.schemaEI}.TMP_RUN_EVENT_PAIRS (runNumber,eventNumber) "
             sqlRE += "VALUES (:runNumber,:eventNumber) "
             varMaps = []
             for runNumber, eventNumber in runEventList:
@@ -82,11 +82,11 @@ class EiDBProxy(OraDBProxy.DBProxy):
             # read GUIDs
             varMap = {}
             if amiTags in [None, ""]:
-                sqlRG = "SELECT runNumber,eventNumber,guid_{0} ".format(dataType)
-                sqlRG += "FROM {0}.V_PANDA_EVPICK_NOAMITAG_MANY ".format(panda_config.schemaEI)
+                sqlRG = f"SELECT runNumber,eventNumber,guid_{dataType} "
+                sqlRG += f"FROM {panda_config.schemaEI}.V_PANDA_EVPICK_NOAMITAG_MANY "
             else:
-                sqlRG = "SELECT runNumber,eventNumber,guid_{0},amiTag ".format(dataType)
-                sqlRG += "FROM {0}.V_PANDA_EVPICK_AMITAG_MANY ".format(panda_config.schemaEI)
+                sqlRG = f"SELECT runNumber,eventNumber,guid_{dataType},amiTag "
+                sqlRG += f"FROM {panda_config.schemaEI}.V_PANDA_EVPICK_AMITAG_MANY "
             if streamName not in [None, ""]:
                 sqlRG += "WHERE streamName=:streamName "
                 varMap[":streamName"] = streamName
@@ -115,7 +115,7 @@ class EiDBProxy(OraDBProxy.DBProxy):
                     continue
                 keyAmiIdxMap[tmpKey] = idxTag
                 retValue[tmpKey] = [guid]
-            tmpLog.debug("found {0} events".format(len(retValue)))
+            tmpLog.debug(f"found {len(retValue)} events")
             return True, retValue
         except Exception:
             # roll back

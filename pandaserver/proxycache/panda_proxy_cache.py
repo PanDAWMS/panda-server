@@ -13,7 +13,7 @@ _logger = PandaLogger().getLogger("ProxyCache")
 
 def execute(program, log_stream):
     """Run a program on the command line. Return stderr, stdout and status."""
-    log_stream.info("executable: %s" % program)
+    log_stream.info(f"executable: {program}")
     pipe = subprocess.Popen(
         program,
         bufsize=-1,
@@ -60,45 +60,35 @@ class MyProxyInterface(object):
         # check if empty dummy file
         if os.path.exists(proxy_path) and os.stat(proxy_path).st_size == 0:
             if datetime.datetime.utcnow() - datetime.datetime.utcfromtimestamp(os.path.getctime(proxy_path)) < datetime.timedelta(hours=1):
-                log_stream.info("skip too early to try again according to timestamp of {}".format(proxy_path))
+                log_stream.info(f"skip too early to try again according to timestamp of {proxy_path}")
                 return 2
-        cmd = "myproxy-logon -s %s --no_passphrase --out %s -l '%s' -k %s -t 0" % (
-            server_name,
-            proxy_path,
-            user_dn,
-            cred_name,
-        )
+        cmd = f"myproxy-logon -s {server_name} --no_passphrase --out {proxy_path} -l '{user_dn}' -k {cred_name} -t 0"
         # if myproxy.cern.ch fails, try myproxy on bnl as well
         stdout, stderr, status = execute(cmd, log_stream)
         if stdout:
-            log_stream.info("stdout is %s " % stdout)
+            log_stream.info(f"stdout is {stdout} ")
         if stderr:
-            log_stream.info("stderr is %s " % stderr)
+            log_stream.info(f"stderr is {stderr} ")
             # make a dummy to avoid too early reattempt
             open(proxy_path, "w").close()
-        log_stream.info("test the status of plain... %s" % status)
+        log_stream.info(f"test the status of plain... {status}")
         if status == 1:
             return status
         # proxyValidity = checkValidity(proxy_path)
         if role is not None:
-            log_stream.info("proxy needs {0} - need to add voms attributes and store it in the cache".format(role))
+            log_stream.info(f"proxy needs {role} - need to add voms attributes and store it in the cache")
             tmpExtension = self.getExtension(role)
             prodproxy_path = os.path.join(
                 self.__target_path,
                 str(hashlib.sha1((user_dn + tmpExtension).encode("utf-8")).hexdigest()),
             )
-            prodcmd = "voms-proxy-init -vomses /etc/vomses -valid 96:00 -rfc -cert %s -key %s -out %s -n -voms %s" % (
-                proxy_path,
-                proxy_path,
-                prodproxy_path,
-                role,
-            )
+            prodcmd = f"voms-proxy-init -vomses /etc/vomses -valid 96:00 -rfc -cert {proxy_path} -key {proxy_path} -out {prodproxy_path} -n -voms {role}"
             stdout, stderr, status = execute(prodcmd, log_stream)
             if stdout:
-                log_stream.info("stdout is %s " % stdout)
+                log_stream.info(f"stdout is {stdout} ")
             if stderr:
-                log_stream.info("stderr is %s " % stderr)
-            log_stream.debug("test the status of production... %s" % status)
+                log_stream.info(f"stderr is {stderr} ")
+            log_stream.debug(f"test the status of production... {status}")
         elif production:
             log_stream.info("production proxy needed - need to add voms attributes and store it in the cache")
             prodproxy_path = os.path.join(
@@ -113,24 +103,20 @@ class MyProxyInterface(object):
             )
             stdout, stderr, status = execute(prodcmd, log_stream)
             if stdout:
-                log_stream.info("stdout is %s " % stdout)
+                log_stream.info(f"stdout is {stdout} ")
             if stderr:
-                log_stream.info("stderr is %s " % stderr)
-            log_stream.info("test the status of production... %s" % status)
+                log_stream.info(f"stderr is {stderr} ")
+            log_stream.info(f"test the status of production... {status}")
         else:
             # Now we need to add atlas roles and store it
             atlasproxy_path = os.path.join(self.__target_path, hashlib.sha1(user_dn.encode("utf-8")).hexdigest())
-            atlasrolescmd = "voms-proxy-init -vomses /etc/vomses -valid 96:00 -rfc -cert %s -key %s -out %s -n -voms atlas" % (
-                proxy_path,
-                proxy_path,
-                atlasproxy_path,
-            )
+            atlasrolescmd = f"voms-proxy-init -vomses /etc/vomses -valid 96:00 -rfc -cert {proxy_path} -key {proxy_path} -out {atlasproxy_path} -n -voms atlas"
             stdout, stderr, status = execute(atlasrolescmd, log_stream)
             if stdout:
-                log_stream.info("stdout is %s " % stdout)
+                log_stream.info(f"stdout is {stdout} ")
             if stderr:
-                log_stream.info("stderr is %s " % stderr)
-            log_stream.info("test the status of atlas... %s" % status)
+                log_stream.info(f"stderr is {stderr} ")
+            log_stream.info(f"test the status of atlas... {status}")
         # make dummy to avoid too early attempts
         if status != 0 and not os.path.exists(proxy_path):
             open(proxy_path, "w").close()
@@ -154,7 +140,7 @@ class MyProxyInterface(object):
         if os.path.isfile(proxy_path):
             return cat(proxy_path)
         else:
-            _logger.warning("proxy file does not exist : DN:{0} role:{1} file:{2}".format(user_dn, role, proxy_path))
+            _logger.warning(f"proxy file does not exist : DN:{user_dn} role:{role} file:{proxy_path}")
 
     # get proxy path
     def get_proxy_path(self, user_dn, production, role):
@@ -174,19 +160,19 @@ class MyProxyInterface(object):
         return proxy_path
 
     def checkProxy(self, user_dn, production=False, role=None, name=None):
-        log_stream = LogWrapper(_logger, '< name="{}" role={} >'.format(name, role))
-        log_stream.info("check proxy for {}".format(user_dn))
+        log_stream = LogWrapper(_logger, f'< name="{name}" role={role} >')
+        log_stream.info(f"check proxy for {user_dn}")
         """Check the validity of a proxy."""
         proxy_path = self.get_proxy_path(user_dn, production, role)
         isOK = False
         if os.path.isfile(proxy_path):
             log_stream.info("proxy is there. Need to check validity")
-            cmd = "voms-proxy-info -exists -hours 94 -file %s" % proxy_path
+            cmd = f"voms-proxy-info -exists -hours 94 -file {proxy_path}"
             stdout, stderr, status = execute(cmd, log_stream)
             if stdout:
-                log_stream.info("stdout is %s " % stdout)
+                log_stream.info(f"stdout is {stdout} ")
             if stderr:
-                log_stream.info("stderr is %s " % stderr)
+                log_stream.info(f"stderr is {stderr} ")
             if status == 1:
                 log_stream.info("proxy expires in 94h or less. We need to renew proxy!")
                 ret = self.store(
@@ -234,10 +220,10 @@ class MyProxyInterface(object):
         # datechecks = [1,2,3,4]
         status = 0
         for i in datechecks:
-            cmd = "voms-proxy-info -exists -hours %s -file %s" % (i, proxy_path)
+            cmd = f"voms-proxy-info -exists -hours {i} -file {proxy_path}"
             stdout, stderr, status = execute(cmd, log_stream)
             if status == 1:
-                log_stream.warning("proxy expires in %s hours" % i)
+                log_stream.warning(f"proxy expires in {i} hours")
                 return i
         return status
 

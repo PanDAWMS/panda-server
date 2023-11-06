@@ -56,24 +56,19 @@ class MailUtils:
             for tmpToAddr in toAddr.split(","):
                 if tmpToAddr not in listToAddr:
                     listToAddr.append(tmpToAddr)
-                    newToAddr += "%s," % tmpToAddr
+                    newToAddr += f"{tmpToAddr},"
             toAddr = newToAddr[:-1]
             # make message
             fromAdd = panda_config.emailSender
-            message = """Subject: %s
-From: %s
-To: %s
+            message = f"""Subject: {mailSubject}
+From: {fromAdd}
+To: {toAddr}
 
-%s
-""" % (
-                mailSubject,
-                fromAdd,
-                toAddr,
-                mailBody,
-            )
+{mailBody}
+"""
             message = self.addTailer(message)
             # send mail
-            _logger.debug("send to %s\n%s" % (toAddr, message))
+            _logger.debug(f"send to {toAddr}\n{message}")
             stderrLog = StderrLogger(_logger)
             server = MySMTP(panda_config.emailSMTPsrv)
             server.set_debuglevel(1)
@@ -87,7 +82,7 @@ To: %s
             retVal = True
         except Exception:
             type, value, traceBack = sys.exc_info()
-            _logger.error("%s %s" % (type, value))
+            _logger.error(f"{type} {value}")
             retVal = False
         try:
             server.reset_log()
@@ -99,12 +94,9 @@ To: %s
     # send update notification to user
     def sendSiteAccessUpdate(self, toAddr, newStatus, pandaSite):
         # subject
-        mailSubject = "PANDA Update on Access Request for %s" % pandaSite
+        mailSubject = f"PANDA Update on Access Request for {pandaSite}"
         # message
-        mailBody = "Hello,\n\nYour access request for %s has been %s \n" % (
-            pandaSite,
-            newStatus.upper(),
-        )
+        mailBody = f"Hello,\n\nYour access request for {pandaSite} has been {newStatus.upper()} \n"
         # send
         retVal = self.send(toAddr, mailSubject, mailBody)
         # return
@@ -113,17 +105,17 @@ To: %s
     # send requests to cloud responsible
     def sendSiteAccessRequest(self, toAddr, requestsMap, cloud):
         # subject
-        mailSubject = "PANDA Access Requests in %s" % cloud
+        mailSubject = f"PANDA Access Requests in {cloud}"
         # message
         mailBody = "Hello,\n\nThere are access requests to be approved or rejected.\n\n"
         for pandaSite in requestsMap:
             userNames = requestsMap[pandaSite]
-            mailBody += "   %s\n" % pandaSite
+            mailBody += f"   {pandaSite}\n"
             userStr = ""
             for userName in userNames:
-                userStr += " %s," % userName
+                userStr += f" {userName},"
             userStr = userStr[:-1]
-            mailBody += "       %s\n\n" % userStr
+            mailBody += f"       {userStr}\n\n"
         # send
         retVal = self.send(toAddr, mailSubject, mailBody)
         # return

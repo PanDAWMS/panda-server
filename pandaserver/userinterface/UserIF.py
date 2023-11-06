@@ -48,13 +48,13 @@ class UserIF:
         try:
             # deserialize jobspecs
             jobs = WrappedPickle.loads(jobsStr)
-            _logger.debug("submitJobs %s len:%s prodRole=%s FQAN:%s" % (user, len(jobs), prodRole, str(userFQANs)))
+            _logger.debug(f"submitJobs {user} len:{len(jobs)} prodRole={prodRole} FQAN:{str(userFQANs)}")
             maxJobs = 5000
             if len(jobs) > maxJobs:
-                _logger.error("submitJobs: too many jobs more than %s" % maxJobs)
+                _logger.error(f"submitJobs: too many jobs more than {maxJobs}")
                 jobs = jobs[:maxJobs]
         except Exception as ex:
-            _logger.error("submitJobs : %s %s" % (str(ex), traceback.format_exc()))
+            _logger.error(f"submitJobs : {str(ex)} {traceback.format_exc()}")
             jobs = []
         # check prodSourceLabel
         try:
@@ -63,32 +63,29 @@ class UserIF:
                 # prevent internal jobs from being submitted from outside
                 if tmpJob.prodSourceLabel in pandaserver.taskbuffer.ProcessGroups.internalSourceLabels:
                     good_labels = False
-                    good_labels_message = "submitJobs {0} wrong prodSourceLabel={1}".format(user, tmpJob.prodSourceLabel)
+                    good_labels_message = f"submitJobs {user} wrong prodSourceLabel={tmpJob.prodSourceLabel}"
                     break
 
                 # check production role
                 if tmpJob.prodSourceLabel in ["managed"] and not prodRole:
                     good_labels = False
-                    good_labels_message = "submitJobs {0} missing prod-role for prodSourceLabel={1}".format(user, tmpJob.prodSourceLabel)
+                    good_labels_message = f"submitJobs {user} missing prod-role for prodSourceLabel={tmpJob.prodSourceLabel}"
                     break
 
                 # check the job_label is valid
                 if tmpJob.job_label not in [None, "", "NULL"] and tmpJob.job_label not in JobUtils.job_labels:
                     good_labels = False
-                    good_labels_message = "submitJobs %s wrong job_label=%s" % (
-                        user,
-                        tmpJob.job_label,
-                    )
+                    good_labels_message = f"submitJobs {user} wrong job_label={tmpJob.job_label}"
                     break
         except Exception:
             errType, errValue = sys.exc_info()[:2]
-            _logger.error("submitJobs : checking good_labels %s %s" % (errType, errValue))
+            _logger.error(f"submitJobs : checking good_labels {errType} {errValue}")
             good_labels = False
 
         # reject injection for error with the labels
         if not good_labels:
             _logger.error(good_labels_message)
-            return "ERROR: {0}".format(good_labels_message)
+            return f"ERROR: {good_labels_message}"
 
         job0 = None
 
@@ -99,11 +96,11 @@ class UserIF:
             if job0.VO not in [None, "", "NULL"]:
                 userVO = job0.VO
         except (IndexError, AttributeError) as e:
-            _logger.error("submitJobs : checking userVO. userVO not found, defaulting to %s. (Exception %s)" % (userVO, e))
+            _logger.error(f"submitJobs : checking userVO. userVO not found, defaulting to {userVO}. (Exception {e})")
 
         # atlas jobs require FQANs
         if userVO == "atlas" and userFQANs == []:
-            _logger.error("submitJobs : VOMS FQANs are missing in your proxy. They are required for {0}".format(userVO))
+            _logger.error(f"submitJobs : VOMS FQANs are missing in your proxy. They are required for {userVO}")
             # return "ERROR: VOMS FQANs are missing. They are required for {0}".format(userVO)
 
         # get LSST pipeline username
@@ -124,7 +121,7 @@ class UserIF:
             toPending=toPending,
             userVO=userVO,
         )
-        _logger.debug("submitJobs %s ->:%s" % (user, len(ret)))
+        _logger.debug(f"submitJobs {user} ->:{len(ret)}")
 
         # serialize
         return WrappedPickle.dumps(ret)
@@ -136,7 +133,7 @@ class UserIF:
             jobs = WrappedPickle.loads(jobsStr)
         except Exception:
             type, value, traceBack = sys.exc_info()
-            _logger.error("runTaskAssignment : %s %s" % (type, value))
+            _logger.error(f"runTaskAssignment : {type} {value}")
             jobs = []
         # run
         ret = self.taskBuffer.runTaskAssignment(jobs)
@@ -158,12 +155,12 @@ class UserIF:
         try:
             # deserialize map
             newPrioMap = WrappedPickle.loads(newPrioMapStr)
-            _logger.debug("changeJobPriorities %s : %s" % (user, str(newPrioMap)))
+            _logger.debug(f"changeJobPriorities {user} : {str(newPrioMap)}")
             # change
             ret = self.taskBuffer.changeJobPriorities(newPrioMap)
         except Exception:
             errType, errValue = sys.exc_info()[:2]
-            _logger.error("changeJobPriorities : %s %s" % (errType, errValue))
+            _logger.error(f"changeJobPriorities : {errType} {errValue}")
             return False, "internal server error"
         # serialize
         return ret
@@ -172,13 +169,13 @@ class UserIF:
     def retryFailedJobsInActive(self, dn, jobID):
         returnVal = False
         try:
-            _logger.debug("retryFailedJobsInActive %s JobID:%s" % (dn, jobID))
+            _logger.debug(f"retryFailedJobsInActive {dn} JobID:{jobID}")
             cUID = self.taskBuffer.cleanUserID(dn)
             tmpRet = self.taskBuffer.finalizePendingJobs(cUID, jobID)
             returnVal = True
         except Exception:
             errType, errValue = sys.exc_info()[:2]
-            _logger.error("retryFailedJobsInActive: %s %s" % (errType, errValue))
+            _logger.error(f"retryFailedJobsInActive: {errType} {errValue}")
             returnVal = "ERROR: server side crash"
         # return
         return returnVal
@@ -209,16 +206,16 @@ class UserIF:
                 ids = json.loads(idsStr)
             else:
                 ids = WrappedPickle.loads(idsStr)
-            _logger.debug("getJobStatus len   : %s" % len(ids))
+            _logger.debug(f"getJobStatus len   : {len(ids)}")
             maxIDs = 5500
             if len(ids) > maxIDs:
-                _logger.error("too long ID list more than %s" % maxIDs)
+                _logger.error(f"too long ID list more than {maxIDs}")
                 ids = ids[:maxIDs]
         except Exception:
             type, value, traceBack = sys.exc_info()
-            _logger.error("getJobStatus : %s %s" % (type, value))
+            _logger.error(f"getJobStatus : {type} {value}")
             ids = []
-        _logger.debug("getJobStatus start : {0} json={1}".format(str(ids), use_json))
+        _logger.debug(f"getJobStatus start : {str(ids)} json={use_json}")
         # peek jobs
         ret = self.taskBuffer.peekJobs(ids, use_json=use_json)
         _logger.debug("getJobStatus end")
@@ -234,16 +231,16 @@ class UserIF:
         try:
             # deserialize jobspecs
             ids = WrappedPickle.loads(idsStr)
-            _logger.debug("getPandaIDwithJobExeID len   : %s" % len(ids))
+            _logger.debug(f"getPandaIDwithJobExeID len   : {len(ids)}")
             maxIDs = 5500
             if len(ids) > maxIDs:
-                _logger.error("too long ID list more than %s" % maxIDs)
+                _logger.error(f"too long ID list more than {maxIDs}")
                 ids = ids[:maxIDs]
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]
-            _logger.error("getPandaIDwithJobExeID : %s %s" % (errtype, errvalue))
+            _logger.error(f"getPandaIDwithJobExeID : {errtype} {errvalue}")
             ids = []
-        _logger.debug("getPandaIDwithJobExeID start : %s" % ids)
+        _logger.debug(f"getPandaIDwithJobExeID start : {ids}")
         # peek jobs
         ret = self.taskBuffer.getPandaIDwithJobExeID(ids)
         _logger.debug("getPandaIDwithJobExeID end")
@@ -264,9 +261,9 @@ class UserIF:
             ids = WrappedPickle.loads(idsStr)
         except Exception:
             type, value, traceBack = sys.exc_info()
-            _logger.error("seeCloudTask : %s %s" % (type, value))
+            _logger.error(f"seeCloudTask : {type} {value}")
             ids = []
-        _logger.debug("seeCloudTask start : %s" % ids)
+        _logger.debug(f"seeCloudTask start : {ids}")
         # peek jobs
         ret = {}
         for id in ids:
@@ -458,21 +455,21 @@ class UserIF:
         ids = WrappedPickle.loads(idsStr)
         if not isinstance(ids, list):
             ids = [ids]
-        _logger.info("killJob : %s %s %s %s %s" % (user, code, prodManager, fqans, ids))
+        _logger.info(f"killJob : {user} {code} {prodManager} {fqans} {ids}")
         try:
             if useMailAsID:
-                _logger.debug("killJob : getting mail address for %s" % user)
+                _logger.debug(f"killJob : getting mail address for {user}")
                 nTry = 3
                 for iDDMTry in range(nTry):
                     status, userInfo = rucioAPI.finger(user)
                     if status:
-                        _logger.debug("killJob : %s is converted to %s" % (user, userInfo["email"]))
+                        _logger.debug(f"killJob : {user} is converted to {userInfo['email']}")
                         user = userInfo["email"]
                         break
                     time.sleep(1)
         except Exception:
             errType, errValue = sys.exc_info()[:2]
-            _logger.error("killJob : failed to convert email address %s : %s %s" % (user, errType, errValue))
+            _logger.error(f"killJob : failed to convert email address {user} : {errType} {errValue}")
         # get working groups with prod role
         wgProdRole = []
         for fqan in fqans:
@@ -483,7 +480,7 @@ class UserIF:
                 if tmpWG not in ["", "usatlas"] + wgProdRole:
                     wgProdRole.append(tmpWG)
                     # group production
-                    wgProdRole.append("gr_%s" % tmpWG)
+                    wgProdRole.append(f"gr_{tmpWG}")
         # kill jobs
         ret = self.taskBuffer.killJobs(ids, user, code, prodManager, wgProdRole, killOpts)
         # serialize
@@ -604,10 +601,10 @@ class UserIF:
             # truncate
             maxIDs = 5500
             if len(pandaIDs) > maxIDs:
-                _logger.error("getSlimmedFileInfoPandaIDs: too long ID list more than %s" % maxIDs)
+                _logger.error(f"getSlimmedFileInfoPandaIDs: too long ID list more than {maxIDs}")
                 pandaIDs = pandaIDs[:maxIDs]
             # get
-            _logger.debug("getSlimmedFileInfoPandaIDs start : %s %s" % (dn, len(pandaIDs)))
+            _logger.debug(f"getSlimmedFileInfoPandaIDs start : {dn} {len(pandaIDs)}")
             ret = self.taskBuffer.getSlimmedFileInfoPandaIDs(pandaIDs)
             _logger.debug("getSlimmedFileInfoPandaIDs end")
         except Exception:
@@ -658,13 +655,13 @@ class UserIF:
             # truncate
             maxIDs = 5500
             if len(ids) > maxIDs:
-                _logger.error("getFullJobStatus: too long ID list more than %s" % maxIDs)
+                _logger.error(f"getFullJobStatus: too long ID list more than {maxIDs}")
                 ids = ids[:maxIDs]
         except Exception:
             type, value, traceBack = sys.exc_info()
-            _logger.error("getFullJobStatus : %s %s" % (type, value))
+            _logger.error(f"getFullJobStatus : {type} {value}")
             ids = []
-        _logger.debug("getFullJobStatus start : %s %s" % (dn, str(ids)))
+        _logger.debug(f"getFullJobStatus start : {dn} {str(ids)}")
         # peek jobs
         ret = self.taskBuffer.getFullJobStatus(ids)
         _logger.debug("getFullJobStatus end")
@@ -778,7 +775,7 @@ class UserIF:
                 )
             except Exception:
                 errType, errValue = sys.exc_info()[:2]
-                ret = 1, "server error with {0}:{1}".format(errType, errValue)
+                ret = 1, f"server error with {errType}:{errValue}"
         else:
             if noChildRetry:
                 comQualifier = "sole"
@@ -811,7 +808,7 @@ class UserIF:
                 self.taskBuffer.finalizePendingJobs(cUID, jobID)
             self.taskBuffer.increaseAttemptNrPanda(jediTaskID, 5)
             retStr = "retry has been triggered for failed jobs "
-            retStr += "while the task is still {0}".format(ret[1])
+            retStr += f"while the task is still {ret[1]}"
             if newParams is None:
                 ret = 0, retStr
             else:
@@ -864,9 +861,9 @@ class UserIF:
     # get retry history
     def getRetryHistory(self, jediTaskID, user):
         # get
-        _logger.debug("getRetryHistory jediTaskID={0} start {1}".format(jediTaskID, user))
+        _logger.debug(f"getRetryHistory jediTaskID={jediTaskID} start {user}")
         ret = self.taskBuffer.getRetryHistoryJEDI(jediTaskID)
-        _logger.debug("getRetryHistory jediTaskID={0} done".format(jediTaskID))
+        _logger.debug(f"getRetryHistory jediTaskID={jediTaskID} done")
         # return
         return ret
 
@@ -1085,7 +1082,7 @@ def _get_grst_attr(req):
     vomsAttrs = []
     for tmpKey in req.subprocess_env:
         tmpVal = req.subprocess_env[tmpKey]
-        vomsAttrs.append("%s : %s\n" % (tmpKey, tmpVal))
+        vomsAttrs.append(f"{tmpKey} : {tmpVal}\n")
     vomsAttrs.sort()
     retStr = ""
     for tmpStr in vomsAttrs:
@@ -1146,7 +1143,7 @@ def isSecure(req):
         return False
     # disable limited proxy
     if "/CN=limited proxy" in req.subprocess_env["SSL_CLIENT_S_DN"]:
-        _logger.warning("access via limited proxy : %s" % req.subprocess_env["SSL_CLIENT_S_DN"])
+        _logger.warning(f"access via limited proxy : {req.subprocess_env['SSL_CLIENT_S_DN']}")
         return False
     return True
 
@@ -1233,7 +1230,7 @@ def setCloudTaskByUser(req, tid, cloud="", status=""):
 
 # set debug mode
 def setDebugMode(req, pandaID, modeOn):
-    tmpLog = LogWrapper(_logger, "setDebugMode {} {}".format(pandaID, modeOn))
+    tmpLog = LogWrapper(_logger, f"setDebugMode {pandaID} {modeOn}")
     # get DN
     if "SSL_CLIENT_S_DN" not in req.subprocess_env:
         errStr = "SSL connection is required"
@@ -1251,14 +1248,14 @@ def setDebugMode(req, pandaID, modeOn):
         modeOn = False
     # get the primary working group with prod role
     workingGroup = _getWGwithPR(req)
-    tmpLog.error("user={} mgr={} wg={} fqans={} grst={}".format(user, prodManager, workingGroup, str(fqans), grst))
+    tmpLog.error(f"user={user} mgr={prodManager} wg={workingGroup} fqans={str(fqans)} grst={grst}")
     # exec
     return userIF.setDebugMode(user, pandaID, prodManager, modeOn, workingGroup)
 
 
 # insert sandbox file info
 def insertSandboxFileInfo(req, userName, fileName, fileSize, checkSum):
-    tmpLog = LogWrapper(_logger, "insertSandboxFileInfo {} {}".format(userName, fileName))
+    tmpLog = LogWrapper(_logger, f"insertSandboxFileInfo {userName} {fileName}")
     # get DN
     if "SSL_CLIENT_S_DN" not in req.subprocess_env:
         errStr = "SSL connection is required"
@@ -1597,7 +1594,7 @@ def registerProxyKey(req, credname, origin, myproxy):
         expTime = time.strptime(expTime, "%b %d %H:%M:%S %Y %Z")
         params["expires"] = time.strftime("%Y-%m-%d %H:%M:%S", expTime)
     except Exception:
-        _logger.error("registerProxyKey : failed to convert %s" % req.subprocess_env["SSL_CLIENT_V_END"])
+        _logger.error(f"registerProxyKey : failed to convert {req.subprocess_env['SSL_CLIENT_V_END']}")
     # execute
     return userIF.registerProxyKey(params)
 
@@ -1625,7 +1622,7 @@ def getJobIDsInTimeRange(req, timeRange, dn=None):
         return False
     if dn is None:
         dn = _getDN(req)
-    _logger.debug("getJobIDsInTimeRange %s %s" % (dn, timeRange))
+    _logger.debug(f"getJobIDsInTimeRange {dn} {timeRange}")
     # execute
     return userIF.getJobIDsInTimeRange(dn, timeRange)
 
@@ -1648,7 +1645,7 @@ def getJediTasksInTimeRange(req, timeRange, dn=None, fullFlag=None, minTaskID=No
         minTaskID = int(minTaskID)
     except Exception:
         minTaskID = None
-    _logger.debug("getJediTasksInTimeRange %s %s" % (dn, timeRange))
+    _logger.debug(f"getJediTasksInTimeRange {dn} {timeRange}")
     # execute
     return userIF.getJediTasksInTimeRange(dn, timeRange, fullFlag, minTaskID, task_type)
 
@@ -1670,7 +1667,7 @@ def getJediTaskDetails(req, jediTaskID, fullFlag, withTaskInfo):
         withTaskInfo = True
     else:
         withTaskInfo = False
-    _logger.debug("getJediTaskDetails %s %s %s" % (jediTaskID, fullFlag, withTaskInfo))
+    _logger.debug(f"getJediTaskDetails {jediTaskID} {fullFlag} {withTaskInfo}")
     # execute
     return userIF.getJediTaskDetails(jediTaskID, fullFlag, withTaskInfo)
 
@@ -1685,7 +1682,7 @@ def getPandIDsWithJobID(req, jobID, nJobs, dn=None):
         return False
     if dn is None:
         dn = _getDN(req)
-    _logger.debug("getPandIDsWithJobID %s JobID=%s nJobs=%s" % (dn, jobID, nJobs))
+    _logger.debug(f"getPandIDsWithJobID {dn} JobID={jobID} nJobs={nJobs}")
     # execute
     return userIF.getPandIDsWithJobID(dn, jobID, nJobs)
 
@@ -1700,7 +1697,7 @@ def checkMergeGenerationStatus(req, jobID, dn=None):
         return False
     if dn is None:
         dn = _getDN(req)
-    _logger.debug("checkMergeGenerationStatus %s JobID=%s" % (dn, jobID))
+    _logger.debug(f"checkMergeGenerationStatus {dn} JobID={jobID}")
     # execute
     return userIF.checkMergeGenerationStatus(dn, jobID)
 
@@ -1807,7 +1804,7 @@ def updateSiteAccess(req, method, siteid, userName, attrValue=""):
 
 # insert task params
 def insertTaskParams(req, taskParams=None, properErrorCode=None, parent_tid=None):
-    tmpLog = LogWrapper(_logger, "insertTaskParams-{}".format(datetime.datetime.utcnow().isoformat("/")))
+    tmpLog = LogWrapper(_logger, f"insertTaskParams-{datetime.datetime.utcnow().isoformat('/')}")
     tmpLog.debug("start")
     if properErrorCode == "True":
         properErrorCode = True
@@ -1835,7 +1832,7 @@ def insertTaskParams(req, taskParams=None, properErrorCode=None, parent_tid=None
     # get FQANs
     fqans = _getFQAN(req)
 
-    tmpLog.debug("user={} prodRole={} FQAN:{} parent_tid={}".format(user, prodRole, str(fqans), parent_tid))
+    tmpLog.debug(f"user={user} prodRole={prodRole} FQAN:{str(fqans)} parent_tid={parent_tid}")
     ret = userIF.insertTaskParams(taskParams, user, prodRole, fqans, properErrorCode, parent_tid)
     try:
         tmpLog.debug(ret[1])
@@ -1956,11 +1953,11 @@ def reassignTask(req, jediTaskID, site=None, cloud=None, nucleus=None, soft=None
     # site or cloud
     if site is not None:
         # set 'y' to go back to oldStatus immediately
-        comComment = "site:{0}:y".format(site)
+        comComment = f"site:{site}:y"
     elif nucleus is not None:
-        comComment = "nucleus:{0}:n".format(nucleus)
+        comComment = f"nucleus:{nucleus}:n"
     else:
-        comComment = "cloud:{0}:n".format(cloud)
+        comComment = f"cloud:{cloud}:n"
     if mode == "nokill":
         comComment += ":nokill reassign"
     elif mode == "soft" or soft == "True":
@@ -2138,7 +2135,7 @@ def changeTaskAttributePanda(req, jediTaskID, attrName, attrValue):
         return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     # check attribute
     if attrName not in ["ramCount", "wallTime", "cpuTime", "coreCount"]:
-        return WrappedPickle.dumps((2, "disallowed to update {0}".format(attrName)))
+        return WrappedPickle.dumps((2, f"disallowed to update {attrName}"))
     ret = userIF.changeTaskAttributePanda(jediTaskID, attrName, attrValue)
     return WrappedPickle.dumps((ret, None))
 
@@ -2179,7 +2176,7 @@ def changeTaskSplitRulePanda(req, jediTaskID, attrName, attrValue):
         "CC",
         "OT",
     ]:
-        return WrappedPickle.dumps((2, "disallowed to update {0}".format(attrName)))
+        return WrappedPickle.dumps((2, f"disallowed to update {attrName}"))
     ret = userIF.changeTaskSplitRulePanda(jediTaskID, attrName, attrValue)
     return WrappedPickle.dumps((ret, None))
 
@@ -2335,7 +2332,7 @@ def changeTaskModTimePanda(req, jediTaskID, diffValue):
         diffValue = int(diffValue)
         attrValue = datetime.datetime.now() + datetime.timedelta(hours=diffValue)
     except Exception:
-        return WrappedPickle.dumps((False, "failed to convert {0} to time diff".format(diffValue)))
+        return WrappedPickle.dumps((False, f"failed to convert {diffValue} to time diff"))
     ret = userIF.changeTaskAttributePanda(jediTaskID, "modificationTime", attrValue)
     return WrappedPickle.dumps((ret, None))
 
@@ -2406,7 +2403,7 @@ def reassignShare(req, jedi_task_ids_pickle, share, reassign_running):
         return WrappedPickle.dumps((False, "production or pilot role required"))
 
     jedi_task_ids = WrappedPickle.loads(jedi_task_ids_pickle)
-    _logger.debug("reassignShare: jedi_task_ids: {0}, share: {1}, reassign_running: {2}".format(jedi_task_ids, share, reassign_running))
+    _logger.debug(f"reassignShare: jedi_task_ids: {jedi_task_ids}, share: {share}, reassign_running: {reassign_running}")
 
     if not ((isinstance(jedi_task_ids, list) or (isinstance(jedi_task_ids, tuple)) and isinstance(share, str))):
         return WrappedPickle.dumps((False, "jedi_task_ids must be tuple/list and share must be string"))
@@ -2429,7 +2426,7 @@ def listTasksInShare(req, gshare, status):
     if not prod_role:
         return WrappedPickle.dumps((False, "production or pilot role required"))
 
-    _logger.debug("listTasksInShare: gshare: {0}, status: {1}".format(gshare, status))
+    _logger.debug(f"listTasksInShare: gshare: {gshare}, status: {status}")
 
     if not ((isinstance(gshare, str) and isinstance(status, str))):
         return WrappedPickle.dumps((False, "gshare and status must be of type string"))
@@ -2655,7 +2652,7 @@ def decode_idds_enum(d):
 def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None, json_outputs=None):
     tmpLog = LogWrapper(
         _logger,
-        "relay_idds_command-{}".format(datetime.datetime.utcnow().isoformat("/")),
+        f"relay_idds_command-{datetime.datetime.utcnow().isoformat('/')}",
     )
     # check security
     if not isSecure(req):
@@ -2675,14 +2672,14 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None, 
         else:
             c = iDDS_Client(idds_host)
         if not hasattr(c, command_name):
-            tmpStr = "{} is not a command of iDDS {}".format(command_name, c.__class__.__name__)
+            tmpStr = f"{command_name} is not a command of iDDS {c.__class__.__name__}"
             tmpLog.error(tmpStr)
             return json.dumps((False, tmpStr))
         if args:
             try:
                 args = idds.common.utils.json_loads(args)
             except Exception as e:
-                tmpLog.warning("failed to load args json with {}".format(str(e)))
+                tmpLog.warning(f"failed to load args json with {str(e)}")
                 args = json.loads(args, object_hook=decode_idds_enum)
         else:
             args = []
@@ -2690,7 +2687,7 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None, 
             try:
                 kwargs = idds.common.utils.json_loads(kwargs)
             except Exception as e:
-                tmpLog.warning("failed to load kwargs json with {}".format(str(e)))
+                tmpLog.warning(f"failed to load kwargs json with {str(e)}")
                 kwargs = json.loads(kwargs, object_hook=decode_idds_enum)
         else:
             kwargs = {}
@@ -2701,24 +2698,16 @@ def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None, 
         dn = req.subprocess_env.get("SSL_CLIENT_S_DN")
         if dn:
             c.set_original_user(user_name=clean_user_id(dn))
-        tmpLog.debug(
-            "execute: class={} com={} host={} args={} kwargs={}".format(
-                c.__class__.__name__,
-                command_name,
-                idds_host,
-                str(args)[:200],
-                str(kwargs)[:200],
-            )
-        )
+        tmpLog.debug(f"execute: class={c.__class__.__name__} com={command_name} host={idds_host} args={str(args)[:200]} kwargs={str(kwargs)[:200]}")
         ret = getattr(c, command_name)(*args, **kwargs)
-        tmpLog.debug("ret: {}".format(str(ret)[:200]))
+        tmpLog.debug(f"ret: {str(ret)[:200]}")
         try:
             return json.dumps((True, ret))
         except Exception:
             return idds.common.utils.json_dumps((True, ret))
     except Exception as e:
-        tmpStr = "failed to execute command with {}".format(str(e))
-        tmpLog.error("{} {}".format(tmpStr, traceback.format_exc()))
+        tmpStr = f"failed to execute command with {str(e)}"
+        tmpLog.error(f"{tmpStr} {traceback.format_exc()}")
         return json.dumps((False, tmpStr))
 
 
@@ -2727,7 +2716,7 @@ def execute_idds_workflow_command(req, command_name, kwargs=None, json_outputs=N
     try:
         tmpLog = LogWrapper(
             _logger,
-            "execute_idds_workflow_command-{}".format(datetime.datetime.utcnow().isoformat("/")),
+            f"execute_idds_workflow_command-{datetime.datetime.utcnow().isoformat('/')}",
         )
         if kwargs:
             try:
@@ -2746,7 +2735,7 @@ def execute_idds_workflow_command(req, command_name, kwargs=None, json_outputs=N
         elif command_name in ["abort", "suspend", "resume", "retry", "finish"]:
             check_owner = True
         else:
-            tmpMsg = "{} is unsupported".format(command_name)
+            tmpMsg = f"{command_name} is unsupported"
             tmpLog.error(tmpMsg)
             return json.dumps((False, tmpMsg))
         # check owner
@@ -2770,27 +2759,27 @@ def execute_idds_workflow_command(req, command_name, kwargs=None, json_outputs=N
             # get request
             req = c.get_requests(request_id=request_id)
             if not req:
-                tmpMsg = "request {} is not found".format(request_id)
+                tmpMsg = f"request {request_id} is not found"
                 tmpLog.error(tmpMsg)
                 return json.dumps((False, tmpMsg))
             user_name = req[0].get("username")
             if user_name and user_name != requester:
-                tmpMsg = "request {} is not owned by {}".format(request_id, requester)
+                tmpMsg = f"request {request_id} is not owned by {requester}"
                 tmpLog.error(tmpMsg)
                 return json.dumps((False, tmpMsg))
         # set original username
         if dn:
             c.set_original_user(user_name=clean_user_id(dn))
         # execute command
-        tmpLog.debug("com={} host={} kwargs={}".format(command_name, idds_host, str(kwargs)))
+        tmpLog.debug(f"com={command_name} host={idds_host} kwargs={str(kwargs)}")
         ret = getattr(c, command_name)(**kwargs)
         tmpLog.debug(str(ret))
         if isinstance(ret, dict) and "message" in ret:
             return json.dumps((True, [ret["status"], ret["message"]]))
         return json.dumps((True, ret))
     except Exception as e:
-        tmpLog.error("failed with {} {}".format(str(e), traceback.format_exc()))
-        return json.dumps((False, "server failed with {}".format(str(e))))
+        tmpLog.error(f"failed with {str(e)} {traceback.format_exc()}")
+        return json.dumps((False, f"server failed with {str(e)}"))
 
 
 # send command to a job
@@ -2807,7 +2796,7 @@ def send_command_to_job(req, panda_id, com):
 
 # set user secret
 def set_user_secret(req, key=None, value=None):
-    tmpLog = LogWrapper(_logger, "set_user_secret-{}".format(datetime.datetime.utcnow().isoformat("/")))
+    tmpLog = LogWrapper(_logger, f"set_user_secret-{datetime.datetime.utcnow().isoformat('/')}")
     # get owner
     dn = req.subprocess_env.get("SSL_CLIENT_S_DN")
     if not dn:
@@ -2820,7 +2809,7 @@ def set_user_secret(req, key=None, value=None):
 
 # get user secrets
 def get_user_secrets(req, keys=None, get_json=None):
-    tmpLog = LogWrapper(_logger, "get_user_secrets-{}".format(datetime.datetime.utcnow().isoformat("/")))
+    tmpLog = LogWrapper(_logger, f"get_user_secrets-{datetime.datetime.utcnow().isoformat('/')}")
     # get owner
     dn = req.subprocess_env.get("SSL_CLIENT_S_DN")
     if get_json == "True":

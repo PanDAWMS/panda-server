@@ -119,4 +119,4 @@ print("".join(dump_str_list))
 for node in nodes:
     s, o = node.verify()
     if not s:
-        print("Verification error in ID:{} {}".format(node.id, o))
+        print(f"Verification error in ID:{node.id} {o}")

@@ -84,16 +84,16 @@ def updateFileStatusInDisp(req, dataset, fileStatus):
                     roleOK = True
                     break
         if not roleOK:
-            _logger.error("updateFileStatusInDisp : invalid proxy %s" % fqans)
+            _logger.error(f"updateFileStatusInDisp : invalid proxy {fqans}")
             return "False"
         # deserialize fileStatus
         fileStatusMap = WrappedPickle.loads(fileStatus)
-        _logger.debug("updateFileStatusInDisp : start %s - %s" % (dataset, fileStatusMap))
+        _logger.debug(f"updateFileStatusInDisp : start {dataset} - {fileStatusMap}")
         # update status
         dataService.taskBuffer.updateFileStatusInDisp(dataset, fileStatusMap)
         _logger.debug("updateFileStatusInDisp : done")
         return "True"
     except Exception:
         type, value, traceBack = sys.exc_info()
-        _logger.error("updateFileStatusInDisp : %s %s" % (type, value))
+        _logger.error(f"updateFileStatusInDisp : {type} {value}")
         return "False"

@@ -36,7 +36,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         carbon_emissions = CarbonEmissions(taskBuffer=taskBuffer)
         carbon_emissions.run()
         t2 = time.time()
-        _logger.debug("Carbon run took {0}s".format(t2 - t1))
+        _logger.debug(f"Carbon run took {t2 - t1}s")
 
     else:
         base_logger.error("Carbon module being called with wrong arguments. Use no arguments")
