@@ -7,6 +7,7 @@ entry point
 
 import datetime
 import gzip
+import io
 import json
 import signal
 import sys
@@ -343,8 +344,8 @@ allowedMethods += [
 
 # FastCGI/WSGI entry
 if panda_config.useFastCGI or panda_config.useWSGI:
+    import cgi
     import os
-    from urllib.parse import parse_qs
 
     from pandacommon.pandalogger.LogWrapper import LogWrapper
     from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -558,9 +559,10 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                     if cont_length > 0:
                         raise OSError(f"partial read from client. {cont_length} bytes remaining")
                     if not json_body:
-                        # get the request body with the query string
-                        request_body = environ["wsgi.input"].read()
-                        tmp_params = parse_qs(request_body, keep_blank_values=True)
+                        # query string
+                        environ["wsgi.input"] = io.BytesIO(body)
+                        # get params
+                        tmp_params = cgi.FieldStorage(environ["wsgi.input"], environ=environ, keep_blank_values=1)
 
                         # convert to map
                         params = {}
