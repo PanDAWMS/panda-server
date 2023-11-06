@@ -4,11 +4,6 @@ import re
 from pandaserver.srvcore.CoreUtils import NonJsonObjectEncoder, as_python_object
 from pandaserver.taskbuffer.JobSpec import JobSpec
 
-try:
-    long
-except NameError:
-    long = int
-
 # list of prod source label for pilot tests
 list_ptest_prod_sources = ["ptest", "rc_test", "rc_test2", "rc_alrb"]
 
@@ -74,7 +69,7 @@ def getCoreCount(actualCoreCount, defCoreCount, jobMetrics):
                 # extract coreCount
                 tmpMatch = re.search("coreCount=(\d+)", jobMetrics)
             if tmpMatch is not None:
-                coreCount = long(tmpMatch.group(1))
+                coreCount = int(tmpMatch.group(1))
             else:
                 # use jobdef
                 if defCoreCount not in [None, 0]:

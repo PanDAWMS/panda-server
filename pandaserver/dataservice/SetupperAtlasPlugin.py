@@ -26,11 +26,6 @@ from rucio.common.exception import (
     FileAlreadyExists,
 )
 
-try:
-    long
-except NameError:
-    long = int
-
 
 class SetupperAtlasPlugin(SetupperPluginBase):
     # constructor
@@ -321,7 +316,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             if file.fsize in ["NULL", 0]:
                                 fileList[job.dispatchDBlock]["fsizes"].append(None)
                             else:
-                                fileList[job.dispatchDBlock]["fsizes"].append(long(file.fsize))
+                                fileList[job.dispatchDBlock]["fsizes"].append(int(file.fsize))
                             if file.md5sum in ["NULL", ""]:
                                 fileList[job.dispatchDBlock]["md5sums"].append(None)
                             elif file.md5sum.startswith("md5:"):
@@ -458,7 +453,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 ds.status = "defined"
                 ds.numberfiles = len(fileList[dispatchDBlock]["lfns"])
                 try:
-                    ds.currentfiles = long(sum(filter(None, fileList[dispatchDBlock]["fsizes"])) / 1024 / 1024)
+                    ds.currentfiles = int(sum(filter(None, fileList[dispatchDBlock]["fsizes"])) / 1024 / 1024)
                 except Exception:
                     ds.currentfiles = 0
                 dispList.append(ds)
@@ -1748,7 +1743,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             else:
                                 lfns.append(tmpLFN)
                                 guids.append(tmpFileList[tmpSubFileName]["guid"])
-                                fsizes.append(long(tmpFileList[tmpSubFileName]["fileSpecs"][0].fsize))
+                                fsizes.append(int(tmpFileList[tmpSubFileName]["fileSpecs"][0].fsize))
                                 chksums.append(tmpFileList[tmpSubFileName]["fileSpecs"][0].checksum)
                             # set dis name
                             for tmpFileSpec in tmpFileList[tmpSubFileName]["fileSpecs"]:
@@ -2193,7 +2188,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
     # make sub dataset name
     def makeSubDatasetName(self, original_name, sn, task_id):
         try:
-            task_id = long(task_id)
+            task_id = int(task_id)
             if original_name.startswith("user") or original_name.startswith("panda"):
                 part_name = ".".join(original_name.split(".")[:3])
             else:

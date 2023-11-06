@@ -20,11 +20,6 @@ from pandaserver.dataservice.DDM import rucioAPI
 from pandaserver.taskbuffer import JobUtils
 from pandaserver.taskbuffer.JobSpec import JobSpec
 
-try:
-    long
-except NameError:
-    long = int
-
 # logger
 _logger = PandaLogger().getLogger("DynDataDistributer")
 
@@ -915,7 +910,7 @@ class DynDataDistributer:
         for tmpFile in files:
             guids.append(tmpFile["guid"])
             lfns.append(tmpFile["scope"] + ":" + tmpFile["lfn"])
-            fsizes.append(long(tmpFile["filesize"]))
+            fsizes.append(int(tmpFile["filesize"]))
             chksums.append(tmpFile["checksum"])
         # register new dataset
         nTry = 3
@@ -1103,7 +1098,7 @@ class DynDataDistributer:
                 for runNr, evtNr in tmpRunEvtList:
                     paramStr = "Run:%s Evt:%s Stream:%s" % (runNr, evtNr, streamName)
                     self.putLog(paramStr)
-                    tmpRunEvtKey = (long(runNr), long(evtNr))
+                    tmpRunEvtKey = (int(runNr), int(evtNr))
                     # not found
                     if tmpRunEvtKey not in guidListELSSI or len(guidListELSSI[tmpRunEvtKey]) == 0:
                         self.putLog(tmpCom)
@@ -1403,7 +1398,7 @@ class DynDataDistributer:
             if tmpCan in freeSizeMap:
                 # disk threshold for PD2P max(5%,3TB)
                 diskThresholdPD2P = 1024 * 3
-                thrForThisSite = long(freeSizeMap[tmpCan]["total"] * 5 / 100)
+                thrForThisSite = int(freeSizeMap[tmpCan]["total"] * 5 / 100)
                 if thrForThisSite < diskThresholdPD2P:
                     thrForThisSite = diskThresholdPD2P
                 remSpace = freeSizeMap[tmpCan]["total"] - freeSizeMap[tmpCan]["used"]

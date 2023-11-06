@@ -25,11 +25,6 @@ from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
 
-try:
-    long
-except NameError:
-    long = int
-
 # logger
 _logger = PandaLogger().getLogger("ConBridge")
 
@@ -224,7 +219,7 @@ class ConBridge(object):
                 strSize = strSize.decode()
             # get body
             strBody = None
-            bodySize = long(strSize)
+            bodySize = int(strSize)
             while strBody is None or len(strBody) < bodySize:
                 if strBody is None:
                     tmpSize = bodySize

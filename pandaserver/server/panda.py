@@ -15,14 +15,18 @@ import tempfile
 import traceback
 
 import pandaserver.taskbuffer.ErrorCode
-import six
 from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.config import panda_config
+
+# pylint: disable=W0611
+# These imports are used by the web I/F, although pylint doesn't see it
 from pandaserver.dataservice.DataService import (
     dataService,
     datasetCompleted,
     updateFileStatusInDisp,
 )
+
+# pylint: disable=W0611
 from pandaserver.jobdispatcher.JobDispatcher import (
     ackCommands,
     checkEventsAvailability,
@@ -48,6 +52,8 @@ from pandaserver.jobdispatcher.JobDispatcher import (
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer.Initializer import initializer
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+
+# pylint: disable=W0611
 from pandaserver.taskbuffer.Utils import (
     delete_checkpoint,
     deleteFile,
@@ -66,6 +72,8 @@ from pandaserver.taskbuffer.Utils import (
     uploadLog,
 )
 from pandaserver.userinterface import Client
+
+# pylint: disable=W0611
 from pandaserver.userinterface.UserIF import (
     addHarvesterDialogs,
     addSiteAccess,
@@ -364,7 +372,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
 
     # dummy request object
     class DummyReq:
-        def __init__(self, env, tmpLog):
+        def __init__(self, env, tmp_log):
             # environ
             self.subprocess_env = env
             # header
@@ -389,7 +397,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         else:
                             vo = None
                             vo_group = ""
-                        token = token_decoder.deserialize_token(serialized_token, panda_config.auth_config, vo, tmpLog)
+                        token = token_decoder.deserialize_token(serialized_token, panda_config.auth_config, vo, tmp_log)
                         # extract role
                         if vo:
                             vo = token["vo"].split(":")[0]
@@ -399,8 +407,8 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                                 role = role.split(".")[-1]
                         # check vo
                         if vo not in panda_config.auth_policies:
-                            self.message = "Unknown vo : {}".format(vo)
-                            tmpLog.error("{} - {}".format(self.message, env["HTTP_AUTHORIZATION"]))
+                            self.message = f"Unknown vo : {vo}"
+                            tmp_log.error(f"{self.message} - {env['HTTP_AUTHORIZATION']}")
                         else:
                             # robot
                             if vo_group in panda_config.auth_vo_dict and "robot_ids" in panda_config.auth_vo_dict[vo_group]:
@@ -408,64 +416,64 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                                 if token["sub"] in robot_ids:
                                     if "groups" not in token:
                                         if role:
-                                            token["groups"] = ["{}/{}".format(vo, role)]
+                                            token["groups"] = [f"{vo}/{role}"]
                                         else:
-                                            token["groups"] = ["{}".format(vo)]
+                                            token["groups"] = [f"{vo}"]
                                     if "name" not in token:
-                                        token["name"] = "robot {}".format(role)
+                                        token["name"] = f"robot {role}"
                             # check role
                             if role:
-                                if "{}/{}".format(vo, role) not in token["groups"]:
-                                    self.message = "Not a member of the {}/{} group".format(vo, role)
-                                    tmpLog.error("{} - {}".format(self.message, env["HTTP_AUTHORIZATION"]))
+                                if f"{vo}/{role}" not in token["groups"]:
+                                    self.message = f"Not a member of the {vo}/{role} group"
+                                    tmp_log.error(f"{self.message} - {env['HTTP_AUTHORIZATION']}")
                                 else:
                                     self.subprocess_env["PANDA_OIDC_VO"] = vo
                                     self.subprocess_env["PANDA_OIDC_GROUP"] = role
                                     self.subprocess_env["PANDA_OIDC_ROLE"] = role
                                     self.authenticated = True
                             else:
-                                for memberStr, memberInfo in panda_config.auth_policies[vo]:
-                                    if memberStr in token["groups"]:
+                                for member_string, member_info in panda_config.auth_policies[vo]:
+                                    if member_string in token["groups"]:
                                         self.subprocess_env["PANDA_OIDC_VO"] = vo
-                                        self.subprocess_env["PANDA_OIDC_GROUP"] = memberInfo["group"]
-                                        self.subprocess_env["PANDA_OIDC_ROLE"] = memberInfo["role"]
+                                        self.subprocess_env["PANDA_OIDC_GROUP"] = member_info["group"]
+                                        self.subprocess_env["PANDA_OIDC_ROLE"] = member_info["role"]
                                         self.authenticated = True
                                         break
                                 if not self.authenticated:
-                                    self.message = "Not a member of the {} group".format(vo)
-                                    tmpLog.error("{} - {}".format(self.message, env["HTTP_AUTHORIZATION"]))
+                                    self.message = f"Not a member of the {vo} group"
+                                    tmp_log.error(f"{self.message} - {env['HTTP_AUTHORIZATION']}")
                     else:
                         token = scitokens.SciToken.deserialize(serialized_token, audience=panda_config.token_audience)
                     # check issuer
                     if "iss" not in token:
                         self.message = "Issuer is undefined in the token"
-                        tmpLog.error(self.message)
+                        tmp_log.error(self.message)
                     else:
                         if panda_config.token_authType == "scitokens":
                             items = token.claims()
                         else:
-                            items = six.iteritems(token)
+                            items = token.items()
                         for c, v in items:
-                            self.subprocess_env["PANDA_OIDC_CLAIM_{0}".format(str(c))] = str(v)
+                            self.subprocess_env[f"PANDA_OIDC_CLAIM_{str(c)}"] = str(v)
                         # use sub and scope as DN and FQAN
                         if "SSL_CLIENT_S_DN" not in self.subprocess_env:
                             if "name" in token:
                                 self.subprocess_env["SSL_CLIENT_S_DN"] = " ".join([t[:1].upper() + t[1:].lower() for t in str(token["name"]).split()])
                                 if "preferred_username" in token:
-                                    self.subprocess_env["SSL_CLIENT_S_DN"] += "/CN=nickname:{}".format(token["preferred_username"])
+                                    self.subprocess_env["SSL_CLIENT_S_DN"] += f"/CN=nickname:{token['preferred_username']}"
                             else:
                                 self.subprocess_env["SSL_CLIENT_S_DN"] = str(token["sub"])
                             i = 0
                             for scope in token.get("scope", "").split():
                                 if scope.startswith("role:"):
-                                    self.subprocess_env["GRST_CRED_AUTH_TOKEN_{0}".format(i)] = "VOMS " + str(scope.split(":")[-1])
+                                    self.subprocess_env[f"GRST_CRED_AUTH_TOKEN_{i}"] = "VOMS " + str(scope.split(":")[-1])
                                     i += 1
                             if role:
-                                self.subprocess_env["GRST_CRED_AUTH_TOKEN_{0}".format(i)] = "VOMS /{}/Role={}".format(vo, role)
+                                self.subprocess_env[f"GRST_CRED_AUTH_TOKEN_{i}"] = f"VOMS /{vo}/Role={role}"
                                 i += 1
             except Exception as e:
-                self.message = "Corrupted token. {}".format(str(e))
-                tmpLog.debug(
+                self.message = f"Corrupted token. {str(e)}"
+                tmp_log.debug(
                     "Origin: {}, Token: {}\n{}".format(
                         env.get("HTTP_ORIGIN", None),
                         env.get("HTTP_AUTHORIZATION", None),
@@ -490,49 +498,57 @@ if panda_config.useFastCGI or panda_config.useWSGI:
 
     # application
     def application(environ, start_response):
-        # get method name
-        methodName = ""
+        # get method name from environment
+        method_name = ""
         if "SCRIPT_NAME" in environ:
-            methodName = environ["SCRIPT_NAME"].split("/")[-1]
-        tmpLog = LogWrapper(_logger, "PID={0} {1}".format(os.getpid(), methodName), seeMem=True)
+            method_name = environ["SCRIPT_NAME"].split("/")[-1]
+
+        tmp_log = LogWrapper(_logger, f"PID={os.getpid()} {method_name}", seeMem=True)
         cont_length = int(environ.get("CONTENT_LENGTH", 0))
         json_body = environ.get("CONTENT_TYPE", None) == "application/json"
-        tmpLog.debug("start content-length={} json={}".format(cont_length, json_body))
-        regStart = datetime.datetime.utcnow()
-        retType = None
-        # check method name
-        if methodName not in allowedMethods:
-            tmpLog.error("is forbidden")
-            exeRes = "False : %s is forbidden" % methodName
+        tmp_log.debug(f"start content-length={cont_length} json={json_body}")
+
+        start_time = datetime.datetime.utcnow()
+        return_type = None
+
+        # check method name is allowed, otherwise return 403
+        if method_name not in allowedMethods:
+            error_message = f"{method_name} is forbidden"
+            tmp_log.error(error_message)
+            start_response("403 Forbidden", [("Content-Type", "text/plain")])
+            return [f"ERROR : {error_message}".encode()]
+
         else:
             # get method object
-            tmpMethod = None
+            tmp_method = None
             try:
-                tmpMethod = globals()[methodName]
+                tmp_method = globals()[method_name]
             except Exception:
                 pass
             # object not found
-            if tmpMethod is None:
-                tmpLog.error("is undefined")
-                exeRes = "False"
+            if tmp_method is None:
+                tmp_log.error("is undefined")
+                exec_result = "False"
             else:
                 body = b""
                 try:
                     # dummy request object
-                    dummyReq = DummyReq(environ, tmpLog)
-                    if not dummyReq.authenticated:
-                        errMsg = "Token authentication failed. {}".format(dummyReq.message)
-                        tmpLog.error(errMsg)
+                    dummy_request = DummyReq(environ, tmp_log)
+                    if not dummy_request.authenticated:
+                        error_message = f"Token authentication failed. {dummy_request.message}"
+                        tmp_log.error(error_message)
                         start_response("403 Forbidden", [("Content-Type", "text/plain")])
-                        return ["ERROR : {}".format(errMsg).encode()]
-                    username = dummyReq.subprocess_env.get("SSL_CLIENT_S_DN", None)
+                        return [f"ERROR : {error_message}".encode()]
+
+                    username = dummy_request.subprocess_env.get("SSL_CLIENT_S_DN", None)
                     if username:
                         username = CoreUtils.clean_user_id(username)
                         if username in ban_user_list:
-                            errMsg = "{} is banned".format(username)
-                            tmpLog.error(errMsg)
+                            error_message = f"{username} is banned"
+                            tmp_log.error(error_message)
                             start_response("403 Forbidden", [("Content-Type", "text/plain")])
-                            return ["ERROR : {}".format(errMsg).encode()]
+                            return [f"ERROR : {error_message}".encode()]
+
                     # read contents
                     while cont_length > 0:
                         chunk = environ["wsgi.input"].read(min(cont_length, 1024 * 1024))
@@ -541,21 +557,22 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         cont_length -= len(chunk)
                         body += chunk
                     if cont_length > 0:
-                        raise OSError("partial read from client. {} bytes remaining".format(cont_length))
+                        raise OSError(f"partial read from client. {cont_length} bytes remaining")
                     if not json_body:
                         # query string
                         environ["wsgi.input"] = io.BytesIO(body)
                         # get params
-                        tmpPars = cgi.FieldStorage(environ["wsgi.input"], environ=environ, keep_blank_values=1)
+                        tmp_params = cgi.FieldStorage(environ["wsgi.input"], environ=environ, keep_blank_values=1)
+
                         # convert to map
                         params = {}
-                        for tmpKey in list(tmpPars):
-                            if tmpPars[tmpKey].file is not None and tmpPars[tmpKey].filename is not None:
+                        for tmp_key in list(tmp_params):
+                            if tmp_params[tmp_key].file is not None and tmp_params[tmp_key].filename is not None:
                                 # file
-                                params[tmpKey] = tmpPars[tmpKey]
+                                params[tmp_key] = tmp_params[tmp_key]
                             else:
                                 # string
-                                params[tmpKey] = tmpPars.getfirst(tmpKey)
+                                params[tmp_key] = tmp_params.getfirst(tmp_key)
                     else:
                         # json
                         body = gzip.decompress(body)
@@ -567,19 +584,22 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                             elif params[k] is False:
                                 params[k] = "False"
                     if panda_config.entryVerbose:
-                        tmpLog.debug("with %s" % str(list(params)))
-                    param_list = [dummyReq]
+                        tmp_log.debug(f"with {str(list(params))}")
+                    param_list = [dummy_request]
+
                     # exec
-                    exeRes = tmpMethod(*param_list, **params)
+                    exec_result = tmp_method(*param_list, **params)
+
                     # extract return type
-                    if isinstance(exeRes, dict):
-                        retType = exeRes["type"]
-                        exeRes = exeRes["content"]
+                    if isinstance(exec_result, dict):
+                        return_type = exec_result["type"]
+                        exec_result = exec_result["content"]
                     # convert bool to string
-                    if exeRes in [True, False]:
-                        exeRes = str(exeRes)
+                    if exec_result in [True, False]:
+                        exec_result = str(exec_result)
+
                 except Exception as e:
-                    tmpLog.error("execution failure : {0}\n {1}".format(str(e), traceback.format_exc()))
+                    tmp_log.error(f"execution failure : {str(e)}\n {traceback.format_exc()}")
                     if hasattr(panda_config, "dumpBadRequest") and panda_config.dumpBadRequest:
                         try:
                             with tempfile.NamedTemporaryFile(delete=False, prefix="req_dump_") as f:
@@ -587,39 +607,45 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                                 f.write(body)
                                 os.chmod(f.name, 0o775)
                         except Exception:
-                            tmpLog.error(traceback.format_exc())
+                            tmp_log.error(traceback.format_exc())
                             pass
-                    errStr = ""
-                    for tmpKey in environ:
-                        tmpVal = environ[tmpKey]
-                        errStr += "%s : %s\n" % (tmpKey, str(tmpVal))
-                    tmpLog.error(errStr)
+                    error_string = ""
+                    for tmp_key in environ:
+                        tmp_value = environ[tmp_key]
+                        error_string += f"{tmp_key} : {str(tmp_value)}\n"
+                    tmp_log.error(error_string)
+
                     # return internal server error
                     start_response("500 INTERNAL SERVER ERROR", [("Content-Type", "text/plain")])
                     # force kill to release memory
                     if isinstance(e, OSError):
-                        tmpLog.warning("force restart due")
+                        tmp_log.warning("force restart due")
                         os.kill(os.getpid(), signal.SIGINT)
                     return [str(e).encode()]
+
         if panda_config.entryVerbose:
-            tmpLog.debug("done")
-        regTime = datetime.datetime.utcnow() - regStart
-        tmpLog.info("exec_time=%s.%03d sec, return len=%s B" % (regTime.seconds, regTime.microseconds / 1000, len(str(exeRes))))
-        # return
-        if exeRes == pandaserver.taskbuffer.ErrorCode.EC_NotFound:
+            tmp_log.debug("done")
+
+        duration = datetime.datetime.utcnow() - start_time
+        tmp_log.info("exec_time=%s.%03d sec, return len=%s B" % (duration.seconds, duration.microseconds / 1000, len(str(exec_result))))
+
+        if exec_result == pandaserver.taskbuffer.ErrorCode.EC_NotFound:
             start_response("404 Not Found", [("Content-Type", "text/plain")])
             return ["not found".encode()]
-        elif isinstance(exeRes, pandaserver.taskbuffer.ErrorCode.EC_Redirect):
-            start_response("302 Redirect", [("Location", exeRes.url)])
-            return ["redirect".encode()]
+
+        if exec_result == pandaserver.taskbuffer.ErrorCode.EC_Forbidden:
+            start_response("403 Forbidden", [("Content-Type", "text/plain")])
+            return ["forbidden".encode()]
+
+        if return_type == "json":
+            start_response("200 OK", [("Content-Type", "application/json")])
         else:
-            if retType == "json":
-                start_response("200 OK", [("Content-Type", "application/json")])
-            else:
-                start_response("200 OK", [("Content-Type", "text/plain")])
-            if isinstance(exeRes, str):
-                exeRes = exeRes.encode()
-            return [exeRes]
+            start_response("200 OK", [("Content-Type", "text/plain")])
+
+        if isinstance(exec_result, str):
+            exec_result = exec_result.encode()
+
+        return [exec_result]
 
     # start server
     if panda_config.useFastCGI:

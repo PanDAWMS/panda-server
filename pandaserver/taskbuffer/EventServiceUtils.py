@@ -2,11 +2,6 @@ import re
 
 from pandaserver.taskbuffer.JobSpec import JobSpec
 
-try:
-    long
-except NameError:
-    long = int
-
 # status codes for each event range
 ST_ready = 0
 ST_sent = 1
@@ -141,7 +136,7 @@ def decodeFileInfo(specialHandling):
                         esStartEvent = 0
                     elif len(esItems) == 5:
                         esLFN, esStartEvent, esEndEvent, esRange, maxAttempt = esItems
-                        esEvents = long(esEndEvent) - long(esStartEvent) + 1
+                        esEvents = int(esEndEvent) - int(esStartEvent) + 1
                     elif len(esItems) == 6:
                         (
                             esLFN,
@@ -151,16 +146,16 @@ def decodeFileInfo(specialHandling):
                             maxAttempt,
                             esOffset,
                         ) = esItems
-                        esEvents = long(esEndEvent) - long(esStartEvent) + 1
+                        esEvents = int(esEndEvent) - int(esStartEvent) + 1
                     else:
                         esLFN, esStartEvent, esEndEvent, esRange = esItems
-                        esEvents = long(esEndEvent) - long(esStartEvent) + 1
+                        esEvents = int(esEndEvent) - int(esStartEvent) + 1
                     eventServiceInfo[esLFN] = {
-                        "nEvents": long(esEvents),
-                        "startEvent": long(esStartEvent),
-                        "nEventsPerRange": long(esRange),
-                        "maxAttempt": long(maxAttempt),
-                        "offset": long(esOffset),
+                        "nEvents": int(esEvents),
+                        "startEvent": int(esStartEvent),
+                        "nEventsPerRange": int(esRange),
+                        "maxAttempt": int(maxAttempt),
+                        "offset": int(esOffset),
                     }
                 newSpecialHandling += "{0},".format(esToken)
             else:

@@ -4,8 +4,6 @@ import re
 from pathlib import Path
 from urllib.parse import urlparse
 
-import six
-
 from .workflow_utils import ConditionItem, Node
 
 WORKFLOW_NAMES = ["prun", "phpo", "junction", "reana", "gitlab"]
@@ -112,7 +110,7 @@ def parse_workflow_file(workflow_file, log_stream, in_loop=False):
 
     # look for parents
     for node in node_list:
-        for tmp_name, tmp_data in six.iteritems(node.inputs):
+        for tmp_name, tmp_data in node.inputs.items():
             if not tmp_data["source"]:
                 continue
             if isinstance(tmp_data["source"], list):
@@ -148,7 +146,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
     all_nodes = []
     for node in node_list:
         # resolve input
-        for tmp_name, tmp_data in six.iteritems(node.inputs):
+        for tmp_name, tmp_data in node.inputs.items():
             if not tmp_data["source"]:
                 continue
             if isinstance(tmp_data["source"], list):
@@ -204,7 +202,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                     [i.update({item: v}) for i, v in zip(scatters, node.inputs[item]["value"])]
             for idx, item in enumerate(scatters):
                 sc_node = copy.deepcopy(node)
-                for k, v in six.iteritems(item):
+                for k, v in item.items():
                     sc_node.inputs[k]["value"] = v
                 for tmp_node in sc_node.sub_nodes:
                     tmp_node.scatter_index = idx
@@ -249,7 +247,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                 convert_params_in_condition_to_parent_ids(sc_node.condition, sc_node.inputs, tmp_to_real_id_map)
             # resolve outputs
             if sc_node.is_leaf:
-                for tmp_name, tmp_data in six.iteritems(sc_node.outputs):
+                for tmp_name, tmp_data in sc_node.outputs.items():
                     tmp_data["value"] = "{}_{:03d}_{}".format(out_ds_name, sc_node.id, sc_node.name)
                     # add loop count for nodes in a loop
                     if sc_node.in_loop:
@@ -350,7 +348,7 @@ def convert_params_in_condition_to_parent_ids(condition_item, input_data, id_map
             else:
                 idx = None
             isOK = False
-            for tmp_name, tmp_data in six.iteritems(input_data):
+            for tmp_name, tmp_data in input_data.items():
                 if param == tmp_name.split("/")[-1]:
                     isOK = True
                     if isinstance(tmp_data["parent_id"], list):
@@ -370,7 +368,7 @@ def convert_params_in_condition_to_parent_ids(condition_item, input_data, id_map
 # suppress inputs based on condition
 def suppress_inputs_based_on_condition(condition_item, input_data):
     if condition_item.right is None and condition_item.operator == "not" and isinstance(condition_item.left, str):
-        for tmp_name, tmp_data in six.iteritems(input_data):
+        for tmp_name, tmp_data in input_data.items():
             if condition_item.left == tmp_name.split("/")[-1]:
                 tmp_data["suppressed"] = True
     else:

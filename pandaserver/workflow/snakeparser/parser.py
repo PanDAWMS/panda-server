@@ -8,7 +8,6 @@ import re
 from itertools import chain
 from types import SimpleNamespace
 
-import six
 import snakemake.dag
 import snakemake.parser
 import snakemake.persistence
@@ -241,7 +240,7 @@ class Parser(object):
                 node.is_tail = True
             node_list.append(node)
         for node in node_list:
-            for name, data in six.iteritems(node.inputs):
+            for name, data in node.inputs.items():
                 if not data["source"]:
                     continue
                 if isinstance(data["source"], list):
@@ -329,7 +328,7 @@ class Parser(object):
 
     def _suppress_inputs(self, condition: ConditionItem, inputs):
         if condition.right is None and condition.operator == "not" and isinstance(condition.left, str):
-            for name, data in six.iteritems(inputs):
+            for name, data in inputs.items():
                 if condition.left == name.split("/")[-1]:
                     data["suppressed"] = True
         else:

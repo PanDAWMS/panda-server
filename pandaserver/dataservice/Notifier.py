@@ -10,11 +10,7 @@ import sys
 import time
 import traceback
 import uuid
-
-try:  # Python 2
-    from urllib import urlencode
-except ImportError:  # Python 3
-    from urllib.parse import urlencode
+from urllib.parse import urlencode
 
 import pandaserver.taskbuffer.ErrorCode
 from pandacommon.pandalogger.PandaLogger import PandaLogger

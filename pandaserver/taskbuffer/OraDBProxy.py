@@ -55,10 +55,6 @@ except ImportError:
     pass
 
 try:
-    long
-except NameError:
-    long = int
-try:
     unicode
 except NameError:
     unicode = str
@@ -72,11 +68,11 @@ elif panda_config.backend == "postgres":
 
     from . import WrappedPostgresConn
 
-    varNUMBER = long
+    varNUMBER = int
 else:
     import MySQLdb
 
-    varNUMBER = long
+    varNUMBER = int
 
 warnings.filterwarnings("ignore")
 
@@ -681,7 +677,7 @@ class DBProxy:
 
             # set PandaID
             val = self.getvalue_corrector(self.cur.getvalue(varMap[":newPandaID"]))
-            job.PandaID = long(val)
+            job.PandaID = int(val)
 
             # get jobsetID
             if job.jobsetID in [None, "NULL", -1]:
@@ -806,7 +802,7 @@ class DBProxy:
                         self.cur.execute(sqlFile + comment, varMap)
                         # get rowID
                         val = self.getvalue_corrector(self.cur.getvalue(varMap[":newRowID"]))
-                        file.row_ID = long(val)
+                        file.row_ID = int(val)
                     dynLfnIdMap[file.lfn] = file.row_ID
                     # reset changed attribute list
                     file.resetChangedList()
@@ -2558,7 +2554,7 @@ class DBProxy:
                 try:
                     tmpM = re.search("leak=(-?\d+\.*\d+)", param[key])
                     if tmpM is not None:
-                        memoryLeak = long(float(tmpM.group(1)))
+                        memoryLeak = int(float(tmpM.group(1)))
                         tmpKey = "memory_leak"
                         sql1 += ",{0}=:{0}".format(tmpKey)
                         varMap[":{0}".format(tmpKey)] = memoryLeak
@@ -3551,7 +3547,7 @@ class DBProxy:
                                 retI = self.cur.execute(sql1 + comment, varMap)
                                 # set PandaID
                                 val = self.getvalue_corrector(self.cur.getvalue(varMap[":newPandaID"]))
-                                job.PandaID = long(val)
+                                job.PandaID = int(val)
                                 tmpLog.debug("Generate new PandaID %s -> %s #%s" % (job.parentID, job.PandaID, job.attemptNr))
                                 # insert files
                                 sqlFile = "INSERT INTO ATLAS_PANDA.filesTable4 (%s) " % FileSpec.columnNames()
@@ -3565,7 +3561,7 @@ class DBProxy:
                                     varMap[":newRowID"] = self.cur.var(varNUMBER)
                                     self.cur.execute(sqlFile + comment, varMap)
                                     val = self.getvalue_corrector(self.cur.getvalue(varMap[":newRowID"]))
-                                    file.row_ID = long(val)
+                                    file.row_ID = int(val)
                                 # job parameters
                                 sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param)"
                                 varMap = {}
@@ -4796,7 +4792,7 @@ class DBProxy:
         timeStart = datetime.datetime.utcnow()
         # check PandaID
         try:
-            long(pandaID)
+            int(pandaID)
         except Exception:
             tmpLog.error("not an integer : %s" % pandaID)
             if getUserInfo:
@@ -6662,7 +6658,7 @@ class DBProxy:
                     if tmpLFN not in retMapLFN[tmpDataset]:
                         retMapLFN[tmpDataset].append(tmpLFN)
                     try:
-                        tmpTotalFileSize += long(tmpFileSize)
+                        tmpTotalFileSize += int(tmpFileSize)
                     except Exception:
                         pass
                 if maxTotalFileSize is None or maxTotalFileSize < tmpTotalFileSize:
@@ -7896,7 +7892,7 @@ class DBProxy:
             self.cur.execute(sql + comment, varMap)
             # get id
             val = self.getvalue_corrector(self.cur.getvalue(varMap[":newID"]))
-            cloudTask.id = long(val)
+            cloudTask.id = int(val)
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -14470,7 +14466,7 @@ class DBProxy:
                 varMap[":current_priority"] = varMap[":priority"]
                 self.cur.execute(sqlT + comment, varMap)
                 val = self.getvalue_corrector(self.cur.getvalue(varMap[":jediTaskID"]))
-                jediTaskID = long(val)
+                jediTaskID = int(val)
                 if properErrorCode:
                     retVal = "succeeded. new jediTaskID={0}".format(jediTaskID)
                 else:
@@ -15316,15 +15312,15 @@ class DBProxy:
             except Exception:
                 nRanges = 8
             try:
-                pandaID = long(pandaID)
+                pandaID = int(pandaID)
             except Exception:
                 pass
             try:
-                jobsetID = long(jobsetID)
+                jobsetID = int(jobsetID)
             except Exception:
                 pass
             try:
-                jediTaskID = long(jediTaskID)
+                jediTaskID = int(jediTaskID)
             except Exception:
                 jediTaskID = None
             iRanges = 0
@@ -15684,11 +15680,11 @@ class DBProxy:
                 try:
                     tmpItems = eventRangeID.split("-")
                     jediTaskID, pandaID, fileID, job_processID, attemptNr = tmpItems
-                    jediTaskID = long(jediTaskID)
-                    pandaID = long(pandaID)
-                    fileID = long(fileID)
-                    job_processID = long(job_processID)
-                    attemptNr = long(attemptNr)
+                    jediTaskID = int(jediTaskID)
+                    pandaID = int(pandaID)
+                    fileID = int(fileID)
+                    job_processID = int(job_processID)
+                    attemptNr = int(attemptNr)
                 except Exception:
                     _logger.error("{0} : wrongly formatted eventRangeID".format(methodName))
                     retList.append(False)
@@ -15788,7 +15784,7 @@ class DBProxy:
                                     zipFileSpec.lfn = eventDict["zipFile"]["lfn"]
                                     zipFileSpec.GUID = str(uuid.uuid4())
                                     if "fsize" in eventDict["zipFile"]:
-                                        zipFileSpec.fsize = long(eventDict["zipFile"]["fsize"])
+                                        zipFileSpec.fsize = int(eventDict["zipFile"]["fsize"])
                                     else:
                                         zipFileSpec.fsize = 0
                                     if "adler32" in eventDict["zipFile"]:
@@ -15808,7 +15804,7 @@ class DBProxy:
                                     varMap[":newRowID"] = self.cur.var(varNUMBER)
                                     self.cur.execute(sqlF + comment, varMap)
                                     val = self.getvalue_corrector(self.cur.getvalue(varMap[":newRowID"]))
-                                    zipRow_ID = long(val)
+                                    zipRow_ID = int(val)
                                     zipRowIdMap[eventDict["zipFile"]["lfn"]] = zipRow_ID
                                     # make an empty file to trigger registration for zip files in Adder
                                     if zipJobSpec.registerEsFiles():
@@ -16582,7 +16578,7 @@ class DBProxy:
                     retI = self.cur.execute(sql1 + comment, varMap)
                     # set PandaID
                     val = self.getvalue_corrector(self.cur.getvalue(varMap[":newPandaID"]))
-                    jobSpec.PandaID = long(val)
+                    jobSpec.PandaID = int(val)
                 else:
                     jobSpec.PandaID = None
                 msgStr = "{0} Generate new PandaID -> {1}#{2} at {3} ".format(
@@ -16634,7 +16630,7 @@ class DBProxy:
                     varMap[":newRowID"] = self.cur.var(varNUMBER)
                     self.cur.execute(sqlFile + comment, varMap)
                     val = self.getvalue_corrector(self.cur.getvalue(varMap[":newRowID"]))
-                    fileSpec.row_ID = long(val)
+                    fileSpec.row_ID = int(val)
                     # change max failure for esmerge
                     if doMerging and fileSpec.type in ["input", "pseudo_input"]:
                         varMap = {}
@@ -20435,7 +20431,7 @@ class DBProxy:
                     tmpLog.debug("skip since HS06sec is None")
                 else:
                     # cap
-                    hs06sec = long(hs06sec)
+                    hs06sec = int(hs06sec)
                     maxHS06sec = 999999999
                     if hs06sec > maxHS06sec:
                         hs06sec = maxHS06sec
@@ -20527,6 +20523,7 @@ class DBProxy:
             # get the queues watts per core value
             var_map = {":panda_queue": computing_site}
             sql_wpc = "SELECT /* use_json_type */ scj.data.coreenergy FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:panda_queue"
+            self.cur.arraysize = 100
             self.cur.execute(sql_wpc + comment, var_map)
             res_wpc = self.cur.fetchone()
             try:
@@ -24295,7 +24292,7 @@ class DBProxy:
             retI = self.cur.execute(sql1 + comment, varMap)
             # set PandaID
             val = self.getvalue_corrector(self.cur.getvalue(varMap[":newPandaID"]))
-            jobSpec.PandaID = long(val)
+            jobSpec.PandaID = int(val)
             msgStr = "Generate a fake co-jumbo new PandaID={0} at {1} ".format(jobSpec.PandaID, jobSpec.computingSite)
             tmp_log.debug(msgStr)
             # insert files
@@ -24314,7 +24311,7 @@ class DBProxy:
                 varMap[":newRowID"] = self.cur.var(varNUMBER)
                 self.cur.execute(sqlFile + comment, varMap)
                 val = self.getvalue_corrector(self.cur.getvalue(varMap[":newRowID"]))
-                fileSpec.row_ID = long(val)
+                fileSpec.row_ID = int(val)
             # insert job parameters
             sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param) "
             varMap = {}

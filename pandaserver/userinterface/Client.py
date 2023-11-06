@@ -3,20 +3,15 @@ client methods
 
 """
 
+import getpass
 import gzip
 import os
 import re
-import sys
-import uuid
-
-try:
-    from urllib import urlencode
-except ImportError:
-    from urllib.parse import urlencode
-
-import getpass
 import socket
+import sys
 import tempfile
+import uuid
+from urllib.parse import urlencode
 
 try:
     import cPickle as pickle

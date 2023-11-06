@@ -1,4 +1,4 @@
-# errror code
+# error code
 
 # killed
 EC_Kill = 100
@@ -15,7 +15,7 @@ EC_Aborted = 103
 # wait timeout
 EC_WaitTimeout = 104
 
-# reassigned by rebrokeage
+# reassigned by re-brokerage
 EC_Reassigned = 105
 
 # reassigned by server-side retry
@@ -42,7 +42,7 @@ EC_EventServiceMaxAttempt = 114
 # do nothing since other consumers are still running
 EC_EventServiceWaitOthers = 115
 
-# killed since unused and unnecessary any more
+# killed since unused and unnecessary anymore
 EC_EventServiceUnused = 116
 
 # didn't process any events on WN
@@ -63,10 +63,10 @@ EC_EventServiceKillNG = 121
 # killed for preemption
 EC_EventServicePreemption = 122
 
-# retred but didn't process any events on WN
+# retried but didn't process any events on WN
 EC_EventServiceNoEvent = 123
 
-# input files inconsitent with JEDI
+# input files inconsistent with JEDI
 EC_EventServiceInconsistentIn = 124
 
 # No event service queues available for new consumers
@@ -75,7 +75,7 @@ EC_EventServiceNoEsQueues = 125
 # Closed in bad job status
 EC_EventServiceBadStatus = 126
 
-# Fast rebrokerage for overloaded
+# Fast re-brokerage for overloaded
 EC_FastRebrokerage = 130
 
 # failed to lock semaphore for job cloning
@@ -84,13 +84,10 @@ EC_JobCloningUnlock = 200
 # worker is done before job is done
 EC_WorkerDone = 300
 
+# http error codes
+
+# forbidden request
+EC_Forbidden = 403
 
 # file not found
-class EC_NotFound:
-    pass
-
-
-# file relocated
-class EC_Redirect:
-    def __init__(self, url):
-        self.url = url
+EC_NotFound = 404

@@ -37,7 +37,7 @@ class CarbonEmissions(threading.Thread):
 
             status = results["responses"][0]["status"]
             if status != 200:
-                _logger.error("download_region_emissions was not able to download data with status {0}".format(status))
+                _logger.error(f"download_region_emissions was not able to download data with status {status}")
                 return None
 
             hits = results["responses"][0]["hits"]["hits"]  # That's how the json is structured...
@@ -52,7 +52,7 @@ class CarbonEmissions(threading.Thread):
                 results.append(simplified_entry)
             return results
         except Exception:
-            _logger.error("download_region_emissions excepted with {0}".format(traceback.format_exc()))
+            _logger.error(f"download_region_emissions excepted with {traceback.format_exc()}")
             return None
 
     def run(self):

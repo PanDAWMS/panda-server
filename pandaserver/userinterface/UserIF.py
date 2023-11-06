@@ -30,12 +30,6 @@ try:
 except ImportError:
     pass
 
-try:
-    long()
-except NameError:
-    long = int
-
-# logger
 _logger = PandaLogger().getLogger("UserIF")
 
 
@@ -1549,7 +1543,7 @@ def retryFailedJobsInActive(req, jobID):
         return "ERROR: could not get DN"
     # convert jobID to long
     try:
-        jobID = long(jobID)
+        jobID = int(jobID)
     except Exception:
         return "ERROR: jobID is not an integer"
     return userIF.retryFailedJobsInActive(dn, jobID)
@@ -1651,7 +1645,7 @@ def getJediTasksInTimeRange(req, timeRange, dn=None, fullFlag=None, minTaskID=No
     else:
         fullFlag = False
     try:
-        minTaskID = long(minTaskID)
+        minTaskID = int(minTaskID)
     except Exception:
         minTaskID = None
     _logger.debug("getJediTasksInTimeRange %s %s" % (dn, timeRange))
@@ -1874,7 +1868,7 @@ def killTask(req, jediTaskID=None, properErrorCode=None, broadcast=None):
     prodRole = _hasProdRole(req)
     # check jediTaskID
     try:
-        jediTaskID = long(jediTaskID)
+        jediTaskID = int(jediTaskID)
     except Exception:
         if properErrorCode:
             return WrappedPickle.dumps((101, "jediTaskID must be an integer"))
@@ -1924,7 +1918,7 @@ def retryTask(
     prodRole = _hasProdRole(req)
     # check jediTaskID
     try:
-        jediTaskID = long(jediTaskID)
+        jediTaskID = int(jediTaskID)
     except Exception:
         if properErrorCode:
             return WrappedPickle.dumps((101, "jediTaskID must be an integer"))
@@ -1956,7 +1950,7 @@ def reassignTask(req, jediTaskID, site=None, cloud=None, nucleus=None, soft=None
     prodRole = _hasProdRole(req)
     # check jediTaskID
     try:
-        jediTaskID = long(jediTaskID)
+        jediTaskID = int(jediTaskID)
     except Exception:
         return WrappedPickle.dumps((101, "jediTaskID must be an integer"))
     # site or cloud
@@ -2002,7 +1996,7 @@ def finishTask(req, jediTaskID=None, properErrorCode=None, soft=None, broadcast=
     prodRole = _hasProdRole(req)
     # check jediTaskID
     try:
-        jediTaskID = long(jediTaskID)
+        jediTaskID = int(jediTaskID)
     except Exception:
         if properErrorCode:
             return WrappedPickle.dumps((101, "jediTaskID must be an integer"))
@@ -2032,7 +2026,7 @@ def reloadInput(req, jediTaskID, properErrorCode=None):
     prodRole = _hasProdRole(req)
     # check jediTaskID
     try:
-        jediTaskID = long(jediTaskID)
+        jediTaskID = int(jediTaskID)
     except Exception:
         if properErrorCode:
             return WrappedPickle.dumps((101, "jediTaskID must be an integer"))
@@ -2052,7 +2046,7 @@ def getRetryHistory(req, jediTaskID=None):
     if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     try:
-        jediTaskID = long(jediTaskID)
+        jediTaskID = int(jediTaskID)
     except Exception:
         return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     ret = userIF.getRetryHistory(jediTaskID, user)
@@ -2075,12 +2069,12 @@ def changeTaskPriority(req, jediTaskID=None, newPriority=None):
         return "Failed : production or pilot role required"
     # check jediTaskID
     try:
-        jediTaskID = long(jediTaskID)
+        jediTaskID = int(jediTaskID)
     except Exception:
         return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     # check priority
     try:
-        newPriority = long(newPriority)
+        newPriority = int(newPriority)
     except Exception:
         return WrappedPickle.dumps((False, "newPriority must be an integer"))
     ret = userIF.changeTaskPriority(jediTaskID, newPriority)
@@ -2105,14 +2099,14 @@ def increaseAttemptNrPanda(req, jediTaskID, increasedNr):
     # check jediTaskID
     if ret is None:
         try:
-            jediTaskID = long(jediTaskID)
+            jediTaskID = int(jediTaskID)
         except Exception:
             ret = 4, "jediTaskID must be an integer"
     # check increase
     if ret is None:
         wrongNr = False
         try:
-            increasedNr = long(increasedNr)
+            increasedNr = int(increasedNr)
         except Exception:
             wrongNr = True
         if wrongNr or increasedNr < 0:
@@ -2139,7 +2133,7 @@ def changeTaskAttributePanda(req, jediTaskID, attrName, attrValue):
         return WrappedPickle.dumps((False, "production or pilot role required"))
     # check jediTaskID
     try:
-        jediTaskID = long(jediTaskID)
+        jediTaskID = int(jediTaskID)
     except Exception:
         return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     # check attribute
@@ -2165,7 +2159,7 @@ def changeTaskSplitRulePanda(req, jediTaskID, attrName, attrValue):
         return WrappedPickle.dumps((False, "production or pilot role required"))
     # check jediTaskID
     try:
-        jediTaskID = long(jediTaskID)
+        jediTaskID = int(jediTaskID)
     except Exception:
         return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     # check attribute
@@ -2206,7 +2200,7 @@ def pauseTask(req, jediTaskID):
         return WrappedPickle.dumps((False, "production role required"))
     # check jediTaskID
     try:
-        jediTaskID = long(jediTaskID)
+        jediTaskID = int(jediTaskID)
     except Exception:
         return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     ret = userIF.pauseTask(jediTaskID, user, prodRole)
@@ -2229,7 +2223,7 @@ def resumeTask(req, jediTaskID):
         return WrappedPickle.dumps((False, "production role required"))
     # check jediTaskID
     try:
-        jediTaskID = long(jediTaskID)
+        jediTaskID = int(jediTaskID)
     except Exception:
         return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     ret = userIF.resumeTask(jediTaskID, user, prodRole)
@@ -2252,7 +2246,7 @@ def avalancheTask(req, jediTaskID):
         return WrappedPickle.dumps((False, "production role required"))
     # check jediTaskID
     try:
-        jediTaskID = long(jediTaskID)
+        jediTaskID = int(jediTaskID)
     except Exception:
         return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     ret = userIF.avalancheTask(jediTaskID, user, prodRole)
@@ -2275,7 +2269,7 @@ def release_task(req, jedi_task_id):
         return json.dumps((False, "production role required"))
     # check jediTaskID
     try:
-        jedi_task_id = long(jedi_task_id)
+        jedi_task_id = int(jedi_task_id)
     except Exception:
         return json.dumps((False, "jediTaskID must be an integer"))
     ret = userIF.send_command_to_task(jedi_task_id, user, prod_role, "release")
@@ -2334,7 +2328,7 @@ def changeTaskModTimePanda(req, jediTaskID, diffValue):
         return WrappedPickle.dumps((False, "production or pilot role required"))
     # check jediTaskID
     try:
-        jediTaskID = long(jediTaskID)
+        jediTaskID = int(jediTaskID)
     except Exception:
         return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     try:
@@ -2349,7 +2343,7 @@ def changeTaskModTimePanda(req, jediTaskID, diffValue):
 # get PandaIDs with TaskID
 def getPandaIDsWithTaskID(req, jediTaskID):
     try:
-        jediTaskID = long(jediTaskID)
+        jediTaskID = int(jediTaskID)
     except Exception:
         return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     idsStr = userIF.getPandaIDsWithTaskID(jediTaskID)
@@ -2371,7 +2365,7 @@ def reactivateTask(req, jediTaskID, keep_attempt_nr=None, trigger_job_generation
         _logger.error("reactivateTask: " + msg)
         return WrappedPickle.dumps((False, msg))
     try:
-        jediTaskID = long(jediTaskID)
+        jediTaskID = int(jediTaskID)
     except Exception:
         return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     if keep_attempt_nr == "True":
@@ -2390,7 +2384,7 @@ def reactivateTask(req, jediTaskID, keep_attempt_nr=None, trigger_job_generation
 # get task status
 def getTaskStatus(req, jediTaskID):
     try:
-        jediTaskID = long(jediTaskID)
+        jediTaskID = int(jediTaskID)
     except Exception:
         return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     ret = userIF.getTaskStatus(jediTaskID)
@@ -2447,7 +2441,7 @@ def listTasksInShare(req, gshare, status):
 # get taskParamsMap with TaskID
 def getTaskParamsMap(req, jediTaskID):
     try:
-        jediTaskID = long(jediTaskID)
+        jediTaskID = int(jediTaskID)
     except Exception:
         return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     ret = userIF.getTaskParamsMap(jediTaskID)
@@ -2604,7 +2598,7 @@ def enableJumboJobs(req, jediTaskID, nJumboJobs, nJumboPerSite=None):
 # get user job metadata
 def getUserJobMetadata(req, jediTaskID):
     try:
-        jediTaskID = long(jediTaskID)
+        jediTaskID = int(jediTaskID)
     except Exception:
         return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     return userIF.getUserJobMetadata(jediTaskID)
@@ -2613,11 +2607,11 @@ def getUserJobMetadata(req, jediTaskID):
 # get jumbo job datasets
 def getJumboJobDatasets(req, n_days, grace_period=0):
     try:
-        n_days = long(n_days)
+        n_days = int(n_days)
     except Exception:
         return WrappedPickle.dumps((False, "wrong n_days"))
     try:
-        grace_period = long(grace_period)
+        grace_period = int(grace_period)
     except Exception:
         return WrappedPickle.dumps((False, "wrong grace_period"))
     return userIF.getJumboJobDatasets(n_days, grace_period)

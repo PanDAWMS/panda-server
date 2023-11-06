@@ -1288,8 +1288,8 @@ class TaskBuffer:
             return idStatus
         # check JobID
         try:
-            jobID = long(jobID)
-            nJobs = long(nJobs)
+            jobID = int(jobID)
+            nJobs = int(nJobs)
         except Exception:
             return idStatus
         # get DBproxy
