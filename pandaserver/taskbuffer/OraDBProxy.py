@@ -4947,7 +4947,7 @@ class DBProxy:
                 ):
                     # use dummy for force kill
                     varMap[":jobStatus"] = "dummy"
-                elif useEventService or jobStatusInDB in ["merging"]:
+                elif (useEventService and not EventServiceUtils.isJobCloningSH(specialHandling)) or jobStatusInDB in ["merging"]:
                     # use dummy for force kill
                     varMap[":jobStatus"] = "dummy"
                 else:
