@@ -12,6 +12,7 @@ NO_RETRY = "no_retry"
 INCREASE_MEM = "increase_memory"
 LIMIT_RETRY = "limit_retry"
 INCREASE_CPU = "increase_cputime"
+INCREASE_MEM_XTIMES = "increase_memory_xtimes"
 
 
 def timeit(method):
@@ -133,6 +134,24 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
         # The effect of INCREASE_MEM rules is the same, so take the first one that appears
         for rule in rules:
             if rule["action"] != INCREASE_MEM or not conditions_apply(
+                error_diag_job,
+                architecture_job,
+                release_job,
+                wqid_job,
+                rule["error_diag"],
+                rule["architecture"],
+                rule["release"],
+                rule["wqid"],
+            ):
+                continue
+            else:
+                filtered_rules.append(rule)
+                break
+
+        # See if there is a INCREASE_MEM_XTIMES rule.
+        # The effect of INCREASE_MEM_XTIMES rules is the same, so take the first one that appears
+        for rule in rules:
+            if rule["action"] != INCREASE_MEM_XTIMES or not conditions_apply(
                 error_diag_job,
                 architecture_job,
                 release_job,
@@ -339,6 +358,26 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
                         except Exception:
                             errtype, errvalue = sys.exc_info()[:2]
                             _logger.error(f"Failed to increase RAM limit : {errtype} {errvalue}")
+
+                    elif action == INCREASE_MEM_XTIMES:
+                        try:
+                            if active:
+                                task_buffer.increaseRamLimitJobJEDI_xtimes(job, job.minRamCount, job.jediTaskID, attemptNr)
+                            # Log to pandamon and logfile
+                            message = "action=increaseRAMLimit_xtimes for PandaID={0} jediTaskID={1} ( ErrorSource={2} ErrorCode={3} ErrorDiag: {4}. Error/action active={5} error_id={6} )".format(
+                                jobID,
+                                job.jediTaskID,
+                                error_source,
+                                error_code,
+                                error_diag_rule,
+                                active,
+                                error_id,
+                            )
+                            acted_on_job = True
+                            _logger.info(message)
+                        except Exception:
+                            errtype, errvalue = sys.exc_info()[:2]
+                            _logger.error("Failed to increase RAM xtimes limit : %s %s" % (errtype, errvalue))
 
                     elif action == INCREASE_CPU:
                         try:
