@@ -53,7 +53,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     if retSel is not None:
         try:
             maxID = retSel[0][0]
-            tmp_log.debug("maxID : %s" % maxID)
+            tmp_log.debug(f"maxID : {maxID}")
             if maxID is not None:
                 varMap = {}
                 varMap[":maxID"] = maxID
@@ -79,12 +79,12 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             tmp_log.debug("skip pilotCounts session for logrotate")
         else:
             # log filename
-            dispLogName = "%s/panda-PilotRequests.log" % panda_config.logdir
+            dispLogName = f"{panda_config.logdir}/panda-PilotRequests.log"
             # time limit
             timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
             timeLimitS = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
             # check if tgz is required
-            com = "head -1 %s" % dispLogName
+            com = f"head -1 {dispLogName}"
             lostat, loout = commands_get_status_output(com)
             useLogTgz = True
             if lostat == 0:
@@ -98,29 +98,23 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             dispLogNameList = [dispLogName]
             if useLogTgz:
                 today = datetime.date.today()
-                dispLogNameList.append("{0}-{1}.gz".format(dispLogName, today.strftime("%Y%m%d")))
+                dispLogNameList.append(f"{dispLogName}-{today.strftime('%Y%m%d')}.gz")
             # delete tmp
-            commands_get_status_output("rm -f %s.tmp-*" % dispLogName)
+            commands_get_status_output(f"rm -f {dispLogName}.tmp-*")
             # tmp name
-            tmp_logName = "%s.tmp-%s" % (
-                dispLogName,
-                datetime.datetime.utcnow().strftime("%Y-%m-%d-%H-%M-%S"),
-            )
+            tmp_logName = f"{dispLogName}.tmp-{datetime.datetime.utcnow().strftime('%Y-%m-%d-%H-%M-%S')}"
             # loop over all files
             pilotCounts = {}
             pilotCountsS = {}
             for tmpDispLogName in dispLogNameList:
                 # expand or copy
                 if tmpDispLogName.endswith(".gz"):
-                    com = "gunzip -c %s > %s" % (tmpDispLogName, tmp_logName)
+                    com = f"gunzip -c {tmpDispLogName} > {tmp_logName}"
                 else:
-                    com = "cp %s %s" % (tmpDispLogName, tmp_logName)
+                    com = f"cp {tmpDispLogName} {tmp_logName}"
                 lostat, loout = commands_get_status_output(com)
                 if lostat != 0:
-                    errMsg = "failed to expand/copy %s with : %s" % (
-                        tmpDispLogName,
-                        loout,
-                    )
+                    errMsg = f"failed to expand/copy {tmpDispLogName} with : {loout}"
                     raise RuntimeError(errMsg)
                 # search string
                 sStr = "^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*"
@@ -161,7 +155,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 # close
                 logFH.close()
             # delete tmp
-            commands_get_status_output("rm %s" % tmp_logName)
+            commands_get_status_output(f"rm {tmp_logName}")
             # update
             hostID = panda_config.pserverhost.split(".")[0]
             tmp_log.debug("pilotCounts session")
@@ -171,7 +165,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             tmp_log.debug(retPC)
     except Exception:
         errType, errValue = sys.exc_info()[:2]
-        tmp_log.error("updateJob/getJob : %s %s" % (errType, errValue))
+        tmp_log.error(f"updateJob/getJob : {errType} {errValue}")
 
     # nRunning
     tmp_log.debug("nRunning session")
@@ -181,7 +175,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             tmp_log.debug(retNR)
     except Exception:
         errType, errValue = sys.exc_info()[:2]
-        tmp_log.error("nRunning : %s %s" % (errType, errValue))
+        tmp_log.error(f"nRunning : {errType} {errValue}")
 
     # session for co-jumbo jobs
     tmp_log.debug("co-jumbo session")
@@ -191,7 +185,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             tmp_log.debug("failed to get co-jumbo jobs to finish")
         else:
             coJumboA, coJumboD, coJumboW, coJumboTokill = ret
-            tmp_log.debug("finish {0} co-jumbo jobs in Active".format(len(coJumboA)))
+            tmp_log.debug(f"finish {len(coJumboA)} co-jumbo jobs in Active")
             if len(coJumboA) > 0:
                 jobSpecs = taskBuffer.peekJobs(
                     coJumboA,
@@ -207,7 +201,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         jobSpec.jobSubStatus = "cojumbo_wrong"
                         jobSpec.taskBufferErrorCode = pandaserver.taskbuffer.ErrorCode.EC_EventServiceInconsistentIn
                     taskBuffer.archiveJobs([jobSpec], False)
-            tmp_log.debug("finish {0} co-jumbo jobs in Defined".format(len(coJumboD)))
+            tmp_log.debug(f"finish {len(coJumboD)} co-jumbo jobs in Defined")
             if len(coJumboD) > 0:
                 jobSpecs = taskBuffer.peekJobs(
                     coJumboD,
@@ -223,7 +217,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         jobSpec.jobSubStatus = "cojumbo_wrong"
                         jobSpec.taskBufferErrorCode = pandaserver.taskbuffer.ErrorCode.EC_EventServiceInconsistentIn
                     taskBuffer.archiveJobs([jobSpec], True)
-            tmp_log.debug("finish {0} co-jumbo jobs in Waiting".format(len(coJumboW)))
+            tmp_log.debug(f"finish {len(coJumboW)} co-jumbo jobs in Waiting")
             if len(coJumboW) > 0:
                 jobSpecs = taskBuffer.peekJobs(
                     coJumboW,
@@ -239,13 +233,13 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         jobSpec.jobSubStatus = "cojumbo_wrong"
                         jobSpec.taskBufferErrorCode = pandaserver.taskbuffer.ErrorCode.EC_EventServiceInconsistentIn
                     taskBuffer.archiveJobs([jobSpec], False, True)
-            tmp_log.debug("kill {0} co-jumbo jobs in Waiting".format(len(coJumboTokill)))
+            tmp_log.debug(f"kill {len(coJumboTokill)} co-jumbo jobs in Waiting")
             if len(coJumboTokill) > 0:
                 jediJobs = list(coJumboTokill)
                 nJob = 100
                 iJob = 0
                 while iJob < len(jediJobs):
-                    tmp_log.debug(" killing %s" % str(jediJobs[iJob : iJob + nJob]))
+                    tmp_log.debug(f" killing {str(jediJobs[iJob:iJob + nJob])}")
                     Client.killJobs(jediJobs[iJob : iJob + nJob], 51, keepUnmerged=True)
                     iJob += nJob
     except Exception:
@@ -265,8 +259,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 prefix = os.environ["VIRTUAL_ENV"]
             else:
                 prefix = ""
-            setupStr = "source {0}/etc/sysconfig/panda_server; ".format(prefix)
-            runStr = "%s/python -Wignore " % panda_config.native_python
+            setupStr = f"source {prefix}/etc/sysconfig/panda_server; "
+            runStr = f"{panda_config.native_python}/python -Wignore "
             runStr += panda_config.pandaPython_dir + "/dataservice/forkSetupper.py -i "
             runStr += self.fileName
             if self.fileName.split("/")[-1].startswith("set.NULL."):
@@ -304,7 +298,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         break
         except Exception:
             errType, errValue = sys.exc_info()[:2]
-            tmp_log.error("%s %s" % (errType, errValue))
+            tmp_log.error(f"{errType} {errValue}")
 
     # join fork threads
     for thr in forkThrList:

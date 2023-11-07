@@ -29,6 +29,6 @@ varMap[":label2"] = "panda"
 for table in ("jobsactive4", "jobsdefined4"):
     _logger.debug((sql % table) + str(varMap))
     ret = taskBuffer.querySQLS(sql % table, varMap)
-    _logger.debug("ret -> %s" % str(ret))
+    _logger.debug(f"ret -> {str(ret)}")
 
 _logger.debug("================= end ==================")

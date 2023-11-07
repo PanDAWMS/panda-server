@@ -50,11 +50,11 @@ def main(tbuf=None, **kwargs):
                         vmRSS += item
                     continue
             procfile.close()
-            _logger.debug("MemCheck - %s Name=%s VSZ=%s RSS=%s : %s" % (os.getpid(), name, vmSize, vmRSS, str))
+            _logger.debug(f"MemCheck - {os.getpid()} Name={name} VSZ={vmSize} RSS={vmRSS} : {str}")
         except Exception:
             type, value, traceBack = sys.exc_info()
-            _logger.error("memoryCheck() : %s %s" % (type, value))
-            _logger.debug("MemCheck - %s unknown : %s" % (os.getpid(), str))
+            _logger.error(f"memoryCheck() : {type} {value}")
+            _logger.debug(f"MemCheck - {os.getpid()} unknown : {str}")
         return
 
     _memoryCheck("start")
@@ -107,7 +107,7 @@ def main(tbuf=None, **kwargs):
                 return
             # get _dis names with _sub
             disNameList = taskBuffer.getAssociatedDisDatasets(subDsName)
-            _logger.debug("setTobeDeletedToDis : sub:%s has dis:%s" % (subDsName, str(disNameList)))
+            _logger.debug(f"setTobeDeletedToDis : sub:{subDsName} has dis:{str(disNameList)}")
             # loop over all _dis datasets
             for tmpDisName in disNameList:
                 # try to append to locked list
@@ -118,14 +118,14 @@ def main(tbuf=None, **kwargs):
                 if re.search("_dis\d+$", tmpDisName) is None:
                     continue
                 # get dataset
-                _logger.debug("setTobeDeletedToDis : try to get %s in DB" % tmpDisName)
+                _logger.debug(f"setTobeDeletedToDis : try to get {tmpDisName} in DB")
                 tmpDS = taskBuffer.queryDatasetWithMap({"name": tmpDisName})
                 if tmpDS is None:
-                    _logger.error("setTobeDeletedToDis : cannot get %s in DB" % tmpDisName)
+                    _logger.error(f"setTobeDeletedToDis : cannot get {tmpDisName} in DB")
                     continue
                 # check status
                 if tmpDS.status in ["tobedeleted", "deleted"]:
-                    _logger.debug("setTobeDeletedToDis : skip %s since status=%s" % (tmpDisName, tmpDS.status))
+                    _logger.debug(f"setTobeDeletedToDis : skip {tmpDisName} since status={tmpDS.status}")
                     continue
                 # check the number of failed jobs associated to the _dis
                 if tmpDS.currentfiles == 0:
@@ -143,10 +143,10 @@ def main(tbuf=None, **kwargs):
                     withCriteria="status<>:crStatus",
                     criteriaMap={":crStatus": excStatus},
                 )
-                _logger.debug("setTobeDeletedToDis : set %s to %s with %s" % (tmpDS.status, tmpDisName, str(retU)))
+                _logger.debug(f"setTobeDeletedToDis : set {tmpDS.status} to {tmpDisName} with {str(retU)}")
         except Exception:
             errType, errValue = sys.exc_info()[:2]
-            _logger.error("setTobeDeletedToDis : %s %s %s" % (subDsName, errType, errValue))
+            _logger.error(f"setTobeDeletedToDis : {subDsName} {errType} {errValue}")
 
     # thread pool
     class ThreadPool:
@@ -186,7 +186,7 @@ def main(tbuf=None, **kwargs):
             try:
                 # loop over all datasets
                 for vuid, name, modDate in self.datasets:
-                    _logger.debug("Close %s %s" % (modDate, name))
+                    _logger.debug(f"Close {modDate} {name}")
                     dsExists = True
                     if (
                         name.startswith("pandaddm_")
@@ -206,7 +206,7 @@ def main(tbuf=None, **kwargs):
                                     status = True
                                 except Exception:
                                     errtype, errvalue = sys.exc_info()[:2]
-                                    out = "failed to freeze : {0} {1}".format(errtype, errvalue)
+                                    out = f"failed to freeze : {errtype} {errvalue}"
                                     status = False
                             else:
                                 # dataset not exist
@@ -215,7 +215,7 @@ def main(tbuf=None, **kwargs):
                     else:
                         status, out = True, ""
                     if not status:
-                        _logger.error("{0} failed to close with {1}".format(name, out))
+                        _logger.error(f"{name} failed to close with {out}")
                     else:
                         self.proxyLock.acquire()
                         varMap = {}
@@ -243,9 +243,9 @@ def main(tbuf=None, **kwargs):
                                 nFile = int(out)
                                 if nFile == 0:
                                     # erase dataset
-                                    _logger.debug("erase %s" % name)
+                                    _logger.debug(f"erase {name}")
                                     status, out = rucioAPI.eraseDataset(name)
-                                    _logger.debug("OK with %s" % name)
+                                    _logger.debug(f"OK with {name}")
                             except Exception:
                                 pass
             except Exception:
@@ -271,12 +271,12 @@ def main(tbuf=None, **kwargs):
         varMap[":modificationdateL"] = timeLimitL
         varMap[":type"] = "output"
         varMap[":status"] = "tobeclosed"
-        sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= %s" % maxRows
+        sqlQuery = f"type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= {maxRows}"
         res = taskBuffer.getLockDatasets(sqlQuery, varMap, modTimeOffset="90/24/60")
         if res is None:
-            _logger.debug("# of datasets to be closed: %s" % res)
+            _logger.debug(f"# of datasets to be closed: {res}")
         else:
-            _logger.debug("# of datasets to be closed: %s" % len(res))
+            _logger.debug(f"# of datasets to be closed: {len(res)}")
         if res is None or len(res) == 0:
             closeProxyLock.release()
             closeLock.release()
@@ -309,7 +309,7 @@ def main(tbuf=None, **kwargs):
             self.lock.acquire()
             try:
                 for vuid, name, modDate in self.datasets:
-                    _logger.debug("Freezer start %s %s" % (modDate, name))
+                    _logger.debug(f"Freezer start {modDate} {name}")
                     self.proxyLock.acquire()
                     retF, resF = taskBuffer.querySQLS(
                         "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID,status FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock ",
@@ -343,10 +343,10 @@ def main(tbuf=None, **kwargs):
                                     cThr = Closer(taskBuffer, [], tmpJobs[0])
                                     allFinished = cThr.checkSubDatasetsInJobset()
                                     self.proxyLock.release()
-                                    _logger.debug("closer checked sub datasets in the jobset for %s : %s" % (name, allFinished))
+                                    _logger.debug(f"closer checked sub datasets in the jobset for {name} : {allFinished}")
                         # no files in filesTable
                         if allFinished:
-                            _logger.debug("freeze %s " % name)
+                            _logger.debug(f"freeze {name} ")
                             dsExists = True
                             if (
                                 name.startswith("pandaddm_")
@@ -387,18 +387,18 @@ def main(tbuf=None, **kwargs):
                                                 if tmpFile.destinationDBlock not in tmpDestDBlocks:
                                                     tmpDestDBlocks.append(tmpFile.destinationDBlock)
                                         # run
-                                        _logger.debug("start JEDI closer for %s " % name)
+                                        _logger.debug(f"start JEDI closer for {name} ")
                                         self.proxyLock.acquire()
                                         cThr = Closer(taskBuffer, tmpDestDBlocks, mergeJob)
                                         cThr.start()
                                         cThr.join()
                                         self.proxyLock.release()
-                                        _logger.debug("end JEDI closer for %s " % name)
+                                        _logger.debug(f"end JEDI closer for {name} ")
                                         continue
                                     else:
-                                        _logger.debug("failed to get merging job for %s " % name)
+                                        _logger.debug(f"failed to get merging job for {name} ")
                                 else:
-                                    _logger.debug("failed to get merging file for %s " % name)
+                                    _logger.debug(f"failed to get merging file for {name} ")
                                 status, out = True, ""
                             elif dsExists:
                                 # check if dataset exists
@@ -410,7 +410,7 @@ def main(tbuf=None, **kwargs):
                                             status = True
                                         except Exception:
                                             errtype, errvalue = sys.exc_info()[:2]
-                                            out = "failed to freeze : {0} {1}".format(errtype, errvalue)
+                                            out = f"failed to freeze : {errtype} {errvalue}"
                                             status = False
                                     else:
                                         # dataset not exist
@@ -419,7 +419,7 @@ def main(tbuf=None, **kwargs):
                             else:
                                 status, out = True, ""
                             if not status:
-                                _logger.error("{0} failed to freeze with {1}".format(name, out))
+                                _logger.error(f"{name} failed to freeze with {out}")
                             else:
                                 self.proxyLock.acquire()
                                 varMap = {}
@@ -446,20 +446,20 @@ def main(tbuf=None, **kwargs):
                                         _logger.debug(nFile)
                                         if nFile == 0:
                                             # erase dataset
-                                            _logger.debug("erase %s" % name)
+                                            _logger.debug(f"erase {name}")
                                             status, out = rucioAPI.eraseDataset(name)
-                                            _logger.debug("OK with %s" % name)
+                                            _logger.debug(f"OK with {name}")
                                     except Exception:
                                         pass
                         else:
-                            _logger.debug("wait %s " % name)
+                            _logger.debug(f"wait {name} ")
                             self.proxyLock.acquire()
                             taskBuffer.querySQLS(
                                 "UPDATE ATLAS_PANDA.Datasets SET modificationdate=CURRENT_DATE WHERE vuid=:vuid",
                                 {":vuid": vuid},
                             )
                             self.proxyLock.release()
-                    _logger.debug("end %s " % name)
+                    _logger.debug(f"end {name} ")
             except Exception:
                 errStr = traceback.format_exc()
                 _logger.error(errStr)
@@ -490,7 +490,7 @@ def main(tbuf=None, **kwargs):
             varMap[":oldStatus"] = "doing"
             varMap[":newStatus"] = "running"
             varMap[":modificationdateU"] = timeLimitU
-            _logger.debug("reset {0} to freeze".format(name))
+            _logger.debug(f"reset {name} to freeze")
             taskBuffer.querySQLS(sql, varMap)
     # loop for freezer
     freezeLock = threading.Semaphore(5)
@@ -503,7 +503,7 @@ def main(tbuf=None, **kwargs):
         # get datasets
         sqlQuery = (
             "type=:type AND status IN (:status1,:status2,:status3,:status4,:status5) "
-            + "AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND subType=:subType AND rownum <= %s" % maxRows
+            + f"AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND subType=:subType AND rownum <= {maxRows}"
         )
         varMap = {}
         varMap[":modificationdateU"] = timeLimitU
@@ -518,9 +518,9 @@ def main(tbuf=None, **kwargs):
         freezeProxyLock.acquire()
         res = taskBuffer.getLockDatasets(sqlQuery, varMap, modTimeOffset="90/24/60")
         if res is None:
-            _logger.debug("# of datasets to be frozen: %s" % res)
+            _logger.debug(f"# of datasets to be frozen: {res}")
         else:
-            _logger.debug("# of datasets to be frozen: %s" % len(res))
+            _logger.debug(f"# of datasets to be frozen: {len(res)}")
         if res is None or len(res) == 0:
             freezeProxyLock.release()
             freezeLock.release()
@@ -562,17 +562,17 @@ def main(tbuf=None, **kwargs):
                 for vuid, name, modDate in self.datasets:
                     # only dis datasets
                     if re.search("_dis\d+$", name) is None:
-                        _logger.error("Eraser : non disDS %s" % name)
+                        _logger.error(f"Eraser : non disDS {name}")
                         continue
                     # delete
-                    _logger.debug("Eraser %s dis %s %s" % (self.operationType, modDate, name))
+                    _logger.debug(f"Eraser {self.operationType} dis {modDate} {name}")
                     # delete or shorten
                     endStatus = "deleted"
                     status, out = rucioAPI.eraseDataset(name)
                     if not status:
                         _logger.error(out)
                         continue
-                    _logger.debug("OK with %s" % name)
+                    _logger.debug(f"OK with {name}")
                     # update
                     self.proxyLock.acquire()
                     varMap = {}
@@ -608,13 +608,13 @@ def main(tbuf=None, **kwargs):
             varMap[":modificationdateL"] = timeLimitL
             varMap[":type"] = "dispatch"
             varMap[":status"] = targetStatus
-            sqlQuery = "type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= %s" % maxRows
+            sqlQuery = f"type=:type AND status=:status AND (modificationdate BETWEEN :modificationdateL AND :modificationdateU) AND rownum <= {maxRows}"
             disEraseProxyLock.acquire()
             res = taskBuffer.getLockDatasets(sqlQuery, varMap, modTimeOffset="90/24/60")
             if res is None:
-                _logger.debug("# of dis datasets for %s: None" % targetStatus)
+                _logger.debug(f"# of dis datasets for {targetStatus}: None")
             else:
-                _logger.debug("# of dis datasets for %s: %s" % (targetStatus, len(res)))
+                _logger.debug(f"# of dis datasets for {targetStatus}: {len(res)}")
             if res is None or len(res) == 0:
                 disEraseProxyLock.release()
                 disEraseLock.release()
@@ -699,10 +699,10 @@ def main(tbuf=None, **kwargs):
                             scopes.append(file.scope)
                             nTokens += len(file.destinationDBlockToken.split(","))
                     # get files in LRC
-                    _logger.debug("%s Cloud:%s" % (job.PandaID, job.cloud))
+                    _logger.debug(f"{job.PandaID} Cloud:{job.cloud}")
                     tmpStat, okFiles = rucioAPI.listFileReplicas(scopes, lfns, seList)
                     if not tmpStat:
-                        _logger.error("%s failed to get file replicas" % job.PandaID)
+                        _logger.error(f"{job.PandaID} failed to get file replicas")
                         okFiles = {}
                     # count files
                     nOkTokens = 0
@@ -710,9 +710,9 @@ def main(tbuf=None, **kwargs):
                         okSEs = okFiles[okLFN]
                         nOkTokens += len(okSEs)
                     # check all files are ready
-                    _logger.debug("%s nToken:%s nOkToken:%s" % (job.PandaID, nTokens, nOkTokens))
+                    _logger.debug(f"{job.PandaID} nToken:{nTokens} nOkToken:{nOkTokens}")
                     if nTokens <= nOkTokens:
-                        _logger.debug("%s Finisher : Finish" % job.PandaID)
+                        _logger.debug(f"{job.PandaID} Finisher : Finish")
                         for file in job.Files:
                             if file.type == "output" or file.type == "log":
                                 if file.status != "nooutput":
@@ -739,22 +739,14 @@ def main(tbuf=None, **kwargs):
                         if timeOutValue < 1:
                             timeOutValue = 1
                         timeOut = self.timeNow - datetime.timedelta(days=timeOutValue)
-                        _logger.debug(
-                            "%s  Priority:%s Limit:%s End:%s"
-                            % (
-                                job.PandaID,
-                                job.currentPriority,
-                                str(timeOut),
-                                str(endTime),
-                            )
-                        )
+                        _logger.debug(f"{job.PandaID}  Priority:{job.currentPriority} Limit:{str(timeOut)} End:{str(endTime)}")
                         if endTime < timeOut:
                             # timeout
-                            _logger.debug("%s Finisher : Kill" % job.PandaID)
+                            _logger.debug(f"{job.PandaID} Finisher : Kill")
                             strMiss = ""
                             for lfn in lfns:
                                 if lfn not in okFiles:
-                                    strMiss += " %s" % lfn
+                                    strMiss += f" {lfn}"
                             job.jobStatus = "failed"
                             job.taskBufferErrorCode = pandaserver.taskbuffer.ErrorCode.EC_Transfer
                             job.taskBufferErrorDiag = "transfer timeout for " + strMiss
@@ -773,10 +765,10 @@ def main(tbuf=None, **kwargs):
                                     guidMap[file.destinationDBlock].append(file.GUID)
                         else:
                             # wait
-                            _logger.debug("%s Finisher : Wait" % job.PandaID)
+                            _logger.debug(f"{job.PandaID} Finisher : Wait")
                             for lfn in lfns:
                                 if lfn not in okFiles:
-                                    _logger.debug("%s    -> %s" % (job.PandaID, lfn))
+                                    _logger.debug(f"{job.PandaID}    -> {lfn}")
                     upJobs.append(job)
                 # update
                 _logger.debug("updating ...")
@@ -792,7 +784,7 @@ def main(tbuf=None, **kwargs):
                 time.sleep(1)
             except Exception:
                 errtype, errvalue = sys.exc_info()[:2]
-                errStr = "FinisherThr failed with %s %s" % (errtype, errvalue)
+                errStr = f"FinisherThr failed with {errtype} {errvalue}"
                 errStr += traceback.format_exc()
                 _logger.error(errStr)
             self.pool.remove(self)
@@ -818,9 +810,9 @@ def main(tbuf=None, **kwargs):
             finisherProxyLock.release()
             finisherLock.release()
             if res is None:
-                _logger.debug("# of jobs to be finished for %s : %s" % (loopIdx, res))
+                _logger.debug(f"# of jobs to be finished for {loopIdx} : {res}")
             else:
-                _logger.debug("# of jobs to be finished for %s : %s" % (loopIdx, len(res)))
+                _logger.debug(f"# of jobs to be finished for {loopIdx} : {len(res)}")
             if res is None or len(res) == 0:
                 break
             # run thread
@@ -861,7 +853,7 @@ def main(tbuf=None, **kwargs):
                             lfns.append(tmpFile.lfn)
                             scopes.append(tmpFile.scope)
                     # get file replicas
-                    _logger.debug("%s check input files at %s" % (tmpJob.PandaID, tmpJob.computingSite))
+                    _logger.debug(f"{tmpJob.PandaID} check input files at {tmpJob.computingSite}")
                     tmpStat, okFiles = rucioAPI.listFileReplicas(scopes, lfns)
                     if not tmpStat:
                         pass
@@ -885,12 +877,12 @@ def main(tbuf=None, **kwargs):
                                 # missing
                                 if tmpFile.status != "ready":
                                     allOK = False
-                                    _logger.debug("%s skip since %s:%s is missing" % (tmpJob.PandaID, tmpFile.scope, tmpFile.lfn))
+                                    _logger.debug(f"{tmpJob.PandaID} skip since {tmpFile.scope}:{tmpFile.lfn} is missing")
                                     break
                         if not allOK:
                             continue
                         # append to run activator
-                        _logger.debug("%s to activate" % tmpJob.PandaID)
+                        _logger.debug(f"{tmpJob.PandaID} to activate")
                         actJobs.append(tmpJob)
                 # update
                 _logger.debug("activating ...")
@@ -901,7 +893,7 @@ def main(tbuf=None, **kwargs):
                 time.sleep(1)
             except Exception:
                 errtype, errvalue = sys.exc_info()[:2]
-                _logger.error("ActivatorThr failed with %s %s" % (errtype, errvalue))
+                _logger.error(f"ActivatorThr failed with {errtype} {errvalue}")
             self.pool.remove(self)
             self.lock.release()
 
@@ -922,9 +914,9 @@ def main(tbuf=None, **kwargs):
         activatorProxyLock.release()
         activatorLock.release()
         if res is None:
-            _logger.debug("# of jobs to be activated for %s " % res)
+            _logger.debug(f"# of jobs to be activated for {res} ")
         else:
-            _logger.debug("# of jobs to be activated for %s " % len(res))
+            _logger.debug(f"# of jobs to be activated for {len(res)} ")
         if res is None or len(res) == 0:
             break
         # run thread
@@ -983,12 +975,12 @@ def main(tbuf=None, **kwargs):
                             # missing
                             if tmpFile.status != "ready":
                                 allOK = False
-                                _logger.debug("%s skip since %s:%s is missing with rule" % (tmpJob.PandaID, tmpFile.scope, tmpFile.lfn))
+                                _logger.debug(f"{tmpJob.PandaID} skip since {tmpFile.scope}:{tmpFile.lfn} is missing with rule")
                                 break
                     if not allOK:
                         continue
                     # append to run activator
-                    _logger.debug("{} to activate with rule {}".format(tmpJob.PandaID, str(replicaMap)))
+                    _logger.debug(f"{tmpJob.PandaID} to activate with rule {str(replicaMap)}")
                     actJobs.append(tmpJob)
                 # update
                 _logger.debug("activating ...")
@@ -999,7 +991,7 @@ def main(tbuf=None, **kwargs):
                 time.sleep(1)
             except Exception:
                 errtype, errvalue = sys.exc_info()[:2]
-                _logger.error("ActivatorThr failed with %s %s" % (errtype, errvalue))
+                _logger.error(f"ActivatorThr failed with {errtype} {errvalue}")
             self.pool.remove(self)
             self.lock.release()
 
@@ -1020,9 +1012,9 @@ def main(tbuf=None, **kwargs):
         activatorProxyLock.release()
         activatorLock.release()
         if res is None:
-            _logger.debug("# of jobs to be activated with rule for %s " % res)
+            _logger.debug(f"# of jobs to be activated with rule for {res} ")
         else:
-            _logger.debug("# of jobs to be activated with rule for %s " % len(res))
+            _logger.debug(f"# of jobs to be activated with rule for {len(res)} ")
         if res is None or len(res) == 0:
             break
         # run thread
@@ -1047,9 +1039,9 @@ def main(tbuf=None, **kwargs):
                 for vuid, name, modDate in self.datasets:
                     # check just in case
                     if re.search("_sub\d+$", name) is None:
-                        _logger.debug("skip non sub %s" % name)
+                        _logger.debug(f"skip non sub {name}")
                         continue
-                    _logger.debug("delete sub %s" % name)
+                    _logger.debug(f"delete sub {name}")
                     if (
                         name.startswith("pandaddm_")
                         or name.startswith("user.")
@@ -1068,10 +1060,10 @@ def main(tbuf=None, **kwargs):
                         )
                         self.proxyLock.release()
                         if retF is None:
-                            _logger.error("SQL error for sub {0}".format(name))
+                            _logger.error(f"SQL error for sub {name}")
                             continue
                         else:
-                            _logger.debug("sub {0} has {1} jobs".format(name, len(resF)))
+                            _logger.debug(f"sub {name} has {len(resF)} jobs")
                             self.proxyLock.acquire()
                             # check jobs
                             sqlP = "SELECT jobStatus FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
@@ -1081,7 +1073,7 @@ def main(tbuf=None, **kwargs):
                             for (pandaID,) in resF:
                                 retP, resP = taskBuffer.querySQLS(sqlP, {":PandaID": pandaID})
                                 if len(resP) == 0:
-                                    _logger.debug("skip delete sub {0} PandaID={1} not found".format(name, pandaID))
+                                    _logger.debug(f"skip delete sub {name} PandaID={pandaID} not found")
                                     allDone = False
                                     break
                                 jobStatus = resP[0][0]
@@ -1091,21 +1083,21 @@ def main(tbuf=None, **kwargs):
                                     "cancelled",
                                     "closed",
                                 ]:
-                                    _logger.debug("skip delete sub {0} PandaID={1} is active {2}".format(name, pandaID, jobStatus))
+                                    _logger.debug(f"skip delete sub {name} PandaID={pandaID} is active {jobStatus}")
                                     allDone = False
                                     break
                             self.proxyLock.release()
                             if allDone:
-                                _logger.debug("deleting sub %s" % name)
+                                _logger.debug(f"deleting sub {name}")
                                 try:
                                     rucioAPI.eraseDataset(name, grace_period=4)
                                     status = True
                                 except Exception:
                                     errtype, errvalue = sys.exc_info()[:2]
-                                    out = "{0} {1}".format(errtype, errvalue)
-                                    _logger.error("{0} failed to erase with {1}".format(name, out))
+                                    out = f"{errtype} {errvalue}"
+                                    _logger.error(f"{name} failed to erase with {out}")
                             else:
-                                _logger.debug("wait sub %s" % name)
+                                _logger.debug(f"wait sub {name}")
                                 continue
                     # update dataset
                     self.proxyLock.acquire()
@@ -1119,7 +1111,7 @@ def main(tbuf=None, **kwargs):
                         varMap,
                     )
                     self.proxyLock.release()
-                    _logger.debug("end %s " % name)
+                    _logger.debug(f"end {name} ")
             except Exception:
                 errStr = traceback.format_exc()
                 _logger.error(errStr)
@@ -1152,9 +1144,9 @@ def main(tbuf=None, **kwargs):
         subdeleteProxyLock.acquire()
         res = taskBuffer.getLockDatasets(sqlQuery, varMap, modTimeOffset="90/24/60")
         if res is None:
-            _logger.debug("# of sub datasets to be deleted %s" % res)
+            _logger.debug(f"# of sub datasets to be deleted {res}")
         else:
-            _logger.debug("# of sub datasets to be deleted %s" % len(res))
+            _logger.debug(f"# of sub datasets to be deleted {len(res)}")
         if res is None or len(res) == 0:
             subdeleteProxyLock.release()
             subdeleteLock.release()

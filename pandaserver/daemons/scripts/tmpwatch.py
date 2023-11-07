@@ -39,7 +39,7 @@ def main(argv=tuple(), **kwargs):
         # loop over all files
         for tmpFile in tmpFiles:
             try:
-                print("INFO: tmpfile -> %s" % tmpFile)
+                print(f"INFO: tmpfile -> {tmpFile}")
                 # only file
                 if not os.path.isfile(tmpFile):
                     continue
@@ -55,12 +55,12 @@ def main(argv=tuple(), **kwargs):
                 if timeStamp > timeLimit:
                     continue
                 # remove
-                print("INFO:    remove %s" % tmpFile)
+                print(f"INFO:    remove {tmpFile}")
                 if not options.test:
                     os.remove(tmpFile)
             except Exception:
                 errType, errValue = sys.exc_info()[:2]
-                print("ERROR:   failed with %s:%s" % (errType, errValue))
+                print(f"ERROR:   failed with {errType}:{errValue}")
 
 
 # run

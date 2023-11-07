@@ -57,7 +57,7 @@ def main(tbuf=None, **kwargs):
         realDN = CoreUtils.get_bare_dn(realDN, keep_digits=False)
         name = taskBuffer.cleanUserID(realDN)
         # check proxy
-        tmpLog.debug("check proxy cache for {}".format(name))
+        tmpLog.debug(f"check proxy cache for {name}")
         for role in roles:
             my_proxy_interface_instance.checkProxy(realDN, role=role, name=name)
 

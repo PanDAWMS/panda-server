@@ -55,14 +55,14 @@ class EventPicker:
     # main
     def run(self):
         try:
-            self.putLog("start %s" % self.evpFileName)
+            self.putLog(f"start {self.evpFileName}")
             # lock evp file
             self.evpFile = open(self.evpFileName)
             try:
                 fcntl.flock(self.evpFile.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             except Exception:
                 # relase
-                self.putLog("cannot lock %s" % self.evpFileName)
+                self.putLog(f"cannot lock {self.evpFileName}")
                 self.evpFile.close()
                 return True
             # options
@@ -112,7 +112,7 @@ class EventPicker:
                 elif tmpItems[0] == "userName":
                     # user name
                     self.userDN = tmpItems[1]
-                    self.putLog("user=%s" % self.userDN)
+                    self.putLog(f"user={self.userDN}")
                 elif tmpItems[0] == "userTaskName":
                     # user task name
                     self.userTaskName = tmpItems[1]
@@ -212,7 +212,7 @@ class EventPicker:
                 owner=tmpDN,
             )
             if not tmpRet:
-                self.endWithError("Failed to make a dataset container %s" % self.userDatasetName)
+                self.endWithError(f"Failed to make a dataset container {self.userDatasetName}")
                 return False
             # skip DaTRI
             if skipDaTRI:
@@ -249,7 +249,7 @@ class EventPicker:
                     # decompose container to transfer datasets separately
                     tmpRet, tmpOut = self.pd2p.getListDatasetReplicasInContainer(self.userDatasetName)
                     if not tmpRet:
-                        self.endWithError("Failed to get replicas in %s" % self.userDatasetName)
+                        self.endWithError(f"Failed to get replicas in {self.userDatasetName}")
                         return False
                     userDatasetNameList = list(tmpOut)
                 else:
@@ -261,12 +261,12 @@ class EventPicker:
                     # get size of dataset container
                     tmpRet, totalInputSize = rucioAPI.getDatasetSize(tmpUserDatasetName)
                     if not tmpRet:
-                        self.endWithError("Failed to get the size of {0} with {1}".format(tmpUserDatasetName, totalInputSize))
+                        self.endWithError(f"Failed to get the size of {tmpUserDatasetName} with {totalInputSize}")
                         return False
                     # run brokerage
                     tmpJob = JobSpec()
                     tmpJob.AtlasRelease = ""
-                    self.putLog("run brokerage for %s" % tmpDS)
+                    self.putLog(f"run brokerage for {tmpDS}")
                     pandaserver.brokerage.broker.schedule(
                         [tmpJob],
                         self.taskBuffer,
@@ -277,20 +277,15 @@ class EventPicker:
                         datasetSize=totalInputSize,
                     )
                     if tmpJob.computingSite.startswith("ERROR"):
-                        self.endWithError("brokerage failed with %s" % tmpJob.computingSite)
+                        self.endWithError(f"brokerage failed with {tmpJob.computingSite}")
                         return False
-                    self.putLog("site -> %s" % tmpJob.computingSite)
+                    self.putLog(f"site -> {tmpJob.computingSite}")
                     # send transfer request
                     try:
                         tmpSiteSpec = self.siteMapper.getSite(tmpJob.computingSite)
                         scope_input, scope_output = select_scope(tmpSiteSpec, JobUtils.PROD_PS, JobUtils.PROD_PS)
                         tmpDQ2ID = tmpSiteSpec.ddm_output[scope_output]
-                        tmpMsg = "%s ds=%s site=%s id=%s" % (
-                            "registerDatasetLocation for EventPicking ",
-                            tmpUserDatasetName,
-                            tmpDQ2ID,
-                            None,
-                        )
+                        tmpMsg = f"registerDatasetLocation for EventPicking  ds={tmpUserDatasetName} site={tmpDQ2ID} id={None}"
                         self.putLog(tmpMsg)
                         rucioAPI.registerDatasetLocation(
                             tmpDS,
@@ -302,17 +297,14 @@ class EventPicker:
                         self.putLog("OK")
                     except Exception:
                         errType, errValue = sys.exc_info()[:2]
-                        tmpStr = "Failed to send transfer request : %s %s" % (
-                            errType,
-                            errValue,
-                        )
+                        tmpStr = f"Failed to send transfer request : {errType} {errValue}"
                         tmpStr.strip()
                         tmpStr += traceback.format_exc()
                         self.endWithError(tmpStr)
                         return False
                     # list of sites already used
                     sitesUsed.append(tmpJob.computingSite)
-                    self.putLog("used %s sites" % len(sitesUsed))
+                    self.putLog(f"used {len(sitesUsed)} sites")
                     # set candidates
                     if len(sitesUsed) >= eventPickNumSites:
                         # reset candidates to limit the number of sites
@@ -333,11 +325,11 @@ class EventPicker:
             except Exception:
                 pass
             # successfully terminated
-            self.putLog("end %s" % self.evpFileName)
+            self.putLog(f"end {self.evpFileName}")
             return True
         except Exception:
             errType, errValue = sys.exc_info()[:2]
-            self.endWithError("Got exception %s:%s %s" % (errType, errValue, traceback.format_exc()))
+            self.endWithError(f"Got exception {errType}:{errValue} {traceback.format_exc()}")
             return False
 
     # end with error
@@ -362,7 +354,7 @@ class EventPicker:
             if not self.ignoreError:
                 self.taskBuffer.updateTaskModTimeJEDI(self.jediTaskID, "tobroken")
             self.putLog(outLog)
-        self.putLog("end %s" % self.evpFileName)
+        self.putLog(f"end {self.evpFileName}")
 
     # put log
     def putLog(self, msg, type="debug"):
@@ -377,7 +369,7 @@ class EventPicker:
         # mail address
         toAdder = Notifier(self.taskBuffer, None, []).getEmail(self.userDN)
         if toAdder == "":
-            self.putLog("cannot find email address for %s" % self.userDN, "error")
+            self.putLog(f"cannot find email address for {self.userDN}", "error")
             return
         # subject
         mailSubject = "PANDA notification for Event-Picking Request"
@@ -387,13 +379,13 @@ class EventPicker:
             mailBody += "Status  : Passed to Rucio\n"
         else:
             mailBody += "Status  : Failed\n"
-        mailBody += "Created : %s\n" % self.creationTime
-        mailBody += "Ended   : %s\n" % datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-        mailBody += "Dataset : %s\n" % self.userDatasetName
+        mailBody += f"Created : {self.creationTime}\n"
+        mailBody += f"Ended   : {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        mailBody += f"Dataset : {self.userDatasetName}\n"
         mailBody += "\n"
-        mailBody += "Parameters : %s %s\n" % (self.lockedBy, self.params)
+        mailBody += f"Parameters : {self.lockedBy} {self.params}\n"
         mailBody += "\n"
-        mailBody += "%s\n" % message
+        mailBody += f"{message}\n"
         # send
         retVal = MailUtils().send(toAdder, mailSubject, mailBody)
         # return
@@ -406,7 +398,7 @@ class EventPicker:
         strMsg = self.logger.dumpToString()
         s, o = Client.uploadLog(strMsg, self.jediTaskID)
         if s != 0:
-            return "failed to upload log with {0}.".format(s)
+            return f"failed to upload log with {s}."
         if o.startswith("http"):
-            return '<a href="{0}">log</a>'.format(o)
+            return f'<a href="{o}">log</a>'
         return o

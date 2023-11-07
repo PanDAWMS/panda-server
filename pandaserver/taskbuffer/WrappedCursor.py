@@ -104,21 +104,21 @@ def convert_query_in_printf_format(sql, var_dict, sql_conv_map):
                         break
                     # integer
                     if right_val.isdigit():
-                        new_pat = "CAST({} AS integer)".format(new_pat)
+                        new_pat = f"CAST({new_pat} AS integer)"
                         break
                     # float
                     if right_val.replace(".", "", 1).isdigit():
-                        new_pat = "CAST({} AS float)".format(new_pat)
+                        new_pat = f"CAST({new_pat} AS float)"
                         break
                     # bind variable
                     if right_val.startswith(":"):
                         if right_val not in var_dict:
-                            raise KeyError("{0} is missing to guess data type".format(right_val))
+                            raise KeyError(f"{right_val} is missing to guess data type")
                         if isinstance(var_dict[right_val], int):
-                            new_pat = "CAST({} AS integer)".format(new_pat)
+                            new_pat = f"CAST({new_pat} AS integer)"
                             break
                         if isinstance(var_dict[right_val], float):
-                            new_pat = "CAST({} AS float)".format(new_pat)
+                            new_pat = f"CAST({new_pat} AS float)"
                             break
                 # replace
                 sql = sql.replace(old_pat, new_pat)
@@ -129,7 +129,7 @@ def convert_query_in_printf_format(sql, var_dict, sql_conv_map):
     items = re.findall(r":[^ $,)\+\-\n]+", sql)
     for item in items:
         if item not in var_dict:
-            raise KeyError("{0} is missing in SQL parameters".format(item))
+            raise KeyError(f"{item} is missing in SQL parameters")
         if item not in paramList:
             paramList.append(var_dict[item])
     # using the printf style syntax
@@ -163,7 +163,7 @@ class WrappedCursor(object):
 
     # serialize
     def __str__(self):
-        return "WrappedCursor[%(conn)s]" % ({"conn": self.conn})
+        return f"WrappedCursor[{self.conn}]"
 
     # initialize
     def initialize(self):
@@ -221,14 +221,14 @@ class WrappedCursor(object):
             ret = cur.execute(sql, varDict)
         elif self.backend == "postgres":
             if self.dump:
-                _logger.debug("OLD: {} {}".format(sql, str(varDict)))
+                _logger.debug(f"OLD: {sql} {str(varDict)}")
             sql, varList = convert_query_in_printf_format(sql, varDict, self.sql_conv_map)
             if self.dump:
-                _logger.debug("NEW: {} {}".format(sql, str(varList)))
+                _logger.debug(f"NEW: {sql} {str(varList)}")
             ret = cur.execute(sql, varList)
         elif self.backend == "mysql":
-            print("DEBUG execute : original SQL     %s " % sql)
-            print("DEBUG execute : original varDict %s " % varDict)
+            print(f"DEBUG execute : original SQL     {sql} ")
+            print(f"DEBUG execute : original varDict {varDict} ")
             # CURRENT_DATE interval
             sql = re.sub(
                 "CURRENT_DATE\s*-\s*(\d+|:[^\s\)]+)",
@@ -289,14 +289,14 @@ class WrappedCursor(object):
                         "/data/atlpan/oracle/panda/monitor/logs/mysql_queries_WrappedCursor.txt",
                         "a",
                     )
-                    f.write("mysql|%s|%s|%s\n" % (str(time.time()), str(sql), str(newVarDict)))
+                    f.write(f"mysql|{str(time.time())}|{str(sql)}|{str(newVarDict)}\n")
                     f.close()
             except Exception:
                 pass
-            _logger.debug("execute : SQL     %s " % sql)
-            _logger.debug("execute : varDict %s " % newVarDict)
-            print("DEBUG execute : SQL     %s " % sql)
-            print("DEBUG execute : varDict %s " % newVarDict)
+            _logger.debug(f"execute : SQL     {sql} ")
+            _logger.debug(f"execute : varDict {newVarDict} ")
+            print(f"DEBUG execute : SQL     {sql} ")
+            print(f"DEBUG execute : varDict {newVarDict} ")
             ret = cur.execute(sql, newVarDict)
             if returningInto is not None:
                 ret = self._returningIntoMySQLpost(returningInto, varDict, cur)
@@ -314,10 +314,7 @@ class WrappedCursor(object):
                 if not dryRun:
                     for x in listInto:
                         varDict[x] = cur.var(cx_Oracle.NUMBER)
-                result = " RETURNING %(returning)s INTO %(into)s " % {
-                    "returning": valReturning,
-                    "into": valInto,
-                }
+                result = f" RETURNING {valReturning} INTO {valInto} "
             except Exception:
                 pass
         return result

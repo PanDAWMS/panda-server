@@ -89,9 +89,9 @@ class DBMSql:
                 return ret
 
             else:
-                raise DBMSqlError("not support:%s" % (self.db_type))
+                raise DBMSqlError(f"not support:{self.db_type}")
         except Exception:
-            raise DBMSqlError("executeQuery error:%s \n %s" % (sys.exc_info()[1], sql))
+            raise DBMSqlError(f"executeQuery error:{sys.exc_info()[1]} \n {sql}")
 
 
 class DBMSqlError(Exception):

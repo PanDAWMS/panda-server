@@ -49,9 +49,7 @@ class WorkerSync(object):
                     if command:
                         workers = stale_workers_per_harvester[harvester_id][pilot_status]
                         for worker_shard in create_shards(workers, 100):
-                            self._logger.debug(
-                                "Processing harvester_id={0} pilot_status={1}. Workers to update: {2}".format(harvester_id, pilot_status, worker_shard)
-                            )
+                            self._logger.debug(f"Processing harvester_id={harvester_id} pilot_status={pilot_status}. Workers to update: {worker_shard}")
                             self.tbuf.commandToHarvester(
                                 harvester_id,
                                 command,
@@ -66,7 +64,7 @@ class WorkerSync(object):
 
         # timing
         time_stop = time.time()
-        self._logger.debug("Done. Worker sync took: {0} s".format(time_stop - time_start))
+        self._logger.debug(f"Done. Worker sync took: {time_stop - time_start} s")
 
         return
 

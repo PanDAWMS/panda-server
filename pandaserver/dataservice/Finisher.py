@@ -33,8 +33,8 @@ class Finisher(threading.Thread):
             byCallback = False
             if self.job is None:
                 byCallback = True
-                _logger.debug("start: %s" % self.dataset.name)
-                _logger.debug("callback from %s" % self.site)
+                _logger.debug(f"start: {self.dataset.name}")
+                _logger.debug(f"callback from {self.site}")
                 # FIXME when callback from BNLPANDA disappeared
                 if self.site == "BNLPANDA":
                     self.site = "BNL-OSG2_ATLASMCDISK"
@@ -47,11 +47,11 @@ class Finisher(threading.Thread):
                     # even if no active jobs left
                     computingSite, destinationSE = self.taskBuffer.getDestSE(self.dataset.name, True)
                     if destinationSE is None:
-                        _logger.error("cannot get source/destination for %s" % self.dataset.name)
-                        _logger.debug("end: %s" % self.dataset.name)
+                        _logger.error(f"cannot get source/destination for {self.dataset.name}")
+                        _logger.debug(f"end: {self.dataset.name}")
                         return
-                _logger.debug("src: %s" % computingSite)
-                _logger.debug("dst: %s" % destinationSE)
+                _logger.debug(f"src: {computingSite}")
+                _logger.debug(f"dst: {destinationSE}")
                 # get corresponding token
                 tmpSrcSiteSpec = siteMapper.getSite(computingSite)
                 tmpDstSiteSpec = siteMapper.getSite(destinationSE)
@@ -63,14 +63,14 @@ class Finisher(threading.Thread):
                             if self.site == tmpDdmId:
                                 destToken = setoken
                                 break
-                _logger.debug("use Token=%s" % destToken)
+                _logger.debug(f"use Token={destToken}")
                 # get required tokens
                 reqTokens = self.taskBuffer.getDestTokens(self.dataset.name)
                 if reqTokens is None:
-                    _logger.error("cannot get required token for %s" % self.dataset.name)
-                    _logger.debug("end: %s" % self.dataset.name)
+                    _logger.error(f"cannot get required token for {self.dataset.name}")
+                    _logger.debug(f"end: {self.dataset.name}")
                     return
-                _logger.debug("req Token=%s" % reqTokens)
+                _logger.debug(f"req Token={reqTokens}")
                 # make bitmap for the token
                 bitMap = 1
                 if len(reqTokens.split(",")) > 1:
@@ -87,7 +87,7 @@ class Finisher(threading.Thread):
                     compBitMap = compBitMap & 0xFFFE
                 # update bitmap in DB
                 updatedBitMap = self.taskBuffer.updateTransferStatus(self.dataset.name, bitMap)
-                _logger.debug("transfer status:%s - comp:%s - bit:%s" % (hex(updatedBitMap), hex(compBitMap), hex(bitMap)))
+                _logger.debug(f"transfer status:{hex(updatedBitMap)} - comp:{hex(compBitMap)} - bit:{hex(bitMap)}")
                 # update output files
                 if (updatedBitMap & compBitMap) == compBitMap:
                     ids = self.taskBuffer.updateOutFilesReturnPandaIDs(self.dataset.name)
@@ -95,13 +95,13 @@ class Finisher(threading.Thread):
                     self.dataset.status = "cleanup"
                     self.taskBuffer.updateDatasets([self.dataset])
                 else:
-                    _logger.debug("end: %s" % self.dataset.name)
+                    _logger.debug(f"end: {self.dataset.name}")
                     return
             else:
-                _logger.debug("start: %s" % self.job.PandaID)
+                _logger.debug(f"start: {self.job.PandaID}")
                 # update input files
                 ids = [self.job.PandaID]
-            _logger.debug("IDs: %s" % ids)
+            _logger.debug(f"IDs: {ids}")
             if len(ids) != 0:
                 # get job
                 if self.job is None:
@@ -112,7 +112,7 @@ class Finisher(threading.Thread):
                 for job in jobs:
                     if job is None:
                         continue
-                    _logger.debug("Job: %s" % job.PandaID)
+                    _logger.debug(f"Job: {job.PandaID}")
                     if job.jobStatus == "transferring":
                         jobReady = True
                         failedFiles = []
@@ -125,15 +125,15 @@ class Finisher(threading.Thread):
                                 elif file.status == "nooutput":
                                     noOutFiles.append(file.lfn)
                                 elif file.status != "ready":
-                                    _logger.debug("Job: %s file:%s %s != ready" % (job.PandaID, file.lfn, file.status))
+                                    _logger.debug(f"Job: {job.PandaID} file:{file.lfn} {file.status} != ready")
                                     jobReady = False
                                     break
                         # finish job
                         if jobReady:
                             if byCallback:
-                                _logger.debug("Job: %s all files ready" % job.PandaID)
+                                _logger.debug(f"Job: {job.PandaID} all files ready")
                             else:
-                                _logger.debug("Job: %s all files checked with catalog" % job.PandaID)
+                                _logger.debug(f"Job: {job.PandaID} all files checked with catalog")
                             # create XML
                             try:
                                 import xml.dom.minidom
@@ -208,13 +208,13 @@ class Finisher(threading.Thread):
                                     )
                             except Exception:
                                 type, value, traceBack = sys.exc_info()
-                                _logger.error("Job: %s %s %s" % (job.PandaID, type, value))
-                    _logger.debug("Job: %s status: %s" % (job.PandaID, job.jobStatus))
+                                _logger.error(f"Job: {job.PandaID} {type} {value}")
+                    _logger.debug(f"Job: {job.PandaID} status: {job.jobStatus}")
             # end
             if self.job is None:
-                _logger.debug("end: %s" % self.dataset.name)
+                _logger.debug(f"end: {self.dataset.name}")
             else:
-                _logger.debug("end: %s" % self.job.PandaID)
+                _logger.debug(f"end: {self.job.PandaID}")
         except Exception:
             type, value, traceBack = sys.exc_info()
-            _logger.error("run() : %s %s" % (type, value))
+            _logger.error(f"run() : {type} {value}")

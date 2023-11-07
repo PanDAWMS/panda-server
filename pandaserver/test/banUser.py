@@ -40,4 +40,4 @@ status, res = proxyS.querySQLS(sql, varMap)
 if res is None:
     print("Failed with database error")
 else:
-    print("%s rows updated" % res)
+    print(f"{res} rows updated")

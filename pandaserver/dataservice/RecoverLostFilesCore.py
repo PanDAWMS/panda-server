@@ -22,9 +22,9 @@ def get_files_from_rucio(ds_name, log_stream):
             files_rucio.add(i["name"])
         return True, files_rucio
     except DataIdentifierNotFound:
-        return False, "unknown dataset {}".format(ds_name)
+        return False, f"unknown dataset {ds_name}"
     except Exception as e:
-        msgStr = "failed to get files from rucio: {}".format(str(e))
+        msgStr = f"failed to get files from rucio: {str(e)}"
         return None, msgStr
 
 
@@ -208,7 +208,7 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
                     ds_files[tmpDS].append(tmpLFN)
         for tmpDS in ds_files:
             files = ds_files[tmpDS]
-            msgStr = "{} has {} lost files -> {}".format(tmpDS, len(files), ",".join(files))
+            msgStr = f"{tmpDS} has {len(files)} lost files -> {','.join(files)}"
             if log_stream:
                 log_stream.info(msgStr)
             else:
@@ -226,7 +226,7 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
             ts, jediTaskID, lostInputFiles = taskBuffer.resetFileStatusInJEDI(dn, False, tmpDS, files, options.reproduceParent, options.dryRun)
         else:
             ts, jediTaskID, lostInputFiles = taskBuffer.resetFileStatusInJEDI("", True, tmpDS, files, options.reproduceParent, options.dryRun)
-        msgStr = "reset file status for {} in the DB: done with {} for jediTaskID={}".format(tmpDS, ts, jediTaskID)
+        msgStr = f"reset file status for {tmpDS} in the DB: done with {ts} for jediTaskID={jediTaskID}"
         if log_stream:
             log_stream.info(msgStr)
         else:
@@ -249,7 +249,7 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
 
     # go ahead
     if options.dryRun:
-        return True, "Done in the dry-run mode with {}".format(s)
+        return True, f"Done in the dry-run mode with {s}"
     if s or options.force:
         if options.resurrectDS:
             sd, so = taskBuffer.querySQLS(
@@ -264,7 +264,7 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
                         rc.get_did(scope, name)
                         break
                     except DataIdentifierNotFound:
-                        print("resurrect {0}".format(datasetName))
+                        print(f"resurrect {datasetName}")
                         rc.resurrect([{"scope": scope, "name": name}])
                         try:
                             rc.set_metadata(scope, name, "lifetime", None)
@@ -275,10 +275,10 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
         else:
             msgStr = Client.reloadInput(jediTaskID)[-1][-1]
         if log_stream:
-            log_stream.info("Retried task {} with {}".format(jediTaskID, msgStr))
+            log_stream.info(f"Retried task {jediTaskID} with {msgStr}")
             log_stream.info("Done")
         else:
-            print("Retried task {}: done with {}".format(jediTaskID, msgStr))
+            print(f"Retried task {jediTaskID}: done with {msgStr}")
         return True, msgStr
     else:
         msgStr = "failed"

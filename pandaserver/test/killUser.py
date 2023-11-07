@@ -62,7 +62,7 @@ tables = [
     "ATLAS_PANDA.jobsDefined4",
 ]
 for table in tables:
-    sql = "SELECT PandaID FROM %s WHERE prodUserName=:prodUserName AND prodSourceLabel IN %s " % (table, srcSQL)
+    sql = f"SELECT PandaID FROM {table} WHERE prodUserName=:prodUserName AND prodSourceLabel IN {srcSQL} "
     if options.jobID is not None:
         sql += "AND jobDefinitionID=:jobDefinitionID "
     if options.jobsetID not in (None, "all"):
@@ -78,7 +78,7 @@ if len(jobs):
     nJob = 1000
     while iJob < len(jobs):
         subJobs = jobs[iJob : iJob + nJob]
-        print("kill %s %s/%s" % (str(subJobs), iJob, len(jobs)))
+        print(f"kill {str(subJobs)} {iJob}/{len(jobs)}")
         Client.killJobs(subJobs, code=9)
         iJob += nJob
 else:

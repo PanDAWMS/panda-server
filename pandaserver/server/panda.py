@@ -473,13 +473,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                                 i += 1
             except Exception as e:
                 self.message = f"Corrupted token. {str(e)}"
-                tmp_log.debug(
-                    "Origin: {}, Token: {}\n{}".format(
-                        env.get("HTTP_ORIGIN", None),
-                        env.get("HTTP_AUTHORIZATION", None),
-                        traceback.format_exc(),
-                    )
-                )
+                tmp_log.debug(f"Origin: {env.get('HTTP_ORIGIN', None)}, Token: {env.get('HTTP_AUTHORIZATION', None)}\n{traceback.format_exc()}")
 
         # get remote host
         def get_remote_host(self):

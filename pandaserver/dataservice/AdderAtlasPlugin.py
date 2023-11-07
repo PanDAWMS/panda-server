@@ -48,12 +48,12 @@ class AdderAtlasPlugin(AdderPluginBase):
     # main
     def execute(self):
         try:
-            self.logger.debug("start plugin : %s" % self.jobStatus)
+            self.logger.debug(f"start plugin : {self.jobStatus}")
             # backend
             self.ddmBackEnd = self.job.getDdmBackEnd()
             if self.ddmBackEnd is None:
                 self.ddmBackEnd = "rucio"
-            self.logger.debug("ddm backend = {0}".format(self.ddmBackEnd))
+            self.logger.debug(f"ddm backend = {self.ddmBackEnd}")
             # add files only to top-level datasets for transferring jobs
             if self.job.jobStatus == "transferring":
                 self.addToTopOnly = True
@@ -78,21 +78,21 @@ class AdderAtlasPlugin(AdderPluginBase):
                 # protection against disappearance of dest from schedconfig
                 if not self.siteMapper.checkSite(self.job.destinationSE) and self.job.destinationSE != "local":
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
-                    self.job.ddmErrorDiag = "destinationSE %s is unknown in schedconfig" % self.job.destinationSE
-                    self.logger.error("%s" % self.job.ddmErrorDiag)
+                    self.job.ddmErrorDiag = f"destinationSE {self.job.destinationSE} is unknown in schedconfig"
+                    self.logger.error(f"{self.job.ddmErrorDiag}")
                     # set fatal error code and return
                     self.result.setFatal()
                     return
             # protection against disappearance of src from schedconfig
             if not self.siteMapper.checkSite(self.job.computingSite):
                 self.job.ddmErrorCode = ErrorCode.EC_Adder
-                self.job.ddmErrorDiag = "computingSite %s is unknown in schedconfig" % self.job.computingSite
-                self.logger.error("%s" % self.job.ddmErrorDiag)
+                self.job.ddmErrorDiag = f"computingSite {self.job.computingSite} is unknown in schedconfig"
+                self.logger.error(f"{self.job.ddmErrorDiag}")
                 # set fatal error code and return
                 self.result.setFatal()
                 return
             # check if the job has something to transfer
-            self.logger.debug("alt stage-out:{0}".format(str(self.job.altStgOutFileList())))
+            self.logger.debug(f"alt stage-out:{str(self.job.altStgOutFileList())}")
             somethingToTransfer = False
             for file in self.job.Files:
                 if file.type == "output" or file.type == "log":
@@ -101,7 +101,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                     if DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) is None and file.lfn not in self.job.altStgOutFileList():
                         somethingToTransfer = True
                         break
-            self.logger.debug("DDM src:%s dst:%s" % (tmpSrcDDM, tmpDstDDM))
+            self.logger.debug(f"DDM src:{tmpSrcDDM} dst:{tmpDstDDM}")
             job_type = JobUtils.translate_prodsourcelabel_to_jobtype(srcSiteSpec.type, self.job.prodSourceLabel)
             if re.search("^ANALY_", self.job.computingSite) is not None:
                 # analysis site. Should be obsoleted by the next check
@@ -137,13 +137,13 @@ class AdderAtlasPlugin(AdderPluginBase):
                 pass
             else:
                 self.goToTransferring = True
-            self.logger.debug("somethingToTransfer={0}".format(somethingToTransfer))
-            self.logger.debug("goToTransferring=%s" % self.goToTransferring)
-            self.logger.debug("logTransferring=%s" % self.logTransferring)
-            self.logger.debug("goToMerging=%s" % self.goToMerging)
-            self.logger.debug("addToTopOnly=%s" % self.addToTopOnly)
+            self.logger.debug(f"somethingToTransfer={somethingToTransfer}")
+            self.logger.debug(f"goToTransferring={self.goToTransferring}")
+            self.logger.debug(f"logTransferring={self.logTransferring}")
+            self.logger.debug(f"goToMerging={self.goToMerging}")
+            self.logger.debug(f"addToTopOnly={self.addToTopOnly}")
             retOut = self._updateOutputs()
-            self.logger.debug("added outputs with %s" % retOut)
+            self.logger.debug(f"added outputs with {retOut}")
             if retOut != 0:
                 self.logger.debug("terminated when adding")
                 return
@@ -152,7 +152,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             self.logger.debug("end plugin")
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]
-            errStr = "execute() : %s %s" % (errtype, errvalue)
+            errStr = f"execute() : {errtype} {errvalue}"
             errStr += traceback.format_exc()
             self.logger.debug(errStr)
             # set fatal error code
@@ -208,7 +208,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         contZipMap = {}
         subToDsMap = {}
         dsIdToDsMap = self.taskBuffer.getOutputDatasetsJEDI(self.job.PandaID)
-        self.logger.debug("dsInJEDI=%s" % str(dsIdToDsMap))
+        self.logger.debug(f"dsInJEDI={str(dsIdToDsMap)}")
         for file in self.job.Files:
             # gc
             gc.collect()
@@ -274,13 +274,13 @@ class AdderAtlasPlugin(AdderPluginBase):
                                 if file.lfn.startswith(patt):
                                     toSkip = True
                             if not toSkip:
-                                errMsg = "nevents is missing in jobReport for {0}".format(file.lfn)
+                                errMsg = f"nevents is missing in jobReport for {file.lfn}"
                                 self.logger.warning(errMsg)
                                 self.job.ddmErrorCode = ErrorCode.EC_MissingNumEvents
                                 raise ValueError(errMsg)
                         if file.lfn not in self.extraInfo["guid"] or file.GUID != self.extraInfo["guid"][file.lfn]:
-                            self.logger.debug("extraInfo = %s" % str(self.extraInfo))
-                            errMsg = "GUID is inconsistent between jobReport and pilot report for {0}".format(file.lfn)
+                            self.logger.debug(f"extraInfo = {str(self.extraInfo)}")
+                            errMsg = f"GUID is inconsistent between jobReport and pilot report for {file.lfn}"
                             self.logger.warning(errMsg)
                             self.job.ddmErrorCode = ErrorCode.EC_InconsistentGUID
                             raise ValueError(errMsg)
@@ -291,7 +291,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                             fsize = int(file.fsize)
                         except Exception:
                             type, value, traceBack = sys.exc_info()
-                            self.logger.error("%s : %s %s" % (self.jobID, type, value))
+                            self.logger.error(f"{self.jobID} : {type} {value}")
                     # use top-level dataset name for alternative stage-out
                     if file.lfn not in self.job.altStgOutFileList():
                         fileDestinationDBlock = file.destinationDBlock
@@ -424,16 +424,12 @@ class AdderAtlasPlugin(AdderPluginBase):
                                 self.datasetMap[fileDestinationDBlock] = tmpDS
                             # check if valid dataset
                             if self.datasetMap[fileDestinationDBlock] is None:
-                                self.logger.error(": cannot find %s in DB" % fileDestinationDBlock)
+                                self.logger.error(f": cannot find {fileDestinationDBlock} in DB")
                             else:
                                 if self.datasetMap[fileDestinationDBlock].status not in ["defined"]:
                                     # not a fresh dataset
                                     self.logger.debug(
-                                        ": subscription was already made for %s:%s"
-                                        % (
-                                            self.datasetMap[fileDestinationDBlock].status,
-                                            fileDestinationDBlock,
-                                        )
+                                        f": subscription was already made for {self.datasetMap[fileDestinationDBlock].status}:{fileDestinationDBlock}"
                                     )
                                 else:
                                     # get DQ2 IDs
@@ -450,11 +446,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                                     if (tmpSrcDDM != tmpDstDDM) or (tmpSrcDDM == tmpDstDDM and file.destinationDBlockToken.count(",") != 0):
                                         optSub = {
                                             "DATASET_COMPLETE_EVENT": [
-                                                "http://%s:%s/server/panda/datasetCompleted"
-                                                % (
-                                                    panda_config.pserverhosthttp,
-                                                    panda_config.pserverporthttp,
-                                                )
+                                                f"http://{panda_config.pserverhosthttp}:{panda_config.pserverporthttp}/server/panda/datasetCompleted"
                                             ]
                                         }
                                         # append
@@ -578,10 +570,10 @@ class AdderAtlasPlugin(AdderPluginBase):
                 if not self.goToTransferring and not self.logTransferring and destinationDBlock in idMap:
                     del idMap[destinationDBlock]
         # print idMap
-        self.logger.debug("idMap = %s" % idMap)
-        self.logger.debug("subMap = %s" % subMap)
-        self.logger.debug("dsDestMap = %s" % dsDestMap)
-        self.logger.debug("extraInfo = %s" % str(self.extraInfo))
+        self.logger.debug(f"idMap = {idMap}")
+        self.logger.debug(f"subMap = {subMap}")
+        self.logger.debug(f"dsDestMap = {dsDestMap}")
+        self.logger.debug(f"extraInfo = {str(self.extraInfo)}")
         # check consistency of destinationDBlock
         hasSub = False
         for destinationDBlock in idMap:
@@ -619,13 +611,13 @@ class AdderAtlasPlugin(AdderPluginBase):
             regStart = datetime.datetime.utcnow()
             try:
                 if not self.useCentralLFC():
-                    regMsgStr = "File registraion for %s files " % regNumFiles
+                    regMsgStr = f"File registraion for {regNumFiles} files "
                 else:
-                    regMsgStr = "File registration with backend={0} for {1} files ".format(self.ddmBackEnd, regNumFiles)
+                    regMsgStr = f"File registration with backend={self.ddmBackEnd} for {regNumFiles} files "
                 if len(zipFiles) > 0:
-                    self.logger.debug("{0} {1}".format("registerZipFiles", str(zipFiles)))
+                    self.logger.debug(f"registerZipFiles {str(zipFiles)}")
                     rucioAPI.registerZipFiles(zipFiles)
-                self.logger.debug("{0} {1} zip={2}".format("registerFilesInDatasets", str(destIdMap), str(contZipMap)))
+                self.logger.debug(f"registerFilesInDatasets {str(destIdMap)} zip={str(contZipMap)}")
                 out = rucioAPI.registerFilesInDataset(destIdMap, contZipMap)
             except (
                 DataIdentifierNotFound,
@@ -640,14 +632,14 @@ class AdderAtlasPlugin(AdderPluginBase):
             ):
                 # fatal errors
                 errType, errValue = sys.exc_info()[:2]
-                out = "%s : %s" % (errType, errValue)
+                out = f"{errType} : {errValue}"
                 out += traceback.format_exc()
                 isFatal = True
                 isFailed = True
             except Exception:
                 # unknown errors
                 errType, errValue = sys.exc_info()[:2]
-                out = "%s : %s" % (errType, errValue)
+                out = f"{errType} : {errValue}"
                 out += traceback.format_exc()
                 if (
                     "value too large for column" in out
@@ -663,7 +655,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             self.logger.debug(regMsgStr + "took %s.%03d sec" % (regTime.seconds, regTime.microseconds / 1000))
             # failed
             if isFailed or isFatal:
-                self.logger.error("%s" % out)
+                self.logger.error(f"{out}")
                 if (iTry + 1) == nTry or isFatal:
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                     # extract important error string
@@ -678,11 +670,11 @@ class AdderAtlasPlugin(AdderPluginBase):
                     else:
                         self.result.setTemporary()
                     return 1
-                self.logger.error("Try:%s" % iTry)
+                self.logger.error(f"Try:{iTry}")
                 # sleep
                 time.sleep(10)
             else:
-                self.logger.debug("%s" % str(out))
+                self.logger.debug(f"{str(out)}")
                 break
         # release some memory
         del destIdMap
@@ -729,30 +721,30 @@ class AdderAtlasPlugin(AdderPluginBase):
                             except InvalidRSEExpression:
                                 status = False
                                 errType, errValue = sys.exc_info()[:2]
-                                out = "%s %s" % (errType, errValue)
+                                out = f"{errType} {errValue}"
                                 isFailed = True
                                 self.job.ddmErrorCode = ErrorCode.EC_Subscription
                                 break
                             except Exception:
                                 status = False
                                 errType, errValue = sys.exc_info()[:2]
-                                out = "%s %s" % (errType, errValue)
+                                out = f"{errType} {errValue}"
                                 isFailed = True
                                 # retry for temporary errors
                                 time.sleep(10)
                         if isFailed:
-                            self.logger.error("%s" % out)
+                            self.logger.error(f"{out}")
                             if self.job.ddmErrorCode == ErrorCode.EC_Subscription:
                                 # fatal error
-                                self.job.ddmErrorDiag = "subscription failure with %s" % out
+                                self.job.ddmErrorDiag = f"subscription failure with {out}"
                                 self.result.setFatal()
                             else:
                                 # temoprary errors
                                 self.job.ddmErrorCode = ErrorCode.EC_Adder
-                                self.job.ddmErrorDiag = "could not register subscription : %s" % tmpName
+                                self.job.ddmErrorDiag = f"could not register subscription : {tmpName}"
                                 self.result.setTemporary()
                             return 1
-                        self.logger.debug("%s" % str(out))
+                        self.logger.debug(f"{str(out)}")
                     else:
                         # register location
                         tmpDsNameLoc = subToDsMap[tmpName]
@@ -783,23 +775,23 @@ class AdderAtlasPlugin(AdderPluginBase):
                                 except Exception:
                                     status = False
                                     errType, errValue = sys.exc_info()[:2]
-                                    out = "%s %s" % (errType, errValue)
+                                    out = f"{errType} {errValue}"
                                     isFailed = True
                                     # retry for temporary errors
                                     time.sleep(10)
                             if isFailed:
-                                self.logger.error("%s" % out)
+                                self.logger.error(f"{out}")
                                 if self.job.ddmErrorCode == ErrorCode.EC_Location:
                                     # fatal error
-                                    self.job.ddmErrorDiag = "location registration failure with %s" % out
+                                    self.job.ddmErrorDiag = f"location registration failure with {out}"
                                     self.result.setFatal()
                                 else:
                                     # temoprary errors
                                     self.job.ddmErrorCode = ErrorCode.EC_Adder
-                                    self.job.ddmErrorDiag = "could not register location : %s" % tmpDsNameLoc
+                                    self.job.ddmErrorDiag = f"could not register location : {tmpDsNameLoc}"
                                     self.result.setTemporary()
                                 return 1
-                            self.logger.debug("%s" % str(out))
+                            self.logger.debug(f"{str(out)}")
                     # set dataset status
                     self.datasetMap[tmpName].status = "running"
             # keep subscriptions
@@ -845,7 +837,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                 try:
                     status, userInfo = rucioAPI.finger(tmpDN)
                     if not status:
-                        raise RuntimeError("user info not found for {0} with {1}".format(tmpDN, userInfo))
+                        raise RuntimeError(f"user info not found for {tmpDN} with {userInfo}")
                     userEPs = []
                     # loop over all output datasets
                     for tmpDsName in tmpTopDatasets:
@@ -860,7 +852,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                                 tmpDN = self.job.workingGroup
                             else:
                                 tmpDN = userInfo["nickname"]
-                            tmpMsg = "registerDatasetLocation for Rucio ds=%s site=%s id=%s" % (tmpDsName, tmpDQ2ID, tmpDN)
+                            tmpMsg = f"registerDatasetLocation for Rucio ds={tmpDsName} site={tmpDQ2ID} id={tmpDN}"
                             self.logger.debug(tmpMsg)
                             rucioAPI.registerDatasetLocation(
                                 tmpDsName,
@@ -872,10 +864,10 @@ class AdderAtlasPlugin(AdderPluginBase):
                     for tmpName in subMap:
                         self.datasetMap[tmpName].status = "running"
                 except (InsufficientAccountLimit, InvalidRSEExpression) as errType:
-                    tmpMsg = "Rucio rejected to transfer files to {0} since {1}".format(",".join(userEPs), errType)
+                    tmpMsg = f"Rucio rejected to transfer files to {','.join(userEPs)} since {errType}"
                     self.logger.error(tmpMsg)
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
-                    self.job.ddmErrorDiag = "Rucio failed with {0}".format(errType)
+                    self.job.ddmErrorDiag = f"Rucio failed with {errType}"
                     # set dataset status
                     for tmpName in subMap:
                         self.datasetMap[tmpName].status = "running"
@@ -889,19 +881,13 @@ class AdderAtlasPlugin(AdderPluginBase):
                             self.logger.debug("skip to send warning since suppressed")
                         else:
                             tmpSM = self.sendEmail(toAdder, tmpMsg, self.job.jediTaskID)
-                            self.logger.debug("sent warning with {}".format(tmpSM))
+                            self.logger.debug(f"sent warning with {tmpSM}")
                 except Exception:
                     errType, errValue = sys.exc_info()[:2]
-                    tmpMsg = "registerDatasetLocation failed with %s %s" % (
-                        errType,
-                        errValue,
-                    )
+                    tmpMsg = f"registerDatasetLocation failed with {errType} {errValue}"
                     self.logger.error(tmpMsg)
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
-                    self.job.ddmErrorDiag = "Rucio failed with %s %s" % (
-                        errType,
-                        errValue,
-                    )
+                    self.job.ddmErrorDiag = f"Rucio failed with {errType} {errValue}"
         # collect list of merging files
         if self.goToMerging and self.jobStatus not in ["failed", "cancelled", "closed"]:
             for tmpFileList in idMap.values():
@@ -915,7 +901,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                     self.registerEventServiceFiles()
                 except Exception:
                     errType, errValue = sys.exc_info()[:2]
-                    self.logger.error("failed to register ES files with {0}:{1}".format(errType, errValue))
+                    self.logger.error(f"failed to register ES files with {errType}:{errValue}")
                     self.result.setTemporary()
                     return 1
         # properly finished
@@ -955,10 +941,10 @@ class AdderAtlasPlugin(AdderPluginBase):
     # send email notification
     def sendEmail(self, toAdder, message, jediTaskID):
         # subject
-        mailSubject = "PANDA WARNING for TaskID:{0} with --destSE".format(jediTaskID)
+        mailSubject = f"PANDA WARNING for TaskID:{jediTaskID} with --destSE"
         # message
-        mailBody = "Hello,\n\nTaskID:{0} cannot process the --destSE request\n\n".format(jediTaskID)
-        mailBody += "Reason : %s\n" % message
+        mailBody = f"Hello,\n\nTaskID:{jediTaskID} cannot process the --destSE request\n\n"
+        mailBody += f"Reason : {message}\n"
         # send
         retVal = MailUtils().send(toAdder, mailSubject, mailBody)
         # return
@@ -1009,14 +995,14 @@ class AdderAtlasPlugin(AdderPluginBase):
                     idMap[epName][esDataset].append(fileData)
             # add files to dataset
             if idMap != {}:
-                self.logger.debug("adding ES files {0}".format(str(idMap)))
+                self.logger.debug(f"adding ES files {str(idMap)}")
                 try:
                     rucioAPI.registerFilesInDataset(idMap)
                 except DataIdentifierNotFound:
                     self.logger.debug("ignored DataIdentifierNotFound")
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]
-            errStr = " : %s %s" % (errtype, errvalue)
+            errStr = f" : {errtype} {errvalue}"
             errStr += traceback.format_exc()
             self.logger.error(errStr)
             raise

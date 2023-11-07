@@ -35,5 +35,5 @@ class CloudSpec(object):
     def __str__(self):
         str = ""
         for attr in self._attributes:
-            str += "%s:%s " % (attr, getattr(self, attr))
+            str += f"{attr}:{getattr(self, attr)} "
         return str

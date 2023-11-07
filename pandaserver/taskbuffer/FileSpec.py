@@ -116,7 +116,7 @@ class FileSpec(object):
                     val = 0
                 else:
                     val = None
-            ret[":%s" % attr] = val
+            ret[f":{attr}"] = val
         return ret
 
     # pack tuple into FileSpec
@@ -192,12 +192,12 @@ class FileSpec(object):
             if useSeq and attr in cls._seqAttrMap:
                 if panda_config.backend == "mysql":
                     # mysql
-                    ret += "%s," % "NULL"
+                    ret += f"NULL,"
                 else:
                     # oracle
-                    ret += "%s," % cls._seqAttrMap[attr]
+                    ret += f"{cls._seqAttrMap[attr]},"
             else:
-                ret += ":%s," % attr
+                ret += f":{attr},"
         ret = ret[:-1]
         # add modificationTime
         if withMod:
@@ -222,7 +222,7 @@ class FileSpec(object):
     def bindUpdateExpression(cls):
         ret = ""
         for attr in cls._attributes:
-            ret += "%s=:%s," % (attr, attr)
+            ret += f"{attr}=:{attr},"
         ret = ret[:-1]
         ret += " "
         return ret
@@ -234,7 +234,7 @@ class FileSpec(object):
         ret = ""
         for attr in self._attributes:
             if attr in self._changedAttrs or (attr == "PandaID" and self.PandaID != self._oldPandaID):
-                ret += "%s=:%s," % (attr, attr)
+                ret += f"{attr}=:{attr},"
         ret = ret[:-1]
         ret += " "
         return ret

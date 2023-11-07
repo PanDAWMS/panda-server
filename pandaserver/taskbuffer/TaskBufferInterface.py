@@ -29,7 +29,7 @@ class TaskBufferMethod:
     def __call__(self, *args, **kwargs):
         log = LogWrapper(
             _logger,
-            "pid={} thr={} {}".format(os.getpid(), threading.current_thread().ident, self.methodName),
+            f"pid={os.getpid()} thr={threading.current_thread().ident} {self.methodName}",
         )
         log.debug("start")
         # get lock among children
@@ -56,7 +56,7 @@ class TaskBufferMethod:
             return res
         else:
             errtype, errvalue = res
-            raise RuntimeError("{0}: {1} {2}".format(self.methodName, errtype.__name__, errvalue))
+            raise RuntimeError(f"{self.methodName}: {errtype.__name__} {errvalue}")
 
 
 # child class

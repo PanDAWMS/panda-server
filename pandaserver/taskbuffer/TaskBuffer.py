@@ -50,7 +50,7 @@ class TaskBuffer:
 
         # create Proxy Pool
         if self.proxyPool is None:
-            _logger.info("creating DBProxyPool with n_connections={0} on behalf of {1}".format(nDBConnection, requester))
+            _logger.info(f"creating DBProxyPool with n_connections={nDBConnection} on behalf of {requester}")
             self.start_time = time.time()
             self.proxyPool = DBProxyPool(dbname, dbpass, nDBConnection, useTimeout)
 
@@ -69,7 +69,7 @@ class TaskBuffer:
             except TypeError:
                 pool_duration = -1  # duration unknown
 
-            _logger.info("destroying DBProxyPool after n_seconds={1} on behalf of {0}".format(requester, pool_duration))
+            _logger.info(f"destroying DBProxyPool after n_seconds={pool_duration} on behalf of {requester}")
             self.proxyPool.cleanup()
 
     # get number of database connections
@@ -185,8 +185,8 @@ class TaskBuffer:
         unprocessedMap=None,
     ):
         try:
-            tmpLog = LogWrapper(_logger, "storeJobs <{}>".format(CoreUtils.clean_user_id(user)))
-            tmpLog.debug("start nJobs={}".format(len(jobs)))
+            tmpLog = LogWrapper(_logger, f"storeJobs <{CoreUtils.clean_user_id(user)}>")
+            tmpLog.debug(f"start nJobs={len(jobs)}")
             # check quota for priority calculation
             weight = 0.0
             userJobID = -1
@@ -209,7 +209,7 @@ class TaskBuffer:
                 self.proxyPool.putProxy(proxy)
                 # return if DN is blocked
                 if not tmpStatus:
-                    tmpLog.debug("end 1 since DN %s is blocked" % user)
+                    tmpLog.debug(f"end 1 since DN {user} is blocked")
                     if getEsJobsetMap:
                         return [], None, unprocessedMap
                     return []
@@ -257,7 +257,7 @@ class TaskBuffer:
                         # loop over all FQANs
                         for tmpFQAN in fqans:
                             tmpLog.debug(tmpFQAN)
-                            if re.search("^%s/" % tmpGroup, tmpFQAN) is not None or re.search("%s$" % tmpGroup, tmpFQAN) is not None:
+                            if re.search(f"^{tmpGroup}/", tmpFQAN) is not None or re.search(f"{tmpGroup}$", tmpFQAN) is not None:
                                 # use the largest offset
                                 if tmpOffset > priorityOffset:
                                     priorityOffset = tmpOffset
@@ -284,7 +284,7 @@ class TaskBuffer:
 
             # return if DN is blocked
             if not userStatus:
-                tmpLog.debug("end 2 since %s DN is blocked" % user)
+                tmpLog.debug(f"end 2 since {user} DN is blocked")
                 if getEsJobsetMap:
                     return ([], None, unprocessedMap)
                 return []
@@ -332,15 +332,7 @@ class TaskBuffer:
                     weight,
                     prio_reduction,
                 ) = self.getPrioParameters(jobs, user, fqans, userDefinedWG, validWorkingGroup)
-                tmpLog.debug(
-                    "workingGroup={} serNum={} weight={} pOffset={} reduction={}".format(
-                        jobs[0].workingGroup,
-                        serNum,
-                        weight,
-                        priorityOffset,
-                        prio_reduction,
-                    )
-                )
+                tmpLog.debug(f"workingGroup={jobs[0].workingGroup} serNum={serNum} weight={weight} pOffset={priorityOffset} reduction={prio_reduction}")
             # get DB proxy
             proxy = self.proxyPool.getProxy()
             # get group job serial number
@@ -369,7 +361,7 @@ class TaskBuffer:
             if esJobsetMap is None:
                 esJobsetMap = {}
             try:
-                tmpLog.debug("jediTaskID={} len(esJobsetMap)={} nJobs={}".format(jobs[0].jediTaskID, len(esJobsetMap), len(jobs)))
+                tmpLog.debug(f"jediTaskID={jobs[0].jediTaskID} len(esJobsetMap)={len(esJobsetMap)} nJobs={len(jobs)}")
             except Exception:
                 pass
             for idxJob, job in enumerate(jobs):
@@ -534,7 +526,7 @@ class TaskBuffer:
                             # enable liveLog only for the first one
                             if firstLiveLog:
                                 # set file name
-                                repPatt = " --liveLog stdout.%s " % job.PandaID
+                                repPatt = f" --liveLog stdout.{job.PandaID} "
                             else:
                                 # remove the option
                                 repPatt = " "
@@ -583,7 +575,7 @@ class TaskBuffer:
                 return (ret, esJobsetMap, unprocessedMap)
             return ret
         except Exception as e:
-            tmpLog.error("{} {}".format(str(e), traceback.format_exc()))
+            tmpLog.error(f"{str(e)} {traceback.format_exc()}")
             errStr = "ERROR: ServerError with storeJobs"
             if getEsJobsetMap:
                 return (errStr, None, unprocessedMap)
@@ -725,7 +717,7 @@ class TaskBuffer:
                         else:
                             job.jobStatus = "failed"
                         if job.taskBufferErrorDiag in ["", "NULL", None]:
-                            job.taskBufferErrorDiag = "set {0} since no successful events".format(job.jobStatus)
+                            job.taskBufferErrorDiag = f"set {job.jobStatus} since no successful events"
                             job.taskBufferErrorCode = ErrorCode.EC_EventServiceNoEvent
             if job.jobStatus in ["finished", "failed", "cancelled"]:
                 if async_dataset_update and job.jediTaskID not in [None, "NULL"]:
@@ -908,10 +900,10 @@ class TaskBuffer:
             if limitNum and len(jobList) >= limitNum:
                 # exceeded
                 retStr = "You already hit the limit on the maximum number of debug subjobs "
-                retStr += "(%s jobs). " % limitNum
+                retStr += f"({limitNum} jobs). "
                 retStr += "Please set the debug mode off for one of the following PandaIDs : "
                 for tmpID in jobList:
-                    retStr += "%s," % tmpID
+                    retStr += f"{tmpID},"
                 retStr = retStr[:-1]
                 hitLimit = True
         if not hitLimit:
@@ -980,7 +972,7 @@ class TaskBuffer:
         )
         t_after = time.time()
         t_total = t_after - t_before
-        _logger.debug("getJobs : took {0}s for {1} nJobs={2} prodSourceLabel={3}".format(t_total, siteName, nJobs, prodSourceLabel))
+        _logger.debug(f"getJobs : took {t_total}s for {siteName} nJobs={nJobs} prodSourceLabel={prodSourceLabel}")
         # release proxy
         self.proxyPool.putProxy(proxy)
         # get Proxy Key
@@ -1439,11 +1431,11 @@ class TaskBuffer:
             # get job
             tmpJobs = self.getFullJobStatus([pandaID], days=days)
             if tmpJobs == [] or tmpJobs[0] is None:
-                errStr = "ERROR: Cannot get PandaID=%s in DB " % pandaID
+                errStr = f"ERROR: Cannot get PandaID={pandaID} in DB "
                 if days is None:
                     errStr += "for the last 30 days. You may add &days=N to the URL"
                 else:
-                    errStr += "for the last {0} days. You may change &days=N in the URL".format(days)
+                    errStr += f"for the last {days} days. You may change &days=N in the URL"
                 return errStr
             tmpJob = tmpJobs[0]
             # user job
@@ -1490,14 +1482,14 @@ class TaskBuffer:
                 tmpFileList = dsFileMap[tmpDS]
                 for tmpLFN in tmpFileList:
                     scrStr += "rucio download "
-                    scrStr += "%s\n" % tmpLFN
+                    scrStr += f"{tmpLFN}\n"
                     # ln
                     tmpScope, tmpBareLFN = tmpLFN.split(":")
-                    scrStr += "ln -fs %s/%s ./%s\n" % (tmpScope, tmpBareLFN, tmpBareLFN)
+                    scrStr += f"ln -fs {tmpScope}/{tmpBareLFN} ./{tmpBareLFN}\n"
             if isUser:
                 scrStr += "\n#get trf\n"
-                scrStr += "wget %s\n" % tmpTrfs[0]
-                scrStr += "chmod +x %s\n" % tmpTrfs[0].split("/")[-1]
+                scrStr += f"wget {tmpTrfs[0]}\n"
+                scrStr += f"chmod +x {tmpTrfs[0].split('/')[-1]}\n"
             scrStr += "\n#transform commands\n\n"
             for tmpIdx, tmpRel in enumerate(tmpRels):
                 # asetup
@@ -1512,14 +1504,11 @@ class TaskBuffer:
                 except Exception:
                     cmtConfig = ""
                 scrStr += "source ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh -c %s\n" % cmtConfig
-                scrStr += "asetup --platform=%s %s\n" % (
-                    tmpJob.cmtConfig.split("@")[0],
-                    ",".join(atlTags),
-                )
+                scrStr += f"asetup --platform={tmpJob.cmtConfig.split('@')[0]} {','.join(atlTags)}\n"
                 # athenaMP
                 if tmpJob.coreCount not in ["NULL", None] and tmpJob.coreCount > 1:
-                    scrStr += "export ATHENA_PROC_NUMBER=%s\n" % tmpJob.coreCount
-                    scrStr += "export ATHENA_CORE_NUMBER=%s\n" % tmpJob.coreCount
+                    scrStr += f"export ATHENA_PROC_NUMBER={tmpJob.coreCount}\n"
+                    scrStr += f"export ATHENA_CORE_NUMBER={tmpJob.coreCount}\n"
                 # add double quotes for zsh
                 tmpParamStr = tmpPars[tmpIdx]
                 tmpSplitter = shlex.shlex(tmpParamStr, posix=True)
@@ -1538,15 +1527,12 @@ class TaskBuffer:
                 # run trf
                 if isUser:
                     scrStr += "./"
-                scrStr += "%s %s\n\n" % (tmpTrfs[tmpIdx].split("/")[-1], tmpParamStr)
+                scrStr += f"{tmpTrfs[tmpIdx].split('/')[-1]} {tmpParamStr}\n\n"
             return scrStr
         except Exception:
             errType, errValue = sys.exc_info()[:2]
-            _logger.error("getScriptOfflineRunning : %s %s" % (errType, errValue))
-            return "ERROR: ServerError in getScriptOfflineRunning with %s %s" % (
-                errType,
-                errValue,
-            )
+            _logger.error(f"getScriptOfflineRunning : {errType} {errValue}")
+            return f"ERROR: ServerError in getScriptOfflineRunning with {errType} {errValue}"
 
     # kill jobs
     def killJobs(self, ids, user, code, prodManager, wgProdRole=[], killOptions=[]):
@@ -1633,7 +1619,7 @@ class TaskBuffer:
         firstSubmission=True,
     ):
         tmpLog = LogWrapper(_logger, "reassignJobs")
-        tmpLog.debug("start for {0} IDs".format(len(ids)))
+        tmpLog.debug(f"start for {len(ids)} IDs")
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         jobs = []
@@ -1686,7 +1672,7 @@ class TaskBuffer:
                             oldSubMap.setdefault(tmpOldSub, ret)
                         continue
             except Exception as e:
-                tmpLog.error("failed with {0} {1}".format(str(e), traceback.format_exc()))
+                tmpLog.error(f"failed with {str(e)} {traceback.format_exc()}")
         # release DB proxy
         self.proxyPool.putProxy(proxy)
         # run Closer for old sub datasets
@@ -1696,7 +1682,7 @@ class TaskBuffer:
                 cThr = Closer(self, [tmpOldSub], tmpJob)
                 cThr.start()
                 cThr.join()
-        tmpLog.debug("got {0} IDs".format(len(jobs)))
+        tmpLog.debug(f"got {len(jobs)} IDs")
         # setup dataset
         if jobs != []:
             if joinThr:
@@ -2786,7 +2772,7 @@ class TaskBuffer:
         elif tmpStatus == 2:
             ret = False, "Failed to insert user info to PandaDB"
         else:
-            ret = False, "The following DN is banned: DN={0}".format(user)
+            ret = False, f"The following DN is banned: DN={user}"
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

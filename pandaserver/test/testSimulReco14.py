@@ -18,7 +18,7 @@ else:
 # Recent changes (BNL migration to LFC?) forvce the cloud to be specified
 cloud = "US"
 
-datasetName = "panda.destDB.%s" % str(uuid.uuid4())
+datasetName = f"panda.destDB.{str(uuid.uuid4())}"
 destName = "BNL_ATLAS_2"
 
 files = {
@@ -63,7 +63,7 @@ for lfn in files:
     job.addFile(fileD)
 
     fileOA = FileSpec()
-    fileOA.lfn = "%s.AOD.pool.root" % job.jobName
+    fileOA.lfn = f"{job.jobName}.AOD.pool.root"
     fileOA.destinationDBlock = job.destinationDBlock
     fileOA.destinationSE = job.destinationSE
     fileOA.dataset = job.destinationDBlock
@@ -72,7 +72,7 @@ for lfn in files:
     job.addFile(fileOA)
 
     fileOE = FileSpec()
-    fileOE.lfn = "%s.ESD.pool.root" % job.jobName
+    fileOE.lfn = f"{job.jobName}.ESD.pool.root"
     fileOE.destinationDBlock = job.destinationDBlock
     fileOE.destinationSE = job.destinationSE
     fileOE.dataset = job.destinationDBlock
@@ -81,7 +81,7 @@ for lfn in files:
     job.addFile(fileOE)
 
     fileOL = FileSpec()
-    fileOL.lfn = "%s.job.log.tgz" % job.jobName
+    fileOL.lfn = f"{job.jobName}.job.log.tgz"
     fileOL.destinationDBlock = job.destinationDBlock
     fileOL.destinationSE = job.destinationSE
     fileOL.dataset = job.destinationDBlock
@@ -100,4 +100,4 @@ s, o = Client.submitJobs(jobList)
 print("---------------------")
 print(s)
 for x in o:
-    print("PandaID=%s" % x[0])
+    print(f"PandaID={x[0]}")

@@ -130,21 +130,21 @@ class Response:
                     if strDisToken != "":
                         strDisToken += ","
                     strDisToken += file.dispatchDBlockToken
-                    strProdDBlock += "%s," % file.prodDBlock
+                    strProdDBlock += f"{file.prodDBlock},"
                     if not isEventServiceMerge:
-                        strProdToken += "%s," % file.prodDBlockToken
+                        strProdToken += f"{file.prodDBlockToken},"
                     else:
-                        strProdToken += "%s," % job.metadata[1][file.lfn]
+                        strProdToken += f"{job.metadata[1][file.lfn]},"
                     if strGUID != "":
                         strGUID += ","
                     strGUID += file.GUID
-                    strRealDatasetIn += "%s," % file.dataset
-                    strFSize += "%s," % file.fsize
+                    strRealDatasetIn += f"{file.dataset},"
+                    strFSize += f"{file.fsize},"
                     if file.checksum not in ["", "NULL", None]:
-                        strCheckSum += "%s," % file.checksum
+                        strCheckSum += f"{file.checksum},"
                     else:
-                        strCheckSum += "%s," % file.md5sum
-                    strScopeIn += "%s," % file.scope
+                        strCheckSum += f"{file.md5sum},"
+                    strScopeIn += f"{file.scope},"
                     ddmEndPointIn.append(
                         self.getDdmEndpoint(
                             siteSpec,
@@ -167,18 +167,18 @@ class Response:
                 if strRealDataset != "":
                     strRealDataset += ","
                 strRealDataset += file.dataset
-                strFileDestinationSE += "%s," % file.destinationSE
+                strFileDestinationSE += f"{file.destinationSE},"
                 if file.type == "log":
                     logFile = file.lfn
                     logGUID = file.GUID
                     strScopeLog = file.scope
                 else:
-                    strScopeOut += "%s," % file.scope
+                    strScopeOut += f"{file.scope},"
                 if strDestToken != "":
                     strDestToken += ","
                 strDestToken += re.sub("^ddd:", "dst:", file.destinationDBlockToken.split(",")[0])
-                strDisTokenForOutput += "%s," % file.dispatchDBlockToken
-                strProdTokenForOutput += "%s," % file.prodDBlockToken
+                strDisTokenForOutput += f"{file.dispatchDBlockToken},"
+                strProdTokenForOutput += f"{file.prodDBlockToken},"
                 ddmEndPointOut.append(
                     self.getDdmEndpoint(
                         siteSpec,
@@ -309,9 +309,9 @@ class Response:
             try:
                 for outputName in job.metadata[0]:
                     inputList = job.metadata[0][outputName]
-                    writeToFileStr += "inputFor_{0}:".format(outputName)
+                    writeToFileStr += f"inputFor_{outputName}:"
                     for tmpInput in inputList:
-                        writeToFileStr += "{0},".format(tmpInput)
+                        writeToFileStr += f"{tmpInput},"
                     writeToFileStr = writeToFileStr[:-1]
                     writeToFileStr += "^"
                 writeToFileStr = writeToFileStr[:-1]
@@ -326,7 +326,7 @@ class Response:
                     inputList = inDsLfnMap[inDS]
                     inDS = re.sub("/$", "", inDS)
                     inDS = inDS.split(":")[-1]
-                    writeToFileStr += "tmpin_{0}:".format(inDS)
+                    writeToFileStr += f"tmpin_{inDS}:"
                     writeToFileStr += ",".join(inputList)
                     writeToFileStr += "^"
                 writeToFileStr = writeToFileStr[:-1]
@@ -340,7 +340,7 @@ class Response:
                     inputList = inDsLfnMap[inDS]
                     inDS = re.sub("/$", "", inDS)
                     inDS = inDS.split(":")[-1]
-                    srcStr = "tmpin__cnt_{0}".format(inDS)
+                    srcStr = f"tmpin__cnt_{inDS}"
                     dstStr = ",".join(inputList)
                     self.data["jobPars"] = self.data["jobPars"].replace(srcStr, dstStr)
             except Exception:

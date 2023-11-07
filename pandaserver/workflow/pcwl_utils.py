@@ -68,7 +68,7 @@ def parse_workflow_file(workflow_file, log_stream, in_loop=False):
         cwl_name = os.path.basename(step.run)
         # check cwl command
         if not cwl_name.endswith(".cwl") and cwl_name not in WORKFLOW_NAMES:
-            log_stream.error("Unknown workflow {}".format(step.run))
+            log_stream.error(f"Unknown workflow {step.run}")
             return False, None
         serial_id += 1
         workflow_name = step.id.split("#")[-1]
@@ -248,7 +248,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
             # resolve outputs
             if sc_node.is_leaf:
                 for tmp_name, tmp_data in sc_node.outputs.items():
-                    tmp_data["value"] = "{}_{:03d}_{}".format(out_ds_name, sc_node.id, sc_node.name)
+                    tmp_data["value"] = f"{out_ds_name}_{sc_node.id:03d}_{sc_node.name}"
                     # add loop count for nodes in a loop
                     if sc_node.in_loop:
                         tmp_data["value"] += ".___idds___num_run___"
@@ -278,7 +278,7 @@ def parse_condition_string(cond_string):
         else:
             for item in item_list:
                 cond = convert_plain_condition_string(item, cond_map)
-                key = "___{}___".format(id)
+                key = f"___{id}___"
                 id += 1
                 cond_map[key] = cond
                 cond_string = cond_string.replace("(" + item + ")", key)
@@ -330,7 +330,7 @@ def convert_plain_condition_string(cond_string, cond_map):
                 left = right
                 continue
         else:
-            raise TypeError('unknown token "{}"'.format(token))
+            raise TypeError(f'unknown token "{token}"')
 
         left = ConditionItem(left, right, operator)
     return left
@@ -360,7 +360,7 @@ def convert_params_in_condition_to_parent_ids(condition_item, input_data, id_map
                         setattr(condition_item, item, id_map[tmp_data["parent_id"]])
                     break
             if not isOK:
-                raise ReferenceError("unresolved paramter {} in the condition string".format(param))
+                raise ReferenceError(f"unresolved paramter {param} in the condition string")
         elif isinstance(param, ConditionItem):
             convert_params_in_condition_to_parent_ids(param, input_data, id_map)
 

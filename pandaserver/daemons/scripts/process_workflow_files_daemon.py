@@ -89,7 +89,7 @@ def main(tbuf=None, **kwargs):
                     dump_workflow,
                 )
             except Exception as e:
-                _logger.error("{} {}".format(str(e), traceback.format_exc()))
+                _logger.error(f"{str(e)} {traceback.format_exc()}")
             self.pool.remove(self)
             self.lock.release()
 
@@ -125,24 +125,24 @@ def main(tbuf=None, **kwargs):
             modTime = datetime.datetime(*(time.gmtime(os.path.getmtime(fileName))[:7]))
             to_go = True
             if test_mode:
-                _logger.debug("Testing : %s" % fileName)
+                _logger.debug(f"Testing : {fileName}")
                 to_delete = False
             elif (timeNow - modTime) > datetime.timedelta(hours=2):
                 # last chance
-                _logger.debug("Last attempt : %s" % fileName)
+                _logger.debug(f"Last attempt : {fileName}")
                 to_delete = True
             elif (timeInt - modTime) > datetime.timedelta(seconds=5):
                 # try
-                _logger.debug("Normal attempt : %s" % fileName)
+                _logger.debug(f"Normal attempt : {fileName}")
                 to_delete = False
             else:
-                _logger.debug("Wait %s : %s" % ((timeInt - modTime), fileName))
+                _logger.debug(f"Wait {timeInt - modTime} : {fileName}")
                 to_go = False
             if to_go:
                 thr = EvpThr(taskBuffer, adderLock, adderThreadPool, fileName, to_delete, False)
                 thr.start()
         except Exception as e:
-            _logger.error("{} {}".format(str(e), traceback.format_exc()))
+            _logger.error(f"{str(e)} {traceback.format_exc()}")
 
     # join all threads
     adderThreadPool.join()

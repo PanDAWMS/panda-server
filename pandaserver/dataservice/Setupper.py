@@ -61,7 +61,7 @@ class Setupper(threading.Thread):
             # run main procedure in the same process
             if not self.forkRun:
                 tmpLog.debug("main start")
-                tmpLog.debug("firstSubmission={0}".format(self.firstSubmission))
+                tmpLog.debug(f"firstSubmission={self.firstSubmission}")
                 # make Specs pickleable
                 p_job_list = []
                 for job_spec in self.jobs:
@@ -72,7 +72,7 @@ class Setupper(threading.Thread):
                 # group jobs per VO
                 voJobsMap = {}
                 ddmFreeJobs = []
-                tmpLog.debug("{0} jobs in total".format(len(self.jobs)))
+                tmpLog.debug(f"{len(self.jobs)} jobs in total")
                 for tmpJob in self.jobs:
                     # set VO=local for DDM free
                     if tmpJob.destinationSE == "local":
@@ -85,7 +85,7 @@ class Setupper(threading.Thread):
                 # loop over all VOs
                 for tmpVO in voJobsMap:
                     tmpJobList = voJobsMap[tmpVO]
-                    tmpLog.debug("vo={0} has {1} jobs".format(tmpVO, len(tmpJobList)))
+                    tmpLog.debug(f"vo={tmpVO} has {len(tmpJobList)} jobs")
                     # get plugin
                     setupperPluginClass = panda_config.getPlugin("setupper_plugins", tmpVO)
                     if setupperPluginClass is None:
@@ -95,7 +95,7 @@ class Setupper(threading.Thread):
                         )
 
                         setupperPluginClass = SetupperAtlasPlugin
-                    tmpLog.debug("plugin name -> {0}".format(setupperPluginClass.__name__))
+                    tmpLog.debug(f"plugin name -> {setupperPluginClass.__name__}")
                     try:
                         # make plugin
                         setupperPlugin = setupperPluginClass(
@@ -122,7 +122,7 @@ class Setupper(threading.Thread):
                         tmpLog.debug("done plugin")
                     except Exception:
                         errtype, errvalue = sys.exc_info()[:2]
-                        tmpLog.error("plugin failed with {0}:{1}".format(errtype, errvalue))
+                        tmpLog.error(f"plugin failed with {errtype}:{errvalue}")
                 tmpLog.debug("main end")
             else:
                 tmpLog.debug("fork start")
@@ -133,19 +133,12 @@ class Setupper(threading.Thread):
                     import cPickle as pickle
                 except ImportError:
                     import pickle
-                outFileName = "%s/set.%s_%s" % (
-                    panda_config.logdir,
-                    self.jobs[0].PandaID,
-                    str(uuid.uuid4()),
-                )
+                outFileName = f"{panda_config.logdir}/set.{self.jobs[0].PandaID}_{str(uuid.uuid4())}"
                 outFile = open(outFileName, "wb")
                 pickle.dump(self.jobs, outFile, protocol=0)
                 outFile.close()
                 # run main procedure in another process because python doesn't release memory
-                com = "cd %s > /dev/null 2>&1; export HOME=%s; " % (
-                    panda_config.home_dir_cwd,
-                    panda_config.home_dir_cwd,
-                )
+                com = f"cd {panda_config.home_dir_cwd} > /dev/null 2>&1; export HOME={panda_config.home_dir_cwd}; "
                 com += "env PYTHONPATH=%s:%s %s/python -Wignore %s/dataservice/forkSetupper.py -i %s" % (
                     panda_config.pandaCommon_dir,
                     panda_config.pandaPython_dir,
@@ -160,10 +153,10 @@ class Setupper(threading.Thread):
                 tmpLog.debug(com)
                 # execute
                 status, output = self.taskBuffer.processLimiter.getstatusoutput(com)
-                tmpLog.debug("return from main process: %s %s" % (status, output))
+                tmpLog.debug(f"return from main process: {status} {output}")
                 tmpLog.debug("fork end")
         except Exception as e:
-            tmpLog.error("master failed with {0} {1}".format(str(e), traceback.format_exc()))
+            tmpLog.error(f"master failed with {str(e)} {traceback.format_exc()}")
 
     #  update jobs
     def updateJobs(self, jobList, tmpLog):
@@ -201,7 +194,7 @@ class Setupper(threading.Thread):
             else:
                 newActivateJobs.append(job)
         activateJobs = newActivateJobs
-        tmpLog.debug("# of finished jobs in activated : {0}".format(nFinished))
+        tmpLog.debug(f"# of finished jobs in activated : {nFinished}")
         newUpdateJobs = []
         nFinished = 0
         for job in updateJobs:
@@ -214,15 +207,15 @@ class Setupper(threading.Thread):
             else:
                 newUpdateJobs.append(job)
         updateJobs = newUpdateJobs
-        tmpLog.debug("# of finished jobs in defined : {0}".format(nFinished))
+        tmpLog.debug(f"# of finished jobs in defined : {nFinished}")
         # update DB
-        tmpLog.debug("# of activated jobs : {0}".format(len(activateJobs)))
+        tmpLog.debug(f"# of activated jobs : {len(activateJobs)}")
         self.taskBuffer.activateJobs(activateJobs)
-        tmpLog.debug("# of updated jobs : {0}".format(len(updateJobs)))
+        tmpLog.debug(f"# of updated jobs : {len(updateJobs)}")
         self.taskBuffer.updateJobs(updateJobs, True)
-        tmpLog.debug("# of failed jobs : {0}".format(len(failedJobs)))
+        tmpLog.debug(f"# of failed jobs : {len(failedJobs)}")
         self.taskBuffer.updateJobs(failedJobs, True)
-        tmpLog.debug("# of waiting jobs : {0}".format(len(waitingJobs)))
+        tmpLog.debug(f"# of waiting jobs : {len(waitingJobs)}")
         self.taskBuffer.keepJobs(waitingJobs)
         # delete local values
         del updateJobs

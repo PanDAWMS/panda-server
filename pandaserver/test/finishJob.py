@@ -62,7 +62,7 @@ for tmpFile in job.Files:
         if False:  # tmpFile.type == 'output':# and iOut > 0:
             for i in range(8):
                 newFile = copy.copy(tmpFile)
-                newFile.lfn += "._00{0}".format(i)
+                newFile.lfn += f"._00{i}"
                 fileList.append(newFile)
             # continue
         else:
@@ -89,42 +89,31 @@ for tmpFile in job.Files:
             srm += root
             srm = re.sub("/$", "", srm)
             hash = hashlib.md5()
-            sl = "%s:%s" % (file.scope, file.lfn)
+            sl = f"{file.scope}:{file.lfn}"
             hash.update(sl.encode())
             hash_hex = hash.hexdigest()
             correctedscope = "/".join(file.scope.split("."))
-            path = "%s/%s/%s/%s" % (
-                correctedscope,
-                hash_hex[0:2],
-                hash_hex[2:4],
-                file.lfn,
-            )
+            path = f"{correctedscope}/{hash_hex[0:2]}/{hash_hex[2:4]}/{file.lfn}"
 
             strDDM = ""
             if tmpFile.type == "log":
-                strDDM += "<endpoint>%s</endpoint>" % tmpSrcDDM
+                strDDM += f"<endpoint>{tmpSrcDDM}</endpoint>"
                 strDDM += "<endpoint>CERN-PROD_LOGS</endpoint>"
-            xml += """
-      <File ID="%s">
+            xml += f"""
+      <File ID="{file.GUID}">
         <logical>
-          <lfn name="%s"/>
+          <lfn name="{file.lfn}"/>
         </logical>
-        %s
-        <metadata att_name="surl" att_value="%s/%s"/>
+        {strDDM}
+        <metadata att_name="surl" att_value="{srm}/{path}"/>
         <metadata att_name="fsize" att_value="1273400000"/>
         <metadata att_name="adler32" att_value="0d2a9dc9"/>
-       </File>""" % (
-                file.GUID,
-                file.lfn,
-                strDDM,
-                srm,
-                path,
-            )
+       </File>"""
             fileDict[file.lfn] = {
                 "guid": file.GUID,
                 "fsize": 1234,
                 "adler32": "0d2a9dc9",
-                "surl": "%s/%s" % (srm, path),
+                "surl": f"{srm}/{path}",
             }
 
 xml += """
@@ -159,7 +148,7 @@ node["pilotErrorCode"] = 1099
 node["corruptedFiles"] = "4003029-1800232404-8696089-2-2.zip"
 node["siteName"] = "BNL_ATLAS_test"
 node["attemptNr"] = att
-node["jobMetrics"] = "aaaaa=2 bbbb=3 alt:%s" % ",".join(outFileName)
+node["jobMetrics"] = f"aaaaa=2 bbbb=3 alt:{','.join(outFileName)}"
 # node['jobSubStatus']='pilot_killed'
 # node['coreCount']=10
 node["cpuConsumptionTime"] = 12340
@@ -174,7 +163,7 @@ node["avgPSS"] = 14
 node["rateWCHAR"] = 1400
 
 node["xml"] = xml
-url = "%s/updateJob" % baseURLSSL
+url = f"{baseURLSSL}/updateJob"
 
 match = re.search("[^:/]+://([^/]+)(/.+)", url)
 host = match.group(1)
@@ -183,7 +172,7 @@ path = match.group(2)
 if "X509_USER_PROXY" in os.environ:
     certKey = os.environ["X509_USER_PROXY"]
 else:
-    certKey = "/tmp/x509up_u%s" % os.getuid()
+    certKey = f"/tmp/x509up_u{os.getuid()}"
 
 rdata = urlencode(node)
 

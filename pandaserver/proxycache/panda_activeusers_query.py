@@ -42,7 +42,7 @@ if __name__ == "__main__":
         realDN = re.sub("(/CN=proxy)+", "", realDN)
         realDN = re.sub("(/CN=\d+)+$", "", realDN)
         # check proxy
-        tmpLog.debug("check proxy cache for DN={0}".format(realDN))
+        tmpLog.debug(f"check proxy cache for DN={realDN}")
         for role in roles:
             my_proxy_interface_instance.checkProxy(realDN, role=role)
     tmpLog.debug("done")

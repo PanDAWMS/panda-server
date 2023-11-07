@@ -17,7 +17,7 @@ try:
 except KeyError:
     baseURLSSL = "https://localhost:25443/server/panda"
 
-url = "{0}/datasetCompleted".format(baseURLSSL)
+url = f"{baseURLSSL}/datasetCompleted"
 rdata = (urlencode(node)).encode("utf-8")
 req = Request(url)
 fd = urlopen(req, rdata)

@@ -52,7 +52,7 @@ while idx < len(sys.argv):
             tmpVal = sys.argv[idx]
             idx += 1
         else:
-            raise RuntimeError("invalid panda option : %s" % tmpArg)
+            raise RuntimeError(f"invalid panda option : {tmpArg}")
         # get key
         tmpKey = re.sub("--panda_", "", tmpArg)
         # set params
@@ -90,13 +90,13 @@ class install_data_panda(install_data_org):
         self.virtual_env_setup = ""
         if "VIRTUAL_ENV" in os.environ:
             self.virtual_env = os.environ["VIRTUAL_ENV"]
-            self.virtual_env_setup = "source {0}/bin/activate".format(os.environ["VIRTUAL_ENV"])
+            self.virtual_env_setup = f"source {os.environ['VIRTUAL_ENV']}/bin/activate"
         elif sys.executable:
             venv_dir = os.path.dirname(os.path.dirname(sys.executable))
             py_venv_activate = os.path.join(venv_dir, "bin/activate")
             if os.path.exists(py_venv_activate):
                 self.virtual_env = venv_dir
-                self.virtual_env_setup = "source {0}".format(py_venv_activate)
+                self.virtual_env_setup = f"source {py_venv_activate}"
 
     def finalize_options(self):
         # set install_purelib
@@ -162,11 +162,11 @@ class install_data_panda(install_data_org):
             for srcFile in dataFiles:
                 # check extension
                 if not srcFile.endswith(".template"):
-                    raise RuntimeError("%s doesn't have the .template extension" % srcFile)
+                    raise RuntimeError(f"{srcFile} doesn't have the .template extension")
                 # dest filename
                 destFile = re.sub("(\.exe)*\.template$", "", srcFile)
                 destFile = re.sub(r"^templates/", "", destFile)
-                destFile = "%s/%s" % (tmpDir, destFile)
+                destFile = f"{tmpDir}/{destFile}"
                 # open src
                 inFile = open(srcFile)
                 # read
@@ -176,7 +176,7 @@ class install_data_panda(install_data_org):
                 # replace patterns
                 for item in re.findall("@@([^@]+)@@", filedata):
                     if not hasattr(self, item):
-                        raise RuntimeError("unknown pattern %s in %s" % (item, srcFile))
+                        raise RuntimeError(f"unknown pattern {item} in {srcFile}")
                     # get pattern
                     patt = getattr(self, item)
                     # remove install root, if any
@@ -187,7 +187,7 @@ class install_data_panda(install_data_org):
                     # remove /var/tmp/*-buildroot for bdist_rpm
                     patt = re.sub("/var/tmp/.*-buildroot", "", patt)
                     # replace
-                    filedata = filedata.replace("@@%s@@" % item, patt)
+                    filedata = filedata.replace(f"@@{item}@@", patt)
                 # write to dest
                 if "/" in destFile:
                     destSubDir = os.path.dirname(destFile)

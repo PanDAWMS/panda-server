@@ -29,10 +29,7 @@ for idx, argv in enumerate(sys.argv):
             prodUserNameDP = sys.argv[idx + 1]
             if len(lsstJobParams):
                 lsstJobParams += "|"
-            lsstJobParams += "%(key)s=%(value)s" % {
-                "key": "DP_USER",
-                "value": str(prodUserNameDP),
-            }
+            lsstJobParams += f"DP_USER={str(prodUserNameDP)}"
         except Exception:
             prodUserNameDP = None
     if argv == "-PIPELINE_USER":
@@ -40,10 +37,7 @@ for idx, argv in enumerate(sys.argv):
             prodUserNamePipeline = sys.argv[idx + 1]
             if len(lsstJobParams):
                 lsstJobParams += "|"
-            lsstJobParams += "%(key)s=%(value)s" % {
-                "key": "PIPELINE_USER",
-                "value": str(prodUserNamePipeline),
-            }
+            lsstJobParams += f"PIPELINE_USER={str(prodUserNamePipeline)}"
         except Exception:
             prodUserNamePipeline = None
     if argv == "-PIPELINE_TASK":
@@ -51,10 +45,7 @@ for idx, argv in enumerate(sys.argv):
             PIPELINE_TASK = sys.argv[idx + 1]
             if len(lsstJobParams):
                 lsstJobParams += "|"
-            lsstJobParams += "%(key)s=%(value)s" % {
-                "key": "PIPELINE_TASK",
-                "value": str(PIPELINE_TASK),
-            }
+            lsstJobParams += f"PIPELINE_TASK={str(PIPELINE_TASK)}"
         except Exception:
             PIPELINE_TASK = None
     if argv == "-PIPELINE_PROCESSINSTANCE":
@@ -62,10 +53,7 @@ for idx, argv in enumerate(sys.argv):
             PIPELINE_PROCESSINSTANCE = int(sys.argv[idx + 1])
             if len(lsstJobParams):
                 lsstJobParams += "|"
-            lsstJobParams += "%(key)s=%(value)s" % {
-                "key": "PIPELINE_PROCESSINSTANCE",
-                "value": str(PIPELINE_PROCESSINSTANCE),
-            }
+            lsstJobParams += f"PIPELINE_PROCESSINSTANCE={str(PIPELINE_PROCESSINSTANCE)}"
         except Exception:
             PIPELINE_PROCESSINSTANCE = None
     if argv == "-PIPELINE_EXECUTIONNUMBER":
@@ -73,10 +61,7 @@ for idx, argv in enumerate(sys.argv):
             PIPELINE_EXECUTIONNUMBER = int(sys.argv[idx + 1])
             if len(lsstJobParams):
                 lsstJobParams += "|"
-            lsstJobParams += "%(key)s=%(value)s" % {
-                "key": "PIPELINE_EXECUTIONNUMBER",
-                "value": str(PIPELINE_EXECUTIONNUMBER),
-            }
+            lsstJobParams += f"PIPELINE_EXECUTIONNUMBER={str(PIPELINE_EXECUTIONNUMBER)}"
         except Exception:
             PIPELINE_EXECUTIONNUMBER = None
     if argv == "-PIPELINE_STREAM":
@@ -84,10 +69,7 @@ for idx, argv in enumerate(sys.argv):
             PIPELINE_STREAM = int(sys.argv[idx + 1])
             if len(lsstJobParams):
                 lsstJobParams += "|"
-            lsstJobParams += "%(key)s=%(value)s" % {
-                "key": "PIPELINE_STREAM",
-                "value": str(PIPELINE_STREAM),
-            }
+            lsstJobParams += f"PIPELINE_STREAM={str(PIPELINE_STREAM)}"
         except Exception:
             PIPELINE_STREAM = None
     if argv == "-s":
@@ -113,24 +95,14 @@ elif prodUserNamePipeline is not None:
 destName = None
 
 if prodUserName is not None and PIPELINE_TASK is not None and PIPELINE_PROCESSINSTANCE is not None:
-    datasetName = "panda.lsst.user.%(PIPELINE_PROCESSINSTANCE)s.%(PIPELINE_TASK)s.%(prodUserName)s" % {
-        "prodUserName": str(prodUserName),
-        "PIPELINE_TASK": str(PIPELINE_TASK),
-        "PIPELINE_PROCESSINSTANCE": str(PIPELINE_PROCESSINSTANCE),
-    }
+    datasetName = f"panda.lsst.user.{str(PIPELINE_PROCESSINSTANCE)}.{str(PIPELINE_TASK)}.{str(prodUserName)}"
 else:
-    datasetName = "panda.lsst.user.jschovan.%s" % str(uuid.uuid4())
+    datasetName = f"panda.lsst.user.jschovan.{str(uuid.uuid4())}"
 
 if prodUserName is not None and PIPELINE_TASK is not None and PIPELINE_EXECUTIONNUMBER is not None and PIPELINE_STREAM is not None:
-    jobName = "job.%(PIPELINE_PROCESSINSTANCE)s.%(PIPELINE_TASK)s.%(PIPELINE_EXECUTIONNUMBER)s.%(prodUserName)s.%(PIPELINE_STREAM)s" % {
-        "prodUserName": str(prodUserName),
-        "PIPELINE_TASK": str(PIPELINE_TASK),
-        "PIPELINE_EXECUTIONNUMBER": str(PIPELINE_EXECUTIONNUMBER),
-        "PIPELINE_STREAM": str(PIPELINE_STREAM),
-        "PIPELINE_PROCESSINSTANCE": str(PIPELINE_PROCESSINSTANCE),
-    }
+    jobName = f"job.{str(PIPELINE_PROCESSINSTANCE)}.{str(PIPELINE_TASK)}.{str(PIPELINE_EXECUTIONNUMBER)}.{str(prodUserName)}.{str(PIPELINE_STREAM)}"
 else:
-    jobName = "%s" % str(uuid.uuid4())
+    jobName = f"{str(uuid.uuid4())}"
 
 if PIPELINE_STREAM is not None:
     jobDefinitionID = PIPELINE_STREAM
@@ -144,7 +116,7 @@ job.destinationDBlock = datasetName
 job.destinationSE = "local"
 job.currentPriority = 1000
 job.prodSourceLabel = "panda"
-job.jobParameters = ' --lsstJobParams="%s" ' % lsstJobParams
+job.jobParameters = f' --lsstJobParams="{lsstJobParams}" '
 if prodUserName is not None:
     job.prodUserName = prodUserName
 else:
@@ -159,7 +131,7 @@ job.computingSite = site
 job.VO = "lsst"
 
 fileOL = FileSpec()
-fileOL.lfn = "%s.job.log.tgz" % job.jobName
+fileOL.lfn = f"{job.jobName}.job.log.tgz"
 fileOL.destinationDBlock = job.destinationDBlock
 fileOL.destinationSE = job.destinationSE
 fileOL.dataset = job.destinationDBlock
@@ -170,4 +142,4 @@ job.addFile(fileOL)
 s, o = Client.submitJobs([job], srvID=aSrvID)
 print(s)
 for x in o:
-    print("PandaID=%s" % x[0])
+    print(f"PandaID={x[0]}")

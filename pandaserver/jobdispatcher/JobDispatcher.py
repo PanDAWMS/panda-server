@@ -156,7 +156,7 @@ class JobDispatcher:
             tmpOut = pIF.retrieve(realDN, role=role)
             # not found
             if tmpOut is None:
-                tmpMsg = "proxy not found for {0}".format(realDN)
+                tmpMsg = f"proxy not found for {realDN}"
                 response.appendNode("errorDialog", tmpMsg)
                 return False, tmpMsg
             # set
@@ -164,7 +164,7 @@ class JobDispatcher:
             return True, ""
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]
-            tmpMsg = "proxy retrieval failed with {0} {1}".format(errtype.__name__, errvalue)
+            tmpMsg = f"proxy retrieval failed with {errtype.__name__} {errvalue}"
             response.appendNode("errorDialog", tmpMsg)
             return False, tmpMsg
 
@@ -215,7 +215,7 @@ class JobDispatcher:
         # change label
         if in_test and prodSourceLabel in ["user", "managed", "unified"]:
             new_label = "test"
-            tmpLog.debug("prodSourceLabel changed {} -> {}".format(prodSourceLabel, new_label))
+            tmpLog.debug(f"prodSourceLabel changed {prodSourceLabel} -> {new_label}")
             prodSourceLabel = new_label
 
         # wrapper function for timeout
@@ -265,7 +265,7 @@ class JobDispatcher:
                     response = Protocol.Response(Protocol.SC_Success)
                     response.appendJob(tmpJob, self.siteMapperCache)
                 except Exception as e:
-                    tmpMsg = "failed to get jobs with {0}".format(str(e))
+                    tmpMsg = f"failed to get jobs with {str(e)}"
                     tmpLog.error(tmpMsg + "\n" + traceback.format_exc())
                     raise
 
@@ -300,7 +300,7 @@ class JobDispatcher:
                         else:
                             allowProxy = self.specialDispatchParams["allowProxy"]
                         if compactDN not in allowProxy:
-                            tmpLog.warning("%s %s '%s' no permission to retrieve user proxy" % (siteName, node, compactDN))
+                            tmpLog.warning(f"{siteName} {node} '{compactDN}' no permission to retrieve user proxy")
                         else:
                             if useProxyCache:
                                 tmpStat, tmpOut = self.setUserProxy(
@@ -311,9 +311,9 @@ class JobDispatcher:
                             else:
                                 tmpStat, tmpOut = self.setUserProxy(response)
                             if not tmpStat:
-                                tmpLog.warning("%s %s failed to get user proxy : %s" % (siteName, node, tmpOut))
+                                tmpLog.warning(f"{siteName} {node} failed to get user proxy : {tmpOut}")
                     except Exception as e:
-                        tmpLog.warning("%s %s failed to get user proxy with %s" % (siteName, node, str(e)))
+                        tmpLog.warning(f"{siteName} {node} failed to get user proxy with {str(e)}")
                 # panda proxy
                 if (
                     "pandaProxySites" in self.specialDispatchParams
@@ -323,10 +323,10 @@ class JobDispatcher:
                     # get secret key
                     tmpSecretKey, tmpErrMsg = DispatcherUtils.getSecretKey(tmpJob.PandaID)
                     if tmpSecretKey is None:
-                        tmpLog.warning("PandaID=%s site=%s failed to get panda proxy secret key : %s" % (tmpJob.PandaID, siteName, tmpErrMsg))
+                        tmpLog.warning(f"PandaID={tmpJob.PandaID} site={siteName} failed to get panda proxy secret key : {tmpErrMsg}")
                     else:
                         # set secret key
-                        tmpLog.debug("PandaID=%s set key=%s" % (tmpJob.PandaID, tmpSecretKey))
+                        tmpLog.debug(f"PandaID={tmpJob.PandaID} set key={tmpSecretKey}")
                         response.setPandaProxySecretKey(tmpSecretKey)
                 # add
                 responseList.append(response.data)
@@ -339,7 +339,7 @@ class JobDispatcher:
                     else:
                         response.appendNode("jobs", responseList)
                 except Exception as e:
-                    tmpMsg = "failed to make response with {0}".format(str(e))
+                    tmpMsg = f"failed to make response with {str(e)}"
                     tmpLog.error(tmpMsg + "\n" + traceback.format_exc())
                     raise
 
@@ -356,13 +356,13 @@ class JobDispatcher:
                     response = Protocol.Response(Protocol.SC_NoJobs, "no jobs in PanDA")
                 else:
                     response = Protocol.Response(Protocol.SC_NoJobs)
-                _pilotReqLogger.info("method=noJob,site=%s,node=%s,type=%s" % (siteName, node, prodSourceLabel))
+                _pilotReqLogger.info(f"method=noJob,site={siteName},node={node},type={prodSourceLabel}")
         # return
-        tmpLog.debug("%s %s ret -> %s" % (siteName, node, response.encode(acceptJson)))
+        tmpLog.debug(f"{siteName} {node} ret -> {response.encode(acceptJson)}")
 
         t_getJob_end = time.time()
         t_getJob_spent = t_getJob_end - t_getJob_start
-        tmpLog.info("siteName={0} took timing={1}s in_test={2}".format(siteName, t_getJob_spent, in_test))
+        tmpLog.info(f"siteName={siteName} took timing={t_getJob_spent}s in_test={in_test}")
         return response.encode(acceptJson)
 
     # update job status
@@ -392,7 +392,7 @@ class JobDispatcher:
         if metadata != "":
             ret = self.taskBuffer.addMetadata([jobID], [metadata], [jobStatus])
             if len(ret) > 0 and not ret[0]:
-                _logger.debug("updateJob : %s failed to add metadata" % jobID)
+                _logger.debug(f"updateJob : {jobID} failed to add metadata")
                 # return succeed
                 response = Protocol.Response(Protocol.SC_Success)
                 return response.encode(acceptJson)
@@ -408,7 +408,7 @@ class JobDispatcher:
             updateStateChange = True
             param["jobDispatcherErrorDiag"] = None
         elif jobStatus in ["holding", "transferring"]:
-            param["jobDispatcherErrorDiag"] = "set to {0} by the pilot at {1}".format(jobStatus, datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
+            param["jobDispatcherErrorDiag"] = f"set to {jobStatus} by the pilot at {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
         if tmpStatus == "holding":
             tmpWrapper = _TimedMethod(self.taskBuffer.updateJobStatus, None)
         else:
@@ -443,7 +443,7 @@ class JobDispatcher:
             else:
                 # failed
                 response = Protocol.Response(Protocol.SC_Failed)
-        _logger.debug("updateJob : %s ret -> %s" % (jobID, response.encode(acceptJson)))
+        _logger.debug(f"updateJob : {jobID} ret -> {response.encode(acceptJson)}")
         return response.encode(acceptJson)
 
     # get job status
@@ -466,17 +466,17 @@ class JobDispatcher:
                 attStr = ""
                 for job in tmpWrapper.result:
                     if job is None:
-                        retStr += "%s+" % "notfound"
+                        retStr += f"notfound+"
                         attStr += "0+"
                     else:
-                        retStr += "%s+" % job.jobStatus
-                        attStr += "%s+" % job.attemptNr
+                        retStr += f"{job.jobStatus}+"
+                        attStr += f"{job.attemptNr}+"
                 response.appendNode("status", retStr[:-1])
                 response.appendNode("attemptNr", attStr[:-1])
             else:
                 # failed
                 response = Protocol.Response(Protocol.SC_Failed)
-        _logger.debug("getStatus : %s ret -> %s" % (strIDs, response.encode()))
+        _logger.debug(f"getStatus : {strIDs} ret -> {response.encode()}")
         return response.encode()
 
     # check job status
@@ -496,7 +496,7 @@ class JobDispatcher:
             else:
                 # failed
                 response = Protocol.Response(Protocol.SC_Failed)
-        _logger.debug("checkJobStatus : %s ret -> %s" % (pandaIDs, response.encode(True)))
+        _logger.debug(f"checkJobStatus : {pandaIDs} ret -> {response.encode(True)}")
         return response.encode(True)
 
     # get a list of event ranges for a PandaID
@@ -527,7 +527,7 @@ class JobDispatcher:
             else:
                 # failed
                 response = Protocol.Response(Protocol.SC_Failed)
-        _logger.debug("getEventRanges : %s ret -> %s" % (pandaID, response.encode(acceptJson)))
+        _logger.debug(f"getEventRanges : {pandaID} ret -> {response.encode(acceptJson)}")
         return response.encode(acceptJson)
 
     # update an event range
@@ -556,7 +556,7 @@ class JobDispatcher:
             else:
                 # failed
                 response = Protocol.Response(Protocol.SC_Failed)
-        _logger.debug("updateEventRange : %s ret -> %s" % (eventRangeID, response.encode()))
+        _logger.debug(f"updateEventRange : {eventRangeID} ret -> {response.encode()}")
         return response.encode()
 
     # update event ranges
@@ -574,7 +574,7 @@ class JobDispatcher:
             # make return
             response.appendNode("Returns", tmpWrapper.result[0])
             response.appendNode("Command", tmpWrapper.result[1])
-        _logger.debug("updateEventRanges : ret -> %s" % (response.encode(acceptJson)))
+        _logger.debug(f"updateEventRanges : ret -> {response.encode(acceptJson)}")
         return response.encode(acceptJson)
 
     # check event availability
@@ -595,7 +595,7 @@ class JobDispatcher:
             else:
                 # failed
                 response = Protocol.Response(Protocol.SC_Failed)
-        _logger.debug("checkEventsAvailability : %s ret -> %s" % (pandaID, response.encode(True)))
+        _logger.debug(f"checkEventsAvailability : {pandaID} ret -> {response.encode(True)}")
         return response.encode(True)
 
     # get DN/token map
@@ -625,7 +625,7 @@ class JobDispatcher:
 
     # get key pair
     def getKeyPair(self, realDN, publicKeyName, privateKeyName, acceptJson):
-        tmpMsg = "getKeyPair {0}/{1} json={2}: ".format(publicKeyName, privateKeyName, acceptJson)
+        tmpMsg = f"getKeyPair {publicKeyName}/{privateKeyName} json={acceptJson}: "
         if realDN is None:
             # cannot extract DN
             tmpMsg += "failed since DN cannot be extracted"
@@ -642,7 +642,7 @@ class JobDispatcher:
                 allowKey = self.specialDispatchParams["allowKey"]
             if compactDN not in allowKey:
                 # permission denied
-                tmpMsg += "failed since '{0}' not in the authorized user list who have 'k' in {1}.USERS.GRIDPREF".format(compactDN, panda_config.schemaMETA)
+                tmpMsg += f"failed since '{compactDN}' not in the authorized user list who have 'k' in {panda_config.schemaMETA}.USERS.GRIDPREF"
                 _logger.debug(tmpMsg)
                 response = Protocol.Response(Protocol.SC_Perms, tmpMsg)
             else:
@@ -655,11 +655,11 @@ class JobDispatcher:
                 if publicKeyName not in keyPair:
                     # public key is missing
                     notFound = True
-                    tmpMsg += "failed for '{2}' since {0} is missing on {1}".format(publicKeyName, socket.getfqdn(), compactDN)
+                    tmpMsg += f"failed for '{compactDN}' since {publicKeyName} is missing on {socket.getfqdn()}"
                 elif privateKeyName not in keyPair:
                     # private key is missing
                     notFound = True
-                    tmpMsg += "failed for '{2}' since {0} is missing on {1}".format(privateKeyName, socket.getfqdn(), compactDN)
+                    tmpMsg += f"failed for '{compactDN}' since {privateKeyName} is missing on {socket.getfqdn()}"
                 if notFound:
                     # private or public key is missing
                     _logger.debug(tmpMsg)
@@ -669,7 +669,7 @@ class JobDispatcher:
                     response = Protocol.Response(Protocol.SC_Success)
                     response.appendNode("publicKey", keyPair[publicKeyName])
                     response.appendNode("privateKey", keyPair[privateKeyName])
-                    tmpMsg += "sent key-pair to '{0}'".format(compactDN)
+                    tmpMsg += f"sent key-pair to '{compactDN}'"
                     _logger.debug(tmpMsg)
         # return
         return response.encode(acceptJson)
@@ -707,14 +707,14 @@ class JobDispatcher:
             response.appendNode("Returns", tmp_wrapper.result[0])
             response.appendNode("Commands", tmp_wrapper.result[1])
 
-        _logger.debug("getCommands : ret -> %s" % (response.encode(accept_json)))
+        _logger.debug(f"getCommands : ret -> {response.encode(accept_json)}")
         return response.encode(accept_json)
 
     def ackCommands(self, command_ids, timeout, accept_json):
         """
         Acknowledge the commands from a list of IDs
         """
-        _logger.debug("command_ids : {0}".format(command_ids))
+        _logger.debug(f"command_ids : {command_ids}")
         tmp_wrapper = _TimedMethod(self.taskBuffer.ackCommands, timeout)
         tmp_wrapper.run(command_ids)
 
@@ -727,7 +727,7 @@ class JobDispatcher:
             response = Protocol.Response(Protocol.SC_Success)
             response.appendNode("Returns", tmp_wrapper.result)
 
-        _logger.debug("ackCommands : ret -> %s" % (response.encode(accept_json)))
+        _logger.debug(f"ackCommands : ret -> {response.encode(accept_json)}")
         return response.encode(accept_json)
 
     def getResourceTypes(self, timeout, accept_json):
@@ -747,15 +747,15 @@ class JobDispatcher:
             response.appendNode("Returns", 0)
             response.appendNode("ResourceTypes", tmp_wrapper.result)
 
-        _logger.debug("getResourceTypes : ret -> %s" % (response.encode(accept_json)))
+        _logger.debug(f"getResourceTypes : ret -> {response.encode(accept_json)}")
         return response.encode(accept_json)
 
     # get proxy
     def getProxy(self, realDN, role, targetDN):
         if targetDN is None:
             targetDN = realDN
-        tmpLog = LogWrapper(_logger, "getProxy PID={}".format(os.getpid()))
-        tmpMsg = 'start DN="{}" role={} target="{}" '.format(realDN, role, targetDN)
+        tmpLog = LogWrapper(_logger, f"getProxy PID={os.getpid()}")
+        tmpMsg = f'start DN="{realDN}" role={role} target="{targetDN}" '
         tmpLog.debug(tmpMsg)
         if realDN is None:
             # cannot extract DN
@@ -773,7 +773,7 @@ class JobDispatcher:
                 allowProxy = self.specialDispatchParams["allowProxy"]
             if compactDN not in allowProxy:
                 # permission denied
-                tmpMsg += "failed since '{0}' not in the authorized user list who have 'p' in {1}.USERS.GRIDPREF ".format(compactDN, panda_config.schemaMETA)
+                tmpMsg += f"failed since '{compactDN}' not in the authorized user list who have 'p' in {panda_config.schemaMETA}.USERS.GRIDPREF "
                 tmpMsg += "to get proxy"
                 tmpLog.debug(tmpMsg)
                 response = Protocol.Response(Protocol.SC_Perms, tmpMsg)
@@ -807,7 +807,7 @@ class JobDispatcher:
                 response = Protocol.Response(Protocol.SC_Success)
             else:  # error
                 response = Protocol.Response(Protocol.SC_Failed)
-        _logger.debug("updateWorkerPilotStatus : {0} {1} {2} ret -> {3}".format(workerID, harvesterID, status, response.encode(accept_json)))
+        _logger.debug(f"updateWorkerPilotStatus : {workerID} {harvesterID} {status} ret -> {response.encode(accept_json)}")
         return response.encode(accept_json)
 
     # get max workerID
@@ -963,7 +963,7 @@ def getJob(
     jobType=None,
     viaTopic=None,
 ):
-    tmpLog = LogWrapper(_logger, "getJob {}".format(datetime.datetime.utcnow().isoformat("/")))
+    tmpLog = LogWrapper(_logger, f"getJob {datetime.datetime.utcnow().isoformat('/')}")
     tmpLog.debug(siteName)
     # get DN
     realDN = _getDN(req)
@@ -1047,9 +1047,9 @@ def getJob(
         dummyNumSlots = 1
     if dummyNumSlots > 1:
         for iSlots in range(dummyNumSlots):
-            _pilotReqLogger.info("method=getJob,site=%s,node=%s_%s,type=%s" % (siteName, node, iSlots, prodSourceLabel))
+            _pilotReqLogger.info(f"method=getJob,site={siteName},node={node}_{iSlots},type={prodSourceLabel}")
     else:
-        _pilotReqLogger.info("method=getJob,site=%s,node=%s,type=%s" % (siteName, node, prodSourceLabel))
+        _pilotReqLogger.info(f"method=getJob,site={siteName},node={node},type={prodSourceLabel}")
     # invalid role
     if (not prodManager) and (prodSourceLabel not in ["user"]):
         tmpLog.warning("invalid role")
@@ -1151,7 +1151,7 @@ def updateJob(
     meanCoreCount=None,
     cpu_architecture_level=None,
 ):
-    tmpLog = LogWrapper(_logger, "updateJob PandaID={0} PID={1}".format(jobId, os.getpid()))
+    tmpLog = LogWrapper(_logger, f"updateJob PandaID={jobId} PID={os.getpid()}")
     tmpLog.debug("start")
     # get DN
     realDN = _getDN(req)
@@ -1234,10 +1234,10 @@ def updateJob(
             stdout=stdout,
         )
     )
-    _pilotReqLogger.debug("method=updateJob,site=%s,node=%s,type=None" % (siteName, node))
+    _pilotReqLogger.debug(f"method=updateJob,site={siteName},node={node},type=None")
     # invalid role
     if not prodManager:
-        _logger.warning("updateJob(%s) : invalid role" % jobId)
+        _logger.warning(f"updateJob({jobId}) : invalid role")
         if acceptJson:
             tmpMsg = "no production/pilot role in VOMS FQANs or non pilot owner"
         else:
@@ -1245,7 +1245,7 @@ def updateJob(
         return Protocol.Response(Protocol.SC_Role, tmpMsg).encode(acceptJson)
     # invalid token
     if not validToken:
-        _logger.warning("updateJob(%s) : invalid token" % jobId)
+        _logger.warning(f"updateJob({jobId}) : invalid token")
         return Protocol.Response(Protocol.SC_Invalid).encode(acceptJson)
     # aborting message
     if jobId == "NULL":
@@ -1259,7 +1259,7 @@ def updateJob(
         "starting",
         "transferring",
     ]:
-        _logger.warning("invalid state=%s for updateJob" % state)
+        _logger.warning(f"invalid state={state} for updateJob")
         return Protocol.Response(Protocol.SC_Success).encode(acceptJson)
     # create parameter map
     param = {}
@@ -1271,7 +1271,7 @@ def updateJob(
         try:
             param["cpu_architecture_level"] = cpu_architecture_level[:20]
         except Exception:
-            _logger.error("invalid cpu_architecture_level=%s for updateJob" % cpu_architecture_level)
+            _logger.error(f"invalid cpu_architecture_level={cpu_architecture_level} for updateJob")
             pass
     if node is not None:
         param["modificationHost"] = node[:128]
@@ -1405,7 +1405,7 @@ def updateJob(
 def updateJobsInBulk(req, jobList, harvester_id=None):
     retList = []
     retVal = False
-    _logger.debug("updateJobsInBulk %s start" % harvester_id)
+    _logger.debug(f"updateJobsInBulk {harvester_id} start")
     tStart = datetime.datetime.utcnow()
     try:
         jobList = json.loads(jobList)
@@ -1421,7 +1421,7 @@ def updateJobsInBulk(req, jobList, harvester_id=None):
         retVal = True
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
-        tmpMsg = "updateJobsInBulk {0} failed with {1} {2}".format(harvester_id, errtype.__name__, errvalue)
+        tmpMsg = f"updateJobsInBulk {harvester_id} failed with {errtype.__name__} {errvalue}"
         retList = tmpMsg
         _logger.error(tmpMsg + "\n" + traceback.format_exc())
     tDelta = datetime.datetime.utcnow() - tStart
@@ -1431,7 +1431,7 @@ def updateJobsInBulk(req, jobList, harvester_id=None):
 
 # get job status
 def getStatus(req, ids, timeout=60):
-    _logger.debug("getStatus(%s)" % ids)
+    _logger.debug(f"getStatus({ids})")
     return jobDispatcher.getStatus(ids, int(timeout))
 
 
@@ -1451,7 +1451,7 @@ def getEventRanges(
     scattered=None,
     segment_id=None,
 ):
-    tmpStr = "getEventRanges(PandaID=%s jobsetID=%s taskID=%s,nRanges=%s,segment=%s)" % (pandaID, jobsetID, taskID, nRanges, segment_id)
+    tmpStr = f"getEventRanges(PandaID={pandaID} jobsetID={jobsetID} taskID={taskID},nRanges={nRanges},segment={segment_id})"
     _logger.debug(tmpStr + " start")
     # get site
     tmpMap = jobDispatcher.getActiveJobAttributes(pandaID, ["computingSite"])
@@ -1492,13 +1492,7 @@ def updateEventRange(
     timeout=60,
     pandaID=None,
 ):
-    tmpStr = "updateEventRange(%s status=%s coreCount=%s cpuConsumptionTime=%s osID=%s)" % (
-        eventRangeID,
-        eventStatus,
-        coreCount,
-        cpuConsumptionTime,
-        objstoreID,
-    )
+    tmpStr = f"updateEventRange({eventRangeID} status={eventStatus} coreCount={coreCount} cpuConsumptionTime={cpuConsumptionTime} osID={objstoreID})"
     _logger.debug(tmpStr + " start")
     # get site
     site = ""
@@ -1522,7 +1516,7 @@ def updateEventRange(
 
 # update an event ranges
 def updateEventRanges(req, eventRanges, timeout=120, version=0, pandaID=None):
-    tmpStr = "updateEventRanges(%s)" % eventRanges
+    tmpStr = f"updateEventRanges({eventRanges})"
     _logger.debug(tmpStr + " start")
     # get site
     site = ""
@@ -1543,7 +1537,7 @@ def updateEventRanges(req, eventRanges, timeout=120, version=0, pandaID=None):
 
 # check event availability
 def checkEventsAvailability(req, pandaID, jobsetID, taskID, timeout=60):
-    tmpStr = "checkEventsAvailability(pandaID={0} jobsetID={1} taskID={2})".format(pandaID, jobsetID, taskID)
+    tmpStr = f"checkEventsAvailability(pandaID={pandaID} jobsetID={jobsetID} taskID={taskID})"
     _logger.debug(tmpStr + " start")
     tmpStat, tmpOut = checkPilotPermission(req)
     if not tmpStat:
@@ -1616,7 +1610,7 @@ def getCommands(req, harvester_id, n_commands, timeout=30):
     # check permissions
     tmp_stat, tmp_out = checkPilotPermission(req)
     if not tmp_stat:
-        _logger.error("{0} failed with {1}".format(tmp_str, tmp_out))
+        _logger.error(f"{tmp_str} failed with {tmp_out}")
 
     accept_json = req.acceptJson()
     # retrieve the commands
@@ -1632,7 +1626,7 @@ def ackCommands(req, command_ids, timeout=30):
     # check permissions
     tmp_stat, tmp_out = checkPilotPermission(req)
     if not tmp_stat:
-        _logger.error("{0} failed with {1}".format(tmp_str, tmp_out))
+        _logger.error(f"{tmp_str} failed with {tmp_out}")
 
     command_ids = json.loads(command_ids)
     accept_json = req.acceptJson()
@@ -1649,7 +1643,7 @@ def getResourceTypes(req, timeout=30):
     # check permissions
     tmp_stat, tmp_out = checkPilotPermission(req)
     if not tmp_stat:
-        _logger.error("{0} failed with {1}".format(tmp_str, tmp_out))
+        _logger.error(f"{tmp_str} failed with {tmp_out}")
 
     accept_json = req.acceptJson()
     # retrieve the commands
@@ -1660,20 +1654,20 @@ def getResourceTypes(req, timeout=30):
 def updateWorkerPilotStatus(req, site, workerID, harvesterID, status, timeout=60):
     tmp_log = LogWrapper(
         _logger,
-        "updateWorkerPilotStatus workerID={0} harvesterID={1} status={2} PID={3}".format(workerID, harvesterID, status, os.getpid()),
+        f"updateWorkerPilotStatus workerID={workerID} harvesterID={harvesterID} status={status} PID={os.getpid()}",
     )
     tmp_log.debug("start")
 
     # validate the pilot permissions
     tmp_stat, tmp_out = checkPilotPermission(req, site)
     if not tmp_stat:
-        tmp_log.error("failed with {0}".format(tmp_out))
+        tmp_log.error(f"failed with {tmp_out}")
         return tmp_out
 
     # validate the state passed by the pilot
     valid_states = ("started", "finished")
     if status not in valid_states:
-        message = "Invalid worker state. The worker state has to be in {0}".format(valid_states)
+        message = f"Invalid worker state. The worker state has to be in {valid_states}"
         tmp_log.debug(message)
         return message
 

@@ -54,7 +54,7 @@ sql += (
 )
 status, res = proxyS.querySQLS(sql, varMap)
 
-print("got {0} jobs".format(len(res)))
+print(f"got {len(res)} jobs")
 
 jobs = []
 jediJobs = []
@@ -68,13 +68,13 @@ if len(jobs):
     nJob = 100
     iJob = 0
     while iJob < len(jobs):
-        print("reassign  %s" % str(jobs[iJob : iJob + nJob]))
+        print(f"reassign  {str(jobs[iJob:iJob + nJob])}")
         Client.reassignJobs(jobs[iJob : iJob + nJob])
         iJob += nJob
 if len(jediJobs) != 0:
     nJob = 100
     iJob = 0
     while iJob < len(jediJobs):
-        print("kill JEDI jobs %s" % str(jediJobs[iJob : iJob + nJob]))
+        print(f"kill JEDI jobs {str(jediJobs[iJob:iJob + nJob])}")
         Client.killJobs(jediJobs[iJob : iJob + nJob], 51)
         iJob += nJob

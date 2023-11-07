@@ -50,7 +50,7 @@ class Terminator(threading.Thread):
             pass
         # get PID
         pid = os.getpid()
-        _logger.debug("child  %s received termination" % pid)
+        _logger.debug(f"child  {pid} received termination")
         # kill
         try:
             os.kill(pid, signal.SIGTERM)
@@ -100,7 +100,7 @@ class ConBridge(object):
     ):
         # kill old child process
         self.bridge_killChild()
-        _logger.debug("master %s connecting" % self.pid)
+        _logger.debug(f"master {self.pid} connecting")
         # reset child PID and sockets
         self.child_pid = 0
         self.mysock = None
@@ -120,21 +120,21 @@ class ConBridge(object):
             datpair[0].close()
             conpair[0].close()
             # connect to database
-            _logger.debug("child  %s connecting to database" % self.pid)
+            _logger.debug(f"child  {self.pid} connecting to database")
             self.proxy = DBProxy.DBProxy()
             if not self.proxy.connect(dbhost=dbhost, dbpasswd=dbpasswd, dbtimeout=60):
-                _logger.error("child  %s failed to connect" % self.pid)
+                _logger.error(f"child  {self.pid} failed to connect")
                 # send error
-                self.bridge_sendError((RuntimeError, "child  %s connection failed" % self.pid))
+                self.bridge_sendError((RuntimeError, f"child  {self.pid} connection failed"))
                 # exit
                 self.bridge_childExit()
             # send OK just for ACK
-            _logger.debug("child  %s connection is ready" % self.pid)
+            _logger.debug(f"child  {self.pid} connection is ready")
             self.bridge_sendResponse(None)
             # start terminator
             Terminator(self.consock).start()
             # go main loop
-            _logger.debug("child  %s going into the main loop" % self.pid)
+            _logger.debug(f"child  {self.pid} going into the main loop")
             self.bridge_run()
             # exit
             self.bridge_childExit(0)
@@ -148,12 +148,12 @@ class ConBridge(object):
             conpair[1].close()
             try:
                 # get ACK
-                _logger.debug("master %s waiting ack from child=%s" % (self.pid, self.child_pid))
+                _logger.debug(f"master {self.pid} waiting ack from child={self.child_pid}")
                 self.bridge_getResponse()
-                _logger.debug("master %s got ready from child=%s" % (self.pid, self.child_pid))
+                _logger.debug(f"master {self.pid} got ready from child={self.child_pid}")
                 return True
             except Exception as e:
-                _logger.error("master %s failed to setup child=%s : %s %s" % (self.pid, self.child_pid, str(e), traceback.format_exc()))
+                _logger.error(f"master {self.pid} failed to setup child={self.child_pid} : {str(e)} {traceback.format_exc()}")
                 # kill child
                 self.bridge_killChild()
                 return False
@@ -182,7 +182,7 @@ class ConBridge(object):
                 roleType = "master"
             else:
                 roleType = "child "
-            _logger.error("%s %s send error : val=%s - %s %s" % (roleType, self.pid, str(val)[:1024], str(e), traceback.format_exc()))
+            _logger.error(f"{roleType} {self.pid} send error : val={str(val)[:1024]} - {str(e)} {traceback.format_exc()}")
             # terminate child
             if not self.isMaster:
                 self.bridge_childExit()
@@ -250,9 +250,9 @@ class ConBridge(object):
             else:
                 roleType = "child "
             if isinstance(e, HarmlessEx):
-                _logger.debug("%s %s recv harmless ex : %s" % (roleType, self.pid, str(e)))
+                _logger.debug(f"{roleType} {self.pid} recv harmless ex : {str(e)}")
             else:
-                _logger.error("%s %s recv error : %s %s" % (roleType, self.pid, str(e), traceback.format_exc()))
+                _logger.error(f"{roleType} {self.pid} recv error : {str(e)} {traceback.format_exc()}")
             # terminate child
             if not self.isMaster:
                 self.bridge_childExit()
@@ -285,11 +285,11 @@ class ConBridge(object):
     def bridge_childExit(self, exitCode=1):
         if not self.isMaster:
             # close database connection
-            _logger.debug("child  %s closing database connection" % self.pid)
+            _logger.debug(f"child  {self.pid} closing database connection")
             if self.proxy:
                 self.proxy.cleanup()
             # close sockets
-            _logger.debug("child  %s closing sockets" % self.pid)
+            _logger.debug(f"child  {self.pid} closing sockets")
             try:
                 self.mysock.shutdown(socket.SHUT_RDWR)
             except Exception:
@@ -299,7 +299,7 @@ class ConBridge(object):
             except Exception:
                 pass
             # exit
-            _logger.debug("child  %s going to exit" % self.pid)
+            _logger.debug(f"child  {self.pid} going to exit")
             os._exit(exitCode)
 
     # child main
@@ -317,11 +317,11 @@ class ConBridge(object):
                     raise RuntimeError("invalid variables")
             except Exception:
                 errType, errValue = sys.exc_info()[:2]
-                _logger.error("child  %s died : %s %s" % (self.pid, errType, errValue))
+                _logger.error(f"child  {self.pid} died : {errType} {errValue}")
                 # exit
                 self.bridge_childExit()
             if self.verbose:
-                _logger.debug("child  %s method %s executing" % (self.pid, comStr))
+                _logger.debug(f"child  {self.pid} method {comStr} executing")
             try:
                 # execute
                 method = getattr(self.proxy, comStr)
@@ -331,14 +331,14 @@ class ConBridge(object):
                     newRes = [True] + list(res[1:])
                     res = newRes
                 if self.verbose:
-                    _logger.debug("child  %s method %s completed" % (self.pid, comStr))
+                    _logger.debug(f"child  {self.pid} method {comStr} completed")
                 # return
                 self.bridge_sendResponse((res, variables[0], variables[1]))
             except Exception:
                 errType, errValue = sys.exc_info()[:2]
-                _logger.error("child  %s method %s failed : %s %s" % (self.pid, comStr, errType, errValue))
+                _logger.error(f"child  {self.pid} method {comStr} failed : {errType} {errValue}")
                 if errType in [socket.error, socket.timeout]:
-                    _logger.error("child  %s died : %s %s" % (self.pid, errType, errValue))
+                    _logger.error(f"child  {self.pid} died : {errType} {errValue}")
                     # exit
                     self.bridge_childExit()
                 # send error
@@ -352,7 +352,7 @@ class ConBridge(object):
         # kill old child process
         if self.child_pid != 0:
             # close sockets
-            _logger.debug("master %s closing sockets for child=%s" % (self.pid, self.child_pid))
+            _logger.debug(f"master {self.pid} closing sockets for child={self.child_pid}")
             try:
                 if self.mysock is not None:
                     self.mysock.shutdown(socket.SHUT_RDWR)
@@ -363,7 +363,7 @@ class ConBridge(object):
                     self.consock.shutdown(socket.SHUT_RDWR)
             except Exception:
                 pass
-            _logger.debug("master %s killing child=%s" % (self.pid, self.child_pid))
+            _logger.debug(f"master {self.pid} killing child={self.child_pid}")
             # send SIGTERM
             try:
                 os.kill(self.child_pid, signal.SIGTERM)
@@ -376,35 +376,35 @@ class ConBridge(object):
             except Exception:
                 pass
             # wait for completion of child
-            _logger.debug("master %s waiting child=%s" % (self.pid, self.child_pid))
+            _logger.debug(f"master {self.pid} waiting child={self.child_pid}")
             try:
                 os.waitpid(self.child_pid, 0)
             except Exception:
                 pass
             # sleep to avoid burst reconnection
             time.sleep(random.randint(5, 15))
-            _logger.debug("master %s killed child=%s" % (self.pid, self.child_pid))
+            _logger.debug(f"master {self.pid} killed child={self.child_pid}")
 
     # get responce
     def bridge_getResponse(self):
         # get status
         status, strStatus = self.bridge_recv()
         if not status:
-            raise RuntimeError("master %s got invalid status response from child=%s" % (self.pid, self.child_pid))
+            raise RuntimeError(f"master {self.pid} got invalid status response from child={self.child_pid}")
         if strStatus == "OK":
             # return res
             status, ret = self.bridge_recv()
             if not status:
-                raise RuntimeError("master %s got invalid response body from child=%s" % (self.pid, self.child_pid))
+                raise RuntimeError(f"master {self.pid} got invalid response body from child={self.child_pid}")
             return ret
         elif strStatus == "NG":
             # raise error
             status, ret = self.bridge_recv()
             if not status:
-                raise RuntimeError("master %s got invalid response value from child=%s" % (self.pid, self.child_pid))
+                raise RuntimeError(f"master {self.pid} got invalid response value from child={self.child_pid}")
             raise ret[0](ret[1])
         else:
-            raise RuntimeError("master %s got invalid response from child=%s : %s" % (self.pid, self.child_pid, str(strStatus)))
+            raise RuntimeError(f"master {self.pid} got invalid response from child={self.child_pid} : {str(strStatus)}")
 
     # method wrapper class
     class bridge_masterMethod:
@@ -468,26 +468,26 @@ class ConBridge(object):
                     return retVal
                 except Exception:
                     errType, errValue = sys.exc_info()[:2]
-                    _logger.error("master %s method %s failed : %s %s" % (self.pid, self.name, errType, errValue))
+                    _logger.error(f"master {self.pid} method {self.name} failed : {errType} {errValue}")
                     # reconnect when socket has a problem
                     if errType not in [socket.error, socket.timeout]:
                         # kill old child process
                         self.parent.bridge_killChild()
-                        _logger.error("master %s killed child" % self.pid)
+                        _logger.error(f"master {self.pid} killed child")
                         # raise errType,errValue
                     # sleep
                     time.sleep(5)
                     # reconnect
                     try:
-                        _logger.debug("master %s trying to reconnect" % self.pid)
+                        _logger.debug(f"master {self.pid} trying to reconnect")
                         is_ok = self.parent.connect()
                         if is_ok:
-                            _logger.debug("master %s reconnect completed" % self.pid)
+                            _logger.debug(f"master {self.pid} reconnect completed")
                         else:
-                            _logger.debug("master %s reconnect failed. sleep" % self.pid)
+                            _logger.debug(f"master {self.pid} reconnect failed. sleep")
                             time.sleep(120)
                     except Exception:
-                        _logger.error("master %s connect failed. sleep" % self.pid)
+                        _logger.error(f"master {self.pid} connect failed. sleep")
                         time.sleep(120)
 
     # get atter for cursor attributes

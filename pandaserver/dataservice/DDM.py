@@ -101,13 +101,7 @@ class RucioAPI:
                             pass
                 iFiles += nFiles
         vuid = hashlib.md5((scope + ":" + dsn).encode()).hexdigest()
-        vuid = "%s-%s-%s-%s-%s" % (
-            vuid[0:8],
-            vuid[8:12],
-            vuid[12:16],
-            vuid[16:20],
-            vuid[20:32],
-        )
+        vuid = f"{vuid[0:8]}-{vuid[8:12]}-{vuid[12:16]}-{vuid[16:20]}-{vuid[20:32]}"
         duid = vuid
         return {"duid": duid, "version": 1, "vuid": vuid}
 
@@ -386,13 +380,7 @@ class RucioAPI:
             client = RucioClient()
             for name in client.list_dids(scope, filters, collection):
                 vuid = hashlib.md5((scope + ":" + name).encode()).hexdigest()
-                vuid = "%s-%s-%s-%s-%s" % (
-                    vuid[0:8],
-                    vuid[8:12],
-                    vuid[12:16],
-                    vuid[16:20],
-                    vuid[20:32],
-                )
+                vuid = f"{vuid[0:8]}-{vuid[8:12]}-{vuid[12:16]}-{vuid[16:20]}-{vuid[20:32]}"
                 duid = vuid
                 # add /
                 if datasetName.endswith("/") and not name.endswith("/"):
@@ -400,12 +388,12 @@ class RucioAPI:
                 if old or ":" not in datasetName:
                     keyName = name
                 else:
-                    keyName = str("%s:%s" % (scope, name))
+                    keyName = str(f"{scope}:{name}")
                 if keyName not in result:
                     result[keyName] = {"duid": duid, "vuids": [vuid]}
             return result, ""
         except Exception as e:
-            return None, "%s %s" % (str(e), traceback.format_exc())
+            return None, f"{str(e)} {traceback.format_exc()}"
 
     # list datasets in container
     def listDatasetsInContainer(self, containerName):
@@ -419,11 +407,11 @@ class RucioAPI:
             client = RucioClient()
             for i in client.list_content(scope, cn):
                 if i["type"] == "DATASET":
-                    result.append(str("%s:%s" % (i["scope"], i["name"])))
+                    result.append(str(f"{i['scope']}:{i['name']}"))
             return result, ""
         except Exception:
             errType, errVale = sys.exc_info()[:2]
-            return None, "%s %s" % (errType, errVale)
+            return None, f"{errType} {errVale}"
 
     # list dataset replicas
     def listDatasetReplicas(self, datasetName):
@@ -446,7 +434,7 @@ class RucioAPI:
             return 0, retMap
         except Exception:
             errType, errVale = sys.exc_info()[:2]
-            return 1, "%s %s" % (errType, errVale)
+            return 1, f"{errType} {errVale}"
 
     # set metadata
     def setMetaData(self, dsn, metadata=None):
@@ -459,7 +447,7 @@ class RucioAPI:
                 client.set_metadata(scope, dsn, key=tmpKey, value=tmpValue)
         except Exception:
             errType, errVale = sys.exc_info()[:2]
-            return False, "%s %s" % (errType, errVale)
+            return False, f"{errType} {errVale}"
         return True, ""
 
     # get metadata
@@ -473,7 +461,7 @@ class RucioAPI:
             return True, None
         except Exception:
             errType, errVale = sys.exc_info()[:2]
-            return False, "%s %s" % (errType, errVale)
+            return False, f"{errType} {errVale}"
 
     # check if dataset exists
     def checkDatasetExist(self, dsn):
@@ -502,7 +490,7 @@ class RucioAPI:
         except DataIdentifierNotFound:
             pass
         except Exception as e:
-            return False, "%s" % str(e)
+            return False, f"{str(e)}"
         return True, ""
 
     # close dataset
@@ -544,7 +532,7 @@ class RucioAPI:
             return True, retVal
         except Exception:
             errType, errVale = sys.exc_info()[:2]
-            return False, "%s %s" % (errType, errVale)
+            return False, f"{errType} {errVale}"
 
     # get zip files
     def getZipFiles(self, dids, rses):
@@ -562,7 +550,7 @@ class RucioAPI:
                     for tmpDict in client.list_replicas(data):
                         tmpScope = str(tmpDict["scope"])
                         tmpLFN = str(tmpDict["name"])
-                        tmpDID = "{0}:{1}".format(tmpScope, tmpLFN)
+                        tmpDID = f"{tmpScope}:{tmpLFN}"
                         # RSE selection
                         for pfn in tmpDict["pfns"]:
                             pfnData = tmpDict["pfns"][pfn]
@@ -575,7 +563,7 @@ class RucioAPI:
             return True, retVal
         except Exception:
             errType, errVale = sys.exc_info()[:2]
-            return False, "%s %s" % (errType, errVale)
+            return False, f"{errType} {errVale}"
 
     # list files in dataset
     def listFilesInDataset(self, datasetName, long=False, fileList=None):
@@ -601,16 +589,7 @@ class RucioAPI:
             dq2attrs["events"] = str(x["events"])
             if long:
                 dq2attrs["lumiblocknr"] = str(x["lumiblocknr"])
-            guid = str(
-                "%s-%s-%s-%s-%s"
-                % (
-                    x["guid"][0:8],
-                    x["guid"][8:12],
-                    x["guid"][12:16],
-                    x["guid"][16:20],
-                    x["guid"][20:32],
-                )
-            )
+            guid = str(f"{x['guid'][0:8]}-{x['guid'][8:12]}-{x['guid'][12:16]}-{x['guid'][16:20]}-{x['guid'][20:32]}")
             dq2attrs["guid"] = guid
             return_dict[tmpLFN] = dq2attrs
         return (return_dict, None)
@@ -631,7 +610,7 @@ class RucioAPI:
             return None, "dataset not found"
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]
-            errMsg = "{0} {1}".format(errtype.__name__, errvalue)
+            errMsg = f"{errtype.__name__} {errvalue}"
             return False, errMsg
 
     # get dataset size
@@ -650,7 +629,7 @@ class RucioAPI:
             return None, "dataset not found"
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]
-            errMsg = "{0} {1}".format(errtype.__name__, errvalue)
+            errMsg = f"{errtype.__name__} {errvalue}"
             return False, errMsg
 
     # delete dataset replicas
@@ -668,7 +647,7 @@ class RucioAPI:
             pass
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]
-            errMsg = "{0} {1}".format(errtype.__name__, errvalue)
+            errMsg = f"{errtype.__name__} {errvalue}"
             return False, errMsg
         return True, ""
 
@@ -702,7 +681,7 @@ class RucioAPI:
         client = RucioClient()
         result = {}
         for guid in guids:
-            datasets = [str("%s:%s" % (i["scope"], i["name"])) for i in client.get_dataset_by_guid(guid)]
+            datasets = [str(f"{i['scope']}:{i['name']}") for i in client.get_dataset_by_guid(guid)]
             result[guid] = datasets
         return result
 
@@ -742,7 +721,7 @@ class RucioAPI:
                     retVal = True
                     break
         except Exception as e:
-            errMsg = "{}".format(str(e))
+            errMsg = f"{str(e)}"
             userInfo = errMsg
         return retVal, userInfo
 

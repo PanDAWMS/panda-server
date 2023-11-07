@@ -77,7 +77,7 @@ def main():
 
     # function to end master when end signal caught
     def end_master(sig, frame):
-        tmp_log.info("got end signal: {sig}".format(sig=sig))
+        tmp_log.info(f"got end signal: {sig}")
         master.stop()
         kill_whole()
 

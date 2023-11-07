@@ -47,7 +47,7 @@ class TokenDecoder:
         try:
             with self.lock:
                 if url not in self.data or datetime.datetime.utcnow() - self.data[url]["last_update"] > datetime.timedelta(minutes=self.refresh_interval):
-                    log_stream.debug("to refresh {}".format(url))
+                    log_stream.debug(f"to refresh {url}")
                     tmp_data = requests.get(url).json()
                     log_stream.debug("refreshed")
                     self.data[url] = {
@@ -56,7 +56,7 @@ class TokenDecoder:
                     }
                 return self.data[url]["data"]
         except Exception as e:
-            log_stream.error("failed to refresh with {}".format(str(e)))
+            log_stream.error(f"failed to refresh with {str(e)}")
             raise
 
     # decode and verify JWT token

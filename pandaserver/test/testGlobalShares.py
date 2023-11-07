@@ -33,9 +33,9 @@ if __name__ == "__main__":
 
     # check a couple of shares if they are valid leave names
     share_name = "wrong_share"
-    print("Share {0} is valid: {1}".format(share_name, proxyS.is_valid_share(share_name)))
+    print(f"Share {share_name} is valid: {proxyS.is_valid_share(share_name)}")
     share_name = "MC16Pile"
-    print("Share {0} is valid: {1}".format(share_name, proxyS.is_valid_share(share_name)))
+    print(f"Share {share_name} is valid: {proxyS.is_valid_share(share_name)}")
 
     try:
         from pandajedi.jedicore.JediTaskSpec import JediTaskSpec
@@ -51,81 +51,81 @@ if __name__ == "__main__":
     task_spec.campaign = "dummy_campaign"
     task_spec.workingGroup = "dummy_wg"
     task_spec.processingType = "dummy_type"
-    print("Share for task is {0}(should be 'Analysis')".format(proxyS.get_share_for_task(task_spec)))
+    print(f"Share for task is {proxyS.get_share_for_task(task_spec)}(should be 'Analysis')")
 
     # Production task without any matching leave
     task_spec.prodSourceLabel = "managed"
     task_spec.campaign = "dummy_campaign"
     task_spec.workingGroup = "dummy_wg"
     task_spec.processingType = "dummy_type"
-    print("Share for task is {0}(should be 'Undefined')".format(proxyS.get_share_for_task(task_spec)))
+    print(f"Share for task is {proxyS.get_share_for_task(task_spec)}(should be 'Undefined')")
 
     # Test task
     task_spec.prodSourceLabel = "test123"
     task_spec.campaign = "dummy_campaign"
     task_spec.workingGroup = "dummy_wg"
     task_spec.processingType = "dummy_type"
-    print("Share for task is {0}(should be 'Test')".format(proxyS.get_share_for_task(task_spec)))
+    print(f"Share for task is {proxyS.get_share_for_task(task_spec)}(should be 'Test')")
 
     # Derivations task without any matching leave
     task_spec.prodSourceLabel = "managed"
     task_spec.campaign = "dummy_campaign"
     task_spec.workingGroup = "GP_PHYS"
     task_spec.processingType = "dummy_type"
-    print("Share for task is {0}(should be 'Undefined')".format(proxyS.get_share_for_task(task_spec)))
+    print(f"Share for task is {proxyS.get_share_for_task(task_spec)}(should be 'Undefined')")
 
     # Reprocessing task without any matching leave
     task_spec.prodSourceLabel = "managed"
     task_spec.campaign = "dummy_campaign"
     task_spec.workingGroup = "AP_REPR"
     task_spec.processingType = "dummy_type"
-    print("Share for task is {0}(should be 'Undefined')".format(proxyS.get_share_for_task(task_spec)))
+    print(f"Share for task is {proxyS.get_share_for_task(task_spec)}(should be 'Undefined')")
 
     # Group production task
     task_spec.prodSourceLabel = "managed"
     task_spec.campaign = "dummy_campaign"
     task_spec.workingGroup = "GP_LOL"
     task_spec.processingType = "dummy_type"
-    print("Share for task is {0}(should be 'Group production')".format(proxyS.get_share_for_task(task_spec)))
+    print(f"Share for task is {proxyS.get_share_for_task(task_spec)}(should be 'Group production')")
 
     # Upgrade task
     task_spec.prodSourceLabel = "managed"
     task_spec.campaign = "dummy_campaign"
     task_spec.workingGroup = "AP_UPG"
     task_spec.processingType = "dummy_type"
-    print("Share for task is {0}(should be 'Upgrade')".format(proxyS.get_share_for_task(task_spec)))
+    print(f"Share for task is {proxyS.get_share_for_task(task_spec)}(should be 'Upgrade')")
 
     # HLT Reprocessing
     task_spec.prodSourceLabel = "managed"
     task_spec.campaign = "dummy_campaign"
     task_spec.workingGroup = "AP_THLT"
     task_spec.processingType = "dummy_type"
-    print("Share for task is {0}(should be 'HLT Reprocessing')".format(proxyS.get_share_for_task(task_spec)))
+    print(f"Share for task is {proxyS.get_share_for_task(task_spec)}(should be 'HLT Reprocessing')")
 
     # Validation
     task_spec.prodSourceLabel = "managed"
     task_spec.campaign = "dummy_campaign"
     task_spec.workingGroup = "AP_VALI"
     task_spec.processingType = "dummy_type"
-    print("Share for task is {0}(should be 'Validation')".format(proxyS.get_share_for_task(task_spec)))
+    print(f"Share for task is {proxyS.get_share_for_task(task_spec)}(should be 'Validation')")
 
     # Event Index
     task_spec.prodSourceLabel = "managed"
     task_spec.campaign = "dummy_campaign"
     task_spec.workingGroup = "proj-evind"
     task_spec.processingType = "dummy_type"
-    print("Share for task is {0}(should be 'Event Index')".format(proxyS.get_share_for_task(task_spec)))
+    print(f"Share for task is {proxyS.get_share_for_task(task_spec)}(should be 'Event Index')")
 
     # MC Derivations
     task_spec.prodSourceLabel = "managed"
     task_spec.campaign = "mc.*"
     task_spec.workingGroup = "GP_PHYS"
     task_spec.processingType = "dummy_type"
-    print("Share for task is {0}(should be 'MC Derivations')".format(proxyS.get_share_for_task(task_spec)))
+    print(f"Share for task is {proxyS.get_share_for_task(task_spec)}(should be 'MC Derivations')")
 
     # Data Derivations
     task_spec.prodSourceLabel = "managed"
     task_spec.campaign = "data.*"
     task_spec.workingGroup = "GP_PHYS"
     task_spec.processingType = "dummy_type"
-    print("Share for task is {0}(should be 'Data Derivations')".format(proxyS.get_share_for_task(task_spec)))
+    print(f"Share for task is {proxyS.get_share_for_task(task_spec)}(should be 'Data Derivations')")

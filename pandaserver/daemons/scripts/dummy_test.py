@@ -8,9 +8,9 @@ def main(tbuf=None, **kwargs):
     print("Dummy test of PanDA daemon ---- START")
 
     res = math.cos(math.pi / 3)
-    print("cos(pi/3) = {res}".format(res=res))
+    print(f"cos(pi/3) = {res}")
 
-    print("uid={uid} , pid={pid}".format(uid=os.getuid(), pid=os.getpid()))
+    print(f"uid={os.getuid()} , pid={os.getpid()}")
 
     if tbuf is not None:
         print("I got panda taskBuffer from daemon!!")

@@ -17,7 +17,7 @@ def run(inFile, v_onlyTA, v_firstSubmission):
         jobs = pickle.load(f)
         f.close()
     except Exception as e:
-        print("run() : %s %s" % (str(e), traceback.format_exc()))
+        print(f"run() : {str(e)} {traceback.format_exc()}")
         return
 
     # password
@@ -49,7 +49,7 @@ def run(inFile, v_onlyTA, v_firstSubmission):
 
 # exit action
 def _onExit(fname):
-    commands_get_status_output("rm -rf %s" % fname)
+    commands_get_status_output(f"rm -rf {fname}")
 
 
 ####################################################################

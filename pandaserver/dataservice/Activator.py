@@ -25,13 +25,13 @@ class Activator:
 
     # main
     def run(self):
-        _logger.debug("start: %s" % self.dataset.name)
+        _logger.debug(f"start: {self.dataset.name}")
         if self.dataset.status in ["completed", "deleting", "deleted"] and not self.enforce:
-            _logger.debug("   skip: %s" % self.dataset.name)
+            _logger.debug(f"   skip: {self.dataset.name}")
         else:
             # update input files
             ids = self.taskBuffer.updateInFilesReturnPandaIDs(self.dataset.name, "ready")
-            _logger.debug("IDs: %s" % ids)
+            _logger.debug(f"IDs: {ids}")
             if len(ids) != 0:
                 # get job
                 jobs = self.taskBuffer.peekJobs(ids, fromActive=False, fromArchived=False, fromWaiting=False)
@@ -47,4 +47,4 @@ class Activator:
             if self.dataset.type == "dispatch":
                 self.dataset.status = "completed"
                 self.taskBuffer.updateDatasets([self.dataset])
-        _logger.debug("end: %s" % self.dataset.name)
+        _logger.debug(f"end: {self.dataset.name}")

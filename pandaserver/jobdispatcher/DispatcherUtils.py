@@ -32,4 +32,4 @@ def getSecretKey(pandaID):
             return None, tmpDict["errorDiag"]
     except Exception:
         errType, errValue = sys.exc_info()[:2]
-        return None, "{0}:{1}".format(errType, errValue)
+        return None, f"{errType}:{errValue}"

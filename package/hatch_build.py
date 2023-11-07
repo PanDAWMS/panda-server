@@ -51,13 +51,13 @@ class CustomBuildHook(BuildHookInterface):
         self.params["virtual_env_setup"] = ""
         if "VIRTUAL_ENV" in os.environ:
             self.params["virtual_env"] = os.environ["VIRTUAL_ENV"]
-            self.params["virtual_env_setup"] = "source {0}/bin/activate".format(os.environ["VIRTUAL_ENV"])
+            self.params["virtual_env_setup"] = f"source {os.environ['VIRTUAL_ENV']}/bin/activate"
         elif sys.executable:
             venv_dir = os.path.dirname(os.path.dirname(sys.executable))
             py_venv_activate = os.path.join(venv_dir, "bin/activate")
             if os.path.exists(py_venv_activate):
                 self.params["virtual_env"] = venv_dir
-                self.params["virtual_env_setup"] = "source {0}".format(py_venv_activate)
+                self.params["virtual_env_setup"] = f"source {py_venv_activate}"
 
         # instantiate templates
         for in_f in glob.glob("./templates/**", recursive=True):
@@ -68,7 +68,7 @@ class CustomBuildHook(BuildHookInterface):
                 # replace patterns
                 for item in re.findall(r"@@([^@]+)@@", file_data):
                     if item not in self.params:
-                        raise RuntimeError("unknown pattern %s in %s" % (item, in_f))
+                        raise RuntimeError(f"unknown pattern {item} in {in_f}")
                     # get pattern
                     patt = self.params[item]
                     # convert to absolute path
@@ -79,7 +79,7 @@ class CustomBuildHook(BuildHookInterface):
                     # remove /var/tmp/*-buildroot for bdist_rpm
                     patt = re.sub("/var/tmp/.*-buildroot", "", patt)
                     # replace
-                    file_data = file_data.replace("@@%s@@" % item, patt)
+                    file_data = file_data.replace(f"@@{item}@@", patt)
                 out_f = re.sub(r"(\.exe)*\.template$", "", in_f)
                 with open(out_f, "w") as out_fh:
                     out_fh.write(file_data)

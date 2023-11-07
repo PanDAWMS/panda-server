@@ -77,7 +77,7 @@ def main(tbuf=None, **kwargs):
         def run(self):
             self.lock.acquire()
             retRun = self.evp.run()
-            _logger.debug("%s : %s" % (retRun, self.fileName))
+            _logger.debug(f"{retRun} : {self.fileName}")
             self.pool.remove(self)
             self.lock.release()
 
@@ -114,19 +114,19 @@ def main(tbuf=None, **kwargs):
             modTime = datetime.datetime(*(time.gmtime(os.path.getmtime(fileName))[:7]))
             if (timeNow - modTime) > datetime.timedelta(hours=24):
                 # last chance
-                _logger.debug("Last event picking : %s" % fileName)
+                _logger.debug(f"Last event picking : {fileName}")
                 thr = EvpThr(adderLock, adderThreadPool, taskBuffer, siteMapper, fileName, False)
                 thr.start()
             elif (timeInt - modTime) > datetime.timedelta(minutes=1):
                 # try
-                _logger.debug("event picking : %s" % fileName)
+                _logger.debug(f"event picking : {fileName}")
                 thr = EvpThr(adderLock, adderThreadPool, taskBuffer, siteMapper, fileName, True)
                 thr.start()
             else:
-                _logger.debug("%s : %s" % ((timeInt - modTime), fileName))
+                _logger.debug(f"{timeInt - modTime} : {fileName}")
         except Exception:
             errType, errValue = sys.exc_info()[:2]
-            _logger.error("%s %s" % (errType, errValue))
+            _logger.error(f"{errType} {errValue}")
 
     # join all threads
     adderThreadPool.join()

@@ -40,7 +40,7 @@ s, o = proxy.querySQLS(
     workDiskUnit,
 ) = o[0]
 
-tname = "{}.{}".format(str(uuid.uuid4()), jediTaskID)
+tname = f"{str(uuid.uuid4())}.{jediTaskID}"
 
 t.update(
     {
@@ -64,7 +64,7 @@ t.update(
 )
 
 i = t["log"]
-i["dataset"] = "panda.{}.log".format(tname)
+i["dataset"] = f"panda.{tname}.log"
 i["value"] = re.sub(r".{}.".format(jediTaskID), r".{}.".format(tname), i["value"])
 
 if "toStaging" in t:
@@ -80,7 +80,7 @@ newJ = []
 for i in t["jobParameters"]:
     if "dataset" in i:
         if i["param_type"] == "output":
-            i["dataset"] = "panda.{}.{}".format(tname, i["dataset"].split(".")[4])
+            i["dataset"] = f"panda.{tname}.{i['dataset'].split('.')[4]}"
             i["value"] = re.sub(r".{}.".format(jediTaskID), r".{}.".format(tname), i["value"])
     elif i["type"] == "template":
         i["value"] = re.sub(r" {}.".format(jediTaskID), r" {}.".format(tname), i["value"])

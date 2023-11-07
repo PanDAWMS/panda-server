@@ -100,14 +100,14 @@ class AdderGen(object):
             from pandaserver.dataservice.AdderAtlasPlugin import AdderAtlasPlugin
 
             adderPluginClass = AdderAtlasPlugin
-        self.logger.debug("plugin name {0}".format(adderPluginClass.__name__))
+        self.logger.debug(f"plugin name {adderPluginClass.__name__}")
         return adderPluginClass
 
     # main
     def run(self):
         try:
             start_time = datetime.datetime.utcnow()
-            self.logger.debug("new start: %s attemptNr=%s" % (self.jobStatus, self.attemptNr))
+            self.logger.debug(f"new start: {self.jobStatus} attemptNr={self.attemptNr}")
 
             # got lock, get the report
             report_dict = self.taskBuffer.getJobOutputReport(panda_id=self.jobID, attempt_nr=self.attemptNr)
@@ -119,9 +119,9 @@ class AdderGen(object):
             if self.job is None:
                 self.logger.debug(": job not found in DB")
             elif self.job.jobStatus in ["finished", "failed", "unknown", "merging"]:
-                self.logger.error(": invalid state -> %s" % self.job.jobStatus)
+                self.logger.error(f": invalid state -> {self.job.jobStatus}")
             elif self.attemptNr is not None and self.job.attemptNr != self.attemptNr:
-                self.logger.error("wrong attemptNr -> job=%s <> %s" % (self.job.attemptNr, self.attemptNr))
+                self.logger.error(f"wrong attemptNr -> job={self.job.attemptNr} <> {self.attemptNr}")
             # elif self.attemptNr is not None and self.job.jobStatus == 'transferring':
             #     errMsg = 'XML with attemptNr for {0}'.format(self.job.jobStatus)
             #     self.logger.error(errMsg)
@@ -141,7 +141,7 @@ class AdderGen(object):
                 # check file status in JEDI
                 if not self.job.isCancelled() and self.job.taskBufferErrorCode not in [pandaserver.taskbuffer.ErrorCode.EC_PilotRetried]:
                     fileCheckInJEDI = self.taskBuffer.checkInputFileStatusInJEDI(self.job)
-                    self.logger.debug("check file status in JEDI : {0}".format(fileCheckInJEDI))
+                    self.logger.debug(f"check file status in JEDI : {fileCheckInJEDI}")
                     if fileCheckInJEDI is None:
                         raise RuntimeError("failed to check file status in JEDI")
                     if fileCheckInJEDI is False:
@@ -151,7 +151,7 @@ class AdderGen(object):
                         errStr = "inconsistent file status between Panda and JEDI. "
                         errStr += "failed to avoid duplicated processing caused by synchronization failure"
                         self.job.ddmErrorDiag = errStr
-                        self.logger.debug("set jobStatus={0} since input is inconsistent between Panda and JEDI".format(self.jobStatus))
+                        self.logger.debug(f"set jobStatus={self.jobStatus} since input is inconsistent between Panda and JEDI")
                     elif self.job.jobSubStatus in ["pilot_closed"]:
                         # terminated by the pilot
                         self.logger.debug("going to closed since terminated by the pilot")
@@ -175,7 +175,7 @@ class AdderGen(object):
                             self.jobStatus = "failed"
                             self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
                             self.job.ddmErrorDiag = "failed to lock semaphore for job cloning"
-                            self.logger.debug("set jobStatus={0} since did not get semaphore for job cloning".format(self.jobStatus))
+                            self.logger.debug(f"set jobStatus={self.jobStatus} since did not get semaphore for job cloning")
                 # use failed for cancelled/closed jobs
                 if self.job.isCancelled():
                     self.jobStatus = "failed"
@@ -208,18 +208,18 @@ class AdderGen(object):
                         self.logger.debug("plugin is ready")
                         adderPlugin.execute()
                         addResult = adderPlugin.result
-                        self.logger.debug("plugin done with %s" % (addResult.statusCode))
+                        self.logger.debug(f"plugin done with {addResult.statusCode}")
                     except Exception:
                         errtype, errvalue = sys.exc_info()[:2]
-                        self.logger.error("failed to execute AdderPlugin for VO={0} with {1}:{2}".format(self.job.VO, errtype, errvalue))
-                        self.logger.error("failed to execute AdderPlugin for VO={0} with {1}".format(self.job.VO, traceback.format_exc()))
+                        self.logger.error(f"failed to execute AdderPlugin for VO={self.job.VO} with {errtype}:{errvalue}")
+                        self.logger.error(f"failed to execute AdderPlugin for VO={self.job.VO} with {traceback.format_exc()}")
                         addResult = None
                         self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
                         self.job.ddmErrorDiag = "AdderPlugin failure"
 
                     # ignore temporary errors
                     if self.ignoreTmpError and addResult is not None and addResult.isTemporary():
-                        self.logger.debug(": ignore %s " % self.job.ddmErrorDiag)
+                        self.logger.debug(f": ignore {self.job.ddmErrorDiag} ")
                         self.logger.debug("escape")
                         # unlock job output report
                         self.taskBuffer.unlockJobOutputReport(
@@ -233,7 +233,7 @@ class AdderGen(object):
                     if addResult is None or not addResult.isSucceeded():
                         self.job.jobStatus = "failed"
                 # set file status for failed jobs or failed transferring jobs
-                self.logger.debug("status after plugin call :job.jobStatus=%s jobStatus=%s" % (self.job.jobStatus, self.jobStatus))
+                self.logger.debug(f"status after plugin call :job.jobStatus={self.job.jobStatus} jobStatus={self.jobStatus}")
                 if self.job.jobStatus == "failed" or self.jobStatus == "failed":
                     # First of all: check if job failed and in this case take first actions according to error table
                     source, error_code, error_diag = None, None, None
@@ -296,7 +296,7 @@ class AdderGen(object):
                             )
                             self.logger.debug("apply_retrial_rules is back")
                         except Exception as e:
-                            self.logger.error("apply_retrial_rules excepted and needs to be investigated (%s): %s" % (e, traceback.format_exc()))
+                            self.logger.error(f"apply_retrial_rules excepted and needs to be investigated ({e}): {traceback.format_exc()}")
 
                     self.job.jobStatus = "failed"
                     for file in self.job.Files:
@@ -358,9 +358,9 @@ class AdderGen(object):
                         db_lock = self.lock_pool.get(self.job.jediTaskID)
                         if db_lock:
                             db_lock.acquire()
-                            self.logger.debug("got DB lock for jediTaskID={}".format(self.job.jediTaskID))
+                            self.logger.debug(f"got DB lock for jediTaskID={self.job.jediTaskID}")
                         else:
-                            self.logger.debug("couldn't get DB lock for jediTaskID={}".format(self.job.jediTaskID))
+                            self.logger.debug(f"couldn't get DB lock for jediTaskID={self.job.jediTaskID}")
                     self.logger.debug("updating DB")
                     retU = self.taskBuffer.updateJobs(
                         [self.job],
@@ -369,14 +369,14 @@ class AdderGen(object):
                         extraInfo=self.extraInfo,
                         async_dataset_update=True,
                     )
-                    self.logger.debug("retU: %s" % retU)
+                    self.logger.debug(f"retU: {retU}")
                     if db_lock:
-                        self.logger.debug("release DB lock for jediTaskID={}".format(self.job.jediTaskID))
+                        self.logger.debug(f"release DB lock for jediTaskID={self.job.jediTaskID}")
                         db_lock.release()
                         self.lock_pool.release(self.job.jediTaskID)
                     # failed
                     if not retU[0]:
-                        self.logger.error("failed to update DB for pandaid={0}".format(self.job.PandaID))
+                        self.logger.error(f"failed to update DB for pandaid={self.job.PandaID}")
                         # unlock job output report
                         self.taskBuffer.unlockJobOutputReport(
                             panda_id=self.jobID,
@@ -396,11 +396,7 @@ class AdderGen(object):
                             fromWaiting=False,
                         )[0]
                         self.logger.debug(
-                            "status {0}, taskBufferErrorCode {1}, taskBufferErrorDiag {2}".format(
-                                job_tmp.jobStatus,
-                                job_tmp.taskBufferErrorCode,
-                                job_tmp.taskBufferErrorDiag,
-                            )
+                            f"status {job_tmp.jobStatus}, taskBufferErrorCode {job_tmp.taskBufferErrorCode}, taskBufferErrorDiag {job_tmp.taskBufferErrorDiag}"
                         )
                         if job_tmp.jobStatus == "failed" and job_tmp.taskBufferErrorCode:
                             source = "taskBufferErrorCode"
@@ -424,7 +420,7 @@ class AdderGen(object):
                     except IndexError:
                         pass
                     except Exception as e:
-                        self.logger.error("apply_retrial_rules 2 excepted and needs to be investigated (%s): %s" % (e, traceback.format_exc()))
+                        self.logger.error(f"apply_retrial_rules 2 excepted and needs to be investigated ({e}): {traceback.format_exc()}")
 
                     # setup for closer
                     if not (EventServiceUtils.isEventServiceJob(self.job) and self.job.isCancelled()):
@@ -499,15 +495,15 @@ class AdderGen(object):
                                     forAnal=True,
                                 )[0]
                                 if self.job is None:
-                                    self.logger.debug(": associated job PandaID={0} not found in DB".format(assJobID))
+                                    self.logger.debug(f": associated job PandaID={assJobID} not found in DB")
                                 else:
                                     cThr = Closer.Closer(self.taskBuffer, assDBlocks, assJob)
-                                    self.logger.debug("start Closer for PandaID={0}".format(assJobID))
+                                    self.logger.debug(f"start Closer for PandaID={assJobID}")
                                     # cThr.start()
                                     # cThr.join()
                                     cThr.run()
                                     del cThr
-                                    self.logger.debug("end Closer for PandaID={0}".format(assJobID))
+                                    self.logger.debug(f"end Closer for PandaID={assJobID}")
             duration = datetime.datetime.utcnow() - start_time
             self.logger.debug("end: took %s.%03d sec in total" % (duration.seconds, duration.microseconds / 1000))
             # try:
@@ -520,7 +516,7 @@ class AdderGen(object):
             del self.data
             del report_dict
         except Exception as e:
-            errStr = ": {} {}".format(str(e), traceback.format_exc())
+            errStr = f": {str(e)} {traceback.format_exc()}"
             self.logger.error(errStr)
             duration = datetime.datetime.utcnow() - start_time
             self.logger.error("except: took %s.%03d sec in total" % (duration.seconds, duration.microseconds / 1000))
@@ -610,9 +606,9 @@ class AdderGen(object):
                 surls.append(surl)
                 if adler32 is not None:
                     # use adler32 if available
-                    chksums.append("ad:%s" % adler32)
+                    chksums.append(f"ad:{adler32}")
                 else:
-                    chksums.append("md5:%s" % md5sum)
+                    chksums.append(f"md5:{md5sum}")
                 if fullLFN is not None:
                     fullLfnMap[lfn] = fullLFN
         except Exception:
@@ -662,9 +658,9 @@ class AdderGen(object):
                     surls.append(surl)
                     if adler32 is not None:
                         # use adler32 if available
-                        chksums.append("ad:%s" % adler32)
+                        chksums.append(f"ad:{adler32}")
                     else:
-                        chksums.append("md5:%s" % md5sum)
+                        chksums.append(f"md5:{md5sum}")
                     if fullLFN is not None:
                         fullLfnMap[lfn] = fullLFN
             except Exception:
@@ -672,7 +668,7 @@ class AdderGen(object):
                 # if os.path.exists(self.xmlFile):
                 if True:
                     type, value, traceBack = sys.exc_info()
-                    self.logger.error(": %s %s" % (type, value))
+                    self.logger.error(f": {type} {value}")
                     # set failed anyway
                     self.job.jobStatus = "failed"
                     # XML error happens when pilot got killed due to wall-time limit or failures in wrapper
@@ -742,17 +738,11 @@ class AdderGen(object):
             for lfn, guid in zip(lfns, guids):
                 guidMap[lfn] = guid
             nEventsFrom = "pilot"
-        self.logger.debug("nEventsMap=%s" % str(nEventsMap))
-        self.logger.debug("nEventsFrom=%s" % str(nEventsFrom))
-        self.logger.debug("guidMap=%s" % str(guidMap))
-        self.logger.debug("self.job.jobStatus=%s in parseXML" % self.job.jobStatus)
-        self.logger.debug(
-            "isES=%s isJumbo=%s"
-            % (
-                EventServiceUtils.isEventServiceJob(self.job),
-                EventServiceUtils.isJumboJob(self.job),
-            )
-        )
+        self.logger.debug(f"nEventsMap={str(nEventsMap)}")
+        self.logger.debug(f"nEventsFrom={str(nEventsFrom)}")
+        self.logger.debug(f"guidMap={str(guidMap)}")
+        self.logger.debug(f"self.job.jobStatus={self.job.jobStatus} in parseXML")
+        self.logger.debug(f"isES={EventServiceUtils.isEventServiceJob(self.job)} isJumbo={EventServiceUtils.isJumboJob(self.job)}")
         # get lumi block number
         lumiBlockNr = self.job.getLumiBlockNr()
         # copy files for variable number of outputs
@@ -792,12 +782,12 @@ class AdderGen(object):
                     elif file.isAllowedNoOutput():
                         # allowed not to be produced
                         file.status = "nooutput"
-                        self.logger.debug("set {0} to status={1}".format(file.lfn, file.status))
+                        self.logger.debug(f"set {file.lfn} to status={file.status}")
                     else:
                         file.status = "failed"
                         self.job.jobStatus = "failed"
                         self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
-                        self.job.ddmErrorDiag = "expected output {0} is missing in pilot XML".format(file.lfn)
+                        self.job.ddmErrorDiag = f"expected output {file.lfn} is missing in pilot XML"
                         self.logger.error(self.job.ddmErrorDiag)
                     continue
                 # look for GUID with LFN
@@ -822,7 +812,7 @@ class AdderGen(object):
                     # status
                     file.status = "failed"
                     type, value, traceBack = sys.exc_info()
-                    self.logger.error(": %s %s" % (type, value))
+                    self.logger.error(f": {type} {value}")
                 # set lumi block number
                 if lumiBlockNr is not None and file.status != "failed":
                     self.extraInfo["lbnr"][file.lfn] = lumiBlockNr
@@ -830,12 +820,12 @@ class AdderGen(object):
         # check consistency between XML and filesTable
         for lfn in lfns:
             if lfn not in fileList:
-                self.logger.error("%s is not found in filesTable" % lfn)
+                self.logger.error(f"{lfn} is not found in filesTable")
                 self.job.jobStatus = "failed"
                 for tmpFile in self.job.Files:
                     tmpFile.status = "failed"
                 self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
-                self.job.ddmErrorDiag = "pilot produced {0} inconsistently with jobdef".format(lfn)
+                self.job.ddmErrorDiag = f"pilot produced {lfn} inconsistently with jobdef"
                 return 2
         # return
         self.logger.debug("parseXML end")

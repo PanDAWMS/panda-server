@@ -202,12 +202,12 @@ def checkCertificate(certName):
     try:
         cert = crypto.load_certificate(crypto.FILETYPE_PEM, open(certName).read())
         if cert.has_expired() is True:
-            return False, "{0} expired".format(certName)
+            return False, f"{certName} expired"
         else:
             return True, None
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
-        return False, "{0}:{1}".format(errtype.__name__, errvalue)
+        return False, f"{errtype.__name__}:{errvalue}"
 
 
 # get sites which share DDM endpoint

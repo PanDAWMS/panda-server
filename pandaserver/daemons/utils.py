@@ -66,15 +66,15 @@ def kill_proc_tree(pid, sig=signal.SIGKILL, include_parent=True, timeout=None, o
 def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lock_pool=None):
     # pid of the worker
     my_pid = os.getpid()
-    my_full_pid = "{0}-{1}-{2}".format(socket.getfqdn().split(".")[0], os.getpgrp(), my_pid)
+    my_full_pid = f"{socket.getfqdn().split('.')[0]}-{os.getpgrp()}-{my_pid}"
     # logger to log in file
     base_logger = logger_utils.setup_logger("daemons")
-    tmp_log = logger_utils.make_logger(base_logger, "worker_pid={pid}".format(pid=my_pid))
+    tmp_log = logger_utils.make_logger(base_logger, f"worker_pid={my_pid}")
     tmp_log.info("daemon worker start")
 
     # signal handler
     def got_end_sig(sig, frame):
-        tmp_log.warning("(got signal {sig})".format(sig=sig))
+        tmp_log.warning(f"(got signal {sig})")
 
     for sig in END_SIGNALS:
         signal.signal(sig, got_end_sig)
@@ -94,7 +94,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
 
             initializer.init()
         except Exception as e:
-            tmp_log.error("failed to launch initializer with {err} ; terminated".format(err="{0}: {1}".format(e.__class__.__name__, e)))
+            tmp_log.error(f"failed to launch initializer with {e.__class__.__name__}: {e} ; terminated")
             return
         # taskBuffer object
         try:
@@ -109,22 +109,16 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
             )
             tmp_log.debug("taskBuffer initialized")
         except Exception as e:
-            tmp_log.error("failed to initialize taskBuffer with {err} ; terminated".format(err="{0}: {1}".format(e.__class__.__name__, e)))
+            tmp_log.error(f"failed to initialize taskBuffer with {e.__class__.__name__}: {e} ; terminated")
             return
     # import module of all daemons
     for dem_name, attrs in dem_config.items():
         mod_name = attrs["module"]
         try:
-            the_module = importlib.import_module(".{mod}".format(mod=mod_name), mod_package)
+            the_module = importlib.import_module(f".{mod_name}", mod_package)
             module_map[dem_name] = the_module
         except Exception as e:
-            tmp_log.warning(
-                "for daemon {dem}, failed to import {mod} with {err} ; skipped it".format(
-                    dem=dem_name,
-                    mod=mod_name,
-                    err="{0}: {1}".format(e.__class__.__name__, e),
-                )
-            )
+            tmp_log.warning(f"for daemon {dem_name}, failed to import {mod_name} with {e.__class__.__name__}: {e} ; skipped it")
         else:
             module_map[dem_name] = the_module
     tmp_log.debug("initialized, running")
@@ -142,7 +136,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
                 tmp_log.info("got stop command, stop this worker")
                 break
             else:
-                tmp_log.debug('got invalid command "{cmd}" ; skipped it'.format(cmd=cmd))
+                tmp_log.debug(f'got invalid command "{cmd}" ; skipped it')
         # clean up memory
         gc.collect()
         # get a message from queue
@@ -166,7 +160,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
         if one_msg in module_map and one_msg is not None:
             # got a daemon name, get the module object and corresponding attributes
             dem_name = one_msg
-            tmp_log.debug("got message of {dem}".format(dem=dem_name))
+            tmp_log.debug(f"got message of {dem_name}")
             the_module = module_map[dem_name]
             attrs = dem_config[dem_name]
             mod_args = attrs["arguments"]
@@ -181,7 +175,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
             last_run_start_ts = 0
             last_run_end_ts = 0
             # component name in lock table
-            component = "pandaD.{dem}".format(dem=dem_name)
+            component = f"pandaD.{dem_name}"
             # whether the daemon shoule be synchronized among nodes
             if is_sync:
                 # sychronized daemon, check process lock in DB
@@ -193,7 +187,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
                 if ret_val:
                     # locked by some process on other nodes
                     last_run_start_ts = int((locked_time - EPOCH).total_seconds())
-                    tmp_log.debug("found {dem} is locked by other process ; skipped it".format(dem=dem_name))
+                    tmp_log.debug(f"found {dem_name} is locked by other process ; skipped it")
                 else:
                     # try to get the lock
                     got_lock = tbuf.lockProcess_PANDA(
@@ -204,11 +198,11 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
                     if got_lock:
                         # got the lock
                         to_run_daemon = True
-                        tmp_log.debug("got lock of {dem}".format(dem=dem_name))
+                        tmp_log.debug(f"got lock of {dem_name}")
                     else:
                         # did not get lock, skip
                         last_run_start_ts = int(time.time())
-                        tmp_log.debug("did not get lock of {dem} ; skipped it".format(dem=dem_name))
+                        tmp_log.debug(f"did not get lock of {dem_name} ; skipped it")
             else:
                 to_run_daemon = True
             # run daemon
@@ -220,7 +214,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
                 try:
                     if is_loop:
                         # go looping the script until reaching daemon period
-                        tmp_log.info("{dem} start looping".format(dem=dem_name))
+                        tmp_log.info(f"{dem_name} start looping")
                         start_ts = time.time()
                         while True:
                             ret_val = the_module.main(argv=mod_argv, tbuf=tbuf, lock_pool=lock_pool)
@@ -231,21 +225,16 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
                             if now_ts > start_ts + dem_period:
                                 # longer than the period, stop the loop
                                 break
-                        tmp_log.info("{dem} finish looping".format(dem=dem_name))
+                        tmp_log.info(f"{dem_name} finish looping")
                     else:
                         # execute the module script with arguments
-                        tmp_log.info("{dem} start".format(dem=dem_name))
+                        tmp_log.info(f"{dem_name} start")
                         the_module.main(argv=mod_argv, tbuf=tbuf, lock_pool=lock_pool)
-                        tmp_log.info("{dem} finish".format(dem=dem_name))
+                        tmp_log.info(f"{dem_name} finish")
                 except Exception as e:
                     # with error
                     tb = traceback.format_exc()
-                    tmp_log.error(
-                        "failed to run daemon {dem} with {err} ; stop this worker".format(
-                            dem=dem_name,
-                            err="{0}: {1}\n{2}\n".format(e.__class__.__name__, e, tb),
-                        )
-                    )
+                    tmp_log.error(f"failed to run daemon {dem_name} with {e.__class__.__name__}: {e}\n{tb}\n ; stop this worker")
                     # daemon has run but failed
                     last_run_end_ts = int(time.time())
                     has_run = True
@@ -271,7 +260,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
             # break
         else:
             # got invalid message
-            tmp_log.warning('got invalid message "{msg}", skipped it'.format(msg=one_msg))
+            tmp_log.warning(f'got invalid message "{one_msg}", skipped it')
         # sleep
         time.sleep(2**-5)
 
@@ -418,7 +407,7 @@ class DaemonMaster(object):
             self.logger.debug("taskBuffer interface initialized")
             self.tbif = taskBufferIF
         except Exception as e:
-            self.logger.error("failed to initialize taskBuffer interface with {err} ; terminated".format(err="{0}: {1}".format(e.__class__.__name__, e)))
+            self.logger.error(f"failed to initialize taskBuffer interface with {e.__class__.__name__}: {e} ; terminated")
             raise e
 
     # spawn new workers and put into worker pool
@@ -439,7 +428,7 @@ class DaemonMaster(object):
                 self.worker_pool.add(worker)
                 if auto_start:
                     worker.start()
-                    self.logger.debug("launched new worker_pid={worker_pid}".format(worker_pid=worker.pid))
+                    self.logger.debug(f"launched new worker_pid={worker.pid}")
 
     # remove a worker from pool
     def _remove_worker(self, worker):
@@ -473,20 +462,18 @@ class DaemonMaster(object):
                 the_attrs = copy.deepcopy(self.dem_config[dem_name])
                 for attr, attr_type in MANDATORY_ATTRS:
                     if attr not in the_attrs:
-                        self.logger.warning('daemon config missing attribute "{attr}" for {dem} ; skipped'.format(attr=attr, dem=dem_name))
+                        self.logger.warning(f'daemon config missing attribute "{attr}" for {dem_name} ; skipped')
                         del self.dem_config[dem_name]
                         break
                     elif not isinstance(the_attrs[attr], attr_type):
                         self.logger.warning(
-                            'daemon config has invalid type of attribute "{attr}" for {dem} (type must be {typ}) ; skipped'.format(
-                                attr=attr, dem=dem_name, typ=attr_type.__name__
-                            )
+                            f'daemon config has invalid type of attribute "{attr}" for {dem_name} (type must be {attr_type.__name__}) ; skipped'
                         )
                         del self.dem_config[dem_name]
                         break
         except Exception as e:
             tb = traceback.format_exc()
-            self.logger.error("failed to parse daemon config, {err}".format(err="{0}: {1}\n{2}\n".format(e.__class__.__name__, e, tb)))
+            self.logger.error(f"failed to parse daemon config, {e.__class__.__name__}: {e}\n{tb}\n")
 
     # make daemon run status map
     def _make_dem_run_map(self):
@@ -534,14 +521,7 @@ class DaemonMaster(object):
                         is_loop = self.dem_config[dem_name].get("loop")
                         if run_duration > run_period and not is_loop:
                             # warning since daemon run duration longer than daemon period (non-looping)
-                            self.logger.warning(
-                                "worker_pid={pid} daemon {dem} took {dur} sec , exceeding its period {period} sec".format(
-                                    pid=worker.pid,
-                                    dem=dem_name,
-                                    dur=run_duration,
-                                    period=run_period,
-                                )
-                            )
+                            self.logger.warning(f"worker_pid={worker.pid} daemon {dem_name} took {run_duration} sec , exceeding its period {run_period} sec")
                     dem_run_attrs["msg_ongoing"] = False
                 # kill the worker due to daemon run timeout
                 if worker.is_running_dem():
@@ -577,12 +557,12 @@ class DaemonMaster(object):
                         warn_since_ago = now_ts - last_warn_ts
                         if last_run_start_ts > 0 and run_delay > max(300, run_period // 2) and warn_since_ago > 900:
                             # make warning if delay too much
-                            self.logger.warning("{dem} delayed to run for {delay} sec ".format(dem=dem_name, delay=run_delay))
+                            self.logger.warning(f"{dem_name} delayed to run for {run_delay} sec ")
                             dem_run_attrs["last_warn_ts"] = now_ts
                     else:
                         # old message processed, send new message
                         self.msg_queue.put(dem_name)
-                        self.logger.debug("scheduled to run {dem}".format(dem=dem_name))
+                        self.logger.debug(f"scheduled to run {dem_name}")
                         dem_run_attrs["msg_ongoing"] = True
                         # dem_run_attrs['last_run_start_ts'] = now_ts
         # spawn new workers if ther are less than n_workers
@@ -597,7 +577,7 @@ class DaemonMaster(object):
     def _stop_proc(self):
         for worker in self.worker_pool:
             worker.parent_conn.send(CMD_STOP)
-            self.logger.debug("sent stop command to worker_pid={worker_pid}".format(worker_pid=worker.pid))
+            self.logger.debug(f"sent stop command to worker_pid={worker.pid}")
 
     # stop master
     def stop(self):
@@ -616,11 +596,11 @@ class DaemonMaster(object):
     def run(self):
         # master pid
         master_pid = os.getpid()
-        self.logger.info("daemon master started ; master_pid={master_pid}".format(master_pid=master_pid))
+        self.logger.info(f"daemon master started ; master_pid={master_pid}")
         # start daemon workers
         for worker in self.worker_pool:
             worker.start()
-            self.logger.debug("launched worker_pid={worker_pid}".format(worker_pid=worker.pid))
+            self.logger.debug(f"launched worker_pid={worker.pid}")
         self.logger.debug("daemon master launched all worker processes")
         # initialize old worker pid set
         worker_pid_list_old = []
@@ -629,9 +609,7 @@ class DaemonMaster(object):
             worker_pid_list = [worker.pid for worker in self.worker_pool]
             if worker_pid_list != worker_pid_list_old:
                 # log when worker pid list changes
-                self.logger.debug(
-                    "master_pid: {master_pid} ; worker_pids: {worker_pid_list} ".format(master_pid=master_pid, worker_pid_list=str(worker_pid_list))
-                )
+                self.logger.debug(f"master_pid: {master_pid} ; worker_pids: {str(worker_pid_list)} ")
                 worker_pid_list_old = worker_pid_list
             self._scheduler_cycle()
         # end

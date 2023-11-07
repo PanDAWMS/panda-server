@@ -296,7 +296,7 @@ class JobSpec(object):
             if attr in self._limitLength:
                 if val is not None:
                     val = val[: self._limitLength[attr]]
-            ret[":%s" % attr] = val
+            ret[f":{attr}"] = val
         return ret
 
     # return state values to be pickled
@@ -359,12 +359,12 @@ class JobSpec(object):
             if useSeq and attr in cls._seqAttrMap:
                 if panda_config.backend == "mysql":
                     # mysql
-                    ret += "%s," % "NULL"
+                    ret += f"NULL,"
                 else:
                     # oracle
-                    ret += "%s," % cls._seqAttrMap[attr]
+                    ret += f"{cls._seqAttrMap[attr]},"
             else:
-                ret += ":%s," % attr
+                ret += f":{attr},"
         ret = ret[:-1]
         ret += ")"
         return ret
@@ -386,7 +386,7 @@ class JobSpec(object):
     def bindUpdateExpression(cls):
         ret = ""
         for attr in cls._attributes:
-            ret += "%s=:%s," % (attr, attr)
+            ret += f"{attr}=:{attr},"
         ret = ret[:-1]
         ret += " "
         return ret
@@ -416,7 +416,7 @@ class JobSpec(object):
         ret = ""
         for attr in self._attributes:
             if attr in self._changedAttrs:
-                ret += "%s=:%s," % (attr, attr)
+                ret += f"{attr}=:{attr},"
         ret = ret[:-1]
         ret += " "
         return ret
@@ -451,9 +451,9 @@ class JobSpec(object):
     # set LB number
     def setLumiBlockNr(self, lumiBlockNr):
         if self.specialHandling in ["", None, "NULL"]:
-            self.specialHandling = "lb:{0}".format(lumiBlockNr)
+            self.specialHandling = f"lb:{lumiBlockNr}"
         else:
-            self.specialHandling += ",lb:{0}".format(lumiBlockNr)
+            self.specialHandling += f",lb:{lumiBlockNr}"
 
     # get LB number
     def getLumiBlockNr(self):
@@ -483,9 +483,9 @@ class JobSpec(object):
     # set home cloud
     def setHomeCloud(self, homeCloud):
         if self.specialHandling in ["", None, "NULL"]:
-            self.specialHandling = "hc:{0}".format(homeCloud)
+            self.specialHandling = f"hc:{homeCloud}"
         else:
-            self.specialHandling += ",hc:{0}".format(homeCloud)
+            self.specialHandling += f",hc:{homeCloud}"
 
     # get cloud
     def getCloud(self):
@@ -530,7 +530,7 @@ class JobSpec(object):
     def getAltStgOut(self):
         if self.specialHandling is not None:
             for tmpItem in self.specialHandling.split(","):
-                if tmpItem.startswith("{0}:".format(self._tagForSH["altStgOut"])):
+                if tmpItem.startswith(f"{self._tagForSH['altStgOut']}:"):
                     return tmpItem.split(":")[-1]
         return None
 
@@ -543,10 +543,10 @@ class JobSpec(object):
         # remove old value
         newItems = []
         for tmpItem in items:
-            if tmpItem.startswith("{0}:".format(self._tagForSH["altStgOut"])):
+            if tmpItem.startswith(f"{self._tagForSH['altStgOut']}:"):
                 continue
             newItems.append(tmpItem)
-        newItems.append("{0}:{1}".format(self._tagForSH["altStgOut"], mode))
+        newItems.append(f"{self._tagForSH['altStgOut']}:{mode}")
         self.specialHandling = ",".join(newItems)
 
     # put log files to OS
@@ -576,7 +576,7 @@ class JobSpec(object):
         for item in items:
             if not item.startswith(self._tagForSH["requestType"]):
                 newItems.append(item)
-        newItems.append("{0}={1}".format(self._tagForSH["requestType"], reqType))
+        newItems.append(f"{self._tagForSH['requestType']}={reqType}")
         self.specialHandling = ",".join(newItems)
 
     # sort files
@@ -838,7 +838,7 @@ class JobSpec(object):
     def get_ram_for_retry(self):
         if self.specialHandling is not None:
             for tmpItem in self.specialHandling.split(","):
-                if tmpItem.startswith("{0}:".format(self._tagForSH["retryRam"])):
+                if tmpItem.startswith(f"{self._tagForSH['retryRam']}:"):
                     return int(tmpItem.split(":")[-1])
         return None
 
@@ -851,10 +851,10 @@ class JobSpec(object):
         # remove old value
         newItems = []
         for tmpItem in items:
-            if tmpItem.startswith("{0}:".format(self._tagForSH["retryRam"])):
+            if tmpItem.startswith(f"{self._tagForSH['retryRam']}:"):
                 continue
             newItems.append(tmpItem)
-        newItems.append("{0}:{1}".format(self._tagForSH["retryRam"], val))
+        newItems.append(f"{self._tagForSH['retryRam']}:{val}")
         self.specialHandling = ",".join(newItems)
 
     # dump to json-serializable

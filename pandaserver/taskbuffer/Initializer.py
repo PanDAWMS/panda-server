@@ -15,7 +15,7 @@ class Initializer:
         self.first = True
 
     def init(self):
-        _logger.debug("init new=%s" % self.first)
+        _logger.debug(f"init new={self.first}")
         # do nothing when nDBConnection is 0
         if panda_config.nDBConnection == 0:
             return True
@@ -63,7 +63,7 @@ class Initializer:
             except Exception:
                 self.lock.release()
                 type, value, traceBack = sys.exc_info()
-                _logger.error("connect : %s %s" % (type, value))
+                _logger.error(f"connect : {type} {value}")
                 return False
         # release
         self.lock.release()

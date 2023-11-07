@@ -69,7 +69,7 @@ class WrappedPickle(object):
                 break
         # check module
         if module not in cls.allowedModClass:
-            raise pickle.UnpicklingError("Attempting to import disallowed module %s" % module)
+            raise pickle.UnpicklingError(f"Attempting to import disallowed module {module}")
         # return predefined class
         key = (module, name)
         if key in cls.predefined_class:
@@ -79,7 +79,7 @@ class WrappedPickle(object):
         mod = sys.modules[module]
         # check class
         if name not in cls.allowedModClass[module]:
-            raise pickle.UnpicklingError("Attempting to get disallowed class %s in %s" % (name, module))
+            raise pickle.UnpicklingError(f"Attempting to get disallowed class {name} in {module}")
         klass = getattr(mod, name)
         return klass
 

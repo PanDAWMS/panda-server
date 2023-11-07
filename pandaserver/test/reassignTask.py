@@ -44,7 +44,7 @@ options = optP.parse_args()
 taskid = options.taskid
 
 print("")
-print("trying to reassign jobs with modificationTime < CURRENT-{0}min. Change the limit using -m if necessary".format(options.limit))
+print(f"trying to reassign jobs with modificationTime < CURRENT-{options.limit}min. Change the limit using -m if necessary")
 
 codeV = 51
 if options.forceKill:
@@ -100,7 +100,7 @@ if len(jobs):
     nJob = 100
     iJob = 0
     while iJob < len(jobs):
-        print("reassign  %s" % str(jobs[iJob : iJob + nJob]))
+        print(f"reassign  {str(jobs[iJob:iJob + nJob])}")
         Client.reassignJobs(jobs[iJob : iJob + nJob])
         iJob += nJob
         time.sleep(10)
@@ -109,8 +109,8 @@ if len(jediJobs) != 0:
     nJob = 100
     iJob = 0
     while iJob < len(jediJobs):
-        print("kill JEDI jobs %s" % str(jediJobs[iJob : iJob + nJob]))
+        print(f"kill JEDI jobs {str(jediJobs[iJob:iJob + nJob])}")
         Client.killJobs(jediJobs[iJob : iJob + nJob], codeV, keepUnmerged=options.keepUnmerged)
         iJob += nJob
 
-print("\nreassigned {0} jobs".format(len(jobs + jediJobs)))
+print(f"\nreassigned {len(jobs + jediJobs)} jobs")

@@ -39,13 +39,13 @@ if True:
                     rc.get_did(scope, name)
                     break
                 except DataIdentifierNotFound:
-                    print("resurrect {0}".format(datasetName))
+                    print(f"resurrect {datasetName}")
                     rc.resurrect([{"scope": scope, "name": name}])
                     try:
                         rc.set_metadata(scope, name, "lifetime", None)
                     except Exception:
                         pass
     print(Client.reloadInput(jediTaskID)[-1])
-    print("done for jediTaskID={0}".format(jediTaskID))
+    print(f"done for jediTaskID={jediTaskID}")
 else:
     print("failed")

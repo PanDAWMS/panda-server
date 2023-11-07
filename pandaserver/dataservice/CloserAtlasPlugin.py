@@ -11,7 +11,7 @@ class CloserAtlasPlugin:
     def __init__(self, job, datasets, log):
         self.jobSpec = job
         self.datasets = datasets
-        self.tmpLog = LogWrapper(log, "{0} CloserAtlasPlugin".format(self.jobSpec.PandaID))
+        self.tmpLog = LogWrapper(log, f"{self.jobSpec.PandaID} CloserAtlasPlugin")
 
     # execute
     def execute(self):
@@ -29,12 +29,12 @@ class CloserAtlasPlugin:
                 if datasetSpec.status != "tobeclosed":
                     continue
                 try:
-                    self.tmpLog.debug("immediate close {0}".format(datasetSpec.name))
+                    self.tmpLog.debug(f"immediate close {datasetSpec.name}")
                     rucioAPI.closeDataset(datasetSpec.name)
                 except Exception:
                     errtype, errvalue = sys.exc_info()[:2]
-                    self.tmpLog.warning("failed to close : {0} {1}".format(errtype, errvalue))
+                    self.tmpLog.warning(f"failed to close : {errtype} {errvalue}")
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]
-            self.tmpLog.warning("failed to execute : {0} {1}".format(errtype, errvalue))
+            self.tmpLog.warning(f"failed to execute : {errtype} {errvalue}")
         return True

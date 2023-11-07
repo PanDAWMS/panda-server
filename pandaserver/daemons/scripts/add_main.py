@@ -23,7 +23,7 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
     requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
 
     prelock_pid = GenericThread().get_pid()
-    tmpLog = LogWrapper(_logger, "<pid={}>".format(prelock_pid))
+    tmpLog = LogWrapper(_logger, f"<pid={prelock_pid}>")
 
     tmpLog.debug("===================== start =====================")
 
@@ -83,7 +83,7 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
             GenericThread.__init__(self)
             uniq_pid = self.get_pid()
             # log pid
-            tmpLog.debug("pid={0} : run".format(uniq_pid))
+            tmpLog.debug(f"pid={uniq_pid} : run")
             # stats
             n_processed = 0
             # loop
@@ -107,11 +107,11 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
                     modTime = time_stamp
                     if (timeNow - modTime) > datetime.timedelta(hours=24):
                         # last add
-                        tmpLog.debug("pid={0} : last add job={1}.{2} st={3}".format(uniq_pid, panda_id, attempt_nr, job_status))
+                        tmpLog.debug(f"pid={uniq_pid} : last add job={panda_id}.{attempt_nr} st={job_status}")
                         ignoreTmpError = False
                     else:
                         # usual add
-                        tmpLog.debug("pid={0} : add job={1}.{2} st={3}".format(uniq_pid, panda_id, attempt_nr, job_status))
+                        tmpLog.debug(f"pid={uniq_pid} : add job={panda_id}.{attempt_nr} st={job_status}")
                         ignoreTmpError = True
                     # get adder
                     adder_gen = AdderGen(
@@ -131,9 +131,9 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
                     adder_gen.run()
                     del adder_gen
                 except Exception as e:
-                    tmpLog.error("pid={} : failed to run with {} {}".format(uniq_pid, str(e), traceback.format_exc()))
+                    tmpLog.error(f"pid={uniq_pid} : failed to run with {str(e)} {traceback.format_exc()}")
             # stats
-            tmpLog.debug("pid={} : processed {}".format(uniq_pid, n_processed))
+            tmpLog.debug(f"pid={uniq_pid} : processed {n_processed}")
 
         # launcher, run with multiprocessing
         def proc_launch(self):
@@ -166,7 +166,7 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
     nLoop = 10
     recover_dataset_update = False
     for iLoop in range(10):
-        tmpLog.debug("start iLoop={}/{}".format(iLoop, nLoop))
+        tmpLog.debug(f"start iLoop={iLoop}/{nLoop}")
         start_time = datetime.datetime.utcnow()
         adderThrList = []
         nThr = 10
@@ -196,7 +196,7 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
         # adder consumer processes
         _n_thr_with_tbuf = 0
         tbuf_list = []
-        tmpLog.debug("got {} job reports".format(len(jor_lists)))
+        tmpLog.debug(f"got {len(jor_lists)} job reports")
         for i in range(nThr):
             if i < _n_thr_with_tbuf:
                 tbuf = TaskBuffer()
@@ -227,7 +227,7 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
         sleep_time = interval - (end_time - start_time).seconds
         if sleep_time > 0 and iLoop + 1 < nLoop:
             sleep_time = random.randint(1, sleep_time)
-            tmpLog.debug("sleep {} sec".format(sleep_time))
+            tmpLog.debug(f"sleep {sleep_time} sec")
             time.sleep(sleep_time)
 
         # recovery

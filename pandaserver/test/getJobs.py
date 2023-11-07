@@ -14,7 +14,7 @@ node["siteName"] = sys.argv[1]
 node["mem"] = 1000
 node["node"] = socket.getfqdn()
 # node['prodSourceLabel']='user'
-url = "%s/getJob" % baseURLSSL
+url = f"{baseURLSSL}/getJob"
 
 match = re.search("[^:/]+://([^/]+)(/.+)", url)
 host = match.group(1)
@@ -23,7 +23,7 @@ path = match.group(2)
 if "X509_USER_PROXY" in os.environ:
     certKey = os.environ["X509_USER_PROXY"]
 else:
-    certKey = "/tmp/x509up_u%s" % os.getuid()
+    certKey = f"/tmp/x509up_u{os.getuid()}"
 
 rdata = urlencode(node)
 
