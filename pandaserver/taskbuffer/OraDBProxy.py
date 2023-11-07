@@ -17766,6 +17766,8 @@ class DBProxy:
                 self.cur.execute(sqlMMod + comment, varMap)
                 self.cur.execute(sqlPMod + comment, varMap)
                 nKilled += 1
+                # record status change
+                self.recordStatusChange(dJob.PandaID, dJob.jobStatus, jobInfo=dJob, useCommit=False)
             # commit
             if useCommit:
                 if not self._commit():
