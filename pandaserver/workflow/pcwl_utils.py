@@ -51,6 +51,11 @@ def parse_workflow_file(workflow_file, log_stream, in_loop=False):
 
     from cwl_utils.parser import load_document_by_uri
 
+    # make fake executables to skip validation check in CWL
+    for tmp_exec in WORKFLOW_NAMES:
+        if not os.path.exists(tmp_exec):
+            Path(tmp_exec).touch()
+
     # Import CWL Object
     root_obj = load_document_by_uri(cwl_file)
 
