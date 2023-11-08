@@ -213,7 +213,7 @@ class cacheSchedConfig:
         if "releases" in structDict and structDict["releases"] is not None:
             if isinstance(structDict["releases"], str):
                 structDict["releases"] = structDict["releases"].split("|")
-        # TODO - Change this into Ricardo's ISO dateTime in UTC?
+
         for timeKey in "lastmod", "tspace":
             if timeKey in structDict:
                 structDict[timeKey] = structDict[timeKey].isoformat()

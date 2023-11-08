@@ -3,7 +3,6 @@ import traceback
 from pathlib import Path
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.config import panda_config
 
 # logger
