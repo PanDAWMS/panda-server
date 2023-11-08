@@ -18613,9 +18613,9 @@ class DBProxy:
                         _logger.debug(f"{method_name} : calling increaseRamLimitJEDI with minimum_ram {minimum_ram}")
                         return self.increaseRamLimitJEDI(jedi_task_id, minimum_ram)
 
-                # Ops could have increased task RamCount through direct DB access. In this case don't do anything
-                if (task_ram_count > normalized_job_ram_count) and (normalized_max_pss not in [None, 0, "NULL"]) and (task_ram_count > normalized_max_pss):
-                    _logger.debug(f"{method_name} : task ram count has already been increased and is higher than maxPSS. Skipping")
+                # Task RamCount could already have been increased. In this case don't do anything
+                if task_ram_count > normalized_job_ram_count:
+                    _logger.debug(f"{method_name} : task ram count has already been increased. Skipping")
                     return True
 
                 # skip if already at largest limit
