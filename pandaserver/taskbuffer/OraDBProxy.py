@@ -18510,17 +18510,17 @@ class DBProxy:
             return False
 
     # increase memory limit
-    def increaseRamLimitJobJEDI(self, job, jobRamCount, jediTaskID):
+    def increaseRamLimitJobJEDI(self, job, job_ram_count, jedi_task_id):
         """Note that this function only increases the min RAM count for the job,
         not for the entire task (for the latter use increaseRamLimitJEDI)
         """
         comment = " /* DBProxy.increaseRamLimitJobJEDI */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        methodName += f" <PanDAID={job.PandaID}>"
-        _logger.debug(f"{methodName} : start")
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        method_name += f" <PanDAID={job.PandaID}>"
+        _logger.debug(f"{method_name} : start")
 
         # RAM limit
-        limitList = [1000, 2000, 3000, 4000, 6000, 8000]
+        limit_list = [1000, 2000, 3000, 4000, 6000, 8000]
         # Files defined as input types
         input_types = ("input", "pseudo_input", "pp_input", "trn_log", "trn_output")
 
@@ -18530,44 +18530,42 @@ class DBProxy:
                 _logger.debug(f"No task({job.jediTaskID}) associated to job({job.PandaID}). Skipping increase of RAM limit")
             else:
                 # get current task Ram info
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                sqlUE = f"SELECT ramCount, ramUnit, baseRamCount FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-                sqlUE += "WHERE jediTaskID=:jediTaskID "
-                self.cur.execute(sqlUE + comment, varMap)
-                taskRamCount, taskRamUnit, taskBaseRamCount = self.cur.fetchone()
+                var_map = {":jediTaskID": jedi_task_id}
+                sql_get_ram_task = f"SELECT ramCount, ramUnit, baseRamCount FROM {panda_config.schemaJEDI}.JEDI_Tasks "
+                sql_get_ram_task += "WHERE jediTaskID=:jediTaskID "
+                self.cur.execute(sql_get_ram_task + comment, var_map)
+                task_ram_count, task_ram_unit, task_base_ram_count = self.cur.fetchone()
 
-                if taskBaseRamCount in [0, None, "NULL"]:
-                    taskBaseRamCount = 0
+                if task_base_ram_count in [0, None, "NULL"]:
+                    task_base_ram_count = 0
 
-                coreCount = job.coreCount
+                core_count = job.coreCount
 
-                if coreCount in [0, None, "NULL"]:
-                    coreCount = 1
+                if core_count in [0, None, "NULL"]:
+                    core_count = 1
 
                 _logger.debug(
                     "{0} : RAM limit task={1}{2} cores={3} baseRamCount={4} job={5}{6} jobPSS={7}kB".format(
-                        methodName,
-                        taskRamCount,
-                        taskRamUnit,
-                        coreCount,
-                        taskBaseRamCount,
-                        jobRamCount,
+                        method_name,
+                        task_ram_count,
+                        task_ram_unit,
+                        core_count,
+                        task_base_ram_count,
+                        job_ram_count,
                         job.minRamUnit,
                         job.maxPSS,
                     )
                 )
 
                 # If more than x% of the task's jobs needed a memory increase, increase the task's memory instead
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
+                var_map = {":jediTaskID": jedi_task_id}
                 i = 0
                 for input_type in input_types:
-                    varMap[f":type{i}"] = input_type
+                    var_map[f":type{i}"] = input_type
                     i += 1
                 input_type_bindings = ",".join(f":type{i}" for i in range(len(input_types)))
 
-                sqlMS = """
+                sql_get_memory_stats = """
                          SELECT ramCount, count(*)
                          FROM {0}.JEDI_Datasets tabD,{0}.JEDI_Dataset_Contents tabC
                          WHERE tabD.jediTaskID=tabC.jediTaskID
@@ -18580,105 +18578,86 @@ class DBProxy:
                     panda_config.schemaJEDI, input_type_bindings
                 )
 
-                self.cur.execute(sqlMS + comment, varMap)
+                self.cur.execute(sql_get_memory_stats + comment, var_map)
                 memory_stats = self.cur.fetchall()
                 total = sum([entry[1] for entry in memory_stats])
-                above_task = sum(tuple[1] for tuple in filter(lambda entry: entry[0] > taskRamCount, memory_stats))
+                above_task = sum(tuple[1] for tuple in filter(lambda entry: entry[0] > task_ram_count, memory_stats))
                 max_task = max([entry[0] for entry in memory_stats])
-                _logger.debug(f"{methodName} : #increased_files: {above_task}; #total_files: {total}")
+                _logger.debug(f"{method_name} : #increased_files: {above_task}; #total_files: {total}")
 
                 # normalize the job ramcounts by base ram count and number of cores
                 try:
-                    normalizedJobRamCount = (jobRamCount - taskBaseRamCount) * 1.0
-                    if taskRamUnit in [
+                    normalized_job_ram_count = (job_ram_count - task_base_ram_count) * 1.0
+                    if task_ram_unit in [
                         "MBPerCore",
                         "MBPerCoreFixed",
                     ] and job.minRamUnit in ("MB", None, "NULL"):
-                        normalizedJobRamCount = normalizedJobRamCount / coreCount
+                        normalized_job_ram_count = normalized_job_ram_count / core_count
                 except TypeError:
-                    normalizedJobRamCount = 0
+                    normalized_job_ram_count = 0
 
                 try:
-                    normalizedMaxPSS = (job.maxPSS - taskBaseRamCount) / 1024.0
-                    if taskRamUnit in ["MBPerCore", "MBPerCoreFixed"]:
-                        normalizedMaxPSS = normalizedMaxPSS / coreCount
+                    normalized_max_pss = (job.maxPSS - task_base_ram_count) / 1024.0
+                    if task_ram_unit in ["MBPerCore", "MBPerCoreFixed"]:
+                        normalized_max_pss = normalized_max_pss / core_count
                 except TypeError:
-                    normalizedMaxPSS = 0
+                    normalized_max_pss = 0
 
                 # increase task limit in case >30% of the jobs were increased and the task is not fixed
-                if taskRamUnit != "MBPerCoreFixed" and (1.0 * above_task) / total > 0.3:
-                    if normalizedMaxPSS:
-                        minimumRam = normalizedMaxPSS
-                    if normalizedJobRamCount and normalizedJobRamCount > minimumRam:
-                        minimumRam = normalizedJobRamCount
-                    if max_task > minimumRam:
-                        minimumRam = max_task - 1  # otherwise we go over the max_task step
-                    if minimumRam:
-                        _logger.debug(f"{methodName} : calling increaseRamLimitJEDI with minimumRam {minimumRam}")
-                        return self.increaseRamLimitJEDI(jediTaskID, minimumRam)
+                if task_ram_unit != "MBPerCoreFixed" and (1.0 * above_task) / total > 0.3:
+                    if normalized_job_ram_count and normalized_job_ram_count > minimum_ram:
+                        minimum_ram = normalized_job_ram_count
+                    if max_task > minimum_ram:
+                        minimum_ram = max_task - 1  # otherwise we go over the max_task step
+                    if minimum_ram:
+                        _logger.debug(f"{method_name} : calling increaseRamLimitJEDI with minimum_ram {minimum_ram}")
+                        return self.increaseRamLimitJEDI(jedi_task_id, minimum_ram)
 
                 # Ops could have increased task RamCount through direct DB access. In this case don't do anything
-                if (taskRamCount > normalizedJobRamCount) and (normalizedMaxPSS not in [None, 0, "NULL"]) and (taskRamCount > normalizedMaxPSS):
-                    _logger.debug(f"{methodName} : task ramcount has already been increased and is higher than maxPSS. Skipping")
+                if (task_ram_count > normalized_job_ram_count) and (normalized_max_pss not in [None, 0, "NULL"]) and (task_ram_count > normalized_max_pss):
+                    _logger.debug(f"{method_name} : task ram count has already been increased and is higher than maxPSS. Skipping")
                     return True
 
                 # skip if already at largest limit
-                if normalizedJobRamCount >= limitList[-1]:
-                    dbgStr = "no change "
-                    dbgStr += f"since job RAM limit ({normalizedJobRamCount}) is larger than or equal to the highest limit ({limitList[-1]})"
-                    _logger.debug(f"{methodName} : {dbgStr}")
+                if normalized_job_ram_count >= limit_list[-1]:
+                    debug_string = "no change "
+                    debug_string += f"since job RAM limit ({normalized_job_ram_count}) is larger than or equal to the highest limit ({limit_list[-1]})"
+                    _logger.debug(f"{method_name} : {debug_string}")
                 else:
-                    # If maxPSS is present, then jump all the levels until the one above
-                    if normalizedMaxPSS > normalizedJobRamCount:
-                        minimumRam = normalizedMaxPSS
-                    else:
-                        minimumRam = normalizedJobRamCount
-
-                    for nextLimit in limitList:
-                        if minimumRam < nextLimit:
+                    # look for the next limit in the list above the current RAM count
+                    for next_limit in limit_list:
+                        if normalized_job_ram_count < next_limit:
                             break
 
                     # update RAM limit
-                    varMap = {}
-                    varMap[":jediTaskID"] = job.jediTaskID
-                    varMap[":ramCount"] = nextLimit
-                    input_files = filter(lambda pandafile: pandafile.type in input_types, job.Files)
+                    var_map = {":jediTaskID": job.jediTaskID, ":ramCount": next_limit}
+                    input_files = filter(lambda panda_file: panda_file.type in input_types, job.Files)
                     input_tuples = [(input_file.datasetID, input_file.fileID, input_file.attemptNr) for input_file in input_files]
 
                     for entry in input_tuples:
-                        datasetID, fileId, attemptNr = entry
-                        varMap[":datasetID"] = datasetID
-                        varMap[":fileID"] = fileId
+                        dataset_id, file_id, attempt_nr = entry
+                        var_map[":datasetID"] = dataset_id
+                        var_map[":fileID"] = file_id
 
-                        sqlRL = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-                        sqlRL += "SET ramCount=:ramCount "
-                        sqlRL += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-                        sqlRL += "AND ramCount<:ramCount "
+                        sql_get_update_ram_job = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+                        sql_get_update_ram_job += "SET ramCount=:ramCount "
+                        sql_get_update_ram_job += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
+                        sql_get_update_ram_job += "AND ramCount<:ramCount "
 
-                        self.cur.execute(sqlRL + comment, varMap)
+                        self.cur.execute(sql_get_update_ram_job + comment, var_map)
                         _logger.debug(
-                            "{0} : increased RAM limit to {1} from {2} for PandaID {3} fileID {4} attemptNr {5} jediTaskID {6} datasetID {7}".format(
-                                methodName,
-                                nextLimit,
-                                normalizedJobRamCount,
-                                job.PandaID,
-                                fileId,
-                                attemptNr,
-                                job.jediTaskID,
-                                datasetID,
-                            )
+                            f"{method_name} : increased RAM limit to {next_limit} from {normalized_job_ram_count} for PandaID {job.PandaID} "
+                            f"fileID {file_id} attemptNr {attempt_nr} jediTaskID {job.jediTaskID} datasetID {dataset_id}"
                         )
-                # commit
+
                 if not self._commit():
                     raise RuntimeError("Commit error")
 
-            _logger.debug(f"{methodName} : done")
+            _logger.debug(f"{method_name} : done")
             return True
         except Exception:
-            # roll back
             self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, methodName)
+            self.dumpErrorMessage(_logger, method_name)
             return False
 
     # reset files in JEDI
