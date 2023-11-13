@@ -209,7 +209,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
             if to_run_daemon:
                 last_run_start_ts = int(time.time())
                 # send daemon status back to master
-                status_tuple = (dem_name, has_run, last_run_start_ts, last_run_end_ts)
+                status_tuple = (dem_name, to_run_daemon, has_run, last_run_start_ts, last_run_end_ts)
                 pipe_conn.send(status_tuple)
                 try:
                     if is_loop:
@@ -241,6 +241,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
                     # send daemon status back to master
                     status_tuple = (
                         dem_name,
+                        to_run_daemon,
                         has_run,
                         last_run_start_ts,
                         last_run_end_ts,
@@ -253,7 +254,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
                     last_run_end_ts = int(time.time())
                     has_run = True
             # send daemon status back to master
-            status_tuple = (dem_name, has_run, last_run_start_ts, last_run_end_ts)
+            status_tuple = (dem_name, to_run_daemon, has_run, last_run_start_ts, last_run_end_ts)
             pipe_conn.send(status_tuple)
             # FIXME: stop and spawn worker in every run for now since some script breaks the worker without exception
             # tmp_log.info('as script done, stop this worker')
@@ -483,6 +484,7 @@ class DaemonMaster(object):
             attrs["last_run_start_ts"] = 0
             attrs["last_warn_ts"] = 0
             attrs["msg_ongoing"] = False
+            attrs["dem_running"] = False
             dem_run_map[dem] = attrs
         self.dem_run_map = dem_run_map
 
@@ -500,6 +502,7 @@ class DaemonMaster(object):
                 while worker.parent_conn.poll():
                     (
                         dem_name,
+                        to_run_daemon,
                         has_run,
                         last_run_start_ts,
                         last_run_end_ts,
@@ -513,9 +516,12 @@ class DaemonMaster(object):
                     if not has_run and last_run_start_ts > 0:
                         # worker not yet finishes running a daemon script
                         worker.set_dem(dem_name, last_run_start_ts)
+                        if to_run_daemon:
+                            dem_run_attrs["dem_running"] = True
                     if has_run and last_run_end_ts >= last_run_start_ts:
                         # worker already finishes running a daemon script
                         worker.unset_dem()
+                        dem_run_attrs["dem_running"] = False
                         run_duration = last_run_end_ts - last_run_start_ts
                         run_period = self.dem_config[dem_name].get("period")
                         is_loop = self.dem_config[dem_name].get("loop")
@@ -539,6 +545,7 @@ class DaemonMaster(object):
                         worker.kill()
                         self._remove_worker(worker)
                         self.dem_run_map[worker.dem_name]["msg_ongoing"] = False
+                        self.dem_run_map[worker.dem_name]["dem_running"] = False
         # send message to workers
         for dem_name, attrs in self.dem_config.items():
             with self._status_lock:
@@ -551,8 +558,9 @@ class DaemonMaster(object):
                 if last_run_start_ts + run_period <= now_ts:
                     # time to send new message to run the daemon
                     msg_ongoing = dem_run_attrs["msg_ongoing"]
-                    if msg_ongoing:
-                        # old message not processed yet, maybe daemon still running, skip
+                    dem_running = dem_run_attrs["dem_running"]
+                    if msg_ongoing or dem_running:
+                        # old message not processed yet or daemon still running, skip
                         run_delay = now_ts - (last_run_start_ts + run_period)
                         warn_since_ago = now_ts - last_warn_ts
                         if last_run_start_ts > 0 and run_delay > max(300, run_period // 2) and warn_since_ago > 900:
@@ -565,7 +573,7 @@ class DaemonMaster(object):
                         self.logger.debug(f"scheduled to run {dem_name}")
                         dem_run_attrs["msg_ongoing"] = True
                         # dem_run_attrs['last_run_start_ts'] = now_ts
-        # spawn new workers if ther are less than n_workers
+        # spawn new workers if there are less than n_workers
         now_n_workers = len(self.worker_pool)
         if now_n_workers < self.n_workers:
             n_up = self.n_workers - now_n_workers
