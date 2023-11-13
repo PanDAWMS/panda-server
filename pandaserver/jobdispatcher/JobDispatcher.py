@@ -275,7 +275,7 @@ class JobDispatcher:
                 if getProxyKey:
                     response.setProxyKey(proxyKey)
                 # set secrets
-                if tmpJob.prodUserName in secrets_map and secrets_map[tmpJob.prodUserName]:
+                if tmpJob.use_secrets() and tmpJob.prodUserName in secrets_map and secrets_map[tmpJob.prodUserName]:
                     response.appendNode("secrets", secrets_map[tmpJob.prodUserName])
                 if panda_config.pilot_secrets in secrets_map and secrets_map[panda_config.pilot_secrets]:
                     response.appendNode("pilotSecrets", secrets_map[panda_config.pilot_secrets])

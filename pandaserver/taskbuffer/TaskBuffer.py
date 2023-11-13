@@ -987,16 +987,13 @@ class TaskBuffer:
         # get secret
         secrets_map = {}
         for job in jobs:
-            if job.prodUserName not in secrets_map:
-                if not job.use_secrets():
+            if job.use_secrets() and job.prodUserName not in secrets_map:
+                # get secret
+                proxy = self.proxyPool.getProxy()
+                tmpS, secret = proxy.get_user_secrets(job.prodUserName)
+                if not tmpS:
                     secret = None
-                else:
-                    # get secret
-                    proxy = self.proxyPool.getProxy()
-                    tmpS, secret = proxy.get_user_secrets(job.prodUserName)
-                    if not tmpS:
-                        secret = None
-                    self.proxyPool.putProxy(proxy)
+                self.proxyPool.putProxy(proxy)
                 secrets_map[job.prodUserName] = secret
             if job.is_debug_mode():
                 if panda_config.pilot_secrets not in secrets_map:
