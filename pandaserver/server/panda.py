@@ -557,19 +557,18 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         environ["wsgi.input"] = io.BytesIO(body)
                         environ["CONTENT_LENGTH"] = str(len(body))
                         environ["wsgi.headers"] = EnvironHeaders(environ)
+                        tmp_log.debug(f"{environ['CONTENT_TYPE']}")
 
                         # Parse form data. Combine the form (string fields) and the files (file uploads) into a single object
                         stream, form, files = parse_form_data(environ)
-                        tmp_log.debug(f"form: {form} files: {files}")
                         tmp_params = CombinedMultiDict([form, files])
-                        tmp_log.debug(f"params: {params}")
 
                         # convert to map
                         params = {}
-                        for tmp_key in combined:
-                            key = tmp_key.decode()
-                            params[key] = tmp_params[tmp_key][0].decode()
-                        tmp_log.debug(f"params: {params}")
+                        for tmp_key in tmp_params:
+                            key = tmp_key
+                            params[key] = tmp_params[tmp_key]
+
                     else:
                         # json
                         body = gzip.decompress(body)
@@ -610,7 +609,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                     for tmp_key in environ:
                         tmp_value = environ[tmp_key]
                         error_string += f"{tmp_key} : {str(tmp_value)}\n"
-                    # tmp_log.error(error_string)
+                    tmp_log.error(error_string)
 
                     # return internal server error
                     start_response("500 INTERNAL SERVER ERROR", [("Content-Type", "text/plain")])
