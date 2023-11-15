@@ -344,8 +344,8 @@ allowedMethods += [
 
 # FastCGI/WSGI entry
 if panda_config.useFastCGI or panda_config.useWSGI:
-    import cgi
     import os
+    import urllib.parse
 
     from pandacommon.pandalogger.LogWrapper import LogWrapper
     from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -555,18 +555,18 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                     if not json_body:
                         # query string
                         environ["wsgi.input"] = io.BytesIO(body)
-                        # get params
-                        tmp_params = cgi.FieldStorage(environ["wsgi.input"], environ=environ, keep_blank_values=1)
+
+                        # get the parameters
+                        content_length = int(environ.get("CONTENT_LENGTH", 0))
+                        request_body = environ["wsgi.input"].read(content_length)
+                        tmp_params = urllib.parse.parse_qs(request_body)
 
                         # convert to map
                         params = {}
                         for tmp_key in list(tmp_params):
-                            if tmp_params[tmp_key].file is not None and tmp_params[tmp_key].filename is not None:
-                                # file
-                                params[tmp_key] = tmp_params[tmp_key]
-                            else:
-                                # string
-                                params[tmp_key] = tmp_params.getfirst(tmp_key)
+                            key = tmp_key.decode()
+                            params[key] = tmp_params[tmp_key][0].decode()
+                        tmp_log.debug(f"params: {params}")
                     else:
                         # json
                         body = gzip.decompress(body)
