@@ -345,10 +345,11 @@ allowedMethods += [
 # FastCGI/WSGI entry
 if panda_config.useFastCGI or panda_config.useWSGI:
     import os
-    import urllib.parse
 
     from pandacommon.pandalogger.LogWrapper import LogWrapper
     from pandacommon.pandalogger.PandaLogger import PandaLogger
+    from werkzeug.datastructures import CombinedMultiDict, EnvironHeaders
+    from werkzeug.formparser import parse_form_data
 
     if panda_config.token_authType is None:
         pass
@@ -553,17 +554,19 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                     if cont_length > 0:
                         raise OSError(f"partial read from client. {cont_length} bytes remaining")
                     if not json_body:
-                        # query string
                         environ["wsgi.input"] = io.BytesIO(body)
+                        environ["CONTENT_LENGTH"] = str(len(body))
+                        environ["wsgi.headers"] = EnvironHeaders(environ)
 
-                        # get the parameters
-                        content_length = int(environ.get("CONTENT_LENGTH", 0))
-                        request_body = environ["wsgi.input"].read(content_length)
-                        tmp_params = urllib.parse.parse_qs(request_body)
+                        # Parse form data. Combine the form (string fields) and the files (file uploads) into a single object
+                        stream, form, files = parse_form_data(environ)
+                        tmp_log.debug(f"form: {form} files: {files}")
+                        tmp_params = CombinedMultiDict([form, files])
+                        tmp_log.debug(f"params: {params}")
 
                         # convert to map
                         params = {}
-                        for tmp_key in list(tmp_params):
+                        for tmp_key in combined:
                             key = tmp_key.decode()
                             params[key] = tmp_params[tmp_key][0].decode()
                         tmp_log.debug(f"params: {params}")
