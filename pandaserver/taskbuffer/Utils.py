@@ -19,10 +19,27 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
 from pandaserver.userinterface import Client
+from werkzeug.datastructures import FileStorage
 
 _logger = PandaLogger().getLogger("Utils")
 
 IGNORED_SUFFIX = [".out"]
+
+
+def read_file_content(file_obj):
+    """
+    Read the content of a file object, either a standard file object or a FileStorage object.
+    :param file_obj:
+    :return: string with the content of the file
+    """
+    if isinstance(file_obj, FileStorage):
+        # It's a FileStorage object, use file_obj.read()
+        content = file_obj.read()
+    else:
+        # It's a standard file object, use file_obj.read()
+        content = file_obj.file.read()
+
+    return content
 
 
 # check if server is alive
@@ -83,7 +100,7 @@ def putFile(req, file):
             return errStr
         # write
         fo = open(fileFullPath, "wb")
-        fileContent = file.read()
+        fileContent = read_file_content(file)
         if hasattr(panda_config, "compress_file_names") and [
             True for patt in panda_config.compress_file_names.split(",") if re.search(patt, fileName) is not None
         ]:
@@ -335,7 +352,7 @@ def updateLog(req, file):
     # write to file
     try:
         # expand
-        extStr = zlib.decompress(file.read())
+        extStr = zlib.decompress(read_file_content(file))
         # stdout name
         logName = f"{panda_config.cache_dir}/{file.filename.split('/')[-1]}"
         # append
@@ -436,7 +453,7 @@ def uploadLog(req, file):
             os.remove(fileFullPath)
         # write
         fo = open(fileFullPath, "wb")
-        fileContent = file.read()
+        fileContent = read_file_content(file)
         fo.write(fileContent)
         fo.close()
         tmpLog.debug(f"written to {fileFullPath}")
@@ -511,7 +528,7 @@ def put_checkpoint(req, file):
         fileFullPath = os.path.join(panda_config.cache_dir, get_checkpoint_filename(task_id, sub_id))
         # write
         with open(fileFullPath, "wb") as fo:
-            fo.write(file.read())
+            fo.write(read_file_content(file))
     except Exception as e:
         errStr = f"cannot write file due to {str(e)}"
         tmpLog.error(errStr)
