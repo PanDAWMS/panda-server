@@ -83,7 +83,7 @@ def putFile(req, file):
             return errStr
         # write
         fo = open(fileFullPath, "wb")
-        fileContent = file.file.read()
+        fileContent = file.read()
         if hasattr(panda_config, "compress_file_names") and [
             True for patt in panda_config.compress_file_names.split(",") if re.search(patt, fileName) is not None
         ]:
