@@ -610,7 +610,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                     for tmp_key in environ:
                         tmp_value = environ[tmp_key]
                         error_string += f"{tmp_key} : {str(tmp_value)}\n"
-                    tmp_log.error(error_string)
+                    # tmp_log.error(error_string)
 
                     # return internal server error
                     start_response("500 INTERNAL SERVER ERROR", [("Content-Type", "text/plain")])
