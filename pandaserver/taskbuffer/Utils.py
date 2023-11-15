@@ -335,7 +335,7 @@ def updateLog(req, file):
     # write to file
     try:
         # expand
-        extStr = zlib.decompress(file.file.read())
+        extStr = zlib.decompress(file.read())
         # stdout name
         logName = f"{panda_config.cache_dir}/{file.filename.split('/')[-1]}"
         # append
@@ -436,7 +436,7 @@ def uploadLog(req, file):
             os.remove(fileFullPath)
         # write
         fo = open(fileFullPath, "wb")
-        fileContent = file.file.read()
+        fileContent = file.read()
         fo.write(fileContent)
         fo.close()
         tmpLog.debug(f"written to {fileFullPath}")
@@ -511,7 +511,7 @@ def put_checkpoint(req, file):
         fileFullPath = os.path.join(panda_config.cache_dir, get_checkpoint_filename(task_id, sub_id))
         # write
         with open(fileFullPath, "wb") as fo:
-            fo.write(file.file.read())
+            fo.write(file.read())
     except Exception as e:
         errStr = f"cannot write file due to {str(e)}"
         tmpLog.error(errStr)
