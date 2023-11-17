@@ -371,10 +371,10 @@ if panda_config.useFastCGI or panda_config.useWSGI:
         # get ban list from remote
         ban_user_list = CoreUtils.CachedObject("ban_list", 600, Client.get_ban_users, _logger)
 
-    # dummy request object
-    class DummyReq:
+    # PanDA request object
+    class PandaRequest:
         def __init__(self, env, tmp_log):
-            # environ
+            # environment
             self.subprocess_env = env
             # header
             self.headers_in = {}
@@ -527,15 +527,15 @@ if panda_config.useFastCGI or panda_config.useWSGI:
             else:
                 body = b""
                 try:
-                    # dummy request object
-                    dummy_request = DummyReq(environ, tmp_log)
-                    if not dummy_request.authenticated:
-                        error_message = f"Token authentication failed. {dummy_request.message}"
+                    # request object
+                    panda_request = PandaRequest(environ, tmp_log)
+                    if not panda_request.authenticated:
+                        error_message = f"Token authentication failed. {panda_request.message}"
                         tmp_log.error(error_message)
                         start_response("403 Forbidden", [("Content-Type", "text/plain")])
                         return [f"ERROR : {error_message}".encode()]
 
-                    username = dummy_request.subprocess_env.get("SSL_CLIENT_S_DN", None)
+                    username = panda_request.subprocess_env.get("SSL_CLIENT_S_DN", None)
                     if username:
                         username = CoreUtils.clean_user_id(username)
                         if username in ban_user_list:
@@ -581,7 +581,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                                 params[k] = "False"
                     if panda_config.entryVerbose:
                         tmp_log.debug(f"with {str(list(params))}")
-                    param_list = [dummy_request]
+                    param_list = [panda_request]
 
                     # exec
                     exec_result = tmp_method(*param_list, **params)

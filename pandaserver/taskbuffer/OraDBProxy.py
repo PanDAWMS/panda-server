@@ -2011,7 +2011,7 @@ class DBProxy:
                         job.jobStatus = "closed"
                         job.jobSubStatus = "es_badstatus"
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceBadStatus
-                        job.taskBufferErrorDiag = "cloded in bad jobStatus like defined and pending"
+                        job.taskBufferErrorDiag = "cloned in bad jobStatus like defined and pending"
                     # additional actions when retry
                     codeListWithRetry = [0, 4, 5, 8, 9]
                     if retEvS in codeListWithRetry and job.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs:
