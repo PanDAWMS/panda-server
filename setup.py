@@ -260,6 +260,7 @@ setup(
         "snakemake==6.15.5",
         "numpy",
         "scipy",
+        "werkzeug",
     ],
     extras_require={
         "oracle": ["cx_Oracle"],
