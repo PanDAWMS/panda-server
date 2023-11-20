@@ -557,7 +557,6 @@ if panda_config.useFastCGI or panda_config.useWSGI:
                         environ["wsgi.input"] = io.BytesIO(body)
                         environ["CONTENT_LENGTH"] = str(len(body))
                         environ["wsgi.headers"] = EnvironHeaders(environ)
-                        tmp_log.debug(f"{environ['CONTENT_TYPE']}")
 
                         # Parse form data. Combine the form (string fields) and the files (file uploads) into a single object
                         stream, form, files = parse_form_data(environ)
