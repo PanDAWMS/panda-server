@@ -12990,25 +12990,50 @@ class DBProxy:
             try:
                 now_time = datetime.datetime.utcnow()
                 now_ts = int(now_time.timestamp())
-                # task id
-                if jedi_task_id is None and job_spec is not None:
-                    jedi_task_id = job_spec.jediTaskID
-                # inputs
+                # init
                 inputs = []
-                if job_spec is not None and job_spec.Files is not None:
-                    for file_spec in job_spec.Files:
-                        if file_spec.type in ["input", "pseudo_input"]:
-                            inputs.append(file_spec.lfn)
+                computingsite = None
+                error_tmp_dict = {}
+                # info from job spec
+                if job_spec is not None:
+                    # task id
+                    if jedi_task_id is None:
+                        jedi_task_id = job_spec.jediTaskID
+                    # inputs
+                    if job_spec.Files is not None:
+                        for file_spec in job_spec.Files:
+                            if file_spec.type in ["input", "pseudo_input"]:
+                                inputs.append(file_spec.lfn)
+                    # computing site
+                    if job_spec.computingSite is not None:
+                        computingsite = job_spec.computingSite
+                    # error codes and diags
+                    error_tmp_dict["piloterrorcode"] = job_spec.pilotErrorCode
+                    error_tmp_dict["exeerrorcode"] = job_spec.exeErrorCode
+                    error_tmp_dict["superrorcode"] = job_spec.supErrorCode
+                    error_tmp_dict["ddmerrorcode"] = job_spec.ddmErrorCode
+                    error_tmp_dict["brokerageerrorcode"] = job_spec.brokerageErrorCode
+                    error_tmp_dict["jobdispatchererrorcode"] = job_spec.jobDispatcherErrorCode
+                    error_tmp_dict["taskbuffererrorcode"] = job_spec.taskBufferErrorCode
+                    error_tmp_dict["piloterrordiag"] = job_spec.pilotErrorDiag
+                    error_tmp_dict["exeerrordiag"] = job_spec.exeErrorDiag
+                    error_tmp_dict["superrordiag"] = job_spec.supErrorDiag
+                    error_tmp_dict["ddmerrordiag"] = job_spec.ddmErrorDiag
+                    error_tmp_dict["brokerageerrordiag"] = job_spec.brokerageErrorDiag
+                    error_tmp_dict["jobdispatchererrordiag"] = job_spec.jobDispatcherErrorDiag
+                    error_tmp_dict["taskbuffererrordiag"] = job_spec.taskBufferErrorDiag
                 # message
                 orig_msg_dict = {
                     "msg_type": "job_status",
                     "jobid": panda_id,
                     "taskid": jedi_task_id,
                     "status": status,
+                    "computingsite": computingsite,
                     "inputs": inputs if inputs else None,
                     "timestamp": now_ts,
                 }
                 msg_dict = orig_msg_dict.copy()
+                msg_dict.update(error_tmp_dict)
                 if extra_data:
                     msg_dict = extra_data.copy()
                     msg_dict.update(orig_msg_dict)
