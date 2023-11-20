@@ -2909,7 +2909,7 @@ class DBProxy:
                         except Exception:
                             tmp_log.error(f"updateJobStatus : failed to update CE from harvester table with {traceback.format_exc()}")
                     # push status change
-                    self.push_job_status_message(None, pandaID, jobStatus, jediTaskID, specialHandling)
+                    self.push_job_status_message(None, pandaID, jobStatus, jediTaskID, specialHandling, extra_data={"computingsite": computingSite})
                 else:
                     tmp_log.debug("not found")
                     # already deleted or bad attempt number
