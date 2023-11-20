@@ -13032,8 +13032,8 @@ class DBProxy:
                     "inputs": inputs if inputs else None,
                     "timestamp": now_ts,
                 }
+                orig_msg_dict.update(error_tmp_dict)
                 msg_dict = orig_msg_dict.copy()
-                msg_dict.update(error_tmp_dict)
                 if extra_data:
                     msg_dict = extra_data.copy()
                     msg_dict.update(orig_msg_dict)
