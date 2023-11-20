@@ -9,10 +9,10 @@ import traceback
 import uuid
 import zlib
 
-import pandaserver.jobdispatcher.Protocol as Protocol
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.config import panda_config
+from pandaserver.jobdispatcher import Protocol
 from pandaserver.srvcore import CoreUtils
 from pandaserver.userinterface import Client
 
@@ -135,15 +135,15 @@ def putFile(panda_request, file):
             tmp_log.debug("end")
             return error_message
 
-        # write
-        fo = open(full_path, "wb")
-        file_content = file.read()
-        if hasattr(panda_config, "compress_file_names") and [
-            True for patt in panda_config.compress_file_names.split(",") if re.search(patt, file_name) is not None
-        ]:
-            file_content = gzip.compress(file_content)
-        fo.write(file_content)
-        fo.close()
+        # write the file to the cache directory
+        with open(full_path, "wb") as file_object:
+            file_content = file.read()
+            if hasattr(panda_config, "compress_file_names") and [
+                True for patt in panda_config.compress_file_names.split(",") if re.search(patt, file_name) is not None
+            ]:
+                file_content = gzip.compress(file_content)
+            file_object.write(file_content)
+
     except Exception:
         error_message = ERROR_WRITE
         tmp_log.error(error_message)
@@ -154,7 +154,7 @@ def putFile(panda_request, file):
     try:
         # decode Footer
         footer = file_content[-8:]
-        checksum, input_size = struct.unpack("II", footer)
+        checksum, _ = struct.unpack("II", footer)
         tmp_log.debug(f"CRC from gzip Footer {checksum}")
     except Exception:
         # use None to avoid delay for now
@@ -184,8 +184,8 @@ def putFile(panda_request, file):
                 tmp_log.error(error_message)
                 tmp_log.debug("end")
                 return error_message
-            else:
-                tmp_log.debug(f"inserted sandbox to DB with {output_client}")
+
+            tmp_log.debug(f"inserted sandbox to DB with {output_client}")
 
     tmp_log.debug("end")
     return "True"
@@ -236,7 +236,7 @@ def putEventPickingRequest(
     user_name = panda_request.subprocess_env["SSL_CLIENT_S_DN"]
 
     tmp_log = LogWrapper(_logger, f"putEventPickingRequest {user_name}")
-    tmp_log.debug(f"start")
+    tmp_log.debug("start")
 
     creation_time = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -246,14 +246,14 @@ def putEventPickingRequest(
     except Exception:
         error_message = "cannot get content-length from HTTP request."
         tmp_log.error(f"{error_message}")
-        tmp_log.debug(f"end")
+        tmp_log.debug("end")
         return "ERROR : " + error_message
     _logger.debug(f"size {content_length}")
 
     if content_length > EVENT_PICKING_LIMIT:
         error_message = f"Run/event list is too large. Exceeded size limit {content_length}>{EVENT_PICKING_LIMIT}."
         tmp_log.error(f"{error_message} ")
-        tmp_log.debug(f"end")
+        tmp_log.debug("end")
         return "ERROR : " + error_message
 
     if giveGUID == "True":
@@ -283,19 +283,19 @@ def putEventPickingRequest(
             f"ei_api={ei_api}\n"
         )
 
-        with open(file_name, "w") as fo:
-            fo.write(file_content)
+        with open(file_name, "w") as file_object:
+            file_object.write(file_content)
 
         run_event_guid_map = {}
         for tmp_line in runEventList.split("\n"):
             tmp_items = tmp_line.split()
             if (len(tmp_items) != 2 and not giveGUID) or (len(tmp_items) != 3 and giveGUID):
                 continue
-            fo.write("runEvent=%s,%s\n" % tuple(tmp_items[:2]))
+            file_object.write("runEvent=%s,%s\n" % tuple(tmp_items[:2]))
             if giveGUID:
                 run_event_guid_map[tuple(tmp_items[:2])] = [tmp_items[2]]
-        fo.write(f"runEvtGuidMap={str(run_event_guid_map)}\n")
-        fo.close()
+        file_object.write(f"runEvtGuidMap={str(run_event_guid_map)}\n")
+        file_object.close()
 
     except Exception:
         error_type, error_value = sys.exc_info()[:2]
@@ -335,7 +335,7 @@ def put_file_recovery_request(panda_request, jediTaskID, dryRun=None):
         tmp_log.debug(f"file={file_name}")
 
         # write the file content
-        with open(file_name, "w") as fo:
+        with open(file_name, "w") as file_object:
             data = {
                 "userName": user_name,
                 "creationTime": creation_time,
@@ -344,9 +344,9 @@ def put_file_recovery_request(panda_request, jediTaskID, dryRun=None):
             if dryRun:
                 data["dryRun"] = True
 
-            json.dump(data, fo)
-    except Exception as e:
-        error_message = f"cannot put request due to {str(e)} "
+            json.dump(data, file_object)
+    except Exception as exc:
+        error_message = f"cannot put request due to {str(exc)} "
         tmp_log.error(error_message + traceback.format_exc())
         return json.dumps((False, error_message))
 
@@ -370,7 +370,7 @@ def put_workflow_request(panda_request, data, check=False):
 
     user_name = panda_request.subprocess_env["SSL_CLIENT_S_DN"]
     creation_time = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    tmp_log = LogWrapper(_logger, f"put_workflow_request")
+    tmp_log = LogWrapper(_logger, "put_workflow_request")
 
     tmp_log.debug(f"start user={user_name} check={check}")
 
@@ -384,13 +384,13 @@ def put_workflow_request(panda_request, data, check=False):
         tmp_log.debug(f"file={file_name}")
 
         # write
-        with open(file_name, "w") as fo:
+        with open(file_name, "w") as file_object:
             data = {
                 "userName": user_name,
                 "creationTime": creation_time,
                 "data": json.loads(data),
             }
-            json.dump(data, fo)
+            json.dump(data, file_object)
 
         # check
         if check:
@@ -407,8 +407,8 @@ def put_workflow_request(panda_request, data, check=False):
             tmp_log.debug("done")
             return json.dumps((True, ret))
 
-    except Exception as e:
-        error_message = f"cannot put request due to {str(e)} "
+    except Exception as exc:
+        error_message = f"cannot put request due to {str(exc)} "
         tmp_log.error(error_message + traceback.format_exc())
         return json.dumps((False, error_message))
 
@@ -497,8 +497,8 @@ def updateLog(panda_request, file):
     Returns:
         string: String with "True" or error message
     """
-    tmp_log = LogWrapper(_logger, f"updateLog <{file.filename}>")
-    tmp_log.debug(f"start")
+    tmp_log = LogWrapper(_logger, f"updateLog < {file.filename} >")
+    tmp_log.debug("start")
 
     # write to file
     try:
@@ -509,15 +509,15 @@ def updateLog(panda_request, file):
         log_name = f"{panda_config.cache_dir}/{file.filename.split('/')[-1]}"
 
         # append to file end
-        ft = open(log_name, "a")
-        ft.write(new_content)
-        ft.close()
+        with open(log_name, "a") as file_object:
+            file_object.write(new_content)
+
     except Exception:
-        error_type, error_value, traceback_message = sys.exc_info()
+        error_type, error_value, _ = sys.exc_info()
         tmp_log.error(f"{error_type} {error_value}")
         return f"ERROR: cannot update file with {error_type} {error_value}"
 
-    tmp_log.debug(f"{file.filename} end")
+    tmp_log.debug("end")
     return "True"
 
 
@@ -542,12 +542,12 @@ def fetchLog(panda_request, logName, offset=0):
         full_log_name = f"{panda_config.cache_dir}/{logName.split('/')[-1]}"
 
         # read at offset of the file
-        ft = open(full_log_name, "r")
-        ft.seek(int(offset))
-        return_string += ft.read()
-        ft.close()
+        with open(full_log_name, "r") as file_object:
+            file_object.seek(int(offset))
+            return_string += file_object.read()
+
     except Exception:
-        error_type, error_value, traceback_message = sys.exc_info()
+        error_type, error_value, _ = sys.exc_info()
         tmp_log.error(f"{error_type} {error_value}")
 
     tmp_log.debug(f"end read={len(return_string)}")
@@ -653,10 +653,9 @@ def uploadLog(panda_request, file):
             os.remove(full_path)
 
         # write the new file
-        fo = open(full_path, "wb")
-        file_content = file.read()
-        fo.write(file_content)
-        fo.close()
+        with open(full_path, "wb") as file_object:
+            file_content = file.read()
+            file_object.write(file_content)
         tmp_log.debug(f"written to {full_path}")
 
         # return the URL depending on the protocol
@@ -753,8 +752,8 @@ def put_checkpoint(panda_request, file):
     # get the file size
     try:
         content_length = int(panda_request.headers_in["content-length"])
-    except Exception as e:
-        error_message = f"cannot get int(content-length) due to {str(e)}"
+    except Exception as exc:
+        error_message = f"cannot get int(content-length) due to {str(exc)}"
         tmp_log.error(error_message)
         return json.dumps({"status": status, "message": error_message})
     tmp_log.debug(f"size {content_length}")
@@ -769,10 +768,10 @@ def put_checkpoint(panda_request, file):
     try:
         full_path = os.path.join(panda_config.cache_dir, get_checkpoint_filename(task_id, sub_id))
         # write
-        with open(full_path, "wb") as fo:
-            fo.write(file.read())
-    except Exception as e:
-        error_message = f"cannot write file due to {str(e)}"
+        with open(full_path, "wb") as file_object:
+            file_object.write(file.read())
+    except Exception as exc:
+        error_message = f"cannot write file due to {str(exc)}"
         tmp_log.error(error_message)
         return json.dumps({"status": status, "message": error_message})
 
@@ -809,8 +808,8 @@ def delete_checkpoint(panda_request, task_id, sub_id):
         os.remove(full_path)
         message = "done"
         tmp_log.debug(message)
-    except Exception as e:
-        message = f"failed to delete file due to {str(e)}"
+    except Exception as exc:
+        message = f"failed to delete file due to {str(exc)}"
         tmp_log.error(message)
         status = False
 
