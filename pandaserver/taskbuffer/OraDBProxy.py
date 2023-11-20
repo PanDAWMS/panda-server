@@ -13028,14 +13028,17 @@ class DBProxy:
                     "jobid": panda_id,
                     "taskid": jedi_task_id,
                     "status": status,
-                    "computingsite": computingsite,
-                    "inputs": inputs if inputs else None,
                     "timestamp": now_ts,
                 }
-                orig_msg_dict.update(error_tmp_dict)
+                update_msg_dict = {
+                    "computingsite": computingsite,
+                    "inputs": inputs if inputs else None,
+                }
+                update_msg_dict.update(error_tmp_dict)
                 msg_dict = orig_msg_dict.copy()
                 if extra_data:
-                    msg_dict = extra_data.copy()
+                    msg_dict = update_msg_dict.copy()
+                    msg_dict.update(extra_data)
                     msg_dict.update(orig_msg_dict)
                 msg = json.dumps(msg_dict)
                 if mb_proxy.got_disconnected:
