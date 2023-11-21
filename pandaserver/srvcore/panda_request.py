@@ -23,9 +23,11 @@ class PandaRequest:
         self.authenticated = True
         # message
         self.message = None
+
         # content-length
         if "CONTENT_LENGTH" in self.subprocess_env:
             self.headers_in["content-length"] = self.subprocess_env["CONTENT_LENGTH"]
+
         # tokens
         try:
             if panda_config.token_authType in ["scitokens", "oidc"] and "HTTP_AUTHORIZATION" in env:
@@ -86,6 +88,7 @@ class PandaRequest:
                                 tmp_log.error(f"{self.message} - {env['HTTP_AUTHORIZATION']}")
                 else:
                     token = scitokens.SciToken.deserialize(serialized_token, audience=panda_config.token_audience)
+
                 # check issuer
                 if "iss" not in token:
                     self.message = "Issuer is undefined in the token"
@@ -113,6 +116,7 @@ class PandaRequest:
                         if role:
                             self.subprocess_env[f"GRST_CRED_AUTH_TOKEN_{i}"] = f"VOMS /{vo}/Role={role}"
                             i += 1
+
         except Exception as e:
             self.message = f"Corrupted token. {str(e)}"
             tmp_log.debug(f"Origin: {env.get('HTTP_ORIGIN', None)}, Token: {env.get('HTTP_AUTHORIZATION', None)}\n{traceback.format_exc()}")

@@ -22,7 +22,7 @@ from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.config import panda_config
 
 # pylint: disable=W0611
-# These imports are used by the web I/F, although pylint doesn't see it
+# These imports are used by the web I/F, although pylint doesn't see them
 from pandaserver.dataservice.DataService import (
     dataService,
     datasetCompleted,
@@ -217,7 +217,7 @@ else:
     ban_user_list = CoreUtils.CachedObject("ban_list", 600, Client.get_ban_users, _logger)
 
 
-# application
+# This is the starting point for all WSGI requests
 def application(environ, start_response):
     # get method name from environment
     method_name = ""
@@ -239,116 +239,122 @@ def application(environ, start_response):
         start_response("403 Forbidden", [("Content-Type", "text/plain")])
         return [f"ERROR : {error_message}".encode()]
 
-    # get method object
-    tmp_method = None
+    # get the method object to be executed
     try:
         tmp_method = globals()[method_name]
     except Exception:
-        pass
-    # object not found
-    if tmp_method is None:
-        tmp_log.error("is undefined")
-        exec_result = "False"
-    else:
-        body = b""
-        try:
-            # request object
-            panda_request = PandaRequest(environ, tmp_log)
-            if not panda_request.authenticated:
-                error_message = f"Token authentication failed. {panda_request.message}"
+        start_response("500 INTERNAL SERVER ERROR", [("Content-Type", "text/plain")])
+        return ["ERROR : method is undefined".encode()]
+
+    body = b""
+    try:
+        # generate a request object with the environment and the logger
+        panda_request = PandaRequest(environ, tmp_log)
+
+        # check authentication
+        if not panda_request.authenticated:
+            error_message = f"Token authentication failed. {panda_request.message}"
+            tmp_log.error(error_message)
+            start_response("403 Forbidden", [("Content-Type", "text/plain")])
+            return [f"ERROR : {error_message}".encode()]
+
+        # check ban list
+        username = panda_request.subprocess_env.get("SSL_CLIENT_S_DN", None)
+        if username:
+            username = CoreUtils.clean_user_id(username)
+            if username in ban_user_list:
+                error_message = f"{username} is banned"
                 tmp_log.error(error_message)
                 start_response("403 Forbidden", [("Content-Type", "text/plain")])
                 return [f"ERROR : {error_message}".encode()]
 
-            username = panda_request.subprocess_env.get("SSL_CLIENT_S_DN", None)
-            if username:
-                username = CoreUtils.clean_user_id(username)
-                if username in ban_user_list:
-                    error_message = f"{username} is banned"
-                    tmp_log.error(error_message)
-                    start_response("403 Forbidden", [("Content-Type", "text/plain")])
-                    return [f"ERROR : {error_message}".encode()]
+        # read contents
+        while cont_length > 0:
+            chunk = environ["wsgi.input"].read(min(cont_length, 1024 * 1024))
+            if not chunk:
+                break
+            cont_length -= len(chunk)
+            body += chunk
+        if cont_length > 0:
+            raise OSError(f"partial read from client. {cont_length} bytes remaining")
 
-            # read contents
-            while cont_length > 0:
-                chunk = environ["wsgi.input"].read(min(cont_length, 1024 * 1024))
-                if not chunk:
-                    break
-                cont_length -= len(chunk)
-                body += chunk
-            if cont_length > 0:
-                raise OSError(f"partial read from client. {cont_length} bytes remaining")
-            if not json_body:
-                environ["wsgi.input"] = io.BytesIO(body)
-                environ["CONTENT_LENGTH"] = str(len(body))
-                environ["wsgi.headers"] = EnvironHeaders(environ)
+        # parse parameters for non-json requests
+        if not json_body:
+            environ["wsgi.input"] = io.BytesIO(body)
+            environ["CONTENT_LENGTH"] = str(len(body))
+            environ["wsgi.headers"] = EnvironHeaders(environ)
 
-                # Parse form data. Combine the form (string fields) and the files (file uploads) into a single object
-                _, form, files = parse_form_data(environ)
-                tmp_params = CombinedMultiDict([form, files])
+            # Parse form data. Combine the form (string fields) and the files (file uploads) into a single object
+            _, form, files = parse_form_data(environ)
+            tmp_params = CombinedMultiDict([form, files])
 
-                # convert to map
-                params = {}
-                for tmp_key in tmp_params:
-                    key = tmp_key
-                    params[key] = tmp_params[tmp_key]
+            # convert to map
+            params = {}
+            for tmp_key in tmp_params:
+                key = tmp_key
+                params[key] = tmp_params[tmp_key]
+        # parse parameters for json requests
+        else:
+            # json
+            body = gzip.decompress(body)
+            params = json.loads(body)
+            # patch for True/False
+            for k in list(params):
+                if params[k] is True:
+                    params[k] = "True"
+                elif params[k] is False:
+                    params[k] = "False"
 
-            else:
-                # json
-                body = gzip.decompress(body)
-                params = json.loads(body)
-                # patch for True/False
-                for k in list(params):
-                    if params[k] is True:
-                        params[k] = "True"
-                    elif params[k] is False:
-                        params[k] = "False"
-            if panda_config.entryVerbose:
-                tmp_log.debug(f"with {str(list(params))}")
-            param_list = [panda_request]
+        if panda_config.entryVerbose:
+            tmp_log.debug(f"with {str(list(params))}")
+        param_list = [panda_request]
 
-            # exec
-            exec_result = tmp_method(*param_list, **params)
+        # execute the method, passing along the request and the decoded parameters
+        exec_result = tmp_method(*param_list, **params)
 
-            # extract return type
-            if isinstance(exec_result, dict):
-                return_type = exec_result["type"]
-                exec_result = exec_result["content"]
-            # convert bool to string
-            if exec_result in [True, False]:
-                exec_result = str(exec_result)
+        # extract return type
+        if isinstance(exec_result, dict):
+            return_type = exec_result["type"]
+            exec_result = exec_result["content"]
 
-        except Exception as exc:
-            tmp_log.error(f"execution failure : {str(exc)}\n {traceback.format_exc()}")
-            if hasattr(panda_config, "dumpBadRequest") and panda_config.dumpBadRequest:
-                try:
-                    with tempfile.NamedTemporaryFile(delete=False, prefix="req_dump_") as file_object:
-                        environ["WSGI_INPUT_DUMP"] = file_object.name
-                        file_object.write(body)
-                        os.chmod(file_object.name, 0o775)
-                except Exception:
-                    tmp_log.error(traceback.format_exc())
-                    pass
-            error_string = ""
-            for tmp_key in environ:
-                tmp_value = environ[tmp_key]
-                error_string += f"{tmp_key} : {str(tmp_value)}\n"
-            tmp_log.error(error_string)
+        # convert bool to string
+        if exec_result in [True, False]:
+            exec_result = str(exec_result)
 
-            # return internal server error
-            start_response("500 INTERNAL SERVER ERROR", [("Content-Type", "text/plain")])
-            # force kill to release memory
-            if isinstance(exc, OSError):
-                tmp_log.warning("force restart due")
-                os.kill(os.getpid(), signal.SIGINT)
-            return [str(exc).encode()]
+    except Exception as exc:
+        tmp_log.error(f"execution failure : {str(exc)}\n {traceback.format_exc()}")
+        if hasattr(panda_config, "dumpBadRequest") and panda_config.dumpBadRequest:
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, prefix="req_dump_") as file_object:
+                    environ["WSGI_INPUT_DUMP"] = file_object.name
+                    file_object.write(body)
+                    os.chmod(file_object.name, 0o775)
+            except Exception:
+                tmp_log.error(traceback.format_exc())
+                pass
+        error_string = ""
+        for tmp_key in environ:
+            tmp_value = environ[tmp_key]
+            error_string += f"{tmp_key} : {str(tmp_value)}\n"
+        tmp_log.error(error_string)
+
+        # return internal server error
+        start_response("500 INTERNAL SERVER ERROR", [("Content-Type", "text/plain")])
+        # force kill to release memory
+        if isinstance(exc, OSError):
+            tmp_log.warning("force restart due")
+            os.kill(os.getpid(), signal.SIGINT)
+
+        return [str(exc).encode()]
 
     if panda_config.entryVerbose:
         tmp_log.debug("done")
 
+    # log execution time and return length
     duration = datetime.datetime.utcnow() - start_time
     tmp_log.info("exec_time=%s.%03d sec, return len=%s B" % (duration.seconds, duration.microseconds / 1000, len(str(exec_result))))
 
+    # start the response and return result
     if exec_result == pandaserver.taskbuffer.ErrorCode.EC_NotFound:
         start_response("404 Not Found", [("Content-Type", "text/plain")])
         return ["not found".encode()]
