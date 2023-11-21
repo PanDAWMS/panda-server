@@ -14,8 +14,8 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.config import panda_config
 from pandaserver.jobdispatcher import Protocol
-from pandaserver.server.panda import PandaRequest
 from pandaserver.srvcore import CoreUtils
+from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.userinterface import Client
 from werkzeug.datastructures import FileStorage
 
