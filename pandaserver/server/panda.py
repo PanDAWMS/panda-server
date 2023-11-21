@@ -52,9 +52,9 @@ from pandaserver.jobdispatcher.JobDispatcher import (
     updateJobsInBulk,
     updateWorkerPilotStatus,
 )
-from pandaserver.server.allowed_methods import allowed_methods
-from pandaserver.server.panda_request import PandaRequest
 from pandaserver.srvcore import CoreUtils
+from pandaserver.srvcore.allowed_methods import allowed_methods
+from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.Initializer import initializer
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 
