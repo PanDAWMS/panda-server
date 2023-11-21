@@ -8,13 +8,16 @@ import sys
 import traceback
 import uuid
 import zlib
+from typing import Generator
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.config import panda_config
 from pandaserver.jobdispatcher import Protocol
+from pandaserver.server.panda import PandaRequest
 from pandaserver.srvcore import CoreUtils
 from pandaserver.userinterface import Client
+from werkzeug.datastructures import FileStorage
 
 _logger = PandaLogger().getLogger("Utils")
 
@@ -36,7 +39,7 @@ ERROR_WRITE = "ERROR: cannot write file"
 ERROR_SIZE_LIMIT = "ERROR: upload failure. Exceeded size limit"
 
 
-def isAlive(panda_request):
+def isAlive(panda_request: PandaRequest) -> str:
     """
     Check if the server is alive. Basic function for the health check and used in SLS monitoring.
 
@@ -49,7 +52,7 @@ def isAlive(panda_request):
     return "alive=yes"
 
 
-def get_content_length(panda_request, tmp_log):
+def get_content_length(panda_request: PandaRequest, tmp_log: LogWrapper) -> int:
     """
     Get the content length of the request.
 
@@ -74,7 +77,7 @@ def get_content_length(panda_request, tmp_log):
 
 
 # upload file
-def putFile(panda_request, file):
+def putFile(panda_request: PandaRequest, file: FileStorage) -> str:
     """
     Upload a file to the server.
 
@@ -192,7 +195,7 @@ def putFile(panda_request, file):
 
 
 def putEventPickingRequest(
-    panda_request,
+    panda_request: PandaRequest,
     runEventList="",
     eventPickDataType="",
     eventPickStreamName="",
@@ -206,7 +209,7 @@ def putEventPickingRequest(
     userTaskName="",
     ei_api="",
     giveGUID=None,
-):
+) -> str:
     """
     Upload event picking request to the server.
 
@@ -308,7 +311,7 @@ def putEventPickingRequest(
 
 
 # upload lost file recovery request
-def put_file_recovery_request(panda_request, jediTaskID, dryRun=None):
+def put_file_recovery_request(panda_request: PandaRequest, jediTaskID: str, dryRun: bool = None) -> str:
     """
     Upload lost file recovery request to the server.
 
@@ -354,7 +357,7 @@ def put_file_recovery_request(panda_request, jediTaskID, dryRun=None):
     return json.dumps((True, "request was accepted and will be processed in a few minutes"))
 
 
-def put_workflow_request(panda_request, data, check=False):
+def put_workflow_request(panda_request: PandaRequest, data: str, check: bool = False) -> str:
     """
     Upload workflow request to the server.
     Args:
@@ -385,12 +388,12 @@ def put_workflow_request(panda_request, data, check=False):
 
         # write
         with open(file_name, "w") as file_object:
-            data = {
+            data_dict = {
                 "userName": user_name,
                 "creationTime": creation_time,
                 "data": json.loads(data),
             }
-            json.dump(data, file_object)
+            json.dump(data_dict, file_object)
 
         # check
         if check:
@@ -417,7 +420,7 @@ def put_workflow_request(panda_request, data, check=False):
 
 
 # delete file
-def deleteFile(panda_request, file):
+def deleteFile(panda_request: PandaRequest, file: FileStorage) -> str:
     """
     Delete a file from the cache directory.
     Args:
@@ -439,7 +442,7 @@ def deleteFile(panda_request, file):
 
 
 # touch file
-def touchFile(panda_request, filename):
+def touchFile(panda_request: PandaRequest, filename: str) -> str:
     """
     Touch a file in the cache directory.
     Args:
@@ -462,7 +465,7 @@ def touchFile(panda_request, filename):
 
 
 # get server name:port for SSL
-def getServer(panda_request):
+def getServer(panda_request: PandaRequest) -> str:
     """
     Get the server name and port for HTTPS.
     Args:
@@ -475,7 +478,7 @@ def getServer(panda_request):
 
 
 # get server name:port for HTTP
-def getServerHTTP(panda_request):
+def getServerHTTP(panda_request: PandaRequest) -> str:
     """
     Get the HTTP server name and port for HTTP.
     Args:
@@ -487,7 +490,7 @@ def getServerHTTP(panda_request):
     return f"{panda_config.pserverhosthttp}:{panda_config.pserverporthttp}"
 
 
-def updateLog(panda_request, file):
+def updateLog(panda_request: PandaRequest, file: FileStorage) -> str:
     """
     Update the log file, appending more content at the end of the file.
     Args:
@@ -521,12 +524,12 @@ def updateLog(panda_request, file):
     return "True"
 
 
-def fetchLog(panda_request, logName, offset=0):
+def fetchLog(panda_request: PandaRequest, logName: str, offset: int = 0) -> str:
     """
     Fetch the log file, if required at a particular offset.
     Args:
         panda_request (PandaRequest): PanDA request object.
-        logName (String): log file name
+        logName (string): log file name
         offset (int): offset in the file
 
     Returns:
@@ -554,7 +557,7 @@ def fetchLog(panda_request, logName, offset=0):
     return return_string
 
 
-def getVomsAttr(panda_request):
+def getVomsAttr(panda_request: PandaRequest) -> str:
     """
     Get the VOMS attributes in sorted order.
     Args:
@@ -576,7 +579,7 @@ def getVomsAttr(panda_request):
     return "".join(sorted(attributes))
 
 
-def getAttr(panda_request, **kv):
+def getAttr(panda_request: PandaRequest, **kv: dict) -> str:
     """
     Get all parameters and environment variables from the environment.
     Args:
@@ -606,7 +609,7 @@ def getAttr(panda_request, **kv):
     return return_string
 
 
-def uploadLog(panda_request, file):
+def uploadLog(panda_request: PandaRequest, file: FileStorage) -> str:
     """
     Upload a JEDI log file
     Args:
@@ -678,7 +681,7 @@ def uploadLog(panda_request, file):
     return return_string
 
 
-def create_shards(input_list, size):
+def create_shards(input_list: list, size: int) -> Generator:
     """
     Partitions input into shards of a given size for bulk operations.
     @author: Miguel Branco in DQ2 Site Services code
@@ -703,13 +706,13 @@ def create_shards(input_list, size):
         yield shard
 
 
-def get_checkpoint_filename(task_id, sub_id):
+def get_checkpoint_filename(task_id: str, sub_id: str) -> str:
     """
     Get the checkpoint file name.
 
     Args:
-        task_id (int): task ID.
-        sub_id (int): sub ID.
+        task_id (str): task ID.
+        sub_id (str): sub ID.
 
     Returns:
         string: checkpoint file name.
@@ -717,7 +720,7 @@ def get_checkpoint_filename(task_id, sub_id):
     return f"hpo_cp_{task_id}_{sub_id}"
 
 
-def put_checkpoint(panda_request, file):
+def put_checkpoint(panda_request: PandaRequest, file: FileStorage) -> str:
     """
     Upload a HPO checkpoint file to the server.
 
@@ -781,14 +784,14 @@ def put_checkpoint(panda_request, file):
     return json.dumps({"status": status, "message": success_message})
 
 
-def delete_checkpoint(panda_request, task_id, sub_id):
+def delete_checkpoint(panda_request: PandaRequest, task_id: str, sub_id: str) -> str:
     """
     Delete a HPO checkpoint file from the server.
 
     Args:
         panda_request (PandaRequest): PanDA request object.
-        task_id (int): task ID.
-        sub_id (int): sub ID.
+        task_id (str): task ID.
+        sub_id (str): sub ID.
 
     Returns:
         string: json formatted string with status and message.
