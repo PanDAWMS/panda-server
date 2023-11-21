@@ -243,8 +243,10 @@ def application(environ, start_response):
     try:
         tmp_method = globals()[method_name]
     except Exception:
+        error_message = f"{method_name} is undefined"
+        tmp_log.error(error_message)
         start_response("500 INTERNAL SERVER ERROR", [("Content-Type", "text/plain")])
-        return ["ERROR : method is undefined".encode()]
+        return ["ERROR : {error_message}".encode()]
 
     body = b""
     try:
