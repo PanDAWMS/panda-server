@@ -160,12 +160,6 @@ emailPass = FIXME
 # parameters for FastCGI/WSGI
 #
 
-# use FastCGI with flup
-useFastCGI = False
-
-# use WSGI without flup
-useWSGI = True
-
 # verbose in entry point
 entryVerbose = False
 

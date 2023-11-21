@@ -44,10 +44,6 @@ if "pserverhosthttp" not in tmpSelf.__dict__:
 if "disableHTTP" not in tmpSelf.__dict__:
     tmpSelf.__dict__["disableHTTP"] = False
 
-# change the number of database connections for FastCGI/WSGI
-if tmpSelf.__dict__["useFastCGI"] or tmpSelf.__dict__["useWSGI"]:
-    tmpSelf.__dict__["nDBConnection"] = tmpSelf.__dict__["nDBConForFastCGIWSGI"]
-
 # DB backend
 if "backend" not in tmpSelf.__dict__:
     tmpSelf.__dict__["backend"] = "oracle"
