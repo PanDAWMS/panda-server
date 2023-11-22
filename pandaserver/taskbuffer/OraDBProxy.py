@@ -22855,7 +22855,7 @@ class DBProxy:
             # sql to get stat
             sqlG = "SELECT SUM(n_workers), COUNT(harvester_ID), jobType, resourceType, status FROM ATLAS_PANDA.Harvester_Worker_Stats "
             sqlG += "WHERE computingSite=:siteName "
-            sqlG += "GROUP BY resourceType,status "
+            sqlG += "GROUP BY jobType,resourceType,status "
             varMap = dict()
             varMap[":siteName"] = siteName
             self.cur.execute(sqlG + comment, varMap)

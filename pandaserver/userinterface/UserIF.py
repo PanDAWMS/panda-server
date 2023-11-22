@@ -2539,7 +2539,7 @@ def harvesterIsAlive(req, harvesterID, data=None):
 
 
 # get stats of workers
-def getWorkerStats(site_name):
+def getWorkerStats(req, site_name):
     # get
     ret = userIF.getWorkerStats(site_name)
     return json.dumps(ret)
