@@ -22854,13 +22854,14 @@ class DBProxy:
             #     nPilot = 0
             # sql to get stat
             sqlG = (
-                "SELECT SUM(n_workers), COUNT(DISTINCT harvester_ID), jobType, resourceType, status "
+                "SELECT SUM(n_workers), COUNT(harvester_ID), jobType, resourceType, status "
                 "FROM ATLAS_PANDA.Harvester_Worker_Stats "
-                "WHERE computingSite=:siteName "
+                "WHERE computingSite=:siteName AND lastupdate>=:time_limit "
                 "GROUP BY jobType,resourceType,status "
             )
             varMap = dict()
             varMap[":siteName"] = siteName
+            varMap[":time_limit"] = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
             self.cur.execute(sqlG + comment, varMap)
             res = self.cur.fetchall()
             retMap = {}
