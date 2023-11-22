@@ -966,8 +966,8 @@ class UserIF:
         return json.dumps(retVal)
 
     # get stats of workers
-    def getWorkerStats(self, site_name):
-        return self.taskBuffer.getWorkerStats(siteName=site_name)
+    def getWorkerStats(self):
+        return self.taskBuffer.getWorkerStats()
 
     # report stat of workers
     def reportWorkerStats(self, harvesterID, siteName, paramsList):
@@ -2539,9 +2539,9 @@ def harvesterIsAlive(req, harvesterID, data=None):
 
 
 # get stats of workers
-def getWorkerStats(req, site_name):
+def getWorkerStats(req):
     # get
-    ret = userIF.getWorkerStats(site_name)
+    ret = userIF.getWorkerStats()
     return json.dumps(ret)
 
 

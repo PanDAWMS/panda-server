@@ -22831,10 +22831,10 @@ class DBProxy:
             return False, "database error"
 
     # get stat of workers
-    def getWorkerStats(self, siteName):
+    def getWorkerStats(self):
         comment = " /* DBProxy.getWorkerStats */"
         methodName = comment.split(" ")[-2].split(".")[-1]
-        tmpLog = LogWrapper(_logger, methodName + f" < siteName={siteName} >")
+        tmpLog = LogWrapper(_logger)
         tmpLog.debug("start")
         try:
             # set autocommit on
@@ -22854,35 +22854,34 @@ class DBProxy:
             #     nPilot = 0
             # sql to get stat of active workers
             sqlGA = (
-                "SELECT SUM(n_workers), harvester_ID, jobType, resourceType, status "
+                "SELECT SUM(n_workers), computingSite, harvester_ID, jobType, resourceType, status "
                 "FROM ATLAS_PANDA.Harvester_Worker_Stats "
-                "WHERE computingSite=:siteName AND lastUpdate>=:time_limit "
-                "GROUP BY harvester_ID,jobType,resourceType,status "
+                "WHERE lastUpdate>=:time_limit "
+                "GROUP BY computingSite,harvester_ID,jobType,resourceType,status "
             )
             varMap = dict()
-            varMap[":siteName"] = siteName
             varMap[":time_limit"] = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
             self.cur.execute(sqlGA + comment, varMap)
             res_active = self.cur.fetchall()
             # sql to get stat of finished workers from wokrer table
             sqlGF = (
-                "SELECT COUNT(*), harvesterID, jobType, resourceType, status "
+                "SELECT COUNT(*), computingSite, harvesterID, jobType, resourceType, status "
                 "FROM ATLAS_PANDA.Harvester_Workers "
-                "WHERE computingSite=:siteName AND endTime>=:time_limit AND status='finished' "
-                "GROUP BY harvesterID,jobType,resourceType,status "
+                "WHERE endTime>=:time_limit AND status='finished' "
+                "GROUP BY computingSite,harvesterID,jobType,resourceType,status "
             )
             varMap = dict()
-            varMap[":siteName"] = siteName
             varMap[":time_limit"] = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
             self.cur.execute(sqlGF + comment, varMap)
             res_terminated = self.cur.fetchall()
             retMap = {}
-            for cnt, harvesterID, jobType, resourceType, status in res_active + res_terminated:
-                retMap.setdefault(harvesterID, {})
-                retMap[harvesterID].setdefault(jobType, {})
-                if resourceType not in retMap[harvesterID][jobType]:
-                    retMap[harvesterID][jobType][resourceType] = dict()
-                retMap[harvesterID][jobType][resourceType][status] = cnt
+            for cnt, computingSite, harvesterID, jobType, resourceType, status in res_active + res_terminated:
+                retMap.setdefault(computingSite, {})
+                retMap[computingSite].setdefault(harvesterID, {})
+                retMap[computingSite][harvesterID].setdefault(jobType, {})
+                if resourceType not in retMap[computingSite][harvesterID][jobType]:
+                    retMap[computingSite][harvesterID][jobType][resourceType] = dict()
+                retMap[computingSite][harvesterID][jobType][resourceType][status] = cnt
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
