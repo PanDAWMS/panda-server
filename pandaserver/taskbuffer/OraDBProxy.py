@@ -22840,22 +22840,25 @@ class DBProxy:
             # set autocommit on
             self.conn.begin()
             # sql to get nPilot
-            sqlP = "SELECT getJob+updateJob FROM ATLAS_PANDAMETA.SiteData "
-            sqlP += "WHERE HOURS=:hours AND FLAG IN (:flag1,:flag2) "
-            varMap = dict()
-            varMap[":hours"] = 1
-            varMap[":flag1"] = "production"
-            varMap[":flag2"] = "analysis"
-            self.cur.execute(sqlP + comment, varMap)
-            res = self.cur.fetchone()
-            if res is not None:
-                (nPilot,) = res
-            else:
-                nPilot = 0
+            # sqlP = ("SELECT getJob+updateJob FROM ATLAS_PANDAMETA.SiteData "
+            #         "WHERE HOURS=:hours AND FLAG IN (:flag1,:flag2) ")
+            # varMap = dict()
+            # varMap[":hours"] = 1
+            # varMap[":flag1"] = "production"
+            # varMap[":flag2"] = "analysis"
+            # self.cur.execute(sqlP + comment, varMap)
+            # res = self.cur.fetchone()
+            # if res is not None:
+            #     (nPilot,) = res
+            # else:
+            #     nPilot = 0
             # sql to get stat
-            sqlG = "SELECT SUM(n_workers), COUNT(harvester_ID), jobType, resourceType, status FROM ATLAS_PANDA.Harvester_Worker_Stats "
-            sqlG += "WHERE computingSite=:siteName "
-            sqlG += "GROUP BY jobType,resourceType,status "
+            sqlG = (
+                "SELECT SUM(n_workers), COUNT(DISTINCT harvester_ID), jobType, resourceType, status "
+                "FROM ATLAS_PANDA.Harvester_Worker_Stats "
+                "WHERE computingSite=:siteName "
+                "GROUP BY jobType,resourceType,status "
+            )
             varMap = dict()
             varMap[":siteName"] = siteName
             self.cur.execute(sqlG + comment, varMap)
@@ -22872,13 +22875,15 @@ class DBProxy:
             if not self._commit():
                 raise RuntimeError("Commit error")
             # return
-            tmpLog.debug(f"done with {str(retMap)} nPilot={nPilot}")
-            return retMap, nPilot
+            # tmpLog.debug(f"done with {str(retMap)} nPilot={nPilot}")
+            # return retMap, nPilot
+            tmpLog.debug(f"done with {str(retMap)}")
+            return retMap
         except Exception:
             # roll back
             self._rollback()
             self.dumpErrorMessage(tmpLog, methodName)
-            return {}, 0
+            return {}
 
     # send command to harvester or lock command
     def commandToHarvester(
