@@ -22877,13 +22877,12 @@ class DBProxy:
             self.cur.execute(sqlGF + comment, varMap)
             res_terminated = self.cur.fetchall()
             retMap = {}
-            for cnt, nInstances, jobType, resourceType, status in res_active + res_terminated:
-                retMap.setdefault(jobType, {})
-                if resourceType not in retMap[jobType]:
-                    retMap[jobType][resourceType] = {"stats": dict(), "nInstances": 0}
-                retMap[jobType][resourceType]["stats"][status] = cnt
-                if nInstances > retMap[jobType][resourceType]["nInstances"]:
-                    retMap[jobType][resourceType]["nInstances"] = nInstances
+            for cnt, harvesterID, jobType, resourceType, status in res_active + res_terminated:
+                retMap.setdefault(harvesterID, {})
+                retMap[harvesterID].setdefault(jobType, {})
+                if resourceType not in retMap[harvesterID][jobType]:
+                    retMap[harvesterID][jobType][resourceType] = dict()
+                retMap[harvesterID][jobType][resourceType][status] = cnt
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
