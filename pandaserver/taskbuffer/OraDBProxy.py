@@ -22852,20 +22852,32 @@ class DBProxy:
             #     (nPilot,) = res
             # else:
             #     nPilot = 0
-            # sql to get stat
-            sqlG = (
-                "SELECT SUM(n_workers), COUNT(harvester_ID), jobType, resourceType, status "
+            # sql to get stat of active workers
+            sqlGA = (
+                "SELECT SUM(n_workers), harvester_ID, jobType, resourceType, status "
                 "FROM ATLAS_PANDA.Harvester_Worker_Stats "
-                "WHERE computingSite=:siteName AND lastupdate>=:time_limit "
-                "GROUP BY jobType,resourceType,status "
+                "WHERE computingSite=:siteName AND lastUpdate>=:time_limit "
+                "GROUP BY harvester_ID,jobType,resourceType,status "
             )
             varMap = dict()
             varMap[":siteName"] = siteName
             varMap[":time_limit"] = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
-            self.cur.execute(sqlG + comment, varMap)
-            res = self.cur.fetchall()
+            self.cur.execute(sqlGA + comment, varMap)
+            res_active = self.cur.fetchall()
+            # sql to get stat of finished workers from wokrer table
+            sqlGF = (
+                "SELECT COUNT(*), harvesterID, jobType, resourceType, status "
+                "FROM ATLAS_PANDA.Harvester_Workers "
+                "WHERE computingSite=:siteName AND endTime>=:time_limit AND status='finished' "
+                "GROUP BY harvesterID,jobType,resourceType,status "
+            )
+            varMap = dict()
+            varMap[":siteName"] = siteName
+            varMap[":time_limit"] = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+            self.cur.execute(sqlGF + comment, varMap)
+            res_terminated = self.cur.fetchall()
             retMap = {}
-            for cnt, nInstances, jobType, resourceType, status in res:
+            for cnt, nInstances, jobType, resourceType, status in res_active + res_terminated:
                 retMap.setdefault(jobType, {})
                 if resourceType not in retMap[jobType]:
                     retMap[jobType][resourceType] = {"stats": dict(), "nInstances": 0}
