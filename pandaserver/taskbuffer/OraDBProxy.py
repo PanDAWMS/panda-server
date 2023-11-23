@@ -22867,7 +22867,7 @@ class DBProxy:
             sqlGF = (
                 "SELECT COUNT(*), computingSite, harvesterID, jobType, resourceType, status "
                 "FROM ATLAS_PANDA.Harvester_Workers "
-                "WHERE endTime>=:time_limit AND status='finished' "
+                "WHERE lastUpdate>=:time_limit AND endTime>=:time_limit AND status='finished' "
                 "GROUP BY computingSite,harvesterID,jobType,resourceType,status "
             )
             varMap = dict()
