@@ -22852,7 +22852,7 @@ class DBProxy:
             #     (nPilot,) = res
             # else:
             #     nPilot = 0
-            # sql to get stat of active workers
+            # sql to get stat of workers
             sqlGA = (
                 "SELECT SUM(n_workers), computingSite, harvester_ID, jobType, resourceType, status "
                 "FROM ATLAS_PANDA.Harvester_Worker_Stats "
@@ -22863,19 +22863,8 @@ class DBProxy:
             varMap[":time_limit"] = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
             self.cur.execute(sqlGA + comment, varMap)
             res_active = self.cur.fetchall()
-            # sql to get stat of finished workers from wokrer table
-            sqlGF = (
-                "SELECT COUNT(*), computingSite, harvesterID, jobType, resourceType, status "
-                "FROM ATLAS_PANDA.Harvester_Workers "
-                "WHERE lastUpdate>=:time_limit AND endTime>=:time_limit AND status='finished' "
-                "GROUP BY computingSite,harvesterID,jobType,resourceType,status "
-            )
-            varMap = dict()
-            varMap[":time_limit"] = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
-            self.cur.execute(sqlGF + comment, varMap)
-            res_terminated = self.cur.fetchall()
             retMap = {}
-            for cnt, computingSite, harvesterID, jobType, resourceType, status in res_active + res_terminated:
+            for cnt, computingSite, harvesterID, jobType, resourceType, status in res_active:
                 retMap.setdefault(computingSite, {})
                 retMap[computingSite].setdefault(harvesterID, {})
                 retMap[computingSite][harvesterID].setdefault(jobType, {})
@@ -22886,8 +22875,6 @@ class DBProxy:
             if not self._commit():
                 raise RuntimeError("Commit error")
             # return
-            # tmpLog.debug(f"done with {str(retMap)} nPilot={nPilot}")
-            # return retMap, nPilot
             tmpLog.debug(f"done with {str(retMap)}")
             return retMap
         except Exception:
