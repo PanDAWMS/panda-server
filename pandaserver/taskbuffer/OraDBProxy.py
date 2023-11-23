@@ -22831,54 +22831,57 @@ class DBProxy:
             return False, "database error"
 
     # get stat of workers
-    def getWorkerStats(self, siteName):
+    def getWorkerStats(self):
         comment = " /* DBProxy.getWorkerStats */"
         methodName = comment.split(" ")[-2].split(".")[-1]
-        tmpLog = LogWrapper(_logger, methodName + f" < siteName={siteName} >")
+        tmpLog = LogWrapper(_logger)
         tmpLog.debug("start")
         try:
             # set autocommit on
             self.conn.begin()
             # sql to get nPilot
-            sqlP = "SELECT getJob+updateJob FROM ATLAS_PANDAMETA.SiteData "
-            sqlP += "WHERE HOURS=:hours AND FLAG IN (:flag1,:flag2) "
+            # sqlP = ("SELECT getJob+updateJob FROM ATLAS_PANDAMETA.SiteData "
+            #         "WHERE HOURS=:hours AND FLAG IN (:flag1,:flag2) ")
+            # varMap = dict()
+            # varMap[":hours"] = 1
+            # varMap[":flag1"] = "production"
+            # varMap[":flag2"] = "analysis"
+            # self.cur.execute(sqlP + comment, varMap)
+            # res = self.cur.fetchone()
+            # if res is not None:
+            #     (nPilot,) = res
+            # else:
+            #     nPilot = 0
+            # sql to get stat of workers
+            sqlGA = (
+                "SELECT SUM(n_workers), computingSite, harvester_ID, jobType, resourceType, status "
+                "FROM ATLAS_PANDA.Harvester_Worker_Stats "
+                "WHERE lastUpdate>=:time_limit "
+                "GROUP BY computingSite,harvester_ID,jobType,resourceType,status "
+            )
             varMap = dict()
-            varMap[":hours"] = 1
-            varMap[":flag1"] = "production"
-            varMap[":flag2"] = "analysis"
-            self.cur.execute(sqlP + comment, varMap)
-            res = self.cur.fetchone()
-            if res is not None:
-                (nPilot,) = res
-            else:
-                nPilot = 0
-            # sql to get stat
-            sqlG = "SELECT SUM(n_workers), COUNT(harvester_ID), jobType, resourceType, status FROM ATLAS_PANDA.Harvester_Worker_Stats "
-            sqlG += "WHERE computingSite=:siteName "
-            sqlG += "GROUP BY resourceType,status "
-            varMap = dict()
-            varMap[":siteName"] = siteName
-            self.cur.execute(sqlG + comment, varMap)
-            res = self.cur.fetchall()
+            varMap[":time_limit"] = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
+            self.cur.execute(sqlGA + comment, varMap)
+            res_active = self.cur.fetchall()
             retMap = {}
-            for cnt, nInstances, jobType, resourceType, status in res:
-                retMap.setdefault(jobType, {})
-                if resourceType not in retMap[jobType]:
-                    retMap[jobType][resourceType] = {"stats": dict(), "nInstances": 0}
-                retMap[jobType][resourceType]["stats"][status] = cnt
-                if nInstances > retMap[jobType][resourceType]["nInstances"]:
-                    retMap[jobType][resourceType]["nInstances"] = nInstances
+            for cnt, computingSite, harvesterID, jobType, resourceType, status in res_active:
+                retMap.setdefault(computingSite, {})
+                retMap[computingSite].setdefault(harvesterID, {})
+                retMap[computingSite][harvesterID].setdefault(jobType, {})
+                if resourceType not in retMap[computingSite][harvesterID][jobType]:
+                    retMap[computingSite][harvesterID][jobType][resourceType] = dict()
+                retMap[computingSite][harvesterID][jobType][resourceType][status] = cnt
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
             # return
-            tmpLog.debug(f"done with {str(retMap)} nPilot={nPilot}")
-            return retMap, nPilot
+            tmpLog.debug(f"done with {str(retMap)}")
+            return retMap
         except Exception:
             # roll back
             self._rollback()
             self.dumpErrorMessage(tmpLog, methodName)
-            return {}, 0
+            return {}
 
     # send command to harvester or lock command
     def commandToHarvester(

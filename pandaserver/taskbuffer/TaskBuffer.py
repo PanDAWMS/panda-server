@@ -3773,11 +3773,11 @@ class TaskBuffer:
         return retList
 
     # get stat of workers
-    def getWorkerStats(self, siteName):
+    def getWorkerStats(self):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.getWorkerStats(siteName)
+        ret = proxy.getWorkerStats()
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
