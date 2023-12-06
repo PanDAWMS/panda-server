@@ -125,6 +125,7 @@ allowed_methods += [
     "harvesterIsAlive",
     "reportWorkerStats",
     "reportWorkerStats_jobtype",
+    "getWorkerStats",
     "addHarvesterDialogs",
     "getJobStatisticsPerSiteResource",
     "setNumSlotsForWP",

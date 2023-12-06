@@ -135,6 +135,7 @@ from pandaserver.userinterface.UserIF import (
     getTaskParamsMap,
     getTaskStatus,
     getUserJobMetadata,
+    getWorkerStats,
     harvesterIsAlive,
     increaseAttemptNrPanda,
     insertSandboxFileInfo,
