@@ -2909,7 +2909,7 @@ class DBProxy:
                         except Exception:
                             tmp_log.error(f"updateJobStatus : failed to update CE from harvester table with {traceback.format_exc()}")
                     # push status change
-                    self.push_job_status_message(None, pandaID, jobStatus, jediTaskID, specialHandling)
+                    self.push_job_status_message(None, pandaID, jobStatus, jediTaskID, specialHandling, extra_data={"computingsite": computingSite})
                 else:
                     tmp_log.debug("not found")
                     # already deleted or bad attempt number
@@ -12990,28 +12990,55 @@ class DBProxy:
             try:
                 now_time = datetime.datetime.utcnow()
                 now_ts = int(now_time.timestamp())
-                # task id
-                if jedi_task_id is None and job_spec is not None:
-                    jedi_task_id = job_spec.jediTaskID
-                # inputs
+                # init
                 inputs = []
-                if job_spec is not None and job_spec.Files is not None:
-                    for file_spec in job_spec.Files:
-                        if file_spec.type in ["input", "pseudo_input"]:
-                            inputs.append(file_spec.lfn)
+                computingsite = None
+                error_tmp_dict = {}
+                # info from job spec
+                if job_spec is not None:
+                    # task id
+                    if jedi_task_id is None:
+                        jedi_task_id = job_spec.jediTaskID
+                    # inputs
+                    if job_spec.Files is not None:
+                        for file_spec in job_spec.Files:
+                            if file_spec.type in ["input", "pseudo_input"]:
+                                inputs.append(file_spec.lfn)
+                    # computing site
+                    if job_spec.computingSite is not None:
+                        computingsite = job_spec.computingSite
+                    # error codes and diags
+                    error_tmp_dict["piloterrorcode"] = job_spec.pilotErrorCode
+                    error_tmp_dict["exeerrorcode"] = job_spec.exeErrorCode
+                    error_tmp_dict["superrorcode"] = job_spec.supErrorCode
+                    error_tmp_dict["ddmerrorcode"] = job_spec.ddmErrorCode
+                    error_tmp_dict["brokerageerrorcode"] = job_spec.brokerageErrorCode
+                    error_tmp_dict["jobdispatchererrorcode"] = job_spec.jobDispatcherErrorCode
+                    error_tmp_dict["taskbuffererrorcode"] = job_spec.taskBufferErrorCode
+                    error_tmp_dict["piloterrordiag"] = job_spec.pilotErrorDiag
+                    error_tmp_dict["exeerrordiag"] = job_spec.exeErrorDiag
+                    error_tmp_dict["superrordiag"] = job_spec.supErrorDiag
+                    error_tmp_dict["ddmerrordiag"] = job_spec.ddmErrorDiag
+                    error_tmp_dict["brokerageerrordiag"] = job_spec.brokerageErrorDiag
+                    error_tmp_dict["jobdispatchererrordiag"] = job_spec.jobDispatcherErrorDiag
+                    error_tmp_dict["taskbuffererrordiag"] = job_spec.taskBufferErrorDiag
                 # message
                 orig_msg_dict = {
                     "msg_type": "job_status",
                     "jobid": panda_id,
                     "taskid": jedi_task_id,
                     "status": status,
-                    "inputs": inputs if inputs else None,
                     "timestamp": now_ts,
                 }
-                msg_dict = orig_msg_dict.copy()
+                update_msg_dict = {
+                    "computingsite": computingsite,
+                    "inputs": inputs if inputs else None,
+                }
+                update_msg_dict.update(error_tmp_dict)
+                msg_dict = update_msg_dict.copy()
                 if extra_data:
-                    msg_dict = extra_data.copy()
-                    msg_dict.update(orig_msg_dict)
+                    msg_dict.update(extra_data)
+                msg_dict.update(orig_msg_dict)
                 msg = json.dumps(msg_dict)
                 if mb_proxy.got_disconnected:
                     mb_proxy.restart()
@@ -22804,54 +22831,57 @@ class DBProxy:
             return False, "database error"
 
     # get stat of workers
-    def getWorkerStats(self, siteName):
+    def getWorkerStats(self):
         comment = " /* DBProxy.getWorkerStats */"
         methodName = comment.split(" ")[-2].split(".")[-1]
-        tmpLog = LogWrapper(_logger, methodName + f" < siteName={siteName} >")
+        tmpLog = LogWrapper(_logger)
         tmpLog.debug("start")
         try:
             # set autocommit on
             self.conn.begin()
             # sql to get nPilot
-            sqlP = "SELECT getJob+updateJob FROM ATLAS_PANDAMETA.SiteData "
-            sqlP += "WHERE HOURS=:hours AND FLAG IN (:flag1,:flag2) "
+            # sqlP = ("SELECT getJob+updateJob FROM ATLAS_PANDAMETA.SiteData "
+            #         "WHERE HOURS=:hours AND FLAG IN (:flag1,:flag2) ")
+            # varMap = dict()
+            # varMap[":hours"] = 1
+            # varMap[":flag1"] = "production"
+            # varMap[":flag2"] = "analysis"
+            # self.cur.execute(sqlP + comment, varMap)
+            # res = self.cur.fetchone()
+            # if res is not None:
+            #     (nPilot,) = res
+            # else:
+            #     nPilot = 0
+            # sql to get stat of workers
+            sqlGA = (
+                "SELECT SUM(n_workers), computingSite, harvester_ID, jobType, resourceType, status "
+                "FROM ATLAS_PANDA.Harvester_Worker_Stats "
+                "WHERE lastUpdate>=:time_limit "
+                "GROUP BY computingSite,harvester_ID,jobType,resourceType,status "
+            )
             varMap = dict()
-            varMap[":hours"] = 1
-            varMap[":flag1"] = "production"
-            varMap[":flag2"] = "analysis"
-            self.cur.execute(sqlP + comment, varMap)
-            res = self.cur.fetchone()
-            if res is not None:
-                (nPilot,) = res
-            else:
-                nPilot = 0
-            # sql to get stat
-            sqlG = "SELECT SUM(n_workers), COUNT(harvester_ID), jobType, resourceType, status FROM ATLAS_PANDA.Harvester_Worker_Stats "
-            sqlG += "WHERE computingSite=:siteName "
-            sqlG += "GROUP BY resourceType,status "
-            varMap = dict()
-            varMap[":siteName"] = siteName
-            self.cur.execute(sqlG + comment, varMap)
-            res = self.cur.fetchall()
+            varMap[":time_limit"] = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
+            self.cur.execute(sqlGA + comment, varMap)
+            res_active = self.cur.fetchall()
             retMap = {}
-            for cnt, nInstances, jobType, resourceType, status in res:
-                retMap.setdefault(jobType, {})
-                if resourceType not in retMap[jobType]:
-                    retMap[jobType][resourceType] = {"stats": dict(), "nInstances": 0}
-                retMap[jobType][resourceType]["stats"][status] = cnt
-                if nInstances > retMap[jobType][resourceType]["nInstances"]:
-                    retMap[jobType][resourceType]["nInstances"] = nInstances
+            for cnt, computingSite, harvesterID, jobType, resourceType, status in res_active:
+                retMap.setdefault(computingSite, {})
+                retMap[computingSite].setdefault(harvesterID, {})
+                retMap[computingSite][harvesterID].setdefault(jobType, {})
+                if resourceType not in retMap[computingSite][harvesterID][jobType]:
+                    retMap[computingSite][harvesterID][jobType][resourceType] = dict()
+                retMap[computingSite][harvesterID][jobType][resourceType][status] = cnt
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
             # return
-            tmpLog.debug(f"done with {str(retMap)} nPilot={nPilot}")
-            return retMap, nPilot
+            tmpLog.debug(f"done with {str(retMap)}")
+            return retMap
         except Exception:
             # roll back
             self._rollback()
             self.dumpErrorMessage(tmpLog, methodName)
-            return {}, 0
+            return {}
 
     # send command to harvester or lock command
     def commandToHarvester(

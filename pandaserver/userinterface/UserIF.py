@@ -965,6 +965,10 @@ class UserIF:
         # serialize
         return json.dumps(retVal)
 
+    # get stats of workers
+    def getWorkerStats(self):
+        return self.taskBuffer.getWorkerStats()
+
     # report stat of workers
     def reportWorkerStats(self, harvesterID, siteName, paramsList):
         return self.taskBuffer.reportWorkerStats(harvesterID, siteName, paramsList)
@@ -2532,6 +2536,13 @@ def harvesterIsAlive(req, harvesterID, data=None):
         return json.dumps((False, "failed to load JSON"))
     # update
     return userIF.harvesterIsAlive(user, host, harvesterID, data)
+
+
+# get stats of workers
+def getWorkerStats(req):
+    # get
+    ret = userIF.getWorkerStats()
+    return json.dumps(ret)
 
 
 # report stat of workers
