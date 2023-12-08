@@ -50,6 +50,7 @@ RUN rm -rf /tmp/src
 
 RUN mkdir -p /etc/panda
 RUN mkdir -p /etc/idds
+RUN mkdir -p /etc/rc.d/init.d
 RUN mv /opt/panda/etc/panda/panda_common.cfg.rpmnew /etc/panda/panda_common.cfg
 RUN mv /opt/panda/etc/panda/panda_server.cfg.rpmnew /etc/panda/panda_server.cfg
 RUN mv /opt/panda/etc/panda/panda_server.sysconfig.rpmnew /etc/sysconfig/panda_server
@@ -73,7 +74,6 @@ RUN mkdir -p /var/log/panda/pandacache/jedilog
 RUN mkdir -p /var/cache/pandaserver/schedconfig
 RUN mkdir -p /var/run/panda
 RUN mkdir -p /var/cric
-RUN mkdir -p /etc/rc.d/init.d
 
 RUN ln -fs /opt/panda/etc/cert/hostkey.pem /etc/grid-security/hostkey.pem
 RUN ln -fs /opt/panda/etc/cert/hostcert.pem /etc/grid-security/hostcert.pem
