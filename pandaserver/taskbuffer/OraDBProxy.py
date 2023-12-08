@@ -26595,7 +26595,7 @@ class DBProxy:
         try:
             ids = json.loads(ids)
             # sql to get event stats
-            sql = f"SELECT jediTaskID,fileID,attemptNr,job_processID,status FROM {panda_config.schemaJEDI}.JEDI_Events "
+            sql = f"SELECT jediTaskID,fileID,attemptNr,job_processID,status,error_code,error_diag FROM {panda_config.schemaJEDI}.JEDI_Events "
             sql += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID "
             ret_val = {}
             for tmp_id in ids:
@@ -26610,9 +26610,9 @@ class DBProxy:
                 self.cur.execute(sql + comment, varMap)
                 resM = self.cur.fetchall()
                 tmp_map = {}
-                for jediTaskID, fileID, attemptNr, job_processID, eventStatus in resM:
+                for jediTaskID, fileID, attemptNr, job_processID, eventStatus, error_code, error_diag in resM:
                     eventRangeID = self.makeEventRangeID(jediTaskID, tmp_id["panda_id"], fileID, job_processID, attemptNr)
-                    tmp_map[eventRangeID] = EventServiceUtils.ES_status_map[eventStatus]
+                    tmp_map[eventRangeID] = {"status": EventServiceUtils.ES_status_map[eventStatus], "error": error_code, "dialog": error_diag}
                 ret_val[tmp_id["panda_id"]] = tmp_map
                 # commit
                 if not self._commit():
