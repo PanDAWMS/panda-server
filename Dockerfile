@@ -73,6 +73,7 @@ RUN mkdir -p /var/log/panda/pandacache/jedilog
 RUN mkdir -p /var/cache/pandaserver/schedconfig
 RUN mkdir -p /var/run/panda
 RUN mkdir -p /var/cric
+RUN mkdir -p /etc/rc.d/init.d
 
 RUN ln -fs /opt/panda/etc/cert/hostkey.pem /etc/grid-security/hostkey.pem
 RUN ln -fs /opt/panda/etc/cert/hostcert.pem /etc/grid-security/hostcert.pem
