@@ -53,6 +53,8 @@ from pandaserver.jobdispatcher.JobDispatcher import (
     updateWorkerPilotStatus,
 )
 from pandaserver.srvcore import CoreUtils
+
+# IMPORTANT: Add any new methods here to allow them to be called from the web I/F
 from pandaserver.srvcore.allowed_methods import allowed_methods
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.Initializer import initializer
