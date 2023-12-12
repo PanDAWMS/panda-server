@@ -18755,7 +18755,8 @@ class DBProxy:
                     )
                 )
 
-                minimumRam = retryRamOffset + attemptNr * retryRamStep
+                multiplier = retryRamStep * 1.0 / taskRamCount
+                minimumRam = retryRamOffset + taskRamCount * (multiplier ** attemptNr)
 
                 if taskRamUnit != "MBPerCoreFixed":
                     # If more than x% of the task's jobs needed a memory increase, increase the task's memory instead
