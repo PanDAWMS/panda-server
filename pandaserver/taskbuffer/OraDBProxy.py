@@ -213,7 +213,7 @@ class DBProxy:
 
                 self.conn.outputtypehandler = OutputTypeHandler
             elif self.backend == "postgres":
-                dsn = {"dbname": self.dbname, "user": self.dbuser}
+                dsn = {"dbname": self.dbname, "user": self.dbuser, "keepalives_idle": 30, "keepalives_interval": 30}
                 if self.dbpasswd:
                     dsn["password"] = self.dbpasswd
                 if self.dbhost:
@@ -18756,7 +18756,7 @@ class DBProxy:
                 )
 
                 multiplier = retryRamStep * 1.0 / taskRamCount
-                minimumRam = retryRamOffset + taskRamCount * (multiplier ** attemptNr)
+                minimumRam = retryRamOffset + taskRamCount * (multiplier**attemptNr)
 
                 if taskRamUnit != "MBPerCoreFixed":
                     # If more than x% of the task's jobs needed a memory increase, increase the task's memory instead
