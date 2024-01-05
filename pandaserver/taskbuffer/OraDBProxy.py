@@ -213,7 +213,7 @@ class DBProxy:
 
                 self.conn.outputtypehandler = OutputTypeHandler
             elif self.backend == "postgres":
-                dsn = {"dbname": self.dbname, "user": self.dbuser, "keepalives_idle": 30, "keepalives_interval": 30}
+                dsn = {"dbname": self.dbname, "user": self.dbuser, "keepalives_idle": 30, "keepalives_interval": 30, "keepalives": 1}
                 if self.dbpasswd:
                     dsn["password"] = self.dbpasswd
                 if self.dbhost:
