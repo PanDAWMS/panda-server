@@ -83,8 +83,8 @@ def main(tbuf=None, **kwargs):
 
     # get files
     _logger.debug("EVP session")
-    timeNow = datetime.datetime.utcnow()
-    timeInt = datetime.datetime.utcnow()
+    timeNow = datetime.datetime.now(datetime.UTC)
+    timeInt = datetime.datetime.now(datetime.UTC)
     fileList = sorted(glob.glob(evpFilePatt))
 
     # create thread pool and semaphore
@@ -94,14 +94,14 @@ def main(tbuf=None, **kwargs):
     # add
     while len(fileList) != 0:
         # time limit to aviod too many copyArchve running at the sametime
-        if (datetime.datetime.utcnow() - timeNow) > datetime.timedelta(minutes=overallTimeout):
+        if (datetime.datetime.now(datetime.UTC) - timeNow) > datetime.timedelta(minutes=overallTimeout):
             _logger.debug("time over in EVP session")
             break
         # try to get Semaphore
         adderLock.acquire()
         # get fileList
-        if (datetime.datetime.utcnow() - timeInt) > datetime.timedelta(minutes=15):
-            timeInt = datetime.datetime.utcnow()
+        if (datetime.datetime.now(datetime.UTC) - timeInt) > datetime.timedelta(minutes=15):
+            timeInt = datetime.datetime.now(datetime.UTC)
             # get file
             fileList = sorted(glob.glob(evpFilePatt))
         # choose a file

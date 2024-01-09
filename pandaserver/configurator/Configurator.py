@@ -603,7 +603,7 @@ class NetworkConfigurator(threading.Thread):
         sites_list = self.taskBuffer.configurator_read_sites()
 
         # Ignore outdated values
-        latest_validity = datetime.utcnow() - timedelta(minutes=30)
+        latest_validity = datetime.now(datetime.UTC) - timedelta(minutes=30)
 
         for src_dst in self.nws_dump:
             try:
