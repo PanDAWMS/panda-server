@@ -255,8 +255,8 @@ def main(tbuf=None, **kwargs):
 
     # close datasets
     _logger.debug("==== close datasets ====")
-    timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
-    timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=3)
+    timeLimitU = datetime.datetime.now(datetime.UTC) - datetime.timedelta(minutes=30)
+    timeLimitL = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=3)
     closeLock = threading.Semaphore(5)
     closeProxyLock = threading.Lock()
     closeThreadPool = ThreadPool()
@@ -468,10 +468,10 @@ def main(tbuf=None, **kwargs):
 
     # freeze dataset
     _logger.debug("==== freeze datasets ====")
-    timeLimitRU = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
-    timeLimitRL = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
-    timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
-    timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=14)
+    timeLimitRU = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=3)
+    timeLimitRL = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=12)
+    timeLimitU = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=6)
+    timeLimitL = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=14)
     # reset doing so that Closer can update unmerged datasets
     sql = "SELECT name FROM ATLAS_PANDA.Datasets "
     sql += "WHERE type=:type AND (modificationdate BETWEEN :modificationdateRL AND :modificationdateRU) AND subType=:subType AND status=:oldStatus "
@@ -591,8 +591,8 @@ def main(tbuf=None, **kwargs):
 
     # delete dis datasets
     _logger.debug("==== delete dis datasets ====")
-    timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
-    timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=3)
+    timeLimitU = datetime.datetime.now(datetime.UTC) - datetime.timedelta(minutes=30)
+    timeLimitL = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=3)
     disEraseLock = threading.Semaphore(5)
     disEraseProxyLock = threading.Lock()
     disEraseThreadPool = ThreadPool()
@@ -796,7 +796,7 @@ def main(tbuf=None, **kwargs):
     finisherProxyLock = threading.Lock()
     finisherThreadPool = ThreadPool()
     for loopIdx in ["low", "high"]:
-        timeNow = datetime.datetime.utcnow()
+        timeNow = datetime.datetime.now(datetime.UTC)
         if loopIdx == "high":
             highPrioFlag = True
         else:
@@ -904,7 +904,7 @@ def main(tbuf=None, **kwargs):
     activatorLock = threading.Semaphore(3)
     activatorProxyLock = threading.Lock()
     activatorThreadPool = ThreadPool()
-    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+    timeLimit = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=1)
     # get jobs
     for ii in range(1000):
         # lock
@@ -1002,7 +1002,7 @@ def main(tbuf=None, **kwargs):
     activatorLock = threading.Semaphore(3)
     activatorProxyLock = threading.Lock()
     activatorThreadPool = ThreadPool()
-    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+    timeLimit = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=1)
     # get jobs
     for ii in range(1000):
         # lock
@@ -1120,8 +1120,8 @@ def main(tbuf=None, **kwargs):
 
     # delete sub datasets
     _logger.debug("==== delete sub datasets ====")
-    timeLimitU = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
-    timeLimitL = datetime.datetime.utcnow() - datetime.timedelta(days=14)
+    timeLimitU = datetime.datetime.now(datetime.UTC) - datetime.timedelta(minutes=30)
+    timeLimitL = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=14)
     subdeleteLock = threading.Semaphore(5)
     subdeleteProxyLock = threading.Lock()
     subdeleteThreadPool = ThreadPool()

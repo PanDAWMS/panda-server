@@ -243,7 +243,7 @@ class JobSpec(object):
         newVal = getattr(self, name)
         if name == "jobStatus":
             if oldVal != newVal:
-                self.stateChangeTime = datetime.datetime.utcnow()
+                self.stateChangeTime = datetime.datetime.now(datetime.UTC)
         # collect changed attributes
         if oldVal != newVal and name not in self._suppAttrs:
             self._changedAttrs[name] = value
