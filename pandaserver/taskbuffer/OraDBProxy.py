@@ -493,7 +493,7 @@ class DBProxy:
 
         # host and time information
         job.modificationHost = self.hostname
-        job.creationTime = datetime.datetime.utcnow()
+        job.creationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         job.modificationTime = job.creationTime
         job.stateChangeTime = job.creationTime
         job.prodDBUpdateTime = job.creationTime
@@ -1326,7 +1326,7 @@ class DBProxy:
         sql2 = f"INSERT INTO ATLAS_PANDA.jobsActive4 ({JobSpec.columnNames()}) "
         sql2 += JobSpec.bindValuesExpression()
         # host and time information
-        job.modificationTime = datetime.datetime.utcnow()
+        job.modificationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         # set stateChangeTime for defined->activated but not for assigned->activated
         if job.jobStatus in ["defined"]:
             job.stateChangeTime = job.modificationTime
@@ -1456,7 +1456,7 @@ class DBProxy:
         sql2 = f"INSERT INTO ATLAS_PANDA.jobsWaiting4 ({JobSpec.columnNames()}) "
         sql2 += JobSpec.bindValuesExpression()
         # time information
-        job.modificationTime = datetime.datetime.utcnow()
+        job.modificationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         job.stateChangeTime = job.modificationTime
         updatedFlag = False
         nTry = 3
@@ -1531,7 +1531,7 @@ class DBProxy:
         methodName = methodName + f" < PandaID={job.PandaID} jediTaskID={job.jediTaskID} >"
         tmpLog = LogWrapper(_logger, methodName)
         tmpLog.debug(f"start status={job.jobStatus} label={job.prodSourceLabel} " f"type={job.processingType} async_params={async_params}")
-        start_time = datetime.datetime.utcnow()
+        start_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         if fromJobsDefined:
             sql0 = "SELECT jobStatus FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID "
             sql1 = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
@@ -1645,7 +1645,7 @@ class DBProxy:
                                 continue
                             # error code
                             dJob.jobStatus = "cancelled"
-                            dJob.endTime = datetime.datetime.utcnow()
+                            dJob.endTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                             dJob.taskBufferErrorCode = ErrorCode.EC_Kill
                             dJob.taskBufferErrorDiag = "killed by Panda server : upstream job failed"
                             dJob.modificationTime = dJob.endTime
@@ -1803,7 +1803,7 @@ class DBProxy:
                                         continue
                                     # error code
                                     dJob.jobStatus = "failed"
-                                    dJob.endTime = datetime.datetime.utcnow()
+                                    dJob.endTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                                     dJob.ddmErrorCode = 101  # ErrorCode.EC_LostFile
                                     dJob.ddmErrorDiag = "lost file in SE"
                                     dJob.modificationTime = dJob.endTime
@@ -2097,7 +2097,7 @@ class DBProxy:
                     raise RuntimeError(f"PandaID={job.PandaID} already deleted")
                 else:
                     # insert
-                    job.modificationTime = datetime.datetime.utcnow()
+                    job.modificationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                     job.stateChangeTime = job.modificationTime
                     if job.endTime == "NULL":
                         job.endTime = job.modificationTime
@@ -2278,7 +2278,7 @@ class DBProxy:
                         )
                 except Exception:
                     tmpLog.error("recordStatusChange in archiveJob")
-                exec_time = datetime.datetime.utcnow() - start_time
+                exec_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
                 tmpLog.debug("done OK. took %s.%03d sec" % (exec_time.seconds, exec_time.microseconds / 1000))
                 return True, ddmIDs, ddmAttempt, newJob
             except Exception:
@@ -2287,7 +2287,7 @@ class DBProxy:
                     self._rollback(True)
                 # error
                 self.dumpErrorMessage(_logger, methodName)
-                exec_time = datetime.datetime.utcnow() - start_time
+                exec_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
                 tmpLog.debug("done NG. took %s.%03d sec" % (exec_time.seconds, exec_time.microseconds / 1000))
                 if not useCommit:
                     raise RuntimeError("archiveJob failed")
@@ -2375,7 +2375,7 @@ class DBProxy:
                 job = JobSpec()
                 job.pack(res[0])
                 job.jobStatus = "failed"
-                job.modificationTime = datetime.datetime.utcnow()
+                job.modificationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                 # delete
                 self.cur.execute(sql2 + comment, varMap)
                 n = self.cur.rowcount
@@ -2470,7 +2470,7 @@ class DBProxy:
                     continue
                 # error code
                 dJob.jobStatus = "cancelled"
-                dJob.endTime = datetime.datetime.utcnow()
+                dJob.endTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                 dJob.taskBufferErrorCode = ErrorCode.EC_Kill
                 dJob.taskBufferErrorDiag = "killed by Panda server : upstream job failed"
                 dJob.modificationTime = dJob.endTime
@@ -2886,7 +2886,7 @@ class DBProxy:
                         sqlJWU += "WHERE PandaID=:PandaID "
                         varMap = {
                             ":PandaID": pandaID,
-                            ":lastUpdate": datetime.datetime.utcnow(),
+                            ":lastUpdate": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
                         }
                         self.cur.execute(sqlJWU + comment, varMap)
                         nRow = self.cur.rowcount
@@ -2952,7 +2952,7 @@ class DBProxy:
         nTry = 3
         for iTry in range(nTry):
             try:
-                job.modificationTime = datetime.datetime.utcnow()
+                job.modificationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                 # set stateChangeTime for defined->assigned
                 if inJobsDefined:
                     job.stateChangeTime = job.modificationTime
@@ -3184,7 +3184,7 @@ class DBProxy:
             method_name + f"< harvesterID={harvesterID} workerID={workerID} >",
         )
 
-        timestamp_utc = datetime.datetime.utcnow()
+        timestamp_utc = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         var_map = {
             ":status": status,
             ":harvesterID": harvesterID,
@@ -3361,7 +3361,7 @@ class DBProxy:
                         # reset job
                         job.jobStatus = "activated"
                         job.startTime = None
-                        job.modificationTime = datetime.datetime.utcnow()
+                        job.modificationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                         job.attemptNr = job.attemptNr + 1
                         if usePilotRetry:
                             job.currentPriority -= 10
@@ -3515,7 +3515,7 @@ class DBProxy:
                                 sql1 += " RETURNING PandaID INTO :newPandaID"
                                 # set parentID
                                 job.parentID = job.PandaID
-                                job.creationTime = datetime.datetime.utcnow()
+                                job.creationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                                 job.modificationTime = job.creationTime
                                 varMap = job.valuesMap(useSeq=True)
                                 varMap[":newPandaID"] = self.cur.var(varNUMBER)
@@ -3862,9 +3862,9 @@ class DBProxy:
         tmpLog = None
         try:
             timeLimit = datetime.timedelta(seconds=timeout - 10)
-            timeStart = datetime.datetime.utcnow()
+            timeStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             tmpLog = LogWrapper(_logger, f"getJobs : {datetime.datetime.isoformat(timeStart)} -> ")
-            attLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=15)
+            attLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=15)
             attSQL = "AND ((creationTime<:creationTime AND attemptNr>1) OR attemptNr<=1) "
             # get nJobs
             for iJob in range(nJobs):
@@ -3956,7 +3956,7 @@ class DBProxy:
                     tmpSiteID = siteName
                     # get file lock
                     tmpLog.debug("lock")
-                    if (datetime.datetime.utcnow() - timeStart) < timeLimit:
+                    if (datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - timeStart) < timeLimit:
                         toGetPandaIDs = True
                         pandaIDs = []
                         specialHandlingMap = {}
@@ -4071,7 +4071,7 @@ class DBProxy:
                                                     "workerID": worker_id,
                                                     "nJobs": 1,
                                                     "status": "running",
-                                                    "lastUpdate": datetime.datetime.utcnow(),
+                                                    "lastUpdate": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
                                                 }
                                             ],
                                             useCommit=False,
@@ -4101,7 +4101,7 @@ class DBProxy:
                                             varMap[":harvesterID"] = harvester_id
                                             varMap[":workerID"] = worker_id
                                             varMap[":PandaID"] = tmpPandaID
-                                            varMap[":lastUpdate"] = datetime.datetime.utcnow()
+                                            varMap[":lastUpdate"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                                             if resJWC is None:
                                                 # insert
                                                 self.cur.execute(sqlJWI + comment, varMap)
@@ -4550,7 +4550,7 @@ class DBProxy:
                 job.computingElement = None
             # host and time information
             job.modificationHost = self.hostname
-            job.modificationTime = datetime.datetime.utcnow()
+            job.modificationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             job.stateChangeTime = job.modificationTime
             # reset
             job.brokerageErrorDiag = None
@@ -4765,7 +4765,7 @@ class DBProxy:
         methodName += f" <PandaID={pandaID}>"
         tmpLog = LogWrapper(_logger, methodName)
         tmpLog.debug(f"code={code} role={prodManager} user={user} wg={wgProdRole} opts={killOpts}")
-        timeStart = datetime.datetime.utcnow()
+        timeStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         # check PandaID
         try:
             int(pandaID)
@@ -4949,7 +4949,7 @@ class DBProxy:
                 oldJobStatus = job.jobStatus
                 # error code
                 if job.jobStatus != "failed":
-                    currentTime = datetime.datetime.utcnow()
+                    currentTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                     # set status etc for non-failed jobs
                     if job.endTime in [None, "NULL"]:
                         job.endTime = currentTime
@@ -5006,7 +5006,7 @@ class DBProxy:
                         job.jobStatus = "cancelled"
                 else:
                     # keep status for failed jobs
-                    job.modificationTime = datetime.datetime.utcnow()
+                    job.modificationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                     if code == "7":
                         # retried by server
                         job.taskBufferErrorCode = ErrorCode.EC_Retried
@@ -5075,7 +5075,7 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            timeDelta = datetime.datetime.utcnow() - timeStart
+            timeDelta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - timeStart
             tmpLog.debug(f"com={flagCommand} kill={flagKilled} time={timeDelta.seconds}")
             # record status change
             try:
@@ -5096,7 +5096,7 @@ class DBProxy:
             self.dumpErrorMessage(_logger, methodName)
             # roll back
             self._rollback()
-            timeDelta = datetime.datetime.utcnow() - timeStart
+            timeDelta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - timeStart
             tmpLog.debug(f"time={timeDelta.seconds}")
             if getUserInfo:
                 return False, {}
@@ -5326,7 +5326,7 @@ class DBProxy:
             executionTimeU = datetime.timedelta(hours=1)
             jobCreditU = 3
             timeCreditU = executionTimeU * jobCreditU
-            timeNow = datetime.datetime.utcnow()
+            timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             timeLimit = timeNow - datetime.timedelta(hours=6)
             # loop over tables
             for table in [
@@ -6480,7 +6480,7 @@ class DBProxy:
             # check creationDate of buildJob
             if errMsg == "":
                 # buildJob has already finished
-                timeLimit = datetime.datetime.utcnow() - datetime.timedelta(days=6)
+                timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=6)
                 if buildJobStatus in ["finished", "cancelled", "closed"] and buildCreationTime < timeLimit:
                     errMsg = f"corresponding buildJob {buildJobPandaID} is too old {buildCreationTime.strftime('%Y-%m-%d %H:%M:%S')}"
             # check modificationTime
@@ -6520,7 +6520,7 @@ class DBProxy:
                 else:
                     (tmpModificationTime,) = res
                     # prevent users from rebrokering more than once in one hour
-                    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+                    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=1)
                     if timeLimit < tmpModificationTime and not forceOpt:
                         errMsg = "last mod time is %s > current-1hour. Cannot run (re)brokerage more than once in one hour" % tmpModificationTime.strftime(
                             "%Y-%m-%d %H:%M:%S"
@@ -6678,7 +6678,7 @@ class DBProxy:
             job.jobStatus = "defined"
             # host and time information
             job.modificationHost = self.hostname
-            job.modificationTime = datetime.datetime.utcnow()
+            job.modificationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             # insert to Defined
             self.cur.execute(sql3 + comment, job.valuesMap())
             # delete from Active
@@ -7153,7 +7153,7 @@ class DBProxy:
         sql0 = "SELECT PandaID FROM ATLAS_PANDA.metaTable WHERE PandaID=:PandaID"
         sql1 = "INSERT INTO ATLAS_PANDA.metaTable (PandaID,metaData) VALUES (:PandaID,:metaData)"
         nTry = 1
-        regStart = datetime.datetime.utcnow()
+        regStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         for iTry in range(nTry):
             try:
                 # autocommit on
@@ -7208,7 +7208,7 @@ class DBProxy:
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
-                regTime = datetime.datetime.utcnow() - regStart
+                regTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - regStart
                 msgStr = f"done in jobStatus={jobStatus}->{newStatus} took {regTime.seconds} sec"
                 if metadata is not None:
                     msgStr += f" for {len(metadata)} (orig {origSize}) bytes"
@@ -7411,7 +7411,7 @@ class DBProxy:
         sql1 += DatasetSpec.bindValuesExpression()
         sql2 = f"SELECT name FROM {tablename} WHERE vuid=:vuid "
         # time information
-        dataset.creationdate = datetime.datetime.utcnow()
+        dataset.creationdate = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         dataset.modificationdate = dataset.creationdate
         try:
             # subtype
@@ -7577,7 +7577,7 @@ class DBProxy:
             for dataset in datasets:
                 _logger.debug(f"updateDataset({dataset.name},{dataset.status})")
                 # time information
-                dataset.modificationdate = datetime.datetime.utcnow()
+                dataset.modificationdate = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                 # update
                 varMap = dataset.valuesMap()
                 varMap[":vuid"] = dataset.vuid
@@ -7966,7 +7966,7 @@ class DBProxy:
             sql = "UPDATE ATLAS_PANDA.cloudtasks SET tmod=:tmod WHERE taskid=:taskid"
             varMap = {}
             varMap[":taskid"] = tid
-            varMap[":tmod"] = datetime.datetime.utcnow() - datetime.timedelta(minutes=165)
+            varMap[":tmod"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=165)
             self.cur.execute(sql + comment, varMap)
             # commit
             if not self._commit():
@@ -7985,7 +7985,7 @@ class DBProxy:
         comment = " /* getAssigningTask */"
         try:
             _logger.debug("getAssigningTask")
-            timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
+            timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=3)
             # start transaction
             self.conn.begin()
             # select
@@ -8436,7 +8436,7 @@ class DBProxy:
         sqlDis += "WHERE PandaID=:PandaID AND type=:type AND dispatchDBlock IS NOT NULL AND modificationTime <= CURRENT_DATE"
         inputDisList = []
         try:
-            timeStart = datetime.datetime.utcnow()
+            timeStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             _logger.debug(f"getDisInUseForAnal start for {outDataset}")
             # start transaction
             self.conn.begin()
@@ -8517,7 +8517,7 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            timeDelta = datetime.datetime.utcnow() - timeStart
+            timeDelta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - timeStart
             _logger.debug(f"getDisInUseForAnal end for {outDataset} len={len(inputDisList)} time={timeDelta.seconds}sec")
             return inputDisList
         except Exception:
@@ -8535,7 +8535,7 @@ class DBProxy:
         sqlLfn += "AND (destinationDBlockToken IS NULL OR destinationDBlockToken<>:noshadow) AND modificationTime<=CURRENT_DATE"
         inputFilesList = []
         try:
-            token = datetime.datetime.utcnow().isoformat("/")
+            token = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat("/")
             # loop over all shadow dis datasets
             pandaIdLfnMap = {}
             for disDatasetList, activePandaIDs in inputDisList:
@@ -8552,12 +8552,12 @@ class DBProxy:
                         varMap[":type"] = "input"
                         varMap[":noshadow"] = "noshadow"
                         _logger.debug(f"getLFNsInUseForAnal : <{token}> {sqlLfn} {str(varMap)}")
-                        timeStart = datetime.datetime.utcnow()
+                        timeStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                         self.cur.arraysize = 100000
                         retL = self.cur.execute(sqlLfn + comment, varMap)
                         resL = self.cur.fetchall()
                         # commit
-                        timeDelta = datetime.datetime.utcnow() - timeStart
+                        timeDelta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - timeStart
                         _logger.debug(f"getLFNsInUseForAnal : <{token}> {disDataset} time={timeDelta.seconds}sec commit")
                         if not self._commit():
                             raise RuntimeError("Commit error")
@@ -8994,7 +8994,7 @@ class DBProxy:
     ):
         comment = " /* DBProxy.getJobStatistics */"
         _logger.debug(f"getJobStatistics({archived},{predefined},'{workingGroup}','{countryGroup}','{jobType}',{forAnal},{minPriority})")
-        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
+        timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
         sql0 = "SELECT computingSite,jobStatus,COUNT(*) FROM %s "
         # processingType
         tmpJobTypeMap = {}
@@ -9780,7 +9780,7 @@ class DBProxy:
     def getJobStatisticsForExtIF(self, sourcetype=None):
         comment = " /* DBProxy.getJobStatisticsForExtIF */"
         _logger.debug("getJobStatisticsForExtIF()")
-        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
+        timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
         if sourcetype == "analysis":
             sql0 = "SELECT jobStatus,COUNT(*), cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1, :prodSourceLabel2) GROUP BY jobStatus, cloud"
 
@@ -9865,7 +9865,7 @@ class DBProxy:
     # get job statistics per processingType
     def getJobStatisticsPerProcessingType(self, useMorePG=False):
         comment = " /* DBProxy.getJobStatisticsPerProcessingType */"
-        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
+        timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
         _logger.debug("getJobStatisticsPerProcessingType()")
         if useMorePG is False:
             sqlN = "SELECT /* use_json_type */ jobStatus, COUNT(*), tabS.data.cloud, processingType "
@@ -10124,7 +10124,7 @@ class DBProxy:
         try:
             _logger.debug(f"genPilotToken({schedulerhost},{scheduleruser},{schedulerid})")
             token = str(uuid.uuid4())
-            timeNow = datetime.datetime.utcnow()
+            timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             timeExp = timeNow + datetime.timedelta(days=4)
             sql = "INSERT INTO ATLAS_PANDA.pilottoken (token,schedulerhost,scheduleruser,schedulerid,created,expires) "
             sql += "VALUES (:token,:schedulerhost,:scheduleruser,:schedulerid,:created,:expires)"
@@ -10214,7 +10214,7 @@ class DBProxy:
         sqlAll += "FROM ATLAS_PANDAMETA.SiteData WHERE HOURS=:HOURS AND SITE=:SITE"
 
         try:
-            timeNow = datetime.datetime.utcnow()
+            timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             self.conn.begin()
             # delete old records
             varMap = {}
@@ -10452,7 +10452,7 @@ class DBProxy:
         sqlMax += "WHERE FLAG=:FLAG GROUP BY SITE"
         try:
             # use offset(1000)+minites for :HOURS
-            timeNow = datetime.datetime.utcnow()
+            timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             nHours = 1000 + timeNow.hour * 60 + timeNow.minute
             # delete old records
             varMap = {}
@@ -11042,12 +11042,12 @@ class DBProxy:
         if (
             not getNewMap
             and self.updateTimeForFairsharePolicy is not None
-            and (datetime.datetime.utcnow() - self.updateTimeForFairsharePolicy) < datetime.timedelta(minutes=15)
+            and (datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - self.updateTimeForFairsharePolicy) < datetime.timedelta(minutes=15)
         ):
             return
         if not getNewMap:
             # update utime
-            self.updateTimeForFairsharePolicy = datetime.datetime.utcnow()
+            self.updateTimeForFairsharePolicy = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         _logger.debug("getFairsharePolicy")
         try:
             # set autocommit on
@@ -11866,7 +11866,7 @@ class DBProxy:
             varMap = {}
             varMap[":name"] = userName
             varMap[":email"] = emailAddr
-            varMap[":uptime"] = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+            varMap[":uptime"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
             self.cur.execute(sql + comment, varMap)
             # commit
             if not self._commit():
@@ -12988,7 +12988,7 @@ class DBProxy:
         if to_push:
             # push job status change
             try:
-                now_time = datetime.datetime.utcnow()
+                now_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                 now_ts = int(now_time.timestamp())
                 # init
                 inputs = []
@@ -15223,7 +15223,7 @@ class DBProxy:
         tmpLog = LogWrapper(_logger, methodName)
         tmpLog.debug(f"start nRanges={nRanges} scattered={scattered} segment={segment_id}")
         try:
-            regStart = datetime.datetime.utcnow()
+            regStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             # convert to int
             try:
                 nRanges = int(nRanges)
@@ -15478,7 +15478,7 @@ class DBProxy:
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            regTime = datetime.datetime.utcnow() - regStart
+            regTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - regStart
             tmpLog.debug(f"done with {iRanges} event ranges. took {regTime.seconds} sec")
             if not acceptJson:
                 return json.dumps(retRanges)
@@ -15497,10 +15497,10 @@ class DBProxy:
         # version 2: fine-grained processing where events can be updated before being dispatched
         comment = " /* DBProxy.updateEventRanges */"
         methodName = comment.split(" ")[-2].split(".")[-1]
-        methodName += f" <{datetime.datetime.utcnow().isoformat('/')}>"
+        methodName += f" <{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}>"
         tmpLog = LogWrapper(_logger, methodName)
         try:
-            regStart = datetime.datetime.utcnow()
+            regStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             retList = []
             jobAttrs = {}
             commandMap = {}
@@ -15743,7 +15743,7 @@ class DBProxy:
                                         varMap[":jobStatus"] = zipJobSpec.jobStatus
                                         varMap[":attemptNr"] = 0 if zipJobSpec.attemptNr in [None, "NULL", ""] else zipJobSpec.attemptNr
                                         varMap[":data"] = None
-                                        varMap[":timeStamp"] = datetime.datetime.utcnow()
+                                        varMap[":timeStamp"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                                         try:
                                             self.cur.execute(sqlI + comment, varMap)
                                         except Exception:
@@ -15828,7 +15828,7 @@ class DBProxy:
                 self.cur.execute(sqlS + comment, varMap)
                 if not self._commit():
                     raise RuntimeError("Commit error")
-            regTime = datetime.datetime.utcnow() - regStart
+            regTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - regStart
             tmpLog.debug(f"done. {iSkipped} events out of {len(eventDictList)} events skipped. took {regTime.seconds} sec")
             return retList, commandMap
         except Exception:
@@ -16275,7 +16275,7 @@ class DBProxy:
                     hasFatalRange = True
             # reset job attributes
             jobSpec.startTime = None
-            jobSpec.creationTime = datetime.datetime.utcnow()
+            jobSpec.creationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             jobSpec.modificationTime = jobSpec.creationTime
             jobSpec.stateChangeTime = jobSpec.creationTime
             jobSpec.prodDBUpdateTime = jobSpec.creationTime
@@ -17462,7 +17462,7 @@ class DBProxy:
                 if retD == 0:
                     continue
                 # set error code
-                dJob.endTime = datetime.datetime.utcnow()
+                dJob.endTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                 if EventServiceUtils.isJobCloningJob(dJob):
                     dJob.jobStatus = "closed"
                     dJob.jobSubStatus = "jc_unlock"
@@ -17644,7 +17644,7 @@ class DBProxy:
                 _logger.debug(f"{methodName} : kill unused consumer {pandaID}")
                 # set error code
                 dJob.jobStatus = "closed"
-                dJob.endTime = datetime.datetime.utcnow()
+                dJob.endTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                 if EventServiceUtils.isJobCloningJob(dJob):
                     dJob.jobSubStatus = "jc_unlock"
                     dJob.taskBufferErrorCode = ErrorCode.EC_JobCloningUnlock
@@ -19724,7 +19724,7 @@ class DBProxy:
         tmpLog = LogWrapper(_logger, methodName)
         tmpLog.debug("start")
 
-        timeNow = datetime.datetime.utcnow()
+        timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         timeLimit = timeNow - datetime.timedelta(minutes=30)
 
         # update the task if it was not already updated in the last 30 minutes (avoid continuous recalculation)
@@ -20822,8 +20822,8 @@ class DBProxy:
             sqlWP += "UNION "
             sqlWP += "SELECT 1 FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID "
             self.cur.arraysize = 1000000
-            timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=timeLimit)
-            timeLimitWaiting = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+            timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=timeLimit)
+            timeLimitWaiting = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=6)
             retList = []
             # get jobs
             coJumboTobeKilled = set()
@@ -22218,13 +22218,13 @@ class DBProxy:
         )
         try:
             tmpLog.debug(f"start {len(data)} workers")
-            regStart = datetime.datetime.utcnow()
+            regStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             sqlC = f"SELECT {WorkerSpec.columnNames()} FROM ATLAS_PANDA.Harvester_Workers "
             sqlC += "WHERE harvesterID=:harvesterID AND workerID=:workerID "
             # loop over all workers
             retList = []
             for workerData in data:
-                timeNow = datetime.datetime.utcnow()
+                timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                 if useCommit:
                     self.conn.begin()
                 workerSpec = WorkerSpec()
@@ -22381,7 +22381,7 @@ class DBProxy:
                                 varMap[":jobStatus"] = "failed"
                                 varMap[":attemptNr"] = attemptNr
                                 varMap[":data"] = None
-                                varMap[":timeStamp"] = datetime.datetime.utcnow()
+                                varMap[":timeStamp"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                                 try:
                                     self.cur.execute(sqlI + comment, varMap)
                                 except Exception:
@@ -22417,7 +22417,7 @@ class DBProxy:
                     if not self._commit():
                         raise RuntimeError("Commit error")
                 retList.append(True)
-            regTime = datetime.datetime.utcnow() - regStart
+            regTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - regStart
             tmpLog.debug("done. exec_time=%s.%03d sec" % (regTime.seconds, regTime.microseconds / 1000))
             return retList
         except Exception:
@@ -22546,7 +22546,7 @@ class DBProxy:
             var_map = {
                 ":panda_id": panda_id,
                 ":message": pilot_log[:4000],  # clip if longer than 4k characters
-                ":now": datetime.datetime.utcnow(),
+                ":now": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
                 ":name": "panda.mon.prod",
                 ":module": "JobDispatcher",
                 ":type": "pilotLog",
@@ -22861,7 +22861,7 @@ class DBProxy:
                 "GROUP BY computingSite,harvester_ID,jobType,resourceType,status "
             )
             varMap = dict()
-            varMap[":time_limit"] = datetime.datetime.utcnow() - datetime.timedelta(hours=4)
+            varMap[":time_limit"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=4)
             self.cur.execute(sqlGA + comment, varMap)
             res_active = self.cur.fetchall()
             retMap = {}
@@ -22923,13 +22923,13 @@ class DBProxy:
                 if (
                     commandStatus in ["new", "lock", "retrieved"]
                     and lockInterval is not None
-                    and statusDate > datetime.datetime.utcnow() - datetime.timedelta(minutes=lockInterval)
+                    and statusDate > datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=lockInterval)
                 ):
                     toSkip = True
                 elif (
                     commandStatus in ["retrieved", "acknowledged"]
                     and comInterval is not None
-                    and statusDate > datetime.datetime.utcnow() - datetime.timedelta(minutes=comInterval)
+                    and statusDate > datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=comInterval)
                 ):
                     toSkip = True
                 else:
@@ -23026,7 +23026,7 @@ class DBProxy:
             )
             varMap = dict()
             varMap[":pandaID"] = int(pandaID)
-            varMap[":timeLimit"] = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+            varMap[":timeLimit"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=1)
             # begin transaction
             self.conn.begin()
             # select
@@ -23101,7 +23101,7 @@ class DBProxy:
         )
         tmpLog.debug("start")
         try:
-            timeNow = datetime.datetime.utcnow()
+            timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             # sql to get commands
             sqlC = "SELECT computingSite,resourceType FROM ATLAS_PANDA.Harvester_Command_Lock "
             sqlC += "WHERE harvester_ID=:harvester_ID AND command=:command "
@@ -23191,7 +23191,7 @@ class DBProxy:
         tmpLog = LogWrapper(_logger, methodName)
         tmpLog.debug("start")
         try:
-            timeNow = datetime.datetime.utcnow()
+            timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             # sql to get instances
             sqlC = "SELECT harvester_ID FROM ATLAS_PANDA.Harvester_Instances "
             sqlC += "WHERE startTime>:timeLimit "
@@ -23223,7 +23223,7 @@ class DBProxy:
         tmpLog = LogWrapper(_logger, method_name)
         tmpLog.debug("start")
         try:
-            timeNow = datetime.datetime.utcnow()
+            timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             # sql to get minimal
             sqlC = "SELECT resource_name FROM ATLAS_PANDA.resource_types "
             sqlC += "ORDER BY mincore, (CASE WHEN maxrampercore IS NULL THEN 1 ELSE 0 END), maxrampercore "
@@ -23284,7 +23284,7 @@ class DBProxy:
               WHERE lastupdate > :time_limit
               """
         var_map = {}
-        var_map[":time_limit"] = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)
+        var_map[":time_limit"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=60)
 
         self.cur.execute(sql + comment, var_map)
         worker_stats_rows = self.cur.fetchall()
@@ -23822,9 +23822,9 @@ class DBProxy:
         ret = dict()
         try:
             if timeWindow is None:
-                timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
+                timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
             else:
-                timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=int(timeWindow))
+                timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=int(timeWindow))
             for table in tables:
                 # start transaction
                 self.conn.begin()
@@ -23893,9 +23893,9 @@ class DBProxy:
         ret = dict()
         try:
             if time_window is None:
-                timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=12)
+                timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
             else:
-                timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=int(time_window))
+                timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=int(time_window))
             sqlVarList = [
                 (sqlD, {}),
                 (sqlF, {":jobStatus": "failed", ":modificationTime": timeLimit}),
@@ -23988,7 +23988,7 @@ class DBProxy:
         else:
             sqlU += "AND resourceType=:resourceType "
         try:
-            timeNow = datetime.datetime.utcnow()
+            timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             # start transaction
             self.conn.begin()
             # check
@@ -24215,7 +24215,7 @@ class DBProxy:
             jobSpec.Files = []
             # reset job attributes
             jobSpec.startTime = None
-            jobSpec.creationTime = datetime.datetime.utcnow()
+            jobSpec.creationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             jobSpec.modificationTime = jobSpec.creationTime
             jobSpec.stateChangeTime = jobSpec.creationTime
             jobSpec.batchID = None
@@ -24685,7 +24685,7 @@ class DBProxy:
             # separate the queues to the ones we have to update (existing) and the ones we have to insert (new)
             var_map_insert = []
             var_map_update = []
-            utc_now = datetime.datetime.utcnow()
+            utc_now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             for pq in schedconfig_dump:
                 data = json.dumps(schedconfig_dump[pq])
                 if not data:
@@ -24756,7 +24756,7 @@ class DBProxy:
         try:
             var_map_tags = []
 
-            utc_now = datetime.datetime.utcnow()
+            utc_now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             for pq in sw_tags:
                 data = sw_tags[pq]
                 var_map_tags.append({":pq": pq, ":data": json.dumps(data), ":last_update": utc_now})
@@ -24972,7 +24972,7 @@ class DBProxy:
                 varMap[":workqueue_id"] = workqueue_id
                 varMap[":resource_name"] = resource_name
                 varMap[":component"] = component
-                varMap[":lockedTime"] = datetime.datetime.utcnow() - datetime.timedelta(minutes=time_limit)
+                varMap[":lockedTime"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=time_limit)
                 self.cur.execute(sqlCT + comment, varMap)
                 resCT = self.cur.fetchone()
             else:
@@ -25093,7 +25093,7 @@ class DBProxy:
             varMap[":workqueue_id"] = workqueue_id
             varMap[":resource_name"] = resource_name
             varMap[":component"] = component
-            varMap[":lockedTime"] = datetime.datetime.utcnow() - datetime.timedelta(minutes=time_limit)
+            varMap[":lockedTime"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=time_limit)
             self.cur.execute(sqlCT + comment, varMap)
             resCT = self.cur.fetchone()
             if resCT is not None:
@@ -25147,7 +25147,7 @@ class DBProxy:
             varMap[":jobStatus"] = job_status
             varMap[":attemptNr"] = attempt_nr
             varMap[":data"] = data
-            varMap[":timeStamp"] = datetime.datetime.utcnow()
+            varMap[":timeStamp"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             self.cur.execute(sqlI + comment, varMap)
             tmp_log.debug("successfully inserted")
             retVal = True
@@ -25183,7 +25183,7 @@ class DBProxy:
             varMap[":PandaID"] = panda_id
             varMap[":attemptNr"] = attempt_nr
             varMap[":data"] = data
-            varMap[":timeStamp"] = datetime.datetime.utcnow()
+            varMap[":timeStamp"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             self.cur.execute(sqlU + comment, varMap)
             nRow = self.cur.rowcount
             if nRow == 1:
@@ -25333,8 +25333,8 @@ class DBProxy:
                 varMap[":lockedBy"] = pid
             else:
                 varMap[":lockedBy"] = take_over_from
-            varMap[":lockedTime"] = datetime.datetime.utcnow() - datetime.timedelta(minutes=time_limit)
-            utc_now = datetime.datetime.utcnow()
+            varMap[":lockedTime"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=time_limit)
+            utc_now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             try:
                 self.cur.execute(sqlGL + comment, varMap)
                 resGL = self.cur.fetchall()
@@ -25408,7 +25408,7 @@ class DBProxy:
                     varMap = {}
                     varMap[":PandaID"] = panda_id
                     varMap[":attemptNr"] = attempt_nr
-                    varMap[":lockedTime"] = datetime.datetime.utcnow() - datetime.timedelta(minutes=lock_offset)
+                    varMap[":lockedTime"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=lock_offset)
                     self.cur.execute(sqlUL + comment, varMap)
                     tmp_log.debug("successfully unlocked record")
                     retVal = True
@@ -25438,8 +25438,8 @@ class DBProxy:
                 # try to get only records unlocked or with expired lock
                 varMap = {}
                 varMap[":limit"] = limit
-                varMap[":lockedTime"] = datetime.datetime.utcnow() - datetime.timedelta(minutes=time_limit)
-                varMap[":timeStamp"] = datetime.datetime.utcnow() - datetime.timedelta(seconds=grace_period)
+                varMap[":lockedTime"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=time_limit)
+                varMap[":timeStamp"] = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(seconds=grace_period)
                 # sql to get record
                 sqlGR = (
                     "SELECT * "
@@ -25538,7 +25538,9 @@ class DBProxy:
                     data[problem_type].setdefault(jedi_task_id, {})
                     data[problem_type][jedi_task_id].setdefault(resource, None)
                     old = data[problem_type][jedi_task_id][resource]
-                    if old is None or datetime.datetime.utcnow() - datetime.datetime.utcfromtimestamp(old) > datetime.timedelta(days=1):
+                    if old is None or datetime.datetime.now(datetime.timezone.utc) - datetime.datetime.fromtimestamp(
+                        old, datetime.timezone.utc
+                    ) > datetime.timedelta(days=1):
                         retVal = True
                         data[problem_type][jedi_task_id][resource] = time.time()
                 # delete old data
@@ -25546,7 +25548,9 @@ class DBProxy:
                     for t in list(data[p]):
                         for r in list(data[p][t]):
                             ts = data[p][t][r]
-                            if datetime.datetime.utcnow() - datetime.datetime.utcfromtimestamp(ts) > datetime.timedelta(days=7):
+                            if datetime.datetime.now(datetime.timezone.utc) - datetime.datetime.fromtimestamp(ts, datetime.timezone.utc) > datetime.timedelta(
+                                days=7
+                            ):
                                 del data[p][t][r]
                         if not data[p][t]:
                             del data[p][t]
@@ -25664,9 +25668,9 @@ class DBProxy:
             tmp_log.debug("Starting")
 
             # give harvester a chance to discover the status change itself
-            discovery_period = datetime.datetime.utcnow() - datetime.timedelta(minutes=60)
+            discovery_period = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=60)
             # don't repeat the same workers in each cycle
-            retry_period = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
+            retry_period = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=30)
 
             # Select workers where the status is more advanced according to the pilot than to harvester
             sql_select = """
@@ -25684,7 +25688,7 @@ class DBProxy:
                 ":retry_period": retry_period,
             }
 
-            now_ts = datetime.datetime.utcnow()
+            now_ts = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             sql_update = """
             UPDATE ATLAS_PANDA.harvester_workers
             SET pilotStatusSyncTime = :lastSync
@@ -25735,10 +25739,12 @@ class DBProxy:
     def get_dict_to_boost_job_prio(self, vo):
         comment = " /* DBProxy.get_dict_to_boost_job_prio */"
         methodName = comment.split(" ")[-2].split(".")[-1]
-        if self.job_prio_boost_dict_update_time and datetime.datetime.utcnow() - self.job_prio_boost_dict_update_time < datetime.timedelta(minutes=15):
+        if self.job_prio_boost_dict_update_time and datetime.datetime.now(datetime.timezone.utc).replace(
+            tzinfo=None
+        ) - self.job_prio_boost_dict_update_time < datetime.timedelta(minutes=15):
             return self.job_prio_boost_dict
         try:
-            self.job_prio_boost_dict_update_time = datetime.datetime.utcnow()
+            self.job_prio_boost_dict_update_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             self.job_prio_boost_dict = {}
             # get configs
             tmpLog = LogWrapper(_logger, methodName)
@@ -25765,7 +25771,7 @@ class DBProxy:
                             # check expiration
                             if tmp_expire:
                                 tmp_expire = datetime.datetime.strptime(tmp_expire, "%Y%m%d")
-                                if tmp_expire < datetime.datetime.utcnow():
+                                if tmp_expire < datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None):
                                     continue
                             self.job_prio_boost_dict.setdefault(tmp_type, {})
                             self.job_prio_boost_dict[tmp_type][tmp_name] = int(tmp_prio)
@@ -26427,7 +26433,7 @@ class DBProxy:
 
             # store the average emissions
             tmp_log.debug(f"The grid co2 emissions were averaged to {average_emissions}")
-            utc_now = datetime.datetime.utcnow()
+            utc_now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             var_map = {
                 ":region": "GRID",
                 ":timestamp": utc_now,
@@ -26637,7 +26643,7 @@ class DBProxy:
             ":topic": topic,
             ":PandaID": panda_id,
             ":taskID": task_id,
-            ":creationTime": datetime.datetime.utcnow(),
+            ":creationTime": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
             ":execution_order": exec_order,
             ":data": json.dumps((sql, var_map)),
         }
@@ -26658,7 +26664,7 @@ class DBProxy:
                 sql = f"SELECT DISTINCT PandaID FROM {panda_config.schemaPANDA}.SQL_QUEUE WHERE topic=:topic AND creationTime<:timeLimit"
                 varMap = {
                     ":topic": SQL_QUEUE_TOPIC_async_dataset_update,
-                    ":timeLimit": datetime.datetime.utcnow() - datetime.timedelta(minutes=1),
+                    ":timeLimit": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=1),
                 }
                 # start transaction
                 self.conn.begin()

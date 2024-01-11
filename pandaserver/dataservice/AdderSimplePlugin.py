@@ -70,7 +70,7 @@ class AdderSimplePlugin(AdderPluginBase):
                 for iTry in range(nTry):
                     isFatal = False
                     isFailed = False
-                    regStart = datetime.datetime.utcnow()
+                    regStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                     try:
                         self.logger.debug(f"registerFilesInDatasets {str(destIdMap)}")
                         out = rucioAPI.registerFilesInDataset(destIdMap, {})
@@ -103,7 +103,7 @@ class AdderSimplePlugin(AdderPluginBase):
                             isFatal = True
                         else:
                             isFatal = False
-                    regTime = datetime.datetime.utcnow() - regStart
+                    regTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - regStart
                     self.logger.debug("took %s.%03d sec" % (regTime.seconds, regTime.microseconds / 1000))
 
                     # failed

@@ -1808,7 +1808,7 @@ def updateSiteAccess(req, method, siteid, userName, attrValue=""):
 
 # insert task params
 def insertTaskParams(req, taskParams=None, properErrorCode=None, parent_tid=None):
-    tmpLog = LogWrapper(_logger, f"insertTaskParams-{datetime.datetime.utcnow().isoformat('/')}")
+    tmpLog = LogWrapper(_logger, f"insertTaskParams-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
     tmpLog.debug("start")
     if properErrorCode == "True":
         properErrorCode = True
@@ -2459,7 +2459,7 @@ def updateWorkers(req, harvesterID, workers):
     # hostname
     host = req.get_remote_host()
     retVal = None
-    tStart = datetime.datetime.utcnow()
+    tStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     # convert
     try:
         data = json.loads(workers)
@@ -2468,7 +2468,7 @@ def updateWorkers(req, harvesterID, workers):
     # update
     if retVal is None:
         retVal = userIF.updateWorkers(user, host, harvesterID, data)
-    tDelta = datetime.datetime.utcnow() - tStart
+    tDelta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - tStart
     _logger.debug("updateWorkers %s took %s.%03d sec" % (harvesterID, tDelta.seconds, tDelta.microseconds / 1000))
     return retVal
 
@@ -2483,7 +2483,7 @@ def updateServiceMetrics(req, harvesterID, metrics):
 
     host = req.get_remote_host()
     retVal = None
-    tStart = datetime.datetime.utcnow()
+    tStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
 
     # convert
     try:
@@ -2495,7 +2495,7 @@ def updateServiceMetrics(req, harvesterID, metrics):
     if retVal is None:
         retVal = userIF.updateServiceMetrics(user, host, harvesterID, data)
 
-    tDelta = datetime.datetime.utcnow() - tStart
+    tDelta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - tStart
 
     _logger.debug("updateServiceMetrics %s took %s.%03d sec" % (harvesterID, tDelta.seconds, tDelta.microseconds / 1000))
     return retVal
@@ -2663,7 +2663,7 @@ def decode_idds_enum(d):
 def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None, json_outputs=None):
     tmpLog = LogWrapper(
         _logger,
-        f"relay_idds_command-{datetime.datetime.utcnow().isoformat('/')}",
+        f"relay_idds_command-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}",
     )
     # check security
     if not isSecure(req):
@@ -2727,7 +2727,7 @@ def execute_idds_workflow_command(req, command_name, kwargs=None, json_outputs=N
     try:
         tmpLog = LogWrapper(
             _logger,
-            f"execute_idds_workflow_command-{datetime.datetime.utcnow().isoformat('/')}",
+            f"execute_idds_workflow_command-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}",
         )
         if kwargs:
             try:
@@ -2807,7 +2807,7 @@ def send_command_to_job(req, panda_id, com):
 
 # set user secret
 def set_user_secret(req, key=None, value=None):
-    tmpLog = LogWrapper(_logger, f"set_user_secret-{datetime.datetime.utcnow().isoformat('/')}")
+    tmpLog = LogWrapper(_logger, f"set_user_secret-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
     # get owner
     dn = req.subprocess_env.get("SSL_CLIENT_S_DN")
     if not dn:
@@ -2820,7 +2820,7 @@ def set_user_secret(req, key=None, value=None):
 
 # get user secrets
 def get_user_secrets(req, keys=None, get_json=None):
-    tmpLog = LogWrapper(_logger, f"get_user_secrets-{datetime.datetime.utcnow().isoformat('/')}")
+    tmpLog = LogWrapper(_logger, f"get_user_secrets-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
     # get owner
     dn = req.subprocess_env.get("SSL_CLIENT_S_DN")
     if get_json == "True":
