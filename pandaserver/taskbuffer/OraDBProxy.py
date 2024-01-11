@@ -25538,7 +25538,7 @@ class DBProxy:
                     data[problem_type].setdefault(jedi_task_id, {})
                     data[problem_type][jedi_task_id].setdefault(resource, None)
                     old = data[problem_type][jedi_task_id][resource]
-                    if old is None or datetime.datetime.utcnow() - datetime.datetime.fromtimestamp(old, datetime.timezone.utc) > datetime.timedelta(days=1):
+                    if old is None or datetime.datetime.utcnow() - datetime.datetime.utcfromtimestamp(old) > datetime.timedelta(days=1):
                         retVal = True
                         data[problem_type][jedi_task_id][resource] = time.time()
                 # delete old data
@@ -25546,7 +25546,7 @@ class DBProxy:
                     for t in list(data[p]):
                         for r in list(data[p][t]):
                             ts = data[p][t][r]
-                            if datetime.datetime.utcnow() - datetime.datetime.fromtimestamp(ts, datetime.timezone.utc) > datetime.timedelta(days=7):
+                            if datetime.datetime.utcnow() - datetime.datetime.utcfromtimestamp(ts) > datetime.timedelta(days=7):
                                 del data[p][t][r]
                         if not data[p][t]:
                             del data[p][t]
