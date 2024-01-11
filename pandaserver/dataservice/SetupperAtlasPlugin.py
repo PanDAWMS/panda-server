@@ -71,7 +71,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             self._memoryCheck()
             bunchTag = ""
             tagJob = None
-            timeStart = datetime.datetime.now(datetime.timezone.utc)
+            timeStart = datetime.datetime.utcnow()
             if self.jobs is not None and len(self.jobs) > 0:
                 tagJob = self.jobs[0]
             elif len(self.jumboJobs) > 0:
@@ -173,7 +173,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # setup jumbo jobs
                 self._setupJumbojobs()
                 self._memoryCheck()
-            regTime = datetime.datetime.now(datetime.timezone.utc) - timeStart
+            regTime = datetime.datetime.utcnow() - timeStart
             self.logger.debug(f"{bunchTag} took {regTime.seconds}sec")
             self.logger.debug("end run()")
         except Exception:

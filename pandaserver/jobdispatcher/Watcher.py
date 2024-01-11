@@ -63,7 +63,7 @@ class Watcher(threading.Thread):
                         self.logger.debug(f"escape : wrong status {job.jobStatus}")
                         return
                 # time limit
-                timeLimit = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=self.sleepTime)
+                timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=self.sleepTime)
                 if job.modificationTime < timeLimit or (job.endTime != "NULL" and job.endTime < timeLimit):
                     self.logger.debug(f"{job.jobStatus} lastmod:{str(job.modificationTime)} endtime:{str(job.endTime)}")
                     destDBList = []

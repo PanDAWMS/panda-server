@@ -504,7 +504,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
         json_body = environ.get("CONTENT_TYPE", None) == "application/json"
         tmp_log.debug(f"start content-length={cont_length} json={json_body}")
 
-        start_time = datetime.datetime.now(datetime.timezone.utc)
+        start_time = datetime.datetime.utcnow()
         return_type = None
 
         # check method name is allowed, otherwise return 403
@@ -622,7 +622,7 @@ if panda_config.useFastCGI or panda_config.useWSGI:
         if panda_config.entryVerbose:
             tmp_log.debug("done")
 
-        duration = datetime.datetime.now(datetime.timezone.utc) - start_time
+        duration = datetime.datetime.utcnow() - start_time
         tmp_log.info("exec_time=%s.%03d sec, return len=%s B" % (duration.seconds, duration.microseconds / 1000, len(str(exec_result))))
 
         if exec_result == pandaserver.taskbuffer.ErrorCode.EC_NotFound:

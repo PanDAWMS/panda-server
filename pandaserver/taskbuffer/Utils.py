@@ -32,7 +32,7 @@ def isAlive(req):
 
 # upload file
 def putFile(req, file):
-    tmpLog = LogWrapper(_logger, f"putFile-{datetime.datetime.now(datetime.timezone.utc).isoformat('/')}")
+    tmpLog = LogWrapper(_logger, f"putFile-{datetime.datetime.utcnow().isoformat('/')}")
     if not Protocol.isSecure(req):
         tmpLog.error("No SSL_CLIENT_S_DN")
         return False
@@ -155,7 +155,7 @@ def putEventPickingRequest(
     if not Protocol.isSecure(req):
         return "ERROR : no HTTPS"
     userName = req.subprocess_env["SSL_CLIENT_S_DN"]
-    creationTime = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    creationTime = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     _logger.debug(f"putEventPickingRequest : {userName} start")
     # size check
     sizeLimit = 10 * 1024 * 1024
@@ -220,7 +220,7 @@ def put_file_recovery_request(req, jediTaskID, dryRun=None):
     if not Protocol.isSecure(req):
         return json.dumps((False, "ERROR : no HTTPS"))
     userName = req.subprocess_env["SSL_CLIENT_S_DN"]
-    creationTime = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    creationTime = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     tmpLog = LogWrapper(_logger, f"put_file_recovery_request < jediTaskID={jediTaskID}")
     tmpLog.debug(f"start user={userName}")
     # get total size
@@ -252,7 +252,7 @@ def put_workflow_request(req, data, check=False):
     if not Protocol.isSecure(req):
         return json.dumps((False, "ERROR : no HTTPS"))
     userName = req.subprocess_env["SSL_CLIENT_S_DN"]
-    creationTime = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    creationTime = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     tmpLog = LogWrapper(_logger, "put_workflow_request")
     tmpLog.debug(f"start user={userName} check={check}")
     if check == "True" or check is True:

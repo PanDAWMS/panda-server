@@ -59,7 +59,7 @@ class DynDataDistributer:
         self.taskBuffer = taskBuffer
         self.siteMapper = siteMapper
         if token is None:
-            self.token = datetime.datetime.now(datetime.timezone.utc).isoformat(" ")
+            self.token = datetime.datetime.utcnow().isoformat(" ")
         else:
             self.token = token
         # use a fixed list since some clouds don't have active T2s
@@ -1075,7 +1075,7 @@ class DynDataDistributer:
                 tmpRunEvtList = runEvtList[iEventsTotal : iEventsTotal + nEventsPerLoop]
                 self.putLog(f"EI lookup for {iEventsTotal}/{len(runEvtList)}")
                 iEventsTotal += nEventsPerLoop
-                regStart = datetime.datetime.now(datetime.timezone.utc)
+                regStart = datetime.datetime.utcnow()
                 guidListELSSI, tmpCom, tmpOut, tmpErr = elssiIF.doLookup(
                     tmpRunEvtList,
                     stream=streamName,
@@ -1084,7 +1084,7 @@ class DynDataDistributer:
                     user=user,
                     ei_api=ei_api,
                 )
-                regTime = datetime.datetime.now(datetime.timezone.utc) - regStart
+                regTime = datetime.datetime.utcnow() - regStart
                 self.putLog(f"EI command: {tmpCom}")
                 self.putLog(f"took {regTime.seconds}.{regTime.microseconds / 1000:03f} sec for {len(tmpRunEvtList)} events")
                 # failed

@@ -350,7 +350,7 @@ def makeCompactDiagMessage(header, results):
 # message class
 class MsgWrapper:
     def __init__(self):
-        self.timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat("/")
+        self.timestamp = datetime.datetime.utcnow().isoformat("/")
 
     def info(self, msg):
         _log.info(self.timestamp + " " + msg)
