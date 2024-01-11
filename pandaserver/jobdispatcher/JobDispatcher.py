@@ -56,7 +56,7 @@ class CachedObject:
         # cached object
         self.cachedObj = None
         # datetime of last updated
-        self.lastUpdated = datetime.datetime.now(datetime.UTC)
+        self.lastUpdated = datetime.datetime.now(datetime.timezone.utc)
         # how frequently update DN/token map
         self.timeInterval = datetime.timedelta(seconds=timeInterval)
         # lock
@@ -67,7 +67,7 @@ class CachedObject:
     # update obj
     def update(self):
         # get current datetime
-        current = datetime.datetime.now(datetime.UTC)
+        current = datetime.datetime.now(datetime.timezone.utc)
         # lock
         self.lock.acquire()
         # update if old
@@ -111,7 +111,7 @@ class JobDispatcher:
         # DN/token map
         self.tokenDN = None
         # datetime of last updated
-        self.lastUpdated = datetime.datetime.now(datetime.UTC)
+        self.lastUpdated = datetime.datetime.now(datetime.timezone.utc)
         # how frequently update DN/token map
         self.timeInterval = datetime.timedelta(seconds=180)
         # pilot owners
@@ -408,7 +408,7 @@ class JobDispatcher:
             updateStateChange = True
             param["jobDispatcherErrorDiag"] = None
         elif jobStatus in ["holding", "transferring"]:
-            param["jobDispatcherErrorDiag"] = f"set to {jobStatus} by the pilot at {datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%d %H:%M:%S')}"
+            param["jobDispatcherErrorDiag"] = f"set to {jobStatus} by the pilot at {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}"
         if tmpStatus == "holding":
             tmpWrapper = _TimedMethod(self.taskBuffer.updateJobStatus, None)
         else:
@@ -601,7 +601,7 @@ class JobDispatcher:
     # get DN/token map
     def getDnTokenMap(self):
         # get current datetime
-        current = datetime.datetime.now(datetime.UTC)
+        current = datetime.datetime.now(datetime.timezone.utc)
         # lock
         self.lock.acquire()
         # update DN map if old
@@ -963,7 +963,7 @@ def getJob(
     jobType=None,
     viaTopic=None,
 ):
-    tmpLog = LogWrapper(_logger, f"getJob {datetime.datetime.now(datetime.UTC).isoformat('/')}")
+    tmpLog = LogWrapper(_logger, f"getJob {datetime.datetime.now(datetime.timezone.utc).isoformat('/')}")
     tmpLog.debug(siteName)
     # get DN
     realDN = _getDN(req)
@@ -1406,7 +1406,7 @@ def updateJobsInBulk(req, jobList, harvester_id=None):
     retList = []
     retVal = False
     _logger.debug(f"updateJobsInBulk {harvester_id} start")
-    tStart = datetime.datetime.now(datetime.UTC)
+    tStart = datetime.datetime.now(datetime.timezone.utc)
     try:
         jobList = json.loads(jobList)
         for jobDict in jobList:
@@ -1424,7 +1424,7 @@ def updateJobsInBulk(req, jobList, harvester_id=None):
         tmpMsg = f"updateJobsInBulk {harvester_id} failed with {errtype.__name__} {errvalue}"
         retList = tmpMsg
         _logger.error(tmpMsg + "\n" + traceback.format_exc())
-    tDelta = datetime.datetime.now(datetime.UTC) - tStart
+    tDelta = datetime.datetime.now(datetime.timezone.utc) - tStart
     _logger.debug("updateJobsInBulk %s took %s.%03d sec" % (harvester_id, tDelta.seconds, tDelta.microseconds / 1000))
     return json.dumps((retVal, retList))
 

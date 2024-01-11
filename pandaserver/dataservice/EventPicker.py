@@ -34,7 +34,7 @@ class EventPicker:
         self.siteMapper = siteMapper
         self.ignoreError = ignoreError
         self.evpFileName = evpFileName
-        self.token = datetime.datetime.now(datetime.UTC).isoformat(" ")
+        self.token = datetime.datetime.now(datetime.timezone.utc).isoformat(" ")
         # logger
         self.logger = LogWrapper(_logger, self.token)
         self.pd2p = DynDataDistributer.DynDataDistributer([], self.taskBuffer, self.siteMapper, token=" ", logger=self.logger)
@@ -380,7 +380,7 @@ class EventPicker:
         else:
             mailBody += "Status  : Failed\n"
         mailBody += f"Created : {self.creationTime}\n"
-        mailBody += f"Ended   : {datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%d %H:%M:%S')}\n"
+        mailBody += f"Ended   : {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}\n"
         mailBody += f"Dataset : {self.userDatasetName}\n"
         mailBody += "\n"
         mailBody += f"Parameters : {self.lockedBy} {self.params}\n"

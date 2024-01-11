@@ -608,7 +608,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         for iTry in range(nTry):
             isFatal = False
             isFailed = False
-            regStart = datetime.datetime.now(datetime.UTC)
+            regStart = datetime.datetime.now(datetime.timezone.utc)
             try:
                 if not self.useCentralLFC():
                     regMsgStr = f"File registraion for {regNumFiles} files "
@@ -651,7 +651,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                 else:
                     isFatal = False
                 isFailed = True
-            regTime = datetime.datetime.now(datetime.UTC) - regStart
+            regTime = datetime.datetime.now(datetime.timezone.utc) - regStart
             self.logger.debug(regMsgStr + "took %s.%03d sec" % (regTime.seconds, regTime.microseconds / 1000))
             # failed
             if isFailed or isFatal:

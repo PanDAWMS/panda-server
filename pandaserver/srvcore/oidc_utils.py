@@ -46,7 +46,7 @@ class TokenDecoder:
     def get_data(self, url, log_stream):
         try:
             with self.lock:
-                if url not in self.data or datetime.datetime.now(datetime.UTC) - self.data[url]["last_update"] > datetime.timedelta(
+                if url not in self.data or datetime.datetime.now(datetime.timezone.utc) - self.data[url]["last_update"] > datetime.timedelta(
                     minutes=self.refresh_interval
                 ):
                     log_stream.debug(f"to refresh {url}")
@@ -54,7 +54,7 @@ class TokenDecoder:
                     log_stream.debug("refreshed")
                     self.data[url] = {
                         "data": tmp_data,
-                        "last_update": datetime.datetime.now(datetime.UTC),
+                        "last_update": datetime.datetime.now(datetime.timezone.utc),
                     }
                 return self.data[url]["data"]
         except Exception as e:
