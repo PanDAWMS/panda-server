@@ -94,8 +94,8 @@ def main(tbuf=None, **kwargs):
             self.lock.release()
 
     # get files
-    timeNow = datetime.datetime.now(datetime.UTC)
-    timeInt = datetime.datetime.now(datetime.UTC)
+    timeNow = datetime.datetime.now(datetime.timezone.utc)
+    timeInt = datetime.datetime.now(datetime.timezone.utc)
     fileList = sorted(glob.glob(evpFilePatt))
 
     # create thread pool and semaphore
@@ -105,14 +105,14 @@ def main(tbuf=None, **kwargs):
     # add
     while len(fileList) != 0:
         # time limit to aviod too many copyArchve running at the sametime
-        if (datetime.datetime.now(datetime.UTC) - timeNow) > datetime.timedelta(minutes=overallTimeout):
+        if (datetime.datetime.now(datetime.timezone.utc) - timeNow) > datetime.timedelta(minutes=overallTimeout):
             _logger.debug("time over in main session")
             break
         # try to get Semaphore
         adderLock.acquire()
         # get fileList
-        if (datetime.datetime.now(datetime.UTC) - timeInt) > datetime.timedelta(minutes=15):
-            timeInt = datetime.datetime.now(datetime.UTC)
+        if (datetime.datetime.now(datetime.timezone.utc) - timeInt) > datetime.timedelta(minutes=15):
+            timeInt = datetime.datetime.now(datetime.timezone.utc)
             # get file
             fileList = sorted(glob.glob(evpFilePatt))
         # choose a file

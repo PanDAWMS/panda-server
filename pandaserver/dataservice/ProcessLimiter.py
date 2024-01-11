@@ -30,7 +30,7 @@ class ProcessLimiter:
     # execute command
     def getstatusoutput(self, commandStr):
         # time stamp
-        timestamp = datetime.datetime.now(datetime.UTC).isoformat(" ")
+        timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat(" ")
         _logger.debug(f'{timestamp} start for "{commandStr}"')
         self.updateSummary("nQueued", 1)
         _logger.debug(f"{timestamp} getting lock")
