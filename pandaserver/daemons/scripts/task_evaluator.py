@@ -62,7 +62,7 @@ class TaskEvaluationDB(object):
         )
         sql_insert = """INSERT INTO ATLAS_PANDA.Task_Evaluation """ """VALUES ( """ """:taskID, :metric, :patch_value_json, :timestamp """ """) """
         # now
-        now_time = datetime.datetime.utcnow()
+        now_time = datetime.datetime.now(datetime.UTC)
         # get existing taskID list
         res = self.tbuf.querySQL(sql_query_taskid, {":metric": metric})
         existing_taskID_list = [taskID for (taskID,) in res]
@@ -124,7 +124,7 @@ class TaskEvaluationDB(object):
             """SELECT jediTaskID, value_json """ """FROM ATLAS_PANDA.Task_Evaluation """ """WHERE metric = :metric """ """AND timestamp >= :min_timestamp """
         )
         # now
-        now_time = datetime.datetime.utcnow()
+        now_time = datetime.datetime.now(datetime.UTC)
         # var map
         varMap = {
             ":metric": metric,
@@ -163,7 +163,7 @@ class TaskEvaluationDB(object):
             "AND te.timestamp <= :max_timestamp "
         )
         # now
-        now_time = datetime.datetime.utcnow()
+        now_time = datetime.datetime.now(datetime.UTC)
         # var map
         varMap = {
             ":metric": metric,
@@ -209,7 +209,7 @@ class FetchData(object):
             # tmp_site_dict = dict()
             task_dict = dict()
             # now time
-            now_time = datetime.datetime.utcnow()
+            now_time = datetime.datetime.now(datetime.UTC)
             # MetricsDB
             mdb = MetricsDB(self.tbuf)
             # get user evaluation

@@ -6,7 +6,7 @@ import json
 def make_message(msg_type, **kwargs):
     msg_dict = {"msg_type": msg_type}
     msg_dict.update(kwargs)
-    msg_dict["timestamp"] = int(datetime.datetime.utcnow().timestamp())
+    msg_dict["timestamp"] = int(datetime.datetime.now(datetime.UTC).timestamp())
     return json.dumps(msg_dict)
 
 

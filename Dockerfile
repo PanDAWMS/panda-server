@@ -50,6 +50,7 @@ RUN rm -rf /tmp/src
 
 RUN mkdir -p /etc/panda
 RUN mkdir -p /etc/idds
+RUN mkdir -p /etc/rc.d/init.d
 RUN mv /opt/panda/etc/panda/panda_common.cfg.rpmnew /etc/panda/panda_common.cfg
 RUN mv /opt/panda/etc/panda/panda_server.cfg.rpmnew /etc/panda/panda_server.cfg
 RUN mv /opt/panda/etc/panda/panda_server.sysconfig.rpmnew /etc/sysconfig/panda_server
