@@ -36,7 +36,7 @@ try:
     options.olderThan = int(options.olderThan)
 except Exception:
     pass
-timeLimit = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=options.olderThan)
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=options.olderThan)
 varMap = {}
 if options.assigned:
     varMap[":jobStatus"] = "assigned"

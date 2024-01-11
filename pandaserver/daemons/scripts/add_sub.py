@@ -28,7 +28,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     tmp_log.debug("===================== start =====================")
 
     # current minute
-    current_minute = datetime.datetime.now(datetime.timezone.utc).minute
+    current_minute = datetime.datetime.utcnow().minute
 
     # instantiate TB
     if tbuf is None:
@@ -71,7 +71,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # count # of getJob/updateJob in dispatcher's log
     try:
         # don't update when logrotate is running
-        timeNow = datetime.datetime.now(datetime.timezone.utc)
+        timeNow = datetime.datetime.utcnow()
         logRotateTime = timeNow.replace(hour=3, minute=2, second=0, microsecond=0)
         if (timeNow > logRotateTime and (timeNow - logRotateTime) < datetime.timedelta(minutes=5)) or (
             logRotateTime > timeNow and (logRotateTime - timeNow) < datetime.timedelta(minutes=5)
@@ -81,8 +81,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             # log filename
             dispLogName = f"{panda_config.logdir}/panda-PilotRequests.log"
             # time limit
-            timeLimit = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=3)
-            timeLimitS = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1)
+            timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
+            timeLimitS = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
             # check if tgz is required
             com = f"head -1 {dispLogName}"
             lostat, loout = commands_get_status_output(com)
@@ -102,7 +102,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             # delete tmp
             commands_get_status_output(f"rm -f {dispLogName}.tmp-*")
             # tmp name
-            tmp_logName = f"{dispLogName}.tmp-{datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d-%H-%M-%S')}"
+            tmp_logName = f"{dispLogName}.tmp-{datetime.datetime.utcnow().strftime('%Y-%m-%d-%H-%M-%S')}"
             # loop over all files
             pilotCounts = {}
             pilotCountsS = {}
@@ -279,7 +279,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
 
     # loop over all files
     forkThrList = []
-    timeNow = datetime.datetime.now(datetime.timezone.utc)
+    timeNow = datetime.datetime.utcnow()
     for tmpName in fileList:
         if not os.path.exists(tmpName):
             continue

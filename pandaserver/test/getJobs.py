@@ -33,12 +33,12 @@ class Thr(threading.Thread):
         threading.Thread.__init__(self)
 
     def run(self):
-        print(datetime.datetime.now(datetime.timezone.utc).isoformat(" "))
+        print(datetime.datetime.utcnow().isoformat(" "))
         conn = HTTPSConnection(host, key_file=certKey, cert_file=certKey)
         conn.request("POST", path, rdata)
         resp = conn.getresponse()
         data = resp.read()
-        print(datetime.datetime.now(datetime.timezone.utc).isoformat(" "))
+        print(datetime.datetime.utcnow().isoformat(" "))
         print(parse_qs(data))
 
 

@@ -53,7 +53,7 @@ if options.forceKill:
 jobs = []
 jediJobs = []
 
-timeLimit = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=options.limit)
+timeLimit = datetime.datetime.utcnow() - datetime.timedelta(minutes=options.limit)
 varMap = {}
 varMap[":modificationTime"] = timeLimit
 varMap[":taskID"] = taskid

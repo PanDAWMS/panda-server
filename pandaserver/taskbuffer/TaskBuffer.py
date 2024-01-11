@@ -1248,7 +1248,7 @@ class TaskBuffer:
             second=int(match.group(6)),
         )
         # max range is 3 months
-        maxRange = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=30)
+        maxRange = datetime.datetime.utcnow() - datetime.timedelta(days=30)
         if timeRange < maxRange:
             timeRange = maxRange
         retJobIDs = []
@@ -1259,7 +1259,7 @@ class TaskBuffer:
         # release proxy
         self.proxyPool.putProxy(proxy)
         # read ARCH when time window is more than 3days (- 3 hours as a margin)
-        if timeRange < datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=2, hours=21):
+        if timeRange < datetime.datetime.utcnow() - datetime.timedelta(days=2, hours=21):
             # get ArchiveDBproxy
             proxy = self.proxyPool.getProxy()
             # get JobIDs
@@ -2836,7 +2836,7 @@ class TaskBuffer:
             second=int(match.group(6)),
         )
         # max range is 3 months
-        maxRange = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=30)
+        maxRange = datetime.datetime.utcnow() - datetime.timedelta(days=30)
         if timeRange < maxRange:
             timeRange = maxRange
         # get proxy
