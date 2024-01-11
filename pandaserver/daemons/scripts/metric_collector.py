@@ -38,7 +38,7 @@ def get_now_time_str():
     """
     Return string of nowtime that can be stored in DB
     """
-    now_time = datetime.datetime.utcnow()
+    now_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     ts_str = now_time.strftime("%Y-%m-%d %H:%M:%S")
     return ts_str
 
@@ -72,7 +72,7 @@ def get_site_strr_stats(tbuf, time_window=21600, cutoff=300):
     # log
     tmp_log = logger_utils.make_logger(main_logger, "get_site_strr_stats")
     # timestamps
-    current_time = datetime.datetime.utcnow()
+    current_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     starttime_max = current_time - datetime.timedelta(seconds=cutoff)
     starttime_min = current_time - datetime.timedelta(seconds=time_window)
     # rounded with 10 minutes
@@ -171,7 +171,7 @@ class MetricsDB(object):
         )
         sql_insert = """INSERT INTO ATLAS_PANDA.Metrics """ """VALUES ( """ """:site, :gshare, :metric, :patch_value_json, :timestamp """ """) """
         # now
-        now_time = datetime.datetime.utcnow()
+        now_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         # var map template
         varMap_template = {
             ":site": None,
@@ -259,7 +259,7 @@ class MetricsDB(object):
             """SELECT computingSite, gshare, value_json """ """FROM ATLAS_PANDA.Metrics """ """WHERE metric = :metric """ """AND timestamp >= :min_timestamp """
         )
         # now
-        now_time = datetime.datetime.utcnow()
+        now_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         # var map
         varMap = {
             ":metric": metric,
@@ -348,7 +348,7 @@ class FetchData(object):
             # initialize
             tmp_site_dict = dict()
             # now time
-            now_time = datetime.datetime.utcnow()
+            now_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             # get user jobs
             varMap = {
                 ":modificationTime": now_time - datetime.timedelta(days=4),

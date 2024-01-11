@@ -31,7 +31,7 @@ def main(argv=tuple(), **kwargs):
     tmpPatts = ["/tmp/tmp*", "/tmp/atlpan/tmp*", "/tmp/pansrv/tmp*"]
 
     # limit
-    timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=options.limit)
+    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=options.limit)
 
     # loop over all pattern
     for tmpPatt in tmpPatts:

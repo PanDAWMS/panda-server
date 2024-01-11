@@ -8,7 +8,7 @@ from pandaserver.config import panda_config
 from pandaserver.taskbuffer.OraDBProxy import DBProxy
 
 # time limit
-timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=1)
 
 # instantiate DB proxies
 proxyS = DBProxy()

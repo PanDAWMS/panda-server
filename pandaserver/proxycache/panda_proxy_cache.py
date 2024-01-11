@@ -59,7 +59,9 @@ class MyProxyInterface(object):
         proxy_path = os.path.join(self.__target_path, hashlib.sha1((user_dn + ".plain").encode("utf-8")).hexdigest())
         # check if empty dummy file
         if os.path.exists(proxy_path) and os.stat(proxy_path).st_size == 0:
-            if datetime.datetime.utcnow() - datetime.datetime.utcfromtimestamp(os.path.getctime(proxy_path)) < datetime.timedelta(hours=1):
+            if datetime.datetime.now(datetime.timezone.utc) - datetime.datetime.fromtimestamp(
+                os.path.getctime(proxy_path), datetime.timezone.utc
+            ) < datetime.timedelta(hours=1):
                 log_stream.info(f"skip too early to try again according to timestamp of {proxy_path}")
                 return 2
         cmd = f"myproxy-logon -s {server_name} --no_passphrase --out {proxy_path} -l '{user_dn}' -k {cred_name} -t 0"
