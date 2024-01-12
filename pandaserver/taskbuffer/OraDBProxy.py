@@ -588,19 +588,18 @@ class DBProxy:
 
             # get jobsetID for event service
             if origEsJob:
-                if self.backend == "oracle":
-                    sqlESS = "SELECT ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ.nextval FROM dual "
-                    self.cur.arraysize = 10
-                    self.cur.execute(sqlESS + comment, {})
-                    (job.jobsetID,) = self.cur.fetchone()
-                else:
-                    # panda_config.backend == 'mysql':
+                if self.backend == "mysql":
                     # fake sequence
                     sql = " INSERT INTO ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ (col) VALUES (NULL) "
                     self.cur.arraysize = 10
                     self.cur.execute(sql + comment, {})
                     sql2 = """ SELECT LAST_INSERT_ID() """
                     self.cur.execute(sql2 + comment, {})
+                    (job.jobsetID,) = self.cur.fetchone()
+                else:
+                    sqlESS = "SELECT ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ.nextval FROM dual "
+                    self.cur.arraysize = 10
+                    self.cur.execute(sqlESS + comment, {})
                     (job.jobsetID,) = self.cur.fetchone()
 
             # check input
