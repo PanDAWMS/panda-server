@@ -90,7 +90,7 @@ def putFile(panda_request: PandaRequest, file: FileStorage) -> str:
         string: "True" if the upload was successful, otherwise an error message.
     """
 
-    tmp_log = LogWrapper(_logger, f"putFile-{datetime.datetime.now(datetime.UTC).isoformat('/')}")
+    tmp_log = LogWrapper(_logger, f"putFile-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
 
     # check if using secure connection and the proxy is not limited
     if not Protocol.isSecure(panda_request):
@@ -242,7 +242,7 @@ def putEventPickingRequest(
     tmp_log = LogWrapper(_logger, f"putEventPickingRequest {user_name}")
     tmp_log.debug("start")
 
-    creation_time = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S")
+    creation_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
 
     # get total size
     try:
@@ -327,7 +327,7 @@ def put_file_recovery_request(panda_request: PandaRequest, jediTaskID: str, dryR
     if not Protocol.isSecure(panda_request):
         return json.dumps((False, ERROR_NOT_SECURE))
     user_name = panda_request.subprocess_env["SSL_CLIENT_S_DN"]
-    creation_time = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S")
+    creation_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
 
     tmp_log = LogWrapper(_logger, f"put_file_recovery_request < jediTaskID={jediTaskID}")
     tmp_log.debug(f"start user={user_name}")
@@ -374,7 +374,7 @@ def put_workflow_request(panda_request: PandaRequest, data: str, check: bool = F
         return json.dumps((False, ERROR_NOT_SECURE))
 
     user_name = panda_request.subprocess_env["SSL_CLIENT_S_DN"]
-    creation_time = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S")
+    creation_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
 
     tmp_log = LogWrapper(_logger, "put_workflow_request")
 

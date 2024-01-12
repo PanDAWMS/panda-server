@@ -232,7 +232,7 @@ def application(environ, start_response):
     json_body = environ.get("CONTENT_TYPE", None) == "application/json"
     tmp_log.debug(f"start content-length={cont_length} json={json_body}")
 
-    start_time = datetime.datetime.now(datetime.UTC)
+    start_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     return_type = None
 
     # check method name is allowed, otherwise return 403
@@ -356,7 +356,7 @@ def application(environ, start_response):
         tmp_log.debug("done")
 
     # log execution time and return length
-    duration = datetime.datetime.now(datetime.UTC) - start_time
+    duration = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
     tmp_log.info("exec_time=%s.%03d sec, return len=%s B" % (duration.seconds, duration.microseconds / 1000, len(str(exec_result))))
 
     # start the response and return result
