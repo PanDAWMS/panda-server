@@ -18601,7 +18601,7 @@ class DBProxy:
                 total = sum([entry[1] for entry in memory_stats])
                 above_task = sum(tuple[1] for tuple in filter(lambda entry: entry[0] > task_ram_count, memory_stats))
                 max_task = max([entry[0] for entry in memory_stats])
-                tmp_logger.debug(f"#increased_files: {above_task}; #total_files: {total}")
+                tmp_logger.debug(f"Current task statistics: #increased_files: {above_task}; #total_files: {total}")
 
                 # normalize the job ram-count by base ram count and number of cores
                 try:
