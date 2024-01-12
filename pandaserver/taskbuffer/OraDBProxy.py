@@ -18577,15 +18577,8 @@ class DBProxy:
                     core_count = 1
 
                 tmp_logger.debug(
-                    "RAM limit task={1}{2} cores={3} baseRamCount={4} job={5}{6} jobPSS={7}kB".format(
-                        task_ram_count,
-                        task_ram_unit,
-                        core_count,
-                        task_base_ram_count,
-                        job_ram_count,
-                        job.minRamUnit,
-                        job.maxPSS,
-                    )
+                    f"RAM limit task={task_ram_count}{task_ram_unit} cores={core_count} baseRamCount={task_base_ram_count} "
+                    f"job={job_ram_count}{job.minRamUnit} jobPSS={job.maxPSS}kB"
                 )
 
                 # If more than x% of the task's jobs needed a memory increase, increase the task's memory instead
@@ -18596,17 +18589,11 @@ class DBProxy:
                     i += 1
                 input_type_bindings = ",".join(f":type{i}" for i in range(len(input_types)))
 
-                sql_get_memory_stats = """
-                         SELECT ramCount, count(*)
-                         FROM {0}.JEDI_Datasets tabD,{0}.JEDI_Dataset_Contents tabC
-                         WHERE tabD.jediTaskID=tabC.jediTaskID
-                         AND tabD.datasetID=tabC.datasetID
-                         AND tabD.jediTaskID=:jediTaskID
-                         AND tabD.type IN ({1})
-                         AND tabD.masterID IS NULL
-                         GROUP BY ramCount
-                         """.format(
-                    panda_config.schemaJEDI, input_type_bindings
+                sql_get_memory_stats = (
+                    f"SELECT ramCount, count(*) "
+                    f"FROM {panda_config.schemaJEDI}.JEDI_Datasets tabD, {panda_config.schemaJEDI}.JEDI_Dataset_Contents tabC "
+                    f"WHERE tabD.jediTaskID=tabC.jediTaskID AND tabD.datasetID=tabC.datasetID AND tabD.jediTaskID=:jediTaskID "
+                    f"AND tabD.type IN ({input_type_bindings}) AND tabD.masterID IS NULL GROUP BY ramCount"
                 )
 
                 self.cur.execute(sql_get_memory_stats + comment, var_map)
@@ -18664,10 +18651,10 @@ class DBProxy:
                     var_map[":datasetID"] = dataset_id
                     var_map[":fileID"] = file_id
 
-                    sql_get_update_ram_job = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
-                    sql_get_update_ram_job += "SET ramCount=:ramCount "
-                    sql_get_update_ram_job += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-                    sql_get_update_ram_job += "AND ramCount<:ramCount "
+                    sql_get_update_ram_job = (
+                        f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents SET ramCount=:ramCount "
+                        f"WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND ramCount<:ramCount "
+                    )
 
                     self.cur.execute(sql_get_update_ram_job + comment, var_map)
                     tmp_logger.debug(
