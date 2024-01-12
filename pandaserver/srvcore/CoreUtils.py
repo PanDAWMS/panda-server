@@ -113,7 +113,7 @@ class CachedObject:
         # cached object
         self.cachedObj = None
         # datetime of last updated
-        self.lastUpdated = datetime.datetime.now(datetime.UTC)
+        self.lastUpdated = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         # update frequency
         self.timeInterval = datetime.timedelta(seconds=time_interval)
         # lock
@@ -128,7 +128,7 @@ class CachedObject:
         # lock
         self.lock.acquire()
         # get current datetime
-        current = datetime.datetime.now(datetime.UTC)
+        current = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         # update if old
         if self.cachedObj is None or current - self.lastUpdated > self.timeInterval:
             self.log_stream.debug(f"PID={os.getpid()} renewing {self.name} cache")

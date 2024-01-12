@@ -1,7 +1,7 @@
 import sys
 import threading
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.config import panda_config
@@ -603,7 +603,7 @@ class NetworkConfigurator(threading.Thread):
         sites_list = self.taskBuffer.configurator_read_sites()
 
         # Ignore outdated values
-        latest_validity = datetime.now(datetime.UTC) - timedelta(minutes=30)
+        latest_validity = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=30)
 
         for src_dst in self.nws_dump:
             try:

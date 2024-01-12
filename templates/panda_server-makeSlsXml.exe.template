@@ -311,7 +311,7 @@ def registration_time(timeSlice=False, onlyDQ2=False):
 
 def filelookup_time(timeSlice=False):
     aveRegTime = "0.0"
-    timeNow = datetime.datetime.now(datetime.UTC)
+    timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     try:
         com = "grep took /var/log/panda/panda-broker_util.log | grep file | grep -v 'for 1 LFNs' | grep -v 'for 2 LFNs'"
         if not timeSlice:
@@ -386,7 +386,7 @@ def error_mail(host, message):
 def count_finished_callback():
     nJobs = 0
     try:
-        timeNow = datetime.datetime.now(datetime.UTC)
+        timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         output = subprocess.Popen("grep 'all files ready' /var/log/panda/panda-Finisher.log", stdout=subprocess.PIPE, shell=True).communicate()[0]
         pandaIDs = []
         for line in output.split("\n"):
@@ -411,7 +411,7 @@ def count_finished_callback():
 def count_finished_catalogcheck():
     nJobs = 0
     try:
-        timeNow = datetime.datetime.now(datetime.UTC)
+        timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         output = subprocess.Popen("grep Finish /var/log/panda/panda-datasetManager.log | grep -v Wait", stdout=subprocess.PIPE, shell=True).communicate()[0]
         pandaIDs = []
         for line in output.split("\n"):

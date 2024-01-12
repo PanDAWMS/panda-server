@@ -43,7 +43,7 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
     retry_interval = 1
 
     # last recovery time
-    last_recovery = datetime.datetime.now(datetime.UTC) + datetime.timedelta(seconds=random.randint(0, 30))
+    last_recovery = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(seconds=random.randint(0, 30))
 
     # instantiate TB
     if tbuf is None:
@@ -77,8 +77,8 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
             taskBuffer = self.taskBuffer
             aSiteMapper = self.aSiteMapper
             # get file list
-            timeNow = datetime.datetime.now(datetime.UTC)
-            timeInt = datetime.datetime.now(datetime.UTC)
+            timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            timeInt = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             # unique pid
             GenericThread.__init__(self)
             uniq_pid = self.get_pid()
@@ -167,7 +167,7 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
     recover_dataset_update = False
     for iLoop in range(10):
         tmpLog.debug(f"start iLoop={iLoop}/{nLoop}")
-        start_time = datetime.datetime.now(datetime.UTC)
+        start_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         adderThrList = []
         nThr = 10
 
@@ -223,7 +223,7 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
             # thr.join()
             thr.proc_join()
         [tbuf.cleanup(requester=requester_id) for tbuf in tbuf_list]
-        end_time = datetime.datetime.now(datetime.UTC)
+        end_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         sleep_time = interval - (end_time - start_time).seconds
         if sleep_time > 0 and iLoop + 1 < nLoop:
             sleep_time = random.randint(1, sleep_time)
@@ -231,9 +231,9 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
             time.sleep(sleep_time)
 
         # recovery
-        if datetime.datetime.now(datetime.UTC) - last_recovery > datetime.timedelta(minutes=2):
+        if datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - last_recovery > datetime.timedelta(minutes=2):
             taskBuffer.async_update_datasets(None)
-            last_recovery = datetime.datetime.now(datetime.UTC)
+            last_recovery = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             recover_dataset_update = True
 
     # recovery

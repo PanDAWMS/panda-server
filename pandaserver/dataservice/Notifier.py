@@ -383,7 +383,7 @@ class Notifier:
             if mailAddrInDB.split(":")[0] == "notsend":
                 notSendMail = True
         # avoid too frequently lookup
-        if dbUptime is not None and datetime.datetime.now(datetime.UTC) - dbUptime < datetime.timedelta(hours=1):
+        if dbUptime is not None and datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - dbUptime < datetime.timedelta(hours=1):
             _logger.debug("no lookup")
             if notSendMail or mailAddrInDB in [None, ""]:
                 return "notsend"
