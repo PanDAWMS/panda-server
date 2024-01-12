@@ -18582,7 +18582,7 @@ class DBProxy:
 
             tmp_logger.debug(
                 f"RAM limit task={task_ram_count}{task_ram_unit} cores={core_count} baseRamCount={task_base_ram_count} "
-                f"job={job_ram_count}{job.minRamUnit} jobPSS={job.maxPSS}kB"
+                f"job={job_ram_count}{job.minRamUnit} jobPSS={job.maxPSS/1024}MB"
             )
 
             # If more than x% of the task's jobs needed a memory increase, increase the task's memory instead
