@@ -33,7 +33,8 @@ dependencies = [
     'packaging',
     'snakemake==6.15.5',
     'numpy',
-    'scipy'
+    'scipy',
+    'werkzeug'
 ]
 
 [project.optional-dependencies]
