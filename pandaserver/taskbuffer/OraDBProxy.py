@@ -18619,10 +18619,12 @@ class DBProxy:
 
             # increase task limit in case >30% of the jobs were increased and the task is not fixed
             if task_ram_unit != "MBPerCoreFixed" and (1.0 * above_task) / total > 0.3:
+                minimum_ram = 0
                 if normalized_job_ram_count and normalized_job_ram_count > minimum_ram:
                     minimum_ram = normalized_job_ram_count
                 if max_task > minimum_ram:
                     minimum_ram = max_task - 1  # otherwise we go over the max_task step
+
                 if minimum_ram:
                     tmp_logger.debug(f"calling increaseRamLimitJEDI with minimum_ram {minimum_ram}")
                     return self.increaseRamLimitJEDI(jedi_task_id, minimum_ram)
