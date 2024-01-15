@@ -18,6 +18,8 @@ PROD_PS = "managed"
 ANALY_TASKTYPE = "anal"
 PROD_TASKTYPE = "prod"
 
+MEMORY_COMPENSATION = 0.9
+
 job_labels = [ANALY_PS, PROD_PS]
 
 # priority of tasks to jumbo over others
@@ -173,10 +175,17 @@ def parseNumStandby(catchall):
 
 # compensate memory count to prevent jobs with ramCount close to the HIMEM border from going to HIMEM PQs
 def compensate_ram_count(ram_count):
-    if ram_count == "NULL":
-        ram_count = None
-    if ram_count is not None:
-        ram_count = int(ram_count * 0.90)
+    if ram_count in ("NULL", None):
+        return None
+    ram_count = int(ram_count * MEMORY_COMPENSATION)
+    return ram_count
+
+
+# undo the memory count compensation
+def decompensate_ram_count(ram_count):
+    if ram_count in ("NULL", None):
+        return None
+    ram_count = int(ram_count / MEMORY_COMPENSATION)
     return ram_count
 
 

@@ -1,7 +1,3 @@
-"""
-utility service
-
-"""
 import datetime
 import gzip
 import json
@@ -12,132 +8,195 @@ import sys
 import traceback
 import uuid
 import zlib
+from typing import Generator
 
-import pandaserver.jobdispatcher.Protocol as Protocol
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.config import panda_config
+from pandaserver.jobdispatcher import Protocol
 from pandaserver.srvcore import CoreUtils
+from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.userinterface import Client
+from werkzeug.datastructures import FileStorage
 
 _logger = PandaLogger().getLogger("Utils")
 
 IGNORED_SUFFIX = [".out"]
 
+# File size limits
+MB = 1024 * 1024
+EVENT_PICKING_LIMIT = 10 * MB
+LOG_LIMIT = 100 * MB
+CHECKPOINT_LIMIT = 500 * MB
+SANDBOX_NO_BUILD_LIMIT = 100 * MB
+SANDBOX_LIMIT = 768 * MB
 
-# check if server is alive
-def isAlive(req):
+# Error messages
+ERROR_NOT_SECURE = "ERROR : no HTTPS"
+ERROR_LIMITED_PROXY = "ERROR: rejected due to the usage of limited proxy"
+ERROR_OVERWRITE = "ERROR: cannot overwrite file"
+ERROR_WRITE = "ERROR: cannot write file"
+ERROR_SIZE_LIMIT = "ERROR: upload failure. Exceeded size limit"
+
+
+def isAlive(panda_request: PandaRequest) -> str:
+    """
+    Check if the server is alive. Basic function for the health check and used in SLS monitoring.
+
+    Args:
+        panda_request (PandaRequest): PanDA request object.
+
+    Returns:
+        str: "alive=yes"
+    """
     return "alive=yes"
 
 
-# upload file
-def putFile(req, file):
-    tmpLog = LogWrapper(_logger, f"putFile-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
-    if not Protocol.isSecure(req):
-        tmpLog.error("No SSL_CLIENT_S_DN")
-        return False
-    if "/CN=limited proxy" in req.subprocess_env["SSL_CLIENT_S_DN"]:
-        return False
-    # user name
-    username = CoreUtils.clean_user_id(req.subprocess_env["SSL_CLIENT_S_DN"])
+def get_content_length(panda_request: PandaRequest, tmp_log: LogWrapper) -> int:
+    """
+    Get the content length of the request.
+
+    Args:
+        panda_request (PandaRequest): PanDA request object.
+        tmp_log (LogWrapper): logger object of the calling function.
+
+    Returns:
+        int: content length of the request.
+    """
+    content_length = 0
     tmpLog.debug(f"start {username} {file.filename}")
-    # size check
-    fullSizeLimit = 768 * 1024 * 1024
-    if not file.filename.startswith("sources."):
-        noBuild = True
-        sizeLimit = 100 * 1024 * 1024
-    else:
-        noBuild = False
-        sizeLimit = fullSizeLimit
-    # get file size
-    contentLength = 0
     try:
-        contentLength = int(req.headers_in["content-length"])
+        content_length = int(panda_request.headers_in["content-length"])
     except Exception:
-        if "content-length" in req.headers_in:
-            tmpLog.error(f"cannot get CL : {req.headers_in['content-length']}")
+        if "content-length" in panda_request.headers_in:
+            tmp_log.error(f"cannot get content_length: {panda_request.headers_in['content-length']}")
         else:
-            tmpLog.error("no CL")
-    tmpLog.debug(f"size {contentLength}")
-    if contentLength > sizeLimit:
-        errStr = f"ERROR : Upload failure. Exceeded size limit {contentLength}>{sizeLimit}."
-        if noBuild:
-            errStr += " Please submit the job without --noBuild/--libDS since those options impose a tighter size limit"
+            tmp_log.error("no content_length for {method_name}")
+
+    tmp_log.debug(f"size {content_length}")
+    return content_length
+
+
+# upload file
+def putFile(panda_request: PandaRequest, file: FileStorage) -> str:
+    """
+    Upload a file to the server.
+
+    Args:
+        panda_request (PandaRequest): PanDA request object.
+        file (FileStorage): werkzeug.FileStorage object to be uploaded.
+
+    Returns:
+        string: "True" if the upload was successful, otherwise an error message.
+    """
+
+    tmp_log = LogWrapper(_logger, f"putFile-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+
+    # check if using secure connection and the proxy is not limited
+    if not Protocol.isSecure(panda_request):
+        return ERROR_NOT_SECURE
+    if "/CN=limited proxy" in panda_request.subprocess_env["SSL_CLIENT_S_DN"]:
+        return ERROR_LIMITED_PROXY
+
+    # user name
+    user_name = CoreUtils.clean_user_id(panda_request.subprocess_env["SSL_CLIENT_S_DN"])
+    tmp_log.debug(f"start {user_name} {file.filename}")
+
+    # get file size limit
+    if not file.filename.startswith("sources."):
+        no_build = True
+        size_limit = SANDBOX_NO_BUILD_LIMIT
+    else:
+        no_build = False
+        size_limit = SANDBOX_LIMIT
+
+    # get actual file size
+    content_length = get_content_length(panda_request, tmp_log)
+
+    # check if we are above the size limit
+    if content_length > size_limit:
+        error_message = f"{ERROR_SIZE_LIMIT} {content_length}>{size_limit}."
+        if no_build:
+            error_message += " Please submit the job without --noBuild/--libDS since those options impose a tighter size limit"
         else:
-            errStr += " Please remove redundant files from your workarea"
-        tmpLog.error(errStr)
-        tmpLog.debug("end")
-        return errStr
+            error_message += " Please remove redundant files from your work area"
+        tmp_log.error(error_message)
+        tmp_log.debug("end")
+        return error_message
+
+    # write to file
     try:
-        fileName = file.filename.split("/")[-1]
-        fileFullPath = f"{panda_config.cache_dir}/{fileName}"
+        file_name = file.filename.split("/")[-1]
+        full_path = f"{panda_config.cache_dir}/{file_name}"
 
         # avoid overwriting
-        if os.path.exists(fileFullPath) and file.filename.split(".")[-1] != "__ow__":
+        if os.path.exists(full_path) and file.filename.split(".")[-1] != "__ow__":
             # touch
-            os.utime(fileFullPath, None)
+            os.utime(full_path, None)
             # send error message
-            errStr = "ERROR : Cannot overwrite file"
-            tmpLog.debug(f"cannot overwrite file {fileName}")
-            tmpLog.debug("end")
-            return errStr
-        # write
-        fo = open(fileFullPath, "wb")
-        fileContent = file.file.read()
-        if hasattr(panda_config, "compress_file_names") and [
-            True for patt in panda_config.compress_file_names.split(",") if re.search(patt, fileName) is not None
-        ]:
-            fileContent = gzip.compress(fileContent)
-        fo.write(fileContent)
-        fo.close()
+            error_message = ERROR_OVERWRITE
+            tmp_log.debug(f"{ERROR_OVERWRITE} {file_name}")
+            tmp_log.debug("end")
+            return error_message
+
+        # write the file to the cache directory
+        with open(full_path, "wb") as file_object:
+            file_content = file.read()
+            if hasattr(panda_config, "compress_file_names") and [
+                True for patt in panda_config.compress_file_names.split(",") if re.search(patt, file_name) is not None
+            ]:
+                file_content = gzip.compress(file_content)
+            file_object.write(file_content)
+
     except Exception:
-        errStr = "ERROR : Cannot write file"
-        tmpLog.error(errStr)
-        tmpLog.debug("end")
-        return errStr
-    # checksum
+        error_message = ERROR_WRITE
+        tmp_log.error(error_message)
+        tmp_log.debug("end")
+        return error_message
+
+    # calculate the checksum
     try:
         # decode Footer
-        footer = fileContent[-8:]
-        checkSum, isize = struct.unpack("II", footer)
-        tmpLog.debug(f"CRC from gzip Footer {checkSum}")
+        footer = file_content[-8:]
+        checksum, _ = struct.unpack("II", footer)
+        tmp_log.debug(f"CRC from gzip Footer {checksum}")
     except Exception:
-        # calculate on the fly
-        """
-        import zlib
-        checkSum = zlib.adler32(fileContent) & 0xFFFFFFFF
-        """
         # use None to avoid delay for now
-        checkSum = None
-        tmpLog.debug(f"CRC calculated {checkSum}")
-    # file size
-    fileSize = len(fileContent)
-    tmpLog.debug(f"written dn={username} file={fileFullPath} size={fileSize} crc={checkSum}")
-    # put file info to DB
+        checksum = None
+        tmp_log.debug(f"No CRC calculated {checksum}")
+
+    # calculate the file size
+    file_size = len(file_content)
+
+    # log the full file information
+    tmp_log.debug(f"written dn={user_name} file={full_path} size={file_size} crc={checksum}")
+
+    # record the file information to DB
     if panda_config.record_sandbox_info:
+        # ignore some suffixes, e.g. out
         to_insert = True
         for patt in IGNORED_SUFFIX:
             if file.filename.endswith(patt):
                 to_insert = False
                 break
         if not to_insert:
-            tmpLog.debug("skipped to insert to DB")
+            tmp_log.debug("skipped to insert to DB")
         else:
-            statClient, outClient = Client.insertSandboxFileInfo(username, file.filename, fileSize, checkSum)
-            if statClient != 0 or outClient.startswith("ERROR"):
-                errStr = f"ERROR : failed to register sandbox to DB with {statClient} {outClient}"
-                tmpLog.error(errStr)
-                tmpLog.debug("end")
-                return errStr
-            else:
-                tmpLog.debug(f"inserted sandbox to DB with {outClient}")
-    tmpLog.debug("end")
-    return True
+            status_client, output_client = Client.insertSandboxFileInfo(user_name, file.filename, file_size, checksum)
+            if status_client != 0 or output_client.startswith("ERROR"):
+                error_message = f"ERROR : failed to register sandbox to DB with {status_client} {output_client}"
+                tmp_log.error(error_message)
+                tmp_log.debug("end")
+                return error_message
+
+            tmp_log.debug(f"inserted sandbox to DB with {output_client}")
+
+    tmp_log.debug("end")
+    return "True"
 
 
-# get event picking request
 def putEventPickingRequest(
-    req,
+    panda_request: PandaRequest,
     runEventList="",
     eventPickDataType="",
     eventPickStreamName="",
@@ -151,155 +210,234 @@ def putEventPickingRequest(
     userTaskName="",
     ei_api="",
     giveGUID=None,
-):
-    if not Protocol.isSecure(req):
-        return "ERROR : no HTTPS"
-    userName = req.subprocess_env["SSL_CLIENT_S_DN"]
-    creationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
-    _logger.debug(f"putEventPickingRequest : {userName} start")
-    # size check
-    sizeLimit = 10 * 1024 * 1024
+) -> str:
+    """
+    Upload event picking request to the server.
+
+    Args:
+        panda_request (PandaRequest): PanDA request object.
+        runEventList (str): run and event list.
+        eventPickDataType (str): data type.
+        eventPickStreamName (str): stream name.
+        eventPickDS (str): dataset name.
+        eventPickAmiTag (str): AMI tag.
+        userDatasetName (str): user dataset name.
+        lockedBy (str): locking agent.
+        params (str): parameters.
+        inputFileList (str): input file list.
+        eventPickNumSites (str): number of sites.
+        userTaskName (str): user task name.
+        ei_api (str): event index API.
+        giveGUID (str): give GUID.
+
+    Returns:
+        string: "True" if the upload was successful, otherwise an error message.
+
+    """
+    if not Protocol.isSecure(panda_request):
+        return ERROR_NOT_SECURE
+
+    user_name = panda_request.subprocess_env["SSL_CLIENT_S_DN"]
+
+    tmp_log = LogWrapper(_logger, f"putEventPickingRequest {user_name}")
+    tmp_log.debug("start")
+
+    creation_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
+
     # get total size
     try:
-        contentLength = int(req.headers_in["content-length"])
+        content_length = int(panda_request.headers_in["content-length"])
     except Exception:
-        errStr = "cannot get content-length from HTTP request."
-        _logger.error("putEventPickingRequest : " + errStr + " " + userName)
-        _logger.debug(f"putEventPickingRequest : {userName} end")
-        return "ERROR : " + errStr
-    _logger.debug(f"size {contentLength}")
-    if contentLength > sizeLimit:
-        errStr = f"Too large run/event list. Exceeded size limit {contentLength}>{sizeLimit}."
-        _logger.error("putEventPickingRequest : " + errStr + " " + userName)
-        _logger.debug(f"putEventPickingRequest : {userName} end")
-        return "ERROR : " + errStr
+        error_message = "cannot get content-length from HTTP request."
+        tmp_log.error(f"{error_message}")
+        tmp_log.debug("end")
+        return "ERROR : " + error_message
+    _logger.debug(f"size {content_length}")
+
+    if content_length > EVENT_PICKING_LIMIT:
+        error_message = f"Run/event list is too large. Exceeded size limit {content_length}>{EVENT_PICKING_LIMIT}."
+        tmp_log.error(f"{error_message} ")
+        tmp_log.debug("end")
+        return "ERROR : " + error_message
+
     if giveGUID == "True":
         giveGUID = True
     else:
         giveGUID = False
+
     try:
-        # make filename
-        evpFileName = f"{panda_config.cache_dir}/evp.{str(uuid.uuid4())}"
-        _logger.debug(f"putEventPickingRequest : {userName} -> {evpFileName}")
-        # write
-        fo = open(evpFileName, "w")
-        fo.write(f"userName={userName}\n")
-        fo.write(f"creationTime={creationTime}\n")
-        fo.write(f"eventPickDataType={eventPickDataType}\n")
-        fo.write(f"eventPickStreamName={eventPickStreamName}\n")
-        fo.write(f"eventPickDS={eventPickDS}\n")
-        fo.write(f"eventPickAmiTag={eventPickAmiTag}\n")
-        fo.write(f"eventPickNumSites={eventPickNumSites}\n")
-        fo.write(f"userTaskName={userTaskName}\n")
-        fo.write(f"userDatasetName={userDatasetName}\n")
-        fo.write(f"lockedBy={lockedBy}\n")
-        fo.write(f"params={params}\n")
-        fo.write(f"inputFileList={inputFileList}\n")
-        fo.write(f"ei_api={ei_api}\n")
-        runEvtGuidMap = {}
-        for tmpLine in runEventList.split("\n"):
-            tmpItems = tmpLine.split()
-            if (len(tmpItems) != 2 and not giveGUID) or (len(tmpItems) != 3 and giveGUID):
+        # generate the filename
+        file_name = f"{panda_config.cache_dir}/evp.{str(uuid.uuid4())}"
+        _logger.debug(f"putEventPickingRequest : {user_name} -> {file_name}")
+
+        # write the information to file
+        file_content = (
+            f"userName={user_name}\n"
+            f"creationTime={creation_time}\n"
+            f"eventPickDataType={eventPickDataType}\n"
+            f"eventPickStreamName={eventPickStreamName}\n"
+            f"eventPickDS={eventPickDS}\n"
+            f"eventPickAmiTag={eventPickAmiTag}\n"
+            f"eventPickNumSites={eventPickNumSites}\n"
+            f"userTaskName={userTaskName}\n"
+            f"userDatasetName={userDatasetName}\n"
+            f"lockedBy={lockedBy}\n"
+            f"params={params}\n"
+            f"inputFileList={inputFileList}\n"
+            f"ei_api={ei_api}\n"
+        )
+
+        with open(file_name, "w") as file_object:
+            file_object.write(file_content)
+
+        run_event_guid_map = {}
+        for tmp_line in runEventList.split("\n"):
+            tmp_items = tmp_line.split()
+            if (len(tmp_items) != 2 and not giveGUID) or (len(tmp_items) != 3 and giveGUID):
                 continue
-            fo.write("runEvent=%s,%s\n" % tuple(tmpItems[:2]))
+            file_object.write("runEvent=%s,%s\n" % tuple(tmp_items[:2]))
             if giveGUID:
-                runEvtGuidMap[tuple(tmpItems[:2])] = [tmpItems[2]]
-        fo.write(f"runEvtGuidMap={str(runEvtGuidMap)}\n")
-        fo.close()
+                run_event_guid_map[tuple(tmp_items[:2])] = [tmp_items[2]]
+        file_object.write(f"runEvtGuidMap={str(run_event_guid_map)}\n")
+        file_object.close()
+
     except Exception:
-        errType, errValue = sys.exc_info()[:2]
-        errStr = f"cannot put request due to {errType} {errValue}"
-        _logger.error("putEventPickingRequest : " + errStr + " " + userName)
-        return "ERROR : " + errStr
-    _logger.debug(f"putEventPickingRequest : {userName} end")
-    return True
+        error_type, error_value = sys.exc_info()[:2]
+        error_message = f"cannot put request due to {error_type} {error_value}"
+        _logger.error(f"putEventPickingRequest : {error_message} {user_name}")
+        return f"ERROR : {error_message}"
+
+    _logger.debug(f"putEventPickingRequest : {user_name} end")
+    return "True"
 
 
 # upload lost file recovery request
-def put_file_recovery_request(req, jediTaskID, dryRun=None):
-    if not Protocol.isSecure(req):
-        return json.dumps((False, "ERROR : no HTTPS"))
-    userName = req.subprocess_env["SSL_CLIENT_S_DN"]
-    creationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
-    tmpLog = LogWrapper(_logger, f"put_file_recovery_request < jediTaskID={jediTaskID}")
-    tmpLog.debug(f"start user={userName}")
+def put_file_recovery_request(panda_request: PandaRequest, jediTaskID: str, dryRun: bool = None) -> str:
+    """
+    Upload lost file recovery request to the server.
+
+    Args:
+        panda_request (PandaRequest): PanDA request object.
+        jediTaskID (string): task ID.
+        dryRun (bool): dry run flag.
+
+    Returns:
+        string: String in json format with (boolean, message)
+    """
+    if not Protocol.isSecure(panda_request):
+        return json.dumps((False, ERROR_NOT_SECURE))
+    user_name = panda_request.subprocess_env["SSL_CLIENT_S_DN"]
+    creation_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
+
+    tmp_log = LogWrapper(_logger, f"put_file_recovery_request < jediTaskID={jediTaskID}")
+    tmp_log.debug(f"start user={user_name}")
     # get total size
     try:
-        jediTaskID = int(jediTaskID)
-        # make filename
-        evpFileName = f"{panda_config.cache_dir}/recov.{str(uuid.uuid4())}"
-        tmpLog.debug(f"file={evpFileName}")
-        # write
-        with open(evpFileName, "w") as fo:
+        jedi_task_id = int(jediTaskID)
+
+        # generate the filename
+        file_name = f"{panda_config.cache_dir}/recov.{str(uuid.uuid4())}"
+        tmp_log.debug(f"file={file_name}")
+
+        # write the file content
+        with open(file_name, "w") as file_object:
             data = {
-                "userName": userName,
-                "creationTime": creationTime,
-                "jediTaskID": int(jediTaskID),
+                "userName": user_name,
+                "creationTime": creation_time,
+                "jediTaskID": jedi_task_id,
             }
             if dryRun:
                 data["dryRun"] = True
-            json.dump(data, fo)
-    except Exception as e:
-        errStr = f"cannot put request due to {str(e)} "
-        tmpLog.error(errStr + traceback.format_exc())
-        return json.dumps((False, errStr))
-    tmpLog.debug("done")
+
+            json.dump(data, file_object)
+    except Exception as exc:
+        error_message = f"cannot put request due to {str(exc)} "
+        tmp_log.error(error_message + traceback.format_exc())
+        return json.dumps((False, error_message))
+
+    tmp_log.debug("done")
     return json.dumps((True, "request was accepted and will be processed in a few minutes"))
 
 
-# upload workflow request
-def put_workflow_request(req, data, check=False):
-    if not Protocol.isSecure(req):
-        return json.dumps((False, "ERROR : no HTTPS"))
-    userName = req.subprocess_env["SSL_CLIENT_S_DN"]
-    creationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
-    tmpLog = LogWrapper(_logger, "put_workflow_request")
-    tmpLog.debug(f"start user={userName} check={check}")
-    if check == "True" or check is True:
+def put_workflow_request(panda_request: PandaRequest, data: str, check: bool = False) -> str:
+    """
+    Upload workflow request to the server.
+    Args:
+        panda_request (PandaRequest): PanDA request object.
+        data (string): workflow request data.
+        check (bool): check flag.
+    Returns:
+        string: String in json format with (boolean, message)
+    """
+
+    if not Protocol.isSecure(panda_request):
+        return json.dumps((False, ERROR_NOT_SECURE))
+
+    user_name = panda_request.subprocess_env["SSL_CLIENT_S_DN"]
+    creation_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
+
+    tmp_log = LogWrapper(_logger, "put_workflow_request")
+
+    tmp_log.debug(f"start user={user_name} check={check}")
+
+    check = False
+    if check in ("True", True):
         check = True
-    else:
-        check = False
-    # get total size
+
     try:
-        # make filename
-        evpFileName = f"{panda_config.cache_dir}/workflow.{str(uuid.uuid4())}"
-        tmpLog.debug(f"file={evpFileName}")
+        # generate the filename
+        file_name = f"{panda_config.cache_dir}/workflow.{str(uuid.uuid4())}"
+        tmp_log.debug(f"file={file_name}")
+
         # write
-        with open(evpFileName, "w") as fo:
-            data = {
-                "userName": userName,
-                "creationTime": creationTime,
+        with open(file_name, "w") as file_object:
+            data_dict = {
+                "userName": user_name,
+                "creationTime": creation_time,
                 "data": json.loads(data),
             }
-            json.dump(data, fo)
+            json.dump(data_dict, file_object)
+
         # check
         if check:
-            tmpLog.debug("checking")
+            tmp_log.debug("checking")
             from pandaserver.taskbuffer.workflow_processor import WorkflowProcessor
 
             processor = WorkflowProcessor(log_stream=_logger)
-            ret = processor.process(evpFileName, True, True, True, True)
-            if os.path.exists(evpFileName):
+            ret = processor.process(file_name, True, True, True, True)
+            if os.path.exists(file_name):
                 try:
-                    os.remove(evpFileName)
+                    os.remove(file_name)
                 except Exception:
                     pass
-            tmpLog.debug("done")
+            tmp_log.debug("done")
             return json.dumps((True, ret))
-    except Exception as e:
-        errStr = f"cannot put request due to {str(e)} "
-        tmpLog.error(errStr + traceback.format_exc())
-        return json.dumps((False, errStr))
-    tmpLog.debug("done")
+
+    except Exception as exc:
+        error_message = f"cannot put request due to {str(exc)} "
+        tmp_log.error(error_message + traceback.format_exc())
+        return json.dumps((False, error_message))
+
+    tmp_log.debug("done")
     return json.dumps((True, "request was accepted and will be processed in a few minutes"))
 
 
 # delete file
-def deleteFile(req, file):
-    if not Protocol.isSecure(req):
-        return "False"
+def deleteFile(panda_request: PandaRequest, file: FileStorage) -> str:
+    """
+    Delete a file from the cache directory.
+    Args:
+        panda_request (PandaRequest): PanDA request object.
+        file (string): file name to be deleted
+
+    Returns:
+        string: String with "True" or "False"
+    """
+    if not Protocol.isSecure(panda_request):
+        return ERROR_NOT_SECURE
+
     try:
-        # may be reused for rebrokreage
+        # may be reused for re-brokerage
         # os.remove('%s/%s' % (panda_config.cache_dir,file.split('/')[-1]))
         return "True"
     except Exception:
@@ -307,158 +445,257 @@ def deleteFile(req, file):
 
 
 # touch file
-def touchFile(req, filename):
-    if not Protocol.isSecure(req):
+def touchFile(panda_request: PandaRequest, filename: str) -> str:
+    """
+    Touch a file in the cache directory.
+    Args:
+        panda_request (PandaRequest): PanDA request object.
+        filename (string): file name to be deleted
+
+    Returns:
+        string: String with "True" or "False"
+    """
+    if not Protocol.isSecure(panda_request):
         return "False"
+
     try:
         os.utime(f"{panda_config.cache_dir}/{filename.split('/')[-1]}", None)
         return "True"
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        _logger.error(f"touchFile : {errtype} {errvalue}")
+        error_type, error_value = sys.exc_info()[:2]
+        _logger.error(f"touchFile : {error_type} {error_value}")
         return "False"
 
 
 # get server name:port for SSL
-def getServer(req):
+def getServer(panda_request: PandaRequest) -> str:
+    """
+    Get the server name and port for HTTPS.
+    Args:
+        panda_request (PandaRequest): PanDA request object.
+
+    Returns:
+        string: String with server:port
+    """
     return f"{panda_config.pserverhost}:{panda_config.pserverport}"
 
 
 # get server name:port for HTTP
-def getServerHTTP(req):
+def getServerHTTP(panda_request: PandaRequest) -> str:
+    """
+    Get the HTTP server name and port for HTTP.
+    Args:
+        panda_request (PandaRequest): PanDA request object.
+
+    Returns:
+        string: String with server:port
+    """
     return f"{panda_config.pserverhosthttp}:{panda_config.pserverporthttp}"
 
 
-# update stdout
-def updateLog(req, file):
-    _logger.debug(f"updateLog : {file.filename} start")
+def updateLog(panda_request: PandaRequest, file: FileStorage) -> str:
+    """
+    Update the log file, appending more content at the end of the file.
+    Args:
+        panda_request (PandaRequest): PanDA request object.
+        file (FileStorage): werkzeug.FileStorage object to be updated.
+
+    Returns:
+        string: String with "True" or error message
+    """
+    tmp_log = LogWrapper(_logger, f"updateLog < {file.filename} >")
+    tmp_log.debug("start")
+
     # write to file
     try:
         # expand
-        extStr = zlib.decompress(file.file.read())
+        new_content = zlib.decompress(file.read())
+
         # stdout name
-        logName = f"{panda_config.cache_dir}/{file.filename.split('/')[-1]}"
-        # append
-        ft = open(logName, "a")
-        ft.write(extStr)
-        ft.close()
+        log_name = f"{panda_config.cache_dir}/{file.filename.split('/')[-1]}"
+
+        # append to file end
+        with open(log_name, "a") as file_object:
+            file_object.write(new_content)
+
     except Exception:
-        type, value, traceBack = sys.exc_info()
-        _logger.error(f"updateLog : {type} {value}")
-    _logger.debug(f"updateLog : {file.filename} end")
-    return True
+        error_type, error_value, _ = sys.exc_info()
+        tmp_log.error(f"{error_type} {error_value}")
+        return f"ERROR: cannot update file with {error_type} {error_value}"
+
+    tmp_log.debug("end")
+    return "True"
 
 
-# fetch stdout
-def fetchLog(req, logName, offset=0):
-    _logger.debug(f"fetchLog : {logName} start offset={offset}")
-    # put dummy char to avoid Internal Server Error
-    retStr = " "
-    try:
-        # stdout name
-        fullLogName = f"{panda_config.cache_dir}/{logName.split('/')[-1]}"
-        # read
-        ft = open(fullLogName, "r")
-        ft.seek(int(offset))
-        retStr += ft.read()
-        ft.close()
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        _logger.error(f"fetchLog : {type} {value}")
-    _logger.debug(f"fetchLog : {logName} end read={len(retStr)}")
-    return retStr
-
-
-# get VOMS attributes
-def getVomsAttr(req):
-    vomsAttrs = []
-    for tmpKey in req.subprocess_env:
-        tmpVal = req.subprocess_env[tmpKey]
-        # compact credentials
-        if tmpKey.startswith("GRST_CRED_"):
-            vomsAttrs.append(f"{tmpKey} : {tmpVal}\n")
-    vomsAttrs.sort()
-    retStr = ""
-    for tmpStr in vomsAttrs:
-        retStr += tmpStr
-    return retStr
-
-
-# get all attributes
-def getAttr(req, **kv):
-    allAttrs = []
-    for tmpKey in req.subprocess_env:
-        tmpVal = req.subprocess_env[tmpKey]
-        allAttrs.append(f"{tmpKey} : {tmpVal}\n")
-    allAttrs.sort()
-    retStr = "===== param =====\n"
-    kk = sorted(kv.keys())
-    for k in kk:
-        retStr += f"{k} = {kv[k]}\n"
-    retStr += "\n====== env ======\n"
-    for tmpStr in allAttrs:
-        retStr += tmpStr
-    return retStr
-
-
-# upload log
-def uploadLog(req, file):
-    if not Protocol.isSecure(req):
-        return False
-    if "/CN=limited proxy" in req.subprocess_env["SSL_CLIENT_S_DN"]:
-        return False
-    tmpLog = LogWrapper(_logger, f"uploadLog <{file.filename}>")
-    tmpLog.debug(f"start {req.subprocess_env['SSL_CLIENT_S_DN']}")
-    # size check
-    sizeLimit = 100 * 1024 * 1024
-    # get file size
-    contentLength = 0
-    try:
-        contentLength = int(req.headers_in["content-length"])
-    except Exception:
-        if "content-length" in req.headers_in:
-            tmpLog.error(f"cannot get CL : {req.headers_in['content-length']}")
-        else:
-            tmpLog.error("no CL")
-    tmpLog.debug(f"size {contentLength}")
-    if contentLength > sizeLimit:
-        errStr = "failed to upload log due to size limit"
-        tmpLog.error(errStr)
-        tmpLog.debug("end")
-        return errStr
-    jediLogDir = "/jedilog"
-    retStr = ""
-    try:
-        fileBaseName = file.filename.split("/")[-1]
-        fileFullPath = f"{panda_config.cache_dir}{jediLogDir}/{fileBaseName}"
-        # delete old file
-        if os.path.exists(fileFullPath):
-            os.remove(fileFullPath)
-        # write
-        fo = open(fileFullPath, "wb")
-        fileContent = file.file.read()
-        fo.write(fileContent)
-        fo.close()
-        tmpLog.debug(f"written to {fileFullPath}")
-        if panda_config.disableHTTP:
-            retStr = f"https://{getServer(None)}/cache{jediLogDir}/{fileBaseName}"
-        else:
-            retStr = f"http://{getServerHTTP(None)}/cache{jediLogDir}/{fileBaseName}"
-    except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"failed to write log with {errtype.__name__}:{errvalue}"
-        tmpLog.error(errStr)
-        tmpLog.debug("end")
-        return errStr
-    tmpLog.debug("end")
-    return retStr
-
-
-# partitions input into shards of a given size for bulk operations in the DB
-def create_shards(input_list, size):
+def fetchLog(panda_request: PandaRequest, logName: str, offset: int = 0) -> str:
     """
-    Creates shards of size n from the input list.
+    Fetch the log file, if required at a particular offset.
+    Args:
+        panda_request (PandaRequest): PanDA request object.
+        logName (string): log file name
+        offset (int): offset in the file
+
+    Returns:
+        string: String with the log content
+    """
+    tmp_log = LogWrapper(_logger, f"fetchLog <{logName}>")
+    tmp_log.debug(f"start offset={offset}")
+
+    # put dummy char to avoid Internal Server Error
+    return_string = " "
+    try:
+        # stdout name
+        full_log_name = f"{panda_config.cache_dir}/{logName.split('/')[-1]}"
+
+        # read at offset of the file
+        with open(full_log_name, "r") as file_object:
+            file_object.seek(int(offset))
+            return_string += file_object.read()
+
+    except Exception:
+        error_type, error_value, _ = sys.exc_info()
+        tmp_log.error(f"{error_type} {error_value}")
+
+    tmp_log.debug(f"end read={len(return_string)}")
+    return return_string
+
+
+def getVomsAttr(panda_request: PandaRequest) -> str:
+    """
+    Get the VOMS attributes in sorted order.
+    Args:
+        panda_request (PandaRequest): PanDA request object.
+
+    Returns:
+        string: String with the VOMS attributes
+    """
+    attributes = []
+
+    # Iterate over all the environment variables, keep only the ones related to GRST credentials (GRST: Grid Security Technology)
+    for tmp_key in panda_request.subprocess_env:
+        tmp_val = panda_request.subprocess_env[tmp_key]
+
+        # compact credentials
+        if tmp_key.startswith("GRST_CRED_"):
+            attributes.append(f"{tmp_key} : {tmp_val}\n")
+
+    return "".join(sorted(attributes))
+
+
+def getAttr(panda_request: PandaRequest, **kv: dict) -> str:
+    """
+    Get all parameters and environment variables from the environment.
+    Args:
+        panda_request (PandaRequest): PanDA request object.
+        kv (dict): dictionary with key-value pairs
+
+    Returns:
+        string: String with the attributes
+    """
+    # add the parameters
+    return_string = "===== param =====\n"
+    for tmp_key in sorted(kv.keys()):
+        tmp_val = kv[tmp_key]
+        return_string += f"{tmp_key} = {tmp_val}\n"
+
+    # add the environment variables
+    attributes = []
+    for tmp_key in panda_request.subprocess_env:
+        tmp_val = panda_request.subprocess_env[tmp_key]
+        attributes.append(f"{tmp_key} : {tmp_val}\n")
+
+    return_string += "\n====== env ======\n"
+    attributes.sort()
+    for attribute in sorted(attributes):
+        return_string += attribute
+
+    return return_string
+
+
+def uploadLog(panda_request: PandaRequest, file: FileStorage) -> str:
+    """
+    Upload a JEDI log file
+    Args:
+        panda_request (PandaRequest): PanDA request object.
+        file (FileStorage): werkzeug.FileStorage object to be uploaded.
+
+    Returns:
+        string: String with the URL to the file
+    """
+
+    if not Protocol.isSecure(panda_request):
+        return ERROR_NOT_SECURE
+    if "/CN=limited proxy" in panda_request.subprocess_env["SSL_CLIENT_S_DN"]:
+        return ERROR_LIMITED_PROXY
+
+    tmp_log = LogWrapper(_logger, f"uploadLog <{file.filename}>")
+    tmp_log.debug(f"start {panda_request.subprocess_env['SSL_CLIENT_S_DN']}")
+
+    # get file size
+    content_length = 0
+    try:
+        content_length = int(panda_request.headers_in["content-length"])
+    except Exception:
+        if "content-length" in panda_request.headers_in:
+            tmp_log.error(f"cannot get CL : {panda_request.headers_in['content-length']}")
+        else:
+            tmp_log.error("no CL")
+    tmp_log.debug(f"size {content_length}")
+
+    # check against the size limit for logs
+    if content_length > LOG_LIMIT:
+        error_message = ERROR_SIZE_LIMIT
+        tmp_log.error(error_message)
+        tmp_log.debug("end")
+        return error_message
+
+    jedi_log_directory = "/jedilog"
+    try:
+        file_base_name = file.filename.split("/")[-1]
+        full_path = f"{panda_config.cache_dir}{jedi_log_directory}/{file_base_name}"
+
+        # delete old file
+        if os.path.exists(full_path):
+            os.remove(full_path)
+
+        # write the new file
+        with open(full_path, "wb") as file_object:
+            file_content = file.read()
+            file_object.write(file_content)
+        tmp_log.debug(f"written to {full_path}")
+
+        # return the URL depending on the protocol
+        if panda_config.disableHTTP:
+            protocol = "https"
+            server = getServer(None)
+        else:
+            protocol = "http"
+            server = getServerHTTP(None)
+        return_string = f"{protocol}://{server}/cache{jedi_log_directory}/{file_base_name}"
+
+    except Exception:
+        error_type, error_value = sys.exc_info()[:2]
+        error_message = f"failed to write log with {error_type.__name__}:{error_value}"
+        tmp_log.error(error_message)
+        tmp_log.debug("end")
+        return error_message
+
+    tmp_log.debug("end")
+    return return_string
+
+
+def create_shards(input_list: list, size: int) -> Generator:
+    """
+    Partitions input into shards of a given size for bulk operations.
     @author: Miguel Branco in DQ2 Site Services code
+
+    Args:
+        input_list (list): list to be partitioned
+        size (int): size of the shards
+
+    Returns:
+        list: list of shards
+
     """
     shard, i = [], 0
     for element in input_list:
@@ -472,73 +709,114 @@ def create_shards(input_list, size):
         yield shard
 
 
-# checkpoint filename
-def get_checkpoint_filename(task_id, sub_id):
+def get_checkpoint_filename(task_id: str, sub_id: str) -> str:
+    """
+    Get the checkpoint file name.
+
+    Args:
+        task_id (str): task ID.
+        sub_id (str): sub ID.
+
+    Returns:
+        string: checkpoint file name.
+    """
     return f"hpo_cp_{task_id}_{sub_id}"
 
 
-# upload checkpoint file
-def put_checkpoint(req, file):
-    tmpLog = LogWrapper(_logger, f"put_checkpoint <jediTaskID_subID={file.filename}>")
+def put_checkpoint(panda_request: PandaRequest, file: FileStorage) -> str:
+    """
+    Upload a HPO checkpoint file to the server.
+
+    Args:
+        panda_request (PandaRequest): PanDA request object.
+        file (FileStorage): werkzeug.FileStorage object to be uploaded.
+
+    Returns:
+        string: json formatted string with status and message.
+    """
+
+    tmp_log = LogWrapper(_logger, f"put_checkpoint <jediTaskID_subID={file.filename}>")
+
+    # operation status, will be set to True if successful
     status = False
-    if not Protocol.isSecure(req):
-        errStr = "insecure request"
-        tmpLog.error(errStr)
-        return json.dumps({"status": status, "message": errStr})
-    tmpLog.debug(f"start {req.subprocess_env['SSL_CLIENT_S_DN']}")
-    # extract taskID and subID
+
+    if not Protocol.isSecure(panda_request):
+        error_message = "insecure request"
+        tmp_log.error(error_message)
+        return json.dumps({"status": status, "message": error_message})
+
+    tmp_log.debug(f"start {panda_request.subprocess_env['SSL_CLIENT_S_DN']}")
+
+    # extract task ID and sub ID
     try:
         task_id, sub_id = file.filename.split("/")[-1].split("_")
     except Exception:
-        errStr = "failed to extract ID"
-        tmpLog.error(errStr)
-        return json.dumps({"status": status, "message": errStr})
-    # size check
-    sizeLimit = 500 * 1024 * 1024
-    # get file size
+        error_message = "failed to extract ID"
+        tmp_log.error(error_message)
+        return json.dumps({"status": status, "message": error_message})
+
+    # get the file size
     try:
-        contentLength = int(req.headers_in["content-length"])
-    except Exception as e:
-        errStr = f"cannot get int(content-length) due to {str(e)}"
-        tmpLog.error(errStr)
-        return json.dumps({"status": status, "message": errStr})
-    tmpLog.debug(f"size {contentLength}")
-    if contentLength > sizeLimit:
-        errStr = f"exceeded size limit {contentLength}>{sizeLimit}"
-        tmpLog.error(errStr)
-        return json.dumps({"status": status, "message": errStr})
+        content_length = int(panda_request.headers_in["content-length"])
+    except Exception as exc:
+        error_message = f"cannot get int(content-length) due to {str(exc)}"
+        tmp_log.error(error_message)
+        return json.dumps({"status": status, "message": error_message})
+    tmp_log.debug(f"size {content_length}")
+
+    # compare the size against the limit for checkpoints
+    if content_length > CHECKPOINT_LIMIT:
+        error_message = f"exceeded size limit {content_length}>{CHECKPOINT_LIMIT}"
+        tmp_log.error(error_message)
+        return json.dumps({"status": status, "message": error_message})
+
+    # write the file to the cache directory
     try:
-        fileFullPath = os.path.join(panda_config.cache_dir, get_checkpoint_filename(task_id, sub_id))
+        full_path = os.path.join(panda_config.cache_dir, get_checkpoint_filename(task_id, sub_id))
         # write
-        with open(fileFullPath, "wb") as fo:
-            fo.write(file.file.read())
-    except Exception as e:
-        errStr = f"cannot write file due to {str(e)}"
-        tmpLog.error(errStr)
-        return json.dumps({"status": status, "message": errStr})
+        with open(full_path, "wb") as file_object:
+            file_object.write(file.read())
+    except Exception as exc:
+        error_message = f"cannot write file due to {str(exc)}"
+        tmp_log.error(error_message)
+        return json.dumps({"status": status, "message": error_message})
+
     status = True
-    tmpMsg = f"successfully placed at {fileFullPath}"
-    tmpLog.debug(tmpMsg)
-    return json.dumps({"status": status, "message": tmpMsg})
+    success_message = f"successfully placed at {full_path}"
+    tmp_log.debug(success_message)
+    return json.dumps({"status": status, "message": success_message})
 
 
-# delete checkpoint file
-def delete_checkpoint(req, task_id, sub_id):
-    tmpLog = LogWrapper(_logger, f"delete_checkpoint <jediTaskID={task_id} ID={sub_id}>")
+def delete_checkpoint(panda_request: PandaRequest, task_id: str, sub_id: str) -> str:
+    """
+    Delete a HPO checkpoint file from the server.
+
+    Args:
+        panda_request (PandaRequest): PanDA request object.
+        task_id (str): task ID.
+        sub_id (str): sub ID.
+
+    Returns:
+        string: json formatted string with status and message.
+    """
+
+    tmp_log = LogWrapper(_logger, f"delete_checkpoint <jediTaskID={task_id} ID={sub_id}>")
+
+    if not Protocol.isSecure(panda_request):
+        tmp_log.error(ERROR_NOT_SECURE)
+        return json.dumps({"status": False, "message": ERROR_NOT_SECURE})
+
+    tmp_log.debug(f"start {panda_request.subprocess_env['SSL_CLIENT_S_DN']}")
+    # operation status
     status = True
-    if not Protocol.isSecure(req):
-        msg = "insecure request"
-        tmpLog.error(msg)
+    try:
+        full_path = os.path.join(panda_config.cache_dir, get_checkpoint_filename(task_id, sub_id))
+        os.remove(full_path)
+        message = "done"
+        tmp_log.debug(message)
+    except Exception as exc:
+        message = f"failed to delete file due to {str(exc)}"
+        tmp_log.error(message)
         status = False
-    else:
-        tmpLog.debug(f"start {req.subprocess_env['SSL_CLIENT_S_DN']}")
-        try:
-            fileFullPath = os.path.join(panda_config.cache_dir, get_checkpoint_filename(task_id, sub_id))
-            os.remove(fileFullPath)
-            msg = "done"
-            tmpLog.debug(msg)
-        except Exception as e:
-            msg = f"failed to delete file due to {str(e)}"
-            tmpLog.error(msg)
-            status = False
-    return json.dumps({"status": status, "message": msg})
+
+    return json.dumps({"status": status, "message": message})

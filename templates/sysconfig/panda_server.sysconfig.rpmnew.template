@@ -4,7 +4,7 @@
 
 OPTIONS="-f ${VIRTUAL_ENV}/etc/panda/panda_server-httpd.conf"
 
-# for FastCGI/WSGI
+# for WSGI
 #OPTIONS="-f ${VIRTUAL_ENV}/etc/panda/panda_server-httpd-FastCGI.conf"
 #HTTPD='/usr/sbin/httpd'
 
