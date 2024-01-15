@@ -1,5 +1,8 @@
 Release Notes
 
+* 1/15/2024
+  * 0.1.0 migration to werkzeug and cleanup of FastCGI specific configurations
+
 * 9/27/2023
   * 0.0.66 formatting using black and autopep8
 
