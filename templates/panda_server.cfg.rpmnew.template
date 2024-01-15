@@ -74,10 +74,7 @@ dbname = panda_db
 # backend = postgres
 
 # number of connections
-nDBConnection = 2
-
-# number of connections for FastCGI/WSGI
-nDBConForFastCGIWSGI = 1
+nDBConnection = 1
 
 # use timeout
 usedbtimeout = True
@@ -157,7 +154,7 @@ emailPass = FIXME
 
 ##########################
 #
-# parameters for FastCGI/WSGI
+# parameters for WSGI
 #
 
 # verbose in entry point
