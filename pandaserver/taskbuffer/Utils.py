@@ -64,7 +64,6 @@ def get_content_length(panda_request: PandaRequest, tmp_log: LogWrapper) -> int:
         int: content length of the request.
     """
     content_length = 0
-    tmp_log.debug(f"start {username} {file.filename}")
     try:
         content_length = int(panda_request.headers_in["content-length"])
     except Exception:
