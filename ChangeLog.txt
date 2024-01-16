@@ -1,5 +1,8 @@
 Release Notes
 
+* 1/16/2024
+  * 0.1.1 parameter parsing for HTTP GET methods
+
 * 1/15/2024
   * 0.1.0 migration to werkzeug and cleanup of FastCGI specific configurations
 
