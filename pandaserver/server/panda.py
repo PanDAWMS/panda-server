@@ -14,6 +14,7 @@ import signal
 import sys
 import tempfile
 import traceback
+from urllib.parse import parse_qsl
 
 import pandaserver.taskbuffer.ErrorCode
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -289,15 +290,21 @@ def application(environ, start_response):
             environ["CONTENT_LENGTH"] = str(len(body))
             environ["wsgi.headers"] = EnvironHeaders(environ)
 
-            # Parse form data. Combine the form (string fields) and the files (file uploads) into a single object
-            _, form, files = parse_form_data(environ)
-            tmp_params = CombinedMultiDict([form, files])
+            # get request method
+            request_method = environ.get("REQUEST_METHOD", None)
 
-            # convert to map
-            params = {}
-            for tmp_key in tmp_params:
-                key = tmp_key
-                params[key] = tmp_params[tmp_key]
+            # In the case of GET, HEAD methods we need to parse the query string list in the URL looking for parameters
+            if request_method in ["GET", "HEAD"]:
+                params = dict(parse_qsl(environ.get("QUERY_STRING", ""), keep_blank_values=True))
+
+            # In the case of POST, PUT methods we need to parse the form data
+            else:
+                # Parse form data. Combine the form (string fields) and the files (file uploads) into a single object
+                _, form, files = parse_form_data(environ)
+
+                # Combine the form and files into a single dictionary
+                params = dict(CombinedMultiDict([form, files]))
+
         # parse parameters for json requests
         else:
             # json
