@@ -301,13 +301,9 @@ def application(environ, start_response):
             else:
                 # Parse form data. Combine the form (string fields) and the files (file uploads) into a single object
                 _, form, files = parse_form_data(environ)
-                tmp_params = CombinedMultiDict([form, files])
 
-                # convert to map
-                params = {}
-                for tmp_key in tmp_params:
-                    key = tmp_key
-                    params[key] = tmp_params[tmp_key]
+                # Combine the form and files into a single dictionary
+                params = dict(CombinedMultiDict([form, files]))
 
         # parse parameters for json requests
         else:
