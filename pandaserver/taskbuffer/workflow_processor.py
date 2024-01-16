@@ -36,11 +36,11 @@ class WorkflowProcessor(object):
         get_log=False,
         dump_workflow=False,
     ):
+        is_fatal = False
+        is_OK = True
+        request_id = None
+        dump_str = None
         try:
-            is_fatal = False
-            is_OK = True
-            request_id = None
-            dump_str = None
             with open(file_name) as f:
                 ops = json.load(f)
                 user_name = clean_user_id(ops["userName"])
@@ -71,14 +71,13 @@ class WorkflowProcessor(object):
                         os.remove(tmp_out)
                     except Exception:
                         pass
-                if not get_log:
-                    if is_OK:
-                        tmpLog.info(f"is_OK={is_OK} request_id={request_id}")
-                    else:
-                        tmpLog.info(f"is_OK={is_OK} is_fatal={is_fatal} request_id={request_id}")
+                if is_OK:
+                    tmpLog.info(f"is_OK={is_OK} request_id={request_id}")
+                else:
+                    tmpLog.info(f"is_OK={is_OK} is_fatal={is_fatal} request_id={request_id}")
                 if to_delete or (not test_mode and (is_OK or is_fatal)):
                     if dump_str:
-                        dump_str = tmpLog.dumpToString() + dump_str
+                        dump_str = dump_str + tmpLog.dumpToString()
                     else:
                         dump_str = tmpLog.dumpToString()
                     tmpLog.debug(f"delete {file_name}")
@@ -107,7 +106,7 @@ class WorkflowProcessor(object):
             is_OK = False
             tmpLog.error(f"failed to run with {str(e)} {traceback.format_exc()}")
         if get_log:
-            ret_val = {"status": is_OK}
+            ret_val = {"status": is_OK, "request_id": request_id}
             if is_OK:
                 ret_val["log"] = dump_str
             else:
@@ -229,6 +228,12 @@ def core_exec(sandbox_url, log_token, dump_workflow, ops_file, user_name, test_m
                                     tmpLog.info("submit workflow")
                                     wm = ClientManager(host=get_rest_host())
                                     request_id = wm.submit(workflow_to_submit, username=user_name, use_dataset_name=False)
+                                    try:
+                                        request_id = int(request_id)
+                                    except Exception:
+                                        # wrong request_id
+                                        is_fatal = True
+                                        is_OK = False
                             else:
                                 dump_str = "workflow is empty"
                                 tmpLog.error(dump_str)

@@ -358,13 +358,14 @@ def put_file_recovery_request(panda_request: PandaRequest, jediTaskID: str, dryR
     return json.dumps((True, "request was accepted and will be processed in a few minutes"))
 
 
-def put_workflow_request(panda_request: PandaRequest, data: str, check: bool = False) -> str:
+def put_workflow_request(panda_request: PandaRequest, data: str, check: bool = False, sync: bool = False) -> str:
     """
     Upload workflow request to the server.
     Args:
         panda_request (PandaRequest): PanDA request object.
         data (string): workflow request data.
         check (bool): check flag.
+        sync (bool): synchronous processing.
     Returns:
         string: String in json format with (boolean, message)
     """
@@ -379,9 +380,10 @@ def put_workflow_request(panda_request: PandaRequest, data: str, check: bool = F
 
     tmp_log.debug(f"start user={user_name} check={check}")
 
-    check = False
     if check in ("True", True):
         check = True
+    elif sync in ("True", True):
+        sync = True
 
     try:
         # generate the filename
@@ -397,13 +399,14 @@ def put_workflow_request(panda_request: PandaRequest, data: str, check: bool = F
             }
             json.dump(data_dict, file_object)
 
-        # check
-        if check:
-            tmp_log.debug("checking")
+        if sync or check:
             from pandaserver.taskbuffer.workflow_processor import WorkflowProcessor
 
             processor = WorkflowProcessor(log_stream=_logger)
-            ret = processor.process(file_name, True, True, True, True)
+            if check:
+                ret = processor.process(file_name, True, True, True, True)
+            else:
+                ret = processor.process(file_name, True, False, True, False)
             if os.path.exists(file_name):
                 try:
                     os.remove(file_name)
