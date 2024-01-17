@@ -721,7 +721,7 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None, workflow
             workflow.add_work(sub_workflow)
     # add conditions
     for node in nodes:
-        if not node.is_head and node.parents:
+        if node.parents:
             c_work = id_work_map[node.id]
             if not node.condition:
                 # default conditions if unspecified
@@ -730,9 +730,12 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None, workflow
                     if p_id in id_work_map:
                         p_work = id_work_map[p_id]
                         str_p_id = p_id
-                    else:
+                    elif p_id in all_sub_id_work_map:
                         p_work = all_sub_id_work_map[p_id]
                         str_p_id = sub_to_id_map[p_id]
+                    else:
+                        # head node
+                        continue
                     if len(node.parents) > 1 or isinstance(p_work, Workflow) or node.type in ["junction", "reana", "gitlab"]:
                         cond_function = p_work.is_finished
                     else:
