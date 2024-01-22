@@ -238,8 +238,8 @@ def putEventPickingRequest(
 
     user_name = panda_request.subprocess_env["SSL_CLIENT_S_DN"]
 
-    tmp_log = LogWrapper(_logger, f"putEventPickingRequest {user_name}")
-    tmp_log.debug("start")
+    tmp_log = LogWrapper(_logger, f"putEventPickingRequest-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+    tmp_log.debug(f"start for {user_name}")
 
     creation_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -251,7 +251,7 @@ def putEventPickingRequest(
         tmp_log.error(f"{error_message}")
         tmp_log.debug("end")
         return "ERROR : " + error_message
-    _logger.debug(f"size {content_length}")
+    tmp_log.debug(f"size {content_length}")
 
     if content_length > EVENT_PICKING_LIMIT:
         error_message = f"Run/event list is too large. Exceeded size limit {content_length}>{EVENT_PICKING_LIMIT}."
@@ -267,7 +267,7 @@ def putEventPickingRequest(
     try:
         # generate the filename
         file_name = f"{panda_config.cache_dir}/evp.{str(uuid.uuid4())}"
-        _logger.debug(f"putEventPickingRequest : {user_name} -> {file_name}")
+        tmp_log.debug(f"file: {file_name}")
 
         # write the information to file
         file_content = (
@@ -288,25 +288,22 @@ def putEventPickingRequest(
 
         with open(file_name, "w") as file_object:
             file_object.write(file_content)
+            run_event_guid_map = {}
+            for tmp_line in runEventList.split("\n"):
+                tmp_items = tmp_line.split()
+                if (len(tmp_items) != 2 and not giveGUID) or (len(tmp_items) != 3 and giveGUID):
+                    continue
+                file_object.write("runEvent=%s,%s\n" % tuple(tmp_items[:2]))
+                if giveGUID:
+                    run_event_guid_map[tuple(tmp_items[:2])] = [tmp_items[2]]
+            file_object.write(f"runEvtGuidMap={str(run_event_guid_map)}\n")
 
-        run_event_guid_map = {}
-        for tmp_line in runEventList.split("\n"):
-            tmp_items = tmp_line.split()
-            if (len(tmp_items) != 2 and not giveGUID) or (len(tmp_items) != 3 and giveGUID):
-                continue
-            file_object.write("runEvent=%s,%s\n" % tuple(tmp_items[:2]))
-            if giveGUID:
-                run_event_guid_map[tuple(tmp_items[:2])] = [tmp_items[2]]
-        file_object.write(f"runEvtGuidMap={str(run_event_guid_map)}\n")
-        file_object.close()
-
-    except Exception:
-        error_type, error_value = sys.exc_info()[:2]
-        error_message = f"cannot put request due to {error_type} {error_value}"
-        _logger.error(f"putEventPickingRequest : {error_message} {user_name}")
+    except Exception as e:
+        error_message = f"cannot put request due to {str(e)}"
+        tmp_log.error(error_message + traceback.format_exc())
         return f"ERROR : {error_message}"
 
-    _logger.debug(f"putEventPickingRequest : {user_name} end")
+    tmp_log.debug("end")
     return "True"
 
 
