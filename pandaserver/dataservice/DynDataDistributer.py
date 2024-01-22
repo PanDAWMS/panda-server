@@ -1,4 +1,4 @@
-"""
+Let's staLet'"""
 find candidate site to distribute input datasets
 
 """
@@ -19,16 +19,6 @@ from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.DDM import rucioAPI
 from pandaserver.taskbuffer import JobUtils
 from pandaserver.taskbuffer.JobSpec import JobSpec
-
-# logger
-_logger = PandaLogger().getLogger("DynDataDistributer")
-
-
-def initLogger(pLogger):
-    # redirect logging to parent
-    global _logger
-    _logger = pLogger
-
 
 # NG datasets
 ngDataTypes = ["RAW", "HITS", "RDO", "ESD", "EVNT"]
@@ -71,7 +61,7 @@ class DynDataDistributer:
         self.mapTAGandParentGUIDs = {}
         self.tagParentInfo = {}
         self.parentLfnToTagMap = {}
-        self.logger = logger
+        self.logger = logger if logger else PandaLogger().getLogger("DynDataDistributer")
 
     # main
     def run(self):
@@ -572,93 +562,138 @@ class DynDataDistributer:
         # return
         return True, returnMap
 
-    # get map of DQ2 IDs
-    def getDQ2ID(self, sitename, dataset, scope):
-        # get DQ2 ID
+    def getDQ2ID(self, sitename: str, dataset: str, scope: str) -> str:
+        """
+        Get the DQ2 ID for the given site and dataset.
+
+        Args:
+            sitename: The name of the site.
+            dataset: The name of the dataset.
+            scope: The scope of the dataset.
+
+        Returns:
+            The DQ2 ID for the site and dataset.
+        """
         if not self.siteMapper.checkSite(sitename):
             self.putLog(f"cannot find SiteSpec for {sitename}")
             return ""
-        dq2ID = self.siteMapper.getSite(sitename).ddm_input[scope]
-        if True:
-            # data
-            matchEOS = re.search("_EOS[^_]+DISK$", dq2ID)
-            if matchEOS is not None:
-                dq2ID = re.sub("_EOS[^_]+DISK", "_EOSDATADISK", dq2ID)
-            else:
-                dq2ID = re.sub("_[^_]+DISK", "_DATADISK", dq2ID)
+
+        dq2_id = self.siteMapper.getSite(sitename).ddm_input[scope]
+
+        match_eos = re.search("_EOS[^_]+DISK$", dq2_id)
+        if match_eos is not None:
+            dq2_id = re.sub("_EOS[^_]+DISK", "_EOSDATADISK", dq2_id)
         else:
-            # unsupported prefix for subscription
-            self.putLog(f"{dataset} has unsupported prefix for subscription", "error")
-            return ""
-        # patch for MWT2_UC
-        if dq2ID == "MWT2_UC_DATADISK":
-            dq2ID = "MWT2_DATADISK"
-        # return
-        return dq2ID
+            dq2_id = re.sub("_[^_]+DISK", "_DATADISK", dq2_id)
+
+        # Patch for MWT2_UC
+        if dq2_id == "MWT2_UC_DATADISK":
+            dq2_id = "MWT2_DATADISK"
+
+        return dq2_id
 
     # get list of datasets
-    def makeSubscription(self, dataset, sitename, scope, givenDQ2ID=None, ddmShare="secondary"):
-        # return for failuer
-        retFailed = False, ""
-        # get DQ2 IDs
+    def makeSubscription(self, dataset: str, sitename: str, scope: str, givenDQ2ID: Optional[str] = None, ddmShare: str = "secondary") -> Tuple[bool, str]:
+        """
+        Register a new dataset subscription for the given site and dataset.
+
+        Args:
+            dataset: The name of the dataset.
+            sitename: The name of the site.
+            scope: The scope of the dataset.
+            givenDQ2ID: The DQ2 ID. If not provided, the function will attempt to retrieve it.
+            ddmShare: The DDM share. Default is "secondary".
+
+        Returns:
+            A tuple where the first element is a boolean indicating success or failure, and the second element is the DQ2 ID.
+        """
         if givenDQ2ID is None:
             dq2ID = self.getDQ2ID(sitename, dataset, scope)
         else:
             dq2ID = givenDQ2ID
+
         if dq2ID == "":
             self.putLog(f"cannot find DQ2 ID for {sitename}:{dataset}")
-            return retFailed
+            return False, ""
+
         # register subscription
         self.putLog(f"registerDatasetSubscription {dataset} {dq2ID}")
-        nTry = 3
-        for iDDMTry in range(nTry):
+
+        for _ in range(3):
             try:
                 status = rucioAPI.registerDatasetSubscription(dataset, [dq2ID], activity="Data Brokering")
-                out = "OK"
-                break
+                if status:
+                    self.putLog(f"{status} OK")
+                    return True, dq2ID
             except Exception:
-                status = False
                 errType, errValue = sys.exc_info()[:2]
                 out = f"{errType} {errValue}"
+                self.putLog(out, "error")
                 time.sleep(30)
-        # result
-        if not status:
-            self.putLog(out, "error")
-            self.putLog(f"bad DDM response for {dataset}", "error")
-            return retFailed
-        # update
-        self.putLog(f"{status} {out}")
-        return True, dq2ID
 
-    # get weight for brokerage
-    def getWeightForBrokerage(self, sitenames, dataset, nReplicasInCloud, prodsourcelabel, job_label):
-        # return for failuer
+        self.putLog(f"bad DDM response for {dataset}", "error")
+        return False, ""
+
+    def getWeightForBrokerage(self, sitenames: List[str], dataset: str, nReplicasInCloud: Dict[str, int],
+                              prodsourcelabel: str, job_label: str) -> Dict[str, int]:
+        """
+        Calculate the weight for each site that is a candidate for data distribution.
+
+        Args:
+            sitenames: A list of site names that are candidates for data distribution.
+            dataset: The name of the dataset that is to be distributed.
+            nReplicasInCloud: A dictionary where the keys are the names of the clouds and the values are the number of replicas in each cloud.
+            prodsourcelabel: The production source label.
+            job_label: The job label.
+
+        Returns:
+            A dictionary where the keys are the site names and the values are the weights.
+        """
+        # return for failure
         retFailed = False, {}
         retMap = {}
+
         # get the number of subscriptions for last 24 hours
         numUserSubs = self.taskBuffer.getNumUserSubscriptions()
+
         # loop over all sites
         for sitename in sitenames:
             # get DQ2 ID
             siteSpec = self.siteMapper.getSite(sitename)
             scope_input, scope_output = select_scope(siteSpec, prodsourcelabel, job_label)
             dq2ID = self.getDQ2ID(sitename, dataset, scope_input)
+
             if dq2ID == "":
                 self.putLog(f"cannot find DQ2 ID for {sitename}:{dataset}")
                 return retFailed
+
             # append
             if dq2ID in numUserSubs:
                 retMap[sitename] = 1 + numUserSubs[dq2ID]
             else:
                 retMap[sitename] = 1
+
             # negative weight if a cloud already has replicas
             tmpCloud = self.siteMapper.getSite(sitename).cloud
             retMap[sitename] *= 1 + nReplicasInCloud[tmpCloud]
+
         # return
         return retMap
 
-    # get free disk size
-    def getFreeDiskSize(self, dataset, siteList, prodsourcelabel, job_label):
+    def getFreeDiskSize(self, dataset: str, siteList: List[str], prodsourcelabel: str, job_label: str) -> Tuple[
+        bool, Dict[str, Any]]:
+        """
+        Get the free disk size for a given dataset and a list of sites.
+
+        Args:
+            dataset: The name of the dataset.
+            siteList: A list of site names.
+            prodsourcelabel: The production source label.
+            job_label: The job label.
+
+        Returns:
+            A tuple where the first element is a boolean indicating success or failure, and the second element is a dictionary containing the free disk size for each site.
+        """
         # return for failure
         retFailed = False, {}
         # loop over all sites
@@ -668,39 +703,51 @@ class DynDataDistributer:
             if sitename in self.cachedSizeMap:
                 sizeMap[sitename] = self.cachedSizeMap[sitename]
                 continue
+
             # get DQ2 IDs
             siteSpec = self.siteMapper.getSite(sitename)
             scope_input, scope_output = select_scope(siteSpec, prodsourcelabel, job_label)
             dq2ID = self.getDQ2ID(sitename, dataset, scope_input)
+
             if dq2ID == "":
                 self.putLog(f"cannot find DQ2 ID for {sitename}:{dataset}")
                 return retFailed
+
             tmpMap = rucioAPI.getRseUsage(dq2ID)
             if tmpMap == {}:
                 self.putLog(f"getRseUsage failed for {sitename}")
+
             # append
             sizeMap[sitename] = tmpMap
             # cache
             self.cachedSizeMap[sitename] = sizeMap[sitename]
+
         # return
         self.putLog(f"getFreeDiskSize done->{str(sizeMap)}")
         return True, sizeMap
 
-    # get list of replicas for a dataset
-    def getListDatasetReplicas(self, dataset):
-        nTry = 3
-        for iDDMTry in range(nTry):
-            self.putLog(f"{iDDMTry}/{nTry} listDatasetReplicas {dataset}")
+    def getListDatasetReplicas(self, dataset: str) -> Tuple[bool, Dict[str, Any]]:
+        """
+        Get the list of replicas for a given dataset.
+
+        Args:
+            dataset: The name of the dataset.
+
+        Returns:
+            A tuple where the first element is a boolean indicating success or failure, and the second element is a dictionary containing the replicas.
+        """
+        for attempt in range(3):
+            self.putLog(f"{attempt}/3 listDatasetReplicas {dataset}")
             status, out = rucioAPI.listDatasetReplicas(dataset)
-            if status != 0:
-                time.sleep(10)
-            else:
+            if status == 0:
                 break
-        # result
+            time.sleep(10)
+
         if status != 0:
             self.putLog(out, "error")
             self.putLog(f"bad response for {dataset}", "error")
             return False, {}
+
         self.putLog(f"getListDatasetReplicas->{str(out)}")
         return True, out
 
