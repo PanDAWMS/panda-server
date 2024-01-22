@@ -751,47 +751,55 @@ class DynDataDistributer:
         self.putLog(f"getListDatasetReplicas->{str(out)}")
         return True, out
 
-    # get replicas for a container
-    def getListDatasetReplicasInContainer(self, container):
-        # response for failure
-        resForFailure = False, {}
-        # get datasets in container
-        nTry = 3
-        for iDDMTry in range(nTry):
-            self.putLog(f"{iDDMTry}/{nTry} listDatasetsInContainer {container}")
+    def getListDatasetReplicasInContainer(self, container: str) -> Tuple[bool, Dict[str, Any]]:
+        """
+        Get the list of replicas for all datasets in a given container.
+
+        Args:
+            container: The name of the container.
+
+        Returns:
+            A tuple where the first element is a boolean indicating success or failure, and the second element is a dictionary containing the replicas for all datasets.
+        """
+        for attempt in range(3):
+            self.putLog(f"{attempt}/3 listDatasetsInContainer {container}")
             datasets, out = rucioAPI.listDatasetsInContainer(container)
-            if datasets is None:
-                time.sleep(60)
-            else:
+            if datasets is not None:
                 break
+            time.sleep(60)
+
         if datasets is None:
             self.putLog(out, "error")
-            self.putLog(f"bad DDM response for {container}", "error")
-            return resForFailure
-        # loop over all datasets
+            self.putLog(f"bad response for {container}", "error")
+            return False, {}
+
         allRepMap = {}
         for dataset in datasets:
-            # get replicas
             status, tmpRepSites = self.getListDatasetReplicas(dataset)
             if not status:
-                return resForFailure
-            # append
+                return False, {}
             allRepMap[dataset] = tmpRepSites
-        # return
+
         self.putLog("getListDatasetReplicasInContainer done")
         return True, allRepMap
 
-    # get datasets used by jobs
-    def getUsedDatasets(self, datasetMap):
-        resForFailure = (False, [])
+    def getUsedDatasets(self, datasetMap: Dict[str, Any]) -> Tuple[bool, List[str]]:
+        """
+        Get the list of datasets that are used by jobs.
+
+        Args:
+            datasetMap: A dictionary where the keys are dataset names and the values are replica maps.
+
+        Returns:
+            A tuple where the first element is a boolean indicating success or failure, and the second element is a list of used datasets.
+        """
         # loop over all datasets
         usedDsList = []
         for datasetName in datasetMap:
             # get file list
-            nTry = 3
-            for iDDMTry in range(nTry):
+            for attempt in range(3):
                 try:
-                    self.putLog(f"{iDDMTry}/{nTry} listFilesInDataset {datasetName}")
+                    self.putLog(f"{attempt}/3 listFilesInDataset {datasetName}")
                     fileItems, out = rucioAPI.listFilesInDataset(datasetName)
                     status = True
                     break
@@ -803,8 +811,8 @@ class DynDataDistributer:
             if not status:
                 self.putLog(out, "error")
                 self.putLog(f"bad DDM response to get size of {datasetName}", "error")
-                return resForFailure
-            # get
+                return False, []
+
             # check if jobs use the dataset
             usedFlag = False
             for tmpJob in self.jobs:
@@ -822,16 +830,25 @@ class DynDataDistributer:
         self.putLog(f"used datasets = {str(usedDsList)}")
         return True, usedDsList
 
-    # get file from dataset
-    def getFileFromDataset(self, datasetName, guid, randomMode=False, nSamples=1):
-        resForFailure = (False, None)
-        # get files in datasets
+    def getFileFromDataset(self, datasetName: str, guid: str, randomMode: bool = False, nSamples: int = 1) -> Tuple[
+        bool, Union[Dict[str, Any], List[Dict[str, Any]]]]:
+        """
+        Get a file from a given dataset.
+
+        Args:
+            datasetName: The name of the dataset.
+            guid: The GUID of the file.
+            randomMode: If True, select a file randomly. Default is False.
+            nSamples: The number of samples to select if randomMode is True. Default is 1.
+
+        Returns:
+            A tuple where the first element is a boolean indicating success or failure, and the second element is a dictionary containing the file information or a list of such dictionaries if randomMode is True.
+        """
         global g_filesInDsMap
         if datasetName not in g_filesInDsMap:
-            nTry = 3
-            for iDDMTry in range(nTry):
+            for attempt in range(3):
                 try:
-                    self.putLog(f"{iDDMTry}/{nTry} listFilesInDataset {datasetName}")
+                    self.putLog(f"{attempt}/3 listFilesInDataset {datasetName}")
                     fileItems, out = rucioAPI.listFilesInDataset(datasetName)
                     status = True
                     break
@@ -843,10 +860,9 @@ class DynDataDistributer:
             if not status:
                 self.putLog(out, "error")
                 self.putLog(f"bad DDM response to get size of {datasetName}", "error")
-                return resForFailure
-            # append
+                return False, None
             g_filesInDsMap[datasetName] = fileItems
-        # random mode
+
         if randomMode:
             tmpList = list(g_filesInDsMap[datasetName])
             random.shuffle(tmpList)
@@ -859,7 +875,7 @@ class DynDataDistributer:
                     retMap["dataset"] = datasetName
                     retList.append(retMap)
             return True, retList
-        # return
+
         for tmpLFN in g_filesInDsMap[datasetName]:
             tmpVal = g_filesInDsMap[datasetName][tmpLFN]
             if uuid.UUID(tmpVal["guid"]) == uuid.UUID(guid):
@@ -867,7 +883,7 @@ class DynDataDistributer:
                 retMap["lfn"] = tmpLFN
                 retMap["dataset"] = datasetName
                 return True, retMap
-        return resForFailure
+        return False, None
 
     # register new dataset container with datasets
     def registerDatasetContainerWithDatasets(self, containerName, files, replicaMap, nSites=1, owner=None):
@@ -1261,10 +1277,6 @@ class DynDataDistributer:
             # release HTTP handler
             tmpPandaLogger.release()
             time.sleep(1)
-
-    # peek log
-    def peekLog(self):
-        return self.lastMessage
 
     # make T1 subscription
     def makeT1Subscription(
