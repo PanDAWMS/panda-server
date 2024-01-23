@@ -885,9 +885,16 @@ class DynDataDistributer:
                 return True, retMap
         return False, None
 
-    # register new dataset container with datasets
-    def registerDatasetContainerWithDatasets(self, containerName, files, replicaMap, nSites=1, owner=None):
-        # parse DN
+    def parse_dn(self, owner):
+        """
+        Parse the DN of the owner.
+
+        Args:
+            owner: The owner whose DN is to be parsed.
+
+        Returns:
+            The parsed DN of the owner.
+        """
         if owner is not None:
             status, userInfo = rucioAPI.finger(owner)
             if not status:
@@ -895,6 +902,24 @@ class DynDataDistributer:
             else:
                 owner = userInfo["nickname"]
             self.putLog(f"parsed DN={owner}")
+        return owner
+
+    def registerDatasetContainerWithDatasets(self, containerName, files, replicaMap, nSites=1, owner=None):
+        """
+        Register a new dataset container with datasets.
+
+        Args:
+            containerName: The name of the container.
+            files: The files to be included in the datasets.
+            replicaMap: The map of replicas.
+            nSites: The number of sites.
+            owner: The owner of the container.
+
+        Returns:
+            A boolean indicating success or failure.
+        """
+        owner = self.parse_dn(owner)
+
         # sort by locations
         filesMap = {}
         for tmpFile in files:
@@ -911,6 +936,7 @@ class DynDataDistributer:
             filesMap.setdefault(tmpKey, [])
             # append file
             filesMap[tmpKey].append(tmpFile)
+
         # get nfiles per dataset
         nFilesPerDataset, tmpR = divmod(len(files), nSites)
         if nFilesPerDataset == 0:
@@ -918,6 +944,7 @@ class DynDataDistributer:
         maxFilesPerDataset = 1000
         if nFilesPerDataset >= maxFilesPerDataset:
             nFilesPerDataset = maxFilesPerDataset
+
         # register new datasets
         datasetNames = []
         tmpIndex = 1
@@ -926,26 +953,22 @@ class DynDataDistributer:
             tmpSubIndex = 0
             while tmpSubIndex < len(tmpFiles):
                 tmpDsName = containerName[:-1] + "_%04d" % tmpIndex
-                tmpRet = self.registerDatasetWithLocation(
-                    tmpDsName,
-                    tmpFiles[tmpSubIndex : tmpSubIndex + nFilesPerDataset],
-                    # tmpLocations,owner=owner)
-                    tmpLocations,
-                    owner=None,
-                )
+                status, out = self.registerDatasetWithLocation(tmpDsName,
+                                                               tmpFiles[tmpSubIndex: tmpSubIndex + nFilesPerDataset],
+                                                               tmpLocations, owner)
                 # failed
-                if not tmpRet:
+                if not status:
                     self.putLog(f"failed to register {tmpDsName}", "error")
                     return False
                 # append dataset
                 datasetNames.append(tmpDsName)
                 tmpIndex += 1
                 tmpSubIndex += nFilesPerDataset
+
         # register container
-        nTry = 3
-        for iDDMTry in range(nTry):
+        for attempt in range(3):
+            self.putLog(f"{attempt}/3 registerContainer {containerName}")
             try:
-                self.putLog(f"{iDDMTry}/{nTry} registerContainer {containerName}")
                 status = rucioAPI.registerContainer(containerName, datasetNames)
                 out = "OK"
                 break
@@ -958,14 +981,12 @@ class DynDataDistributer:
             self.putLog(out, "error")
             self.putLog(f"bad DDM response to register {containerName}", "error")
             return False
+
         # return
         self.putLog(out)
         return True
 
-    # register new dataset with locations
-    def registerDatasetWithLocation(self, datasetName, files, locations, owner=None):
-        resForFailure = False
-        # get file info
+    def registerNewDataset(self, datasetName, files):
         guids = []
         lfns = []
         fsizes = []
@@ -975,62 +996,86 @@ class DynDataDistributer:
             lfns.append(tmpFile["scope"] + ":" + tmpFile["lfn"])
             fsizes.append(int(tmpFile["filesize"]))
             chksums.append(tmpFile["checksum"])
-        # register new dataset
-        nTry = 3
-        for iDDMTry in range(nTry):
+        for attempt in range(3):
             try:
-                self.putLog(f"{iDDMTry}/{nTry} registerNewDataset {datasetName} len={len(files)}")
+                self.putLog(f"{attempt}/3 registerNewDataset {datasetName} len={len(files)}")
                 out = rucioAPI.registerDataset(datasetName, lfns, guids, fsizes, chksums, lifetime=14)
                 self.putLog(out)
-                break
+                return True
             except Exception:
                 errType, errValue = sys.exc_info()[:2]
                 self.putLog(f"{errType} {errValue}", "error")
-                if iDDMTry + 1 == nTry:
+                if attempt + 1 == 3:
                     self.putLog(f"failed to register {datasetName} in rucio")
-                    return resForFailure
+                    return False
                 time.sleep(10)
-        # freeze dataset
-        nTry = 3
-        for iDDMTry in range(nTry):
-            self.putLog(f"{iDDMTry}/{nTry} freezeDataset {datasetName}")
+
+    def freezeDataset(self, datasetName):
+        for attempt in range(3):
+            self.putLog(f"{attempt}/3 freezeDataset {datasetName}")
             try:
                 rucioAPI.closeDataset(datasetName)
-                status = True
+                return True
             except Exception:
                 errtype, errvalue = sys.exc_info()[:2]
                 out = f"failed to freeze : {errtype} {errvalue}"
-                status = False
-            if not status:
+                self.putLog(out, "error")
                 time.sleep(10)
-            else:
-                break
-        if not status:
-            self.putLog(out, "error")
-            self.putLog(f"bad DDM response to freeze {datasetName}", "error")
-            return resForFailure
-        # register locations
+        self.putLog(f"bad DDM response to freeze {datasetName}", "error")
+        return False
+
+    def registerDatasetLocations(self, datasetName, locations, owner=None):
         for tmpLocation in locations:
-            nTry = 3
-            for iDDMTry in range(nTry):
+            for attempt in range(3):
                 try:
-                    self.putLog(f"{iDDMTry}/{nTry} registerDatasetLocation {datasetName} {tmpLocation}")
+                    self.putLog(f"{attempt}/3 registerDatasetLocation {datasetName} {tmpLocation}")
                     out = rucioAPI.registerDatasetLocation(datasetName, [tmpLocation], 14, owner)
                     self.putLog(out)
-                    status = True
-                    break
+                    return True
                 except Exception:
-                    status = False
                     errType, errValue = sys.exc_info()[:2]
                     self.putLog(f"{errType} {errValue}", "error")
-                    if iDDMTry + 1 == nTry:
-                        self.putLog(f"failed to register {datasetName} in rucio")
-                        return resForFailure
+                    if attempt + 1 == 3:
+                        return False
                     time.sleep(10)
-            if not status:
-                self.putLog(out, "error")
-                self.putLog(f"bad DDM response to set owner {datasetName}", "error")
-                return resForFailure
+        return False
+    def registerDatasetWithLocation(self, datasetName, files, locations, owner=None):
+        """
+        Register a new dataset with specific locations.
+
+        Args:
+            datasetName: The name of the dataset to be registered.
+            files: The files to be included in the dataset.
+            locations: The locations where the dataset will be registered.
+            owner: The owner of the dataset.
+
+        Returns:
+            A boolean indicating success or failure.
+        """
+        # Register new dataset
+        if not self.registerNewDataset(datasetName, files):
+            self.putLog(f"failed to register {datasetName} in rucio")
+            return False
+
+        # Freeze dataset
+        if not self.freezeDataset(datasetName):
+            self.putLog(f"bad DDM response to freeze {datasetName}", "error")
+            return False
+
+        # Register locations
+        for attempt in range(3):
+            try:
+                self.putLog(f"{attempt}/3 registerDatasetLocation {datasetName} {locations}")
+                if not self.registerDatasetLocations(datasetName, locations, owner):
+                    self.putLog(f"failed to register location for {datasetName} in rucio")
+                    time.sleep(10)
+                else:
+                    break
+            except Exception:
+                errType, errValue = sys.exc_info()[:2]
+                self.putLog(f"{errType} {errValue}", "error")
+                if attempt + 1 == 3:
+                    return False
         return True
 
     # list datasets by file GUIDs
