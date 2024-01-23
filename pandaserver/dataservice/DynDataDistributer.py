@@ -1493,6 +1493,17 @@ class DynDataDistributer:
 
     # choose site
     def chooseSite(self, canWeights, freeSizeMap, datasetSize):
+        """
+        Choose a site for data distribution based on the weights of the candidate sites and their free disk sizes.
+
+        Args:
+            canWeights (dict): A dictionary where the keys are the site names and the values are the weights of the sites.
+            freeSizeMap (dict): A dictionary where the keys are the site names and the values are the free disk sizes of the sites.
+            datasetSize (int): The size of the dataset to be distributed.
+
+        Returns:
+            str: The name of the selected site.
+        """
         # loop over all candidates
         totalW = 0
         allCandidates = []
