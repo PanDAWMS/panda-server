@@ -61,6 +61,7 @@ packages = ["pandaserver"]
 
 [tool.hatch.build.targets.wheel.shared-data]
 "templates" = "etc/panda"
+"templates/bin" = "usr/bin"
 "templates/init.d" = "etc/rc.d/init.d"
 "templates/systemd" = "etc/systemd/system"
 
