@@ -20,6 +20,16 @@ from pandaserver.dataservice.DDM import rucioAPI
 from pandaserver.taskbuffer import JobUtils
 from pandaserver.taskbuffer.JobSpec import JobSpec
 
+# logger
+_logger = PandaLogger().getLogger("DynDataDistributer")
+
+
+def initLogger(pLogger):
+    # redirect logging to parent
+    global _logger
+    _logger = pLogger
+
+
 # NG datasets
 ngDataTypes = ["RAW", "HITS", "RDO", "ESD", "EVNT"]
 
@@ -61,7 +71,7 @@ class DynDataDistributer:
         self.mapTAGandParentGUIDs = {}
         self.tagParentInfo = {}
         self.parentLfnToTagMap = {}
-        self.logger = logger if logger else PandaLogger().getLogger("DynDataDistributer")
+        self.logger = logger
 
     # main
     def run(self):
@@ -562,138 +572,93 @@ class DynDataDistributer:
         # return
         return True, returnMap
 
-    def getDQ2ID(self, sitename: str, dataset: str, scope: str) -> str:
-        """
-        Get the DQ2 ID for the given site and dataset.
-
-        Args:
-            sitename: The name of the site.
-            dataset: The name of the dataset.
-            scope: The scope of the dataset.
-
-        Returns:
-            The DQ2 ID for the site and dataset.
-        """
+    # get map of DQ2 IDs
+    def getDQ2ID(self, sitename, dataset, scope):
+        # get DQ2 ID
         if not self.siteMapper.checkSite(sitename):
             self.putLog(f"cannot find SiteSpec for {sitename}")
             return ""
-
-        dq2_id = self.siteMapper.getSite(sitename).ddm_input[scope]
-
-        match_eos = re.search("_EOS[^_]+DISK$", dq2_id)
-        if match_eos is not None:
-            dq2_id = re.sub("_EOS[^_]+DISK", "_EOSDATADISK", dq2_id)
+        dq2ID = self.siteMapper.getSite(sitename).ddm_input[scope]
+        if True:
+            # data
+            matchEOS = re.search("_EOS[^_]+DISK$", dq2ID)
+            if matchEOS is not None:
+                dq2ID = re.sub("_EOS[^_]+DISK", "_EOSDATADISK", dq2ID)
+            else:
+                dq2ID = re.sub("_[^_]+DISK", "_DATADISK", dq2ID)
         else:
-            dq2_id = re.sub("_[^_]+DISK", "_DATADISK", dq2_id)
-
-        # Patch for MWT2_UC
-        if dq2_id == "MWT2_UC_DATADISK":
-            dq2_id = "MWT2_DATADISK"
-
-        return dq2_id
+            # unsupported prefix for subscription
+            self.putLog(f"{dataset} has unsupported prefix for subscription", "error")
+            return ""
+        # patch for MWT2_UC
+        if dq2ID == "MWT2_UC_DATADISK":
+            dq2ID = "MWT2_DATADISK"
+        # return
+        return dq2ID
 
     # get list of datasets
-    def makeSubscription(self, dataset: str, sitename: str, scope: str, givenDQ2ID: Optional[str] = None, ddmShare: str = "secondary") -> Tuple[bool, str]:
-        """
-        Register a new dataset subscription for the given site and dataset.
-
-        Args:
-            dataset: The name of the dataset.
-            sitename: The name of the site.
-            scope: The scope of the dataset.
-            givenDQ2ID: The DQ2 ID. If not provided, the function will attempt to retrieve it.
-            ddmShare: The DDM share. Default is "secondary".
-
-        Returns:
-            A tuple where the first element is a boolean indicating success or failure, and the second element is the DQ2 ID.
-        """
+    def makeSubscription(self, dataset, sitename, scope, givenDQ2ID=None, ddmShare="secondary"):
+        # return for failuer
+        retFailed = False, ""
+        # get DQ2 IDs
         if givenDQ2ID is None:
             dq2ID = self.getDQ2ID(sitename, dataset, scope)
         else:
             dq2ID = givenDQ2ID
-
         if dq2ID == "":
             self.putLog(f"cannot find DQ2 ID for {sitename}:{dataset}")
-            return False, ""
-
+            return retFailed
         # register subscription
         self.putLog(f"registerDatasetSubscription {dataset} {dq2ID}")
-
-        for _ in range(3):
+        nTry = 3
+        for iDDMTry in range(nTry):
             try:
                 status = rucioAPI.registerDatasetSubscription(dataset, [dq2ID], activity="Data Brokering")
-                if status:
-                    self.putLog(f"{status} OK")
-                    return True, dq2ID
+                out = "OK"
+                break
             except Exception:
+                status = False
                 errType, errValue = sys.exc_info()[:2]
                 out = f"{errType} {errValue}"
-                self.putLog(out, "error")
                 time.sleep(30)
+        # result
+        if not status:
+            self.putLog(out, "error")
+            self.putLog(f"bad DDM response for {dataset}", "error")
+            return retFailed
+        # update
+        self.putLog(f"{status} {out}")
+        return True, dq2ID
 
-        self.putLog(f"bad DDM response for {dataset}", "error")
-        return False, ""
-
-    def getWeightForBrokerage(self, sitenames: List[str], dataset: str, nReplicasInCloud: Dict[str, int],
-                              prodsourcelabel: str, job_label: str) -> Dict[str, int]:
-        """
-        Calculate the weight for each site that is a candidate for data distribution.
-
-        Args:
-            sitenames: A list of site names that are candidates for data distribution.
-            dataset: The name of the dataset that is to be distributed.
-            nReplicasInCloud: A dictionary where the keys are the names of the clouds and the values are the number of replicas in each cloud.
-            prodsourcelabel: The production source label.
-            job_label: The job label.
-
-        Returns:
-            A dictionary where the keys are the site names and the values are the weights.
-        """
-        # return for failure
+    # get weight for brokerage
+    def getWeightForBrokerage(self, sitenames, dataset, nReplicasInCloud, prodsourcelabel, job_label):
+        # return for failuer
         retFailed = False, {}
         retMap = {}
-
         # get the number of subscriptions for last 24 hours
         numUserSubs = self.taskBuffer.getNumUserSubscriptions()
-
         # loop over all sites
         for sitename in sitenames:
             # get DQ2 ID
             siteSpec = self.siteMapper.getSite(sitename)
             scope_input, scope_output = select_scope(siteSpec, prodsourcelabel, job_label)
             dq2ID = self.getDQ2ID(sitename, dataset, scope_input)
-
             if dq2ID == "":
                 self.putLog(f"cannot find DQ2 ID for {sitename}:{dataset}")
                 return retFailed
-
             # append
             if dq2ID in numUserSubs:
                 retMap[sitename] = 1 + numUserSubs[dq2ID]
             else:
                 retMap[sitename] = 1
-
             # negative weight if a cloud already has replicas
             tmpCloud = self.siteMapper.getSite(sitename).cloud
             retMap[sitename] *= 1 + nReplicasInCloud[tmpCloud]
-
         # return
         return retMap
 
-    def getFreeDiskSize(self, dataset: str, siteList: List[str], prodsourcelabel: str, job_label: str) -> Tuple[
-        bool, Dict[str, Any]]:
-        """
-        Get the free disk size for a given dataset and a list of sites.
-
-        Args:
-            dataset: The name of the dataset.
-            siteList: A list of site names.
-            prodsourcelabel: The production source label.
-            job_label: The job label.
-
-        Returns:
-            A tuple where the first element is a boolean indicating success or failure, and the second element is a dictionary containing the free disk size for each site.
-        """
+    # get free disk size
+    def getFreeDiskSize(self, dataset, siteList, prodsourcelabel, job_label):
         # return for failure
         retFailed = False, {}
         # loop over all sites
@@ -703,103 +668,83 @@ class DynDataDistributer:
             if sitename in self.cachedSizeMap:
                 sizeMap[sitename] = self.cachedSizeMap[sitename]
                 continue
-
             # get DQ2 IDs
             siteSpec = self.siteMapper.getSite(sitename)
             scope_input, scope_output = select_scope(siteSpec, prodsourcelabel, job_label)
             dq2ID = self.getDQ2ID(sitename, dataset, scope_input)
-
             if dq2ID == "":
                 self.putLog(f"cannot find DQ2 ID for {sitename}:{dataset}")
                 return retFailed
-
             tmpMap = rucioAPI.getRseUsage(dq2ID)
             if tmpMap == {}:
                 self.putLog(f"getRseUsage failed for {sitename}")
-
             # append
             sizeMap[sitename] = tmpMap
             # cache
             self.cachedSizeMap[sitename] = sizeMap[sitename]
-
         # return
         self.putLog(f"getFreeDiskSize done->{str(sizeMap)}")
         return True, sizeMap
 
-    def getListDatasetReplicas(self, dataset: str) -> Tuple[bool, Dict[str, Any]]:
-        """
-        Get the list of replicas for a given dataset.
-
-        Args:
-            dataset: The name of the dataset.
-
-        Returns:
-            A tuple where the first element is a boolean indicating success or failure, and the second element is a dictionary containing the replicas.
-        """
-        for attempt in range(3):
-            self.putLog(f"{attempt}/3 listDatasetReplicas {dataset}")
+    # get list of replicas for a dataset
+    def getListDatasetReplicas(self, dataset):
+        nTry = 3
+        for iDDMTry in range(nTry):
+            self.putLog(f"{iDDMTry}/{nTry} listDatasetReplicas {dataset}")
             status, out = rucioAPI.listDatasetReplicas(dataset)
-            if status == 0:
+            if status != 0:
+                time.sleep(10)
+            else:
                 break
-            time.sleep(10)
-
+        # result
         if status != 0:
             self.putLog(out, "error")
             self.putLog(f"bad response for {dataset}", "error")
             return False, {}
-
         self.putLog(f"getListDatasetReplicas->{str(out)}")
         return True, out
 
-    def getListDatasetReplicasInContainer(self, container: str) -> Tuple[bool, Dict[str, Any]]:
-        """
-        Get the list of replicas for all datasets in a given container.
-
-        Args:
-            container: The name of the container.
-
-        Returns:
-            A tuple where the first element is a boolean indicating success or failure, and the second element is a dictionary containing the replicas for all datasets.
-        """
-        for attempt in range(3):
-            self.putLog(f"{attempt}/3 listDatasetsInContainer {container}")
+    # get replicas for a container
+    def getListDatasetReplicasInContainer(self, container):
+        # response for failure
+        resForFailure = False, {}
+        # get datasets in container
+        nTry = 3
+        for iDDMTry in range(nTry):
+            self.putLog(f"{iDDMTry}/{nTry} listDatasetsInContainer {container}")
             datasets, out = rucioAPI.listDatasetsInContainer(container)
-            if datasets is not None:
+            if datasets is None:
+                time.sleep(60)
+            else:
                 break
-            time.sleep(60)
-
         if datasets is None:
             self.putLog(out, "error")
-            self.putLog(f"bad response for {container}", "error")
-            return False, {}
-
+            self.putLog(f"bad DDM response for {container}", "error")
+            return resForFailure
+        # loop over all datasets
         allRepMap = {}
         for dataset in datasets:
+            # get replicas
             status, tmpRepSites = self.getListDatasetReplicas(dataset)
             if not status:
-                return False, {}
+                return resForFailure
+            # append
             allRepMap[dataset] = tmpRepSites
-
+        # return
         self.putLog("getListDatasetReplicasInContainer done")
         return True, allRepMap
 
-    def getUsedDatasets(self, datasetMap: Dict[str, Any]) -> Tuple[bool, List[str]]:
-        """
-        Get the list of datasets that are used by jobs.
-
-        Args:
-            datasetMap: A dictionary where the keys are dataset names and the values are replica maps.
-
-        Returns:
-            A tuple where the first element is a boolean indicating success or failure, and the second element is a list of used datasets.
-        """
+    # get datasets used by jobs
+    def getUsedDatasets(self, datasetMap):
+        resForFailure = (False, [])
         # loop over all datasets
         usedDsList = []
         for datasetName in datasetMap:
             # get file list
-            for attempt in range(3):
+            nTry = 3
+            for iDDMTry in range(nTry):
                 try:
-                    self.putLog(f"{attempt}/3 listFilesInDataset {datasetName}")
+                    self.putLog(f"{iDDMTry}/{nTry} listFilesInDataset {datasetName}")
                     fileItems, out = rucioAPI.listFilesInDataset(datasetName)
                     status = True
                     break
@@ -811,8 +756,8 @@ class DynDataDistributer:
             if not status:
                 self.putLog(out, "error")
                 self.putLog(f"bad DDM response to get size of {datasetName}", "error")
-                return False, []
-
+                return resForFailure
+            # get
             # check if jobs use the dataset
             usedFlag = False
             for tmpJob in self.jobs:
@@ -830,25 +775,16 @@ class DynDataDistributer:
         self.putLog(f"used datasets = {str(usedDsList)}")
         return True, usedDsList
 
-    def getFileFromDataset(self, datasetName: str, guid: str, randomMode: bool = False, nSamples: int = 1) -> Tuple[
-        bool, Union[Dict[str, Any], List[Dict[str, Any]]]]:
-        """
-        Get a file from a given dataset.
-
-        Args:
-            datasetName: The name of the dataset.
-            guid: The GUID of the file.
-            randomMode: If True, select a file randomly. Default is False.
-            nSamples: The number of samples to select if randomMode is True. Default is 1.
-
-        Returns:
-            A tuple where the first element is a boolean indicating success or failure, and the second element is a dictionary containing the file information or a list of such dictionaries if randomMode is True.
-        """
+    # get file from dataset
+    def getFileFromDataset(self, datasetName, guid, randomMode=False, nSamples=1):
+        resForFailure = (False, None)
+        # get files in datasets
         global g_filesInDsMap
         if datasetName not in g_filesInDsMap:
-            for attempt in range(3):
+            nTry = 3
+            for iDDMTry in range(nTry):
                 try:
-                    self.putLog(f"{attempt}/3 listFilesInDataset {datasetName}")
+                    self.putLog(f"{iDDMTry}/{nTry} listFilesInDataset {datasetName}")
                     fileItems, out = rucioAPI.listFilesInDataset(datasetName)
                     status = True
                     break
@@ -860,9 +796,10 @@ class DynDataDistributer:
             if not status:
                 self.putLog(out, "error")
                 self.putLog(f"bad DDM response to get size of {datasetName}", "error")
-                return False, None
+                return resForFailure
+            # append
             g_filesInDsMap[datasetName] = fileItems
-
+        # random mode
         if randomMode:
             tmpList = list(g_filesInDsMap[datasetName])
             random.shuffle(tmpList)
@@ -875,7 +812,7 @@ class DynDataDistributer:
                     retMap["dataset"] = datasetName
                     retList.append(retMap)
             return True, retList
-
+        # return
         for tmpLFN in g_filesInDsMap[datasetName]:
             tmpVal = g_filesInDsMap[datasetName][tmpLFN]
             if uuid.UUID(tmpVal["guid"]) == uuid.UUID(guid):
@@ -883,18 +820,11 @@ class DynDataDistributer:
                 retMap["lfn"] = tmpLFN
                 retMap["dataset"] = datasetName
                 return True, retMap
-        return False, None
+        return resForFailure
 
-    def parse_dn(self, owner):
-        """
-        Parse the DN of the owner.
-
-        Args:
-            owner: The owner whose DN is to be parsed.
-
-        Returns:
-            The parsed DN of the owner.
-        """
+    # register new dataset container with datasets
+    def registerDatasetContainerWithDatasets(self, containerName, files, replicaMap, nSites=1, owner=None):
+        # parse DN
         if owner is not None:
             status, userInfo = rucioAPI.finger(owner)
             if not status:
@@ -902,24 +832,6 @@ class DynDataDistributer:
             else:
                 owner = userInfo["nickname"]
             self.putLog(f"parsed DN={owner}")
-        return owner
-
-    def registerDatasetContainerWithDatasets(self, containerName, files, replicaMap, nSites=1, owner=None):
-        """
-        Register a new dataset container with datasets.
-
-        Args:
-            containerName: The name of the container.
-            files: The files to be included in the datasets.
-            replicaMap: The map of replicas.
-            nSites: The number of sites.
-            owner: The owner of the container.
-
-        Returns:
-            A boolean indicating success or failure.
-        """
-        owner = self.parse_dn(owner)
-
         # sort by locations
         filesMap = {}
         for tmpFile in files:
@@ -936,7 +848,6 @@ class DynDataDistributer:
             filesMap.setdefault(tmpKey, [])
             # append file
             filesMap[tmpKey].append(tmpFile)
-
         # get nfiles per dataset
         nFilesPerDataset, tmpR = divmod(len(files), nSites)
         if nFilesPerDataset == 0:
@@ -944,7 +855,6 @@ class DynDataDistributer:
         maxFilesPerDataset = 1000
         if nFilesPerDataset >= maxFilesPerDataset:
             nFilesPerDataset = maxFilesPerDataset
-
         # register new datasets
         datasetNames = []
         tmpIndex = 1
@@ -953,22 +863,26 @@ class DynDataDistributer:
             tmpSubIndex = 0
             while tmpSubIndex < len(tmpFiles):
                 tmpDsName = containerName[:-1] + "_%04d" % tmpIndex
-                status, out = self.registerDatasetWithLocation(tmpDsName,
-                                                               tmpFiles[tmpSubIndex: tmpSubIndex + nFilesPerDataset],
-                                                               tmpLocations, owner)
+                tmpRet = self.registerDatasetWithLocation(
+                    tmpDsName,
+                    tmpFiles[tmpSubIndex : tmpSubIndex + nFilesPerDataset],
+                    # tmpLocations,owner=owner)
+                    tmpLocations,
+                    owner=None,
+                )
                 # failed
-                if not status:
+                if not tmpRet:
                     self.putLog(f"failed to register {tmpDsName}", "error")
                     return False
                 # append dataset
                 datasetNames.append(tmpDsName)
                 tmpIndex += 1
                 tmpSubIndex += nFilesPerDataset
-
         # register container
-        for attempt in range(3):
-            self.putLog(f"{attempt}/3 registerContainer {containerName}")
+        nTry = 3
+        for iDDMTry in range(nTry):
             try:
+                self.putLog(f"{iDDMTry}/{nTry} registerContainer {containerName}")
                 status = rucioAPI.registerContainer(containerName, datasetNames)
                 out = "OK"
                 break
@@ -981,12 +895,14 @@ class DynDataDistributer:
             self.putLog(out, "error")
             self.putLog(f"bad DDM response to register {containerName}", "error")
             return False
-
         # return
         self.putLog(out)
         return True
 
-    def registerNewDataset(self, datasetName, files):
+    # register new dataset with locations
+    def registerDatasetWithLocation(self, datasetName, files, locations, owner=None):
+        resForFailure = False
+        # get file info
         guids = []
         lfns = []
         fsizes = []
@@ -996,86 +912,62 @@ class DynDataDistributer:
             lfns.append(tmpFile["scope"] + ":" + tmpFile["lfn"])
             fsizes.append(int(tmpFile["filesize"]))
             chksums.append(tmpFile["checksum"])
-        for attempt in range(3):
+        # register new dataset
+        nTry = 3
+        for iDDMTry in range(nTry):
             try:
-                self.putLog(f"{attempt}/3 registerNewDataset {datasetName} len={len(files)}")
+                self.putLog(f"{iDDMTry}/{nTry} registerNewDataset {datasetName} len={len(files)}")
                 out = rucioAPI.registerDataset(datasetName, lfns, guids, fsizes, chksums, lifetime=14)
                 self.putLog(out)
-                return True
+                break
             except Exception:
                 errType, errValue = sys.exc_info()[:2]
                 self.putLog(f"{errType} {errValue}", "error")
-                if attempt + 1 == 3:
+                if iDDMTry + 1 == nTry:
                     self.putLog(f"failed to register {datasetName} in rucio")
-                    return False
+                    return resForFailure
                 time.sleep(10)
-
-    def freezeDataset(self, datasetName):
-        for attempt in range(3):
-            self.putLog(f"{attempt}/3 freezeDataset {datasetName}")
+        # freeze dataset
+        nTry = 3
+        for iDDMTry in range(nTry):
+            self.putLog(f"{iDDMTry}/{nTry} freezeDataset {datasetName}")
             try:
                 rucioAPI.closeDataset(datasetName)
-                return True
+                status = True
             except Exception:
                 errtype, errvalue = sys.exc_info()[:2]
                 out = f"failed to freeze : {errtype} {errvalue}"
-                self.putLog(out, "error")
+                status = False
+            if not status:
                 time.sleep(10)
-        self.putLog(f"bad DDM response to freeze {datasetName}", "error")
-        return False
-
-    def registerDatasetLocations(self, datasetName, locations, owner=None):
+            else:
+                break
+        if not status:
+            self.putLog(out, "error")
+            self.putLog(f"bad DDM response to freeze {datasetName}", "error")
+            return resForFailure
+        # register locations
         for tmpLocation in locations:
-            for attempt in range(3):
+            nTry = 3
+            for iDDMTry in range(nTry):
                 try:
-                    self.putLog(f"{attempt}/3 registerDatasetLocation {datasetName} {tmpLocation}")
+                    self.putLog(f"{iDDMTry}/{nTry} registerDatasetLocation {datasetName} {tmpLocation}")
                     out = rucioAPI.registerDatasetLocation(datasetName, [tmpLocation], 14, owner)
                     self.putLog(out)
-                    return True
+                    status = True
+                    break
                 except Exception:
+                    status = False
                     errType, errValue = sys.exc_info()[:2]
                     self.putLog(f"{errType} {errValue}", "error")
-                    if attempt + 1 == 3:
-                        return False
+                    if iDDMTry + 1 == nTry:
+                        self.putLog(f"failed to register {datasetName} in rucio")
+                        return resForFailure
                     time.sleep(10)
-        return False
-    def registerDatasetWithLocation(self, datasetName, files, locations, owner=None):
-        """
-        Register a new dataset with specific locations.
-
-        Args:
-            datasetName: The name of the dataset to be registered.
-            files: The files to be included in the dataset.
-            locations: The locations where the dataset will be registered.
-            owner: The owner of the dataset.
-
-        Returns:
-            A boolean indicating success or failure.
-        """
-        # Register new dataset
-        if not self.registerNewDataset(datasetName, files):
-            self.putLog(f"failed to register {datasetName} in rucio")
-            return False
-
-        # Freeze dataset
-        if not self.freezeDataset(datasetName):
-            self.putLog(f"bad DDM response to freeze {datasetName}", "error")
-            return False
-
-        # Register locations
-        for attempt in range(3):
-            try:
-                self.putLog(f"{attempt}/3 registerDatasetLocation {datasetName} {locations}")
-                if not self.registerDatasetLocations(datasetName, locations, owner):
-                    self.putLog(f"failed to register location for {datasetName} in rucio")
-                    time.sleep(10)
-                else:
-                    break
-            except Exception:
-                errType, errValue = sys.exc_info()[:2]
-                self.putLog(f"{errType} {errValue}", "error")
-                if attempt + 1 == 3:
-                    return False
+            if not status:
+                self.putLog(out, "error")
+                self.putLog(f"bad DDM response to set owner {datasetName}", "error")
+                return resForFailure
         return True
 
     # list datasets by file GUIDs
@@ -1323,6 +1215,10 @@ class DynDataDistributer:
             tmpPandaLogger.release()
             time.sleep(1)
 
+    # peek log
+    def peekLog(self):
+        return self.lastMessage
+
     # make T1 subscription
     def makeT1Subscription(
         self,
@@ -1493,17 +1389,6 @@ class DynDataDistributer:
 
     # choose site
     def chooseSite(self, canWeights, freeSizeMap, datasetSize):
-        """
-        Choose a site for data distribution based on the weights of the candidate sites and their free disk sizes.
-
-        Args:
-            canWeights (dict): A dictionary where the keys are the site names and the values are the weights of the sites.
-            freeSizeMap (dict): A dictionary where the keys are the site names and the values are the free disk sizes of the sites.
-            datasetSize (int): The size of the dataset to be distributed.
-
-        Returns:
-            str: The name of the selected site.
-        """
         # loop over all candidates
         totalW = 0
         allCandidates = []
