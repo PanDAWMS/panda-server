@@ -7,11 +7,10 @@ name = "panda-server"
 dynamic = ["version"]
 description = "PanDA Server Package"
 readme = "README.md"
-license = "Apache-2.0"
+license = {text = "Apache-2.0"}
 authors = [
     { name = "PanDA Team", email = "panda-support@cern.ch" },
 ]
-
 dependencies = [
     'panda-common>=0.0.34',
     'panda-client-light>=1.5.55',
@@ -31,11 +30,12 @@ dependencies = [
     'ruamel.yaml',
     'cwl-utils>=0.13',
     'packaging',
-    'snakemake==6.15.5',
+    'snakemake==7.30.1',
     'numpy',
     'scipy',
     'werkzeug'
 ]
+requires-python = ">=3.8"
 
 [project.optional-dependencies]
 oracle = ['cx_Oracle']
@@ -61,6 +61,7 @@ packages = ["pandaserver"]
 
 [tool.hatch.build.targets.wheel.shared-data]
 "templates" = "etc/panda"
+"templates/bin" = "usr/bin"
 "templates/init.d" = "etc/rc.d/init.d"
 "templates/systemd" = "etc/systemd/system"
 
