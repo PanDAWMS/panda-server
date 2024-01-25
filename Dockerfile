@@ -30,7 +30,7 @@ RUN  yum clean all && rm -rf /var/cache/yum
 RUN python$(echo ${PYTHON_VERSION} | sed -E 's/\.[0-9]+$//') -m venv /opt/panda
 RUN /opt/panda/bin/pip install --no-cache-dir -U pip
 RUN /opt/panda/bin/pip install --no-cache-dir -U setuptools
-RUN /opt/panda/bin/pip install -U gnureadline
+RUN /opt/panda/bin/pip install --no-cache-dir -U gnureadline
 RUN adduser atlpan
 RUN groupadd zp
 RUN usermod -a -G zp atlpan
