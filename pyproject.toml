@@ -64,6 +64,7 @@ packages = ["pandaserver"]
 "templates/bin" = "usr/bin"
 "templates/init.d" = "etc/rc.d/init.d"
 "templates/systemd" = "etc/systemd/system"
+"templates/sysconfig" = "etc/sysconfig"
 
 [tool.hatch.build.targets.wheel.hooks.custom]
 path = "package/hatch_build.py"
