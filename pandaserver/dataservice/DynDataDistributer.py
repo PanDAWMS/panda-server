@@ -5,20 +5,16 @@ find candidate site to distribute input datasets
 
 import datetime
 import fnmatch
-import math
-import random
 import re
 import sys
 import time
 import uuid
 
-import pandaserver.brokerage.broker
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.config import panda_config
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.DDM import rucioAPI
 from pandaserver.taskbuffer import JobUtils
-from pandaserver.taskbuffer.JobSpec import JobSpec
 
 # logger
 _logger = PandaLogger().getLogger("DynDataDistributer")
@@ -28,26 +24,8 @@ def initLogger(pLogger):
     global _logger
     _logger = pLogger
 
-# NG datasets
-ngDataTypes = ["RAW", "HITS", "RDO", "ESD", "EVNT"]
-
-# excluded provenance
-ngProvenance = []
-
-# protection for max number of replicas
-protectionMaxNumReplicas = 10
-
-# max number of waiting jobs
-maxWaitingJobs = 200
-
-# max number of waiting jobsets
-maxWaitingJobsets = 2
-
-# clouds with small T1 to make replica at T2
-cloudsWithSmallT1 = ["IT"]
-
 # files in datasets
-g_filesInDsMap = {}
+g_files_in_ds_map = {}
 
 class DynDataDistributer:
     # constructor
@@ -81,10 +59,10 @@ class DynDataDistributer:
         # get replica locations
         if input_ds.endswith("/"):
             # container
-            status, tmpRepMaps = self.getListDatasetReplicasInContainer(input_ds)
+            status, tmpRepMaps = self.get_list_dataset_replicas_in_container(input_ds)
             # get used datasets
             if status and check_used_file:
-                status, tmpUsedDsList = self.getUsedDatasets(tmpRepMaps)
+                status, tmpUsedDsList = self.get_used_datasets(tmpRepMaps)
                 # remove unused datasets
                 newRepMaps = {}
                 for tmpKey in tmpRepMaps:
@@ -94,12 +72,12 @@ class DynDataDistributer:
                 tmpRepMaps = newRepMaps
         else:
             # normal dataset
-            status, tmpRepMap = self.getListDatasetReplicas(input_ds)
+            status, tmpRepMap = self.get_list_dataset_replicas(input_ds)
             tmpRepMaps = {input_ds: tmpRepMap}
 
         if not status:
             # failed
-            self.putLog(f"failed to get replica locations for {input_ds}", "error")
+            self.put_log(f"failed to get replica locations for {input_ds}", "error")
             return res_for_failure
 
         return True, tmpRepMaps
@@ -198,362 +176,435 @@ class DynDataDistributer:
         # Get candidate sites
         return self.get_candidate_sites(tmpRepMaps, prodsourcelabel, job_label, use_close_sites)
 
-    # get list of replicas for a dataset
-    def getListDatasetReplicas(self, dataset):
-        nTry = 3
-        for iDDMTry in range(nTry):
-            self.putLog(f"{iDDMTry}/{nTry} listDatasetReplicas {dataset}")
-            status, out = rucioAPI.listDatasetReplicas(dataset)
-            if status != 0:
-                time.sleep(10)
-            else:
-                break
-        # result
-        if status != 0:
-            self.putLog(out, "error")
-            self.putLog(f"bad response for {dataset}", "error")
-            return False, {}
-        self.putLog(f"getListDatasetReplicas->{str(out)}")
-        return True, out
+    def get_list_dataset_replicas(self, dataset, max_attempts=3):
+        """
+        Get the list of replicas for a given dataset.
 
-    # get replicas for a container
-    def getListDatasetReplicasInContainer(self, container):
+        Args:
+            dataset (str): The name of the dataset.
+            max_attempts (int, optional): The maximum number of attempts to get the replicas. Defaults to 3.
+
+        Returns:
+            tuple: A tuple containing the status (bool) and the result (dict or str).
+        """
+        for attempt in range(max_attempts):
+            self.put_log(f"{attempt}/{max_attempts} listDatasetReplicas {dataset}")
+            status, replicas = rucioAPI.listDatasetReplicas(dataset)
+            if status == 0:
+                self.put_log(f"getListDatasetReplicas->{str(replicas)}")
+                return True, replicas
+            time.sleep(10)
+
+        self.put_log(f"bad response for {dataset}", "error")
+        return False, {}
+
+    def get_list_dataset_replicas_in_container(self, container, max_attempts=3):
+        """
+        Get the list of replicas for a given container.
+
+        Args:
+            container (str): The name of the container.
+            max_attempts (int, optional): The maximum number of attempts to get the replicas. Defaults to 3.
+
+        Returns:
+            tuple: A tuple containing the status (bool) and the result (dict or str).
+        """
         # response for failure
-        resForFailure = False, {}
-        f
+        res_for_failure = False, {}
+
         # get datasets in container
-        nTry = 3
-        for iDDMTry in range(nTry):
-            self.putLog(f"{iDDMTry}/{nTry} listDatasetsInContainer {container}")
+        for attempt in range(max_attempts):
+            self.put_log(f"{attempt}/{max_attempts} listDatasetsInContainer {container}")
             datasets, out = rucioAPI.listDatasetsInContainer(container)
-            if datasets is None:
-                time.sleep(60)
-            else:
+            if datasets is not None:
                 break
+            time.sleep(60)
+
         if datasets is None:
-            self.putLog(out, "error")
-            self.putLog(f"bad DDM response for {container}", "error")
-            return resForFailure
+            self.put_log(out, "error")
+            self.put_log(f"bad DDM response for {container}", "error")
+            return res_for_failure
+
         # loop over all datasets
-        allRepMap = {}
+        all_rep_map = {}
         for dataset in datasets:
             # get replicas
-            status, tmpRepSites = self.getListDatasetReplicas(dataset)
+            status, tmp_rep_sites = self.get_list_dataset_replicas(dataset)
             if not status:
-                return resForFailure
+                return res_for_failure
             # append
-            allRepMap[dataset] = tmpRepSites
-        # return
-        self.putLog("getListDatasetReplicasInContainer done")
-        return True, allRepMap
+            all_rep_map[dataset] = tmp_rep_sites
 
-    # get datasets used by jobs
-    def getUsedDatasets(self, datasetMap):
-        resForFailure = (False, [])
+        # return
+        self.put_log("getListDatasetReplicasInContainer done")
+        return True, all_rep_map
+
+    def get_used_datasets(self, dataset_map, max_attempts=3):
+        """
+        Get the datasets that are used by jobs.
+
+        Args:
+            dataset_map (dict): The map of datasets.
+            max_attempts (int, optional): The maximum number of attempts to get the file list. Defaults to 3.
+
+        Returns:
+            tuple: A tuple containing the status (bool) and the used datasets list.
+        """
+        res_for_failure = (False, [])
+        used_ds_list = []
+
         # loop over all datasets
-        usedDsList = []
-        for datasetName in datasetMap:
+        for dataset_name in dataset_map:
             # get file list
-            nTry = 3
-            for iDDMTry in range(nTry):
+            for attempt in range(max_attempts):
                 try:
-                    self.putLog(f"{iDDMTry}/{nTry} listFilesInDataset {datasetName}")
-                    fileItems, out = rucioAPI.listFilesInDataset(datasetName)
+                    self.put_log(f"{attempt}/{max_attempts} listFilesInDataset {dataset_name}")
+                    file_items, out = rucioAPI.listFilesInDataset(dataset_name)
                     status = True
                     break
                 except Exception:
                     status = False
-                    errType, errValue = sys.exc_info()[:2]
-                    out = f"{errType} {errValue}"
+                    err_type, err_value = sys.exc_info()[:2]
+                    out = f"{err_type} {err_value}"
                     time.sleep(60)
+
             if not status:
-                self.putLog(out, "error")
-                self.putLog(f"bad DDM response to get size of {datasetName}", "error")
-                return resForFailure
-            # get
+                self.put_log(out, "error")
+                self.put_log(f"bad DDM response to get size of {dataset_name}", "error")
+                return res_for_failure
+
             # check if jobs use the dataset
-            usedFlag = False
-            for tmpJob in self.jobs:
-                for tmpFile in tmpJob.Files:
-                    if tmpFile.type == "input" and tmpFile.lfn in fileItems:
-                        usedFlag = True
+            used_flag = False
+            for tmp_job in self.jobs:
+                for tmp_file in tmp_job.Files:
+                    if tmp_file.type == "input" and tmp_file.lfn in file_items:
+                        used_flag = True
                         break
                 # escape
-                if usedFlag:
+                if used_flag:
                     break
-            # used
-            if usedFlag:
-                usedDsList.append(datasetName)
-        # return
-        self.putLog(f"used datasets = {str(usedDsList)}")
-        return True, usedDsList
 
-    # get file from dataset
-    def getFileFromDataset(self, datasetName, guid, randomMode=False, nSamples=1):
-        resForFailure = (False, None)
+            # used
+            if used_flag:
+                used_ds_list.append(dataset_name)
+
+        # return
+        self.put_log(f"used datasets = {str(used_ds_list)}")
+        return True, used_ds_list
+
+    def get_file_from_dataset(self, dataset_name, guid, max_attempts=3):
+        """
+        Get file information from a dataset.
+
+        Args:
+            dataset_name (str): The name of the dataset.
+            guid (str): The GUID of the file.
+            max_attempts (int, optional): The maximum number of attempts to get the file list. Defaults to 3.
+
+        Returns:
+            tuple: A tuple containing the status (bool) and the file information (dict or None).
+        """
+        res_for_failure = (False, None)
+
         # get files in datasets
-        global g_filesInDsMap
-        if datasetName not in g_filesInDsMap:
-            nTry = 3
-            for iDDMTry in range(nTry):
+        global g_files_in_ds_map
+        if dataset_name not in g_files_in_ds_map:
+            # get file list
+            for attempt in range(max_attempts):
                 try:
-                    self.putLog(f"{iDDMTry}/{nTry} listFilesInDataset {datasetName}")
-                    fileItems, out = rucioAPI.listFilesInDataset(datasetName)
+                    self.put_log(f"{attempt}/{max_attempts} listFilesInDataset {dataset_name}")
+                    file_items, out = rucioAPI.listFilesInDataset(dataset_name)
                     status = True
                     break
                 except Exception:
                     status = False
-                    errType, errValue = sys.exc_info()[:2]
-                    out = f"{errType} {errValue}"
+                    err_type, err_value = sys.exc_info()[:2]
+                    out = f"{err_type} {err_value}"
                     time.sleep(60)
-            if not status:
-                self.putLog(out, "error")
-                self.putLog(f"bad DDM response to get size of {datasetName}", "error")
-                return resForFailure
-            # append
-            g_filesInDsMap[datasetName] = fileItems
-        # random mode
-        if randomMode:
-            tmpList = list(g_filesInDsMap[datasetName])
-            random.shuffle(tmpList)
-            retList = []
-            for iSamples in range(nSamples):
-                if iSamples < len(tmpList):
-                    tmpLFN = tmpList[iSamples]
-                    retMap = g_filesInDsMap[datasetName][tmpLFN]
-                    retMap["lfn"] = tmpLFN
-                    retMap["dataset"] = datasetName
-                    retList.append(retMap)
-            return True, retList
-        # return
-        for tmpLFN in g_filesInDsMap[datasetName]:
-            tmpVal = g_filesInDsMap[datasetName][tmpLFN]
-            if uuid.UUID(tmpVal["guid"]) == uuid.UUID(guid):
-                retMap = tmpVal
-                retMap["lfn"] = tmpLFN
-                retMap["dataset"] = datasetName
-                return True, retMap
-        return resForFailure
 
-    # register new dataset container with datasets
-    def registerDatasetContainerWithDatasets(self, containerName, files, replicaMap, nSites=1, owner=None):
+            if not status:
+                self.put_log(out, "error")
+                self.put_log(f"bad DDM response to get size of {dataset_name}", "error")
+                return res_for_failure
+                # append
+            g_files_in_ds_map[dataset_name] = file_items
+
+        # check if file is in the dataset
+        for tmp_lfn in g_files_in_ds_map[dataset_name]:
+            tmp_val = g_files_in_ds_map[dataset_name][tmp_lfn]
+            if uuid.UUID(tmp_val["guid"]) == uuid.UUID(guid):
+                ret_map = tmp_val
+                ret_map["lfn"] = tmp_lfn
+                ret_map["dataset"] = dataset_name
+                return True, ret_map
+
+        return res_for_failure
+
+    def register_dataset_container_with_datasets(self, container_name, files, replica_map, n_sites=1, owner=None,
+                                                 max_attempts=3):
+        """
+        Register a new dataset container with datasets.
+
+        Args:
+            container_name (str): The name of the container.
+            files (list): The list of files to be included in the dataset.
+            replica_map (dict): The map of replicas.
+            n_sites (int, optional): The number of sites. Defaults to 1.
+            owner (str, optional): The owner of the dataset. Defaults to None.
+            max_attempts (int, optional): The maximum number of attempts to register the container. Defaults to 3.
+
+        Returns:
+            bool: The status of the registration process.
+        """
         # parse DN
         if owner is not None:
-            status, userInfo = rucioAPI.finger(owner)
+            status, user_info = rucioAPI.finger(owner)
             if not status:
-                self.putLog(f"failed to finger: {userInfo}")
+                self.put_log(f"failed to finger: {user_info}")
             else:
-                owner = userInfo["nickname"]
-            self.putLog(f"parsed DN={owner}")
+                owner = user_info["nickname"]
+            self.put_log(f"parsed DN={owner}")
+
         # sort by locations
-        filesMap = {}
-        for tmpFile in files:
-            tmpLocations = sorted(replicaMap[tmpFile["dataset"]])
-            newLocations = []
+        files_map = {}
+        for tmp_file in files:
+            tmp_locations = sorted(replica_map[tmp_file["dataset"]])
+            new_locations = []
             # skip STAGING
-            for tmpLocation in tmpLocations:
-                if not tmpLocation.endswith("STAGING"):
-                    newLocations.append(tmpLocation)
-            if newLocations == []:
+            for tmp_location in tmp_locations:
+                if not tmp_location.endswith("STAGING"):
+                    new_locations.append(tmp_location)
+            if not new_locations:
                 continue
-            tmpLocations = newLocations
-            tmpKey = tuple(tmpLocations)
-            filesMap.setdefault(tmpKey, [])
+            tmp_locations = new_locations
+            tmp_key = tuple(tmp_locations)
+            files_map.setdefault(tmp_key, [])
             # append file
-            filesMap[tmpKey].append(tmpFile)
+            files_map[tmp_key].append(tmp_file)
+
         # get nfiles per dataset
-        nFilesPerDataset, tmpR = divmod(len(files), nSites)
-        if nFilesPerDataset == 0:
-            nFilesPerDataset = 1
-        maxFilesPerDataset = 1000
-        if nFilesPerDataset >= maxFilesPerDataset:
-            nFilesPerDataset = maxFilesPerDataset
+        n_files_per_dataset, tmp_r = divmod(len(files), n_sites)
+        if n_files_per_dataset == 0:
+            n_files_per_dataset = 1
+        max_files_per_dataset = 1000
+        if n_files_per_dataset >= max_files_per_dataset:
+            n_files_per_dataset = max_files_per_dataset
+
         # register new datasets
-        datasetNames = []
-        tmpIndex = 1
-        for tmpLocations in filesMap:
-            tmpFiles = filesMap[tmpLocations]
-            tmpSubIndex = 0
-            while tmpSubIndex < len(tmpFiles):
-                tmpDsName = containerName[:-1] + "_%04d" % tmpIndex
-                tmpRet = self.registerDatasetWithLocation(
-                    tmpDsName,
-                    tmpFiles[tmpSubIndex: tmpSubIndex + nFilesPerDataset],
-                    # tmpLocations,owner=owner)
-                    tmpLocations,
+        dataset_names = []
+        tmp_index = 1
+        for tmp_locations in files_map:
+            tmp_files = files_map[tmp_locations]
+            tmp_sub_index = 0
+            while tmp_sub_index < len(tmp_files):
+                tmp_ds_name = container_name[:-1] + "_%04d" % tmp_index
+                tmp_ret = self.register_dataset_with_location(
+                    tmp_ds_name,
+                    tmp_files[tmp_sub_index: tmp_sub_index + n_files_per_dataset],
+                    tmp_locations,
                     owner=None,
                 )
                 # failed
-                if not tmpRet:
-                    self.putLog(f"failed to register {tmpDsName}", "error")
+                if not tmp_ret:
+                    self.put_log(f"failed to register {tmp_ds_name}", "error")
                     return False
                 # append dataset
-                datasetNames.append(tmpDsName)
-                tmpIndex += 1
-                tmpSubIndex += nFilesPerDataset
+                dataset_names.append(tmp_ds_name)
+                tmp_index += 1
+                tmp_sub_index += n_files_per_dataset
+
         # register container
-        nTry = 3
-        for iDDMTry in range(nTry):
+        for attempt in range(max_attempts):
             try:
-                self.putLog(f"{iDDMTry}/{nTry} registerContainer {containerName}")
-                status = rucioAPI.registerContainer(containerName, datasetNames)
+                self.put_log(f"{attempt}/{max_attempts} registerContainer {container_name}")
+                status = rucioAPI.registerContainer(container_name, dataset_names)
                 out = "OK"
                 break
             except Exception:
                 status = False
-                errType, errValue = sys.exc_info()[:2]
-                out = f"{errType} {errValue}"
+                err_type, err_value = sys.exc_info()[:2]
+                out = f"{err_type} {err_value}"
                 time.sleep(10)
+
         if not status:
-            self.putLog(out, "error")
-            self.putLog(f"bad DDM response to register {containerName}", "error")
+            self.put_log(out, "error")
+            self.put_log(f"bad DDM response to register {container_name}", "error")
             return False
+
         # return
-        self.putLog(out)
+        self.put_log(out)
         return True
 
-    # register new dataset with locations
-    def registerDatasetWithLocation(self, datasetName, files, locations, owner=None):
-        resForFailure = False
+    def register_dataset_with_location(self, dataset_name, files, locations, owner=None, max_attempts=3):
+        """
+        Register a new dataset with locations.
+
+        Args:
+            dataset_name (str): The name of the dataset.
+            files (list): The list of files to be included in the dataset.
+            locations (list): The list of locations where the dataset will be registered.
+            owner (str, optional): The owner of the dataset. Defaults to None.
+            max_attempts (int, optional): The maximum number of attempts to register the dataset. Defaults to 3.
+
+        Returns:
+            bool: The status of the registration process.
+        """
+        res_for_failure = False
+
         # get file info
         guids = []
         lfns = []
         fsizes = []
         chksums = []
-        for tmpFile in files:
-            guids.append(tmpFile["guid"])
-            lfns.append(tmpFile["scope"] + ":" + tmpFile["lfn"])
-            fsizes.append(int(tmpFile["filesize"]))
-            chksums.append(tmpFile["checksum"])
+        for tmp_file in files:
+            guids.append(tmp_file["guid"])
+            lfns.append(tmp_file["scope"] + ":" + tmp_file["lfn"])
+            fsizes.append(int(tmp_file["filesize"]))
+            chksums.append(tmp_file["checksum"])
+
         # register new dataset
-        nTry = 3
-        for iDDMTry in range(nTry):
+        for attempt in range(max_attempts):
             try:
-                self.putLog(f"{iDDMTry}/{nTry} registerNewDataset {datasetName} len={len(files)}")
-                out = rucioAPI.registerDataset(datasetName, lfns, guids, fsizes, chksums, lifetime=14)
-                self.putLog(out)
+                self.put_log(f"{attempt}/{max_attempts} registerNewDataset {dataset_name} len={len(files)}")
+                out = rucioAPI.registerDataset(dataset_name, lfns, guids, fsizes, chksums, lifetime=14)
+                self.put_log(out)
                 break
             except Exception:
-                errType, errValue = sys.exc_info()[:2]
-                self.putLog(f"{errType} {errValue}", "error")
-                if iDDMTry + 1 == nTry:
-                    self.putLog(f"failed to register {datasetName} in rucio")
-                    return resForFailure
+                err_type, err_value = sys.exc_info()[:2]
+                self.put_log(f"{err_type} {err_value}", "error")
+                if attempt + 1 == max_attempts:
+                    self.put_log(f"failed to register {dataset_name} in rucio")
+                    return res_for_failure
                 time.sleep(10)
+
         # freeze dataset
-        nTry = 3
-        for iDDMTry in range(nTry):
-            self.putLog(f"{iDDMTry}/{nTry} freezeDataset {datasetName}")
+        for attempt in range(max_attempts):
+            self.put_log(f"{attempt}/{max_attempts} freezeDataset {dataset_name}")
             try:
-                rucioAPI.closeDataset(datasetName)
+                rucioAPI.closeDataset(dataset_name)
                 status = True
             except Exception:
-                errtype, errvalue = sys.exc_info()[:2]
-                out = f"failed to freeze : {errtype} {errvalue}"
+                err_type, err_value = sys.exc_info()[:2]
+                out = f"failed to freeze : {err_type} {err_value}"
                 status = False
             if not status:
                 time.sleep(10)
             else:
                 break
         if not status:
-            self.putLog(out, "error")
-            self.putLog(f"bad DDM response to freeze {datasetName}", "error")
-            return resForFailure
+            self.put_log(out, "error")
+            self.put_log(f"bad DDM response to freeze {dataset_name}", "error")
+            return res_for_failure
+
         # register locations
-        for tmpLocation in locations:
-            nTry = 3
-            for iDDMTry in range(nTry):
+        for tmp_location in locations:
+            for attempt in range(max_attempts):
                 try:
-                    self.putLog(f"{iDDMTry}/{nTry} registerDatasetLocation {datasetName} {tmpLocation}")
-                    out = rucioAPI.registerDatasetLocation(datasetName, [tmpLocation], 14, owner)
-                    self.putLog(out)
+                    self.put_log(f"{attempt}/{max_attempts} registerDatasetLocation {dataset_name} {tmp_location}")
+                    out = rucioAPI.registerDatasetLocation(dataset_name, [tmp_location], 14, owner)
+                    self.put_log(out)
                     status = True
                     break
                 except Exception:
                     status = False
-                    errType, errValue = sys.exc_info()[:2]
-                    self.putLog(f"{errType} {errValue}", "error")
-                    if iDDMTry + 1 == nTry:
-                        self.putLog(f"failed to register {datasetName} in rucio")
-                        return resForFailure
+                    err_type, err_value = sys.exc_info()[:2]
+                    self.put_log(f"{err_type} {err_value}", "error")
+                    if attempt + 1 == max_attempts:
+                        self.put_log(f"failed to register {dataset_name} in rucio")
+                        return res_for_failure
                     time.sleep(10)
             if not status:
-                self.putLog(out, "error")
-                self.putLog(f"bad DDM response to set owner {datasetName}", "error")
-                return resForFailure
+                self.put_log(out, "error")
+                self.put_log(f"bad DDM response to set owner {dataset_name}", "error")
+                return res_for_failure
         return True
 
-    # list datasets by file GUIDs
-    def listDatasetsByGUIDs(self, guids, dsFilters):
-        resForFailure = (False, {})
-        resForFatal = (False, {"isFatal": True})
+    def list_datasets_by_guids(self, guids, ds_filters, max_attempts=3):
+        """
+        List datasets by GUIDs.
+
+        Args:
+            guids (list): The list of GUIDs.
+            ds_filters (list): The list of dataset filters.
+            max_attempts (int, optional): The maximum number of attempts to list the datasets. Defaults to 3.
+
+        Returns:
+            tuple: A tuple containing the status (bool) and the result (dict or str).
+        """
+        res_for_failure = (False, {})
+        res_for_fatal = (False, {"isFatal": True})
+
         # get size of datasets
-        nTry = 3
-        for iDDMTry in range(nTry):
-            self.putLog(f"{iDDMTry}/{nTry} listDatasetsByGUIDs GUIDs={str(guids)}")
+        for attempt in range(max_attempts):
+            self.put_log(f"{attempt}/{max_attempts} listDatasetsByGUIDs GUIDs={str(guids)}")
             try:
                 out = rucioAPI.listDatasetsByGUIDs(guids)
                 status = True
                 break
             except Exception:
-                errtype, errvalue = sys.exc_info()[:2]
-                out = f"failed to get datasets with GUIDs : {errtype} {errvalue}"
+                err_type, err_value = sys.exc_info()[:2]
+                out = f"failed to get datasets with GUIDs : {err_type} {err_value}"
                 status = False
                 time.sleep(10)
+
         if not status:
-            self.putLog(out, "error")
-            self.putLog("bad response to list datasets by GUIDs", "error")
+            self.put_log(out, "error")
+            self.put_log("bad response to list datasets by GUIDs", "error")
             if "DataIdentifierNotFound" in out:
-                return resForFatal
-            return resForFailure
-        self.putLog(out)
+                self.put_log("DataIdentifierNotFound in listDatasetsByGUIDs", "error")
+                return res_for_fatal
+            return res_for_failure
+
+        self.put_log(out)
+
         # get map
-        retMap = {}
+        ret_map = {}
         try:
-            outMap = out
+            out_map = out
             for guid in guids:
-                tmpDsNames = []
+                tmp_ds_names = []
                 # GUID not found
-                if guid not in outMap:
-                    self.putLog(f"GUID={guid} not found", "error")
-                    return resForFatal
+                if guid not in out_map:
+                    self.put_log(f"GUID={guid} not found", "error")
+                    return res_for_fatal
+
                 # ignore junk datasets
-                for tmpDsName in outMap[guid]:
+                for tmp_ds_name in out_map[guid]:
                     if (
-                            tmpDsName.startswith("panda")
-                            or tmpDsName.startswith("user")
-                            or tmpDsName.startswith("group")
-                            or tmpDsName.startswith("archive")
-                            or re.search("_sub\d+$", tmpDsName) is not None
-                            or re.search("_dis\d+$", tmpDsName) is not None
-                            or re.search("_shadow$", tmpDsName) is not None
+                            tmp_ds_name.startswith("panda")
+                            or tmp_ds_name.startswith("user")
+                            or tmp_ds_name.startswith("group")
+                            or tmp_ds_name.startswith("archive")
+                            or re.search("_sub\d+$", tmp_ds_name) is not None
+                            or re.search("_dis\d+$", tmp_ds_name) is not None
+                            or re.search("_shadow$", tmp_ds_name) is not None
                     ):
                         continue
                     # check with filters
-                    if dsFilters != []:
-                        flagMatch = False
-                        for tmpFilter in dsFilters:
-                            if fnmatch.fnmatchcase(tmpDsName, tmpFilter):
-                                flagMatch = True
+                    if ds_filters != []:
+                        flag_match = False
+                        for tmp_filter in ds_filters:
+                            if fnmatch.fnmatchcase(tmp_ds_name, tmp_filter):
+                                flag_match = True
                                 break
                         # not match
-                        if not flagMatch:
+                        if not flag_match:
                             continue
                     # append
-                    tmpDsNames.append(tmpDsName)
+                    tmp_ds_names.append(tmp_ds_name)
                 # empty
-                if tmpDsNames == []:
-                    self.putLog(f"no datasets found for GUID={guid}")
+                if not tmp_ds_names:
+                    self.put_log(f"no datasets found for GUID={guid}")
                     continue
                 # duplicated
-                if len(tmpDsNames) != 1:
-                    self.putLog(f"use the first dataset in {str(tmpDsNames)} for GUID:{guid}")
+                if len(tmp_ds_names) != 1:
+                    self.put_log(f"use the first dataset in {str(tmp_ds_names)} for GUID:{guid}")
                 # append
-                retMap[guid] = tmpDsNames[0]
+                ret_map[guid] = tmp_ds_names[0]
         except Exception:
-            self.putLog("failed to list datasets by GUIDs", "error")
-            return resForFailure
-        return True, retMap
+            self.put_log("failed to list datasets by GUIDs", "error")
+            return res_for_failure
+        return True, ret_map
 
     # convert event/run list to datasets
     def convertEvtRunToDatasets(
@@ -567,7 +618,7 @@ class DynDataDistributer:
             runEvtGuidMap,
             ei_api,
     ):
-        self.putLog(
+        self.put_log(
             f"convertEvtRunToDatasets type={dsType} stream={streamName} dsPatt={str(dsFilters)} amitag={amiTag}")
         # check data type
         failedRet = False, {}, []
@@ -576,7 +627,7 @@ class DynDataDistributer:
         # import event lookup client
         if runEvtGuidMap == {}:
             if len(runEvtList) == 0:
-                self.putLog("Empty list for run and events was provided", type="error")
+                self.put_log("Empty list for run and events was provided", type="error")
                 return failedRet
             # Hadoop EI
             from .eventLookupClientEI import eventLookupClientEI
@@ -587,7 +638,7 @@ class DynDataDistributer:
             iEventsTotal = 0
             while iEventsTotal < len(runEvtList):
                 tmpRunEvtList = runEvtList[iEventsTotal: iEventsTotal + nEventsPerLoop]
-                self.putLog(f"EI lookup for {iEventsTotal}/{len(runEvtList)}")
+                self.put_log(f"EI lookup for {iEventsTotal}/{len(runEvtList)}")
                 iEventsTotal += nEventsPerLoop
                 regStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                 guidListELSSI, tmpCom, tmpOut, tmpErr = elssiIF.doLookup(
@@ -599,28 +650,28 @@ class DynDataDistributer:
                     ei_api=ei_api,
                 )
                 regTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - regStart
-                self.putLog(f"EI command: {tmpCom}")
-                self.putLog(
+                self.put_log(f"EI command: {tmpCom}")
+                self.put_log(
                     f"took {regTime.seconds}.{regTime.microseconds / 1000:03f} sec for {len(tmpRunEvtList)} events")
                 # failed
                 if tmpErr not in [None, ""] or len(guidListELSSI) == 0:
-                    self.putLog(tmpCom)
-                    self.putLog(tmpOut)
-                    self.putLog(tmpErr)
-                    self.putLog("invalid return from EventIndex", type="error")
+                    self.put_log(tmpCom)
+                    self.put_log(tmpOut)
+                    self.put_log(tmpErr)
+                    self.put_log("invalid return from EventIndex", type="error")
                     return failedRet
                 # check events
                 for runNr, evtNr in tmpRunEvtList:
                     paramStr = f"Run:{runNr} Evt:{evtNr} Stream:{streamName}"
-                    self.putLog(paramStr)
+                    self.put_log(paramStr)
                     tmpRunEvtKey = (int(runNr), int(evtNr))
                     # not found
                     if tmpRunEvtKey not in guidListELSSI or len(guidListELSSI[tmpRunEvtKey]) == 0:
-                        self.putLog(tmpCom)
-                        self.putLog(tmpOut)
-                        self.putLog(tmpErr)
+                        self.put_log(tmpCom)
+                        self.put_log(tmpOut)
+                        self.put_log(tmpErr)
                         errStr = f"no GUIDs were found in EventIndex for {paramStr}"
-                        self.putLog(errStr, type="error")
+                        self.put_log(errStr, type="error")
                         return fatalRet
                     # append
                     runEvtGuidMap[tmpRunEvtKey] = guidListELSSI[tmpRunEvtKey]
@@ -631,22 +682,22 @@ class DynDataDistributer:
         for tmpIdx in runEvtGuidMap:
             tmpguids = runEvtGuidMap[tmpIdx]
             runNr, evtNr = tmpIdx
-            tmpDsRet, tmpDsMap = self.listDatasetsByGUIDs(tmpguids, dsFilters)
+            tmpDsRet, tmpDsMap = self.list_datasets_by_guids(tmpguids, dsFilters)
             # failed
             if not tmpDsRet:
-                self.putLog("failed to convert GUIDs to datasets", type="error")
+                self.put_log("failed to convert GUIDs to datasets", type="error")
                 if "isFatal" in tmpDsMap and tmpDsMap["isFatal"] is True:
                     return fatalRet
                 return failedRet
             # empty
             if tmpDsMap == {}:
-                self.putLog(
+                self.put_log(
                     f"there is no dataset for Run:{runNr} Evt:{evtNr} GUIDs:{str(tmpguids)}",
                     type="error",
                 )
                 return fatalRet
             if len(tmpDsMap) != 1:
-                self.putLog(
+                self.put_log(
                     f"there are multiple datasets {str(tmpDsMap)} for Run:{runNr} Evt:{evtNr} GUIDs:{str(tmpguids)}",
                     type="error",
                 )
@@ -658,10 +709,10 @@ class DynDataDistributer:
                 if tmpDsName not in allDatasets:
                     allDatasets.append(tmpDsName)
                     # get location
-                    statRep, replicaMap = self.getListDatasetReplicas(tmpDsName)
+                    statRep, replicaMap = self.get_list_dataset_replicas(tmpDsName)
                     # failed
                     if not statRep:
-                        self.putLog(
+                        self.put_log(
                             f"failed to get locations for DS:{tmpDsName}",
                             type="error",
                         )
@@ -676,10 +727,10 @@ class DynDataDistributer:
                                 tmpLocationList.append(tmpLocation)
                     allLocations[tmpDsName] = tmpLocationList
                 # get file info
-                tmpFileRet, tmpFileInfo = self.getFileFromDataset(tmpDsName, tmpGUID)
+                tmpFileRet, tmpFileInfo = self.get_file_from_dataset(tmpDsName, tmpGUID)
                 # failed
                 if not tmpFileRet:
-                    self.putLog(
+                    self.put_log(
                         f"failed to get fileinfo for GUID:{tmpGUID} DS:{tmpDsName}",
                         type="error",
                     )
@@ -687,45 +738,57 @@ class DynDataDistributer:
                 # collect files
                 allFiles.append(tmpFileInfo)
         # return
-        self.putLog(f"converted to {str(allDatasets)}, {str(allLocations)}, {str(allFiles)}")
+        self.put_log(f"converted to {str(allDatasets)}, {str(allLocations)}, {str(allFiles)}")
         return True, allLocations, allFiles
 
-    # put log
-    def putLog(self, msg, type="debug", sendLog=False, actionTag="", tagsMap={}):
+    def put_log(self, message, message_type="debug", send_log=False, action_tag="", tags_map={}):
+        """
+        Log a message with a specific type and optionally send it to a logger.
+
+        Args:
+            message (str): The message to be logged.
+            message_type (str, optional): The type of the message. Defaults to "debug".
+            send_log (bool, optional): Flag to send the message to a logger. Defaults to False.
+            action_tag (str, optional): The action tag. Defaults to "".
+            tags_map (dict, optional): The map of tags. Defaults to {}.
+
+        """
         if self.logger is None:
-            tmpMsg = self.token + " " + str(msg)
+            temp_message = self.token + " " + str(message)
         else:
-            tmpMsg = str(msg)
-        if type == "error":
+            temp_message = str(message)
+
+        if message_type == "error":
             if self.logger is None:
-                _logger.error(tmpMsg)
+                _logger.error(temp_message)
             else:
-                self.logger.error(tmpMsg)
+                self.logger.error(temp_message)
             # keep last error message
-            self.last_message = tmpMsg
+            self.last_message = temp_message
         else:
             if self.logger is None:
-                _logger.debug(tmpMsg)
+                _logger.debug(temp_message)
             else:
-                self.logger.debug(tmpMsg)
+                self.logger.debug(temp_message)
+
         # send to logger
-        if sendLog:
-            tmpMsg = self.token + " - "
-            if actionTag != "":
-                tmpMsg += f"action={actionTag} "
-                for tmpTag in tagsMap:
-                    tmpTagVal = tagsMap[tmpTag]
-                    tmpMsg += f"{tmpTag}={tmpTagVal} "
-            tmpMsg += "- " + msg
-            tmpPandaLogger = PandaLogger()
-            tmpPandaLogger.lock()
-            tmpPandaLogger.setParams({"Type": "pd2p"})
-            tmpLog = tmpPandaLogger.getHttpLogger(panda_config.loggername)
+        if send_log:
+            temp_message = self.token + " - "
+            if action_tag != "":
+                temp_message += f"action={action_tag} "
+                for tmp_tag in tags_map:
+                    tmp_tag_val = tags_map[tmp_tag]
+                    temp_message += f"{tmp_tag}={tmp_tag_val} "
+            temp_message += "- " + message
+            temp_panda_logger = PandaLogger()
+            temp_panda_logger.lock()
+            temp_panda_logger.setParams({"Type": "pd2p"})
+            temp_log = temp_panda_logger.getHttpLogger(panda_config.loggername)
             # add message
-            if type == "error":
-                tmpLog.error(tmpMsg)
+            if message_type == "error":
+                temp_log.error(temp_message)
             else:
-                tmpLog.info(tmpMsg)
+                temp_log.info(temp_message)
             # release HTTP handler
-            tmpPandaLogger.release()
+            temp_panda_logger.release()
             time.sleep(1)

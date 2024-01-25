@@ -204,7 +204,7 @@ class EventPicker:
             # remove redundant CN from DN
             tmpDN = CoreUtils.get_id_from_dn(self.userDN)
             # make dataset container
-            tmpRet = self.pd2p.registerDatasetContainerWithDatasets(
+            tmpRet = self.pd2p.register_dataset_container_with_datasets(
                 self.userDatasetName,
                 allFiles,
                 locationMap,
@@ -246,7 +246,7 @@ class EventPicker:
                 # get list of dataset (container) names
                 if eventPickNumSites > 1:
                     # decompose container to transfer datasets separately
-                    tmpRet, tmpOut = self.pd2p.getListDatasetReplicasInContainer(self.userDatasetName)
+                    tmpRet, tmpOut = self.pd2p.get_list_dataset_replicas_in_container(self.userDatasetName)
                     if not tmpRet:
                         self.endWithError(f"Failed to get replicas in {self.userDatasetName}")
                         return False
