@@ -40,7 +40,7 @@ COPY . .
 
 # install panda-common first to prevent panda-client from installing redundant files
 RUN /opt/panda/bin/pip install --no-cache-dir panda-common
-RUN /opt/panda/bin/python setup.py sdist; /opt/panda/bin/pip install --no-cache-dir `ls dist/p*.tar.gz`[postgres]
+RUN /opt/panda/bin/pip install --no-cache-dir .[postgres]
 RUN /opt/panda/bin/pip install --no-cache-dir rucio-clients
 RUN /opt/panda/bin/pip install --no-cache-dir "git+https://github.com/PanDAWMS/panda-cacheschedconfig.git"
 RUN ln -s /opt/panda/lib/python*/site-packages/mod_wsgi/server/mod_wsgi*.so /etc/httpd/modules/mod_wsgi.so
