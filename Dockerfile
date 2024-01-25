@@ -20,7 +20,6 @@ RUN mkdir /tmp/python && cd /tmp/python && \
     echo /usr/local/lib > /etc/ld.so.conf.d/local.conf && ldconfig && \
     cd / && rm -rf /tmp/pyton
 
-
 # install postgres
 RUN yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
 RUN yum install --nogpgcheck -y postgresql16
@@ -30,7 +29,7 @@ RUN  yum clean all && rm -rf /var/cache/yum
 RUN python$(echo ${PYTHON_VERSION} | sed -E 's/\.[0-9]+$//') -m venv /opt/panda
 RUN /opt/panda/bin/pip install --no-cache-dir -U pip
 RUN /opt/panda/bin/pip install --no-cache-dir -U setuptools
-RUN /opt/panda/bin/pip install -U gnureadline
+RUN /opt/panda/bin/pip install --no-cache-dir -U gnureadline
 RUN adduser atlpan
 RUN groupadd zp
 RUN usermod -a -G zp atlpan
@@ -40,7 +39,7 @@ COPY . .
 
 # install panda-common first to prevent panda-client from installing redundant files
 RUN /opt/panda/bin/pip install --no-cache-dir panda-common
-RUN /opt/panda/bin/python setup.py sdist; /opt/panda/bin/pip install --no-cache-dir `ls dist/p*.tar.gz`[postgres]
+RUN /opt/panda/bin/pip install --no-cache-dir .[postgres]
 RUN /opt/panda/bin/pip install --no-cache-dir rucio-clients
 RUN /opt/panda/bin/pip install --no-cache-dir "git+https://github.com/PanDAWMS/panda-cacheschedconfig.git"
 RUN ln -s /opt/panda/lib/python*/site-packages/mod_wsgi/server/mod_wsgi*.so /etc/httpd/modules/mod_wsgi.so
