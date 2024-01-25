@@ -606,140 +606,138 @@ class DynDataDistributer:
             return res_for_failure
         return True, ret_map
 
-    # convert event/run list to datasets
-    def convertEvtRunToDatasets(
-            self,
-            runEvtList,
-            dsType,
-            streamName,
-            dsFilters,
-            amiTag,
-            user,
-            runEvtGuidMap,
-            ei_api,
-    ):
+    def convert_evt_run_to_datasets(self, run_evt_list, ds_type, stream_name, ds_filters, ami_tag, user,
+                                    run_evt_guid_map, ei_api):
+        """
+        Convert event/run list to datasets.
+
+        Args:
+            run_evt_list (list): The list of run events.
+            ds_type (str): The type of the dataset.
+            stream_name (str): The name of the stream.
+            ds_filters (list): The list of dataset filters.
+            ami_tag (str): The AMI tag.
+            user (str): The user.
+            run_evt_guid_map (dict): The map of run events to GUIDs.
+            ei_api (str): The EventIndex API.
+
+        Returns:
+            tuple: A tuple containing the status (bool), the result (dict or str), and the list of all files.
+        """
         self.put_log(
-            f"convertEvtRunToDatasets type={dsType} stream={streamName} dsPatt={str(dsFilters)} amitag={amiTag}")
+            f"convertEvtRunToDatasets type={ds_type} stream={stream_name} dsPatt={str(ds_filters)} amitag={ami_tag}")
         # check data type
-        failedRet = False, {}, []
-        fatalRet = False, {"isFatal": True}, []
-        streamRef = "Stream" + dsType
+        failed_ret = False, {}, []
+        fatal_ret = False, {"isFatal": True}, []
+        stream_ref = "Stream" + ds_type
         # import event lookup client
-        if runEvtGuidMap == {}:
-            if len(runEvtList) == 0:
+        if run_evt_guid_map == {}:
+            if len(run_evt_list) == 0:
                 self.put_log("Empty list for run and events was provided", type="error")
-                return failedRet
+                return failed_ret
             # Hadoop EI
             from .eventLookupClientEI import eventLookupClientEI
 
-            elssiIF = eventLookupClientEI()
+            elssi_if = eventLookupClientEI()
             # loop over all events
-            nEventsPerLoop = 500
-            iEventsTotal = 0
-            while iEventsTotal < len(runEvtList):
-                tmpRunEvtList = runEvtList[iEventsTotal: iEventsTotal + nEventsPerLoop]
-                self.put_log(f"EI lookup for {iEventsTotal}/{len(runEvtList)}")
-                iEventsTotal += nEventsPerLoop
-                regStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-                guidListELSSI, tmpCom, tmpOut, tmpErr = elssiIF.doLookup(
-                    tmpRunEvtList,
-                    stream=streamName,
-                    tokens=streamRef,
-                    amitag=amiTag,
+            n_events_per_loop = 500
+            i_events_total = 0
+            while i_events_total < len(run_evt_list):
+                tmp_run_evt_list = run_evt_list[i_events_total: i_events_total + n_events_per_loop]
+                self.put_log(f"EI lookup for {i_events_total}/{len(run_evt_list)}")
+                i_events_total += n_events_per_loop
+                reg_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                guid_list_elssi, tmp_com, tmp_out, tmp_err = elssi_if.do_lookup(
+                    tmp_run_evt_list,
+                    stream=stream_name,
+                    tokens=stream_ref,
+                    amitag=ami_tag,
                     user=user,
                     ei_api=ei_api,
                 )
-                regTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - regStart
-                self.put_log(f"EI command: {tmpCom}")
+                reg_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - reg_start
+                self.put_log(f"EI command: {tmp_com}")
                 self.put_log(
-                    f"took {regTime.seconds}.{regTime.microseconds / 1000:03f} sec for {len(tmpRunEvtList)} events")
+                    f"took {reg_time.seconds}.{reg_time.microseconds / 1000:03f} sec for {len(tmp_run_evt_list)} events")
                 # failed
-                if tmpErr not in [None, ""] or len(guidListELSSI) == 0:
-                    self.put_log(tmpCom)
-                    self.put_log(tmpOut)
-                    self.put_log(tmpErr)
+                if tmp_err not in [None, ""] or len(guid_list_elssi) == 0:
+                    self.put_log(tmp_com)
+                    self.put_log(tmp_out)
+                    self.put_log(tmp_err)
                     self.put_log("invalid return from EventIndex", type="error")
-                    return failedRet
+                    return failed_ret
                 # check events
-                for runNr, evtNr in tmpRunEvtList:
-                    paramStr = f"Run:{runNr} Evt:{evtNr} Stream:{streamName}"
-                    self.put_log(paramStr)
-                    tmpRunEvtKey = (int(runNr), int(evtNr))
+                for run_nr, evt_nr in tmp_run_evt_list:
+                    param_str = f"Run:{run_nr} Evt:{evt_nr} Stream:{stream_name}"
+                    self.put_log(param_str)
+                    tmp_run_evt_key = (int(run_nr), int(evt_nr))
                     # not found
-                    if tmpRunEvtKey not in guidListELSSI or len(guidListELSSI[tmpRunEvtKey]) == 0:
-                        self.put_log(tmpCom)
-                        self.put_log(tmpOut)
-                        self.put_log(tmpErr)
-                        errStr = f"no GUIDs were found in EventIndex for {paramStr}"
-                        self.put_log(errStr, type="error")
-                        return fatalRet
+                    if tmp_run_evt_key not in guid_list_elssi or len(guid_list_elssi[tmp_run_evt_key]) == 0:
+                        self.put_log(tmp_com)
+                        self.put_log(tmp_out)
+                        self.put_log(tmp_err)
+                        err_str = f"no GUIDs were found in EventIndex for {param_str}"
+                        self.put_log(err_str, type="error")
+                        return fatal_ret
                     # append
-                    runEvtGuidMap[tmpRunEvtKey] = guidListELSSI[tmpRunEvtKey]
+                    run_evt_guid_map[tmp_run_evt_key] = guid_list_elssi[tmp_run_evt_key]
         # convert to datasets
-        allDatasets = []
-        allFiles = []
-        allLocations = {}
-        for tmpIdx in runEvtGuidMap:
-            tmpguids = runEvtGuidMap[tmpIdx]
-            runNr, evtNr = tmpIdx
-            tmpDsRet, tmpDsMap = self.list_datasets_by_guids(tmpguids, dsFilters)
+        all_datasets = []
+        all_files = []
+        all_locations = {}
+        for tmp_idx in run_evt_guid_map:
+            tmp_guids = run_evt_guid_map[tmp_idx]
+            run_nr, evt_nr = tmp_idx
+            tmp_ds_ret, tmp_ds_map = self.list_datasets_by_guids(tmp_guids, ds_filters)
             # failed
-            if not tmpDsRet:
+            if not tmp_ds_ret:
                 self.put_log("failed to convert GUIDs to datasets", type="error")
-                if "isFatal" in tmpDsMap and tmpDsMap["isFatal"] is True:
-                    return fatalRet
-                return failedRet
+                if "isFatal" in tmp_ds_map and tmp_ds_map["isFatal"] is True:
+                    return fatal_ret
+                return failed_ret
             # empty
-            if tmpDsMap == {}:
+            if tmp_ds_map == {}:
+                self.put_log(f"there is no dataset for Run:{run_nr} Evt:{evt_nr} GUIDs:{str(tmp_guids)}", type="error")
+                return fatal_ret
+            if len(tmp_ds_map) != 1:
                 self.put_log(
-                    f"there is no dataset for Run:{runNr} Evt:{evtNr} GUIDs:{str(tmpguids)}",
-                    type="error",
-                )
-                return fatalRet
-            if len(tmpDsMap) != 1:
-                self.put_log(
-                    f"there are multiple datasets {str(tmpDsMap)} for Run:{runNr} Evt:{evtNr} GUIDs:{str(tmpguids)}",
-                    type="error",
-                )
-                return fatalRet
+                    f"there are multiple datasets {str(tmp_ds_map)} for Run:{run_nr} Evt:{evt_nr} GUIDs:{str(tmp_guids)}",
+                    type="error")
+                return fatal_ret
+
             # append
-            for tmpGUID in tmpDsMap:
-                tmpDsName = tmpDsMap[tmpGUID]
+            for tmp_guid in tmp_ds_map:
+                tmp_ds_name = tmp_ds_map[tmp_guid]
                 # collect dataset names
-                if tmpDsName not in allDatasets:
-                    allDatasets.append(tmpDsName)
+                if tmp_ds_name not in all_datasets:
+                    all_datasets.append(tmp_ds_name)
                     # get location
-                    statRep, replicaMap = self.get_list_dataset_replicas(tmpDsName)
+                    stat_rep, replica_map = self.get_list_dataset_replicas(tmp_ds_name)
                     # failed
-                    if not statRep:
-                        self.put_log(
-                            f"failed to get locations for DS:{tmpDsName}",
-                            type="error",
-                        )
-                        return failedRet
+                    if not stat_rep:
+                        self.put_log(f"failed to get locations for {tmp_ds_name}", type="error")
+                        return failed_ret
                     # collect locations
-                    tmpLocationList = []
-                    for tmpLocation in replicaMap:
+                    tmp_location_list = []
+                    for tmp_location in replica_map:
                         # use only complete replicas
-                        dsStatDict = replicaMap[tmpLocation][0]
-                        if dsStatDict["total"] is not None and dsStatDict["total"] == dsStatDict["found"]:
-                            if tmpLocation not in tmpLocationList:
-                                tmpLocationList.append(tmpLocation)
-                    allLocations[tmpDsName] = tmpLocationList
+                        ds_stat_dict = replica_map[tmp_location][0]
+                        if ds_stat_dict["total"] is not None and ds_stat_dict["total"] == ds_stat_dict["found"]:
+                            if tmp_location not in tmp_location_list:
+                                tmp_location_list.append(tmp_location)
+                    all_locations[tmp_ds_name] = tmp_location_list
+
                 # get file info
-                tmpFileRet, tmpFileInfo = self.get_file_from_dataset(tmpDsName, tmpGUID)
+                tmp_file_ret, tmp_file_info = self.get_file_from_dataset(tmp_ds_name, tmp_guid)
                 # failed
-                if not tmpFileRet:
-                    self.put_log(
-                        f"failed to get fileinfo for GUID:{tmpGUID} DS:{tmpDsName}",
-                        type="error",
-                    )
-                    return failedRet
+                if not tmp_file_ret:
+                    self.put_log(f"failed to get fileinfo for GUID:{tmp_guid} DS:{tmp_ds_name}", type="error")
+                    return failed_ret
                 # collect files
-                allFiles.append(tmpFileInfo)
+                all_files.append(tmp_file_info)
         # return
-        self.put_log(f"converted to {str(allDatasets)}, {str(allLocations)}, {str(allFiles)}")
-        return True, allLocations, allFiles
+        self.put_log(f"converted to {str(all_datasets)}, {str(all_locations)}, {str(all_files)}")
+        return True, all_locations, all_files
 
     def put_log(self, message, message_type="debug", send_log=False, action_tag="", tags_map={}):
         """

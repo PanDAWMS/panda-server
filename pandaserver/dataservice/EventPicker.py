@@ -179,7 +179,7 @@ class EventPicker:
                 self.job_label,
             ) = self.taskBuffer.getProdSourceLabelwithTaskID(self.jediTaskID)
             # convert run/event list to dataset/file list
-            tmpRet, locationMap, allFiles = self.pd2p.convertEvtRunToDatasets(
+            tmpRet, locationMap, allFiles = self.pd2p.convert_evt_run_to_datasets(
                 runEvtList,
                 eventPickDataType,
                 eventPickStreamName,
