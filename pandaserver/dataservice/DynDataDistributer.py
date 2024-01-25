@@ -23,12 +23,10 @@ from pandaserver.taskbuffer.JobSpec import JobSpec
 # logger
 _logger = PandaLogger().getLogger("DynDataDistributer")
 
-
 def initLogger(pLogger):
     # redirect logging to parent
     global _logger
     _logger = pLogger
-
 
 # NG datasets
 ngDataTypes = ["RAW", "HITS", "RDO", "ESD", "EVNT"]
@@ -51,46 +49,41 @@ cloudsWithSmallT1 = ["IT"]
 # files in datasets
 g_filesInDsMap = {}
 
-
 class DynDataDistributer:
     # constructor
     def __init__(self, jobs, taskBuffer, siteMapper, simul=False, token=None, logger=None):
         self.jobs = jobs
-        self.taskBuffer = taskBuffer
-        self.siteMapper = siteMapper
+        #self.taskBuffer = taskBuffer
+        self.site_mapper = siteMapper
         if token is None:
             self.token = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(" ")
         else:
             self.token = token
         # use a fixed list since some clouds don't have active T2s
-        self.pd2pClouds = ["CA", "DE", "ES", "FR", "IT", "ND", "NL", "TW", "UK", "US"]
+        self.pd2p_clouds = ["CA", "DE", "ES", "FR", "IT", "ND", "NL", "TW", "UK", "US"]
         self.simul = simul
-        self.lastMessage = ""
-        self.cachedSizeMap = {}
-        self.shareMoUForT2 = None
-        self.mapTAGandParentGUIDs = {}
-        self.tagParentInfo = {}
-        self.parentLfnToTagMap = {}
+        self.last_message = ""
         self.logger = logger
 
-    # get candidate sites for subscription
-    def getCandidates(
-        self,
-        inputDS,
-        prodsourcelabel,
-        job_label,
-        checkUsedFile=True,
-        useHidden=False,
-        useCloseSites=False,
-    ):
+    def get_replica_locations(self, input_ds, check_used_file):
+        """Get replica locations for a given dataset.
+
+        Args:
+            input_ds (str): The name of the input dataset.
+            check_used_file (bool): Flag to check used file.
+
+        Returns:
+            tuple: A tuple containing the status (bool) and the result (dict or str).
+        """
         # return for failure
-        failedRet = False, {"": {"": ([], [], [], 0, False, False, 0, 0, [])}}
+        res_for_failure = False, {"": {"": ([], [], [], 0, False, False, 0, 0, [])}}
+
         # get replica locations
-        if inputDS.endswith("/"):
+        if input_ds.endswith("/"):
             # container
-            status, tmpRepMaps = self.getListDatasetReplicasInContainer(inputDS)
+            status, tmpRepMaps = self.getListDatasetReplicasInContainer(input_ds)
             # get used datasets
-            if status and checkUsedFile:
+            if status and check_used_file:
                 status, tmpUsedDsList = self.getUsedDatasets(tmpRepMaps)
                 # remove unused datasets
                 newRepMaps = {}
@@ -101,43 +94,47 @@ class DynDataDistributer:
                 tmpRepMaps = newRepMaps
         else:
             # normal dataset
-            status, tmpRepMap = self.getListDatasetReplicas(inputDS)
-            tmpRepMaps = {inputDS: tmpRepMap}
+            status, tmpRepMap = self.getListDatasetReplicas(input_ds)
+            tmpRepMaps = {input_ds: tmpRepMap}
+
         if not status:
             # failed
-            self.putLog(f"failed to get replica locations for {inputDS}", "error")
-            return failedRet
-        # get close sites
-        closeSitesMap = {}
-        # get all sites
-        allSiteMap = []
-        for tmpSiteName in self.siteMapper.siteSpecList:
-            tmpSiteSpec = self.siteMapper.siteSpecList[tmpSiteName]
+            self.putLog(f"failed to get replica locations for {input_ds}", "error")
+            return res_for_failure
+
+        return True, tmpRepMaps
+
+    def get_all_sites(self):
+        """Get all sites that meet certain conditions."""
+        all_sites = []
+        for site_name in self.site_mapper.siteSpecList:
+            site_spec = self.site_mapper.siteSpecList[site_name]
             # check cloud
-            if tmpSiteSpec.cloud not in self.pd2pClouds:
+            if site_spec.cloud not in self.pd2p_clouds:
                 continue
             # ignore test sites
-            if "test" in tmpSiteName.lower():
+            if "test" in site_name.lower():
                 continue
             # analysis only
-            if not tmpSiteSpec.runs_analysis():
+            if not site_spec.runs_analysis():
                 continue
             # skip GPU
-            if tmpSiteSpec.isGPU():
+            if site_spec.isGPU():
                 continue
             # skip VP
-            if tmpSiteSpec.use_vp(JobUtils.ANALY_PS):
+            if site_spec.use_vp(JobUtils.ANALY_PS):
                 continue
             # online
-            if tmpSiteSpec.status not in ["online"]:
+            if site_spec.status not in ["online"]:
                 continue
-            allSiteMap.append(tmpSiteSpec)
-        # NG DQ2 IDs
-        ngDQ2SuffixList = ["LOCALGROUPDISK", "STAGING"]
-        # loop over all clouds
+            all_sites.append(site_spec)
+        return all_sites
+
+    def get_candidate_sites(self, tmpRepMaps, prodsourcelabel, job_label, use_close_sites):
+        """Get candidate sites for subscription."""
+        all_site_map = self.get_all_sites()
         returnMap = {}
         cloud = "WORLD"
-        # loop over all datasets
         for tmpDS in tmpRepMaps:
             tmpRepMap = tmpRepMaps[tmpDS]
             candSites = []
@@ -147,9 +144,8 @@ class DynDataDistributer:
             t1HasPrimary = False
             nSecReplicas = 0
             candForMoU = []
-            # check sites
             nUserSub = 0
-            for tmpSiteSpec in allSiteMap:
+            for tmpSiteSpec in all_site_map:
                 tmp_scope_input, tmp_scope_output = select_scope(tmpSiteSpec, prodsourcelabel, job_label)
                 if tmp_scope_input not in tmpSiteSpec.ddm_endpoints_input:
                     continue
@@ -157,15 +153,13 @@ class DynDataDistributer:
                 hasReplica = False
                 for tmpDQ2ID in tmpRepMap:
                     tmpStatMap = tmpRepMap[tmpDQ2ID]
-                    if tmpDQ2ID in rses and tmpStatMap[0]["total"] == tmpStatMap[0]["found"] and tmpDQ2ID.endswith("DATADISK"):
-                        # complete
+                    if tmpDQ2ID in rses and tmpStatMap[0]["total"] == tmpStatMap[0]["found"] and tmpDQ2ID.endswith(
+                            "DATADISK"):
                         sitesComDS.append(tmpSiteSpec.sitename)
                         hasReplica = True
                         break
-                # site doesn't have a replica
-                if hasReplica or not useCloseSites:
+                if hasReplica or not use_close_sites:
                     candSites.append(tmpSiteSpec.sitename)
-            # append
             returnMap.setdefault(tmpDS, {})
             if sitesComDS:
                 candSites = sitesComDS
@@ -180,8 +174,29 @@ class DynDataDistributer:
                 0,
                 candForMoU,
             )
-        # return
         return True, returnMap
+
+    def get_candidates(self, input_ds, prodsourcelabel, job_label, check_used_file=True, use_close_sites=False):
+        """
+        Get candidate sites for subscription.
+
+        Args:
+            input_ds (str): The name of the input dataset.
+            prodsourcelabel (str): The label of the production source.
+            job_label (str): The label of the job.
+            check_used_file (bool, optional): Flag to check used file. Defaults to True.
+            use_close_sites (bool, optional): Flag to use close sites. Defaults to False.
+
+        Returns:
+            tuple: A tuple containing the status (bool) and the result (dict or str).
+        """
+        # Get replica locations
+        status, tmpRepMaps = self.get_replica_locations(input_ds, check_used_file)
+        if not status:
+            return status, tmpRepMaps
+
+        # Get candidate sites
+        return self.get_candidate_sites(tmpRepMaps, prodsourcelabel, job_label, use_close_sites)
 
     # get list of replicas for a dataset
     def getListDatasetReplicas(self, dataset):
@@ -204,7 +219,8 @@ class DynDataDistributer:
     # get replicas for a container
     def getListDatasetReplicasInContainer(self, container):
         # response for failure
-        resForFailure = False, {}f
+        resForFailure = False, {}
+        f
         # get datasets in container
         nTry = 3
         for iDDMTry in range(nTry):
@@ -362,7 +378,7 @@ class DynDataDistributer:
                 tmpDsName = containerName[:-1] + "_%04d" % tmpIndex
                 tmpRet = self.registerDatasetWithLocation(
                     tmpDsName,
-                    tmpFiles[tmpSubIndex : tmpSubIndex + nFilesPerDataset],
+                    tmpFiles[tmpSubIndex: tmpSubIndex + nFilesPerDataset],
                     # tmpLocations,owner=owner)
                     tmpLocations,
                     owner=None,
@@ -504,13 +520,13 @@ class DynDataDistributer:
                 # ignore junk datasets
                 for tmpDsName in outMap[guid]:
                     if (
-                        tmpDsName.startswith("panda")
-                        or tmpDsName.startswith("user")
-                        or tmpDsName.startswith("group")
-                        or tmpDsName.startswith("archive")
-                        or re.search("_sub\d+$", tmpDsName) is not None
-                        or re.search("_dis\d+$", tmpDsName) is not None
-                        or re.search("_shadow$", tmpDsName) is not None
+                            tmpDsName.startswith("panda")
+                            or tmpDsName.startswith("user")
+                            or tmpDsName.startswith("group")
+                            or tmpDsName.startswith("archive")
+                            or re.search("_sub\d+$", tmpDsName) is not None
+                            or re.search("_dis\d+$", tmpDsName) is not None
+                            or re.search("_shadow$", tmpDsName) is not None
                     ):
                         continue
                     # check with filters
@@ -541,17 +557,18 @@ class DynDataDistributer:
 
     # convert event/run list to datasets
     def convertEvtRunToDatasets(
-        self,
-        runEvtList,
-        dsType,
-        streamName,
-        dsFilters,
-        amiTag,
-        user,
-        runEvtGuidMap,
-        ei_api,
+            self,
+            runEvtList,
+            dsType,
+            streamName,
+            dsFilters,
+            amiTag,
+            user,
+            runEvtGuidMap,
+            ei_api,
     ):
-        self.putLog(f"convertEvtRunToDatasets type={dsType} stream={streamName} dsPatt={str(dsFilters)} amitag={amiTag}")
+        self.putLog(
+            f"convertEvtRunToDatasets type={dsType} stream={streamName} dsPatt={str(dsFilters)} amitag={amiTag}")
         # check data type
         failedRet = False, {}, []
         fatalRet = False, {"isFatal": True}, []
@@ -569,7 +586,7 @@ class DynDataDistributer:
             nEventsPerLoop = 500
             iEventsTotal = 0
             while iEventsTotal < len(runEvtList):
-                tmpRunEvtList = runEvtList[iEventsTotal : iEventsTotal + nEventsPerLoop]
+                tmpRunEvtList = runEvtList[iEventsTotal: iEventsTotal + nEventsPerLoop]
                 self.putLog(f"EI lookup for {iEventsTotal}/{len(runEvtList)}")
                 iEventsTotal += nEventsPerLoop
                 regStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
@@ -583,7 +600,8 @@ class DynDataDistributer:
                 )
                 regTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - regStart
                 self.putLog(f"EI command: {tmpCom}")
-                self.putLog(f"took {regTime.seconds}.{regTime.microseconds / 1000:03f} sec for {len(tmpRunEvtList)} events")
+                self.putLog(
+                    f"took {regTime.seconds}.{regTime.microseconds / 1000:03f} sec for {len(tmpRunEvtList)} events")
                 # failed
                 if tmpErr not in [None, ""] or len(guidListELSSI) == 0:
                     self.putLog(tmpCom)
@@ -684,7 +702,7 @@ class DynDataDistributer:
             else:
                 self.logger.error(tmpMsg)
             # keep last error message
-            self.lastMessage = tmpMsg
+            self.last_message = tmpMsg
         else:
             if self.logger is None:
                 _logger.debug(tmpMsg)

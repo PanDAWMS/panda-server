@@ -222,12 +222,11 @@ class EventPicker:
                 self.taskBuffer.updateTaskModTimeJEDI(self.jediTaskID)
             else:
                 # get candidates
-                tmpRet, candidateMaps = self.pd2p.getCandidates(
+                tmpRet, candidateMaps = self.pd2p.get_candidates(
                     self.userDatasetName,
                     self.prodSourceLabel,
                     self.job_label,
                     checkUsedFile=False,
-                    useHidden=True,
                 )
                 if not tmpRet:
                     self.endWithError("Failed to find candidate for destination")
