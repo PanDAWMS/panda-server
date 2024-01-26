@@ -1578,7 +1578,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             return
         # execute
         self.logger.debug("execute PD2P")
-        from .DynDataDistributer import DynDataDistributer
+        from .dyn_data_distributer import DynDataDistributer
 
         ddd = DynDataDistributer(self.jobs, self.taskBuffer, self.siteMapper)
         ddd.run()

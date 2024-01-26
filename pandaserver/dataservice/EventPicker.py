@@ -13,7 +13,7 @@ import traceback
 import pandaserver.brokerage.broker
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandaserver.dataservice import DynDataDistributer
+from pandaserver.dataservice import dyn_data_distributer
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.DDM import rucioAPI
 from pandaserver.dataservice.Notifier import Notifier
@@ -37,7 +37,7 @@ class EventPicker:
         self.token = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(" ")
         # logger
         self.logger = LogWrapper(_logger, self.token)
-        self.pd2p = DynDataDistributer.DynDataDistributer([], self.taskBuffer, self.siteMapper, token=" ", logger=self.logger)
+        self.pd2p = dyn_data_distributer.DynDataDistributer([], self.taskBuffer, self.siteMapper, token=" ", logger=self.logger)
         self.userDatasetName = ""
         self.creationTime = ""
         self.params = ""
