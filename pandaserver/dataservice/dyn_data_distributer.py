@@ -10,6 +10,8 @@ import sys
 import time
 import uuid
 
+from typing import Dict, List, Tuple, Union
+
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.config import panda_config
 from pandaserver.dataservice.DataServiceUtils import select_scope
@@ -19,19 +21,30 @@ from pandaserver.taskbuffer import JobUtils
 # logger
 _logger = PandaLogger().getLogger("DynDataDistributer")
 
+
 def initLogger(pLogger):
+    """
+    Redirects logging to the parent logger.
+
+    This function sets the global logger `_logger` to the provided logger `pLogger`.
+
+    Args:
+        pLogger (logging.Logger): The parent logger to which logging is to be redirected.
+    """
     # redirect logging to parent
     global _logger
     _logger = pLogger
 
+
 # files in datasets
 g_files_in_ds_map = {}
+
 
 class DynDataDistributer:
     # constructor
     def __init__(self, jobs, taskBuffer, siteMapper, simul=False, token=None, logger=None):
         self.jobs = jobs
-        #self.taskBuffer = taskBuffer
+        # self.taskBuffer = taskBuffer
         self.site_mapper = siteMapper
         if token is None:
             self.token = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(" ")
@@ -43,7 +56,8 @@ class DynDataDistributer:
         self.last_message = ""
         self.logger = logger
 
-    def get_replica_locations(self, input_ds, check_used_file):
+    def get_replica_locations(self, input_ds: str, check_used_file: bool) -> Tuple[bool, Dict]:
+
         """
         Get replica locations for a given dataset.
 
@@ -66,10 +80,10 @@ class DynDataDistributer:
                 status, tmp_used_ds_list = self.get_used_datasets(tmp_rep_maps)
                 # remove unused datasets
                 new_rep_maps = {}
-                for tmpKey in tmp_rep_maps:
-                    tmpVal = tmp_rep_maps[tmpKey]
-                    if tmpKey in tmp_used_ds_list:
-                        new_rep_maps[tmpKey] = tmpVal
+                for tmp_key in tmp_rep_maps:
+                    tmp_val = tmp_rep_maps[tmp_key]
+                    if tmp_key in tmp_used_ds_list:
+                        new_rep_maps[tmp_key] = tmp_val
                 tmp_rep_maps = new_rep_maps
         else:
             # normal dataset
@@ -83,7 +97,7 @@ class DynDataDistributer:
 
         return True, tmp_rep_maps
 
-    def get_all_sites(self):
+    def get_all_sites(self) -> List:
         """
         Retrieves all sites that meet certain conditions.
 
@@ -122,7 +136,8 @@ class DynDataDistributer:
             all_sites.append(site_spec)
         return all_sites
 
-    def get_candidate_sites(self, tmp_rep_maps, prod_source_label, job_label, use_close_sites):
+    def get_candidate_sites(self, tmp_rep_maps: Dict, prod_source_label: str, job_label: str, use_close_sites: bool) -> \
+    Tuple[bool, Dict]:
         """
         Retrieves candidate sites for data distribution based on certain conditions.
 
@@ -164,7 +179,7 @@ class DynDataDistributer:
                     tmp_stat_map = tmp_rep_map[tmp_dq2id]
                     if tmp_dq2id in rses and tmp_stat_map[0]["total"] == tmp_stat_map[0][
                         "found"] and tmp_dq2id.endswith(
-                            "DATADISK"):
+                        "DATADISK"):
                         sites_com_ds.append(tmp_site_spec.sitename)
                         has_replica = True
                         break
@@ -186,13 +201,14 @@ class DynDataDistributer:
             )
         return True, return_map
 
-    def get_candidates(self, input_ds, prodsource_label, job_label, check_used_file=True, use_close_sites=False):
+    def get_candidates(self, input_ds: str, prod_source_label: str, job_label: str, check_used_file: bool = True,
+                       use_close_sites: bool = False) -> Tuple[bool, Dict]:
         """
         Get candidate sites for subscription.
 
         Args:
             input_ds (str): The name of the input dataset.
-            prodsource_label (str): The label of the production source.
+            prod_source_label (str): The label of the production source.
             job_label (str): The label of the job.
             check_used_file (bool, optional): Flag to check used file. Defaults to True.
             use_close_sites (bool, optional): Flag to use close sites. Defaults to False.
@@ -206,9 +222,9 @@ class DynDataDistributer:
             return status, tmp_rep_maps
 
         # Get candidate sites
-        return self.get_candidate_sites(tmp_rep_maps, prodsource_label, job_label, use_close_sites)
+        return self.get_candidate_sites(tmp_rep_maps, prod_source_label, job_label, use_close_sites)
 
-    def get_list_dataset_replicas(self, dataset, max_attempts=3):
+    def get_list_dataset_replicas(self, dataset: str, max_attempts: int = 3) -> Tuple[bool, Dict]:
         """
         Get the list of replicas for a given dataset.
 
@@ -230,7 +246,7 @@ class DynDataDistributer:
         self.put_log(f"bad response for {dataset}", "error")
         return False, {}
 
-    def get_list_dataset_replicas_in_container(self, container, max_attempts=3):
+    def get_list_dataset_replicas_in_container(self, container: str, max_attempts: int = 3) -> Tuple[bool, Dict]:
         """
         Get the list of replicas for a given container.
 
@@ -271,7 +287,7 @@ class DynDataDistributer:
         self.put_log("getListDatasetReplicasInContainer done")
         return True, all_rep_map
 
-    def get_used_datasets(self, dataset_map, max_attempts=3):
+    def get_used_datasets(self, dataset_map: Dict, max_attempts: int = 3) -> Tuple[bool, Dict]:
         """
         Get the datasets that are used by jobs.
 
@@ -324,7 +340,7 @@ class DynDataDistributer:
         self.put_log(f"used datasets = {str(used_ds_list)}")
         return True, used_ds_list
 
-    def get_file_from_dataset(self, dataset_name, guid, max_attempts=3):
+    def get_file_from_dataset(self, dataset_name: str, guid: str, max_attempts: int = 3) -> Tuple[bool, Dict]:
         """
         Get file information from a dataset.
 
@@ -372,8 +388,9 @@ class DynDataDistributer:
 
         return res_for_failure
 
-    def register_dataset_container_with_datasets(self, container_name, files, replica_map, n_sites=1, owner=None,
-                                                 max_attempts=3):
+    def register_dataset_container_with_datasets(self, container_name: str, files: List, replica_map: Dict,
+                                                 n_sites: int = 1, owner: str = None, max_attempts: int = 3) -> Tuple[
+        bool, Dict]:
         """
         Register a new dataset container with datasets.
 
@@ -467,7 +484,8 @@ class DynDataDistributer:
         self.put_log(out)
         return True
 
-    def register_dataset_with_location(self, dataset_name, files, locations, owner=None, max_attempts=3):
+    def register_dataset_with_location(self, dataset_name: str, files: List, locations: List, owner: str = None,
+                                       max_attempts: int = 3) -> bool:
         """
         Register a new dataset with locations.
 
@@ -551,7 +569,7 @@ class DynDataDistributer:
                 return res_for_failure
         return True
 
-    def list_datasets_by_guids(self, guids, ds_filters, max_attempts=3):
+    def list_datasets_by_guids(self, guids: List, ds_filters: List, max_attempts: int = 3) -> Tuple[bool, Dict]:
         """
         List datasets by GUIDs.
 
@@ -638,8 +656,9 @@ class DynDataDistributer:
             return res_for_failure
         return True, ret_map
 
-    def convert_evt_run_to_datasets(self, run_evt_list, ds_type, stream_name, ds_filters, ami_tag, user,
-                                    run_evt_guid_map, ei_api):
+    def convert_evt_run_to_datasets(self, run_evt_list: List, ds_type: str, stream_name: str, ds_filters: List,
+                                    ami_tag: str, user: str,
+                                    run_evt_guid_map: Dict, ei_api: object) -> Tuple[bool, Dict, List]:
         """
         Convert event/run list to datasets.
 
@@ -696,7 +715,7 @@ class DynDataDistributer:
                     self.put_log(tmp_com)
                     self.put_log(tmp_out)
                     self.put_log(tmp_err)
-                    self.put_log("invalid return from EventIndex", type="error")
+                    self.put_log("invalid return from EventIndex", "error")
                     return failed_ret
                 # check events
                 for run_nr, evt_nr in tmp_run_evt_list:
@@ -709,7 +728,7 @@ class DynDataDistributer:
                         self.put_log(tmp_out)
                         self.put_log(tmp_err)
                         err_str = f"no GUIDs were found in EventIndex for {param_str}"
-                        self.put_log(err_str, type="error")
+                        self.put_log(err_str, "error")
                         return fatal_ret
                     # append
                     run_evt_guid_map[tmp_run_evt_key] = guid_list_elssi[tmp_run_evt_key]
@@ -723,18 +742,18 @@ class DynDataDistributer:
             tmp_ds_ret, tmp_ds_map = self.list_datasets_by_guids(tmp_guids, ds_filters)
             # failed
             if not tmp_ds_ret:
-                self.put_log("failed to convert GUIDs to datasets", type="error")
+                self.put_log("failed to convert GUIDs to datasets", "error")
                 if "isFatal" in tmp_ds_map and tmp_ds_map["isFatal"] is True:
                     return fatal_ret
                 return failed_ret
             # empty
             if not tmp_ds_map:
-                self.put_log(f"there is no dataset for Run:{run_nr} Evt:{evt_nr} GUIDs:{str(tmp_guids)}", type="error")
+                self.put_log(f"there is no dataset for Run:{run_nr} Evt:{evt_nr} GUIDs:{str(tmp_guids)}", "error")
                 return fatal_ret
             if len(tmp_ds_map) != 1:
                 self.put_log(
                     f"there are multiple datasets {str(tmp_ds_map)} for Run:{run_nr} Evt:{evt_nr} GUIDs:{str(tmp_guids)}",
-                    type="error")
+                    "error")
                 return fatal_ret
 
             # append
@@ -747,7 +766,7 @@ class DynDataDistributer:
                     stat_rep, replica_map = self.get_list_dataset_replicas(tmp_ds_name)
                     # failed
                     if not stat_rep:
-                        self.put_log(f"failed to get locations for {tmp_ds_name}", type="error")
+                        self.put_log(f"failed to get locations for {tmp_ds_name}", "error")
                         return failed_ret
                     # collect locations
                     tmp_location_list = []
@@ -763,7 +782,7 @@ class DynDataDistributer:
                 tmp_file_ret, tmp_file_info = self.get_file_from_dataset(tmp_ds_name, tmp_guid)
                 # failed
                 if not tmp_file_ret:
-                    self.put_log(f"failed to get fileinfo for GUID:{tmp_guid} DS:{tmp_ds_name}", type="error")
+                    self.put_log(f"failed to get fileinfo for GUID:{tmp_guid} DS:{tmp_ds_name}", "error")
                     return failed_ret
                 # collect files
                 all_files.append(tmp_file_info)
@@ -771,7 +790,8 @@ class DynDataDistributer:
         self.put_log(f"converted to {str(all_datasets)}, {str(all_locations)}, {str(all_files)}")
         return True, all_locations, all_files
 
-    def put_log(self, message, message_type="debug", send_log=False, action_tag="", tags_map={}):
+    def put_log(self, message: str, message_type: str = "debug", send_log: bool = False, action_tag: str = "",
+                tags_map: Dict = {}):
         """
         Log a message with a specific type and optionally send it to a logger.
 
