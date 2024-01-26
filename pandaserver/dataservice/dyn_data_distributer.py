@@ -44,7 +44,8 @@ class DynDataDistributer:
         self.logger = logger
 
     def get_replica_locations(self, input_ds, check_used_file):
-        """Get replica locations for a given dataset.
+        """
+        Get replica locations for a given dataset.
 
         Args:
             input_ds (str): The name of the input dataset.
@@ -83,7 +84,20 @@ class DynDataDistributer:
         return True, tmp_rep_maps
 
     def get_all_sites(self):
-        """Get all sites that meet certain conditions."""
+        """
+        Retrieves all sites that meet certain conditions.
+
+        This method filters out sites based on the following conditions:
+        - The cloud of the site should be in the list of pd2p_clouds.
+        - The site name should not contain the word "test".
+        - The site should be capable of running analysis.
+        - The site should not be a GPU site.
+        - The site should not use VP.
+        - The status of the site should be "online".
+
+        Returns:
+            list: A list of SiteSpec objects that meet the above conditions.
+        """
         all_sites = []
         for site_name in self.site_mapper.siteSpecList:
             site_spec = self.site_mapper.siteSpecList[site_name]
@@ -109,7 +123,24 @@ class DynDataDistributer:
         return all_sites
 
     def get_candidate_sites(self, tmp_rep_maps, prod_source_label, job_label, use_close_sites):
-        """Get candidate sites for subscription."""
+        """
+        Retrieves candidate sites for data distribution based on certain conditions.
+
+        This method filters out candidate sites based on the following conditions:
+        - The site should have a replica of the dataset.
+        - If 'use_close_sites' is False, the site is added to the candidate sites regardless of whether it has a replica.
+
+        Args:
+            tmp_rep_maps (dict): A dictionary containing dataset names as keys and their replica maps as values.
+            prod_source_label (str): The label of the production source.
+            job_label (str): The label of the job.
+            use_close_sites (bool): A flag indicating whether to use close sites.
+
+        Returns:
+            tuple: A tuple containing a boolean status and a dictionary. The dictionary has dataset names as keys and
+                   another dictionary as values. The inner dictionary has cloud names as keys and a tuple of various
+                   site-related lists and values as values.
+        """
         all_site_map = self.get_all_sites()
         return_map = {}
         cloud = "WORLD"
@@ -384,12 +415,12 @@ class DynDataDistributer:
             files_map[tmp_key].append(tmp_file)
 
         # get nfiles per dataset
-        n_files_per_dataset, tmp_r = divmod(len(files), n_sites)
-        if n_files_per_dataset == 0:
-            n_files_per_dataset = 1
+        n_files_per_dataset = divmod(len(files), n_sites)
+        if n_files_per_dataset[0] == 0:
+            n_files_per_dataset[0] = 1
         max_files_per_dataset = 1000
-        if n_files_per_dataset >= max_files_per_dataset:
-            n_files_per_dataset = max_files_per_dataset
+        if n_files_per_dataset[0] >= max_files_per_dataset:
+            n_files_per_dataset[0] = max_files_per_dataset
 
         # register new datasets
         dataset_names = []
@@ -401,7 +432,7 @@ class DynDataDistributer:
                 tmp_ds_name = container_name[:-1] + "_%04d" % tmp_index
                 tmp_ret = self.register_dataset_with_location(
                     tmp_ds_name,
-                    tmp_files[tmp_sub_index: tmp_sub_index + n_files_per_dataset],
+                    tmp_files[tmp_sub_index: tmp_sub_index + n_files_per_dataset[0]],
                     tmp_locations,
                     owner=None,
                 )
@@ -412,7 +443,7 @@ class DynDataDistributer:
                 # append dataset
                 dataset_names.append(tmp_ds_name)
                 tmp_index += 1
-                tmp_sub_index += n_files_per_dataset
+                tmp_sub_index += n_files_per_dataset[0]
 
         # register container
         for attempt in range(max_attempts):
@@ -634,7 +665,7 @@ class DynDataDistributer:
         # import event lookup client
         if run_evt_guid_map == {}:
             if len(run_evt_list) == 0:
-                self.put_log("Empty list for run and events was provided", type="error")
+                self.put_log("Empty list for run and events was provided", "error")
                 return failed_ret
             # Hadoop EI
             from .eventLookupClientEI import eventLookupClientEI
@@ -697,7 +728,7 @@ class DynDataDistributer:
                     return fatal_ret
                 return failed_ret
             # empty
-            if tmp_ds_map == {}:
+            if not tmp_ds_map:
                 self.put_log(f"there is no dataset for Run:{run_nr} Evt:{evt_nr} GUIDs:{str(tmp_guids)}", type="error")
                 return fatal_ret
             if len(tmp_ds_map) != 1:
