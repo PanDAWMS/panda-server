@@ -9,13 +9,13 @@ import re
 import sys
 import time
 import uuid
-
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+
 from pandaserver.config import panda_config
-from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.taskbuffer import JobUtils
 
 # logger
@@ -57,7 +57,6 @@ class DynDataDistributer:
         self.logger = logger
 
     def get_replica_locations(self, input_ds: str, check_used_file: bool) -> Tuple[bool, Dict]:
-
         """
         Get replica locations for a given dataset.
 
@@ -136,8 +135,8 @@ class DynDataDistributer:
             all_sites.append(site_spec)
         return all_sites
 
-    def get_candidate_sites(self, tmp_rep_maps: Dict, prod_source_label: str, job_label: str, use_close_sites: bool) -> \
-    Tuple[bool, Dict]:
+    def get_candidate_sites(self, tmp_rep_maps: Dict, prod_source_label: str, job_label: str,
+                            use_close_sites: bool) -> Tuple[bool, Dict]:
         """
         Retrieves candidate sites for data distribution based on certain conditions.
 
@@ -389,8 +388,7 @@ class DynDataDistributer:
         return res_for_failure
 
     def register_dataset_container_with_datasets(self, container_name: str, files: List, replica_map: Dict,
-                                                 n_sites: int = 1, owner: str = None, max_attempts: int = 3) -> Tuple[
-        bool, Dict]:
+                                                 n_sites: int = 1, owner: str = None, max_attempts: int = 3) -> Tuple[bool, Dict]:
         """
         Register a new dataset container with datasets.
 
