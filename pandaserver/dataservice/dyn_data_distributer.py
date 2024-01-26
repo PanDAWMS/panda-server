@@ -59,28 +59,28 @@ class DynDataDistributer:
         # get replica locations
         if input_ds.endswith("/"):
             # container
-            status, tmpRepMaps = self.get_list_dataset_replicas_in_container(input_ds)
+            status, tmp_rep_maps = self.get_list_dataset_replicas_in_container(input_ds)
             # get used datasets
             if status and check_used_file:
-                status, tmpUsedDsList = self.get_used_datasets(tmpRepMaps)
+                status, tmp_used_ds_list = self.get_used_datasets(tmp_rep_maps)
                 # remove unused datasets
-                newRepMaps = {}
-                for tmpKey in tmpRepMaps:
-                    tmpVal = tmpRepMaps[tmpKey]
-                    if tmpKey in tmpUsedDsList:
-                        newRepMaps[tmpKey] = tmpVal
-                tmpRepMaps = newRepMaps
+                new_rep_maps = {}
+                for tmpKey in tmp_rep_maps:
+                    tmpVal = tmp_rep_maps[tmpKey]
+                    if tmpKey in tmp_used_ds_list:
+                        new_rep_maps[tmpKey] = tmpVal
+                tmp_rep_maps = new_rep_maps
         else:
             # normal dataset
-            status, tmpRepMap = self.get_list_dataset_replicas(input_ds)
-            tmpRepMaps = {input_ds: tmpRepMap}
+            status, tmp_rep_map = self.get_list_dataset_replicas(input_ds)
+            tmp_rep_maps = {input_ds: tmp_rep_map}
 
         if not status:
             # failed
             self.put_log(f"failed to get replica locations for {input_ds}", "error")
             return res_for_failure
 
-        return True, tmpRepMaps
+        return True, tmp_rep_maps
 
     def get_all_sites(self):
         """Get all sites that meet certain conditions."""
@@ -108,59 +108,60 @@ class DynDataDistributer:
             all_sites.append(site_spec)
         return all_sites
 
-    def get_candidate_sites(self, tmpRepMaps, prodsourcelabel, job_label, use_close_sites):
+    def get_candidate_sites(self, tmp_rep_maps, prod_source_label, job_label, use_close_sites):
         """Get candidate sites for subscription."""
         all_site_map = self.get_all_sites()
-        returnMap = {}
+        return_map = {}
         cloud = "WORLD"
-        for tmpDS in tmpRepMaps:
-            tmpRepMap = tmpRepMaps[tmpDS]
-            candSites = []
-            sitesComDS = []
-            sitesCompPD2P = []
-            t1HasReplica = False
-            t1HasPrimary = False
-            nSecReplicas = 0
-            candForMoU = []
-            nUserSub = 0
-            for tmpSiteSpec in all_site_map:
-                tmp_scope_input, tmp_scope_output = select_scope(tmpSiteSpec, prodsourcelabel, job_label)
-                if tmp_scope_input not in tmpSiteSpec.ddm_endpoints_input:
+        for tmp_ds in tmp_rep_maps:
+            tmp_rep_map = tmp_rep_maps[tmp_ds]
+            cand_sites = []
+            sites_com_ds = []
+            sites_comp_pd2p = []
+            t1_has_replica = False
+            t1_has_primary = False
+            n_sec_replicas = 0
+            cand_for_mou = []
+            n_user_sub = 0
+            for tmp_site_spec in all_site_map:
+                tmp_scope_input, tmp_scope_output = select_scope(tmp_site_spec, prod_source_label, job_label)
+                if tmp_scope_input not in tmp_site_spec.ddm_endpoints_input:
                     continue
-                rses = tmpSiteSpec.ddm_endpoints_input[tmp_scope_input].getLocalEndPoints()
-                hasReplica = False
-                for tmpDQ2ID in tmpRepMap:
-                    tmpStatMap = tmpRepMap[tmpDQ2ID]
-                    if tmpDQ2ID in rses and tmpStatMap[0]["total"] == tmpStatMap[0]["found"] and tmpDQ2ID.endswith(
+                rses = tmp_site_spec.ddm_endpoints_input[tmp_scope_input].get_local_end_points()
+                has_replica = False
+                for tmp_dq2id in tmp_rep_map:
+                    tmp_stat_map = tmp_rep_map[tmp_dq2id]
+                    if tmp_dq2id in rses and tmp_stat_map[0]["total"] == tmp_stat_map[0][
+                        "found"] and tmp_dq2id.endswith(
                             "DATADISK"):
-                        sitesComDS.append(tmpSiteSpec.sitename)
-                        hasReplica = True
+                        sites_com_ds.append(tmp_site_spec.sitename)
+                        has_replica = True
                         break
-                if hasReplica or not use_close_sites:
-                    candSites.append(tmpSiteSpec.sitename)
-            returnMap.setdefault(tmpDS, {})
-            if sitesComDS:
-                candSites = sitesComDS
-            returnMap[tmpDS][cloud] = (
-                candSites,
-                sitesComDS,
-                sitesCompPD2P,
-                nUserSub,
-                t1HasReplica,
-                t1HasPrimary,
-                nSecReplicas,
+                if has_replica or not use_close_sites:
+                    cand_sites.append(tmp_site_spec.sitename)
+            return_map.setdefault(tmp_ds, {})
+            if sites_com_ds:
+                cand_sites = sites_com_ds
+            return_map[tmp_ds][cloud] = (
+                cand_sites,
+                sites_com_ds,
+                sites_comp_pd2p,
+                n_user_sub,
+                t1_has_replica,
+                t1_has_primary,
+                n_sec_replicas,
                 0,
-                candForMoU,
+                cand_for_mou,
             )
-        return True, returnMap
+        return True, return_map
 
-    def get_candidates(self, input_ds, prodsourcelabel, job_label, check_used_file=True, use_close_sites=False):
+    def get_candidates(self, input_ds, prodsource_label, job_label, check_used_file=True, use_close_sites=False):
         """
         Get candidate sites for subscription.
 
         Args:
             input_ds (str): The name of the input dataset.
-            prodsourcelabel (str): The label of the production source.
+            prodsource_label (str): The label of the production source.
             job_label (str): The label of the job.
             check_used_file (bool, optional): Flag to check used file. Defaults to True.
             use_close_sites (bool, optional): Flag to use close sites. Defaults to False.
@@ -169,12 +170,12 @@ class DynDataDistributer:
             tuple: A tuple containing the status (bool) and the result (dict or str).
         """
         # Get replica locations
-        status, tmpRepMaps = self.get_replica_locations(input_ds, check_used_file)
+        status, tmp_rep_maps = self.get_replica_locations(input_ds, check_used_file)
         if not status:
-            return status, tmpRepMaps
+            return status, tmp_rep_maps
 
         # Get candidate sites
-        return self.get_candidate_sites(tmpRepMaps, prodsourcelabel, job_label, use_close_sites)
+        return self.get_candidate_sites(tmp_rep_maps, prodsource_label, job_label, use_close_sites)
 
     def get_list_dataset_replicas(self, dataset, max_attempts=3):
         """
