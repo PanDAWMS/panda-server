@@ -42,9 +42,8 @@ g_files_in_ds_map = {}
 
 class DynDataDistributer:
     # constructor
-    def __init__(self, jobs, taskBuffer, siteMapper, simul=False, token=None, logger=None):
+    def __init__(self, jobs, siteMapper, simul=False, token=None, logger=None):
         self.jobs = jobs
-        # self.taskBuffer = taskBuffer
         self.site_mapper = siteMapper
         if token is None:
             self.token = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(" ")
