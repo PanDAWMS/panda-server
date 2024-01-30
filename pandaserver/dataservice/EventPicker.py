@@ -37,7 +37,7 @@ class EventPicker:
         self.token = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(" ")
         # logger
         self.logger = LogWrapper(_logger, self.token)
-        self.pd2p = dyn_data_distributer.DynDataDistributer([], self.siteMapper, token=" ", logger=self.logger)
+        self.pd2p = dyn_data_distributer.DynDataDistributer([], self.taskBuffer, self.siteMapper, token=" ", logger=self.logger)
         self.userDatasetName = ""
         self.creationTime = ""
         self.params = ""
@@ -208,7 +208,7 @@ class EventPicker:
                 self.userDatasetName,
                 allFiles,
                 locationMap,
-                nSites=eventPickNumSites,
+                n_sites=eventPickNumSites,
                 owner=tmpDN,
             )
             if not tmpRet:
@@ -226,7 +226,7 @@ class EventPicker:
                     self.userDatasetName,
                     self.prodSourceLabel,
                     self.job_label,
-                    checkUsedFile=False,
+                    check_used_file=False,
                 )
                 if not tmpRet:
                     self.endWithError("Failed to find candidate for destination")

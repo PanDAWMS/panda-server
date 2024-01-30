@@ -171,7 +171,7 @@ class DynDataDistributer:
                 tmp_scope_input, tmp_scope_output = select_scope(tmp_site_spec, prod_source_label, job_label)
                 if tmp_scope_input not in tmp_site_spec.ddm_endpoints_input:
                     continue
-                rses = tmp_site_spec.ddm_endpoints_input[tmp_scope_input].get_local_end_points()
+                rses = tmp_site_spec.ddm_endpoints_input[tmp_scope_input].getLocalEndPoints()
                 has_replica = False
                 for tmp_dq2id in tmp_rep_map:
                     tmp_stat_map = tmp_rep_map[tmp_dq2id]
