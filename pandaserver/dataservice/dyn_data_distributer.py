@@ -2,7 +2,6 @@
 find candidate site to distribute input datasets
 
 """
-
 import datetime
 import fnmatch
 import re
@@ -11,9 +10,9 @@ import time
 import uuid
 from typing import Dict, List, Tuple
 
+from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
-from pandaserver.config import panda_config
 from pandaserver.dataservice.DDM import rucioAPI
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.taskbuffer import JobUtils
@@ -21,28 +20,15 @@ from pandaserver.taskbuffer import JobUtils
 # logger
 _logger = PandaLogger().getLogger("DynDataDistributer")
 
-
-def initLogger(pLogger):
-    """
-    Redirects logging to the parent logger.
-
-    This function sets the global logger `_logger` to the provided logger `pLogger`.
-
-    Args:
-        pLogger (logging.Logger): The parent logger to which logging is to be redirected.
-    """
-    # redirect logging to parent
-    global _logger
-    _logger = pLogger
-
-
 # files in datasets
 g_files_in_ds_map = {}
 
-
 class DynDataDistributer:
+    """
+    Find candidate site to distribute input datasets.
+    """
     # constructor
-    def __init__(self, jobs, siteMapper, simul=False, token=None, logger=None):
+    def __init__(self, jobs, siteMapper, simul=False, token=None):
         self.jobs = jobs
         self.site_mapper = siteMapper
         if token is None:
@@ -53,7 +39,6 @@ class DynDataDistributer:
         self.pd2p_clouds = ["CA", "DE", "ES", "FR", "IT", "ND", "NL", "TW", "UK", "US"]
         self.simul = simul
         self.last_message = ""
-        self.logger = logger
 
     def get_replica_locations(self, input_ds: str, check_used_file: bool) -> Tuple[bool, Dict]:
         """
@@ -66,6 +51,10 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing the status (bool) and the result (dict or str).
         """
+        tmp_log = LogWrapper(_logger,
+                             f"get_replica_locations-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_log.debug(f"get_replica_locations {input_ds}")
+
         # return for failure
         res_for_failure = False, {"": {"": ([], [], [], 0, False, False, 0, 0, [])}}
 
@@ -75,12 +64,11 @@ class DynDataDistributer:
             status, tmp_rep_maps = self.get_list_dataset_replicas_in_container(input_ds)
             # get used datasets
             if status and check_used_file:
-                status, tmp_used_ds_list = self.get_used_datasets(tmp_rep_maps)
+                status, tmp_used_dataset_list = self.get_used_datasets(tmp_rep_maps)
                 # remove unused datasets
                 new_rep_maps = {}
-                for tmp_key in tmp_rep_maps:
-                    tmp_val = tmp_rep_maps[tmp_key]
-                    if tmp_key in tmp_used_ds_list:
+                for tmp_key, tmp_val in tmp_rep_maps.items():
+                    if tmp_key in tmp_used_dataset_list:
                         new_rep_maps[tmp_key] = tmp_val
                 tmp_rep_maps = new_rep_maps
         else:
@@ -90,9 +78,11 @@ class DynDataDistributer:
 
         if not status:
             # failed
-            self.put_log(f"failed to get replica locations for {input_ds}", "error")
+            tmp_log.error("failed to get replica locations for {input_ds}")
+            tmp_log.debug("end")
             return res_for_failure
 
+        tmp_log.debug("end")
         return True, tmp_rep_maps
 
     def get_all_sites(self) -> List:
@@ -101,7 +91,7 @@ class DynDataDistributer:
 
         This method filters out sites based on the following conditions:
         - The cloud of the site should be in the list of pd2p_clouds.
-        - The site name should not contain the word "test".
+        - The site name should not be in status "test".
         - The site should be capable of running analysis.
         - The site should not be a GPU site.
         - The site should not use VP.
@@ -117,7 +107,7 @@ class DynDataDistributer:
             if site_spec.cloud not in self.pd2p_clouds:
                 continue
             # ignore test sites
-            if "test" in site_name.lower():
+            if site_spec.status == "test":
                 continue
             # analysis only
             if not site_spec.runs_analysis():
@@ -157,8 +147,7 @@ class DynDataDistributer:
         all_site_map = self.get_all_sites()
         return_map = {}
         cloud = "WORLD"
-        for tmp_ds in tmp_rep_maps:
-            tmp_rep_map = tmp_rep_maps[tmp_ds]
+        for tmp_ds, tmp_rep_map in tmp_rep_maps.items():
             cand_sites = []
             sites_com_ds = []
             sites_comp_pd2p = []
@@ -173,10 +162,10 @@ class DynDataDistributer:
                     continue
                 rses = tmp_site_spec.ddm_endpoints_input[tmp_scope_input].getLocalEndPoints()
                 has_replica = False
-                for tmp_dq2id in tmp_rep_map:
-                    tmp_stat_map = tmp_rep_map[tmp_dq2id]
-                    if tmp_dq2id in rses and tmp_stat_map[0]["total"] == tmp_stat_map[0][
-                        "found"] and tmp_dq2id.endswith(
+                for ddm_endpoint in tmp_rep_map:
+                    tmp_stat_map = tmp_rep_map[ddm_endpoint]
+                    if ddm_endpoint in rses and tmp_stat_map[0]["total"] == tmp_stat_map[0][
+                        "found"] and ddm_endpoint.endswith(
                         "DATADISK"):
                         sites_com_ds.append(tmp_site_spec.sitename)
                         has_replica = True
@@ -233,15 +222,21 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing the status (bool) and the result (dict or str).
         """
+        tmp_log = LogWrapper(_logger,
+                             f"get_list_dataset_replicas-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_log.debug(f"get_list_dataset_replicas {dataset}")
+
         for attempt in range(max_attempts):
-            self.put_log(f"{attempt}/{max_attempts} listDatasetReplicas {dataset}")
+            tmp_log.debug(f"{attempt}/{max_attempts} listDatasetReplicas {dataset}")
             status, replicas = rucioAPI.listDatasetReplicas(dataset)
             if status == 0:
-                self.put_log(f"getListDatasetReplicas->{str(replicas)}")
+                tmp_log.debug(f"get_list_dataset_replicas->{str(replicas)}")
+                tmp_log.debug("end")
                 return True, replicas
             time.sleep(10)
 
-        self.put_log(f"bad response for {dataset}", "error")
+        tmp_log.error(f"bad response for {dataset}")
+        tmp_log.debug("end")
         return False, {}
 
     def get_list_dataset_replicas_in_container(self, container: str, max_attempts: int = 3) -> Tuple[bool, Dict]:
@@ -255,20 +250,26 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing the status (bool) and the result (dict or str).
         """
+        tmp_log = LogWrapper(_logger,
+                             f"get_list_dataset_replicas_in_container-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+
+        tmp_log.debug(f"get_list_dataset_replicas_in_container {container}")
+
         # response for failure
         res_for_failure = False, {}
 
         # get datasets in container
         for attempt in range(max_attempts):
-            self.put_log(f"{attempt}/{max_attempts} listDatasetsInContainer {container}")
+            tmp_log.debug(f"{attempt}/{max_attempts} listDatasetsInContainer {container}")
             datasets, out = rucioAPI.listDatasetsInContainer(container)
             if datasets is not None:
                 break
             time.sleep(60)
 
         if datasets is None:
-            self.put_log(out, "error")
-            self.put_log(f"bad DDM response for {container}", "error")
+            tmp_log.error(out)
+            tmp_log.error(f"bad DDM response for {container}")
+            tmp_log.debug("end")
             return res_for_failure
 
         # loop over all datasets
@@ -277,12 +278,13 @@ class DynDataDistributer:
             # get replicas
             status, tmp_rep_sites = self.get_list_dataset_replicas(dataset)
             if not status:
+                tmp_log.debug("end")
                 return res_for_failure
             # append
             all_rep_map[dataset] = tmp_rep_sites
 
         # return
-        self.put_log("getListDatasetReplicasInContainer done")
+        tmp_log.debug("end")
         return True, all_rep_map
 
     def get_used_datasets(self, dataset_map: Dict, max_attempts: int = 3) -> Tuple[bool, Dict]:
@@ -296,6 +298,10 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing the status (bool) and the used datasets list.
         """
+        tmp_log = LogWrapper(_logger,
+                             f"get_used_datasets-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_log.debug(f"get_used_datasets {str(dataset_map)}")
+
         res_for_failure = (False, [])
         used_ds_list = []
 
@@ -304,7 +310,7 @@ class DynDataDistributer:
             # get file list
             for attempt in range(max_attempts):
                 try:
-                    self.put_log(f"{attempt}/{max_attempts} listFilesInDataset {dataset_name}")
+                    tmp_log.debug(f"{attempt}/{max_attempts} listFilesInDataset {dataset_name}")
                     file_items, out = rucioAPI.listFilesInDataset(dataset_name)
                     status = True
                     break
@@ -315,8 +321,9 @@ class DynDataDistributer:
                     time.sleep(60)
 
             if not status:
-                self.put_log(out, "error")
-                self.put_log(f"bad DDM response to get size of {dataset_name}", "error")
+                tmp_log.error(out)
+                tmp_log.error(f"bad DDM response to get size of {dataset_name}")
+                tmp_log.debug("end")
                 return res_for_failure
 
             # check if jobs use the dataset
@@ -335,7 +342,8 @@ class DynDataDistributer:
                 used_ds_list.append(dataset_name)
 
         # return
-        self.put_log(f"used datasets = {str(used_ds_list)}")
+        tmp_log.debug(f"used datasets = {str(used_ds_list)}")
+        tmp_log.debug("end")
         return True, used_ds_list
 
     def get_file_from_dataset(self, dataset_name: str, guid: str, max_attempts: int = 3) -> Tuple[bool, Dict]:
@@ -350,6 +358,10 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing the status (bool) and the file information (dict or None).
         """
+        tmp_log = LogWrapper(_logger,
+                             f"get_file_from_dataset-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_log.debug(f"get_file_from_dataset {dataset_name} {guid}")
+
         res_for_failure = (False, None)
 
         # get files in datasets
@@ -358,7 +370,7 @@ class DynDataDistributer:
             # get file list
             for attempt in range(max_attempts):
                 try:
-                    self.put_log(f"{attempt}/{max_attempts} listFilesInDataset {dataset_name}")
+                    tmp_log.debug(f"{attempt}/{max_attempts} listFilesInDataset {dataset_name}")
                     file_items, out = rucioAPI.listFilesInDataset(dataset_name)
                     status = True
                     break
@@ -369,21 +381,23 @@ class DynDataDistributer:
                     time.sleep(60)
 
             if not status:
-                self.put_log(out, "error")
-                self.put_log(f"bad DDM response to get size of {dataset_name}", "error")
+                tmp_log.error(out)
+                tmp_log.error(f"bad DDM response to get size of {dataset_name}")
+                tmp_log.debug("end")
                 return res_for_failure
                 # append
             g_files_in_ds_map[dataset_name] = file_items
 
         # check if file is in the dataset
-        for tmp_lfn in g_files_in_ds_map[dataset_name]:
-            tmp_val = g_files_in_ds_map[dataset_name][tmp_lfn]
+        for tmp_lfn, tmp_val in g_files_in_ds_map[dataset_name].items():
             if uuid.UUID(tmp_val["guid"]) == uuid.UUID(guid):
                 ret_map = tmp_val
                 ret_map["lfn"] = tmp_lfn
                 ret_map["dataset"] = dataset_name
+                tmp_log.debug("end")
                 return True, ret_map
 
+        tmp_log.debug("end")
         return res_for_failure
 
     def register_dataset_container_with_datasets(self, container_name: str, files: List, replica_map: Dict,
@@ -402,14 +416,18 @@ class DynDataDistributer:
         Returns:
             bool: The status of the registration process.
         """
+        tmp_logger = LogWrapper(_logger,
+                             f"register_dataset_container_with_datasets-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_logger.debug(f"register_dataset_container_with_datasets {container_name}")
+
         # parse DN
         if owner is not None:
             status, user_info = rucioAPI.finger(owner)
             if not status:
-                self.put_log(f"failed to finger: {user_info}")
+                tmp_logger.debug(f"failed to finger: {user_info}")
             else:
                 owner = user_info["nickname"]
-            self.put_log(f"parsed DN={owner}")
+            tmp_logger.debug(f"parsed DN={owner}")
 
         # sort by locations
         files_map = {}
@@ -439,30 +457,30 @@ class DynDataDistributer:
         # register new datasets
         dataset_names = []
         tmp_index = 1
-        for tmp_locations in files_map:
-            tmp_files = files_map[tmp_locations]
+        for tmp_locations, tmp_files in files_map.items():
             tmp_sub_index = 0
             while tmp_sub_index < len(tmp_files):
-                tmp_ds_name = container_name[:-1] + "_%04d" % tmp_index
+                tmp_dataset_name = container_name[:-1] + "_%04d" % tmp_index
                 tmp_ret = self.register_dataset_with_location(
-                    tmp_ds_name,
+                    tmp_dataset_name,
                     tmp_files[tmp_sub_index: tmp_sub_index + n_files_per_dataset[0]],
                     tmp_locations,
                     owner=None,
                 )
                 # failed
                 if not tmp_ret:
-                    self.put_log(f"failed to register {tmp_ds_name}", "error")
+                    tmp_logger.error(f"failed to register {tmp_dataset_name}")
+                    tmp_logger.debug("end")
                     return False
                 # append dataset
-                dataset_names.append(tmp_ds_name)
+                dataset_names.append(tmp_dataset_name)
                 tmp_index += 1
                 tmp_sub_index += n_files_per_dataset[0]
 
         # register container
         for attempt in range(max_attempts):
             try:
-                self.put_log(f"{attempt}/{max_attempts} registerContainer {container_name}")
+                tmp_logger.debug(f"{attempt}/{max_attempts} registerContainer {container_name}")
                 status = rucioAPI.registerContainer(container_name, dataset_names)
                 out = "OK"
                 break
@@ -473,12 +491,14 @@ class DynDataDistributer:
                 time.sleep(10)
 
         if not status:
-            self.put_log(out, "error")
-            self.put_log(f"bad DDM response to register {container_name}", "error")
+            tmp_logger.error(out)
+            tmp_logger.error(f"bad DDM response to register {container_name}")
+            tmp_logger.debug("end")
             return False
 
         # return
-        self.put_log(out)
+        tmp_logger.debug(out)
+        tmp_logger.debug("end")
         return True
 
     def register_dataset_with_location(self, dataset_name: str, files: List, locations: List, owner: str = None,
@@ -496,37 +516,41 @@ class DynDataDistributer:
         Returns:
             bool: The status of the registration process.
         """
+        tmp_logger = LogWrapper(_logger, f"register_dataset_with_location-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_logger.debug(f"register_dataset_with_location {dataset_name}")
+
         res_for_failure = False
 
         # get file info
         guids = []
         lfns = []
-        fsizes = []
-        chksums = []
+        file_sizes = []
+        checksums = []
         for tmp_file in files:
             guids.append(tmp_file["guid"])
             lfns.append(tmp_file["scope"] + ":" + tmp_file["lfn"])
-            fsizes.append(int(tmp_file["filesize"]))
-            chksums.append(tmp_file["checksum"])
+            file_sizes.append(int(tmp_file["filesize"]))
+            checksums.append(tmp_file["checksum"])
 
         # register new dataset
         for attempt in range(max_attempts):
             try:
-                self.put_log(f"{attempt}/{max_attempts} registerNewDataset {dataset_name} len={len(files)}")
-                out = rucioAPI.registerDataset(dataset_name, lfns, guids, fsizes, chksums, lifetime=14)
-                self.put_log(out)
+                tmp_logger.debug(f"{attempt}/{max_attempts} registerNewDataset {dataset_name} len={len(files)}")
+                out = rucioAPI.registerDataset(dataset_name, lfns, guids, file_sizes, checksums, lifetime=14)
+                tmp_logger.debug(out)
                 break
             except Exception:
                 err_type, err_value = sys.exc_info()[:2]
-                self.put_log(f"{err_type} {err_value}", "error")
+                tmp_logger.error(f"{err_type} {err_value}")
                 if attempt + 1 == max_attempts:
-                    self.put_log(f"failed to register {dataset_name} in rucio")
+                    tmp_logger.error(f"failed to register {dataset_name} in rucio")
+                    tmp_logger.debug("end")
                     return res_for_failure
                 time.sleep(10)
 
         # freeze dataset
         for attempt in range(max_attempts):
-            self.put_log(f"{attempt}/{max_attempts} freezeDataset {dataset_name}")
+            tmp_logger.debug(f"{attempt}/{max_attempts} freezeDataset {dataset_name}")
             try:
                 rucioAPI.closeDataset(dataset_name)
                 status = True
@@ -539,51 +563,60 @@ class DynDataDistributer:
             else:
                 break
         if not status:
-            self.put_log(out, "error")
-            self.put_log(f"bad DDM response to freeze {dataset_name}", "error")
+            tmp_logger.error(out)
+            tmp_logger.error(f"bad DDM response to freeze {dataset_name}")
+            tmp_logger.debug("end")
             return res_for_failure
 
         # register locations
         for tmp_location in locations:
             for attempt in range(max_attempts):
                 try:
-                    self.put_log(f"{attempt}/{max_attempts} registerDatasetLocation {dataset_name} {tmp_location}")
+                    tmp_logger.debug(f"{attempt}/{max_attempts} registerDatasetLocation {dataset_name} {tmp_location}")
                     out = rucioAPI.registerDatasetLocation(dataset_name, [tmp_location], 14, owner)
-                    self.put_log(out)
+                    tmp_logger.debug(out)
                     status = True
                     break
+
                 except Exception:
                     status = False
                     err_type, err_value = sys.exc_info()[:2]
-                    self.put_log(f"{err_type} {err_value}", "error")
+                    tmp_logger.error(f"{err_type} {err_value}")
                     if attempt + 1 == max_attempts:
-                        self.put_log(f"failed to register {dataset_name} in rucio")
+                        tmp_logger.error(f"failed to register {dataset_name} in rucio")
+                        tmp_logger.debug("end")
                         return res_for_failure
                     time.sleep(10)
+
             if not status:
-                self.put_log(out, "error")
-                self.put_log(f"bad DDM response to set owner {dataset_name}", "error")
+                tmp_logger.error(out)
+                tmp_logger.error(f"bad DDM response to register location {dataset_name}")
+                tmp_logger.debug("end")
                 return res_for_failure
         return True
 
-    def list_datasets_by_guids(self, guids: List, ds_filters: List, max_attempts: int = 3) -> Tuple[bool, Dict]:
+    def list_datasets_by_guids(self, guids: List, dataset_filters: List, max_attempts: int = 3) -> Tuple[bool, Dict]:
         """
         List datasets by GUIDs.
 
         Args:
             guids (list): The list of GUIDs.
-            ds_filters (list): The list of dataset filters.
+            dataset_filters (list): The list of dataset filters.
             max_attempts (int, optional): The maximum number of attempts to list the datasets. Defaults to 3.
 
         Returns:
             tuple: A tuple containing the status (bool) and the result (dict or str).
         """
+        tmp_logger = LogWrapper(_logger,
+                             f"list_datasets_by_guids-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_logger.debug(f"list_datasets_by_guids {str(guids)}")
+
         res_for_failure = (False, {})
         res_for_fatal = (False, {"isFatal": True})
 
         # get size of datasets
         for attempt in range(max_attempts):
-            self.put_log(f"{attempt}/{max_attempts} listDatasetsByGUIDs GUIDs={str(guids)}")
+            tmp_logger.debug(f"{attempt}/{max_attempts} listDatasetsByGUIDs GUIDs={str(guids)}")
             try:
                 out = rucioAPI.listDatasetsByGUIDs(guids)
                 status = True
@@ -595,75 +628,81 @@ class DynDataDistributer:
                 time.sleep(10)
 
         if not status:
-            self.put_log(out, "error")
-            self.put_log("bad response to list datasets by GUIDs", "error")
+            tmp_logger.error(out)
+            tmp_logger.error(f"bad DDM response to get size of {str(guids)}")
             if "DataIdentifierNotFound" in out:
-                self.put_log("DataIdentifierNotFound in listDatasetsByGUIDs", "error")
+                tmp_logger.error("DataIdentifierNotFound in listDatasetsByGUIDs")
+                tmp_logger.debug("end")
                 return res_for_fatal
+            tmp_logger.debug("end")
             return res_for_failure
 
-        self.put_log(out)
+        tmp_logger.debug(out)
 
         # get map
         ret_map = {}
         try:
             out_map = out
             for guid in guids:
-                tmp_ds_names = []
+                tmp_dataset_names = []
                 # GUID not found
                 if guid not in out_map:
-                    self.put_log(f"GUID={guid} not found", "error")
+                    tmp_logger.error(f"GUID={guid} not found")
+                    tmp_logger.debug("end")
                     return res_for_fatal
 
                 # ignore junk datasets
-                for tmp_ds_name in out_map[guid]:
+                for tmp_dataset_name in out_map[guid]:
                     if (
-                            tmp_ds_name.startswith("panda")
-                            or tmp_ds_name.startswith("user")
-                            or tmp_ds_name.startswith("group")
-                            or tmp_ds_name.startswith("archive")
-                            or re.search("_sub\d+$", tmp_ds_name) is not None
-                            or re.search("_dis\d+$", tmp_ds_name) is not None
-                            or re.search("_shadow$", tmp_ds_name) is not None
+                            tmp_dataset_name.startswith("panda")
+                            or tmp_dataset_name.startswith("user")
+                            or tmp_dataset_name.startswith("group")
+                            or tmp_dataset_name.startswith("archive")
+                            or re.search("_sub\d+$", tmp_dataset_name) is not None
+                            or re.search("_dis\d+$", tmp_dataset_name) is not None
+                            or re.search("_shadow$", tmp_dataset_name) is not None
                     ):
                         continue
                     # check with filters
-                    if ds_filters != []:
+                    if dataset_filters != []:
                         flag_match = False
-                        for tmp_filter in ds_filters:
-                            if fnmatch.fnmatchcase(tmp_ds_name, tmp_filter):
+                        for tmp_filter in dataset_filters:
+                            if fnmatch.fnmatchcase(tmp_dataset_name, tmp_filter):
                                 flag_match = True
                                 break
                         # not match
                         if not flag_match:
                             continue
                     # append
-                    tmp_ds_names.append(tmp_ds_name)
+                    tmp_dataset_names.append(tmp_dataset_name)
                 # empty
-                if not tmp_ds_names:
-                    self.put_log(f"no datasets found for GUID={guid}")
+                if not tmp_dataset_names:
+                    tmp_logger.debug(f"no datasets found for GUID={guid}")
                     continue
                 # duplicated
-                if len(tmp_ds_names) != 1:
-                    self.put_log(f"use the first dataset in {str(tmp_ds_names)} for GUID:{guid}")
+                if len(tmp_dataset_names) != 1:
+                    tmp_logger.debug(f"use the first dataset in {str(tmp_dataset_names)} for GUID:{guid}")
                 # append
-                ret_map[guid] = tmp_ds_names[0]
+                ret_map[guid] = tmp_dataset_names[0]
         except Exception:
-            self.put_log("failed to list datasets by GUIDs", "error")
+            tmp_logger.error("failed to parse listDatasetsByGUIDs")
+            tmp_logger.debug("end")
             return res_for_failure
+
+        tmp_logger.debug("end")
         return True, ret_map
 
-    def convert_evt_run_to_datasets(self, run_evt_list: List, ds_type: str, stream_name: str, ds_filters: List,
+    def convert_evt_run_to_datasets(self, event_run_list: List, dataset_type: str, stream_name: str, dataset_filters: List,
                                     ami_tag: str, user: str,
                                     run_evt_guid_map: Dict, ei_api: object) -> Tuple[bool, Dict, List]:
         """
         Convert event/run list to datasets.
 
         Args:
-            run_evt_list (list): The list of run events.
-            ds_type (str): The type of the dataset.
+            event_run_list (list): The list of run events.
+            dataset_type (str): The type of the dataset.
             stream_name (str): The name of the stream.
-            ds_filters (list): The list of dataset filters.
+            dataset_filters (list): The list of dataset filters.
             ami_tag (str): The AMI tag.
             user (str): The user.
             run_evt_guid_map (dict): The map of run events to GUIDs.
@@ -672,31 +711,34 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing the status (bool), the result (dict or str), and the list of all files.
         """
-        self.put_log(
-            f"convertEvtRunToDatasets type={ds_type} stream={stream_name} dsPatt={str(ds_filters)} amitag={ami_tag}")
+        tmp_logger = LogWrapper(_logger,
+                             f"convert_evt_run_to_datasets-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_logger.debug(f"convert_evt_run_to_datasets type={dataset_type} stream={stream_name} dsPatt={str(dataset_filters)} amitag={ami_tag}")
+
         # check data type
         failed_ret = False, {}, []
         fatal_ret = False, {"isFatal": True}, []
-        stream_ref = "Stream" + ds_type
+        stream_ref = "Stream" + dataset_type
         # import event lookup client
         if run_evt_guid_map == {}:
-            if len(run_evt_list) == 0:
-                self.put_log("Empty list for run and events was provided", "error")
+            if len(event_run_list) == 0:
+                tmp_logger.error("Empty list for run and events was provided")
+                tmp_logger.debug("end")
                 return failed_ret
             # Hadoop EI
             from .eventLookupClientEI import eventLookupClientEI
 
-            elssi_if = eventLookupClientEI()
+            event_lookup_if = eventLookupClientEI()
             # loop over all events
             n_events_per_loop = 500
             i_events_total = 0
-            while i_events_total < len(run_evt_list):
-                tmp_run_evt_list = run_evt_list[i_events_total: i_events_total + n_events_per_loop]
-                self.put_log(f"EI lookup for {i_events_total}/{len(run_evt_list)}")
+            while i_events_total < len(event_run_list):
+                tmp_event_run_list = event_run_list[i_events_total: i_events_total + n_events_per_loop]
+                tmp_logger.debug(f"EI lookup for {i_events_total}/{len(event_run_list)}")
                 i_events_total += n_events_per_loop
                 reg_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-                guid_list_elssi, tmp_com, tmp_out, tmp_err = elssi_if.do_lookup(
-                    tmp_run_evt_list,
+                guid_list_elssi, tmp_com, tmp_out, tmp_err = event_lookup_if.do_lookup(
+                    tmp_event_run_list,
                     stream=stream_name,
                     tokens=stream_ref,
                     amitag=ami_tag,
@@ -704,28 +746,28 @@ class DynDataDistributer:
                     ei_api=ei_api,
                 )
                 reg_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - reg_start
-                self.put_log(f"EI command: {tmp_com}")
-                self.put_log(
-                    f"took {reg_time.seconds}.{reg_time.microseconds / 1000:03f} sec for {len(tmp_run_evt_list)} events")
+                tmp_logger.debug(f"EI command: {tmp_com}")
+                tmp_logger.debug(f"took {reg_time.seconds}.{reg_time.microseconds / 1000:03f} sec for {len(tmp_event_run_list)} events")
                 # failed
                 if tmp_err not in [None, ""] or len(guid_list_elssi) == 0:
-                    self.put_log(tmp_com)
-                    self.put_log(tmp_out)
-                    self.put_log(tmp_err)
-                    self.put_log("invalid return from EventIndex", "error")
+                    tmp_logger.debug(tmp_com)
+                    tmp_logger.debug(tmp_out)
+                    tmp_logger.debug(tmp_err)
+                    tmp_logger.error("invalid return from EventIndex")
+                    tmp_logger.debug("end")
                     return failed_ret
                 # check events
-                for run_nr, evt_nr in tmp_run_evt_list:
+                for run_nr, evt_nr in tmp_event_run_list:
                     param_str = f"Run:{run_nr} Evt:{evt_nr} Stream:{stream_name}"
-                    self.put_log(param_str)
+                    tmp_logger.debug(param_str)
                     tmp_run_evt_key = (int(run_nr), int(evt_nr))
                     # not found
                     if tmp_run_evt_key not in guid_list_elssi or len(guid_list_elssi[tmp_run_evt_key]) == 0:
-                        self.put_log(tmp_com)
-                        self.put_log(tmp_out)
-                        self.put_log(tmp_err)
-                        err_str = f"no GUIDs were found in EventIndex for {param_str}"
-                        self.put_log(err_str, "error")
+                        tmp_logger.debug(tmp_com)
+                        tmp_logger.debug(tmp_out)
+                        tmp_logger.debug(tmp_err)
+                        tmp_logger.error(f"no GUIDs were found in EventIndex for {param_str}")
+                        tmp_logger.debug("end")
                         return fatal_ret
                     # append
                     run_evt_guid_map[tmp_run_evt_key] = guid_list_elssi[tmp_run_evt_key]
@@ -736,34 +778,36 @@ class DynDataDistributer:
         for tmp_idx in run_evt_guid_map:
             tmp_guids = run_evt_guid_map[tmp_idx]
             run_nr, evt_nr = tmp_idx
-            tmp_ds_ret, tmp_ds_map = self.list_datasets_by_guids(tmp_guids, ds_filters)
+            tmp_ds_ret, tmp_dataset_map = self.list_datasets_by_guids(tmp_guids, dataset_filters)
             # failed
             if not tmp_ds_ret:
-                self.put_log("failed to convert GUIDs to datasets", "error")
-                if "isFatal" in tmp_ds_map and tmp_ds_map["isFatal"] is True:
+                tmp_logger.error(f"failed to convert GUIDs to datasets")
+                if "isFatal" in tmp_dataset_map and tmp_dataset_map["isFatal"] is True:
+                    tmp_logger.debug("end")
                     return fatal_ret
+                tmp_logger.debug("end")
                 return failed_ret
             # empty
-            if not tmp_ds_map:
-                self.put_log(f"there is no dataset for Run:{run_nr} Evt:{evt_nr} GUIDs:{str(tmp_guids)}", "error")
+            if not tmp_dataset_map:
+                tmp_logger.error(f"there is no dataset for Run:{run_nr} Evt:{evt_nr} GUIDs:{str(tmp_guids)}")
+                tmp_logger.debug("end")
                 return fatal_ret
-            if len(tmp_ds_map) != 1:
-                self.put_log(
-                    f"there are multiple datasets {str(tmp_ds_map)} for Run:{run_nr} Evt:{evt_nr} GUIDs:{str(tmp_guids)}",
-                    "error")
+            if len(tmp_dataset_map) != 1:
+                tmp_logger.error(f"there are multiple datasets {str(tmp_dataset_map)} for Run:{run_nr} Evt:{evt_nr} GUIDs:{str(tmp_guids)}")
+                tmp_logger.debug("end")
                 return fatal_ret
 
             # append
-            for tmp_guid in tmp_ds_map:
-                tmp_ds_name = tmp_ds_map[tmp_guid]
+            for tmp_guid, tmp_dataset_name in tmp_dataset_map.items():
                 # collect dataset names
-                if tmp_ds_name not in all_datasets:
-                    all_datasets.append(tmp_ds_name)
+                if tmp_dataset_name not in all_datasets:
+                    all_datasets.append(tmp_dataset_name)
                     # get location
-                    stat_rep, replica_map = self.get_list_dataset_replicas(tmp_ds_name)
+                    stat_rep, replica_map = self.get_list_dataset_replicas(tmp_dataset_name)
                     # failed
                     if not stat_rep:
-                        self.put_log(f"failed to get locations for {tmp_ds_name}", "error")
+                        tmp_logger.error(f"failed to get locations for {tmp_dataset_name}")
+                        tmp_logger.debug("end")
                         return failed_ret
                     # collect locations
                     tmp_location_list = []
@@ -773,69 +817,18 @@ class DynDataDistributer:
                         if ds_stat_dict["total"] is not None and ds_stat_dict["total"] == ds_stat_dict["found"]:
                             if tmp_location not in tmp_location_list:
                                 tmp_location_list.append(tmp_location)
-                    all_locations[tmp_ds_name] = tmp_location_list
+                    all_locations[tmp_dataset_name] = tmp_location_list
 
                 # get file info
-                tmp_file_ret, tmp_file_info = self.get_file_from_dataset(tmp_ds_name, tmp_guid)
+                tmp_file_ret, tmp_file_info = self.get_file_from_dataset(tmp_dataset_name, tmp_guid)
                 # failed
                 if not tmp_file_ret:
-                    self.put_log(f"failed to get fileinfo for GUID:{tmp_guid} DS:{tmp_ds_name}", "error")
+                    tmp_logger.error(f"failed to get fileinfo for GUID:{tmp_guid} DS:{tmp_dataset_name}")
+                    tmp_logger.debug("end")
                     return failed_ret
                 # collect files
                 all_files.append(tmp_file_info)
         # return
-        self.put_log(f"converted to {str(all_datasets)}, {str(all_locations)}, {str(all_files)}")
+        tmp_logger.debug(f"converted to {str(all_datasets)}, {str(all_locations)}, {str(all_files)}")
+        tmp_logger.debug("end")
         return True, all_locations, all_files
-
-    def put_log(self, message: str, message_type: str = "debug", send_log: bool = False, action_tag: str = "",
-                tags_map: Dict = {}):
-        """
-        Log a message with a specific type and optionally send it to a logger.
-
-        Args:
-            message (str): The message to be logged.
-            message_type (str, optional): The type of the message. Defaults to "debug".
-            send_log (bool, optional): Flag to send the message to a logger. Defaults to False.
-            action_tag (str, optional): The action tag. Defaults to "".
-            tags_map (dict, optional): The map of tags. Defaults to {}.
-
-        """
-        if self.logger is None:
-            temp_message = self.token + " " + str(message)
-        else:
-            temp_message = str(message)
-
-        if message_type == "error":
-            if self.logger is None:
-                _logger.error(temp_message)
-            else:
-                self.logger.error(temp_message)
-            # keep last error message
-            self.last_message = temp_message
-        else:
-            if self.logger is None:
-                _logger.debug(temp_message)
-            else:
-                self.logger.debug(temp_message)
-
-        # send to logger
-        if send_log:
-            temp_message = self.token + " - "
-            if action_tag != "":
-                temp_message += f"action={action_tag} "
-                for tmp_tag in tags_map:
-                    tmp_tag_val = tags_map[tmp_tag]
-                    temp_message += f"{tmp_tag}={tmp_tag_val} "
-            temp_message += "- " + message
-            temp_panda_logger = PandaLogger()
-            temp_panda_logger.lock()
-            temp_panda_logger.setParams({"Type": "pd2p"})
-            temp_log = temp_panda_logger.getHttpLogger(panda_config.loggername)
-            # add message
-            if message_type == "error":
-                temp_log.error(temp_message)
-            else:
-                temp_log.info(temp_message)
-            # release HTTP handler
-            temp_panda_logger.release()
-            time.sleep(1)

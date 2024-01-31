@@ -37,7 +37,7 @@ class EventPicker:
         self.token = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(" ")
         # logger
         self.logger = LogWrapper(_logger, self.token)
-        self.pd2p = dyn_data_distributer.DynDataDistributer([], self.siteMapper, token=" ", logger=self.logger)
+        self.pd2p = dyn_data_distributer.DynDataDistributer([], self.siteMapper, token=" ")
         self.userDatasetName = ""
         self.creationTime = ""
         self.params = ""
