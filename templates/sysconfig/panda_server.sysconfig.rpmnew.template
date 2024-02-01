@@ -61,7 +61,7 @@ fi
 
 # min number of workers
 if [[ -z "${PANDA_SERVER_CONF_MIN_WORKERS}" ]]; then
-  export PANDA_SERVER_CONF_MIN_WORKERS=25
+  export PANDA_SERVER_CONF_MIN_WORKERS=32
 fi
 
 # max number of workers
@@ -71,7 +71,12 @@ fi
 
 # max number of WSGI daemons
 if [[ -z "${PANDA_SERVER_CONF_NUM_WSGI}" ]]; then
-  export PANDA_SERVER_CONF_NUM_WSGI=12
+  export PANDA_SERVER_CONF_NUM_WSGI=32
+fi
+
+# max number of WSGI daemons
+if [[ -z "${PANDA_SERVER_CONF_MAX_BACKLOG}" ]]; then
+  export PANDA_SERVER_CONF_MAX_BACKLOG=2000
 fi
 
 # port
