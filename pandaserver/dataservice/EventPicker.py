@@ -13,7 +13,7 @@ import traceback
 import pandaserver.brokerage.broker
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandaserver.dataservice import DynDataDistributer
+from pandaserver.dataservice import dyn_data_distributer
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.DDM import rucioAPI
 from pandaserver.dataservice.Notifier import Notifier
@@ -37,7 +37,7 @@ class EventPicker:
         self.token = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(" ")
         # logger
         self.logger = LogWrapper(_logger, self.token)
-        self.pd2p = DynDataDistributer.DynDataDistributer([], self.taskBuffer, self.siteMapper, token=" ", logger=self.logger)
+        self.pd2p = dyn_data_distributer.DynDataDistributer([], self.siteMapper, token=" ")
         self.userDatasetName = ""
         self.creationTime = ""
         self.params = ""
@@ -179,7 +179,7 @@ class EventPicker:
                 self.job_label,
             ) = self.taskBuffer.getProdSourceLabelwithTaskID(self.jediTaskID)
             # convert run/event list to dataset/file list
-            tmpRet, locationMap, allFiles = self.pd2p.convertEvtRunToDatasets(
+            tmpRet, locationMap, allFiles = self.pd2p.convert_evt_run_to_datasets(
                 runEvtList,
                 eventPickDataType,
                 eventPickStreamName,
@@ -204,11 +204,11 @@ class EventPicker:
             # remove redundant CN from DN
             tmpDN = CoreUtils.get_id_from_dn(self.userDN)
             # make dataset container
-            tmpRet = self.pd2p.registerDatasetContainerWithDatasets(
+            tmpRet = self.pd2p.register_dataset_container_with_datasets(
                 self.userDatasetName,
                 allFiles,
                 locationMap,
-                nSites=eventPickNumSites,
+                n_sites=eventPickNumSites,
                 owner=tmpDN,
             )
             if not tmpRet:
@@ -222,12 +222,11 @@ class EventPicker:
                 self.taskBuffer.updateTaskModTimeJEDI(self.jediTaskID)
             else:
                 # get candidates
-                tmpRet, candidateMaps = self.pd2p.getCandidates(
+                tmpRet, candidateMaps = self.pd2p.get_candidates(
                     self.userDatasetName,
                     self.prodSourceLabel,
                     self.job_label,
-                    checkUsedFile=False,
-                    useHidden=True,
+                    check_used_file=False,
                 )
                 if not tmpRet:
                     self.endWithError("Failed to find candidate for destination")
@@ -247,7 +246,7 @@ class EventPicker:
                 # get list of dataset (container) names
                 if eventPickNumSites > 1:
                     # decompose container to transfer datasets separately
-                    tmpRet, tmpOut = self.pd2p.getListDatasetReplicasInContainer(self.userDatasetName)
+                    tmpRet, tmpOut = self.pd2p.get_list_dataset_replicas_in_container(self.userDatasetName)
                     if not tmpRet:
                         self.endWithError(f"Failed to get replicas in {self.userDatasetName}")
                         return False

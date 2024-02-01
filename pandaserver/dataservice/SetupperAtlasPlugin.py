@@ -1576,13 +1576,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         # disable for JEDI
         if self.jobs[0].lockedby == "jedi":
             return
-        # execute
-        self.logger.debug("execute PD2P")
-        from .DynDataDistributer import DynDataDistributer
-
-        ddd = DynDataDistributer(self.jobs, self.taskBuffer, self.siteMapper)
-        ddd.run()
-        self.logger.debug("finished PD2P")
         return
 
     # make dis datasets for existing files to avoid deletion when jobs are queued
