@@ -28,7 +28,7 @@ RUN  yum clean all && rm -rf /var/cache/yum
 # update network limitations
 # RUN echo 4096 > /proc/sys/net/core/somaxconn
 # RUN sysctl -w net.core.somaxconn=4096
-RUN echo 'net.core.somaxconn=4096' >> /etc/sysctl.d/100-net.somax.conf
+RUN echo 'net.core.somaxconn=4096' >> /etc/sysctl.d/999-net.somax.conf
 
 # setup venv with pythonX.Y
 RUN python$(echo ${PYTHON_VERSION} | sed -E 's/\.[0-9]+$//') -m venv /opt/panda
