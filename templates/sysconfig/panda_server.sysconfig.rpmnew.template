@@ -74,9 +74,14 @@ if [[ -z "${PANDA_SERVER_CONF_NUM_WSGI}" ]]; then
   export PANDA_SERVER_CONF_NUM_WSGI=32
 fi
 
+# max number of WSGI threads
+if [[ -z "${PANDA_SERVER_CONF_NUM_WSGI_THREAD}" ]]; then
+  export PANDA_SERVER_CONF_NUM_WSGI_THREAD=32
+fi
+
 # max number of WSGI daemons
 if [[ -z "${PANDA_SERVER_CONF_MAX_BACKLOG}" ]]; then
-  export PANDA_SERVER_CONF_MAX_BACKLOG=2000
+  export PANDA_SERVER_CONF_MAX_BACKLOG=511
 fi
 
 # port
