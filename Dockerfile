@@ -26,8 +26,8 @@ RUN yum install --nogpgcheck -y postgresql16
 RUN  yum clean all && rm -rf /var/cache/yum
 
 # update network limitations
-echo 4096 > /proc/sys/net/core/somaxconn
-sysctl -w net.core.somaxconn=4096
+RUN echo 4096 > /proc/sys/net/core/somaxconn
+RUN sysctl -w net.core.somaxconn=4096
 
 # setup venv with pythonX.Y
 RUN python$(echo ${PYTHON_VERSION} | sed -E 's/\.[0-9]+$//') -m venv /opt/panda
