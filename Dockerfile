@@ -8,7 +8,7 @@ RUN yum update -y
 RUN yum install -y epel-release
 
 RUN yum install -y httpd httpd-devel gcc gridsite git psmisc less wget logrotate procps which \
-    openssl-devel readline-devel bzip2-devel libffi-devel zlib-devel
+    openssl-devel readline-devel bzip2-devel libffi-devel zlib-devel systemd-udev
 
 # install python
 RUN mkdir /tmp/python && cd /tmp/python && \
@@ -26,8 +26,9 @@ RUN yum install --nogpgcheck -y postgresql16
 RUN  yum clean all && rm -rf /var/cache/yum
 
 # update network limitations
-RUN echo 4096 > /proc/sys/net/core/somaxconn
-RUN sysctl -w net.core.somaxconn=4096
+# RUN echo 4096 > /proc/sys/net/core/somaxconn
+# RUN sysctl -w net.core.somaxconn=4096
+RUN echo 'net.core.somaxconn=4096' >> /etc/sysctl.d/100-net.somax.conf
 
 # setup venv with pythonX.Y
 RUN python$(echo ${PYTHON_VERSION} | sed -E 's/\.[0-9]+$//') -m venv /opt/panda
