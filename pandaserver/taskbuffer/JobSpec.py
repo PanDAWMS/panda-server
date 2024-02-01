@@ -620,9 +620,10 @@ class JobSpec(object):
     # extract multi step exec
     def extractMultiStepExec(self):
         try:
-            ppStr = re.search("(.*)<MULTI_STEP_EXEC>(.+)</MULTI_STEP_EXEC>", self.jobParameters)
-            if ppStr is not None:
-                return ppStr.group(1), json.loads(ppStr.group(2))
+            if "<MULTI_STEP_EXEC>" in self.jobParameters and "</MULTI_STEP_EXEC>" in self.jobParameters:
+                pp_1, pp_2 = self.jobParameters.split("<MULTI_STEP_EXEC>")
+                pp_2 = pp_2.split("</MULTI_STEP_EXEC>")[0]
+                return pp_1, json.loads(pp_2)
         except Exception:
             pass
         return self.jobParameters, None
