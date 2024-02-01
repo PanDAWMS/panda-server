@@ -737,7 +737,7 @@ class DynDataDistributer:
                 tmp_logger.debug(f"EI lookup for {i_events_total}/{len(event_run_list)}")
                 i_events_total += n_events_per_loop
                 reg_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-                guid_list_elssi, tmp_com, tmp_out, tmp_err = event_lookup_if.do_lookup(
+                guid_list_elssi, tmp_com, tmp_out, tmp_err = event_lookup_if.doLookup(
                     tmp_event_run_list,
                     stream=stream_name,
                     tokens=stream_ref,
