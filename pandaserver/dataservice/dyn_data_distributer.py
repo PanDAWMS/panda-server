@@ -36,7 +36,6 @@ class DynDataDistributer:
         else:
             self.token = token
         # use a fixed list since some clouds don't have active T2s
-        self.pd2p_clouds = ["CA", "DE", "ES", "FR", "IT", "ND", "NL", "TW", "UK", "US"]
         self.simul = simul
         self.last_message = ""
 
@@ -90,8 +89,6 @@ class DynDataDistributer:
         Retrieves all sites that meet certain conditions.
 
         This method filters out sites based on the following conditions:
-        - The cloud of the site should be in the list of pd2p_clouds.
-        - The site name should not be in status "test".
         - The site should be capable of running analysis.
         - The site should not be a GPU site.
         - The site should not use VP.
@@ -103,12 +100,6 @@ class DynDataDistributer:
         all_sites = []
         for site_name in self.site_mapper.siteSpecList:
             site_spec = self.site_mapper.siteSpecList[site_name]
-            # check cloud
-            if site_spec.cloud not in self.pd2p_clouds:
-                continue
-            # ignore test sites
-            if site_spec.status == "test":
-                continue
             # analysis only
             if not site_spec.runs_analysis():
                 continue
@@ -124,20 +115,17 @@ class DynDataDistributer:
             all_sites.append(site_spec)
         return all_sites
 
-    def get_candidate_sites(self, tmp_rep_maps: Dict, prod_source_label: str, job_label: str,
-                            use_close_sites: bool) -> Tuple[bool, Dict]:
+    def get_candidate_sites(self, tmp_rep_maps: Dict, prod_source_label: str, job_label: str) -> Tuple[bool, Dict]:
         """
         Retrieves candidate sites for data distribution based on certain conditions.
 
-        This method filters out candidate sites based on the following conditions:
+        This method filters out candidate sites based on the following condition:
         - The site should have a replica of the dataset.
-        - If 'use_close_sites' is False, the site is added to the candidate sites regardless of whether it has a replica.
 
         Args:
             tmp_rep_maps (dict): A dictionary containing dataset names as keys and their replica maps as values.
             prod_source_label (str): The label of the production source.
             job_label (str): The label of the job.
-            use_close_sites (bool): A flag indicating whether to use close sites.
 
         Returns:
             tuple: A tuple containing a boolean status and a dictionary. The dictionary has dataset names as keys and
@@ -170,7 +158,7 @@ class DynDataDistributer:
                         sites_com_ds.append(tmp_site_spec.sitename)
                         has_replica = True
                         break
-                if has_replica or not use_close_sites:
+                if has_replica:
                     cand_sites.append(tmp_site_spec.sitename)
             return_map.setdefault(tmp_ds, {})
             if sites_com_ds:
@@ -188,8 +176,7 @@ class DynDataDistributer:
             )
         return True, return_map
 
-    def get_candidates(self, input_ds: str, prod_source_label: str, job_label: str, check_used_file: bool = True,
-                       use_close_sites: bool = False) -> Tuple[bool, Dict]:
+    def get_candidates(self, input_ds: str, prod_source_label: str, job_label: str, check_used_file: bool = True) -> Tuple[bool, Dict]:
         """
         Get candidate sites for subscription.
 
@@ -198,7 +185,6 @@ class DynDataDistributer:
             prod_source_label (str): The label of the production source.
             job_label (str): The label of the job.
             check_used_file (bool, optional): Flag to check used file. Defaults to True.
-            use_close_sites (bool, optional): Flag to use close sites. Defaults to False.
 
         Returns:
             tuple: A tuple containing the status (bool) and the result (dict or str).
@@ -209,7 +195,7 @@ class DynDataDistributer:
             return status, tmp_rep_maps
 
         # Get candidate sites
-        return self.get_candidate_sites(tmp_rep_maps, prod_source_label, job_label, use_close_sites)
+        return self.get_candidate_sites(tmp_rep_maps, prod_source_label, job_label)
 
     def get_list_dataset_replicas(self, dataset: str, max_attempts: int = 3) -> Tuple[bool, Dict]:
         """
@@ -595,7 +581,72 @@ class DynDataDistributer:
                 return res_for_failure
         return True
 
-    def list_datasets_by_guids(self, guids: List, dataset_filters: List, max_attempts: int = 3) -> Tuple[bool, Dict]:
+    def get_datasets_by_guids(out_map: Dict, guids: List[str], dataset_filters: List[str], tmp_logger) -> Tuple[
+        bool, Dict]:
+        """
+        Get datasets by GUIDs.
+
+        Args:
+            out_map (dict): The output map.
+            guids (list): The list of GUIDs.
+            dataset_filters (list): The list of dataset filters.
+            tmp_logger: The logger.
+
+        Returns:
+            tuple: A tuple containing a boolean status and a dictionary.
+        """
+        tmp_logger = LogWrapper(_logger,
+                                f"get_datasets_by_guids-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_logger.debug(f"get_datasets_by_guids {str(guids)}")
+
+        ret_map = {}
+        try:
+            for guid in guids:
+                tmp_dataset_names = []
+                if guid not in out_map:
+                    tmp_logger.error(f"GUID={guid} not found")
+                    tmp_logger.debug("end")
+                    return False, {}
+
+                for tmp_dataset_name in out_map[guid]:
+                    if (
+                            tmp_dataset_name.startswith("panda")
+                            or tmp_dataset_name.startswith("user")
+                            or tmp_dataset_name.startswith("group")
+                            or tmp_dataset_name.startswith("archive")
+                            or re.search("_sub\d+$", tmp_dataset_name) is not None
+                            or re.search("_dis\d+$", tmp_dataset_name) is not None
+                            or re.search("_shadow$", tmp_dataset_name) is not None
+                    ):
+                        continue
+
+                    if dataset_filters:
+                        flag_match = False
+                        for tmp_filter in dataset_filters:
+                            if fnmatch.fnmatchcase(tmp_dataset_name, tmp_filter):
+                                flag_match = True
+                                break
+                        if not flag_match:
+                            continue
+
+                    tmp_dataset_names.append(tmp_dataset_name)
+
+                if not tmp_dataset_names:
+                    tmp_logger.debug(f"no datasets found for GUID={guid}")
+                    continue
+
+                if len(tmp_dataset_names) != 1:
+                    tmp_logger.debug(f"use the first dataset in {str(tmp_dataset_names)} for GUID:{guid}")
+
+                ret_map[guid] = tmp_dataset_names[0]
+        except Exception:
+            tmp_logger.error("failed to parse listDatasetsByGUIDs")
+            tmp_logger.debug("end")
+            return False, {}
+
+        return True, ret_map
+    def list_datasets_by_guids(self, guids: List[str], dataset_filters: List[str], max_attempts: int = 3) -> Tuple[
+        bool, Dict]:
         """
         List datasets by GUIDs.
 
@@ -608,11 +659,11 @@ class DynDataDistributer:
             tuple: A tuple containing the status (bool) and the result (dict or str).
         """
         tmp_logger = LogWrapper(_logger,
-                             f"list_datasets_by_guids-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+                                f"list_datasets_by_guids-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
         tmp_logger.debug(f"list_datasets_by_guids {str(guids)}")
 
         res_for_failure = (False, {})
-        res_for_fatal = (False, {"isFatal": True})
+        res_for_fatal = (False, {"isFatal": True}, [])
 
         # get size of datasets
         for attempt in range(max_attempts):
@@ -640,53 +691,9 @@ class DynDataDistributer:
         tmp_logger.debug(out)
 
         # get map
-        ret_map = {}
-        try:
-            out_map = out
-            for guid in guids:
-                tmp_dataset_names = []
-                # GUID not found
-                if guid not in out_map:
-                    tmp_logger.error(f"GUID={guid} not found")
-                    tmp_logger.debug("end")
-                    return res_for_fatal
+        status, ret_map = get_datasets_by_guids(out, guids, dataset_filters)
 
-                # ignore junk datasets
-                for tmp_dataset_name in out_map[guid]:
-                    if (
-                            tmp_dataset_name.startswith("panda")
-                            or tmp_dataset_name.startswith("user")
-                            or tmp_dataset_name.startswith("group")
-                            or tmp_dataset_name.startswith("archive")
-                            or re.search("_sub\d+$", tmp_dataset_name) is not None
-                            or re.search("_dis\d+$", tmp_dataset_name) is not None
-                            or re.search("_shadow$", tmp_dataset_name) is not None
-                    ):
-                        continue
-                    # check with filters
-                    if dataset_filters != []:
-                        flag_match = False
-                        for tmp_filter in dataset_filters:
-                            if fnmatch.fnmatchcase(tmp_dataset_name, tmp_filter):
-                                flag_match = True
-                                break
-                        # not match
-                        if not flag_match:
-                            continue
-                    # append
-                    tmp_dataset_names.append(tmp_dataset_name)
-                # empty
-                if not tmp_dataset_names:
-                    tmp_logger.debug(f"no datasets found for GUID={guid}")
-                    continue
-                # duplicated
-                if len(tmp_dataset_names) != 1:
-                    tmp_logger.debug(f"use the first dataset in {str(tmp_dataset_names)} for GUID:{guid}")
-                # append
-                ret_map[guid] = tmp_dataset_names[0]
-        except Exception:
-            tmp_logger.error("failed to parse listDatasetsByGUIDs")
-            tmp_logger.debug("end")
+        if not status:
             return res_for_failure
 
         tmp_logger.debug("end")
