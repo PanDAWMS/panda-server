@@ -581,7 +581,7 @@ class DynDataDistributer:
                 return res_for_failure
         return True
 
-    def get_datasets_by_guids(out_map: Dict, guids: List[str], dataset_filters: List[str], tmp_logger) -> Tuple[
+    def get_datasets_by_guids(self, out_map: Dict, guids: List[str], dataset_filters: List[str], tmp_logger) -> Tuple[
         bool, Dict]:
         """
         Get datasets by GUIDs.
