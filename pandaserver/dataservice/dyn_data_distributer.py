@@ -590,7 +590,6 @@ class DynDataDistributer:
             out_map (dict): The output map.
             guids (list): The list of GUIDs.
             dataset_filters (list): The list of dataset filters.
-            tmp_logger: The logger.
 
         Returns:
             tuple: A tuple containing a boolean status and a dictionary.
