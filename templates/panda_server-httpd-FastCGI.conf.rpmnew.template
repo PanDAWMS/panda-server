@@ -16,7 +16,7 @@ MinSpareServers      ${PANDA_SERVER_CONF_MIN_WORKERS}
 ServerLimit          ${PANDA_SERVER_CONF_MAX_WORKERS}
 MaxSpareServers      ${PANDA_SERVER_CONF_MAX_WORKERS}
 MaxClients           ${PANDA_SERVER_CONF_MAX_WORKERS}
-MaxRequestsPerChild  100
+MaxRequestsPerChild  2000
 ThreadsPerChild      100
 </IfModule>
 
@@ -26,7 +26,7 @@ MinSpareThreads        ${PANDA_SERVER_CONF_MIN_WORKERS}
 ServerLimit            ${PANDA_SERVER_CONF_MAX_WORKERS}
 MaxSpareThreads        ${PANDA_SERVER_CONF_MAX_WORKERS}
 MaxRequestWorkers      ${PANDA_SERVER_CONF_MAX_WORKERS}
-MaxConnectionsPerChild 100
+MaxConnectionsPerChild 2000
 ThreadsPerChild      100
 </IfModule>
 
