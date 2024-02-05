@@ -692,7 +692,7 @@ class DynDataDistributer:
         tmp_logger.debug(out)
 
         # get map
-        status, ret_map = get_datasets_by_guids(out, guids, dataset_filters)
+        status, ret_map = self.get_datasets_by_guids(out, guids, dataset_filters)
 
         if not status:
             return res_for_failure
