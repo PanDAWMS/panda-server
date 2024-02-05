@@ -639,8 +639,8 @@ class DynDataDistributer:
                     tmp_logger.debug(f"use the first dataset in {str(tmp_dataset_names)} for GUID:{guid}")
 
                 ret_map[guid] = tmp_dataset_names[0]
-        except Exception:
-            tmp_logger.error("failed to parse listDatasetsByGUIDs")
+        except Exception as e:
+            tmp_logger.error(f"failed to parse get_datasets_by_guids: {e}")
             tmp_logger.debug("end")
             return False, {}
 
