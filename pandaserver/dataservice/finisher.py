@@ -244,7 +244,7 @@ class Finisher(threading.Thread):
                                         data=top_node.toxml(),
                                     )
                             except Exception:
-                                type, value, traceBack = sys.exc_info()
+                                type, value, trace_back = sys.exc_info()
                                 tmp_log.error(f"Job: {job.PandaID} {type} {value}")
                     tmp_log.debug(f"Job: {job.PandaID} status: {job.jobStatus}")
             # end
@@ -253,5 +253,5 @@ class Finisher(threading.Thread):
             else:
                 tmp_log.debug(f"end: {self.job.PandaID}")
         except Exception:
-            type, value, traceBack = sys.exc_info()
+            type, value, trace_back = sys.exc_info()
             tmp_log.error(f"run() : {type} {value}")
