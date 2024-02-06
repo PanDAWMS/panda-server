@@ -149,17 +149,14 @@ class DynDataDistributer:
                 if tmp_scope_input not in tmp_site_spec.ddm_endpoints_input:
                     continue
                 rses = tmp_site_spec.ddm_endpoints_input[tmp_scope_input].getLocalEndPoints()
-                has_replica = False
                 for ddm_endpoint in tmp_rep_map:
                     tmp_stat_map = tmp_rep_map[ddm_endpoint]
                     if ddm_endpoint in rses and tmp_stat_map[0]["total"] == tmp_stat_map[0][
                         "found"] and ddm_endpoint.endswith(
                         "DATADISK"):
                         sites_com_ds.append(tmp_site_spec.sitename)
-                        has_replica = True
                         break
-                if has_replica:
-                    cand_sites.append(tmp_site_spec.sitename)
+                cand_sites.append(tmp_site_spec.sitename)
             return_map.setdefault(tmp_ds, {})
             if sites_com_ds:
                 cand_sites = sites_com_ds
