@@ -105,9 +105,11 @@ class Finisher(threading.Thread):
         file_node.appendChild(log_node)
         file_node.appendChild(self.create_metadata_node(doc, "fsize", file.fsize))
         if file.checksum.startswith("ad:"):
-            file_node.appendChild(self.create_metadata_node(doc, "adler32", re.sub("^ad:", "", file.checksum)))
+            file_node.appendChild(self.create_metadata_node(doc, "adler32",
+                                                            re.sub("^ad:", "", file.checksum)))
         else:
-            file_node.appendChild(self.create_metadata_node(doc, "md5sum", re.sub("^md5:", "", file.checksum)))
+            file_node.appendChild(self.create_metadata_node(doc, "md5sum",
+                                                            re.sub("^md5:", "", file.checksum)))
         return file_node
 
     def create_xml_doc(self, job, failed_files: List[str], no_out_files: List[str]):
@@ -242,7 +244,8 @@ class Finisher(threading.Thread):
             if len(ids) != 0:
                 # get job
                 if self.job is None:
-                    jobs = self.task_buffer.peekJobs(ids, fromDefined=False, fromArchived=False, fromWaiting=False)
+                    jobs = self.task_buffer.peekJobs(ids, fromDefined=False,
+                                                     fromArchived=False, fromWaiting=False)
                 else:
                     jobs = [self.job]
                 # loop over all jobs
@@ -256,7 +259,7 @@ class Finisher(threading.Thread):
                         no_out_files = []
                         # check file status
                         for file in job.Files:
-                            if file.type == "output" or file.type == "log":
+                            if file.type in ('output', 'log'):
                                 if file.status == "failed":
                                     failed_files.append(file.lfn)
                                 elif file.status == "nooutput":
