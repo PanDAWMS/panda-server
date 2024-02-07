@@ -6,8 +6,11 @@ finish transferring jobs
 import re
 import sys
 import threading
+import datetime
+import xml
 
-from typing import List, Tuple
+
+from typing import List
 from xml.dom.minidom import Document
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -59,6 +62,101 @@ class Finisher(threading.Thread):
         self.task_buffer = taskBuffer
         self.job = job
         self.site = site
+
+    def create_metadata_node(self, doc: Document, att_name: str, att_value: str):
+        """
+        Create a metadata node for the XML document.
+
+        Parameters:
+        doc (xml.dom.minidom.Document): The XML document.
+        att_name (str): The attribute name.
+        att_value (str): The attribute value.
+
+        Returns:
+        xml.dom.minidom.Element: The created metadata node.
+        """
+        metadata_node = doc.createElement("metadata")
+        metadata_node.setAttribute("att_name", att_name)
+        metadata_node.setAttribute("att_value", str(att_value))
+        return metadata_node
+
+    def create_file_node(self, doc: Document, file, failed_files: List[str],
+                         no_out_files: List[str]):
+        """
+        This function creates a file node for the XML document.
+
+        Parameters:
+        doc (xml.dom.minidom.Document): The XML document.
+        file (FileSpec): The file specification.
+        failed_files (list): List of failed files.
+        no_out_files (list): List of files with no output.
+
+        Returns:
+        xml.dom.minidom.Element: The created file node or None if the file is in the list of failed files or no output files.
+        """
+        if file.lfn in failed_files + no_out_files:
+            return None
+        file_node = doc.createElement("File")
+        file_node.setAttribute("ID", file.GUID)
+        log_node = doc.createElement("logical")
+        lfn_node = doc.createElement("lfn")
+        lfn_node.setAttribute("name", file.lfn)
+        log_node.appendChild(lfn_node)
+        file_node.appendChild(log_node)
+        file_node.appendChild(self.create_metadata_node(doc, "fsize", file.fsize))
+        if file.checksum.startswith("ad:"):
+            file_node.appendChild(self.create_metadata_node(doc, "adler32", re.sub("^ad:", "", file.checksum)))
+        else:
+            file_node.appendChild(self.create_metadata_node(doc, "md5sum", re.sub("^md5:", "", file.checksum)))
+        return file_node
+
+    def create_xml_doc(self, job, failed_files: List[str], no_out_files: List[str]):
+        """
+        This function creates an XML document for the jobs.
+
+        Parameters:
+        job (JobSpec): The job specification.
+        failed_files (list): List of failed files.
+        no_out_files (list): List of files with no output.
+
+        Returns:
+        str: The created XML document as a string.
+        """
+        dom = xml.dom.minidom.getDOMImplementation()
+        doc = dom.createDocument(None, "xml", None)
+        top_node = doc.createElement("POOLFILECATALOG")
+        for file in job.Files:
+            if file.type in ["output", "log"]:
+                file_node = self.create_file_node(doc, file, failed_files, no_out_files)
+                if file_node is not None:
+                    top_node.appendChild(file_node)
+        doc.appendChild(top_node)
+        return doc.toxml()
+
+    def update_job_output_report(self, job, failed_files: List[str], no_out_files: List[str]):
+        """
+        This function updates the job output report.
+
+        Parameters:
+        job (JobSpec): The job specification.
+        failed_files (list): List of failed files.
+        no_out_files (list): List of files with no output.
+        """
+        xml_data = self.create_xml_doc(job, failed_files, no_out_files)
+        record_status = "finished" if not failed_files else "failed"
+        tmp_ret = self.task_buffer.updateJobOutputReport(
+            panda_id=job.PandaID,
+            attempt_nr=job.attemptNr,
+            data=xml_data,
+        )
+        if not tmp_ret:
+            self.task_buffer.insertJobOutputReport(
+                panda_id=job.PandaID,
+                prod_source_label=job.prodSourceLabel,
+                job_status=record_status,
+                attempt_nr=job.attemptNr,
+                data=xml_data,
+            )
 
     # main
     def run(self):
@@ -188,98 +286,3 @@ class Finisher(threading.Thread):
         except Exception:
             type, value, trace_back = sys.exc_info()
             tmp_log.error(f"run() : {type} {value}")
-
-    def create_metadata_node(self, doc: Document, att_name: str, att_value: str):
-        """
-        Create a metadata node for the XML document.
-
-        Parameters:
-        doc (xml.dom.minidom.Document): The XML document.
-        att_name (str): The attribute name.
-        att_value (str): The attribute value.
-
-        Returns:
-        xml.dom.minidom.Element: The created metadata node.
-        """
-        metadata_node = doc.createElement("metadata")
-        metadata_node.setAttribute("att_name", att_name)
-        metadata_node.setAttribute("att_value", str(att_value))
-        return metadata_node
-
-    def create_file_node(self, doc: Document, file: FileSpec, failed_files: List[str],
-                         no_out_files: List[str]):
-        """
-        This function creates a file node for the XML document.
-
-        Parameters:
-        doc (xml.dom.minidom.Document): The XML document.
-        file (FileSpec): The file specification.
-        failed_files (list): List of failed files.
-        no_out_files (list): List of files with no output.
-
-        Returns:
-        xml.dom.minidom.Element: The created file node or None if the file is in the list of failed files or no output files.
-        """
-        if file.lfn in failed_files + no_out_files:
-            return None
-        file_node = doc.createElement("File")
-        file_node.setAttribute("ID", file.GUID)
-        log_node = doc.createElement("logical")
-        lfn_node = doc.createElement("lfn")
-        lfn_node.setAttribute("name", file.lfn)
-        log_node.appendChild(lfn_node)
-        file_node.appendChild(log_node)
-        file_node.appendChild(self.create_metadata_node(doc, "fsize", file.fsize))
-        if file.checksum.startswith("ad:"):
-            file_node.appendChild(self.create_metadata_node(doc, "adler32", re.sub("^ad:", "", file.checksum)))
-        else:
-            file_node.appendChild(self.create_metadata_node(doc, "md5sum", re.sub("^md5:", "", file.checksum)))
-        return file_node
-
-    def create_xml_doc(self, job: JobSpec, failed_files: List[str], no_out_files: List[str]):
-        """
-        This function creates an XML document for the jobs.
-
-        Parameters:
-        job (JobSpec): The job specification.
-        failed_files (list): List of failed files.
-        no_out_files (list): List of files with no output.
-
-        Returns:
-        str: The created XML document as a string.
-        """
-        dom = xml.dom.minidom.getDOMImplementation()
-        doc = dom.createDocument(None, "xml", None)
-        top_node = doc.createElement("POOLFILECATALOG")
-        for file in job.Files:
-            if file.type in ["output", "log"]:
-                file_node = self.create_file_node(doc, file, failed_files, no_out_files)
-                if file_node is not None:
-                    top_node.appendChild(file_node)
-        doc.appendChild(top_node)
-        return doc.toxml()
-
-    def update_job_output_report(self, job: JobSpec, failed_files: List[str], no_out_files: List[str]):
-        """
-        This function updates the job output report.
-
-        Parameters:
-        job (JobSpec): The job specification.
-        failed_files (list): List of failed files.
-        no_out_files (list): List of files with no output.
-        """
-        xml_data = self.create_xml_doc(job, failed_files, no_out_files)
-        record_status = "finished" if not failed_files else "failed"
-        tmp_ret = self.task_buffer.updateJobOutputReport(
-            panda_id=job.PandaID,
-            attempt_nr=job.attemptNr,
-            data=xml_data,
-        )
-        if not tmp_ret:
-            self.task_buffer.insertJobOutputReport(
-                panda_id=job.PandaID,
-                prod_source_label=job.prodSourceLabel,
-                job_status=record_status,
-                attempt_nr=job.attemptNr,
-                data=xml_data,
-            )
