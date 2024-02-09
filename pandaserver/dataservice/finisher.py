@@ -3,7 +3,6 @@ finish transferring jobs
 
 """
 
-import re
 import sys
 import threading
 import datetime
@@ -11,7 +10,6 @@ import json
 
 
 from typing import List
-from xml.dom.minidom import Document
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.brokerage.SiteMapper import SiteMapper
@@ -206,7 +204,6 @@ class Finisher(threading.Thread):
                 # completed bit_map
                 comp_bit_map = (1 << len(required_tokens.split(","))) - 1
                 # ignore the lowest bit for T1, file on DISK is already there
-                # TODO: #prodanaly use the scope, but don't know job information
                 if tmp_source_site_spec.ddm_output == tmp_dst_site_spec.ddm_output:
                     comp_bit_map = comp_bit_map & 0xFFFE
                 # update bit_map in DB
@@ -244,7 +241,7 @@ class Finisher(threading.Thread):
                             tmp_log.debug(f"Job: {job.PandaID} all files ready")
                         else:
                             tmp_log.debug(f"Job: {job.PandaID} all files checked with catalog")
-                        # create XML
+                        # create JSON
                         try:
                             self.update_job_output_report(job, failed_files, no_out_files)
                         except Exception:
