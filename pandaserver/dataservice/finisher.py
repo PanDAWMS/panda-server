@@ -146,6 +146,37 @@ class Finisher(threading.Thread):
                     return False, failed_files, no_out_files
         return True, failed_files, no_out_files
 
+    def get_bit_map(self, required_tokens: str, dest_token: str, tmp_source_site_spec, tmp_dst_site_spec, dataset_name: str):
+        """
+        This function calculates the bit_map, comp_bit_map, and updated_bit_map based on the required tokens, destination token, source site spec, destination site spec, and dataset name.
+
+        Parameters:
+        required_tokens (str): The required tokens.
+        dest_token (str): The destination token.
+        tmp_source_site_spec (SiteSpec): The source site specification.
+        tmp_dst_site_spec (SiteSpec): The destination site specification.
+        dataset_name (str): The name of the dataset.
+
+        Returns:
+        tuple: A tuple containing the calculated bit_map, comp_bit_map, and updated_bit_map.
+        """
+        # make bit_map for the token
+        bit_map = 1
+        if len(required_tokens.split(",")) > 1:
+            for tmp_req_token in required_tokens.split(","):
+                if tmp_req_token == dest_token:
+                    break
+                # shift one bit
+                bit_map <<= 1
+        # completed bit_map
+        comp_bit_map = (1 << len(required_tokens.split(","))) - 1
+        # ignore the lowest bit for T1, file on DISK is already there
+        if tmp_source_site_spec.ddm_output == tmp_dst_site_spec.ddm_output:
+            comp_bit_map = comp_bit_map & 0xFFFE
+        # update bit_map in DB
+        updated_bit_map = self.task_buffer.updateTransferStatus(dataset_name, bit_map)
+        return bit_map, comp_bit_map, updated_bit_map
+
     # main
     def run(self):
         """
@@ -174,7 +205,9 @@ class Finisher(threading.Thread):
                         return
                 tmp_log.debug(f"src: {computing_site}")
                 tmp_log.debug(f"dst: {destination_se}")
-                # get corresponding token
+                # Get corresponding token
+                # getSite is used to retrieve site specifications based on a given site identifier
+                # that can be either a PanDA Queue (PQ) or a Rucio Storage Element (RSE)
                 tmp_source_site_spec = site_mapper.getSite(computing_site)
                 tmp_dst_site_spec = site_mapper.getSite(destination_se)
                 tmp_log.debug(tmp_dst_site_spec.setokens_output)
@@ -193,22 +226,13 @@ class Finisher(threading.Thread):
                     tmp_log.debug(f"end: {self.dataset.name}")
                     return
                 tmp_log.debug(f"req Token={required_tokens}")
+
                 # make bit_map for the token
-                bit_map = 1
-                if len(required_tokens.split(",")) > 1:
-                    for tmp_req_token in required_tokens.split(","):
-                        if tmp_req_token == dest_token:
-                            break
-                        # shift one bit
-                        bit_map <<= 1
-                # completed bit_map
-                comp_bit_map = (1 << len(required_tokens.split(","))) - 1
-                # ignore the lowest bit for T1, file on DISK is already there
-                if tmp_source_site_spec.ddm_output == tmp_dst_site_spec.ddm_output:
-                    comp_bit_map = comp_bit_map & 0xFFFE
-                # update bit_map in DB
-                updated_bit_map = self.task_buffer.updateTransferStatus(self.dataset.name, bit_map)
+                bit_map, comp_bit_map, updated_bit_map = self.get_bit_map(required_tokens, dest_token,
+                                                                          tmp_source_site_spec, tmp_dst_site_spec,
+                                                                          self.dataset.name)
                 tmp_log.debug(f"transfer status:{hex(updated_bit_map)} - comp:{hex(comp_bit_map)} - bit:{hex(bit_map)}")
+
                 # update output files
                 if (updated_bit_map & comp_bit_map) == comp_bit_map:
                     panda_ids = self.task_buffer.updateOutFilesReturnPandaIDs(self.dataset.name)
