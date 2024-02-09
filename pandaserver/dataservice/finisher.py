@@ -14,7 +14,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.brokerage.SiteMapper import SiteMapper
 
 # logger
-_logger = PandaLogger().getLogger("Finisher")
+_logger = PandaLogger().getLogger("finisher")
 
 
 class Finisher(threading.Thread):
