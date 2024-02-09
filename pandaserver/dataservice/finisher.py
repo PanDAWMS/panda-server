@@ -7,7 +7,7 @@ import re
 import sys
 import threading
 import datetime
-import xml
+import json
 
 
 from typing import List
@@ -63,58 +63,9 @@ class Finisher(threading.Thread):
         self.job = job
         self.site = site
 
-    def create_metadata_node(self, doc: Document, att_name: str, att_value: str):
+    def create_json_doc(self, job, failed_files: List[str], no_out_files: List[str]):
         """
-        Create a metadata node for the XML document.
-
-        Parameters:
-        doc (xml.dom.minidom.Document): The XML document.
-        att_name (str): The attribute name.
-        att_value (str): The attribute value.
-
-        Returns:
-        xml.dom.minidom.Element: The created metadata node.
-        """
-        metadata_node = doc.createElement("metadata")
-        metadata_node.setAttribute("att_name", att_name)
-        metadata_node.setAttribute("att_value", str(att_value))
-        return metadata_node
-
-    def create_file_node(self, doc: Document, file, failed_files: List[str],
-                         no_out_files: List[str]):
-        """
-        This function creates a file node for the XML document.
-
-        Parameters:
-        doc (xml.dom.minidom.Document): The XML document.
-        file (FileSpec): The file specification.
-        failed_files (list): List of failed files.
-        no_out_files (list): List of files with no output.
-
-        Returns:
-        xml.dom.minidom.Element: The created file node or None if the file is in the list of failed files or no output files.
-        """
-        if file.lfn in failed_files + no_out_files:
-            return None
-        file_node = doc.createElement("File")
-        file_node.setAttribute("ID", file.GUID)
-        log_node = doc.createElement("logical")
-        lfn_node = doc.createElement("lfn")
-        lfn_node.setAttribute("name", file.lfn)
-        log_node.appendChild(lfn_node)
-        file_node.appendChild(log_node)
-        file_node.appendChild(self.create_metadata_node(doc, "fsize", file.fsize))
-        if file.checksum.startswith("ad:"):
-            file_node.appendChild(self.create_metadata_node(doc, "adler32",
-                                                            re.sub("^ad:", "", file.checksum)))
-        else:
-            file_node.appendChild(self.create_metadata_node(doc, "md5sum",
-                                                            re.sub("^md5:", "", file.checksum)))
-        return file_node
-
-    def create_xml_doc(self, job, failed_files: List[str], no_out_files: List[str]):
-        """
-        This function creates an XML document for the jobs.
+        This function creates a JSON document for the jobs.
 
         Parameters:
         job (JobSpec): The job specification.
@@ -122,18 +73,27 @@ class Finisher(threading.Thread):
         no_out_files (list): List of files with no output.
 
         Returns:
-        str: The created XML document as a string.
+        str: The created JSON document as a string.
         """
-        dom = xml.dom.minidom.getDOMImplementation()
-        doc = dom.createDocument(None, "xml", None)
-        top_node = doc.createElement("POOLFILECATALOG")
+        json_dict = {"files": {"output": []}}
         for file in job.Files:
-            if file.type in ["output", "log"]:
-                file_node = self.create_file_node(doc, file, failed_files, no_out_files)
-                if file_node is not None:
-                    top_node.appendChild(file_node)
-        doc.appendChild(top_node)
-        return doc.toxml()
+            if file.lfn in failed_files + no_out_files:
+                continue
+            file_dict = {
+                "name": file.lfn,
+                "file_guid": file.GUID,
+                "fsize": file.fsize,
+                "surl": file.surl,
+                "full_lfn": file.lfn,
+                "endpoint": [],
+            }
+            if file.checksum.startswith("ad:"):
+                file_dict["adler32"] = file.checksum
+            else:
+                file_dict["md5sum"] = "md5:" + file.checksum
+            job_dict = {"subFiles": [file_dict]}
+            json_dict["files"]["output"].append(job_dict)
+        return json.dumps(json_dict)
 
     def update_job_output_report(self, job, failed_files: List[str], no_out_files: List[str]):
         """
@@ -144,12 +104,12 @@ class Finisher(threading.Thread):
         failed_files (list): List of failed files.
         no_out_files (list): List of files with no output.
         """
-        xml_data = self.create_xml_doc(job, failed_files, no_out_files)
+        json_data = self.create_json_doc(job, failed_files, no_out_files)
         record_status = "finished" if not failed_files else "failed"
         tmp_ret = self.task_buffer.updateJobOutputReport(
             panda_id=job.PandaID,
             attempt_nr=job.attemptNr,
-            data=xml_data,
+            data=json_data,
         )
         if not tmp_ret:
             self.task_buffer.insertJobOutputReport(
@@ -157,7 +117,7 @@ class Finisher(threading.Thread):
                 prod_source_label=job.prodSourceLabel,
                 job_status=record_status,
                 attempt_nr=job.attemptNr,
-                data=xml_data,
+                data=json_data,
             )
 
     def check_file_status(self, job):
