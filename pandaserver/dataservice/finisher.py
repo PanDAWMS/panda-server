@@ -42,7 +42,7 @@ class Finisher(threading.Thread):
     """
 
     # constructor
-    def __init__(self, taskBuffer, dataset, job=None, site=None):
+    def __init__(self, taskBuffer, dataset, job: str = None, site: str = None):
         """
         Constructs all the necessary attributes for the Finisher object.
 
@@ -202,9 +202,6 @@ class Finisher(threading.Thread):
                 by_call_back = True
                 tmp_log.debug(f"start: {self.dataset.name}")
                 tmp_log.debug(f"callback from {self.site}")
-                # FIXME when callback from BNLPANDA disappeared
-                if self.site == "BNLPANDA":
-                    self.site = "BNL-OSG2_ATLASMCDISK"
                 # instantiate site mapper
                 site_mapper = SiteMapper(self.task_buffer)
                 # get computing_site/destination_se
@@ -257,7 +254,7 @@ class Finisher(threading.Thread):
                 tmp_log.debug(f"transfer status:{hex(updated_bit_map)} - comp:{hex(comp_bit_map)} - bit:{hex(bit_map)}")
                 # update output files
                 if (updated_bit_map & comp_bit_map) == comp_bit_map:
-                    ids = self.task_buffer.updateOutFilesReturnPandaIDs(self.dataset.name)
+                    panda_ids = self.task_buffer.updateOutFilesReturnPandaIDs(self.dataset.name)
                     # set flag for T2 cleanup
                     self.dataset.status = "cleanup"
                     self.task_buffer.updateDatasets([self.dataset])
@@ -267,12 +264,12 @@ class Finisher(threading.Thread):
             else:
                 tmp_log.debug(f"start: {self.job.PandaID}")
                 # update input files
-                ids = [self.job.PandaID]
-            tmp_log.debug(f"IDs: {ids}")
-            if len(ids) != 0:
+                panda_ids = [self.job.PandaID]
+            tmp_log.debug(f"IDs: {panda_ids}")
+            if len(panda_ids) != 0:
                 # get job
                 if self.job is None:
-                    jobs = self.task_buffer.peekJobs(ids, fromDefined=False,
+                    jobs = self.task_buffer.peekJobs(panda_ids, fromDefined=False,
                                                      fromArchived=False, fromWaiting=False)
                 else:
                     jobs = [self.job]
@@ -294,7 +291,7 @@ class Finisher(threading.Thread):
                             exc_type, value, _ = sys.exc_info()
                             tmp_log.error(f"Job: {job.PandaID} {exc_type} {value}")
                     tmp_log.debug(f"Job: {job.PandaID} status: {job.jobStatus}")
-            # end
+
             if self.job is None:
                 tmp_log.debug(f"end: {self.dataset.name}")
             else:
