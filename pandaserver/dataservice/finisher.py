@@ -11,7 +11,6 @@ import json
 from typing import List
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandaserver.brokerage.SiteMapper import SiteMapper
 
 # logger
 _logger = PandaLogger().getLogger("finisher")
@@ -145,36 +144,6 @@ class Finisher(threading.Thread):
                     return False, failed_files, no_out_files
         return True, failed_files, no_out_files
 
-    def get_bit_map(self, required_tokens: str, dest_token: str, tmp_source_site_spec,
-                    tmp_dst_site_spec):
-        """
-        This function calculates the bit_map, comp_bit_map, and updated_bit_map based on the
-        required tokens, destination token, source site spec and destination site spec.
-
-        Parameters:
-        required_tokens (str): The required tokens.
-        dest_token (str): The destination token.
-        tmp_source_site_spec (SiteSpec): The source site specification.
-        tmp_dst_site_spec (SiteSpec): The destination site specification.
-
-        Returns:
-        tuple: A tuple containing the calculated bit_map and comp_bit_map.
-        """
-        # make bit_map for the token
-        bit_map = 1
-        if len(required_tokens.split(",")) > 1:
-            for tmp_req_token in required_tokens.split(","):
-                if tmp_req_token == dest_token:
-                    break
-                # shift one bit
-                bit_map <<= 1
-        # completed bit_map
-        comp_bit_map = (1 << len(required_tokens.split(","))) - 1
-        # ignore the lowest bit for T1, file on DISK is already there
-        if tmp_source_site_spec.ddm_output == tmp_dst_site_spec.ddm_output:
-            comp_bit_map = comp_bit_map & 0xFFFE
-        return bit_map, comp_bit_map
-
     # main
     def run(self):
         """
@@ -185,69 +154,9 @@ class Finisher(threading.Thread):
         # start
         try:
             by_call_back = False
-            if self.job is None:
-                by_call_back = True
-                tmp_log.debug(f"start: {self.dataset.name}")
-                tmp_log.debug(f"callback from {self.site}")
-                # instantiate site mapper
-                site_mapper = SiteMapper(self.task_buffer)
-                # get computing_site/destination_se
-                computing_site, destination_se = self.task_buffer.getDestSE(self.dataset.name)
-                if destination_se is None:
-                    # try to get computing_site/destination_se from ARCH to delete sub
-                    # even if no active jobs left
-                    computing_site, destination_se = self.task_buffer.getDestSE(self.dataset.name,
-                                                                                True)
-                    if destination_se is None:
-                        tmp_log.error(f"cannot get source/destination for {self.dataset.name}")
-                        tmp_log.debug(f"end: {self.dataset.name}")
-                        return
-                tmp_log.debug(f"src: {computing_site}")
-                tmp_log.debug(f"dst: {destination_se}")
-                # Get corresponding token
-                # getSite is used to retrieve site specifications based on a given site identifier
-                # that can be either a PanDA Queue (PQ) or a Rucio Storage Element (RSE)
-                tmp_source_site_spec = site_mapper.getSite(computing_site)
-                tmp_dst_site_spec = site_mapper.getSite(destination_se)
-                tmp_log.debug(tmp_dst_site_spec.setokens_output)
-                dest_token = None
-                for scope in tmp_dst_site_spec.se_tokens_output:
-                    for se_token in tmp_dst_site_spec.setokens_output[scope]:
-                        for tmp_ddm_id in tmp_dst_site_spec.setokens_output[scope][se_token]:
-                            if self.site == tmp_ddm_id:
-                                dest_token = se_token
-                                break
-                tmp_log.debug(f"use Token={dest_token}")
-                # get required tokens
-                required_tokens = self.task_buffer.getDestTokens(self.dataset.name)
-                if required_tokens is None:
-                    tmp_log.error(f"cannot get required token for {self.dataset.name}")
-                    tmp_log.debug(f"end: {self.dataset.name}")
-                    return
-                tmp_log.debug(f"req Token={required_tokens}")
-
-                # make bit_map for the token
-                bit_map, comp_bit_map = self.get_bit_map(required_tokens, dest_token,
-                                                         tmp_source_site_spec, tmp_dst_site_spec)
-
-                # update bit_map in DB
-                updated_bit_map = self.task_buffer.updateTransferStatus(self.dataset.name, bit_map)
-
-                tmp_log.debug(f"transfer status:{hex(updated_bit_map)} - comp:{hex(comp_bit_map)} - bit:{hex(bit_map)}")
-
-                # update output files
-                if (updated_bit_map & comp_bit_map) == comp_bit_map:
-                    panda_ids = self.task_buffer.updateOutFilesReturnPandaIDs(self.dataset.name)
-                    # set flag for T2 cleanup
-                    self.dataset.status = "cleanup"
-                    self.task_buffer.updateDatasets([self.dataset])
-                else:
-                    tmp_log.debug(f"end: {self.dataset.name}")
-                    return
-            else:
-                tmp_log.debug(f"start: {self.job.PandaID}")
-                # update input files
-                panda_ids = [self.job.PandaID]
+            tmp_log.debug(f"start: {self.job.PandaID}")
+            # update input files
+            panda_ids = [self.job.PandaID]
             tmp_log.debug(f"IDs: {panda_ids}")
             if len(panda_ids) != 0:
                 # get job
