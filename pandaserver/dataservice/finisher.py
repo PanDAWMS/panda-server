@@ -159,11 +159,7 @@ class Finisher(threading.Thread):
             tmp_log.debug(f"IDs: {panda_ids}")
             if len(panda_ids) != 0:
                 # get job
-                if self.job is None:
-                    jobs = self.task_buffer.peekJobs(panda_ids, fromDefined=False,
-                                                     fromArchived=False, fromWaiting=False)
-                else:
-                    jobs = [self.job]
+                jobs = [self.job]
                 # loop over all jobs
                 for job in jobs:
                     if job is None or job.jobStatus != "transferring":
@@ -179,11 +175,7 @@ class Finisher(threading.Thread):
                             exc_type, value, _ = sys.exc_info()
                             tmp_log.error(f"Job: {job.PandaID} {exc_type} {value}")
                     tmp_log.debug(f"Job: {job.PandaID} status: {job.jobStatus}")
-
-            if self.job is None:
-                tmp_log.debug(f"end: {self.dataset.name}")
-            else:
-                tmp_log.debug(f"end: {self.job.PandaID}")
+            tmp_log.debug(f"end: {self.job.PandaID}")
         except Exception:
             exc_type, value, _ = sys.exc_info()
             tmp_log.error(f"run() : {exc_type} {value}")
