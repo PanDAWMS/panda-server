@@ -153,7 +153,6 @@ class Finisher(threading.Thread):
                              f"run-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
         # start
         try:
-            by_call_back = False
             tmp_log.debug(f"start: {self.job.PandaID}")
             # update input files
             panda_ids = [self.job.PandaID]
@@ -172,10 +171,7 @@ class Finisher(threading.Thread):
                     job_ready, failed_files, no_out_files = self.check_file_status(job)
                     # finish job
                     if job_ready:
-                        if by_call_back:
-                            tmp_log.debug(f"Job: {job.PandaID} all files ready")
-                        else:
-                            tmp_log.debug(f"Job: {job.PandaID} all files checked with catalog")
+                        tmp_log.debug(f"Job: {job.PandaID} all files checked with catalog")
                         # create JSON
                         try:
                             self.update_job_output_report(job, failed_files, no_out_files)
