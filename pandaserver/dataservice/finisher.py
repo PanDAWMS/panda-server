@@ -79,7 +79,7 @@ class Finisher(threading.Thread):
                 "name": file.lfn,
                 "file_guid": file.GUID,
                 "fsize": file.fsize,
-                "surl": getattr(file, 'surl', ''),
+                "surl": file.surl,
                 "full_lfn": file.lfn,
                 "endpoint": [],
             }
