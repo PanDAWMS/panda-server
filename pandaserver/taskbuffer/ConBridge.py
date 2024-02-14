@@ -19,6 +19,7 @@ except ImportError:
     import pickle
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer import OraDBProxy as DBProxy
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
@@ -385,7 +386,7 @@ class ConBridge(object):
             time.sleep(random.randint(5, 15))
             _logger.debug(f"master {self.pid} killed child={self.child_pid}")
 
-    # get responce
+    # get response
     def bridge_getResponse(self):
         # get status
         status, strStatus = self.bridge_recv()
@@ -494,7 +495,7 @@ class ConBridge(object):
     def __getattribute__(self, name):
         if object.__getattribute__(self, "isMaster"):
             try:
-                # return origianl attribute
+                # return original attribute
                 return object.__getattribute__(self, name)
             except Exception:
                 # append methods
@@ -512,5 +513,5 @@ class ConBridge(object):
                     setattr(self, name, method)
                     # return
                     return method
-        # return origianl attribute for child
+        # return original attribute for child
         return object.__getattribute__(self, name)
