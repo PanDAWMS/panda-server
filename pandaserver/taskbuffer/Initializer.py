@@ -31,12 +31,7 @@ class Initializer:
                     import oracledb
 
                     oracledb.init_oracle_client()
-                    conn = oracledb.connect(
-                        user=panda_config.dbuser,
-                        password=panda_config.dbpasswd,
-                        dsn=panda_config.dbhost,
-                        threaded=True,
-                    )
+                    conn = oracledb.connect(user=panda_config.dbuser, password=panda_config.dbpasswd, dsn=panda_config.dbhost)
                 elif panda_config.backend == "postgres":
                     import psycopg2
 

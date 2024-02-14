@@ -197,13 +197,7 @@ class DBProxy:
         # connect
         try:
             if self.backend == "oracle":
-                self.conn = oracledb.connect(
-                    dsn=self.dbhost,
-                    user=self.dbuser,
-                    password=self.dbpasswd,
-                    threaded=True,
-                    encoding="UTF-8",
-                )
+                self.conn = oracledb.connect(dsn=self.dbhost, user=self.dbuser, password=self.dbpasswd)
 
                 def OutputTypeHandler(cursor, name, defaultType, size, precision, scale):
                     if defaultType == oracledb.CLOB:
