@@ -79,7 +79,6 @@ class Finisher(threading.Thread):
                 "guid": file.GUID,
                 "fsize": file.fsize,
                 "full_lfn": file.lfn,
-                "endpoint": [],
             }
             if file.checksum.startswith("ad:"):
                 file_dict["adler32"] = file.checksum
