@@ -1,4 +1,4 @@
-# errror code
+# error code
 
 # Watcher
 EC_Watcher = 100
