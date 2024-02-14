@@ -7,6 +7,7 @@ import sys
 import threading
 import datetime
 import json
+import re
 
 from typing import List
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -81,9 +82,9 @@ class Finisher(threading.Thread):
                 "full_lfn": file.lfn,
             }
             if file.checksum.startswith("ad:"):
-                file_dict["adler32"] = file.checksum
+                file_dict["adler32"] = re.sub("^ad:", "", file.checksum)
             else:
-                file_dict["md5sum"] = "md5:" + file.checksum
+                file_dict["md5sum"] = re.sub("^md5:", "", file.checksum)
             json_dict[file.lfn] = file_dict
         return json.dumps(json_dict)
 
