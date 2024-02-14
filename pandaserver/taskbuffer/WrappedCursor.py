@@ -8,6 +8,7 @@ import re
 import warnings
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+
 from pandaserver.config import panda_config
 
 warnings.filterwarnings("ignore")
@@ -313,7 +314,7 @@ class WrappedCursor(object):
                 # assuming that we use RETURNING INTO only for PandaID or row_ID columns
                 if not dryRun:
                     for x in listInto:
-                        varDict[x] = cur.var(cx_Oracle.NUMBER)
+                        varDict[x] = cur.var(oracledb.NUMBER)
                 result = f" RETURNING {valReturning} INTO {valInto} "
             except Exception:
                 pass

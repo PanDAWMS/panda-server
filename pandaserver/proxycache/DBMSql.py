@@ -1,7 +1,9 @@
 import sys
 from types import TupleType
 
-import cx_Oracle
+import oracledb
+
+oracledb.init_oracle_client()
 from pandaserver.config import panda_config
 
 # Common items
@@ -29,7 +31,7 @@ def getOracleConnection(db_type):
 
     print("Initializing Oracle connection")
     try:
-        cpool = cx_Oracle.SessionPool(user, pssw, serv, poolmin, poolmax, poolincr)
+        cpool = oracledb.create_pool(user=user, password=pssw, dsn=serv, min=poolmin, max=poolmax, increment=poolincr)
         ORAC_CON = cpool.acquire()
     except Exception:
         import traceback
@@ -68,24 +70,24 @@ class DBMSql:
             return []
         try:
             if self.db_type in OracleList:
-                cursor = self.oracle_con.cursor()
-                if bindDict is not None:
-                    cursor.execute(sql, bindDict)
-                else:
-                    cursor.execute(sql)
-                colMap = cursor.description
-                result = cursor.fetchall()
-                ret = []
-                for t in result:
-                    i = 0
-                    d = {}
-                    for e in t:
-                        if str(type(e)) == "<type 'cx_Oracle.Timestamp'>":
-                            e = str(e)
-                        d[colMap[i][0]] = e
-                        i = i + 1
-                    ret.append(d)
-                cursor.close()
+                with self.oracle_con.cursor() as cursor:
+                    if bindDict is not None:
+                        cursor.execute(sql, bindDict)
+                    else:
+                        cursor.execute(sql)
+                    colMap = cursor.description
+                    result = cursor.fetchall()
+                    ret = []
+                    for t in result:
+                        i = 0
+                        d = {}
+                        for e in t:
+                            if isinstance(e, oracledb.Timestamp):
+                                e = str(e)
+                            d[colMap[i][0]] = e
+                            i = i + 1
+                        ret.append(d)
+
                 return ret
 
             else:

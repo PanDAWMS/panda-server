@@ -3,12 +3,13 @@ from threading import Lock
 
 # logger
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+
 from pandaserver.config import panda_config
 
 _logger = PandaLogger().getLogger("Initializer")
 
 
-# initialize cx_Oracle using dummy connection to avoid "Unable to acquire Oracle environment handle"
+# initialize oracledb using dummy connection to avoid "Unable to acquire Oracle environment handle"
 class Initializer:
     def __init__(self):
         self.lock = Lock()
@@ -27,12 +28,13 @@ class Initializer:
                 _logger.debug("connect")
                 # connect
                 if panda_config.backend == "oracle":
-                    import cx_Oracle
+                    import oracledb
 
-                    conn = cx_Oracle.connect(
-                        dsn=panda_config.dbhost,
+                    oracledb.init_oracle_client()
+                    conn = oracledb.connect(
                         user=panda_config.dbuser,
                         password=panda_config.dbpasswd,
+                        dsn=panda_config.dbhost,
                         threaded=True,
                     )
                 elif panda_config.backend == "postgres":

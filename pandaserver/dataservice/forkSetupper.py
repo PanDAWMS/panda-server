@@ -2,6 +2,7 @@ import sys
 import traceback
 
 from pandacommon.pandautils.thread_utils import GenericThread
+
 from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
 
@@ -23,7 +24,7 @@ def run(inFile, v_onlyTA, v_firstSubmission):
     # password
     from pandaserver.config import panda_config
 
-    # initialize cx_Oracle using dummy connection
+    # initialize oracledb using dummy connection
     from pandaserver.taskbuffer.Initializer import initializer
 
     initializer.init()

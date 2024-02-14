@@ -56,9 +56,11 @@ except ImportError:
     pass
 
 if panda_config.backend == "oracle":
-    import cx_Oracle
+    import oracledb
 
-    varNUMBER = cx_Oracle.NUMBER
+    oracledb.init_oracle_client()
+
+    varNUMBER = oracledb.NUMBER
 elif panda_config.backend == "postgres":
     import psycopg2 as psycopg
 
@@ -195,7 +197,7 @@ class DBProxy:
         # connect
         try:
             if self.backend == "oracle":
-                self.conn = cx_Oracle.connect(
+                self.conn = oracledb.connect(
                     dsn=self.dbhost,
                     user=self.dbuser,
                     password=self.dbpasswd,
@@ -204,8 +206,8 @@ class DBProxy:
                 )
 
                 def OutputTypeHandler(cursor, name, defaultType, size, precision, scale):
-                    if defaultType == cx_Oracle.CLOB:
-                        return cursor.var(cx_Oracle.LONG_STRING, arraysize=cursor.arraysize)
+                    if defaultType == oracledb.CLOB:
+                        return cursor.var(oracledb.LONG_STRING, arraysize=cursor.arraysize)
 
                 self.conn.outputtypehandler = OutputTypeHandler
             elif self.backend == "postgres":
