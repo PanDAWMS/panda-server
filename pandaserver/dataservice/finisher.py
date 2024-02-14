@@ -71,22 +71,21 @@ class Finisher(threading.Thread):
         Returns:
         str: The created JSON document as a string.
         """
-        json_dict = {"files": []}
+        json_dict = {}
         for file in job.Files:
             if file.lfn in failed_files + no_out_files:
                 continue
             file_dict = {
-                "name": file.lfn,
                 "guid": file.GUID,
                 "fsize": file.fsize,
                 "full_lfn": file.lfn,
+                "endpoint": [],
             }
             if file.checksum.startswith("ad:"):
                 file_dict["adler32"] = file.checksum
             else:
                 file_dict["md5sum"] = "md5:" + file.checksum
-            job_dict = {"subFiles": [file_dict]}
-            json_dict["files"].append(job_dict)  # Changed this line
+            json_dict[file.lfn] = file_dict
         return json.dumps(json_dict)
 
     def update_job_output_report(self, job, failed_files: List[str], no_out_files: List[str]):
