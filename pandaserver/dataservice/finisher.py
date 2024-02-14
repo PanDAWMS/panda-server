@@ -86,7 +86,7 @@ class Finisher(threading.Thread):
             else:
                 file_dict["md5sum"] = "md5:" + file.checksum
             job_dict = {"subFiles": [file_dict]}
-            json_dict["files"]["output"].append(job_dict)
+            json_dict["files"].append(job_dict)  # Changed this line
         return json.dumps(json_dict)
 
     def update_job_output_report(self, job, failed_files: List[str], no_out_files: List[str]):
