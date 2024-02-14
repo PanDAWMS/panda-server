@@ -5,11 +5,6 @@ worker specification
 
 import datetime
 
-try:
-    unicode
-except NameError:
-    unicode = str
-
 
 class HarvesterMetricsSpec(object):
     # attributes
@@ -31,7 +26,7 @@ class HarvesterMetricsSpec(object):
     def __setattr__(self, name, value):
         oldVal = getattr(self, name)
         # convert string to datetime
-        if type(value) in [str, unicode] and value.startswith("datetime/"):
+        if isinstance(value, str) and value.startswith("datetime/"):
             value = datetime.datetime.strptime(value.split("/")[-1], "%Y-%m-%d %H:%M:%S.%f")
         object.__setattr__(self, name, value)
         # collect changed attributes
