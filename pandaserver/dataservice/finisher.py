@@ -71,7 +71,7 @@ class Finisher(threading.Thread):
         Returns:
         str: The created JSON document as a string.
         """
-        json_dict = {"files": {"output": []}}
+        json_dict = {"files": []}
         for file in job.Files:
             if file.lfn in failed_files + no_out_files:
                 continue
@@ -80,7 +80,6 @@ class Finisher(threading.Thread):
                 "guid": file.GUID,
                 "fsize": file.fsize,
                 "full_lfn": file.lfn,
-                "endpoint": [],
             }
             if file.checksum.startswith("ad:"):
                 file_dict["adler32"] = file.checksum
