@@ -77,9 +77,8 @@ class Finisher(threading.Thread):
                 continue
             file_dict = {
                 "name": file.lfn,
-                "file_guid": file.GUID,
+                "guid": file.GUID,
                 "fsize": file.fsize,
-                "surl": file.surl,
                 "full_lfn": file.lfn,
                 "endpoint": [],
             }
