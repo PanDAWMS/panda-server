@@ -9,7 +9,7 @@ import threading
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.dataservice.Activator import Activator
-from pandaserver.dataservice.Finisher import Finisher
+from pandaserver.dataservice.finisher import Finisher
 
 # logger
 _logger = PandaLogger().getLogger("DDMHandler")

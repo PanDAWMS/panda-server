@@ -7767,42 +7767,6 @@ class DBProxy:
             _logger.error(f"changeJobPriorities : {errtype} {errvalue}")
             return False, "database error"
 
-    # update transfer status for a dataset
-    def updateTransferStatus(self, datasetname, bitMap):
-        comment = " /* DBProxy.updateTransferStatus */"
-        try:
-            _logger.debug(f"updateTransferStatus({datasetname},{hex(bitMap)})")
-            # start transaction
-            self.conn.begin()
-            retTransSt = 0
-            # update bitmap
-            sqlU = 'UPDATE /*+ INDEX_RS_ASC(TAB("DATASETS"."NAME")) */ ATLAS_PANDA.Datasets tab SET transferStatus=ATLAS_PANDA.BITOR(transferStatus,:bitMap) WHERE name=:name'
-            varMap = {}
-            varMap[":bitMap"] = bitMap
-            varMap[":name"] = datasetname
-            retU = self.cur.execute(sqlU + comment, varMap)
-            # get transferStatus
-            sqlS = 'SELECT /*+ INDEX_RS_ASC(TAB("DATASETS"."NAME")) */ transferStatus FROM ATLAS_PANDA.Datasets tab WHERE name=:name'
-            varMap = {}
-            varMap[":name"] = datasetname
-            self.cur.arraysize = 10
-            retS = self.cur.execute(sqlS + comment, varMap)
-            resS = self.cur.fetchall()
-            if resS is not None and len(resS) != 0:
-                retTransSt = resS[0][0]
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            _logger.debug(f"updateTransferStatus : {hex(retTransSt)}")
-            return retTransSt
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"updateTransferStatus : {type} {value}")
-            return 0
-
     # get CloudTask. If not exist, create it
     def getCloudTask(self, tid):
         comment = " /* getCloudTask */"
@@ -8669,54 +8633,6 @@ class DBProxy:
                 type, value, traceBack = sys.exc_info()
                 _logger.error(f"updateFileStatusInDisp : {type} {value}")
         return False
-
-    # update output files and return corresponding PandaIDs
-    def updateOutFilesReturnPandaIDs(self, dataset, fileLFN=""):
-        comment = " /* DBProxy.updateOutFilesReturnPandaIDs */"
-        _logger.debug(f"updateOutFilesReturnPandaIDs({dataset},{fileLFN})")
-        sql0 = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ row_ID,PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND status=:status"
-        sql1 = "UPDATE /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ ATLAS_PANDA.filesTable4 tab SET status='ready' WHERE destinationDBlock=:destinationDBlock AND status=:status"
-        varMap = {}
-        varMap[":status"] = "transferring"
-        varMap[":destinationDBlock"] = dataset
-        if fileLFN != "":
-            sql0 += " AND lfn=:lfn"
-            sql1 += " AND lfn=:lfn"
-            varMap[":lfn"] = fileLFN
-        for iTry in range(self.nTry):
-            try:
-                # start transaction
-                self.conn.begin()
-                # select
-                self.cur.arraysize = 10000
-                retS = self.cur.execute(sql0 + comment, varMap)
-                resS = self.cur.fetchall()
-                # update
-                retList = []
-                retU = self.cur.execute(sql1 + comment, varMap)
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # collect PandaIDs
-                retList = []
-                for tmpRowID, tmpPandaID in resS:
-                    # append
-                    if tmpPandaID not in retList:
-                        retList.append(tmpPandaID)
-                # return
-                _logger.debug(f"updateOutFilesReturnPandaIDs : {str(retList)}")
-                return retList
-            except Exception:
-                # roll back
-                self._rollback()
-                # error report
-                if iTry + 1 < self.nTry:
-                    _logger.debug(f"updateOutFilesReturnPandaIDs retry : {iTry}")
-                    time.sleep(random.randint(10, 20))
-                    continue
-                type, value, traceBack = sys.exc_info()
-                _logger.error(f"updateOutFilesReturnPandaIDs : {type} {value}")
-        return []
 
     # get _dis datasets associated to _sub
     def getAssociatedDisDatasets(self, subDsName):

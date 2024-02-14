@@ -18,7 +18,7 @@ from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.taskbuffer import JobUtils
 
 # logger
-_logger = PandaLogger().getLogger("DynDataDistributer")
+_logger = PandaLogger().getLogger("dyn_data_distributer")
 
 # files in datasets
 g_files_in_ds_map = {}
