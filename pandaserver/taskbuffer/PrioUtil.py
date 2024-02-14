@@ -1,11 +1,6 @@
 import json
 import sys
 
-try:
-    unicode
-except NameError:
-    unicode = str
-
 # special permission
 PERMISSION_KEY = "k"
 PERMISSION_PROXY = "p"
@@ -26,7 +21,7 @@ def unicodeConvert(input):
         for tmpItem in input:
             retList.append(unicodeConvert(tmpItem))
         return retList
-    elif isinstance(input, unicode) and sys.version_info[0] == 2:
+    elif isinstance(input, str) and sys.version_info[0] == 2:
         return input.encode("utf-8")
     return input
 

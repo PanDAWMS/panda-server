@@ -23,6 +23,7 @@ import warnings
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils, srv_msg_utils
 from pandaserver.taskbuffer import (
@@ -53,11 +54,6 @@ try:
     from idds.client.client import Client as iDDS_Client
 except ImportError:
     pass
-
-try:
-    unicode
-except NameError:
-    unicode = str
 
 if panda_config.backend == "oracle":
     import cx_Oracle
@@ -7628,12 +7624,12 @@ class DBProxy:
         comment = " /* DBProxy.getSerialNumber */"
         try:
             _logger.debug(f"getSerialNumber({datasetname},{definedFreshFlag})")
-            if isinstance(datasetname, unicode):
+            if isinstance(datasetname, str):
                 datasetname = datasetname.encode("ascii", "ignore")
                 _logger.debug(f"getSerialNumber converted unicode for {datasetname}")
             # start transaction
             self.conn.begin()
-            # check freashness
+            # check freshness
             if definedFreshFlag is None:
                 # select
                 varMap = {}
@@ -22388,7 +22384,7 @@ class DBProxy:
                 if tmpKey == "commands":
                     continue
                 sqlC += ",{0}=:{0}".format(tmpKey)
-                if type(tmpVal) in [str, unicode] and tmpVal.startswith("datetime/"):
+                if isinstance(tmpVal, str) and tmpVal.startswith("datetime/"):
                     tmpVal = datetime.datetime.strptime(tmpVal.split("/")[-1], "%Y-%m-%d %H:%M:%S.%f")
                 varMap[f":{tmpKey}"] = tmpVal
             sqlC += " WHERE harvester_ID=:harvesterID "
