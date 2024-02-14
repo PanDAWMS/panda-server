@@ -559,7 +559,6 @@ class AdderGen(object):
             root = xml.dom.minidom.parseString(self.data)
             files = root.getElementsByTagName("File")
             for file in files:
-                self.logger.debug(f"debug: {str(file)}")
                 # get GUID
                 guid = str(file.getAttribute("ID"))
                 # get PFN and LFN nodes
