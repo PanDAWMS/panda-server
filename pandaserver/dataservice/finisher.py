@@ -229,14 +229,14 @@ class Finisher(threading.Thread):
                             # oXML.write(top_node.toxml())
                             # oXML.close()
                             # write to job output report table, try update first
-                            tmp_ret = self.taskBuffer.updateJobOutputReport(
+                            tmp_ret = self.task_buffer.updateJobOutputReport(
                                 panda_id=job.PandaID,
                                 attempt_nr=job.attemptNr,
                                 data=top_node.toxml(),
                             )
                             if not tmp_ret:
                                 # then try insert
-                                self.taskBuffer.insertJobOutputReport(
+                                self.task_buffer.insertJobOutputReport(
                                     panda_id=job.PandaID,
                                     prod_source_label=job.prodSourceLabel,
                                     job_status=record_status,
