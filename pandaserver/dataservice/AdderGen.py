@@ -620,7 +620,6 @@ class AdderGen(object):
                 jsonDict = json.loads(self.data)
                 for lfn in jsonDict:
                     fileData = jsonDict[lfn]
-                    self.logger.debug(f"debug: {str(fileData)}")
                     lfn = str(lfn)
                     fsize = None
                     md5sum = None
@@ -645,7 +644,6 @@ class AdderGen(object):
                     self.extraInfo["endpoint"][lfn] = []
                     if "endpoint" in fileData:
                         self.extraInfo["endpoint"][lfn] = fileData["endpoint"]
-                    self.logger.debug(f"lfn is: {lfn} and guid is: {guid} and fsize is: {fsize} and md5sum is: {md5sum} and adler32 is: {adler32} and surl is: {surl} and fullLFN is: {fullLFN}")
                     # error check
                     if (lfn not in inputLFNs) and (fsize is None or (md5sum is None and adler32 is None)):
                         if EventServiceUtils.isEventServiceMerge(self.job):
