@@ -23,14 +23,6 @@ from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.config import panda_config
 
 # pylint: disable=W0611
-# These imports are used by the web I/F, although pylint doesn't see them
-from pandaserver.dataservice.DataService import (
-    dataService,
-    datasetCompleted,
-    updateFileStatusInDisp,
-)
-
-# pylint: disable=W0611
 from pandaserver.jobdispatcher.JobDispatcher import (
     ackCommands,
     checkEventsAvailability,
@@ -200,10 +192,6 @@ taskBuffer.init(
 # initialize JobDispatcher
 if panda_config.nDBConnection != 0:
     jobDispatcher.init(taskBuffer)
-
-# initialize DataService
-if panda_config.nDBConnection != 0:
-    dataService.init(taskBuffer)
 
 # initialize UserIF
 if panda_config.nDBConnection != 0:

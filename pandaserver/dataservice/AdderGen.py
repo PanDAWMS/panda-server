@@ -620,6 +620,7 @@ class AdderGen(object):
                 jsonDict = json.loads(self.data)
                 for lfn in jsonDict:
                     fileData = jsonDict[lfn]
+                    # self.logger.debug(f"debug: {str(fileData)}")
                     lfn = str(lfn)
                     fsize = None
                     md5sum = None
