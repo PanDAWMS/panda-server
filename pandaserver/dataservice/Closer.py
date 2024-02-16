@@ -6,6 +6,8 @@ update dataset DB, and then close dataset and start Activator if needed
 import re
 import sys
 
+from typing import Dict, List, Tuple
+
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.config import panda_config
 from pandaserver.dataservice import Notifier
@@ -13,10 +15,16 @@ from pandaserver.dataservice.Activator import Activator
 from pandaserver.taskbuffer import EventServiceUtils
 
 # logger
-_logger = PandaLogger().getLogger("Closer")
+_logger = PandaLogger().getLogger("closer")
 
 
-def initLogger(pLogger):
+def init_logger(p_logger: PandaLogger) -> None:
+    """
+    Redirect logging to parent as it doesn't work in nested threads
+
+    Args:
+        p_logger (PandaLogger): The parent logger.
+    """
     # redirect logging to parent as it doesn't work in nested threads
     global _logger
     _logger = pLogger
@@ -24,113 +32,135 @@ def initLogger(pLogger):
 
 
 class Closer:
+    """
+    Update dataset DB, and then close dataset and start Activator if needed
+    """
     # constructor
-    def __init__(self, taskBuffer, destinationDBlocks, job, pandaDDM=False, datasetMap={}):
-        self.taskBuffer = taskBuffer
-        self.destinationDBlocks = destinationDBlocks
-        self.job = job
-        self.pandaID = job.PandaID
-        self.pandaDDM = pandaDDM
-        self.siteMapper = None
-        self.datasetMap = datasetMap
-        self.allSubFinished = None
+    def __init__(self, taskBuffer, destination_db_blocks: List[str], job, panda_ddm: bool = False,
+                 dataset_map: Dict = {}) -> None:
+        """
+        Constructor
 
-    # to keep backward compatibility
-    def start(self):
+        Args:
+            task_buffer: Task buffer.
+            destination_db_blocks (List[str]): Destination DB blocks.
+            job: Job.
+            panda_ddm (bool, optional): Panda DDM flag. Defaults to False.
+            dataset_map (Dict, optional): Dataset map. Defaults to {}.
+        """
+        self.task_buffer = taskBuffer
+        self.destination_db_blocks = destination_db_blocks
+        self.job = job
+        self.panda_id = job.PandaID
+        self.panda_ddm = panda_ddm
+        self.site_mapper = None
+        self.dataset_map = dataset_map
+        self.all_sub_finished = None
+
+    def start(self) -> None:
+        """
+        To keep backward compatibility
+        """
         self.run()
 
-    def join(self):
+    def join(self) -> None:
+        """
+        Join
+        """
         pass
 
     # main
     def run(self):
+        """
+        Main
+        """
         try:
-            _logger.debug(f"{self.pandaID} Start {self.job.jobStatus}")
-            flagComplete = True
-            topUserDsList = []
-            usingMerger = False
-            disableNotifier = False
-            firstIndvDS = True
-            finalStatusDS = []
-            for destinationDBlock in self.destinationDBlocks:
-                dsList = []
-                _logger.debug(f"{self.pandaID} start {destinationDBlock}")
+            _logger.debug(f"{self.panda_id} Start {self.job.jobStatus}")
+            flag_complete = True
+            top_user_ds_list = []
+            using_merger = False
+            disable_notifier = False
+            first_indv_ds = True
+            final_status_ds = []
+            for destination_db_block in self.destination_db_blocks:
+                ds_list = []
+                _logger.debug(f"{self.panda_id} start {destination_db_block}")
                 # ignore tid datasets
-                if re.search("_tid[\d_]+$", destinationDBlock):
-                    _logger.debug(f"{self.pandaID} skip {destinationDBlock}")
+                if re.search("_tid[\d_]+$", destination_db_block):
+                    _logger.debug(f"{self.panda_id} skip {destination_db_block}")
                     continue
                 # ignore HC datasets
-                if re.search("^hc_test\.", destinationDBlock) is not None or re.search("^user\.gangarbt\.", destinationDBlock) is not None:
-                    if re.search("_sub\d+$", destinationDBlock) is None and re.search("\.lib$", destinationDBlock) is None:
-                        _logger.debug(f"{self.pandaID} skip HC {destinationDBlock}")
+                if re.search("^hc_test\.", destination_db_block) is not None or re.search("^user\.gangarbt\.", destination_db_block) is not None:
+                    if re.search("_sub\d+$", destination_db_block) is None and re.search("\.lib$", destination_db_block) is None:
+                        _logger.debug(f"{self.panda_id} skip HC {destination_db_block}")
                         continue
                 # query dataset
-                if destinationDBlock in self.datasetMap:
-                    dataset = self.datasetMap[destinationDBlock]
+                if destination_db_block in self.dataset_map:
+                    dataset = self.dataset_map[destination_db_block]
                 else:
-                    dataset = self.taskBuffer.queryDatasetWithMap({"name": destinationDBlock})
+                    dataset = self.task_buffer.queryDatasetWithMap({"name": destination_db_block})
                 if dataset is None:
-                    _logger.error(f"{self.pandaID} Not found : {destinationDBlock}")
-                    flagComplete = False
+                    _logger.error(f"{self.panda_id} Not found : {destination_db_block}")
+                    flag_complete = False
                     continue
                 # skip tobedeleted/tobeclosed
                 if dataset.status in ["cleanup", "tobeclosed", "completed", "deleted"]:
-                    _logger.debug(f"{self.pandaID} skip {destinationDBlock} due to {dataset.status}")
+                    _logger.debug(f"{self.panda_id} skip {destination_db_block} due to {dataset.status}")
                     continue
-                dsList.append(dataset)
+                ds_list.append(dataset)
                 # sort
-                dsList.sort()
+                ds_list.sort()
                 # count number of completed files
-                notFinish = self.taskBuffer.countFilesWithMap({"destinationDBlock": destinationDBlock, "status": "unknown"})
-                if notFinish < 0:
-                    _logger.error(f"{self.pandaID} Invalid DB return : {notFinish}")
-                    flagComplete = False
+                not_finish = self.task_buffer.countFilesWithMap({"destinationDBlock": destination_db_block, "status": "unknown"})
+                if not_finish < 0:
+                    _logger.error(f"{self.panda_id} Invalid DB return : {not_finish}")
+                    flag_complete = False
                     continue
                 # check if completed
-                _logger.debug(f"{self.pandaID} notFinish:{notFinish}")
+                _logger.debug(f"{self.panda_id} notFinish:{not_finish}")
                 if self.job.destinationSE == "local" and self.job.prodSourceLabel in [
                     "user",
                     "panda",
                 ]:
                     # close non-DQ2 destinationDBlock immediately
-                    finalStatus = "closed"
-                elif self.job.lockedby == "jedi" and self.isTopLevelDS(destinationDBlock):
+                    final_status = "closed"
+                elif self.job.lockedby == "jedi" and self.is_top_level_ds(destination_db_block):
                     # set it closed in order not to trigger DDM cleanup. It will be closed by JEDI
-                    finalStatus = "closed"
+                    final_status = "closed"
                 elif self.job.prodSourceLabel in ["user"] and "--mergeOutput" in self.job.jobParameters and self.job.processingType != "usermerge":
                     # merge output files
-                    if firstIndvDS:
+                    if first_indv_ds:
                         # set 'tobemerged' to only the first dataset to avoid triggering many Mergers for --individualOutDS
-                        finalStatus = "tobemerged"
-                        firstIndvDS = False
+                        final_status = "tobemerged"
+                        first_indv_ds = False
                     else:
                         finalStatus = "tobeclosed"
                     # set merging to top dataset
-                    usingMerger = True
+                    using_merger = True
                     # disable Notifier
-                    disableNotifier = True
+                    disable_notifier = True
                 elif self.job.produceUnMerge():
-                    finalStatus = "doing"
+                    final_status = "doing"
                 else:
                     # set status to 'tobeclosed' to trigger DQ2 closing
-                    finalStatus = "tobeclosed"
-                if notFinish == 0 and EventServiceUtils.isEventServiceMerge(self.job):
-                    allInJobsetFinished = self.checkSubDatasetsInJobset()
+                    final_status = "tobeclosed"
+                if not_finish == 0 and EventServiceUtils.isEventServiceMerge(self.job):
+                    all_in_jobset_finished = self.check_sub_datasets_in_jobset()
                 else:
-                    allInJobsetFinished = True
-                if notFinish == 0 and allInJobsetFinished:
-                    _logger.debug(f"{self.pandaID} set {finalStatus} to dataset : {destinationDBlock}")
+                    all_in_jobset_finished = True
+                if not_finish == 0 and all_in_jobset_finished:
+                    _logger.debug(f"{self.panda_id} set {final_status} to dataset : {destination_db_block}")
                     # set status
-                    dataset.status = finalStatus
+                    dataset.status = final_status
                     # update dataset in DB
-                    retT = self.taskBuffer.updateDatasets(
-                        dsList,
+                    ret_t = self.task_buffer.updateDatasets(
+                        ds_list,
                         withLock=True,
                         withCriteria="status<>:crStatus AND status<>:lockStatus ",
                         criteriaMap={":crStatus": finalStatus, ":lockStatus": "locked"},
                     )
-                    if len(retT) > 0 and retT[0] == 1:
-                        finalStatusDS += dsList
+                    if len(ret_t) > 0 and ret_t[0] == 1:
+                        final_status_ds += dsList
                         # close user datasets
                         if (
                             self.job.prodSourceLabel in ["user"]
@@ -138,13 +168,13 @@ class Closer:
                             and (dataset.name.startswith("user") or dataset.name.startswith("group"))
                         ):
                             # get top-level user dataset
-                            topUserDsName = re.sub("_sub\d+$", "", dataset.name)
+                            top_user_ds_name = re.sub("_sub\d+$", "", dataset.name)
                             # update if it is the first attempt
-                            if topUserDsName != dataset.name and topUserDsName not in topUserDsList and self.job.lockedby != "jedi":
-                                topUserDs = self.taskBuffer.queryDatasetWithMap({"name": topUserDsName})
-                                if topUserDs is not None:
+                            if top_user_ds_name != dataset.name and top_user_ds_name not in top_user_ds_list and self.job.lockedby != "jedi":
+                                top_user_ds = self.task_buffer.queryDatasetWithMap({"name": top_user_ds_name})
+                                if top_user_ds is not None:
                                     # check status
-                                    if topUserDs.status in [
+                                    if top_user_ds.status in [
                                         "completed",
                                         "cleanup",
                                         "tobeclosed",
@@ -152,41 +182,41 @@ class Closer:
                                         "tobemerged",
                                         "merging",
                                     ]:
-                                        _logger.debug(f"{self.pandaID} skip {topUserDsName} due to status={topUserDs.status}")
+                                        _logger.debug(f"{self.panda_id} skip {top_user_ds_name} due to status={top_user_ds.status}")
                                     else:
                                         # set status
                                         if self.job.processingType.startswith("gangarobot") or self.job.processingType.startswith("hammercloud"):
                                             # not trigger freezing for HC datasets so that files can be appended
-                                            topUserDs.status = "completed"
-                                        elif not usingMerger:
-                                            topUserDs.status = finalStatus
+                                            top_user_ds.status = "completed"
+                                        elif not using_merger:
+                                            top_user_ds.status = final_status
                                         else:
-                                            topUserDs.status = "merging"
+                                            top_user_ds.status = "merging"
                                         # append to avoid repetition
-                                        topUserDsList.append(topUserDsName)
+                                        top_user_ds_list.append(top_user_ds_name)
                                         # update DB
-                                        retTopT = self.taskBuffer.updateDatasets(
-                                            [topUserDs],
+                                        ret_top_t = self.task_buffer.updateDatasets(
+                                            [top_user_ds],
                                             withLock=True,
                                             withCriteria="status<>:crStatus",
-                                            criteriaMap={":crStatus": topUserDs.status},
+                                            criteriaMap={":crStatus": top_user_ds.status},
                                         )
-                                        if len(retTopT) > 0 and retTopT[0] == 1:
-                                            _logger.debug(f"{self.pandaID} set {topUserDs.status} to top dataset : {topUserDsName}")
+                                        if len(ret_top_t) > 0 and ret_top_t[0] == 1:
+                                            _logger.debug(f"{self.panda_id} set {top_user_ds.status} to top dataset : {top_user_ds_name}")
                                         else:
-                                            _logger.debug(f"{self.pandaID} failed to update top dataset : {topUserDsName}")
+                                            _logger.debug(f"{self.panda_id} failed to update top dataset : {top_user_ds_name}")
                             # get parent dataset for merge job
                             if self.job.processingType == "usermerge":
                                 tmpMatch = re.search("--parentDS ([^ '\"]+)", self.job.jobParameters)
                                 if tmpMatch is None:
-                                    _logger.error(f"{self.pandaID} failed to extract parentDS")
+                                    _logger.error(f"{self.panda_id} failed to extract parentDS")
                                 else:
                                     unmergedDsName = tmpMatch.group(1)
                                     # update if it is the first attempt
-                                    if unmergedDsName not in topUserDsList:
-                                        unmergedDs = self.taskBuffer.queryDatasetWithMap({"name": unmergedDsName})
+                                    if unmergedDsName not in top_user_ds_list:
+                                        unmergedDs = self.task_buffer.queryDatasetWithMap({"name": unmergedDsName})
                                         if unmergedDs is None:
-                                            _logger.error(f"{self.pandaID} failed to get parentDS={unmergedDsName} from DB")
+                                            _logger.error(f"{self.panda_id} failed to get parentDS={unmergedDsName} from DB")
                                         else:
                                             # check status
                                             if unmergedDs.status in [
@@ -194,23 +224,23 @@ class Closer:
                                                 "cleanup",
                                                 "tobeclosed",
                                             ]:
-                                                _logger.debug(f"{self.pandaID} skip {unmergedDsName} due to status={unmergedDs.status}")
+                                                _logger.debug(f"{self.panda_id} skip {unmergedDsName} due to status={unmergedDs.status}")
                                             else:
                                                 # set status
                                                 unmergedDs.status = finalStatus
                                                 # append to avoid repetition
-                                                topUserDsList.append(unmergedDsName)
+                                                top_user_ds_list.append(unmergedDsName)
                                                 # update DB
-                                                retTopT = self.taskBuffer.updateDatasets(
+                                                ret_top_t = self.task_buffer.updateDatasets(
                                                     [unmergedDs],
                                                     withLock=True,
                                                     withCriteria="status<>:crStatus",
                                                     criteriaMap={":crStatus": unmergedDs.status},
                                                 )
-                                                if len(retTopT) > 0 and retTopT[0] == 1:
-                                                    _logger.debug(f"{self.pandaID} set {unmergedDs.status} to parent dataset : {unmergedDsName}")
+                                                if len(ret_top_t) > 0 and ret_top_t[0] == 1:
+                                                    _logger.debug(f"{self.panda_id} set {unmergedDs.status} to parent dataset : {unmergedDsName}")
                                                 else:
-                                                    _logger.debug(f"{self.pandaID} failed to update parent dataset : {unmergedDsName}")
+                                                    _logger.debug(f"{self.panda_id} failed to update parent dataset : {unmergedDsName}")
                         # start Activator
                         if re.search("_sub\d+$", dataset.name) is None:
                             if self.job.prodSourceLabel == "panda" and self.job.processingType in ["merge", "unmerge"]:
@@ -218,125 +248,138 @@ class Closer:
                                 pass
                             else:
                                 if self.job.jobStatus == "finished":
-                                    aThr = Activator(self.taskBuffer, dataset)
+                                    aThr = Activator(self.task_buffer, dataset)
                                     aThr.start()
                                     aThr.join()
                     else:
                         # unset flag since another thread already updated
-                        # flagComplete = False
+                        # flag_complete = False
                         pass
                 else:
                     # update dataset in DB
-                    self.taskBuffer.updateDatasets(
+                    self.task_buffer.updateDatasets(
                         dsList,
                         withLock=True,
                         withCriteria="status<>:crStatus AND status<>:lockStatus ",
                         criteriaMap={":crStatus": finalStatus, ":lockStatus": "locked"},
                     )
                     # unset flag
-                    flagComplete = False
+                    flag_complete = False
                 # end
-                _logger.debug(f"{self.pandaID} end {destinationDBlock}")
+                _logger.debug(f"{self.panda_id} end {destinationDBlock}")
             # special actions for vo
-            if flagComplete:
-                closerPluginClass = panda_config.getPlugin("closer_plugins", self.job.VO)
-                if closerPluginClass is None and self.job.VO == "atlas":
+            if flag_complete:
+                closer_plugin_class = panda_config.getPlugin("closer_plugins", self.job.VO)
+                if closer_plugin_class is None and self.job.VO == "atlas":
                     # use ATLAS plugin for ATLAS
                     from pandaserver.dataservice.CloserAtlasPlugin import (
                         CloserAtlasPlugin,
                     )
 
-                    closerPluginClass = CloserAtlasPlugin
-                if closerPluginClass is not None:
-                    closerPlugin = closerPluginClass(self.job, finalStatusDS, _logger)
-                    closerPlugin.execute()
+                    closer_plugin_class = CloserAtlasPlugin
+                if closer_plugin_class is not None:
+                    closer_plugin = closer_plugin_class(self.job, final_status_ds, _logger)
+                    closer_plugin.execute()
             # change pending jobs to failed
-            finalizedFlag = True
-            if flagComplete and self.job.prodSourceLabel == "user":
-                _logger.debug(f"{self.pandaID} finalize {self.job.prodUserName} {self.job.jobDefinitionID}")
-                finalizedFlag = self.taskBuffer.finalizePendingJobs(self.job.prodUserName, self.job.jobDefinitionID)
-                _logger.debug(f"{self.pandaID} finalized with {finalizedFlag}")
+            finalized_flag = True
+            if flag_complete and self.job.prodSourceLabel == "user":
+                _logger.debug(f"{self.panda_id} finalize {self.job.prodUserName} {self.job.jobDefinitionID}")
+                finalized_flag = self.task_buffer.finalizePendingJobs(self.job.prodUserName, self.job.jobDefinitionID)
+                _logger.debug(f"{self.panda_id} finalized with {finalized_flag}")
             # update unmerged datasets in JEDI to trigger merging
-            if flagComplete and self.job.produceUnMerge() and finalStatusDS != []:
-                if finalizedFlag:
-                    tmpStat = self.taskBuffer.updateUnmergedDatasets(self.job, finalStatusDS)
-                    _logger.debug(f"{self.pandaID} updated unmerged datasets with {tmpStat}")
+            if flag_complete and self.job.produceUnMerge() and final_status_ds != []:
+                if finalized_flag:
+                    tmp_stat = self.task_buffer.updateUnmergedDatasets(self.job, final_status_ds)
+                    _logger.debug(f"{self.panda_id} updated unmerged datasets with {tmp_stat}")
             # start notifier
-            _logger.debug(f"{self.pandaID} source:{self.job.prodSourceLabel} complete:{flagComplete}")
+            _logger.debug(f"{self.panda_id} source:{self.job.prodSourceLabel} complete:{flag_complete}")
             if (
                 (self.job.jobStatus != "transferring")
-                and ((flagComplete and self.job.prodSourceLabel == "user") or (self.job.jobStatus == "failed" and self.job.prodSourceLabel == "panda"))
+                and ((flag_complete and self.job.prodSourceLabel == "user") or (self.job.jobStatus == "failed" and self.job.prodSourceLabel == "panda"))
                 and self.job.lockedby != "jedi"
             ):
                 # don't send email for merge jobs
-                if (not disableNotifier) and self.job.processingType not in [
+                if (not disable_notifier) and self.job.processingType not in [
                     "merge",
                     "unmerge",
                 ]:
-                    useNotifier = True
-                    summaryInfo = {}
+                    use_notifier = True
+                    summary_info = {}
                     # check all jobDefIDs in jobsetID
                     if self.job.jobsetID not in [0, None, "NULL"]:
                         (
-                            useNotifier,
-                            summaryInfo,
-                        ) = self.taskBuffer.checkDatasetStatusForNotifier(
+                            use_notifier,
+                            summary_info,
+                        ) = self.task_buffer.checkDatasetStatusForNotifier(
                             self.job.jobsetID,
                             self.job.jobDefinitionID,
                             self.job.prodUserName,
                         )
-                        _logger.debug(f"{self.pandaID} useNotifier:{useNotifier}")
-                    if useNotifier:
-                        _logger.debug(f"{self.pandaID} start Notifier")
+                        _logger.debug(f"{self.panda_id} use_notifier:{use_notifier}")
+                    if use_notifier:
+                        _logger.debug(f"{self.panda_id} start Notifier")
                         nThr = Notifier.Notifier(
-                            self.taskBuffer,
+                            self.task_buffer,
                             self.job,
                             self.destinationDBlocks,
-                            summaryInfo,
+                            summary_info,
                         )
                         nThr.run()
-                        _logger.debug(f"{self.pandaID} end Notifier")
-            _logger.debug(f"{self.pandaID} End")
+                        _logger.debug(f"{self.panda_id} end Notifier")
+            _logger.debug(f"{self.panda_id} End")
         except Exception:
             errType, errValue = sys.exc_info()[:2]
             _logger.error(f"{errType} {errValue}")
 
-    # check if top dataset
-    def isTopLevelDS(self, datasetName):
-        topDS = re.sub("_sub\d+$", "", datasetName)
-        if topDS == datasetName:
+    def is_top_level_ds(self, dataset_name: str) -> bool:
+        """
+        Check if top dataset
+
+        Args:
+            dataset_name (str): Dataset name.
+
+        Returns:
+            bool: True if top dataset, False otherwise.
+        """
+        top_ds = re.sub("_sub\d+$", "", dataset_name)
+        if top_ds == dataset_name:
             return True
         return False
 
-    # check sub datasets with the same jobset
-    def checkSubDatasetsInJobset(self):
+    def check_sub_datasets_in_jobset(self) -> bool:
+        """
+        Check sub datasets with the same jobset
+
+        Returns:
+            bool: True if all sub datasets are done, False otherwise.
+        """
         # skip already checked
-        if self.allSubFinished is not None:
-            return self.allSubFinished
+        if self.all_sub_finished is not None:
+            return self.all_sub_finished
         # get consumers in the jobset
-        jobs = self.taskBuffer.getOriginalConsumers(self.job.jediTaskID, self.job.jobsetID, self.job.PandaID)
-        checkedDS = set()
-        for jobSpec in jobs:
+        jobs = self.task_buffer.get_original_consumers(self.job.jediTaskID, self.job.jobsetID, self.job.panda_id)
+        checked_ds = set()
+        for job_spec in jobs:
             # collect all sub datasets
-            subDatasets = set()
-            for fileSpec in jobSpec.Files:
-                if fileSpec.type == "output":
-                    subDatasets.add(fileSpec.destinationDBlock)
-            subDatasets = sorted(subDatasets)
-            if len(subDatasets) > 0:
+            sub_datasets = set()
+            for file_spec in job_spec.Files:
+                if file_spec.type == "output":
+                    sub_datasets.add(file_spec.destinationDBlock)
+            sub_datasets = sorted(sub_datasets)
+            if len(sub_datasets) > 0:
                 # use the first sub dataset
-                subDataset = subDatasets[0]
+                sub_dataset = sub_datasets[0]
                 # skip if already checked
-                if subDataset in checkedDS:
+                if sub_dataset in checked_ds:
                     continue
-                checkedDS.add(subDataset)
+                checked_ds.add(sub_dataset)
                 # count the number of unfinished
-                notFinish = self.taskBuffer.countFilesWithMap({"destinationDBlock": subDataset, "status": "unknown"})
-                if notFinish != 0:
-                    _logger.debug(f"{self.pandaID} related sub dataset {subDataset} from {jobSpec.PandaID} has {notFinish} unfinished files")
-                    self.allSubFinished = False
+                not_finish = self.task_buffer.count_files_with_map({"destinationDBlock": sub_dataset, "status": "unknown"})
+                if not_finish != 0:
+                    _logger.debug(f"{self.panda_id} related sub dataset {sub_dataset} from {job_spec.PandaID} has {not_finish} unfinished files")
+                    self.all_sub_finished = False
                     break
-        if self.allSubFinished is None:
-            _logger.debug(f"{self.pandaID} all related sub datasets are done")
-            self.allSubFinished = True
-        return self.allSubFinished
+        if self.all_sub_finished is None:
+            _logger.debug(f"{self.panda_id} all related sub datasets are done")
+            self.all_sub_finished = True
+        return self.all_sub_finished
