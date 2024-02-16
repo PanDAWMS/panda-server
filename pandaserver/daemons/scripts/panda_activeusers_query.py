@@ -29,7 +29,7 @@ def main(tbuf=None, **kwargs):
             panda_config.dbpasswd,
             nDBConnection=1,
             useTimeout=True,
-            requester=requesterd_id,
+            requester=requester_id,
         )
         tmpLog.debug("Getting new connection - done")
     else:
