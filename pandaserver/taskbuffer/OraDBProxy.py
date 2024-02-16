@@ -59,14 +59,15 @@ if panda_config.backend == "oracle":
     import oracledb
 
     oracledb.init_oracle_client()
-
     varNUMBER = oracledb.NUMBER
+
 elif panda_config.backend == "postgres":
     import psycopg2 as psycopg
 
     from . import WrappedPostgresConn
 
     varNUMBER = int
+
 else:
     import MySQLdb
 
@@ -79,10 +80,10 @@ _logger = PandaLogger().getLogger("DBProxy")
 _loggerFiltered = PandaLogger().getLogger("DBProxyFiltered")
 
 # add handlers
-for hdr in _loggerFiltered.handlers:
-    hdr.setLevel(logging.INFO)
-    _logger.addHandler(hdr)
-    _loggerFiltered.removeHandler(hdr)
+for handler in _loggerFiltered.handlers:
+    handler.setLevel(logging.INFO)
+    _logger.addHandler(handler)
+    _loggerFiltered.removeHandler(handler)
 
 
 # get mb proxies used in DBProxy methods

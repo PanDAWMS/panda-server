@@ -1,7 +1,6 @@
 import sys
 from threading import Lock
 
-# logger
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.config import panda_config
@@ -9,8 +8,14 @@ from pandaserver.config import panda_config
 _logger = PandaLogger().getLogger("Initializer")
 
 
-# initialize oracledb using dummy connection to avoid "Unable to acquire Oracle environment handle"
 class Initializer:
+    """
+    Initialize a dummy database connection.
+
+    Returns:
+        bool: True if the initialization is successful, False otherwise.
+    """
+
     def __init__(self):
         self.lock = Lock()
         self.first = True
@@ -32,6 +37,7 @@ class Initializer:
 
                     oracledb.init_oracle_client()
                     conn = oracledb.connect(user=panda_config.dbuser, password=panda_config.dbpasswd, dsn=panda_config.dbhost)
+
                 elif panda_config.backend == "postgres":
                     import psycopg2
 
@@ -43,6 +49,7 @@ class Initializer:
                         user=panda_config.dbuser,
                         password=panda_config.dbpasswd,
                     )
+
                 else:
                     import MySQLdb
 
@@ -54,15 +61,18 @@ class Initializer:
                         user=panda_config.dbuser,
                         passwd=panda_config.dbpasswd,
                     )
+
                 # close
                 conn.close()
                 _logger.debug("done")
+
             except Exception:
                 self.lock.release()
-                type, value, traceBack = sys.exc_info()
-                _logger.error(f"connect : {type} {value}")
+                exception_type, exception_value, traceback = sys.exc_info()
+                _logger.error(f"connect : {exception_type} {exception_value}")
                 return False
-        # release
+
+        # release the lock
         self.lock.release()
         return True
 
