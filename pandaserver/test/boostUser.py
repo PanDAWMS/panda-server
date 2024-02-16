@@ -7,7 +7,7 @@ from pandaserver.config import panda_config
 from pandaserver.taskbuffer.Initializer import initializer
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 
-# initialize oracledb using dummy connection
+# initialize DB using dummy connection
 initializer.init()
 
 # logger

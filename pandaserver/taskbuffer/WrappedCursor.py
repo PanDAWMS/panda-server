@@ -79,8 +79,8 @@ def convert_query_in_printf_format(sql, var_dict, sql_conv_map):
                 new_pat = None
                 # check if table.column.field
                 for table_name in table_names:
-                    if item_l.startswith(table_name + "."):
-                        item_body = re.sub(r"^" + table_name + r"\.", "", item, flags=re.IGNORECASE)
+                    if item_l.startswith(f"{table_name}."):
+                        item_body = re.sub(f"^{table_name}" + r"\.", "", item, flags=re.IGNORECASE)
                         # no json field
                         if item_body.count(".") == 0:
                             to_skip = True
@@ -393,8 +393,7 @@ class WrappedCursor(object):
     def next(self):
         if self.backend == "mysql":
             return self.cur.fetchone()
-        else:
-            return self.cur.next()
+        return self.cur.next()
 
     # close
     def close(self):
