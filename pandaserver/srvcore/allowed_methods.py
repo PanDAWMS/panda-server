@@ -20,10 +20,6 @@ allowed_methods += [
     "put_file_recovery_request",
     "put_workflow_request",
 ]
-
-# methods from pandaserver.dataservice.DataService
-allowed_methods += ["datasetCompleted", "updateFileStatusInDisp"]
-
 # methods from pandaserver.jobdispatcher.JobDispatcher
 allowed_methods += [
     "getJob",

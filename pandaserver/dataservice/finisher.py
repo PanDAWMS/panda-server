@@ -7,6 +7,7 @@ import sys
 import threading
 import datetime
 import json
+import re
 
 from typing import List
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -71,24 +72,22 @@ class Finisher(threading.Thread):
         Returns:
         str: The created JSON document as a string.
         """
-        json_dict = {"files": {"output": []}}
+        json_dict = {}
         for file in job.Files:
-            if file.lfn in failed_files + no_out_files:
-                continue
-            file_dict = {
-                "name": file.lfn,
-                "file_guid": file.GUID,
-                "fsize": file.fsize,
-                "surl": file.surl,
-                "full_lfn": file.lfn,
-                "endpoint": [],
-            }
-            if file.checksum.startswith("ad:"):
-                file_dict["adler32"] = file.checksum
-            else:
-                file_dict["md5sum"] = "md5:" + file.checksum
-            job_dict = {"subFiles": [file_dict]}
-            json_dict["files"]["output"].append(job_dict)
+            if file.type in ["output", "log"]:
+                # skip failed or no-output files
+                if file.lfn in failed_files + no_out_files:
+                    continue
+                file_dict = {
+                    "guid": file.GUID,
+                    "fsize": file.fsize,
+                    "full_lfn": file.lfn,
+                }
+                if file.checksum.startswith("ad:"):
+                    file_dict["adler32"] = re.sub("^ad:", "", file.checksum)
+                else:
+                    file_dict["md5sum"] = re.sub("^md5:", "", file.checksum)
+                json_dict[file.lfn] = file_dict
         return json.dumps(json_dict)
 
     def update_job_output_report(self, job, failed_files: List[str], no_out_files: List[str]):
