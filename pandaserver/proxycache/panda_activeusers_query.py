@@ -32,19 +32,23 @@ if __name__ == "__main__":
         roles = panda_config.proxy_cache_roles.split(",")
     else:
         roles = ["atlas", "atlas:/atlas/Role=production", "atlas:/atlas/Role=pilot"]
+
     # get users
     sql = "select distinct DN FROM ATLAS_PANDAMETA.users WHERE GRIDPREF LIKE :patt"
-    varMap = {}
-    varMap[":patt"] = "%p%"
-    _, tmpRes = taskBuffer.querySQLS(sql, varMap)
-    for (realDN,) in tmpRes:
-        if realDN is None:
+    var_map = {":patt": "%p%"}
+    _, results = taskBuffer.querySQLS(sql, var_map)
+
+    # iterate over user DNs, clean them up and check proxy cache
+    for (real_dn,) in results:
+        if real_dn is None:
             continue
-        realDN = re.sub("/CN=limited proxy", "", realDN)
-        realDN = re.sub("(/CN=proxy)+", "", realDN)
-        realDN = re.sub("(/CN=\d+)+$", "", realDN)
+        real_dn = re.sub("/CN=limited proxy", "", real_dn)
+        real_dn = re.sub("(/CN=proxy)+", "", real_dn)
+        real_dn = re.sub("(/CN=\d+)+$", "", real_dn)
+
         # check proxy
-        tmp_log.debug(f"check proxy cache for DN={realDN}")
+        tmp_log.debug(f"check proxy cache for DN={real_dn}")
         for role in roles:
-            my_proxy_interface_instance.checkProxy(realDN, role=role)
+            my_proxy_interface_instance.checkProxy(real_dn, role=role)
+
     tmp_log.debug("done")
