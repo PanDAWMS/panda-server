@@ -3,12 +3,13 @@ import sys
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
+
 from pandaserver.config import panda_config
 from pandaserver.proxycache import panda_proxy_cache
 from pandaserver.srvcore import CoreUtils
 
 # logger
-_logger = PandaLogger().getLogger("panda_activeusers_query")
+_logger = PandaLogger().getLogger("activeusers_query")
 
 
 # main
