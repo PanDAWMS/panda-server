@@ -1843,6 +1843,18 @@ class TaskBuffer:
         # return
         return retVal
 
+    # update output files and return corresponding PandaIDs
+    def updateOutFilesReturnPandaIDs(self, dataset, fileLFN=""):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        retList = []
+        # query PandaID
+        retList = proxy.updateOutFilesReturnPandaIDs(dataset, fileLFN)
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return retList
+
     # get datasets associated with file
     def getDatasetWithFile(self, lfn, jobPrioity=0):
         # get DBproxy

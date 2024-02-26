@@ -152,13 +152,22 @@ class Finisher(threading.Thread):
                              f"run-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
         # start
         try:
-            tmp_log.debug(f"start: {self.job.PandaID}")
-            # update input files
-            panda_ids = [self.job.PandaID]
+            by_call_back = False
+            if self.job is not None:
+                tmp_log.debug(f"start: {self.job.PandaID}")
+                panda_ids = [self.job.PandaID]
+                jobs = [self.job]
+            else:
+                by_call_back = True
+                tmp_log.debug(f"start: {self.dataset.name}")
+                panda_ids = self.task_buffer.updateOutFilesReturnPandaIDs(self.dataset.name)
+                # set flag for T2 cleanup
+                self.dataset.status = "cleanup"
+                self.task_buffer.updateDatasets([self.dataset])
+                jobs = self.task_buffer.peekJobs(panda_ids, fromDefined=False, fromArchived=False, fromWaiting=False)
+
             tmp_log.debug(f"IDs: {panda_ids}")
             if len(panda_ids) != 0:
-                # get job
-                jobs = [self.job]
                 # loop over all jobs
                 for job in jobs:
                     if job is None or job.jobStatus != "transferring":
@@ -166,7 +175,10 @@ class Finisher(threading.Thread):
                     job_ready, failed_files, no_out_files = self.check_file_status(job)
                     # finish job
                     if job_ready:
-                        tmp_log.debug(f"Job: {job.PandaID} all files checked with catalog")
+                        if by_call_back:
+                            tmp_log.debug(f"Job: {job.PandaID} all files ready")
+                        else:
+                            tmp_log.debug(f"Job: {job.PandaID} all files checked with catalog")
                         # create JSON
                         try:
                             self.update_job_output_report(job, failed_files, no_out_files)
@@ -174,7 +186,10 @@ class Finisher(threading.Thread):
                             exc_type, value, _ = sys.exc_info()
                             tmp_log.error(f"Job: {job.PandaID} {exc_type} {value}")
                     tmp_log.debug(f"Job: {job.PandaID} status: {job.jobStatus}")
-            tmp_log.debug(f"end: {self.job.PandaID}")
+            if self.job is None:
+                tmp_log.debug(f"end: {self.dataset.name}")
+            else:
+                tmp_log.debug(f"end: {self.job.PandaID}")
         except Exception:
             exc_type, value, _ = sys.exc_info()
             tmp_log.error(f"run() : {exc_type} {value}")

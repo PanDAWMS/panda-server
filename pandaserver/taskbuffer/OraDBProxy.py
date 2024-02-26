@@ -8630,6 +8630,54 @@ class DBProxy:
                 _logger.error(f"updateFileStatusInDisp : {type} {value}")
         return False
 
+    # update output files and return corresponding PandaIDs
+    def updateOutFilesReturnPandaIDs(self, dataset, fileLFN=""):
+        comment = " /* DBProxy.updateOutFilesReturnPandaIDs */"
+        _logger.debug(f"updateOutFilesReturnPandaIDs({dataset},{fileLFN})")
+        sql0 = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ row_ID,PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND status=:status"
+        sql1 = "UPDATE /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ ATLAS_PANDA.filesTable4 tab SET status='ready' WHERE destinationDBlock=:destinationDBlock AND status=:status"
+        varMap = {}
+        varMap[":status"] = "transferring"
+        varMap[":destinationDBlock"] = dataset
+        if fileLFN != "":
+            sql0 += " AND lfn=:lfn"
+            sql1 += " AND lfn=:lfn"
+            varMap[":lfn"] = fileLFN
+        for iTry in range(self.nTry):
+            try:
+                # start transaction
+                self.conn.begin()
+                # select
+                self.cur.arraysize = 10000
+                retS = self.cur.execute(sql0 + comment, varMap)
+                resS = self.cur.fetchall()
+                # update
+                retList = []
+                retU = self.cur.execute(sql1 + comment, varMap)
+                # commit
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+                # collect PandaIDs
+                retList = []
+                for tmpRowID, tmpPandaID in resS:
+                    # append
+                    if tmpPandaID not in retList:
+                        retList.append(tmpPandaID)
+                # return
+                _logger.debug(f"updateOutFilesReturnPandaIDs : {str(retList)}")
+                return retList
+            except Exception:
+                # roll back
+                self._rollback()
+                # error report
+                if iTry + 1 < self.nTry:
+                    _logger.debug(f"updateOutFilesReturnPandaIDs retry : {iTry}")
+                    time.sleep(random.randint(10, 20))
+                    continue
+                type, value, traceBack = sys.exc_info()
+                _logger.error(f"updateOutFilesReturnPandaIDs : {type} {value}")
+        return []
+
     # get _dis datasets associated to _sub
     def getAssociatedDisDatasets(self, subDsName):
         comment = " /* DBProxy.getAssociatedDisDatasets */"
