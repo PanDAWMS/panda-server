@@ -13,7 +13,7 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
-from pandaserver.dataservice.Closer import Closer
+from pandaserver.dataservice.closer import Closer
 from pandaserver.dataservice.ProcessLimiter import ProcessLimiter
 from pandaserver.dataservice.Setupper import Setupper
 from pandaserver.srvcore import CoreUtils
