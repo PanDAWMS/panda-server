@@ -62,8 +62,7 @@ def parse_workflow_file(workflow_file, log_stream, in_loop=False):
     # root inputs
     root_inputs = {extract_id(s.id): s.default for s in root_obj.inputs}
 
-    # root outputs
-    root_outputs = set([extract_id(s.id.split("#")[0] + "#" + re.sub(s.id + "/", "", s.outputSource)) for s in root_obj.outputs])
+    root_outputs = set([re.sub(re.sub(extract_id(s.id), "", s.id), "", s.outputSource) for s in root_obj.outputs])
 
     # loop over steps
     node_list = []
@@ -257,7 +256,6 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                     # add loop count for nodes in a loop
                     if sc_node.in_loop:
                         tmp_data["value"] += ".___idds___num_run___"
-
     # return tails
     tail_nodes = []
     for node in all_nodes:
