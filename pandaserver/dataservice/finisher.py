@@ -162,7 +162,7 @@ class Finisher(threading.Thread):
                 # set flag for T2 cleanup
                 self.dataset.status = "cleanup"
                 self.task_buffer.updateDatasets([self.dataset])
-                jobs = self.task_buffer.peekJobs(ids, fromDefined=False, fromArchived=False, fromWaiting=False)
+                jobs = self.task_buffer.peekJobs(panda_ids, fromDefined=False, fromArchived=False, fromWaiting=False)
 
             tmp_log.debug(f"IDs: {panda_ids}")
             if len(panda_ids) != 0:
