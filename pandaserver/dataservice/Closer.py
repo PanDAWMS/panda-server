@@ -321,7 +321,7 @@ class Closer:
                         nThr = Notifier.Notifier(
                             self.task_buffer,
                             self.job,
-                            self.destinationDBlocks,
+                            self.destination_db_blocks,
                             summary_info,
                         )
                         nThr.run()
