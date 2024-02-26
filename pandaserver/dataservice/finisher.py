@@ -152,13 +152,20 @@ class Finisher(threading.Thread):
                              f"run-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
         # start
         try:
-            tmp_log.debug(f"start: {self.job.PandaID}")
-            # update input files
-            panda_ids = [self.job.PandaID]
+            if self.job is not None:
+                tmp_log.debug(f"start: {self.job.PandaID}")
+                panda_ids = [self.job.PandaID]
+                jobs = [self.job]
+            else:
+                tmp_log.debug(f"start: {self.dataset.name}")
+                panda_ids = self.task_buffer.updateOutFilesReturnPandaIDs(self.dataset.name)
+                # set flag for T2 cleanup
+                self.dataset.status = "cleanup"
+                self.task_buffer.updateDatasets([self.dataset])
+                jobs = self.task_buffer.peekJobs(ids, fromDefined=False, fromArchived=False, fromWaiting=False)
+
             tmp_log.debug(f"IDs: {panda_ids}")
             if len(panda_ids) != 0:
-                # get job
-                jobs = [self.job]
                 # loop over all jobs
                 for job in jobs:
                     if job is None or job.jobStatus != "transferring":
