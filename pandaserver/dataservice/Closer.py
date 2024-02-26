@@ -357,7 +357,7 @@ class Closer:
         if self.all_sub_finished is not None:
             return self.all_sub_finished
         # get consumers in the jobset
-        jobs = self.task_buffer.get_original_consumers(self.job.jediTaskID, self.job.jobsetID, self.job.panda_id)
+        jobs = self.task_buffer.getOriginalConsumers(self.job.jediTaskID, self.job.jobsetID, self.job.panda_id)
         checked_ds = set()
         for job_spec in jobs:
             # collect all sub datasets
@@ -374,7 +374,7 @@ class Closer:
                     continue
                 checked_ds.add(sub_dataset)
                 # count the number of unfinished
-                not_finish = self.task_buffer.count_files_with_map({"destinationDBlock": sub_dataset, "status": "unknown"})
+                not_finish = self.task_buffer.countFilesWithMap({"destinationDBlock": sub_dataset, "status": "unknown"})
                 if not_finish != 0:
                     _logger.debug(f"{self.panda_id} related sub dataset {sub_dataset} from {job_spec.PandaID} has {not_finish} unfinished files")
                     self.all_sub_finished = False
