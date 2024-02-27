@@ -10,10 +10,11 @@ import sys
 import time
 import traceback
 
-import pandaserver.jobdispatcher.Protocol as Protocol
-import pandaserver.taskbuffer.ProcessGroups
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+
+import pandaserver.jobdispatcher.Protocol as Protocol
+import pandaserver.taskbuffer.ProcessGroups
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice.DDM import rucioAPI
@@ -47,7 +48,10 @@ class UserIF:
     def submitJobs(self, jobsStr, user, host, userFQANs, prodRole=False, toPending=False):
         try:
             # deserialize jobspecs
-            jobs = WrappedPickle.loads(jobsStr)
+            try:
+                jobs = WrappedPickle.loads(jobsStr)
+            except Exception:
+                jobs = JobUtils.load_jobs_json(jobsStr)
             _logger.debug(f"submitJobs {user} len:{len(jobs)} prodRole={prodRole} FQAN:{str(userFQANs)}")
             maxJobs = 5000
             if len(jobs) > maxJobs:
