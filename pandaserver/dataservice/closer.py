@@ -60,6 +60,9 @@ class Closer:
         self.site_mapper = None
         self.dataset_map = dataset_map if dataset_map is not None else {}
         self.all_subscription_finished = None
+        self.first_indv_ds = True
+        self.using_merger = False
+        self.disable_notifier = False
 
     def start(self) -> None:
         """
@@ -73,6 +76,97 @@ class Closer:
         """
         pass
 
+    def is_top_level_ds(self, dataset_name: str) -> bool:
+        """
+        Check if top dataset
+
+        Args:
+            dataset_name (str): Dataset name.
+
+        Returns:
+            bool: True if top dataset, False otherwise.
+        """
+        top_ds = re.sub("_sub\d+$", "", dataset_name)
+        if top_ds == dataset_name:
+            return True
+        return False
+
+    def check_sub_datasets_in_jobset(self) -> bool:
+        """
+        Check sub datasets with the same jobset
+
+        Returns:
+            bool: True if all sub datasets are done, False otherwise.
+        """
+        tmp_log = LogWrapper(_logger,
+                             f"check_sub_datasets_in_jobset-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        # skip already checked
+        if self.all_subscription_finished is not None:
+            return self.all_subscription_finished
+        # get consumers in the jobset
+        jobs = self.task_buffer.getOriginalConsumers(self.job.jediTaskID, self.job.jobsetID, self.job.panda_id)
+        checked_ds = set()
+        for job_spec in jobs:
+            # collect all sub datasets
+            sub_datasets = set()
+            for file_spec in job_spec.Files:
+                if file_spec.type == "output":
+                    sub_datasets.add(file_spec.destinationDBlock)
+            sub_datasets = sorted(sub_datasets)
+            if len(sub_datasets) > 0:
+                # use the first sub dataset
+                sub_dataset = sub_datasets[0]
+                # skip if already checked
+                if sub_dataset in checked_ds:
+                    continue
+                checked_ds.add(sub_dataset)
+                # count the number of unfinished
+                not_finish = self.task_buffer.countFilesWithMap({"destinationDBlock": sub_dataset, "status": "unknown"})
+                if not_finish != 0:
+                    tmp_log.debug(
+                        f"related sub dataset {sub_dataset} from {job_spec.PandaID} has {not_finish} unfinished files")
+                    self.all_subscription_finished = False
+                    break
+        if self.all_subscription_finished is None:
+            tmp_log.debug("all related sub datasets are done")
+            self.all_subscription_finished = True
+        return self.all_subscription_finished
+
+    def determine_final_status(self, destination_dispatch_block: str) -> str:
+        """
+        Determine the final status of a dispatch block.
+
+        Args:
+            destination_dispatch_block (str): The destination dispatch block.
+
+        Returns:
+            str: The final status.
+        """
+        if self.job.destinationSE == "local" and self.job.prodSourceLabel in ["user", "panda"]:
+            # close non-DQ2 destinationDBlock immediately
+            final_status = "closed"
+        elif self.job.lockedby == "jedi" and self.is_top_level_ds(destination_dispatch_block):
+            # set it closed in order not to trigger DDM cleanup. It will be closed by JEDI
+            final_status = "closed"
+        elif self.job.prodSourceLabel in ["user"] and "--mergeOutput" in self.job.jobParameters and self.job.processingType != "usermerge":
+            # merge output files
+            if self.first_indv_ds:
+                # set 'tobemerged' to only the first dataset to avoid triggering many Mergers for --individualOutDS
+                final_status = "tobemerged"
+                self.first_indv_ds = False
+            else:
+                final_status = "tobeclosed"
+            # set merging to top dataset
+            self.using_merger = True
+            # disable Notifier
+            self.disable_notifier = True
+        elif self.job.produceUnMerge():
+            final_status = "doing"
+        else:
+            # set status to 'tobeclosed' to trigger DQ2 closing
+            final_status = "tobeclosed"
+        return final_status
+
     # main
     def run(self):
         """
@@ -85,17 +179,17 @@ class Closer:
             tmp_log.debug(f"Start {self.job.jobStatus}")
             flag_complete = True
             top_user_dataset_list = []
-            using_merger = False
-            disable_notifier = False
-            first_indv_ds = True
             final_status_ds = []
+
             for destination_dispatch_block in self.destination_dispatch_blocks:
                 dataset_list = []
                 tmp_log.debug(f"start {destination_dispatch_block}")
+
                 # ignore tid datasets
                 if re.search("_tid[\d_]+$", destination_dispatch_block):
                     tmp_log.debug(f"skip {destination_dispatch_block}")
                     continue
+
                 # ignore HC datasets
                 if (re.search("^hc_test\.", destination_dispatch_block) is not None or
                         re.search("^user\.gangarbt\.", destination_dispatch_block) is not None):
@@ -103,22 +197,26 @@ class Closer:
                             re.search("\.lib$", destination_dispatch_block) is None):
                         tmp_log.debug(f"skip HC {destination_dispatch_block}")
                         continue
+
                 # query dataset
                 if destination_dispatch_block in self.dataset_map:
                     dataset = self.dataset_map[destination_dispatch_block]
                 else:
                     dataset = self.task_buffer.queryDatasetWithMap({"name": destination_dispatch_block})
+
                 if dataset is None:
                     tmp_log.error(f"Not found : {destination_dispatch_block}")
                     flag_complete = False
                     continue
+
                 # skip tobedeleted/tobeclosed
                 if dataset.status in ["cleanup", "tobeclosed", "completed", "deleted"]:
                     tmp_log.debug(f"skip {destination_dispatch_block} due to {dataset.status}")
                     continue
+
                 dataset_list.append(dataset)
-                # sort
                 dataset_list.sort()
+
                 # count number of completed files
                 not_finish = self.task_buffer.countFilesWithMap(
                     {"destinationDBlock": destination_dispatch_block, "status": "unknown"})
@@ -126,39 +224,16 @@ class Closer:
                     tmp_log.error(f"Invalid DB return : {not_finish}")
                     flag_complete = False
                     continue
+
                 # check if completed
                 tmp_log.debug(f"notFinish:{not_finish}")
-                if self.job.destinationSE == "local" and self.job.prodSourceLabel in [
-                    "user",
-                    "panda",
-                ]:
-                    # close non-DQ2 destinationDBlock immediately
-                    final_status = "closed"
-                elif self.job.lockedby == "jedi" and self.is_top_level_ds(destination_dispatch_block):
-                    # set it closed in order not to trigger DDM cleanup. It will be closed by JEDI
-                    final_status = "closed"
-                elif self.job.prodSourceLabel in [
-                    "user"] and "--mergeOutput" in self.job.jobParameters and self.job.processingType != "usermerge":
-                    # merge output files
-                    if first_indv_ds:
-                        # set 'tobemerged' to only the first dataset to avoid triggering many Mergers for --individualOutDS
-                        final_status = "tobemerged"
-                        first_indv_ds = False
-                    else:
-                        final_status = "tobeclosed"
-                    # set merging to top dataset
-                    using_merger = True
-                    # disable Notifier
-                    disable_notifier = True
-                elif self.job.produceUnMerge():
-                    final_status = "doing"
-                else:
-                    # set status to 'tobeclosed' to trigger DQ2 closing
-                    final_status = "tobeclosed"
+                final_status = self.determine_final_status(destination_dispatch_block)
+
                 if not_finish == 0 and EventServiceUtils.isEventServiceMerge(self.job):
                     all_in_jobset_finished = self.check_sub_datasets_in_jobset()
                 else:
                     all_in_jobset_finished = True
+
                 if not_finish == 0 and all_in_jobset_finished:
                     tmp_log.debug(f"set {final_status} to dataset : {destination_dispatch_block}")
                     # set status
@@ -201,7 +276,7 @@ class Closer:
                                                 "gangarobot") or self.job.processingType.startswith("hammercloud"):
                                             # not trigger freezing for HC datasets so that files can be appended
                                             top_user_ds.status = "completed"
-                                        elif not using_merger:
+                                        elif not self.using_merger:
                                             top_user_ds.status = final_status
                                         else:
                                             top_user_ds.status = "merging"
@@ -319,7 +394,7 @@ class Closer:
                     and self.job.lockedby != "jedi"
             ):
                 # don't send email for merge jobs
-                if (not disable_notifier) and self.job.processingType not in [
+                if (not self.disable_notifier) and self.job.processingType not in [
                     "merge",
                     "unmerge",
                 ]:
@@ -350,59 +425,3 @@ class Closer:
         except Exception:
             err_type, err_value = sys.exc_info()[:2]
             tmp_log.error(f"{err_type} {err_value}")
-
-    def is_top_level_ds(self, dataset_name: str) -> bool:
-        """
-        Check if top dataset
-
-        Args:
-            dataset_name (str): Dataset name.
-
-        Returns:
-            bool: True if top dataset, False otherwise.
-        """
-        top_ds = re.sub("_sub\d+$", "", dataset_name)
-        if top_ds == dataset_name:
-            return True
-        return False
-
-    def check_sub_datasets_in_jobset(self) -> bool:
-        """
-        Check sub datasets with the same jobset
-
-        Returns:
-            bool: True if all sub datasets are done, False otherwise.
-        """
-        tmp_log = LogWrapper(_logger,
-                             f"check_sub_datasets_in_jobset-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
-        # skip already checked
-        if self.all_subscription_finished is not None:
-            return self.all_subscription_finished
-        # get consumers in the jobset
-        jobs = self.task_buffer.getOriginalConsumers(self.job.jediTaskID, self.job.jobsetID, self.job.panda_id)
-        checked_ds = set()
-        for job_spec in jobs:
-            # collect all sub datasets
-            sub_datasets = set()
-            for file_spec in job_spec.Files:
-                if file_spec.type == "output":
-                    sub_datasets.add(file_spec.destinationDBlock)
-            sub_datasets = sorted(sub_datasets)
-            if len(sub_datasets) > 0:
-                # use the first sub dataset
-                sub_dataset = sub_datasets[0]
-                # skip if already checked
-                if sub_dataset in checked_ds:
-                    continue
-                checked_ds.add(sub_dataset)
-                # count the number of unfinished
-                not_finish = self.task_buffer.countFilesWithMap({"destinationDBlock": sub_dataset, "status": "unknown"})
-                if not_finish != 0:
-                    tmp_log.debug(
-                        f"related sub dataset {sub_dataset} from {job_spec.PandaID} has {not_finish} unfinished files")
-                    self.all_subscription_finished = False
-                    break
-        if self.all_subscription_finished is None:
-            tmp_log.debug("all related sub datasets are done")
-            self.all_subscription_finished = True
-        return self.all_subscription_finished
