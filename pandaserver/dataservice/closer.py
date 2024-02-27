@@ -76,7 +76,8 @@ class Closer:
     # main
     def run(self):
         """
-        Main
+        Main method to run the Closer class. It processes each destination dispatch block,
+        updates the dataset status, finalizes pending jobs if necessary, and starts the notifier.
         """
         try:
             tmp_log = LogWrapper(_logger,
@@ -223,7 +224,7 @@ class Closer:
                             if self.job.processingType == "usermerge":
                                 tmp_match = re.search("--parentDS ([^ '\"]+)", self.job.jobParameters)
                                 if tmp_match is None:
-                                    tmp_log.error(f"failed to extract parentDS")
+                                    tmp_log.error("failed to extract parentDS")
                                 else:
                                     unmerged_dataset_name = tmp_match.group(1)
                                     # update if it is the first attempt
