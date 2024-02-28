@@ -327,7 +327,7 @@ class ConBridge(object):
                 # execute
                 method = getattr(self.proxy, comStr)
                 res = method(*variables[0], **variables[1])
-                # FIXME : modify response since cx_Oracle types cannot be picked
+                # FIXME : modify response since oracledb types cannot be picked
                 if comStr in ["querySQLS"]:
                     newRes = [True] + list(res[1:])
                     res = newRes

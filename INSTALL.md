@@ -17,7 +17,7 @@ Installation
    pip install panda-server
    ``` 
    
-1. Install database modules: cx_Oracle for Oracle or MySQLdb for MySQL/MariaDB
+1. Install database modules: oracledb for Oracle or MySQLdb for MySQL/MariaDB
 1. Modify config files.
 
    ```
