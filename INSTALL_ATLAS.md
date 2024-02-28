@@ -18,11 +18,11 @@ Installation for ATLAS on CC7 + virtualenv + python3 + atlpan
    chown atlpan:zp /var/log/panda/wsgisocks
    chown atlpan:zp /var/cache/pandaserver
    ```
-1. Install panda-server and cx_Oracle.
+1. Install panda-server and oracledb.
    ```
    source /opt/pandaserver/bin/activate
    pip install panda-server
-   pip install cx_Oracle
+   pip install oracledb
    ``` 
    
 1. Modify config files.

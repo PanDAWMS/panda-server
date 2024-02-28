@@ -1,7 +1,3 @@
-"""
-master hander for DDM
-"""
-
 import re
 import threading
 

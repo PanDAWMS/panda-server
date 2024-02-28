@@ -8,7 +8,6 @@ import re
 import sys
 import traceback
 
-from pandaserver.srvcore import CoreUtils
 from rucio.client import Client as RucioClient
 from rucio.common.exception import (
     DataIdentifierAlreadyExists,
@@ -19,6 +18,8 @@ from rucio.common.exception import (
     FileAlreadyExists,
     UnsupportedOperation,
 )
+
+from pandaserver.srvcore import CoreUtils
 
 
 # rucio
@@ -337,33 +338,6 @@ class RucioAPI:
                 )
                 iFiles += nFiles
 
-    # get disk usage at RSE
-    def getRseUsage(self, rse, src="srm"):
-        retMap = {}
-        try:
-            client = RucioClient()
-            itr = client.get_rse_usage(rse)
-            # look for srm
-            for item in itr:
-                if item["source"] == src:
-                    try:
-                        total = item["total"] / 1024 / 1024 / 1024
-                    except Exception:
-                        total = None
-                    try:
-                        used = item["used"] / 1024 / 1024 / 1024
-                    except Exception:
-                        used = None
-                    try:
-                        free = item["free"] / 1024 / 1024 / 1024
-                    except Exception:
-                        free = None
-                    retMap = {"total": total, "used": used, "free": free}
-                    break
-        except Exception:
-            pass
-        return retMap
-
     # list datasets
     def listDatasets(self, datasetName, old=False):
         result = {}
@@ -462,16 +436,6 @@ class RucioAPI:
         except Exception:
             errType, errVale = sys.exc_info()[:2]
             return False, f"{errType} {errVale}"
-
-    # check if dataset exists
-    def checkDatasetExist(self, dsn):
-        # register dataset
-        client = RucioClient()
-        try:
-            scope, dsn = self.extract_scope(dsn)
-            return True
-        except DataIdentifierNotFound:
-            return False
 
     # delete dataset
     def eraseDataset(self, dsn, scope=None, grace_period=None):
@@ -631,25 +595,6 @@ class RucioAPI:
             errtype, errvalue = sys.exc_info()[:2]
             errMsg = f"{errtype.__name__} {errvalue}"
             return False, errMsg
-
-    # delete dataset replicas
-    def deleteDatasetReplicas(self, datasetName, locations):
-        # extract scope from dataset
-        scope, dsn = self.extract_scope(datasetName)
-        client = RucioClient()
-        try:
-            for rule in client.list_did_rules(scope, dsn):
-                if rule["account"] != client.account:
-                    continue
-                if rule["rse_expression"] in locations:
-                    client.delete_replication_rule(rule["id"])
-        except DataIdentifierNotFound:
-            pass
-        except Exception:
-            errtype, errvalue = sys.exc_info()[:2]
-            errMsg = f"{errtype.__name__} {errvalue}"
-            return False, errMsg
-        return True, ""
 
     # register files
     def registerFiles(self, files, rse):

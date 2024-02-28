@@ -56,15 +56,18 @@ except ImportError:
     pass
 
 if panda_config.backend == "oracle":
-    import cx_Oracle
+    import oracledb
 
-    varNUMBER = cx_Oracle.NUMBER
+    oracledb.init_oracle_client()
+    varNUMBER = oracledb.NUMBER
+
 elif panda_config.backend == "postgres":
     import psycopg2 as psycopg
 
     from . import WrappedPostgresConn
 
     varNUMBER = int
+
 else:
     import MySQLdb
 
@@ -77,10 +80,10 @@ _logger = PandaLogger().getLogger("DBProxy")
 _loggerFiltered = PandaLogger().getLogger("DBProxyFiltered")
 
 # add handlers
-for hdr in _loggerFiltered.handlers:
-    hdr.setLevel(logging.INFO)
-    _logger.addHandler(hdr)
-    _loggerFiltered.removeHandler(hdr)
+for handler in _loggerFiltered.handlers:
+    handler.setLevel(logging.INFO)
+    _logger.addHandler(handler)
+    _loggerFiltered.removeHandler(handler)
 
 
 # get mb proxies used in DBProxy methods
@@ -195,17 +198,11 @@ class DBProxy:
         # connect
         try:
             if self.backend == "oracle":
-                self.conn = cx_Oracle.connect(
-                    dsn=self.dbhost,
-                    user=self.dbuser,
-                    password=self.dbpasswd,
-                    threaded=True,
-                    encoding="UTF-8",
-                )
+                self.conn = oracledb.connect(dsn=self.dbhost, user=self.dbuser, password=self.dbpasswd)
 
                 def OutputTypeHandler(cursor, name, defaultType, size, precision, scale):
-                    if defaultType == cx_Oracle.CLOB:
-                        return cursor.var(cx_Oracle.LONG_STRING, arraysize=cursor.arraysize)
+                    if defaultType == oracledb.CLOB:
+                        return cursor.var(oracledb.LONG_STRING, arraysize=cursor.arraysize)
 
                 self.conn.outputtypehandler = OutputTypeHandler
             elif self.backend == "postgres":
