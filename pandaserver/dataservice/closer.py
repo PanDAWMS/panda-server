@@ -63,6 +63,7 @@ class Closer:
         self.first_indv_dataset = True
         self.using_merger = False
         self.disable_notifier = False
+        self.top_user_dataset_list = []
 
     def start(self) -> None:
         """
@@ -223,13 +224,14 @@ class Closer:
                 notifier_thread.run()
                 tmp_log.debug("end Notifier")
 
-    def close_user_datasets(self, dataset, final_status: str):
+    def close_user_datasets(self, dataset, final_status: str, top_user_dataset_list: List[str]):
         """
         Close user datasets
 
         Args:
             dataset: Dataset.
             final_status (str): Final status.
+            top_user_dataset_list: List[str]: Top user dataset list.
         """
         tmp_log = LogWrapper(_logger,
                              f"close_user_datasets-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
@@ -347,7 +349,7 @@ class Closer:
                                  f"run-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}-{self.panda_id}")
             tmp_log.debug(f"Start {self.job.jobStatus}")
             flag_complete = True
-            top_user_dataset_list = []
+            top_user_dataset_list = self.top_user_dataset_list
             final_status_dataset = []
 
             for destination_dispatch_block in self.destination_dispatch_blocks:
@@ -416,7 +418,7 @@ class Closer:
                     )
                     if len(ret_t) > 0 and ret_t[0] == 1:
                         final_status_dataset += dataset_list
-                        self.close_user_datasets(dataset, final_status)
+                        self.close_user_datasets(dataset, final_status, top_user_dataset_list)
                     else:
                         pass
                 else:
