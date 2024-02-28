@@ -60,7 +60,7 @@ class Closer:
         self.site_mapper = None
         self.dataset_map = dataset_map if dataset_map is not None else {}
         self.all_subscription_finished = None
-        self.first_indv_ds = True
+        self.first_indv_dataset = True
         self.using_merger = False
         self.disable_notifier = False
 
@@ -150,10 +150,10 @@ class Closer:
             final_status = "closed"
         elif self.job.prodSourceLabel in ["user"] and "--mergeOutput" in self.job.jobParameters and self.job.processingType != "usermerge":
             # merge output files
-            if self.first_indv_ds:
+            if self.first_indv_dataset:
                 # set 'tobemerged' to only the first dataset to avoid triggering many Mergers for --individualOutDS
                 final_status = "tobemerged"
-                self.first_indv_ds = False
+                self.first_indv_dataset = False
             else:
                 final_status = "tobeclosed"
             # set merging to top dataset
@@ -167,6 +167,61 @@ class Closer:
             final_status = "tobeclosed"
         return final_status
 
+    def perform_special_actions(self, final_status_dataset: list) -> None:
+        """
+        Perform special actions for vo.
+
+        Args:
+            final_status_dataset (list): The final status dataset.
+        """
+        closer_plugin_class = panda_config.getPlugin("closer_plugins", self.job.VO)
+        if closer_plugin_class is None and self.job.VO == "atlas":
+            # use ATLAS plugin for ATLAS
+            from pandaserver.dataservice.closer_atlas_plugin import (
+                CloserAtlasPlugin,
+            )
+
+            closer_plugin_class = CloserAtlasPlugin
+        if closer_plugin_class is not None:
+            closer_plugin = closer_plugin_class(self.job, final_status_dataset, _logger)
+            closer_plugin.execute()
+
+    def start_notifier(self, disable_notifier: bool) -> None:
+        """
+        Start the notifier.
+
+        Args:
+            disable_notifier (bool): The flag indicating if the notifier should be disabled.
+        """
+
+        tmp_log = LogWrapper(_logger,
+                             f"start_notifier-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+
+        # don't send email for merge jobs
+        if (not disable_notifier) and self.job.processingType not in ["merge", "unmerge"]:
+            use_notifier = True
+            summary_info = {}
+            # check all jobDefIDs in jobsetID
+            if self.job.jobsetID not in [0, None, "NULL"]:
+                (
+                    use_notifier,
+                    summary_info,
+                ) = self.task_buffer.checkDatasetStatusForNotifier(
+                    self.job.jobsetID,
+                    self.job.jobDefinitionID,
+                    self.job.prodUserName,
+                )
+                tmp_log.debug(f"use_notifier:{use_notifier}")
+            if use_notifier:
+                tmp_log.debug("start Notifier")
+                notifier_thread = Notifier.Notifier(
+                    self.task_buffer,
+                    self.job,
+                    self.destination_dispatch_blocks,
+                    summary_info,
+                )
+                notifier_thread.run()
+                tmp_log.debug("end Notifier")
     # main
     def run(self):
         """
@@ -179,7 +234,7 @@ class Closer:
             tmp_log.debug(f"Start {self.job.jobStatus}")
             flag_complete = True
             top_user_dataset_list = []
-            final_status_ds = []
+            final_status_dataset = []
 
             for destination_dispatch_block in self.destination_dispatch_blocks:
                 dataset_list = []
@@ -246,7 +301,7 @@ class Closer:
                         criteriaMap={":crStatus": final_status, ":lockStatus": "locked"},
                     )
                     if len(ret_t) > 0 and ret_t[0] == 1:
-                        final_status_ds += dataset_list
+                        final_status_dataset += dataset_list
                         # close user datasets
                         if (
                                 self.job.prodSourceLabel in ["user"]
@@ -363,28 +418,22 @@ class Closer:
                 tmp_log.debug(f"end {destination_dispatch_block}")
             # special actions for vo
             if flag_complete:
-                closer_plugin_class = panda_config.getPlugin("closer_plugins", self.job.VO)
-                if closer_plugin_class is None and self.job.VO == "atlas":
-                    # use ATLAS plugin for ATLAS
-                    from pandaserver.dataservice.closer_atlas_plugin import (
-                        CloserAtlasPlugin,
-                    )
+                self.perform_special_actions(final_status_dataset)
 
-                    closer_plugin_class = CloserAtlasPlugin
-                if closer_plugin_class is not None:
-                    closer_plugin = closer_plugin_class(self.job, final_status_ds, _logger)
-                    closer_plugin.execute()
             # change pending jobs to failed
             finalized_flag = True
+
             if flag_complete and self.job.prodSourceLabel == "user":
                 tmp_log.debug(f"finalize {self.job.prodUserName} {self.job.jobDefinitionID}")
                 finalized_flag = self.task_buffer.finalizePendingJobs(self.job.prodUserName, self.job.jobDefinitionID)
                 tmp_log.debug(f"finalized with {finalized_flag}")
+
             # update unmerged datasets in JEDI to trigger merging
-            if flag_complete and self.job.produceUnMerge() and final_status_ds:
+            if flag_complete and self.job.produceUnMerge() and final_status_dataset:
                 if finalized_flag:
-                    tmp_stat = self.task_buffer.updateUnmergedDatasets(self.job, final_status_ds)
+                    tmp_stat = self.task_buffer.updateUnmergedDatasets(self.job, final_status_dataset)
                     tmp_log.debug(f"updated unmerged datasets with {tmp_stat}")
+
             # start notifier
             tmp_log.debug(f"source:{self.job.prodSourceLabel} complete:{flag_complete}")
             if (
@@ -393,34 +442,8 @@ class Closer:
                     self.job.jobStatus == "failed" and self.job.prodSourceLabel == "panda"))
                     and self.job.lockedby != "jedi"
             ):
-                # don't send email for merge jobs
-                if (not self.disable_notifier) and self.job.processingType not in [
-                    "merge",
-                    "unmerge",
-                ]:
-                    use_notifier = True
-                    summary_info = {}
-                    # check all jobDefIDs in jobsetID
-                    if self.job.jobsetID not in [0, None, "NULL"]:
-                        (
-                            use_notifier,
-                            summary_info,
-                        ) = self.task_buffer.checkDatasetStatusForNotifier(
-                            self.job.jobsetID,
-                            self.job.jobDefinitionID,
-                            self.job.prodUserName,
-                        )
-                        tmp_log.debug(f"use_notifier:{use_notifier}")
-                    if use_notifier:
-                        tmp_log.debug("start Notifier")
-                        notifier_thread = Notifier.Notifier(
-                            self.task_buffer,
-                            self.job,
-                            self.destination_dispatch_blocks,
-                            summary_info,
-                        )
-                        notifier_thread.run()
-                        tmp_log.debug("end Notifier")
+                self.start_notifier(self.disable_notifier)
+
             tmp_log.debug("End")
         except Exception:
             err_type, err_value = sys.exc_info()[:2]
