@@ -346,13 +346,13 @@ class Closer:
         try:
             tmp_log = LogWrapper(_logger,
                                  f"run-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}-{self.panda_id}")
-            tmp_log.debug(f"Start {self.job.jobStatus}")
+            tmp_log.debug(f"Start with job status: {self.job.jobStatus}")
             flag_complete = True
             final_status_dataset = []
 
             for destination_dispatch_block in self.destination_dispatch_blocks:
                 dataset_list = []
-                tmp_log.debug(f"start {destination_dispatch_block}")
+                tmp_log.debug(f"start with destination dispatch block: {destination_dispatch_block}")
 
                 # ignore tid datasets
                 if re.search("_tid[\d_]+$", destination_dispatch_block):
@@ -380,7 +380,7 @@ class Closer:
 
                 # skip tobedeleted/tobeclosed
                 if dataset.status in ["cleanup", "tobeclosed", "completed", "deleted"]:
-                    tmp_log.debug(f"skip {destination_dispatch_block} due to {dataset.status}")
+                    tmp_log.debug(f"skip {destination_dispatch_block} due to dataset status: {dataset.status}")
                     continue
 
                 dataset_list.append(dataset)
@@ -390,12 +390,12 @@ class Closer:
                 not_finish = self.task_buffer.countFilesWithMap(
                     {"destinationDBlock": destination_dispatch_block, "status": "unknown"})
                 if not_finish < 0:
-                    tmp_log.error(f"Invalid DB return : {not_finish}")
+                    tmp_log.error(f"Invalid dispatch block file count: {not_finish}")
                     flag_complete = False
                     continue
 
                 # check if completed
-                tmp_log.debug(f"notFinish:{not_finish}")
+                tmp_log.debug(f"Pending file count: {not_finish}")
                 final_status = self.determine_final_status(destination_dispatch_block)
 
                 if not_finish == 0 and EventServiceUtils.isEventServiceMerge(self.job):
@@ -404,7 +404,7 @@ class Closer:
                     all_in_jobset_finished = True
 
                 if not_finish == 0 and all_in_jobset_finished:
-                    tmp_log.debug(f"set {final_status} to dataset : {destination_dispatch_block}")
+                    tmp_log.debug(f"Set final status: {final_status} to dataset: {destination_dispatch_block}")
                     # set status
                     dataset.status = final_status
                     # update dataset in DB
