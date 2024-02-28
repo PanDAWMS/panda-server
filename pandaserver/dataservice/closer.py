@@ -76,7 +76,7 @@ class Closer:
         """
         pass
 
-    def is_top_level_ds(self, dataset_name: str) -> bool:
+    def is_top_level_dataset(self, dataset_name: str) -> bool:
         """
         Check if top dataset
 
@@ -145,7 +145,7 @@ class Closer:
         if self.job.destinationSE == "local" and self.job.prodSourceLabel in ["user", "panda"]:
             # close non-DQ2 destinationDBlock immediately
             final_status = "closed"
-        elif self.job.lockedby == "jedi" and self.is_top_level_ds(destination_dispatch_block):
+        elif self.job.lockedby == "jedi" and self.is_top_level_dataset(destination_dispatch_block):
             # set it closed in order not to trigger DDM cleanup. It will be closed by JEDI
             final_status = "closed"
         elif self.job.prodSourceLabel in ["user"] and "--mergeOutput" in self.job.jobParameters and self.job.processingType != "usermerge":
@@ -222,6 +222,120 @@ class Closer:
                 )
                 notifier_thread.run()
                 tmp_log.debug("end Notifier")
+
+    def close_user_datasets(self, dataset, final_status: str):
+        """
+        Close user datasets
+
+        Args:
+            dataset: Dataset.
+            final_status (str): Final status.
+        """
+        tmp_log = LogWrapper(_logger,
+                             f"close_user_datasets-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+
+        if (
+                self.job.prodSourceLabel in ["user"]
+                and self.job.destinationDBlock.endswith("/")
+                and (dataset.name.startswith("user") or dataset.name.startswith("group"))
+        ):
+            # get top-level user dataset
+            top_user_dataset_name = re.sub("_sub\d+$", "", dataset.name)
+            # update if it is the first attempt
+            if top_user_dataset_name != dataset.name and top_user_dataset_name not in top_user_dataset_list and self.job.lockedby != "jedi":
+                top_user_dataset = self.task_buffer.queryDatasetWithMap({"name": top_user_dataset_name})
+                if top_user_dataset is not None:
+                    # check status
+                    if top_user_dataset.status in [
+                        "completed",
+                        "cleanup",
+                        "tobeclosed",
+                        "deleted",
+                        "tobemerged",
+                        "merging",
+                    ]:
+                        tmp_log.debug(
+                            f"skip {top_user_dataset_name} due to status={top_user_dataset.status}")
+                    else:
+                        # set status
+                        if self.job.processingType.startswith(
+                                "gangarobot") or self.job.processingType.startswith("hammercloud"):
+                            # not trigger freezing for HC datasets so that files can be appended
+                            top_user_dataset.status = "completed"
+                        elif not self.using_merger:
+                            top_user_dataset.status = final_status
+                        else:
+                            top_user_dataset.status = "merging"
+                        # append to avoid repetition
+                        top_user_dataset_list.append(top_user_dataset_name)
+                        # update DB
+                        ret_top_t = self.task_buffer.updateDatasets(
+                            [top_user_dataset],
+                            withLock=True,
+                            withCriteria="status<>:crStatus",
+                            criteriaMap={":crStatus": top_user_dataset.status},
+                        )
+                        if len(ret_top_t) > 0 and ret_top_t[0] == 1:
+                            tmp_log.debug(
+                                f"set {top_user_dataset.status} to top dataset : {top_user_dataset_name}")
+                        else:
+                            tmp_log.debug(
+                                f"failed to update top dataset : {top_user_dataset_name}")
+            # get parent dataset for merge job
+            if self.job.processingType == "usermerge":
+                tmp_match = re.search("--parentDS ([^ '\"]+)", self.job.jobParameters)
+                if tmp_match is None:
+                    tmp_log.error("failed to extract parentDS")
+                else:
+                    unmerged_dataset_name = tmp_match.group(1)
+                    # update if it is the first attempt
+                    if unmerged_dataset_name not in top_user_dataset_list:
+                        unmerged_dataset = self.task_buffer.queryDatasetWithMap({"name": unmerged_dataset_name})
+                        if unmerged_dataset is None:
+                            tmp_log.error(
+                                f"failed to get parentDS={unmerged_dataset_name} from DB")
+                        else:
+                            # check status
+                            if unmerged_dataset.status in [
+                                "completed",
+                                "cleanup",
+                                "tobeclosed",
+                            ]:
+                                tmp_log.debug(
+                                    f"skip {unmerged_dataset_name} due to status={unmerged_dataset.status}")
+                            else:
+                                # set status
+                                unmerged_dataset.status = final_status
+                                # append to avoid repetition
+                                top_user_dataset_list.append(unmerged_dataset_name)
+                                # update DB
+                                ret_top_t = self.task_buffer.updateDatasets(
+                                    [unmerged_dataset],
+                                    withLock=True,
+                                    withCriteria="status<>:crStatus",
+                                    criteriaMap={":crStatus": unmerged_dataset.status},
+                                )
+                                if len(ret_top_t) > 0 and ret_top_t[0] == 1:
+                                    tmp_log.debug(
+                                        f"set {unmerged_dataset.status} to parent dataset : {unmerged_dataset_name}")
+                                else:
+                                    tmp_log.debug(
+                                        f"failed to update parent dataset : {unmerged_dataset_name}")
+        # start Activator
+        if re.search("_sub\d+$", dataset.name) is None:
+            if self.job.prodSourceLabel == "panda" and self.job.processingType in ["merge", "unmerge"]:
+                # don't trigger Activator for merge jobs
+                pass
+            else:
+                if self.job.jobStatus == "finished":
+                    activator_thread = Activator(self.task_buffer, dataset)
+                    activator_thread.start()
+                    activator_thread.join()
+        else:
+            # unset flag since another thread already updated
+            # flag_complete = False
+            pass
+
     # main
     def run(self):
         """
@@ -302,107 +416,8 @@ class Closer:
                     )
                     if len(ret_t) > 0 and ret_t[0] == 1:
                         final_status_dataset += dataset_list
-                        # close user datasets
-                        if (
-                                self.job.prodSourceLabel in ["user"]
-                                and self.job.destinationDBlock.endswith("/")
-                                and (dataset.name.startswith("user") or dataset.name.startswith("group"))
-                        ):
-                            # get top-level user dataset
-                            top_user_dataset_name = re.sub("_sub\d+$", "", dataset.name)
-                            # update if it is the first attempt
-                            if top_user_dataset_name != dataset.name and top_user_dataset_name not in top_user_dataset_list and self.job.lockedby != "jedi":
-                                top_user_ds = self.task_buffer.queryDatasetWithMap({"name": top_user_dataset_name})
-                                if top_user_ds is not None:
-                                    # check status
-                                    if top_user_ds.status in [
-                                        "completed",
-                                        "cleanup",
-                                        "tobeclosed",
-                                        "deleted",
-                                        "tobemerged",
-                                        "merging",
-                                    ]:
-                                        tmp_log.debug(
-                                            f"skip {top_user_dataset_name} due to status={top_user_ds.status}")
-                                    else:
-                                        # set status
-                                        if self.job.processingType.startswith(
-                                                "gangarobot") or self.job.processingType.startswith("hammercloud"):
-                                            # not trigger freezing for HC datasets so that files can be appended
-                                            top_user_ds.status = "completed"
-                                        elif not self.using_merger:
-                                            top_user_ds.status = final_status
-                                        else:
-                                            top_user_ds.status = "merging"
-                                        # append to avoid repetition
-                                        top_user_dataset_list.append(top_user_dataset_name)
-                                        # update DB
-                                        ret_top_t = self.task_buffer.updateDatasets(
-                                            [top_user_ds],
-                                            withLock=True,
-                                            withCriteria="status<>:crStatus",
-                                            criteriaMap={":crStatus": top_user_ds.status},
-                                        )
-                                        if len(ret_top_t) > 0 and ret_top_t[0] == 1:
-                                            tmp_log.debug(
-                                                f"set {top_user_ds.status} to top dataset : {top_user_dataset_name}")
-                                        else:
-                                            tmp_log.debug(
-                                                f"failed to update top dataset : {top_user_dataset_name}")
-                            # get parent dataset for merge job
-                            if self.job.processingType == "usermerge":
-                                tmp_match = re.search("--parentDS ([^ '\"]+)", self.job.jobParameters)
-                                if tmp_match is None:
-                                    tmp_log.error("failed to extract parentDS")
-                                else:
-                                    unmerged_dataset_name = tmp_match.group(1)
-                                    # update if it is the first attempt
-                                    if unmerged_dataset_name not in top_user_dataset_list:
-                                        unmerged_dataset = self.task_buffer.queryDatasetWithMap({"name": unmerged_dataset_name})
-                                        if unmerged_dataset is None:
-                                            tmp_log.error(
-                                                f"failed to get parentDS={unmerged_dataset_name} from DB")
-                                        else:
-                                            # check status
-                                            if unmerged_dataset.status in [
-                                                "completed",
-                                                "cleanup",
-                                                "tobeclosed",
-                                            ]:
-                                                tmp_log.debug(
-                                                    f"skip {unmerged_dataset_name} due to status={unmerged_dataset.status}")
-                                            else:
-                                                # set status
-                                                unmerged_dataset.status = final_status
-                                                # append to avoid repetition
-                                                top_user_dataset_list.append(unmerged_dataset_name)
-                                                # update DB
-                                                ret_top_t = self.task_buffer.updateDatasets(
-                                                    [unmerged_dataset],
-                                                    withLock=True,
-                                                    withCriteria="status<>:crStatus",
-                                                    criteriaMap={":crStatus": unmerged_dataset.status},
-                                                )
-                                                if len(ret_top_t) > 0 and ret_top_t[0] == 1:
-                                                    tmp_log.debug(
-                                                        f"set {unmerged_dataset.status} to parent dataset : {unmerged_dataset_name}")
-                                                else:
-                                                    tmp_log.debug(
-                                                        f"failed to update parent dataset : {unmerged_dataset_name}")
-                        # start Activator
-                        if re.search("_sub\d+$", dataset.name) is None:
-                            if self.job.prodSourceLabel == "panda" and self.job.processingType in ["merge", "unmerge"]:
-                                # don't trigger Activator for merge jobs
-                                pass
-                            else:
-                                if self.job.jobStatus == "finished":
-                                    activator_thread = Activator(self.task_buffer, dataset)
-                                    activator_thread.start()
-                                    activator_thread.join()
+                        self.close_user_datasets(dataset, final_status)
                     else:
-                        # unset flag since another thread already updated
-                        # flag_complete = False
                         pass
                 else:
                     # update dataset in DB
