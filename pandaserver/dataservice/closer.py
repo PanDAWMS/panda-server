@@ -224,14 +224,13 @@ class Closer:
                 notifier_thread.run()
                 tmp_log.debug("end Notifier")
 
-    def close_user_datasets(self, dataset, final_status: str, top_user_dataset_list: List[str]):
+    def close_user_datasets(self, dataset, final_status: str):
         """
         Close user datasets
 
         Args:
             dataset: Dataset.
             final_status (str): Final status.
-            top_user_dataset_list: List[str]: Top user dataset list.
         """
         tmp_log = LogWrapper(_logger,
                              f"close_user_datasets-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
@@ -244,7 +243,7 @@ class Closer:
             # get top-level user dataset
             top_user_dataset_name = re.sub("_sub\d+$", "", dataset.name)
             # update if it is the first attempt
-            if top_user_dataset_name != dataset.name and top_user_dataset_name not in top_user_dataset_list and self.job.lockedby != "jedi":
+            if top_user_dataset_name != dataset.name and top_user_dataset_name not in self.top_user_dataset_list and self.job.lockedby != "jedi":
                 top_user_dataset = self.task_buffer.queryDatasetWithMap({"name": top_user_dataset_name})
                 if top_user_dataset is not None:
                     # check status
@@ -269,7 +268,7 @@ class Closer:
                         else:
                             top_user_dataset.status = "merging"
                         # append to avoid repetition
-                        top_user_dataset_list.append(top_user_dataset_name)
+                        self.top_user_dataset_list.append(top_user_dataset_name)
                         # update DB
                         ret_top_t = self.task_buffer.updateDatasets(
                             [top_user_dataset],
@@ -291,7 +290,7 @@ class Closer:
                 else:
                     unmerged_dataset_name = tmp_match.group(1)
                     # update if it is the first attempt
-                    if unmerged_dataset_name not in top_user_dataset_list:
+                    if unmerged_dataset_name not in self.top_user_dataset_list:
                         unmerged_dataset = self.task_buffer.queryDatasetWithMap({"name": unmerged_dataset_name})
                         if unmerged_dataset is None:
                             tmp_log.error(
@@ -309,7 +308,7 @@ class Closer:
                                 # set status
                                 unmerged_dataset.status = final_status
                                 # append to avoid repetition
-                                top_user_dataset_list.append(unmerged_dataset_name)
+                                self.top_user_dataset_list.append(unmerged_dataset_name)
                                 # update DB
                                 ret_top_t = self.task_buffer.updateDatasets(
                                     [unmerged_dataset],
@@ -349,7 +348,6 @@ class Closer:
                                  f"run-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}-{self.panda_id}")
             tmp_log.debug(f"Start {self.job.jobStatus}")
             flag_complete = True
-            top_user_dataset_list = self.top_user_dataset_list
             final_status_dataset = []
 
             for destination_dispatch_block in self.destination_dispatch_blocks:
@@ -418,7 +416,7 @@ class Closer:
                     )
                     if len(ret_t) > 0 and ret_t[0] == 1:
                         final_status_dataset += dataset_list
-                        self.close_user_datasets(dataset, final_status, top_user_dataset_list)
+                        self.close_user_datasets(dataset, final_status)
                     else:
                         pass
                 else:
