@@ -36,7 +36,11 @@ def init_logger(p_logger: PandaLogger) -> None:
 
 class Closer:
     """
-    Update dataset DB, and then close dataset and start Activator if needed
+    Update dataset DB, and then close dataset and start Activator if needed.
+    The class updates output-related dataset records (_sub, output, and log) in
+    the database, closes _sub datasets if necessary, and activates downstream
+    runJobs if the output dataset is for buildJob (libDS, library dataset).
+    Activator changes job status from defined/assigned to activated.
     """
 
     # constructor
