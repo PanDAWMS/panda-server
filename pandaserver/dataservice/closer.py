@@ -49,7 +49,6 @@ class Closer:
         self.site_mapper = None
         self.dataset_map = dataset_map if dataset_map is not None else {}
         self.all_subscription_finished = None
-        self.using_merger = False
         self.top_user_dataset_list = []
 
     def is_top_level_dataset(self, dataset_name: str) -> bool:
@@ -164,48 +163,6 @@ class Closer:
                 and self.job.destinationDBlock.endswith("/")
                 and (dataset.name.startswith("user") or dataset.name.startswith("group"))
         ):
-            # get top-level user dataset
-            top_user_dataset_name = re.sub("_sub\d+$", "", dataset.name)
-            # update if it is the first attempt
-            if top_user_dataset_name != dataset.name and top_user_dataset_name not in self.top_user_dataset_list and self.job.lockedby != "jedi":
-                top_user_dataset = self.task_buffer.queryDatasetWithMap({"name": top_user_dataset_name})
-                if top_user_dataset is not None:
-                    # check status
-                    if top_user_dataset.status in [
-                        "completed",
-                        "cleanup",
-                        "tobeclosed",
-                        "deleted",
-                        "tobemerged",
-                        "merging",
-                    ]:
-                        tmp_log.debug(
-                            f"skip {top_user_dataset_name} due to status={top_user_dataset.status}")
-                    else:
-                        # set status
-                        if self.job.processingType.startswith(
-                                "gangarobot") or self.job.processingType.startswith("hammercloud"):
-                            # not trigger freezing for HC datasets so that files can be appended
-                            top_user_dataset.status = "completed"
-                        elif not self.using_merger:
-                            top_user_dataset.status = final_status
-                        else:
-                            top_user_dataset.status = "merging"
-                        # append to avoid repetition
-                        self.top_user_dataset_list.append(top_user_dataset_name)
-                        # update DB
-                        ret_top_t = self.task_buffer.updateDatasets(
-                            [top_user_dataset],
-                            withLock=True,
-                            withCriteria="status<>:crStatus",
-                            criteriaMap={":crStatus": top_user_dataset.status},
-                        )
-                        if len(ret_top_t) > 0 and ret_top_t[0] == 1:
-                            tmp_log.debug(
-                                f"set {top_user_dataset.status} to top dataset : {top_user_dataset_name}")
-                        else:
-                            tmp_log.debug(
-                                f"failed to update top dataset : {top_user_dataset_name}")
             # get parent dataset for merge job
             if self.job.processingType == "usermerge":
                 tmp_match = re.search("--parentDS ([^ '\"]+)", self.job.jobParameters)
