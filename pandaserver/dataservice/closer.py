@@ -29,7 +29,7 @@ class Closer:
     """
 
     # constructor
-    def __init__(self, taskBuffer, destination_data_blocks: List[str], job, panda_ddm: bool = False,
+    def __init__(self, taskBuffer, destination_data_blocks: List[str], job,
                  dataset_map: Dict = None) -> None:
         """
         Constructor
@@ -38,14 +38,12 @@ class Closer:
             task_buffer: Task buffer.
             destination_data_blocks (List[str]): Destination Dispatch blocks.
             job: Job.
-            panda_ddm (bool, optional): Panda DDM flag. Defaults to False.
             dataset_map (Dict, optional): Dataset map. Defaults to {}.
         """
         self.task_buffer = taskBuffer
         self.destination_data_blocks = destination_data_blocks
         self.job = job
         self.panda_id = job.PandaID
-        self.panda_ddm = panda_ddm
         self.site_mapper = None
         self.dataset_map = dataset_map if dataset_map is not None else {}
         self.all_subscription_finished = None
