@@ -69,18 +69,6 @@ class Closer:
         self.disable_notifier = False
         self.top_user_dataset_list = []
 
-    def start(self) -> None:
-        """
-        To keep backward compatibility
-        """
-        self.run()
-
-    def join(self) -> None:
-        """
-        Join
-        """
-        pass
-
     def is_top_level_dataset(self, dataset_name: str) -> bool:
         """
         Check if top dataset
