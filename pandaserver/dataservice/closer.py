@@ -181,7 +181,7 @@ class Closer:
                     continue
 
                 # ignore HC datasets
-                if (closer_utils.is_hc_test_dataset(destination_data_block) or
+                if (closer_utils.is_hammercloud_dataset(destination_data_block) or
                         closer_utils.is_user_gangarbt_dataset(destination_data_block)):
                     if (closer_utils.is_not_sub_dataset(destination_data_block) and
                             closer_utils.is_not_lib_dataset(destination_data_block)):

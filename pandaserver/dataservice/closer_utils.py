@@ -40,7 +40,7 @@ def is_tid_dataset(destination_data_block: str) -> bool:
     """
     return re.search("_tid[\d_]+$", destination_data_block) is not None
 
-def is_hc_test_dataset(destination_data_block: str) -> bool:
+def is_hammercloud_dataset(destination_data_block: str) -> bool:
     """
     Check if the destination data block starts with 'hc_test.'.
 
