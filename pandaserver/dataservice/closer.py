@@ -147,62 +147,17 @@ class Closer:
             closer_plugin = closer_plugin_class(self.job, final_status_dataset, _logger)
             closer_plugin.execute()
 
-    def close_user_datasets(self, dataset, final_status: str):
+    def start_activator(self, dataset):
         """
-        Close user datasets
+        Start the activator
 
         Args:
             dataset: Dataset.
             final_status (str): Final status.
         """
         tmp_log = LogWrapper(_logger,
-                             f"close_user_datasets-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+                             f"start_activator-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
 
-        if (
-                self.job.prodSourceLabel in ["user"]
-                and self.job.destinationDBlock.endswith("/")
-                and (dataset.name.startswith("user") or dataset.name.startswith("group"))
-        ):
-            # get parent dataset for merge job
-            if self.job.processingType == "usermerge":
-                tmp_match = re.search("--parentDS ([^ '\"]+)", self.job.jobParameters)
-                if tmp_match is None:
-                    tmp_log.error("failed to extract parentDS")
-                else:
-                    unmerged_dataset_name = tmp_match.group(1)
-                    # update if it is the first attempt
-                    if unmerged_dataset_name not in self.top_user_dataset_list:
-                        unmerged_dataset = self.task_buffer.queryDatasetWithMap({"name": unmerged_dataset_name})
-                        if unmerged_dataset is None:
-                            tmp_log.error(
-                                f"failed to get parentDS={unmerged_dataset_name} from DB")
-                        else:
-                            # check status
-                            if unmerged_dataset.status in [
-                                "completed",
-                                "cleanup",
-                                "tobeclosed",
-                            ]:
-                                tmp_log.debug(
-                                    f"skip {unmerged_dataset_name} due to status={unmerged_dataset.status}")
-                            else:
-                                # set status
-                                unmerged_dataset.status = final_status
-                                # append to avoid repetition
-                                self.top_user_dataset_list.append(unmerged_dataset_name)
-                                # update DB
-                                ret_top_t = self.task_buffer.updateDatasets(
-                                    [unmerged_dataset],
-                                    withLock=True,
-                                    withCriteria="status<>:crStatus",
-                                    criteriaMap={":crStatus": unmerged_dataset.status},
-                                )
-                                if len(ret_top_t) > 0 and ret_top_t[0] == 1:
-                                    tmp_log.debug(
-                                        f"set {unmerged_dataset.status} to parent dataset : {unmerged_dataset_name}")
-                                else:
-                                    tmp_log.debug(
-                                        f"failed to update parent dataset : {unmerged_dataset_name}")
         # start Activator
         if re.search("_sub\d+$", dataset.name) is None:
             if self.job.prodSourceLabel == "panda" and self.job.processingType in ["merge", "unmerge"]:
@@ -297,7 +252,7 @@ class Closer:
                     )
                     if len(ret_t) > 0 and ret_t[0] == 1:
                         final_status_dataset += dataset_list
-                        self.close_user_datasets(dataset, final_status)
+                        self.start_activator(dataset)
                     else:
                         pass
                 else:

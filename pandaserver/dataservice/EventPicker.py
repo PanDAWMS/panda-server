@@ -16,7 +16,6 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.dataservice import dyn_data_distributer
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.DDM import rucioAPI
-from pandaserver.dataservice.Notifier import Notifier
 from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.MailUtils import MailUtils
 from pandaserver.taskbuffer import JobUtils
@@ -316,6 +315,7 @@ class EventPicker:
                 tmpMsg = "A transfer request was successfully sent to Rucio.\n"
                 tmpMsg += "Your task will get started once transfer is completed."
                 self.sendEmail(True, tmpMsg)
+                awnself.sendEmail(True, tmpMsg)
             try:
                 # unlock and delete evp file
                 fcntl.flock(self.evpFile.fileno(), fcntl.LOCK_UN)
@@ -366,7 +366,8 @@ class EventPicker:
     # send email notification
     def sendEmail(self, isSucceeded, message):
         # mail address
-        toAdder = Notifier(self.taskBuffer, None, []).getEmail(self.userDN)
+        #toAdder = Notifier(self.taskBuffer, None, []).getEmail(self.userDN)
+        toAdder = ""
         if toAdder == "":
             self.putLog(f"cannot find email address for {self.userDN}", "error")
             return
