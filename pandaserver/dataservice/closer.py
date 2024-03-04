@@ -3,7 +3,6 @@ update dataset DB, and then close dataset and start Activator if needed
 
 """
 
-import re
 import sys
 import datetime
 
@@ -15,6 +14,7 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice.Activator import Activator
 from pandaserver.taskbuffer import EventServiceUtils
+from pandaserver.dataservice import closer_utils
 
 # logger
 _logger = PandaLogger().getLogger("closer")
@@ -50,18 +50,6 @@ class Closer:
         self.dataset_map = dataset_map if dataset_map is not None else {}
         self.all_subscription_finished = None
         self.top_user_dataset_list = []
-
-    def is_top_level_dataset(self, dataset_name: str) -> bool:
-        """
-        Check if top dataset
-
-        Args:
-            dataset_name (str): Dataset name.
-
-        Returns:
-            bool: True if top dataset, False otherwise.
-        """
-        return re.sub("_sub\d+$", "", dataset_name) == dataset_name
 
     def check_sub_datasets_in_jobset(self) -> bool:
         """
@@ -118,7 +106,7 @@ class Closer:
         if self.job.destinationSE == "local" and self.job.prodSourceLabel in ["user", "panda"]:
             # close non-Rucio destinationDBlock immediately
             final_status = "closed"
-        elif self.job.lockedby == "jedi" and self.is_top_level_dataset(destination_data_block):
+        elif self.job.lockedby == "jedi" and closer_utils.is_top_level_dataset(destination_data_block):
             # set it closed in order not to trigger DDM cleanup. It will be closed by JEDI
             final_status = "closed"
         elif self.job.produceUnMerge():
@@ -155,11 +143,8 @@ class Closer:
             dataset: Dataset.
             final_status (str): Final status.
         """
-        tmp_log = LogWrapper(_logger,
-                             f"start_activator-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
-
         # start Activator
-        if re.search("_sub\d+$", dataset.name) is None:
+        if closer_utils.is_not_sub_dataset(dataset.name):
             if self.job.prodSourceLabel == "panda" and self.job.processingType in ["merge", "unmerge"]:
                 # don't trigger Activator for merge jobs
                 pass
@@ -191,15 +176,15 @@ class Closer:
                 tmp_log.debug(f"start with destination dispatch block: {destination_data_block}")
 
                 # ignore task output datasets (tid) datasets
-                if re.search("_tid[\d_]+$", destination_data_block):
+                if closer_utils.is_tid_dataset(destination_data_block):
                     tmp_log.debug(f"skip {destination_data_block}")
                     continue
 
                 # ignore HC datasets
-                if (re.search("^hc_test\.", destination_data_block) is not None or
-                        re.search("^user\.gangarbt\.", destination_data_block) is not None):
-                    if (re.search("_sub\d+$", destination_data_block) is None and
-                            re.search("\.lib$", destination_data_block) is None):
+                if (closer_utils.is_hc_test_dataset(destination_data_block) or
+                        closer_utils.is_user_gangarbt_dataset(destination_data_block)):
+                    if (closer_utils.is_not_sub_dataset(destination_data_block) and
+                            closer_utils.is_not_lib_dataset(destination_data_block)):
                         tmp_log.debug(f"skip HC {destination_data_block}")
                         continue
 
