@@ -44,20 +44,20 @@ class Closer:
     """
 
     # constructor
-    def __init__(self, taskBuffer, destination_dispatch_blocks: List[str], job, panda_ddm: bool = False,
+    def __init__(self, taskBuffer, destination_data_blocks: List[str], job, panda_ddm: bool = False,
                  dataset_map: Dict = None) -> None:
         """
         Constructor
 
         Args:
             task_buffer: Task buffer.
-            destination_dispatch_blocks (List[str]): Destination Dispatch blocks.
+            destination_data_blocks (List[str]): Destination Dispatch blocks.
             job: Job.
             panda_ddm (bool, optional): Panda DDM flag. Defaults to False.
             dataset_map (Dict, optional): Dataset map. Defaults to {}.
         """
         self.task_buffer = taskBuffer
-        self.destination_dispatch_blocks = destination_dispatch_blocks
+        self.destination_data_blocks = destination_data_blocks
         self.job = job
         self.panda_id = job.PandaID
         self.panda_ddm = panda_ddm
@@ -110,7 +110,7 @@ class Closer:
             return self.all_subscription_finished
         # get consumers in the jobset
         jobs = self.task_buffer.getOriginalConsumers(self.job.jediTaskID, self.job.jobsetID, self.job.panda_id)
-        checked_ds = set()
+        checked_dataset = set()
         for job_spec in jobs:
             # collect all sub datasets
             sub_datasets = set()
@@ -122,9 +122,9 @@ class Closer:
                 # use the first sub dataset
                 sub_dataset = sub_datasets[0]
                 # skip if already checked
-                if sub_dataset in checked_ds:
+                if sub_dataset in checked_dataset:
                     continue
-                checked_ds.add(sub_dataset)
+                checked_dataset.add(sub_dataset)
                 # count the number of unfinished
                 not_finish = self.task_buffer.countFilesWithMap({"destinationDBlock": sub_dataset, "status": "unknown"})
                 if not_finish != 0:
@@ -137,12 +137,12 @@ class Closer:
             self.all_subscription_finished = True
         return self.all_subscription_finished
 
-    def determine_final_status(self, destination_dispatch_block: str) -> str:
+    def determine_final_status(self, destination_data_block: str) -> str:
         """
         Determine the final status of a dispatch block.
 
         Args:
-            destination_dispatch_block (str): The destination dispatch block.
+            destination_data_block (str): The destination dispatch block.
 
         Returns:
             str: The final status.
@@ -150,7 +150,7 @@ class Closer:
         if self.job.destinationSE == "local" and self.job.prodSourceLabel in ["user", "panda"]:
             # close non-DQ2 destinationDBlock immediately
             final_status = "closed"
-        elif self.job.lockedby == "jedi" and self.is_top_level_dataset(destination_dispatch_block):
+        elif self.job.lockedby == "jedi" and self.is_top_level_dataset(destination_data_block):
             # set it closed in order not to trigger DDM cleanup. It will be closed by JEDI
             final_status = "closed"
         elif self.job.prodSourceLabel in ["user"] and "--mergeOutput" in self.job.jobParameters and self.job.processingType != "usermerge":
@@ -222,7 +222,7 @@ class Closer:
                 notifier_thread = Notifier.Notifier(
                     self.task_buffer,
                     self.job,
-                    self.destination_dispatch_blocks,
+                    self.destination_data_blocks,
                     summary_info,
                 )
                 notifier_thread.run()
@@ -354,37 +354,37 @@ class Closer:
             flag_complete = True
             final_status_dataset = []
 
-            for destination_dispatch_block in self.destination_dispatch_blocks:
+            for destination_data_block in self.destination_data_blocks:
                 dataset_list = []
-                tmp_log.debug(f"start with destination dispatch block: {destination_dispatch_block}")
+                tmp_log.debug(f"start with destination dispatch block: {destination_data_block}")
 
                 # ignore tid datasets
-                if re.search("_tid[\d_]+$", destination_dispatch_block):
-                    tmp_log.debug(f"skip {destination_dispatch_block}")
+                if re.search("_tid[\d_]+$", destination_data_block):
+                    tmp_log.debug(f"skip {destination_data_block}")
                     continue
 
                 # ignore HC datasets
-                if (re.search("^hc_test\.", destination_dispatch_block) is not None or
-                        re.search("^user\.gangarbt\.", destination_dispatch_block) is not None):
-                    if (re.search("_sub\d+$", destination_dispatch_block) is None and
-                            re.search("\.lib$", destination_dispatch_block) is None):
-                        tmp_log.debug(f"skip HC {destination_dispatch_block}")
+                if (re.search("^hc_test\.", destination_data_block) is not None or
+                        re.search("^user\.gangarbt\.", destination_data_block) is not None):
+                    if (re.search("_sub\d+$", destination_data_block) is None and
+                            re.search("\.lib$", destination_data_block) is None):
+                        tmp_log.debug(f"skip HC {destination_data_block}")
                         continue
 
                 # query dataset
-                if destination_dispatch_block in self.dataset_map:
-                    dataset = self.dataset_map[destination_dispatch_block]
+                if destination_data_block in self.dataset_map:
+                    dataset = self.dataset_map[destination_data_block]
                 else:
-                    dataset = self.task_buffer.queryDatasetWithMap({"name": destination_dispatch_block})
+                    dataset = self.task_buffer.queryDatasetWithMap({"name": destination_data_block})
 
                 if dataset is None:
-                    tmp_log.error(f"Not found : {destination_dispatch_block}")
+                    tmp_log.error(f"Not found : {destination_data_block}")
                     flag_complete = False
                     continue
 
                 # skip tobedeleted/tobeclosed
                 if dataset.status in ["cleanup", "tobeclosed", "completed", "deleted"]:
-                    tmp_log.debug(f"skip {destination_dispatch_block} due to dataset status: {dataset.status}")
+                    tmp_log.debug(f"skip {destination_data_block} due to dataset status: {dataset.status}")
                     continue
 
                 dataset_list.append(dataset)
@@ -392,7 +392,7 @@ class Closer:
 
                 # count number of completed files
                 not_finish = self.task_buffer.countFilesWithMap(
-                    {"destinationDBlock": destination_dispatch_block, "status": "unknown"})
+                    {"destinationDBlock": destination_data_block, "status": "unknown"})
                 if not_finish < 0:
                     tmp_log.error(f"Invalid dispatch block file count: {not_finish}")
                     flag_complete = False
@@ -400,7 +400,7 @@ class Closer:
 
                 # check if completed
                 tmp_log.debug(f"Pending file count: {not_finish}")
-                final_status = self.determine_final_status(destination_dispatch_block)
+                final_status = self.determine_final_status(destination_data_block)
 
                 if not_finish == 0 and EventServiceUtils.isEventServiceMerge(self.job):
                     all_in_jobset_finished = self.check_sub_datasets_in_jobset()
@@ -408,7 +408,7 @@ class Closer:
                     all_in_jobset_finished = True
 
                 if not_finish == 0 and all_in_jobset_finished:
-                    tmp_log.debug(f"Set final status: {final_status} to dataset: {destination_dispatch_block}")
+                    tmp_log.debug(f"Set final status: {final_status} to dataset: {destination_data_block}")
                     # set status
                     dataset.status = final_status
                     # update dataset in DB
@@ -434,24 +434,15 @@ class Closer:
                     # unset flag
                     flag_complete = False
                 # end
-                tmp_log.debug(f"end {destination_dispatch_block}")
+                tmp_log.debug(f"end {destination_data_block}")
             # special actions for vo
             if flag_complete:
                 self.perform_special_actions(final_status_dataset)
 
-            # change pending jobs to failed
-            finalized_flag = True
-
-            if flag_complete and self.job.prodSourceLabel == "user":
-                tmp_log.debug(f"finalize {self.job.prodUserName} {self.job.jobDefinitionID}")
-                finalized_flag = self.task_buffer.finalizePendingJobs(self.job.prodUserName, self.job.jobDefinitionID)
-                tmp_log.debug(f"finalized with {finalized_flag}")
-
             # update unmerged datasets in JEDI to trigger merging
             if flag_complete and self.job.produceUnMerge() and final_status_dataset:
-                if finalized_flag:
-                    tmp_stat = self.task_buffer.updateUnmergedDatasets(self.job, final_status_dataset)
-                    tmp_log.debug(f"updated unmerged datasets with {tmp_stat}")
+                tmp_stat = self.task_buffer.updateUnmergedDatasets(self.job, final_status_dataset)
+                tmp_log.debug(f"updated unmerged datasets with {tmp_stat}")
 
             # start notifier
             tmp_log.debug(f"source:{self.job.prodSourceLabel} complete:{flag_complete}")
