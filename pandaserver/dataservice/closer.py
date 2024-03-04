@@ -13,26 +13,11 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 
 from pandaserver.config import panda_config
-from pandaserver.dataservice import Notifier
 from pandaserver.dataservice.Activator import Activator
 from pandaserver.taskbuffer import EventServiceUtils
 
 # logger
 _logger = PandaLogger().getLogger("closer")
-
-
-def init_logger(p_logger: PandaLogger) -> None:
-    """
-    Redirect logging to parent as it doesn't work in nested threads
-
-    Args:
-        p_logger (PandaLogger): The parent logger.
-    """
-    # redirect logging to parent as it doesn't work in nested threads
-    global _logger
-    _logger = p_logger
-    Notifier.initLogger(_logger)
-
 
 class Closer:
     """
@@ -64,9 +49,7 @@ class Closer:
         self.site_mapper = None
         self.dataset_map = dataset_map if dataset_map is not None else {}
         self.all_subscription_finished = None
-        self.first_indv_dataset = True
         self.using_merger = False
-        self.disable_notifier = False
         self.top_user_dataset_list = []
 
     def is_top_level_dataset(self, dataset_name: str) -> bool:
@@ -79,10 +62,7 @@ class Closer:
         Returns:
             bool: True if top dataset, False otherwise.
         """
-        top_ds = re.sub("_sub\d+$", "", dataset_name)
-        if top_ds == dataset_name:
-            return True
-        return False
+        return re.sub("_sub\d+$", "", dataset_name) == dataset_name
 
     def check_sub_datasets_in_jobset(self) -> bool:
         """
@@ -135,32 +115,21 @@ class Closer:
         Returns:
             str: The final status.
         """
+        # for queues without rucio storage element attached
         if self.job.destinationSE == "local" and self.job.prodSourceLabel in ["user", "panda"]:
-            # close non-DQ2 destinationDBlock immediately
+            # close non-Rucio destinationDBlock immediately
             final_status = "closed"
         elif self.job.lockedby == "jedi" and self.is_top_level_dataset(destination_data_block):
             # set it closed in order not to trigger DDM cleanup. It will be closed by JEDI
             final_status = "closed"
-        elif self.job.prodSourceLabel in ["user"] and "--mergeOutput" in self.job.jobParameters and self.job.processingType != "usermerge":
-            # merge output files
-            if self.first_indv_dataset:
-                # set 'tobemerged' to only the first dataset to avoid triggering many Mergers for --individualOutDS
-                final_status = "tobemerged"
-                self.first_indv_dataset = False
-            else:
-                final_status = "tobeclosed"
-            # set merging to top dataset
-            self.using_merger = True
-            # disable Notifier
-            self.disable_notifier = True
         elif self.job.produceUnMerge():
             final_status = "doing"
         else:
-            # set status to 'tobeclosed' to trigger DQ2 closing
+            # set status to 'tobeclosed' to trigger Rucio closing
             final_status = "tobeclosed"
         return final_status
 
-    def perform_special_actions(self, final_status_dataset: list) -> None:
+    def perform_vo_actions(self, final_status_dataset: list) -> None:
         """
         Perform special actions for vo.
 
@@ -178,43 +147,6 @@ class Closer:
         if closer_plugin_class is not None:
             closer_plugin = closer_plugin_class(self.job, final_status_dataset, _logger)
             closer_plugin.execute()
-
-    def start_notifier(self, disable_notifier: bool) -> None:
-        """
-        Start the notifier.
-
-        Args:
-            disable_notifier (bool): The flag indicating if the notifier should be disabled.
-        """
-
-        tmp_log = LogWrapper(_logger,
-                             f"start_notifier-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
-
-        # don't send email for merge jobs
-        if (not disable_notifier) and self.job.processingType not in ["merge", "unmerge"]:
-            use_notifier = True
-            summary_info = {}
-            # check all jobDefIDs in jobsetID
-            if self.job.jobsetID not in [0, None, "NULL"]:
-                (
-                    use_notifier,
-                    summary_info,
-                ) = self.task_buffer.checkDatasetStatusForNotifier(
-                    self.job.jobsetID,
-                    self.job.jobDefinitionID,
-                    self.job.prodUserName,
-                )
-                tmp_log.debug(f"use_notifier:{use_notifier}")
-            if use_notifier:
-                tmp_log.debug("start Notifier")
-                notifier_thread = Notifier.Notifier(
-                    self.task_buffer,
-                    self.job,
-                    self.destination_data_blocks,
-                    summary_info,
-                )
-                notifier_thread.run()
-                tmp_log.debug("end Notifier")
 
     def close_user_datasets(self, dataset, final_status: str):
         """
@@ -333,7 +265,7 @@ class Closer:
     def run(self):
         """
         Main method to run the Closer class. It processes each destination dispatch block,
-        updates the dataset status, finalizes pending jobs if necessary, and starts the notifier.
+        updates the dataset status and finalizes pending jobs if necessary.
         """
         try:
             tmp_log = LogWrapper(_logger,
@@ -346,7 +278,7 @@ class Closer:
                 dataset_list = []
                 tmp_log.debug(f"start with destination dispatch block: {destination_data_block}")
 
-                # ignore tid datasets
+                # ignore task output datasets (tid) datasets
                 if re.search("_tid[\d_]+$", destination_data_block):
                     tmp_log.debug(f"skip {destination_data_block}")
                     continue
@@ -425,22 +357,12 @@ class Closer:
                 tmp_log.debug(f"end {destination_data_block}")
             # special actions for vo
             if flag_complete:
-                self.perform_special_actions(final_status_dataset)
+                self.perform_vo_actions(final_status_dataset)
 
             # update unmerged datasets in JEDI to trigger merging
             if flag_complete and self.job.produceUnMerge() and final_status_dataset:
                 tmp_stat = self.task_buffer.updateUnmergedDatasets(self.job, final_status_dataset)
                 tmp_log.debug(f"updated unmerged datasets with {tmp_stat}")
-
-            # start notifier
-            tmp_log.debug(f"source:{self.job.prodSourceLabel} complete:{flag_complete}")
-            if (
-                    (self.job.jobStatus != "transferring")
-                    and ((flag_complete and self.job.prodSourceLabel == "user") or (
-                    self.job.jobStatus == "failed" and self.job.prodSourceLabel == "panda"))
-                    and self.job.lockedby != "jedi"
-            ):
-                self.start_notifier(self.disable_notifier)
 
             tmp_log.debug("End")
         except Exception:
