@@ -340,7 +340,7 @@ def main(tbuf=None, **kwargs):
                             if len(tmpJobs) > 0 and tmpJobs[0] is not None:
                                 if EventServiceUtils.isEventServiceMerge(tmpJobs[0]):
                                     self.proxyLock.acquire()
-                                    cThr = Closer(task_buffer=taskBuffer, [], tmpJobs[0])
+                                    cThr = Closer(taskBuffer, [], tmpJobs[0])
                                     allFinished = cThr.checkSubDatasetsInJobset()
                                     self.proxyLock.release()
                                     _logger.debug(f"closer checked sub datasets in the jobset for {name} : {allFinished}")
@@ -389,7 +389,7 @@ def main(tbuf=None, **kwargs):
                                         # run
                                         _logger.debug(f"start JEDI closer for {name} ")
                                         self.proxyLock.acquire()
-                                        cThr = Closer(task_buffer=taskBuffer, tmpDestDBlocks, mergeJob)
+                                        cThr = Closer(taskBuffer, tmpDestDBlocks, mergeJob)
                                         cThr.start()
                                         cThr.join()
                                         self.proxyLock.release()

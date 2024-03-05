@@ -30,18 +30,18 @@ class Closer:
     """
 
     # constructor
-    def __init__(self, task_buffer, destination_data_blocks: List[str], job,
+    def __init__(self, taskBuffer, destination_data_blocks: List[str], job,
                  dataset_map: Dict = None) -> None:
         """
         Constructor
 
         Args:
-            task_buffer: Task buffer.
+            taskBuffer: Task buffer.
             destination_data_blocks (List[str]): Destination Dispatch blocks.
             job: Job.
             dataset_map (Dict, optional): Dataset map. Defaults to {}.
         """
-        self.task_buffer = task_buffer
+        self.task_buffer = taskBuffer
         self.destination_data_blocks = destination_data_blocks
         self.job = job
         self.panda_id = job.PandaID

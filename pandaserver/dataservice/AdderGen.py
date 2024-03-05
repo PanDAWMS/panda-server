@@ -469,13 +469,13 @@ class AdderGen(object):
                             # start Closer
                             if adderPlugin is not None and hasattr(adderPlugin, "datasetMap") and adderPlugin.datasetMap != {}:
                                 cThr = closer.Closer(
-                                    task_buffer=self.taskBuffer,
+                                    self.taskBuffer,
                                     destDBList,
                                     self.job,
                                     dataset_map=adderPlugin.datasetMap,
                                 )
                             else:
-                                cThr = closer.Closer(task_buffer=self.taskBuffer, destDBList, self.job)
+                                cThr = closer.Closer(self.taskBuffer, destDBList, self.job)
                             self.logger.debug("start Closer")
                             # cThr.start()
                             # cThr.join()
@@ -497,7 +497,7 @@ class AdderGen(object):
                                 if self.job is None:
                                     self.logger.debug(f": associated job PandaID={assJobID} not found in DB")
                                 else:
-                                    cThr = closer.Closer(task_buffer=self.taskBuffer, assDBlocks, assJob)
+                                    cThr = closer.Closer(self.taskBuffer, assDBlocks, assJob)
                                     self.logger.debug(f"start Closer for PandaID={assJobID}")
                                     # cThr.start()
                                     # cThr.join()
