@@ -16,6 +16,7 @@ import traceback
 import psutil
 from pandacommon.pandalogger import logger_utils
 from pandacommon.pandautils.thread_utils import GenericThread, LockPool
+
 from pandaserver.config import daemon_config, panda_config
 
 # list of signals accepted to end the main process
@@ -88,7 +89,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
     expiry_ts = start_ts + worker_lifetime
     # create taskBuffer object if not given
     if tbuf is None:
-        # initialize cx_Oracle using dummy connection
+        # initialize oracledb using dummy connection
         try:
             from pandaserver.taskbuffer.Initializer import initializer
 

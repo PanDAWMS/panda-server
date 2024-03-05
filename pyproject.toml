@@ -38,12 +38,12 @@ dependencies = [
 requires-python = ">=3.8"
 
 [project.optional-dependencies]
-oracle = ['cx_Oracle']
+oracle = ['oracledb']
 mysql = ['mysqlclient']
 postgres =  ['psycopg2-binary']
 rucio = ['rucio-clients']
 elasticsearch = ['elasticsearch']
-atlasprod =  ['cx_Oracle', 'rucio-clients', 'elasticsearch', 'numpy', 'scipy']
+atlasprod =  ['oracledb', 'rucio-clients', 'elasticsearch', 'numpy', 'scipy']
 
 [project.urls]
 Homepage = "https://panda-wms.readthedocs.io/en/latest/"

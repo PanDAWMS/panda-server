@@ -16,10 +16,13 @@ import tempfile
 import traceback
 from urllib.parse import parse_qsl
 
-import pandaserver.taskbuffer.ErrorCode
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
+from werkzeug.datastructures import CombinedMultiDict, EnvironHeaders
+from werkzeug.formparser import parse_form_data
+
+import pandaserver.taskbuffer.ErrorCode
 from pandaserver.config import panda_config
 
 # pylint: disable=W0611
@@ -173,10 +176,8 @@ from pandaserver.userinterface.UserIF import (
     updateWorkers,
     userIF,
 )
-from werkzeug.datastructures import CombinedMultiDict, EnvironHeaders
-from werkzeug.formparser import parse_form_data
 
-# initialize cx_Oracle using dummy connection
+# initialize oracledb using dummy connection
 initializer.init()
 
 # initialize TaskBuffer
