@@ -1597,7 +1597,7 @@ class TaskBuffer:
                                 if tmpFile.destinationDBlock not in tmpDestDBlocks:
                                     tmpDestDBlocks.append(tmpFile.destinationDBlock)
                         # run
-                        cThr = Closer(task_buffer=self, tmpDestDBlocks, tmpJob)
+                        cThr = Closer(self, tmpDestDBlocks, tmpJob)
                         cThr.start()
                         cThr.join()
         except Exception:
@@ -1676,7 +1676,7 @@ class TaskBuffer:
         if not forPending:
             for tmpOldSub in oldSubMap:
                 tmpJob = oldSubMap[tmpOldSub]
-                cThr = Closer(task_buffer=self, [tmpOldSub], tmpJob)
+                cThr = Closer(self, [tmpOldSub], tmpJob)
                 cThr.start()
                 cThr.join()
         tmpLog.debug(f"got {len(jobs)} IDs")
