@@ -326,3 +326,75 @@ def select_scope(site_spec, prodsourcelabel, job_label):
         scope_output = "analysis"
 
     return scope_input, scope_output
+
+def is_top_level_dataset(dataset_name: str) -> bool:
+    """
+    Check if top dataset
+
+    Args:
+        dataset_name (str): Dataset name.
+
+    Returns:
+        bool: True if top dataset, False otherwise.
+    """
+    return re.sub("_sub\d+$", "", dataset_name) == dataset_name
+
+def is_sub_dataset(dataset_name: str) -> bool:
+    """
+    Check if the dataset name ends with '_sub' followed by one or more digits.
+
+    Args:
+        dataset_name (str): The name of the dataset.
+
+    Returns:
+        bool: True if the dataset name ends with '_sub' followed by one or more digits, False otherwise.
+    """
+    return re.search("_sub\d+$", dataset_name) is not None
+
+def is_tid_dataset(destination_data_block: str) -> bool:
+    """
+    Check if the destination data block ends with '_tid' followed by one or more digits.
+
+    Args:
+        destination_data_block (str): The destination data block.
+
+    Returns:
+        bool: True if the destination data block ends with '_tid' followed by one or more digits, False otherwise.
+    """
+    return re.search("_tid[\d_]+$", destination_data_block) is not None
+
+def is_hammercloud_dataset(destination_data_block: str) -> bool:
+    """
+    Check if the destination data block starts with 'hc_test.'.
+
+    Args:
+        destination_data_block (str): The destination data block.
+
+    Returns:
+        bool: True if the destination data block starts with 'hc_test.', False otherwise.
+    """
+    return re.search("^hc_test\.", destination_data_block) is not None
+
+def is_user_gangarbt_dataset(destination_data_block: str) -> bool:
+    """
+    Check if the destination data block starts with 'user.gangarbt.'.
+
+    Args:
+        destination_data_block (str): The destination data block.
+
+    Returns:
+        bool: True if the destination data block starts with 'user.gangarbt.', False otherwise.
+    """
+    return re.search("^user\.gangarbt\.", destination_data_block) is not None
+
+def is_lib_dataset(destination_data_block: str) -> bool:
+    """
+    Check if the destination data block ends with '.lib'.
+
+    Args:
+        destination_data_block (str): The destination data block.
+
+    Returns:
+        bool: True if the destination data block ends with '.lib', False otherwise.
+    """
+    return re.search("\.lib$", destination_data_block) is not None

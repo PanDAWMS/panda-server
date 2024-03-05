@@ -86,7 +86,7 @@ in-place = true
 recursive = true
 aggressive = 3
 
-[tool.pylint]
+[tool.pylint.master]
 max-line-length = 160
 [tool.pylint.'MESSAGES CONTROL']
 disable = [

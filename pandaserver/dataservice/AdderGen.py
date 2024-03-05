@@ -19,7 +19,7 @@ import pandaserver.taskbuffer.ErrorCode
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.config import panda_config
-from pandaserver.dataservice import Closer
+from pandaserver.dataservice import closer
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils, retryModule
 
 _logger = PandaLogger().getLogger("Adder")
@@ -468,14 +468,14 @@ class AdderGen(object):
                         if destDBList != []:
                             # start Closer
                             if adderPlugin is not None and hasattr(adderPlugin, "datasetMap") and adderPlugin.datasetMap != {}:
-                                cThr = Closer.Closer(
+                                cThr = closer.Closer(
                                     self.taskBuffer,
                                     destDBList,
                                     self.job,
-                                    datasetMap=adderPlugin.datasetMap,
+                                    dataset_map=adderPlugin.datasetMap,
                                 )
                             else:
-                                cThr = Closer.Closer(self.taskBuffer, destDBList, self.job)
+                                cThr = closer.Closer(self.taskBuffer, destDBList, self.job)
                             self.logger.debug("start Closer")
                             # cThr.start()
                             # cThr.join()
@@ -497,7 +497,7 @@ class AdderGen(object):
                                 if self.job is None:
                                     self.logger.debug(f": associated job PandaID={assJobID} not found in DB")
                                 else:
-                                    cThr = Closer.Closer(self.taskBuffer, assDBlocks, assJob)
+                                    cThr = closer.Closer(self.taskBuffer, assDBlocks, assJob)
                                     self.logger.debug(f"start Closer for PandaID={assJobID}")
                                     # cThr.start()
                                     # cThr.join()

@@ -568,7 +568,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                     or DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) is not None
                                 )
                                 and name != originalName
-                                and re.search("_sub\d+$", name) is not None
+                                and DataServiceUtils.is_sub_dataset(name)
                             ):
                                 # create a fake vuid
                                 newVUID = str(uuid.uuid4())
@@ -583,7 +583,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                 else:
                                     if (
                                         tmpSite.cloud != job.getCloud()
-                                        and re.search("_sub\d+$", name) is not None
+                                        and DataServiceUtils.is_sub_dataset(name)
                                         and (job.prodSourceLabel not in ["user", "panda"])
                                         and (not tmpSite.ddm_output[scope_output].endswith("PRODDISK"))
                                     ):
@@ -595,7 +595,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                     else:
                                         dq2IDList = [tmpSite.ddm_output[scope_output]]
                                 # use another location when token is set
-                                if re.search("_sub\d+$", name) is None and DataServiceUtils.getDestinationSE(file.destinationDBlockToken) is not None:
+                                if not DataServiceUtils.is_sub_dataset(name) and DataServiceUtils.getDestinationSE(file.destinationDBlockToken) is not None:
                                     # destination is specified
                                     dq2IDList = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
                                 elif (not usingT1asT2) and (file.destinationDBlockToken not in ["NULL", ""]):
@@ -619,7 +619,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                 tmpActivity = None
                                 tmpLifeTime = None
                                 tmpMetadata = None
-                                if name != originalName and re.search("_sub\d+$", name) is not None:
+                                if name != originalName and DataServiceUtils.is_sub_dataset(name):
                                     tmpActivity = "Production Output"
                                     tmpLifeTime = 14
                                     tmpMetadata = {"hidden": True, "purge_replicas": 0}
@@ -669,7 +669,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                 ):
                                     # set replica lifetime to _sub
                                     repLifeTime = None
-                                    if (name != originalName and re.search("_sub\d+$", name) is not None) or (
+                                    if (name != originalName and DataServiceUtils.is_sub_dataset(name)) or (
                                         name == originalName and name.startswith("panda.")
                                     ):
                                         repLifeTime = 14
@@ -677,7 +677,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                         repLifeTime = 7
                                     # distributed datasets for es outputs
                                     grouping = None
-                                    if name != originalName and re.search("_sub\d+$", name) is not None and EventServiceUtils.isEventServiceJob(job):
+                                    if name != originalName and DataServiceUtils.is_sub_dataset(name) and EventServiceUtils.isEventServiceJob(job):
                                         dq2IDList = ["type=DATADISK"]
                                         grouping = "NONE"
                                     # register location
@@ -782,7 +782,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     datasetList[newdest].numberfiles = datasetList[newdest].numberfiles + 1
         # dump
         for tmpDsKey in datasetList:
-            if re.search("_sub\d+$", tmpDsKey[0]) is not None:
+            if DataServiceUtils.is_sub_dataset(tmpDsKey[0]):
                 self.logger.debug(f"made sub:{tmpDsKey[0]} for nFiles={datasetList[tmpDsKey].numberfiles}")
         # insert datasets to DB
         return self.taskBuffer.insertDatasets(datasetList.values())
