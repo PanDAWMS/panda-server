@@ -14,7 +14,7 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice.Activator import Activator
 from pandaserver.taskbuffer import EventServiceUtils
-from pandaserver.dataservice import closer_utils
+from pandaserver.dataservice import DataServiceUtils
 
 # logger
 _logger = PandaLogger().getLogger("closer")
@@ -105,7 +105,7 @@ class Closer:
         if self.job.destinationSE == "local" and self.job.prodSourceLabel in ["user", "panda"]:
             # close non-Rucio destinationDBlock immediately
             final_status = "closed"
-        elif self.job.lockedby == "jedi" and closer_utils.is_top_level_dataset(destination_data_block):
+        elif self.job.lockedby == "jedi" and DataServiceUtils.is_top_level_dataset(destination_data_block):
             # set it closed in order not to trigger DDM cleanup. It will be closed by JEDI
             final_status = "closed"
         elif self.job.produceUnMerge():
@@ -143,7 +143,7 @@ class Closer:
             final_status (str): Final status.
         """
         # start Activator
-        if closer_utils.is_not_sub_dataset(dataset.name):
+        if DataServiceUtils.is_not_sub_dataset(dataset.name):
             if self.job.prodSourceLabel == "panda" and self.job.processingType in ["merge", "unmerge"]:
                 # don't trigger Activator for merge jobs
                 pass
@@ -175,15 +175,15 @@ class Closer:
                 tmp_log.debug(f"start with destination dispatch block: {destination_data_block}")
 
                 # ignore task output datasets (tid) datasets
-                if closer_utils.is_tid_dataset(destination_data_block):
+                if DataServiceUtils.is_tid_dataset(destination_data_block):
                     tmp_log.debug(f"skip {destination_data_block}")
                     continue
 
                 # ignore HC datasets
-                if (closer_utils.is_hammercloud_dataset(destination_data_block) or
-                        closer_utils.is_user_gangarbt_dataset(destination_data_block)):
-                    if (closer_utils.is_not_sub_dataset(destination_data_block) and
-                            closer_utils.is_not_lib_dataset(destination_data_block)):
+                if (DataServiceUtils.is_hammercloud_dataset(destination_data_block) or
+                        DataServiceUtils.is_user_gangarbt_dataset(destination_data_block)):
+                    if (DataServiceUtils.is_not_sub_dataset(destination_data_block) and
+                            DataServiceUtils.is_not_lib_dataset(destination_data_block)):
                         tmp_log.debug(f"skip HC {destination_data_block}")
                         continue
 
