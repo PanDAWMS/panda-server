@@ -143,7 +143,7 @@ class Closer:
             final_status (str): Final status.
         """
         # start Activator
-        if DataServiceUtils.is_not_sub_dataset(dataset.name):
+        if not DataServiceUtils.is_sub_dataset(dataset.name):
             if self.job.prodSourceLabel == "panda" and self.job.processingType in ["merge", "unmerge"]:
                 # don't trigger Activator for merge jobs
                 pass
@@ -182,8 +182,8 @@ class Closer:
                 # ignore HC datasets
                 if (DataServiceUtils.is_hammercloud_dataset(destination_data_block) or
                         DataServiceUtils.is_user_gangarbt_dataset(destination_data_block)):
-                    if (DataServiceUtils.is_not_sub_dataset(destination_data_block) and
-                            DataServiceUtils.is_not_lib_dataset(destination_data_block)):
+                    if (not DataServiceUtils.is_sub_dataset(destination_data_block) and
+                            not DataServiceUtils.is_lib_dataset(destination_data_block)):
                         tmp_log.debug(f"skip HC {destination_data_block}")
                         continue
 

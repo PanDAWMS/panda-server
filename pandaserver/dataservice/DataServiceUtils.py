@@ -339,17 +339,17 @@ def is_top_level_dataset(dataset_name: str) -> bool:
     """
     return re.sub("_sub\d+$", "", dataset_name) == dataset_name
 
-def is_not_sub_dataset(dataset_name: str) -> bool:
+def is_sub_dataset(dataset_name: str) -> bool:
     """
-    Check if the dataset name does not end with '_sub' followed by one or more digits.
+    Check if the dataset name ends with '_sub' followed by one or more digits.
 
     Args:
         dataset_name (str): The name of the dataset.
 
     Returns:
-        bool: True if the dataset name does not end with '_sub' followed by one or more digits, False otherwise.
+        bool: True if the dataset name ends with '_sub' followed by one or more digits, False otherwise.
     """
-    return re.search("_sub\d+$", dataset_name) is None
+    return re.search("_sub\d+$", dataset_name) is not None
 
 def is_tid_dataset(destination_data_block: str) -> bool:
     """
@@ -387,14 +387,14 @@ def is_user_gangarbt_dataset(destination_data_block: str) -> bool:
     """
     return re.search("^user\.gangarbt\.", destination_data_block) is not None
 
-def is_not_lib_dataset(destination_data_block: str) -> bool:
+def is_lib_dataset(destination_data_block: str) -> bool:
     """
-    Check if the destination data block does not end with '.lib'.
+    Check if the destination data block ends with '.lib'.
 
     Args:
         destination_data_block (str): The destination data block.
 
     Returns:
-        bool: True if the destination data block does not end with '.lib', False otherwise.
+        bool: True if the destination data block ends with '.lib', False otherwise.
     """
-    return re.search("\.lib$", destination_data_block) is None
+    return re.search("\.lib$", destination_data_block) is not sNone
