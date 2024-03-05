@@ -397,4 +397,4 @@ def is_lib_dataset(destination_data_block: str) -> bool:
     Returns:
         bool: True if the destination data block ends with '.lib', False otherwise.
     """
-    return re.search("\.lib$", destination_data_block) is not sNone
+    return re.search("\.lib$", destination_data_block) is not None
