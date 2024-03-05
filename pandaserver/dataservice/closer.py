@@ -104,16 +104,15 @@ class Closer:
         # for queues without rucio storage element attached
         if self.job.destinationSE == "local" and self.job.prodSourceLabel in ["user", "panda"]:
             # close non-Rucio destinationDBlock immediately
-            final_status = "closed"
+            return "closed"
         elif self.job.lockedby == "jedi" and DataServiceUtils.is_top_level_dataset(destination_data_block):
             # set it closed in order not to trigger DDM cleanup. It will be closed by JEDI
-            final_status = "closed"
+            return "closed"
         elif self.job.produceUnMerge():
-            final_status = "doing"
+            return "doing"
         else:
             # set status to 'tobeclosed' to trigger Rucio closing
-            final_status = "tobeclosed"
-        return final_status
+            return "tobeclosed"
 
     def perform_vo_actions(self, final_status_dataset: list) -> None:
         """
@@ -152,10 +151,6 @@ class Closer:
                     activator_thread = Activator(self.task_buffer, dataset)
                     activator_thread.start()
                     activator_thread.join()
-        else:
-            # unset flag since another thread already updated
-            # flag_complete = False
-            pass
 
     # main
     def run(self):
@@ -237,8 +232,6 @@ class Closer:
                     if len(ret_t) > 0 and ret_t[0] == 1:
                         final_status_dataset += dataset_list
                         self.start_activator(dataset)
-                    else:
-                        pass
                 else:
                     # update dataset in DB
                     self.task_buffer.updateDatasets(
