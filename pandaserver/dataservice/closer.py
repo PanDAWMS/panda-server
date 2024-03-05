@@ -19,6 +19,7 @@ from pandaserver.dataservice import closer_utils
 # logger
 _logger = PandaLogger().getLogger("closer")
 
+
 class Closer:
     """
     Update dataset DB, and then close dataset and start Activator if needed.
