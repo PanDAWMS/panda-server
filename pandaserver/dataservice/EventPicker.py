@@ -314,8 +314,7 @@ class EventPicker:
                 # send email notification for success
                 tmpMsg = "A transfer request was successfully sent to Rucio.\n"
                 tmpMsg += "Your task will get started once transfer is completed."
-                self.sendEmail(True, tmpMsg)
-                awnself.sendEmail(True, tmpMsg)
+
             try:
                 # unlock and delete evp file
                 fcntl.flock(self.evpFile.fileno(), fcntl.LOCK_UN)
@@ -341,8 +340,6 @@ class EventPicker:
             if not self.ignoreError:
                 # remove evp file
                 os.remove(self.evpFileName)
-                # send email notification
-                self.sendEmail(False, message)
         except Exception:
             pass
         # upload log
@@ -362,34 +359,6 @@ class EventPicker:
             self.logger.error(tmpMsg)
         else:
             self.logger.debug(tmpMsg)
-
-    # send email notification
-    def sendEmail(self, isSucceeded, message):
-        # mail address
-        #toAdder = Notifier(self.taskBuffer, None, []).getEmail(self.userDN)
-        toAdder = ""
-        if toAdder == "":
-            self.putLog(f"cannot find email address for {self.userDN}", "error")
-            return
-        # subject
-        mailSubject = "PANDA notification for Event-Picking Request"
-        # message
-        mailBody = "Hello,\n\nHere is your request status for event picking\n\n"
-        if isSucceeded:
-            mailBody += "Status  : Passed to Rucio\n"
-        else:
-            mailBody += "Status  : Failed\n"
-        mailBody += f"Created : {self.creationTime}\n"
-        mailBody += f"Ended   : {datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime('%Y-%m-%d %H:%M:%S')}\n"
-        mailBody += f"Dataset : {self.userDatasetName}\n"
-        mailBody += "\n"
-        mailBody += f"Parameters : {self.lockedBy} {self.params}\n"
-        mailBody += "\n"
-        mailBody += f"{message}\n"
-        # send
-        retVal = MailUtils().send(toAdder, mailSubject, mailBody)
-        # return
-        return
 
     # upload log
     def uploadLog(self):
