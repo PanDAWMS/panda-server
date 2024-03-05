@@ -2183,6 +2183,7 @@ def changeTaskSplitRulePanda(req, jediTaskID, attrName, attrValue):
         "LC",
         "CC",
         "OT",
+        "UZ",
     ]:
         return WrappedPickle.dumps((2, f"disallowed to update {attrName}"))
     ret = userIF.changeTaskSplitRulePanda(jediTaskID, attrName, attrValue)
