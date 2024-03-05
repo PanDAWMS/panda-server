@@ -48,7 +48,6 @@ class Closer:
         self.site_mapper = None
         self.dataset_map = dataset_map if dataset_map is not None else {}
         self.all_subscription_finished = None
-        self.top_user_dataset_list = []
 
     def check_sub_datasets_in_jobset(self) -> bool:
         """
@@ -105,14 +104,14 @@ class Closer:
         if self.job.destinationSE == "local" and self.job.prodSourceLabel in ["user", "panda"]:
             # close non-Rucio destinationDBlock immediately
             return "closed"
-        elif self.job.lockedby == "jedi" and DataServiceUtils.is_top_level_dataset(destination_data_block):
+        if self.job.lockedby == "jedi" and DataServiceUtils.is_top_level_dataset(destination_data_block):
             # set it closed in order not to trigger DDM cleanup. It will be closed by JEDI
             return "closed"
-        elif self.job.produceUnMerge():
+        if self.job.produceUnMerge():
             return "doing"
-        else:
-            # set status to 'tobeclosed' to trigger Rucio closing
-            return "tobeclosed"
+
+        # set status to 'tobeclosed' to trigger Rucio closing
+        return "tobeclosed"
 
     def perform_vo_actions(self, final_status_dataset: list) -> None:
         """
@@ -142,15 +141,12 @@ class Closer:
             final_status (str): Final status.
         """
         # start Activator
-        if not DataServiceUtils.is_sub_dataset(dataset.name):
-            if self.job.prodSourceLabel == "panda" and self.job.processingType in ["merge", "unmerge"]:
-                # don't trigger Activator for merge jobs
-                pass
-            else:
-                if self.job.jobStatus == "finished":
-                    activator_thread = Activator(self.task_buffer, dataset)
-                    activator_thread.start()
-                    activator_thread.join()
+        if not DataServiceUtils.is_sub_dataset(
+                dataset.name) and self.job.jobStatus == "finished" and self.job.prodSourceLabel != "panda" and self.job.processingType not in [
+            "merge", "unmerge"]:
+            activator_thread = Activator(self.task_buffer, dataset)
+            activator_thread.start()
+            activator_thread.join()
 
     # main
     def run(self):
