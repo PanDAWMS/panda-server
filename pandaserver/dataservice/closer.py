@@ -12,7 +12,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 
 from pandaserver.config import panda_config
-from pandaserver.dataservice.Activator import Activator
+from pandaserver.dataservice.activator import Activator
 from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.dataservice import DataServiceUtils
 

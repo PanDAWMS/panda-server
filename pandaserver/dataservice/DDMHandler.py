@@ -3,7 +3,7 @@ import threading
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandaserver.dataservice.Activator import Activator
+from pandaserver.dataservice.activator import Activator
 from pandaserver.dataservice.finisher import Finisher
 
 # logger
