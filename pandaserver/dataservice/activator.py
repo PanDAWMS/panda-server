@@ -73,11 +73,11 @@ class Activator:
             tmp_log.debug(f"   skip: {self.dataset.name}")
         else:
             # update input files
-            ids = self.task_buffer.updateInFilesReturnPandaIDs(self.dataset.name, "ready")
+            panda_ids = self.task_buffer.updateInFilesReturnPandaIDs(self.dataset.name, "ready")
             tmp_log.debug(f"IDs: {ids}")
-            if len(ids) != 0:
+            if len(panda_ids) != 0:
                 # get job
-                jobs = self.task_buffer.peekJobs(ids, fromActive=False, fromArchived=False, fromWaiting=False)
+                jobs = self.task_buffer.peekJobs(panda_ids, fromActive=False, fromArchived=False, fromWaiting=False)
                 # remove None and unknown
                 activate_jobs = []
                 for job in jobs:
