@@ -74,7 +74,7 @@ class Activator:
         else:
             # update input files
             panda_ids = self.task_buffer.updateInFilesReturnPandaIDs(self.dataset.name, "ready")
-            tmp_log.debug(f"IDs: {ids}")
+            tmp_log.debug(f"IDs: {panda_ids}")
             if len(panda_ids) != 0:
                 # get job
                 jobs = self.task_buffer.peekJobs(panda_ids, fromActive=False, fromArchived=False, fromWaiting=False)
