@@ -67,10 +67,9 @@ class Activator:
         Starts the thread to activate jobs.
         """
         tmp_log = LogWrapper(_logger,
-                             f"run-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
-        tmp_log.debug(f"start: {self.dataset.name}")
+                             f"run-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}-{self.dataset.name}")
         if self.dataset.status in ["completed", "deleting", "deleted"] and not self.enforce:
-            tmp_log.debug(f"   skip: {self.dataset.name}")
+            tmp_log.debug(f"skip: {self.dataset.name}")
         else:
             # update input files
             panda_ids = self.task_buffer.updateInFilesReturnPandaIDs(self.dataset.name, "ready")
@@ -81,9 +80,8 @@ class Activator:
                 # remove None and unknown
                 activate_jobs = []
                 for job in jobs:
-                    if job is None or job.jobStatus == "unknown":
-                        continue
-                    activate_jobs.append(job)
+                    if job is not None and job.jobStatus != "unknown":
+                        activate_jobs.append(job)
                 # activate
                 self.task_buffer.activateJobs(activate_jobs)
             # update dataset in DB
