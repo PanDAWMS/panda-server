@@ -49,18 +49,6 @@ class Activator:
         self.task_buffer = taskBuffer
         self.enforce = enforce
 
-    def start(self):
-        """
-        To keep backward compatibility
-        """
-        self.run()
-
-    def join(self):
-        """
-        To keep backward compatibility
-        """
-        pass
-
     # main
     def run(self):
         """

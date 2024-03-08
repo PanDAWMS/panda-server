@@ -145,8 +145,7 @@ class Closer:
                 dataset.name) and self.job.jobStatus == "finished" and self.job.prodSourceLabel != "panda" and self.job.processingType not in [
             "merge", "unmerge"]:
             activator_thread = Activator(self.task_buffer, dataset)
-            activator_thread.start()
-            activator_thread.join()
+            activator_thread.run()
 
     # main
     def run(self):

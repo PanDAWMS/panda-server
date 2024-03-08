@@ -40,12 +40,12 @@ class DDMHandler(threading.Thread):
         tmpLog.debug(f"type:{dataset.type} name:{dataset.name}")
         if dataset.type == "dispatch":
             # activate jobs in jobsDefined
-            Activator(self.taskBuffer, dataset).start()
+            Activator(self.taskBuffer, dataset).run()
         if dataset.type == "output":
             if dataset.name is not None and re.search("^panda\..*_zip$", dataset.name) is not None:
                 # start unmerge jobs
-                Activator(self.taskBuffer, dataset, enforce=True).start()
+                Activator(self.taskBuffer, dataset, enforce=True).run()
             else:
                 # finish transferring jobs
-                Finisher(self.taskBuffer, dataset, site=self.site).start()
+                Finisher(self.taskBuffer, dataset, site=self.site).run()
         tmpLog.debug("end")
