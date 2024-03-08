@@ -390,8 +390,7 @@ def main(tbuf=None, **kwargs):
                                         _logger.debug(f"start JEDI closer for {name} ")
                                         self.proxyLock.acquire()
                                         cThr = Closer(taskBuffer, tmpDestDBlocks, mergeJob)
-                                        cThr.start()
-                                        cThr.join()
+                                        cThr.run()
                                         self.proxyLock.release()
                                         _logger.debug(f"end JEDI closer for {name} ")
                                         continue
@@ -778,8 +777,7 @@ def main(tbuf=None, **kwargs):
                 # run Finisher
                 for job in finJobs:
                     fThr = Finisher(taskBuffer, None, job)
-                    fThr.start()
-                    fThr.join()
+                    fThr.run()
                 _logger.debug("done")
                 time.sleep(1)
             except Exception:
