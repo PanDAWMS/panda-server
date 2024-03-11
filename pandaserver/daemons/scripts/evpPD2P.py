@@ -9,7 +9,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.brokerage import SiteMapper
 from pandaserver.config import panda_config
-from pandaserver.dataservice.EventPicker import EventPicker
+from pandaserver.dataservice.event_picker import EventPicker
 
 # logger
 _logger = PandaLogger().getLogger("evpPD2P")

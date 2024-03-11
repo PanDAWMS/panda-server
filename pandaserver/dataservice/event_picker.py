@@ -17,52 +17,70 @@ from pandaserver.dataservice import dyn_data_distributer
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.DDM import rucioAPI
 from pandaserver.srvcore import CoreUtils
-from pandaserver.srvcore.MailUtils import MailUtils
 from pandaserver.taskbuffer import JobUtils
 from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.userinterface import Client
 
 # logger
-_logger = PandaLogger().getLogger("EventPicker")
+_logger = PandaLogger().getLogger("event_picker")
 
 
 class EventPicker:
+    """
+    A class used to add data to a dataset.
+    """
     # constructor
-    def __init__(self, taskBuffer, siteMapper, evpFileName, ignoreError):
-        self.taskBuffer = taskBuffer
-        self.siteMapper = siteMapper
-        self.ignoreError = ignoreError
-        self.evpFileName = evpFileName
+    def __init__(self, taskBuffer, siteMapper, evpFileName: str, ignoreError: bool):
+        """
+        Constructs all the necessary attributes for the EventPicker object.
+
+        Parameters:
+            taskBuffer : TaskBuffer
+                The task buffer that contains the jobs.
+            siteMapper : SiteMapper
+                The site mapper.
+            evpFileName : str
+                The name of the event picking file.
+            ignoreError : bool
+                Whether to ignore errors.
+        """
+        self.task_buffer = taskBuffer
+        self.site_mapper = siteMapper
+        self.ignore_error = ignoreError
+        self.event_picking_file_name = evpFileName
         self.token = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(" ")
         # logger
         self.logger = LogWrapper(_logger, self.token)
-        self.pd2p = dyn_data_distributer.DynDataDistributer([], self.siteMapper, token=" ")
-        self.userDatasetName = ""
-        self.creationTime = ""
+        self.pd2p = dyn_data_distributer.DynDataDistributer([], self.site_mapper, token=" ")
+        self.user_dataset_name = ""
+        self.creation_time = ""
         self.params = ""
-        self.lockedBy = ""
-        self.evpFile = None
-        self.userTaskName = ""
-        # message buffer
-        self.msgBuffer = []
-        self.lineLimit = 100
+        self.locked_by = ""
+        self.event_picking_file = None
+        self.user_task_name = ""
         # JEDI
-        self.jediTaskID = None
-        self.prodSourceLabel = None
+        self.jedi_task_id = None
+        self.prod_source_label = None
         self.job_label = None
 
     # main
-    def run(self):
+    def run(self) -> bool:
+        """
+        Starts the event picker.
+
+        Returns:
+            bool: True if the event picker ran successfully, False otherwise.
+        """
         try:
-            self.putLog(f"start {self.evpFileName}")
+            self.putLog(f"start {self.event_picking_file_name}")
             # lock evp file
-            self.evpFile = open(self.evpFileName)
+            self.event_picking_file = open(self.event_picking_file_name)
             try:
-                fcntl.flock(self.evpFile.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(self.event_picking_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             except Exception:
                 # relase
-                self.putLog(f"cannot lock {self.evpFileName}")
-                self.evpFile.close()
+                self.putLog(f"cannot lock {self.event_picking_file_name}")
+                self.event_picking_file.close()
                 return True
             # options
             runEvtList = []
@@ -79,7 +97,7 @@ class EventPicker:
             runEvtGuidMap = {}
             ei_api = ""
             # read evp file
-            for tmpLine in self.evpFile:
+            for tmpLine in self.event_picking_file:
                 tmpMatch = re.search("^([^=]+)=(.+)$", tmpLine)
                 # check format
                 if tmpMatch is None:
@@ -114,16 +132,16 @@ class EventPicker:
                     self.putLog(f"user={self.userDN}")
                 elif tmpItems[0] == "userTaskName":
                     # user task name
-                    self.userTaskName = tmpItems[1]
+                    self.user_task_name = tmpItems[1]
                 elif tmpItems[0] == "userDatasetName":
                     # user dataset name
-                    self.userDatasetName = tmpItems[1]
+                    self.user_dataset_name = tmpItems[1]
                 elif tmpItems[0] == "lockedBy":
                     # client name
-                    self.lockedBy = tmpItems[1]
+                    self.locked_by = tmpItems[1]
                 elif tmpItems[0] == "creationTime":
                     # creation time
-                    self.creationTime = tmpItems[1]
+                    self.creation_time = tmpItems[1]
                 elif tmpItems[0] == "params":
                     # parameters
                     self.params = tmpItems[1]
@@ -155,13 +173,13 @@ class EventPicker:
                     except Exception:
                         pass
             # extract task name
-            if self.userTaskName == "" and self.params != "":
+            if self.user_task_name == "" and self.params != "":
                 try:
                     tmpMatch = re.search("--outDS(=| ) *([^ ]+)", self.params)
                     if tmpMatch is not None:
-                        self.userTaskName = tmpMatch.group(2)
-                        if not self.userTaskName.endswith("/"):
-                            self.userTaskName += "/"
+                        self.user_task_name = tmpMatch.group(2)
+                        if not self.user_task_name.endswith("/"):
+                            self.user_task_name += "/"
                 except Exception:
                     pass
             # suppress DaTRI
@@ -169,14 +187,14 @@ class EventPicker:
                 if "--eventPickSkipDaTRI" in self.params:
                     skipDaTRI = True
             # get compact user name
-            compactDN = self.taskBuffer.cleanUserID(self.userDN)
+            compactDN = self.task_buffer.cleanUserID(self.userDN)
             # get jediTaskID
-            self.jediTaskID = self.taskBuffer.getTaskIDwithTaskNameJEDI(compactDN, self.userTaskName)
+            self.jedi_task_id = self.task_buffer.getTaskIDwithTaskNameJEDI(compactDN, self.user_task_name)
             # get prodSourceLabel
             (
-                self.prodSourceLabel,
+                self.prod_source_label,
                 self.job_label,
-            ) = self.taskBuffer.getProdSourceLabelwithTaskID(self.jediTaskID)
+            ) = self.task_buffer.getProdSourceLabelwithTaskID(self.jedi_task_id)
             # convert run/event list to dataset/file list
             tmpRet, locationMap, allFiles = self.pd2p.convert_evt_run_to_datasets(
                 runEvtList,
@@ -190,7 +208,7 @@ class EventPicker:
             )
             if not tmpRet:
                 if "isFatal" in locationMap and locationMap["isFatal"] is True:
-                    self.ignoreError = False
+                    self.ignore_error = False
                 self.endWithError("Failed to convert the run/event list to a dataset/file list")
                 return False
             # use only files in the list
@@ -204,26 +222,26 @@ class EventPicker:
             tmpDN = CoreUtils.get_id_from_dn(self.userDN)
             # make dataset container
             tmpRet = self.pd2p.register_dataset_container_with_datasets(
-                self.userDatasetName,
+                self.user_dataset_name,
                 allFiles,
                 locationMap,
                 n_sites=eventPickNumSites,
                 owner=tmpDN,
             )
             if not tmpRet:
-                self.endWithError(f"Failed to make a dataset container {self.userDatasetName}")
+                self.endWithError(f"Failed to make a dataset container {self.user_dataset_name}")
                 return False
             # skip DaTRI
             if skipDaTRI:
                 # successfully terminated
                 self.putLog("skip DaTRI")
                 # update task
-                self.taskBuffer.updateTaskModTimeJEDI(self.jediTaskID)
+                self.task_buffer.updateTaskModTimeJEDI(self.jedi_task_id)
             else:
                 # get candidates
                 tmpRet, candidateMaps = self.pd2p.get_candidates(
-                    self.userDatasetName,
-                    self.prodSourceLabel,
+                    self.user_dataset_name,
+                    self.prod_source_label,
                     self.job_label,
                     check_used_file=False,
                 )
@@ -245,14 +263,14 @@ class EventPicker:
                 # get list of dataset (container) names
                 if eventPickNumSites > 1:
                     # decompose container to transfer datasets separately
-                    tmpRet, tmpOut = self.pd2p.get_list_dataset_replicas_in_container(self.userDatasetName)
+                    tmpRet, tmpOut = self.pd2p.get_list_dataset_replicas_in_container(self.user_dataset_name)
                     if not tmpRet:
-                        self.endWithError(f"Failed to get replicas in {self.userDatasetName}")
+                        self.endWithError(f"Failed to get replicas in {self.user_dataset_name}")
                         return False
                     userDatasetNameList = list(tmpOut)
                 else:
                     # transfer container at once
-                    userDatasetNameList = [self.userDatasetName]
+                    userDatasetNameList = [self.user_dataset_name]
                 # loop over all datasets
                 sitesUsed = []
                 for tmpUserDatasetName in userDatasetNameList:
@@ -267,8 +285,8 @@ class EventPicker:
                     self.putLog(f"run brokerage for {tmpDS}")
                     pandaserver.brokerage.broker.schedule(
                         [tmpJob],
-                        self.taskBuffer,
-                        self.siteMapper,
+                        self.task_buffer,
+                        self.site_mapper,
                         True,
                         allCandidates,
                         True,
@@ -280,7 +298,7 @@ class EventPicker:
                     self.putLog(f"site -> {tmpJob.computingSite}")
                     # send transfer request
                     try:
-                        tmpSiteSpec = self.siteMapper.getSite(tmpJob.computingSite)
+                        tmpSiteSpec = self.site_mapper.getSite(tmpJob.computingSite)
                         scope_input, scope_output = select_scope(tmpSiteSpec, JobUtils.PROD_PS, JobUtils.PROD_PS)
                         tmpDQ2ID = tmpSiteSpec.ddm_output[scope_output]
                         tmpMsg = f"registerDatasetLocation for EventPicking  ds={tmpUserDatasetName} site={tmpDQ2ID} id={None}"
@@ -317,13 +335,13 @@ class EventPicker:
 
             try:
                 # unlock and delete evp file
-                fcntl.flock(self.evpFile.fileno(), fcntl.LOCK_UN)
-                self.evpFile.close()
-                os.remove(self.evpFileName)
+                fcntl.flock(self.event_picking_file.fileno(), fcntl.LOCK_UN)
+                self.event_picking_file.close()
+                os.remove(self.event_picking_file_name)
             except Exception:
                 pass
             # successfully terminated
-            self.putLog(f"end {self.evpFileName}")
+            self.putLog(f"end {self.event_picking_file_name}")
             return True
         except Exception:
             errType, errValue = sys.exc_info()[:2]
@@ -331,29 +349,52 @@ class EventPicker:
             return False
 
     # end with error
-    def endWithError(self, message):
+    def endWithError(self, message: str):
+        """
+        Ends the event picker with an error.
+
+        This method is called when an error occurs during the event picking process. It logs the error message,
+        unlocks and closes the event picking file, and removes it if the error is not to be ignored. It then uploads
+        the log and updates the task status in the task buffer.
+
+        Parameters:
+            message (str): The error message to be logged.
+        """
         self.putLog(message, "error")
         # unlock evp file
         try:
-            fcntl.flock(self.evpFile.fileno(), fcntl.LOCK_UN)
-            self.evpFile.close()
-            if not self.ignoreError:
+            fcntl.flock(self.event_picking_file.fileno(), fcntl.LOCK_UN)
+            self.event_picking_file.close()
+            if not self.ignore_error:
                 # remove evp file
-                os.remove(self.evpFileName)
+                os.remove(self.event_picking_file_name)
         except Exception:
             pass
         # upload log
-        if self.jediTaskID is not None:
+        if self.jedi_task_id is not None:
             outLog = self.uploadLog()
-            self.taskBuffer.updateTaskErrorDialogJEDI(self.jediTaskID, "event picking failed. " + outLog)
+            self.task_buffer.updateTaskErrorDialogJEDI(self.jedi_task_id, "event picking failed. " + outLog)
             # update task
-            if not self.ignoreError:
-                self.taskBuffer.updateTaskModTimeJEDI(self.jediTaskID, "tobroken")
+            if not self.ignore_error:
+                self.task_buffer.updateTaskModTimeJEDI(self.jedi_task_id, "tobroken")
             self.putLog(outLog)
-        self.putLog(f"end {self.evpFileName}")
+        self.putLog(f"end {self.event_picking_file_name}")
 
     # put log
-    def putLog(self, msg, type="debug"):
+    def putLog(self, msg: str, type: str = "debug"):
+        """
+        Logs a message with a specified type.
+
+        This method logs a message with a specified type. The type can be either "debug" or "error".
+        If the type is "error", the message is logged as an error. Otherwise, it is logged as a debug message.
+
+        Parameters:
+            msg (str): The message to be logged.
+            type (str): The type of the log. It can be either "debug" or "error". Default is "debug".
+
+        Returns:
+            None
+        """
         tmpMsg = msg
         if type == "error":
             self.logger.error(tmpMsg)
@@ -361,11 +402,24 @@ class EventPicker:
             self.logger.debug(tmpMsg)
 
     # upload log
-    def uploadLog(self):
-        if self.jediTaskID is None:
+    def uploadLog(self) -> str:
+        """
+        Uploads the log.
+
+        This method uploads the log of the EventPicker. It first checks if the jediTaskID is not None.
+        If it is None, it returns a message indicating that the jediTaskID could not be found.
+        Otherwise, it dumps the logger content to a string and attempts to upload it using the Client's uploadLog method.
+        If the upload is not successful, it returns a message indicating the failure.
+        If the upload is successful and the output starts with "http", it returns a hyperlink to the log.
+        Otherwise, it returns the output of the uploadLog method.
+
+        Returns:
+            str: The result of the log upload. This can be a message indicating an error, a hyperlink to the log, or the output of the uploadLog method.
+        """
+        if self.jedi_task_id is None:
             return "cannot find jediTaskID"
         strMsg = self.logger.dumpToString()
-        s, o = Client.uploadLog(strMsg, self.jediTaskID)
+        s, o = Client.uploadLog(strMsg, self.jedi_task_id)
         if s != 0:
             return f"failed to upload log with {s}."
         if o.startswith("http"):
