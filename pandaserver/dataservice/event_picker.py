@@ -229,7 +229,6 @@ class EventPicker:
                 owner=tmpDN,
             )
             if not tmpRet:
-                self.endWithError(f"Failed to make a dataset container {self.user_dataset_name}")
                 return False
             # skip DaTRI
             if skipDaTRI:
@@ -237,101 +236,6 @@ class EventPicker:
                 self.putLog("skip DaTRI")
                 # update task
                 self.task_buffer.updateTaskModTimeJEDI(self.jedi_task_id)
-            else:
-                # get candidates
-                tmpRet, candidateMaps = self.pd2p.get_candidates(
-                    self.user_dataset_name,
-                    self.prod_source_label,
-                    self.job_label,
-                    check_used_file=False,
-                )
-                if not tmpRet:
-                    self.endWithError("Failed to find candidate for destination")
-                    return False
-                # collect all candidates
-                allCandidates = []
-                for tmpDS in candidateMaps:
-                    tmpDsVal = candidateMaps[tmpDS]
-                    for tmpCloud in tmpDsVal:
-                        tmpCloudVal = tmpDsVal[tmpCloud]
-                        for tmpSiteName in tmpCloudVal[0]:
-                            if tmpSiteName not in allCandidates:
-                                allCandidates.append(tmpSiteName)
-                if allCandidates == []:
-                    self.endWithError("No candidate for destination")
-                    return False
-                # get list of dataset (container) names
-                if eventPickNumSites > 1:
-                    # decompose container to transfer datasets separately
-                    tmpRet, tmpOut = self.pd2p.get_list_dataset_replicas_in_container(self.user_dataset_name)
-                    if not tmpRet:
-                        self.endWithError(f"Failed to get replicas in {self.user_dataset_name}")
-                        return False
-                    userDatasetNameList = list(tmpOut)
-                else:
-                    # transfer container at once
-                    userDatasetNameList = [self.user_dataset_name]
-                # loop over all datasets
-                sitesUsed = []
-                for tmpUserDatasetName in userDatasetNameList:
-                    # get size of dataset container
-                    tmpRet, totalInputSize = rucioAPI.getDatasetSize(tmpUserDatasetName)
-                    if not tmpRet:
-                        self.endWithError(f"Failed to get the size of {tmpUserDatasetName} with {totalInputSize}")
-                        return False
-                    # run brokerage
-                    tmpJob = JobSpec()
-                    tmpJob.AtlasRelease = ""
-                    self.putLog(f"run brokerage for {tmpDS}")
-                    pandaserver.brokerage.broker.schedule(
-                        [tmpJob],
-                        self.task_buffer,
-                        self.site_mapper,
-                        True,
-                        allCandidates,
-                        True,
-                        datasetSize=totalInputSize,
-                    )
-                    if tmpJob.computingSite.startswith("ERROR"):
-                        self.endWithError(f"brokerage failed with {tmpJob.computingSite}")
-                        return False
-                    self.putLog(f"site -> {tmpJob.computingSite}")
-                    # send transfer request
-                    try:
-                        tmpSiteSpec = self.site_mapper.getSite(tmpJob.computingSite)
-                        scope_input, scope_output = select_scope(tmpSiteSpec, JobUtils.PROD_PS, JobUtils.PROD_PS)
-                        tmpDQ2ID = tmpSiteSpec.ddm_output[scope_output]
-                        tmpMsg = f"registerDatasetLocation for EventPicking  ds={tmpUserDatasetName} site={tmpDQ2ID} id={None}"
-                        self.putLog(tmpMsg)
-                        rucioAPI.registerDatasetLocation(
-                            tmpDS,
-                            [tmpDQ2ID],
-                            lifetime=14,
-                            owner=None,
-                            activity="Analysis Output",
-                        )
-                        self.putLog("OK")
-                    except Exception:
-                        errType, errValue = sys.exc_info()[:2]
-                        tmpStr = f"Failed to send transfer request : {errType} {errValue}"
-                        tmpStr.strip()
-                        tmpStr += traceback.format_exc()
-                        self.endWithError(tmpStr)
-                        return False
-                    # list of sites already used
-                    sitesUsed.append(tmpJob.computingSite)
-                    self.putLog(f"used {len(sitesUsed)} sites")
-                    # set candidates
-                    if len(sitesUsed) >= eventPickNumSites:
-                        # reset candidates to limit the number of sites
-                        allCandidates = sitesUsed
-                        sitesUsed = []
-                    else:
-                        # remove site
-                        allCandidates.remove(tmpJob.computingSite)
-                # send email notification for success
-                tmpMsg = "A transfer request was successfully sent to Rucio.\n"
-                tmpMsg += "Your task will get started once transfer is completed."
 
             try:
                 # unlock and delete evp file
