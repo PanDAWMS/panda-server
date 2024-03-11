@@ -12,7 +12,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 
 from pandaserver.config import panda_config
-from pandaserver.dataservice.Activator import Activator
+from pandaserver.dataservice.activator import Activator
 from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.dataservice import DataServiceUtils
 
@@ -145,8 +145,7 @@ class Closer:
                 dataset.name) and self.job.jobStatus == "finished" and self.job.prodSourceLabel != "panda" and self.job.processingType not in [
             "merge", "unmerge"]:
             activator_thread = Activator(self.task_buffer, dataset)
-            activator_thread.start()
-            activator_thread.join()
+            activator_thread.run()
 
     # main
     def run(self):
