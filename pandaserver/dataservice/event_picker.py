@@ -73,181 +73,109 @@ class EventPicker:
         """
         try:
             self.putLog(f"start {self.event_picking_file_name}")
-            # lock evp file
+            # lock event picking file
             self.event_picking_file = open(self.event_picking_file_name)
             try:
                 fcntl.flock(self.event_picking_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             except Exception:
-                # relase
+                # release
                 self.putLog(f"cannot lock {self.event_picking_file_name}")
                 self.event_picking_file.close()
                 return True
-            # options
-            runEvtList = []
-            eventPickDataType = ""
-            eventPickStreamName = ""
-            eventPickDS = []
-            eventPickAmiTag = ""
-            eventPickNumSites = 1
-            inputFileList = []
-            tagDsList = []
-            tagQuery = ""
-            tagStreamRef = ""
-            skipDaTRI = False
-            runEvtGuidMap = {}
-            ei_api = ""
-            # read evp file
+
+            options = {
+                "runEvent": [],
+                "eventPickDataType": "",
+                "eventPickStreamName": "",
+                "eventPickDS": [],
+                "eventPickAmiTag": "",
+                "eventPickNumSites": 1,
+                "inputFileList": [],
+                "tagDS": [],
+                "tagQuery": "",
+                "tagStreamRef": "",
+                "runEvtGuidMap": {},
+                "ei_api": "",
+            }
+
             for tmpLine in self.event_picking_file:
                 tmpMatch = re.search("^([^=]+)=(.+)$", tmpLine)
-                # check format
-                if tmpMatch is None:
-                    continue
-                tmpItems = tmpMatch.groups()
-                if tmpItems[0] == "runEvent":
-                    # get run and event number
-                    tmpRunEvt = tmpItems[1].split(",")
-                    if len(tmpRunEvt) == 2:
-                        runEvtList.append(tmpRunEvt)
-                elif tmpItems[0] == "eventPickDataType":
-                    # data type
-                    eventPickDataType = tmpItems[1]
-                elif tmpItems[0] == "eventPickStreamName":
-                    # stream name
-                    eventPickStreamName = tmpItems[1]
-                elif tmpItems[0] == "eventPickDS":
-                    # dataset pattern
-                    eventPickDS = tmpItems[1].split(",")
-                elif tmpItems[0] == "eventPickAmiTag":
-                    # AMI tag
-                    eventPickAmiTag = tmpItems[1]
-                elif tmpItems[0] == "eventPickNumSites":
-                    # the number of sites where datasets are distributed
-                    try:
-                        eventPickNumSites = int(tmpItems[1])
-                    except Exception:
-                        pass
-                elif tmpItems[0] == "userName":
-                    # user name
-                    self.userDN = tmpItems[1]
-                    self.putLog(f"user={self.userDN}")
-                elif tmpItems[0] == "userTaskName":
-                    # user task name
-                    self.user_task_name = tmpItems[1]
-                elif tmpItems[0] == "userDatasetName":
-                    # user dataset name
-                    self.user_dataset_name = tmpItems[1]
-                elif tmpItems[0] == "lockedBy":
-                    # client name
-                    self.locked_by = tmpItems[1]
-                elif tmpItems[0] == "creationTime":
-                    # creation time
-                    self.creation_time = tmpItems[1]
-                elif tmpItems[0] == "params":
-                    # parameters
-                    self.params = tmpItems[1]
-                elif tmpItems[0] == "ei_api":
-                    # ei api parameter for MC
-                    ei_api = tmpItems[1]
-                elif tmpItems[0] == "inputFileList":
-                    # input file list
-                    inputFileList = tmpItems[1].split(",")
-                    try:
-                        inputFileList.remove("")
-                    except Exception:
-                        pass
-                elif tmpItems[0] == "tagDS":
-                    # TAG dataset
-                    tagDsList = tmpItems[1].split(",")
-                elif tmpItems[0] == "tagQuery":
-                    # query for TAG
-                    tagQuery = tmpItems[1]
-                elif tmpItems[0] == "tagStreamRef":
-                    # StreamRef for TAG
-                    tagStreamRef = tmpItems[1]
-                    if not tagStreamRef.endswith("_ref"):
-                        tagStreamRef += "_ref"
-                elif tmpItems[0] == "runEvtGuidMap":
-                    # GUIDs
-                    try:
-                        runEvtGuidMap = eval(tmpItems[1])
-                    except Exception:
-                        pass
+                if tmpMatch is not None:
+                    key, value = tmpMatch.groups()
+                    if key in options:
+                        if key == "runEvent":
+                            options[key].append(value.split(","))
+                        elif key in ["eventPickDS", "inputFileList", "tagDS"]:
+                            options[key] = value.split(",")
+                        elif key == "eventPickNumSites":
+                            options[key] = int(value)
+                        else:
+                            options[key] = value
+
+            self.userDN = options["userName"]
+            self.user_task_name = options["userTaskName"]
+            self.user_dataset_name = options["userDatasetName"]
+            self.locked_by = options["lockedBy"]
+            self.creation_time = options["creationTime"]
+            self.params = options["params"]
+
             # extract task name
             if self.user_task_name == "" and self.params != "":
-                try:
-                    tmpMatch = re.search("--outDS(=| ) *([^ ]+)", self.params)
-                    if tmpMatch is not None:
-                        self.user_task_name = tmpMatch.group(2)
-                        if not self.user_task_name.endswith("/"):
-                            self.user_task_name += "/"
-                except Exception:
-                    pass
+                tmpMatch = re.search("--outDS(=| ) *([^ ]+)", self.params)
+                if tmpMatch is not None:
+                    self.user_task_name = tmpMatch.group(2)
+                    if not self.user_task_name.endswith("/"):
+                        self.user_task_name += "/"
+
             # suppress DaTRI
-            if self.params != "":
-                if "--eventPickSkipDaTRI" in self.params:
-                    skipDaTRI = True
-            # get compact user name
+            if "--eventPickSkipDaTRI" in self.params:
+                self.putLog("skip DaTRI")
+                self.task_buffer.updateTaskModTimeJEDI(self.jedi_task_id)
+
             compactDN = self.task_buffer.cleanUserID(self.userDN)
-            # get jediTaskID
             self.jedi_task_id = self.task_buffer.getTaskIDwithTaskNameJEDI(compactDN, self.user_task_name)
-            # get prodSourceLabel
-            (
-                self.prod_source_label,
-                self.job_label,
-            ) = self.task_buffer.getProdSourceLabelwithTaskID(self.jedi_task_id)
-            # convert run/event list to dataset/file list
+            self.prod_source_label, self.job_label = self.task_buffer.getProdSourceLabelwithTaskID(self.jedi_task_id)
+
             tmpRet, locationMap, allFiles = self.pd2p.convert_evt_run_to_datasets(
-                runEvtList,
-                eventPickDataType,
-                eventPickStreamName,
-                eventPickDS,
-                eventPickAmiTag,
+                options["runEvent"],
+                options["eventPickDataType"],
+                options["eventPickStreamName"],
+                options["eventPickDS"],
+                options["eventPickAmiTag"],
                 self.userDN,
-                runEvtGuidMap,
-                ei_api,
+                options["runEvtGuidMap"],
+                options["ei_api"],
             )
+
             if not tmpRet:
                 if "isFatal" in locationMap and locationMap["isFatal"] is True:
                     self.ignore_error = False
                 self.endWithError("Failed to convert the run/event list to a dataset/file list")
                 return False
+
             # use only files in the list
-            if inputFileList != []:
-                tmpAllFiles = []
-                for tmpFile in allFiles:
-                    if tmpFile["lfn"] in inputFileList:
-                        tmpAllFiles.append(tmpFile)
-                allFiles = tmpAllFiles
+            allFiles = [tmpFile for tmpFile in allFiles if tmpFile["lfn"] in options["inputFileList"]]
+
             # remove redundant CN from DN
             tmpDN = CoreUtils.get_id_from_dn(self.userDN)
-            # make dataset container
             tmpRet = self.pd2p.register_dataset_container_with_datasets(
                 self.user_dataset_name,
                 allFiles,
                 locationMap,
-                n_sites=eventPickNumSites,
+                n_sites=options["eventPickNumSites"],
                 owner=tmpDN,
             )
+
             if not tmpRet:
                 return False
-            # skip DaTRI
-            if skipDaTRI:
-                # successfully terminated
-                self.putLog("skip DaTRI")
-                # update task
-                self.task_buffer.updateTaskModTimeJEDI(self.jedi_task_id)
 
-            try:
-                # unlock and delete evp file
                 fcntl.flock(self.event_picking_file.fileno(), fcntl.LOCK_UN)
                 self.event_picking_file.close()
                 os.remove(self.event_picking_file_name)
+
+                self.putLog(f"end {self.event_picking_file_name}")
+                return True
             except Exception:
-                pass
-            # successfully terminated
-            self.putLog(f"end {self.event_picking_file_name}")
-            return True
-        except Exception:
             errType, errValue = sys.exc_info()[:2]
             self.endWithError(f"Got exception {errType}:{errValue} {traceback.format_exc()}")
             return False
