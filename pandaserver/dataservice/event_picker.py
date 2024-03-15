@@ -220,58 +220,56 @@ class EventPicker:
         try:
             self.put_log(f"start {self.event_picking_file_name}")
             # lock event picking file
-            self.event_picking_file = open(self.event_picking_file_name)
-            try:
-                fcntl.flock(self.event_picking_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except Exception:
-                # release                return True
-                self.put_log(f"cannot lock {self.event_picking_file_name}")
-                self.event_picking_file.close()
+            with open(self.event_picking_file_name) as self.event_picking_file:
+                try:
+                    fcntl.flock(self.event_picking_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except Exception:
+                    # release
+                    self.put_log(f"cannot lock {self.event_picking_file_name}")
+                    return True
 
+                options = self.get_options_from_file()
 
-            options = self.get_options_from_file()
+                self.jedi_task_id = self.get_jedi_task_id(options)
 
-            self.jedi_task_id = self.get_jedi_task_id(options)
+                tmp_ret, location_map, all_files = self.pd2p.convert_evt_run_to_datasets(
+                    options["runEvent"],
+                    options["eventPickDataType"],
+                    options["eventPickStreamName"],
+                    options["eventPickDS"],
+                    options["eventPickAmiTag"],
+                    self.user_dn,
+                    options["runEvtGuidMap"],
+                    options["ei_api"],
+                )
 
-            tmp_ret, location_map, all_files = self.pd2p.convert_evt_run_to_datasets(
-                options["runEvent"],
-                options["eventPickDataType"],
-                options["eventPickStreamName"],
-                options["eventPickDS"],
-                options["eventPickAmiTag"],
-                self.user_dn,
-                options["runEvtGuidMap"],
-                options["ei_api"],
-            )
+                if not tmp_ret:
+                    if "isFatal" in location_map and location_map["isFatal"] is True:
+                        self.ignore_error = False
+                    self.end_with_error("Failed to convert the run/event list to a dataset/file list")
+                    return False
 
-            if not tmp_ret:
-                if "isFatal" in location_map and location_map["isFatal"] is True:
-                    self.ignore_error = False
-                self.end_with_error("Failed to convert the run/event list to a dataset/file list")
-                return False
+                # use only files in the list
+                all_files = [tmp_file for tmp_file in all_files if tmp_file["lfn"] in options["inputFileList"]]
 
-            # use only files in the list
-            all_files = [tmp_file for tmp_file in all_files if tmp_file["lfn"] in options["inputFileList"]]
+                # remove redundant CN from DN
+                tmp_dn = CoreUtils.get_id_from_dn(self.user_dn)
+                tmp_ret = self.pd2p.register_dataset_container_with_datasets(
+                    self.user_dataset_name,
+                    all_files,
+                    location_map,
+                    n_sites=options["eventPickNumSites"],
+                    owner=tmp_dn,
+                )
 
-            # remove redundant CN from DN
-            tmp_dn = CoreUtils.get_id_from_dn(self.user_dn)
-            tmp_ret = self.pd2p.register_dataset_container_with_datasets(
-                self.user_dataset_name,
-                all_files,
-                location_map,
-                n_sites=options["eventPickNumSites"],
-                owner=tmp_dn,
-            )
+                if not tmp_ret:
+                    return False
 
-            if not tmp_ret:
-                return False
+                fcntl.flock(self.event_picking_file.fileno(), fcntl.LOCK_UN)
+                os.remove(self.event_picking_file_name)
 
-            fcntl.flock(self.event_picking_file.fileno(), fcntl.LOCK_UN)
-            self.event_picking_file.close()
-            os.remove(self.event_picking_file_name)
-
-            self.put_log(f"end {self.event_picking_file_name}")
-            return True
+                self.put_log(f"end {self.event_picking_file_name}")
+                return True
         except Exception:
             error_type, error_value = sys.exc_info()[:2]
             self.end_with_error(f"Got exception {error_type}:{error_value} {traceback.format_exc()}")
