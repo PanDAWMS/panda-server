@@ -157,6 +157,12 @@ class EventPicker:
             "tagStreamRef": "",
             "runEvtGuidMap": {},
             "ei_api": "",
+            "userName": "",
+            "userTaskName": "",
+            "userDatasetName": "",
+            "lockedBy": "",
+            "creationTime": "",
+            "params": "",
         }
 
         for tmp_line in self.event_picking_file:
@@ -168,10 +174,16 @@ class EventPicker:
                         options[key].append(value.split(","))
                     elif key in ["eventPickDS", "inputFileList", "tagDS"]:
                         options[key] = value.split(",")
+                        if key == "inputFileList":
+                            options[key] = [item for item in options[key] if item != ""]
                     elif key == "eventPickNumSites":
                         options[key] = int(value)
+                    elif key == "runEvtGuidMap":
+                        options[key] = eval(value)
                     else:
                         options[key] = value
+                        if key == "tagStreamRef" and not options[key].endswith("_ref"):
+                            options[key] += "_ref"
         return options
 
     def get_jedi_task_id(self, options: dict) -> int:
