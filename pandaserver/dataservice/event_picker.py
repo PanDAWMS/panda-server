@@ -3,7 +3,6 @@ add data to dataset
 
 """
 
-import datetime
 import fcntl
 import os
 import re
