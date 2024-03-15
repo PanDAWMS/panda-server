@@ -56,8 +56,6 @@ class EventPicker:
         self.user_dn = ""
         # JEDI
         self.jedi_task_id = None
-        self.prod_source_label = None
-        self.job_label = None
 
     # end with error
     def end_with_error(self, message: str):
@@ -97,11 +95,11 @@ class EventPicker:
         Logs a message with a specified type.
 
         This method logs a message with a specified type. The type can be either "debug" or "error".
-        If the type is "error", the message is logged as an error. Otherwise, it is logged as a debug message.
+        If the msg_type is "error", the message is logged as an error. Otherwise, it is logged as a debug message.
 
         Parameters:
             msg (str): The message to be logged.
-            type (str): The type of the log. It can be either "debug" or "error". Default is "debug".
+            msg_type (str): The type of the log. It can be either "debug" or "error". Default is "debug".
 
         Returns:
             None
@@ -137,6 +135,80 @@ class EventPicker:
             return f'<a href="{output}">log</a>'
         return output
 
+    def get_options_from_file(self) -> dict:
+        """
+        Gets options from the event picking file.
+
+        This method reads the event picking file and extracts options from it. The options are stored in a dictionary and returned.
+
+        Returns:
+            dict: A dictionary containing the options extracted from the event picking file.
+        """
+        options = {
+            "runEvent": [],
+            "eventPickDataType": "",
+            "eventPickStreamName": "",
+            "eventPickDS": [],
+            "eventPickAmiTag": "",
+            "eventPickNumSites": 1,
+            "inputFileList": [],
+            "tagDS": [],
+            "tagQuery": "",
+            "tagStreamRef": "",
+            "runEvtGuidMap": {},
+            "ei_api": "",
+        }
+
+        for tmp_line in self.event_picking_file:
+            tmp_match = re.search("^([^=]+)=(.+)$", tmp_line)
+            if tmp_match is not None:
+                key, value = tmp_match.groups()
+                if key in options:
+                    if key == "runEvent":
+                        options[key].append(value.split(","))
+                    elif key in ["eventPickDS", "inputFileList", "tagDS"]:
+                        options[key] = value.split(",")
+                    elif key == "eventPickNumSites":
+                        options[key] = int(value)
+                    else:
+                        options[key] = value
+        return options
+
+    def get_jedi_task_id(self, options: dict) -> int:
+        """
+        Gets the jediTaskID.
+
+        This method gets the jediTaskID from the task buffer using the user's DN and task name. It also updates the task modification time in the task buffer if the parameters contain "--eventPickSkipDaTRI".
+
+        Parameters:
+            options (dict): A dictionary containing the options extracted from the event picking file.
+
+        Returns:
+            int: The jediTaskID.
+        """
+        self.user_dn = options["userName"]
+        self.user_task_name = options["userTaskName"]
+        self.user_dataset_name = options["userDatasetName"]
+        self.locked_by = options["lockedBy"]
+        self.creation_time = options["creationTime"]
+        self.params = options["params"]
+
+        # extract task name
+        if self.user_task_name == "" and self.params != "":
+            tmp_match = re.search("--outDS(=| ) *([^ ]+)", self.params)
+            if tmp_match is not None:
+                self.user_task_name = tmp_match.group(2)
+                if not self.user_task_name.endswith("/"):
+                    self.user_task_name += "/"
+
+        # suppress DaTRI
+        if "--eventPickSkipDaTRI" in self.params:
+            self.put_log("skip DaTRI")
+            self.task_buffer.updateTaskModTimeJEDI(self.jedi_task_id)
+
+        compact_dn = self.task_buffer.cleanUserID(self.user_dn)
+        return self.task_buffer.getTaskIDwithTaskNameJEDI(compact_dn, self.user_task_name)
+
     # main
     def run(self) -> bool:
         """
@@ -152,63 +224,14 @@ class EventPicker:
             try:
                 fcntl.flock(self.event_picking_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             except Exception:
-                # release
+                # release                return True
                 self.put_log(f"cannot lock {self.event_picking_file_name}")
                 self.event_picking_file.close()
-                return True
 
-            options = {
-                "runEvent": [],
-                "eventPickDataType": "",
-                "eventPickStreamName": "",
-                "eventPickDS": [],
-                "eventPickAmiTag": "",
-                "eventPickNumSites": 1,
-                "inputFileList": [],
-                "tagDS": [],
-                "tagQuery": "",
-                "tagStreamRef": "",
-                "runEvtGuidMap": {},
-                "ei_api": "",
-            }
 
-            for tmp_line in self.event_picking_file:
-                tmp_match = re.search("^([^=]+)=(.+)$", tmp_line)
-                if tmp_match is not None:
-                    key, value = tmp_match.groups()
-                    if key in options:
-                        if key == "runEvent":
-                            options[key].append(value.split(","))
-                        elif key in ["eventPickDS", "inputFileList", "tagDS"]:
-                            options[key] = value.split(",")
-                        elif key == "eventPickNumSites":
-                            options[key] = int(value)
-                        else:
-                            options[key] = value
+            options = self.get_options_from_file()
 
-            self.user_dn = options["userName"]
-            self.user_task_name = options["userTaskName"]
-            self.user_dataset_name = options["userDatasetName"]
-            self.locked_by = options["lockedBy"]
-            self.creation_time = options["creationTime"]
-            self.params = options["params"]
-
-            # extract task name
-            if self.user_task_name == "" and self.params != "":
-                tmp_match = re.search("--outDS(=| ) *([^ ]+)", self.params)
-                if tmp_match is not None:
-                    self.user_task_name = tmp_match.group(2)
-                    if not self.user_task_name.endswith("/"):
-                        self.user_task_name += "/"
-
-            # suppress DaTRI
-            if "--eventPickSkipDaTRI" in self.params:
-                self.put_log("skip DaTRI")
-                self.task_buffer.updateTaskModTimeJEDI(self.jedi_task_id)
-
-            compact_dn = self.task_buffer.cleanUserID(self.user_dn)
-            self.jedi_task_id = self.task_buffer.getTaskIDwithTaskNameJEDI(compact_dn, self.user_task_name)
-            self.prod_source_label, self.job_label = self.task_buffer.getProdSourceLabelwithTaskID(self.jedi_task_id)
+            self.jedi_task_id = self.get_jedi_task_id(options)
 
             tmp_ret, location_map, all_files = self.pd2p.convert_evt_run_to_datasets(
                 options["runEvent"],
