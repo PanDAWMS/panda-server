@@ -43,9 +43,8 @@ class EventPicker:
         self.site_mapper = siteMapper
         self.ignore_error = ignoreError
         self.event_picking_file_name = evpFileName
-        self.token = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(" ")
         # logger
-        self.logger = LogWrapper(_logger, self.token)
+        self.logger = LogWrapper(_logger)
         self.pd2p = dyn_data_distributer.DynDataDistributer([], self.site_mapper, token=" ")
         self.user_dataset_name = ""
         self.creation_time = ""
@@ -69,7 +68,7 @@ class EventPicker:
         Parameters:
             message (str): The error message to be logged.
         """
-        self.put_log(message, "error")
+        self.logger.error(message)
         # unlock evp file
         try:
             fcntl.flock(self.event_picking_file.fileno(), fcntl.LOCK_UN)
@@ -82,33 +81,12 @@ class EventPicker:
         # upload log
         if self.jedi_task_id is not None:
             out_log = self.upload_log()
-            self.task_buffer.updateTaskErrorDialogJEDI(self.jedi_task_id, "event picking failed. " + out_log)
+            self.task_buffer.updateTaskErrorDialogJEDI(self.jedi_task_id, f"event picking failed. {out_log}")
             # update task
             if not self.ignore_error:
                 self.task_buffer.updateTaskModTimeJEDI(self.jedi_task_id, "tobroken")
-            self.put_log(out_log)
-        self.put_log(f"end {self.event_picking_file_name}")
-
-    # put log
-    def put_log(self, msg: str, msg_type: str = "debug"):
-        """
-        Logs a message with a specified type.
-
-        This method logs a message with a specified type. The type can be either "debug" or "error".
-        If the msg_type is "error", the message is logged as an error. Otherwise, it is logged as a debug message.
-
-        Parameters:
-            msg (str): The message to be logged.
-            msg_type (str): The type of the log. It can be either "debug" or "error". Default is "debug".
-
-        Returns:
-            None
-        """
-        tmp_msg = msg
-        if msg_type == "error":
-            self.logger.error(tmp_msg)
-        else:
-            self.logger.debug(tmp_msg)
+            self.logger.debug(out_log)
+        self.logger.debug(f"end {self.event_picking_file_name}")
 
     # upload log
     def upload_log(self) -> str:
@@ -215,7 +193,7 @@ class EventPicker:
 
         # suppress DaTRI
         if "--eventPickSkipDaTRI" in self.params:
-            self.put_log("skip DaTRI")
+            self.logger.debug("skip DaTRI")
             self.task_buffer.updateTaskModTimeJEDI(self.jedi_task_id)
 
         compact_dn = self.task_buffer.cleanUserID(self.user_dn)
@@ -230,14 +208,14 @@ class EventPicker:
             bool: True if the event picker ran successfully, False otherwise.
         """
         try:
-            self.put_log(f"start {self.event_picking_file_name}")
+            self.logger.debug(f"start {self.event_picking_file_name}")
             # lock event picking file
             with open(self.event_picking_file_name) as self.event_picking_file:
                 try:
                     fcntl.flock(self.event_picking_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                 except Exception:
                     # release
-                    self.put_log(f"cannot lock {self.event_picking_file_name}")
+                    self.logger.debug(f"cannot lock {self.event_picking_file_name}")
                     return True
 
                 options = self.get_options_from_file()
@@ -280,7 +258,7 @@ class EventPicker:
                 fcntl.flock(self.event_picking_file.fileno(), fcntl.LOCK_UN)
                 os.remove(self.event_picking_file_name)
 
-                self.put_log(f"end {self.event_picking_file_name}")
+                self.logger.debug(f"end {self.event_picking_file_name}")
                 return True
         except Exception:
             error_type, error_value = sys.exc_info()[:2]
