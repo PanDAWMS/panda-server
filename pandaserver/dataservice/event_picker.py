@@ -144,6 +144,7 @@ class EventPicker:
         }
 
         for tmp_line in self.event_picking_file:
+            # regular expression to parse lines where a key and value are separated by an equal sign
             tmp_match = re.search("^([^=]+)=(.+)$", tmp_line)
             if tmp_match is not None:
                 key, value = tmp_match.groups()
@@ -185,6 +186,7 @@ class EventPicker:
 
         # extract task name
         if self.user_task_name == "" and self.params != "":
+            # regular expression to parse the dataset name from a string where it is prefixed with --outDS and followed by either an equal sign or a space
             tmp_match = re.search("--outDS(=| ) *([^ ]+)", self.params)
             if tmp_match is not None:
                 self.user_task_name = tmp_match.group(2)
