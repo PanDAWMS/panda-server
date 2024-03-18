@@ -737,7 +737,7 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None, workflow
                         # head node
                         continue
                     if len(node.parents) > 1 or isinstance(p_work, Workflow) or node.type in ["junction", "reana", "gitlab"]:
-                        cond_function = p_work.is_finished
+                        cond_function = p_work.is_processed
                     else:
                         cond_function = p_work.is_started
                     if cond_function not in cond_func_list:
@@ -766,7 +766,7 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None, workflow
                                 str_p_id = sub_to_id_map[p_id]
                             # finished or failed
                             if base_cond["operator"] is None:
-                                cond_function = p_work.is_finished
+                                cond_function = p_work.is_processed
                             else:
                                 cond_function = p_work.is_failed
                             cond_func_list.append(cond_function)
@@ -790,7 +790,7 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None, workflow
                                 else:
                                     p_work = all_sub_id_work_map[p_id]
                                     str_p_id = sub_to_id_map[p_id]
-                                cond_function = p_work.is_finished
+                                cond_function = p_work.is_processed
                                 cond_func_list.append(cond_function)
                                 l_str_func_list.append(f"ID:{str_p_id} {cond_function.__name__}")
                             l_cond = AndCondition(conditions=cond_func_list)
@@ -808,7 +808,7 @@ def convert_nodes_to_workflow(nodes, workflow_node=None, workflow=None, workflow
                                 else:
                                     p_work = all_sub_id_work_map[p_id]
                                     str_p_id = sub_to_id_map[p_id]
-                                cond_function = p_work.is_finished
+                                cond_function = p_work.is_processed
                                 cond_func_list.append(cond_function)
                                 r_str_func_list.append(f"ID:{str_p_id} {cond_function.__name__}")
                             r_cond = AndCondition(conditions=cond_func_list)
