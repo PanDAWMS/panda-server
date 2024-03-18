@@ -286,6 +286,8 @@ class Response:
         self.data["nucleus"] = job.nucleus
         # walltime
         self.data["maxWalltime"] = job.maxWalltime
+        # resource type
+        self.data["resource_type"] = job.resource_type
         # looping check
         if job.is_no_looping_check():
             self.data["loopingCheck"] = False
