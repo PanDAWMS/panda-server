@@ -4,6 +4,7 @@ import traceback
 from datetime import datetime, timedelta, timezone
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+
 from pandaserver.config import panda_config
 from pandaserver.configurator import aux
 from pandaserver.configurator.aux import *
@@ -601,6 +602,8 @@ class NetworkConfigurator(threading.Thread):
 
         data = []
         sites_list = self.taskBuffer.configurator_read_sites()
+        # source or destination shown as UNKNOWN before the rule is processed
+        sites_list.add("UNKNOWN")
 
         # Ignore outdated values
         latest_validity = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=30)
