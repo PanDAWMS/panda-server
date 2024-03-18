@@ -430,12 +430,13 @@ class DynDataDistributer:
             files_map[tmp_key].append(tmp_file)
 
         # get nfiles per dataset
-        n_files_per_dataset = divmod(len(files), n_sites)
+        n_files_per_dataset = list(divmod(len(files), n_sites))
         if n_files_per_dataset[0] == 0:
             n_files_per_dataset[0] = 1
         max_files_per_dataset = 1000
         if n_files_per_dataset[0] >= max_files_per_dataset:
             n_files_per_dataset[0] = max_files_per_dataset
+        n_files_per_dataset = tuple(n_files_per_dataset)
 
         # register new datasets
         dataset_names = []
