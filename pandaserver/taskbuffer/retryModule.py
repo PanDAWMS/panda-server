@@ -1,6 +1,7 @@
 import re
 import sys
 import time
+import traceback
 from re import error as ReError
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -13,6 +14,7 @@ INCREASE_MEM = "increase_memory"
 LIMIT_RETRY = "limit_retry"
 INCREASE_CPU = "increase_cputime"
 INCREASE_MEM_XTIMES = "increase_memory_xtimes"
+REDUCE_INPUT_PER_JOB = "reduce_input_per_job"
 
 
 def timeit(method):
@@ -169,6 +171,23 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
         # See if there is a INCREASE_CPU rule. The effect of INCREASE_CPU rules is the same, so take the first one that appears
         for rule in rules:
             if rule["action"] != INCREASE_CPU or not conditions_apply(
+                error_diag_job,
+                architecture_job,
+                release_job,
+                wqid_job,
+                rule["error_diag"],
+                rule["architecture"],
+                rule["release"],
+                rule["wqid"],
+            ):
+                continue
+            else:
+                filtered_rules.append(rule)
+                break
+
+        # See if there is a REDUCE_INPUT_PER_JOB rule.
+        for rule in rules:
+            if rule["action"] != REDUCE_INPUT_PER_JOB or not conditions_apply(
                 error_diag_job,
                 architecture_job,
                 release_job,
@@ -377,7 +396,7 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
                             _logger.info(message)
                         except Exception:
                             errtype, errvalue = sys.exc_info()[:2]
-                            _logger.error("Failed to increase RAM xtimes limit : %s %s" % (errtype, errvalue))
+                            _logger.error(f"Failed to increase RAM xtimes limit : {errtype} {errvalue}")
 
                     elif action == INCREASE_CPU:
                         try:
@@ -409,6 +428,20 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
                         except Exception:
                             errtype, errvalue = sys.exc_info()[:2]
                             _logger.error(f"Failed to increase CPU-Time : {errtype} {errvalue}")
+
+                    elif action == REDUCE_INPUT_PER_JOB:
+                        try:
+                            applied = False
+                            if active:
+                                applied = task_buffer.reduce_input_per_job(
+                                    job.PandaID, job.jediTaskID, job.attemptNr, parameters.get("excluded_rules"), parameters.get("steps")
+                                )
+                            # Log to pandamon and logfile
+                            message = f"action=reduceInputPerJob for PandaID={jobID} jediTaskID={job.jediTaskID} applied={applied} ( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_code}. Error/action active={active} error_id={error_id} )"
+                            acted_on_job = True
+                            _logger.info(message)
+                        except Exception as e:
+                            _logger.error(f"Failed to reduce input per job : {e} {traceback.format_exc()}")
 
                     _logger.debug(f"Finished rule {rule} for PandaID={jobID} error_source={error_source} error_code={error_code} attemptNr={attemptNr}")
 
