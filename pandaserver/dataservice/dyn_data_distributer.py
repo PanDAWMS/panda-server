@@ -430,13 +430,12 @@ class DynDataDistributer:
             files_map[tmp_key].append(tmp_file)
 
         # get nfiles per dataset
-        n_files_per_dataset = list(divmod(len(files), n_sites))
-        if n_files_per_dataset[0] == 0:
-            n_files_per_dataset[0] = 1
+        n_files_per_dataset, _ = divmod(len(files), n_sites)
+        if n_files_per_dataset == 0:
+            n_files_per_dataset = 1
         max_files_per_dataset = 1000
-        if n_files_per_dataset[0] >= max_files_per_dataset:
-            n_files_per_dataset[0] = max_files_per_dataset
-        n_files_per_dataset = tuple(n_files_per_dataset)
+        if n_files_per_dataset >= max_files_per_dataset:
+            n_files_per_dataset = max_files_per_dataset
 
         # register new datasets
         dataset_names = []
@@ -447,7 +446,7 @@ class DynDataDistributer:
                 tmp_dataset_name = container_name[:-1] + "_%04d" % tmp_index
                 tmp_ret = self.register_dataset_with_location(
                     tmp_dataset_name,
-                    tmp_files[tmp_sub_index: tmp_sub_index + n_files_per_dataset[0]],
+                    tmp_files[tmp_sub_index: tmp_sub_index + n_files_per_dataset],
                     tmp_locations,
                     owner=None,
                 )
@@ -459,7 +458,7 @@ class DynDataDistributer:
                 # append dataset
                 dataset_names.append(tmp_dataset_name)
                 tmp_index += 1
-                tmp_sub_index += n_files_per_dataset[0]
+                tmp_sub_index += n_files_per_dataset
 
         # register container
         for attempt in range(max_attempts):
