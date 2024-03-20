@@ -238,7 +238,8 @@ class EventPicker:
                     return False
 
                 # use only files in the list
-                all_files = [tmp_file for tmp_file in all_files if tmp_file["lfn"] in options["inputFileList"]]
+                if options["inputFileList"]:
+                    all_files = [tmp_file for tmp_file in all_files if tmp_file["lfn"] in options["inputFileList"]]
 
                 # remove redundant CN from DN
                 tmp_dn = CoreUtils.get_id_from_dn(self.user_dn)
