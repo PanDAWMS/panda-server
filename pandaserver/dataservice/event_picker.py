@@ -8,6 +8,7 @@ import os
 import re
 import sys
 import traceback
+import datetime
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
