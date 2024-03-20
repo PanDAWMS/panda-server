@@ -268,7 +268,8 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
             try:
                 error_code = int(error_code)
             except ValueError:
-                _logger.error(f"Error code ({error_code}) can not be casted to int")
+                if error_code != "NULL":
+                    _logger.error(f"Error code ({error_code}) can not be casted to int")
                 continue
             try:
                 rule = retrial_rules[error_source][error_code]
