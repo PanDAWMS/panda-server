@@ -35,6 +35,7 @@ from pandaserver.taskbuffer import (
     PrioUtil,
     ProcessGroups,
     SiteSpec,
+    task_split_rules,
 )
 from pandaserver.taskbuffer.CloudTaskSpec import CloudTaskSpec
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
@@ -18791,6 +18792,154 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger, methodName)
             return False
+
+    # reduce input per job
+    def reduce_input_per_job(self, panda_id, jedi_task_id, attempt_nr, excluded_rules, steps, dry_mode):
+        comment = " /* DBProxy.reduce_input_per_job */"
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        tmp_log = LogWrapper(_logger, method_name + f" < PandaID={panda_id} jediTaskID={jedi_task_id} attemptNr={attempt_nr} >")
+        tmp_log.debug("start")
+        try:
+            # rules to skip action when they are set
+            if not excluded_rules:
+                excluded_rules = ["nEventsPerJob", "nFilesPerJob"]
+            else:
+                excluded_rules = excluded_rules.split(",")
+
+            # thresholds with attempt numbers to trigger actions
+            if not steps:
+                threshold_low = 2
+                threshold_middle = 4
+                threshold_high = 7
+            else:
+                threshold_low, threshold_middle, threshold_high = [int(s) for s in steps.split(",")]
+
+            # if no task associated to job don't take any action
+            if jedi_task_id in [None, 0, "NULL"]:
+                msg_str = "skipping since no task associated to job"
+                tmp_log.debug(msg_str)
+                return False, msg_str
+
+            # check attempt number
+            if attempt_nr < threshold_low:
+                msg_str = f"skipping since not enough attempts ({attempt_nr} < {threshold_low}) have been made"
+                tmp_log.debug(msg_str)
+                return False, msg_str
+
+            # get current split rules
+            var_map = {":jediTaskID": jedi_task_id}
+            sql_gr = f"SELECT splitRule FROM {panda_config.schemaJEDI}.JEDI_Tasks "
+            sql_gr += "WHERE jediTaskID=:jediTaskID "
+            self.cur.execute(sql_gr + comment, var_map)
+            (split_rule,) = self.cur.fetchone()
+
+            # extract split rule values
+            rule_values = task_split_rules.extract_rule_values(
+                split_rule, ["nEventsPerJob", "nFilesPerJob", "nGBPerJob", "nMaxFilesPerJob", "retryModuleRules"]
+            )
+
+            # no action if num events or files per job is specified
+            for rule_name in excluded_rules:
+                if rule_values[rule_name]:
+                    msg_str = f"skipping since task uses {rule_name}"
+                    tmp_log.debug(msg_str)
+                    return False, msg_str
+
+            # current max number of files or gigabytes per job
+            current_max_files_per_job = rule_values["nMaxFilesPerJob"]
+            if current_max_files_per_job:
+                current_max_files_per_job = int(current_max_files_per_job)
+            current_gigabytes_per_job = rule_values["nGBPerJob"]
+            if current_gigabytes_per_job:
+                current_gigabytes_per_job = int(current_gigabytes_per_job)
+
+            # initial max number of files or gigabytes per job for retry module
+            rules_for_retry_module = rule_values["retryModuleRules"]
+            rule_values_for_retry_module = task_split_rules.extract_rule_values(rules_for_retry_module, ["nGBPerJob", "nMaxFilesPerJob"], is_sub_rule=True)
+            init_gigabytes_per_job = rule_values_for_retry_module["nGBPerJob"]
+            init_max_files_per_job = rule_values_for_retry_module["nMaxFilesPerJob"]
+
+            # set initial values for the first action
+            set_init_rules = False
+            if not init_gigabytes_per_job:
+                set_init_rules = True
+                if current_gigabytes_per_job:
+                    init_gigabytes_per_job = current_gigabytes_per_job
+                else:
+                    # use current job size as initial gigabytes per job for retry module
+                    var_map = {":PandaID": panda_id}
+                    sql_fz = f"SELECT SUM(fsize) FROM {panda_config.schemaPANDA}.filesTable4 "
+                    sql_fz += "WHERE PandaID=:PandaID "
+                    self.cur.execute(sql_fz + comment, var_map)
+                    (init_gigabytes_per_job,) = self.cur.fetchone()
+                    init_gigabytes_per_job = math.ceil(init_gigabytes_per_job / 1024 / 1024 / 1024)
+            if not init_max_files_per_job:
+                set_init_rules = True
+                if current_max_files_per_job:
+                    init_max_files_per_job = current_max_files_per_job
+                else:
+                    # use current job size as initial max number of files per job for retry module
+                    var_map = {":PandaID": panda_id, ":jediTaskID": jedi_task_id, ":type1": "input", ":type2": "pseudo_input"}
+                    sql_fc = f"SELECT COUNT(*) FROM {panda_config.schemaPANDA}.filesTable4 tabF, {panda_config.schemaJEDI}.JEDI_Datasets tabD "
+                    sql_fc += (
+                        "WHERE tabD.jediTaskID=:jediTaskID AND tabD.type IN (:type1, :type2) AND tabD.masterID IS NULL "
+                        "AND tabF.PandaID=:PandaID AND tabF.datasetID=tabD.datasetID "
+                    )
+                    self.cur.execute(sql_fc + comment, var_map)
+                    (init_max_files_per_job,) = self.cur.fetchone()
+
+            # set target based on attempt number
+            if attempt_nr < threshold_middle:
+                target_gigabytes_per_job = math.floor(init_gigabytes_per_job / 2)
+                target_max_files_per_job = math.floor(init_max_files_per_job / 2)
+            elif attempt_nr < threshold_high:
+                target_gigabytes_per_job = math.floor(init_gigabytes_per_job / 4)
+                target_max_files_per_job = math.floor(init_max_files_per_job / 4)
+            else:
+                target_gigabytes_per_job = 1
+                target_max_files_per_job = 1
+            target_gigabytes_per_job = max(1, target_gigabytes_per_job)
+            target_max_files_per_job = max(1, target_max_files_per_job)
+
+            # update rules when initial values were unset or new values need to be set
+            if set_init_rules or current_gigabytes_per_job != target_gigabytes_per_job or current_max_files_per_job != target_max_files_per_job:
+                msg_str = "update splitRule: "
+                if set_init_rules:
+                    msg_str += f"initial nGBPerJob={init_gigabytes_per_job} nMaxFilesPerJob={init_max_files_per_job}. "
+                    rules_for_retry_module = task_split_rules.replace_rule(rules_for_retry_module, "nGBPerJob", init_gigabytes_per_job, is_sub_rule=True)
+                    rules_for_retry_module = task_split_rules.replace_rule(rules_for_retry_module, "nMaxFilesPerJob", init_max_files_per_job, is_sub_rule=True)
+                    if not dry_mode:
+                        self.changeTaskSplitRulePanda(
+                            jedi_task_id, task_split_rules.split_rule_dict["retryModuleRules"], rules_for_retry_module, useCommit=False, sendLog=True
+                        )
+                if current_gigabytes_per_job != target_gigabytes_per_job:
+                    msg_str += f"new nGBPerJob {current_gigabytes_per_job} -> {target_gigabytes_per_job}. "
+                    if not dry_mode:
+                        self.changeTaskSplitRulePanda(
+                            jedi_task_id, task_split_rules.split_rule_dict["nGBPerJob"], target_gigabytes_per_job, useCommit=False, sendLog=True
+                        )
+                if current_max_files_per_job != target_max_files_per_job:
+                    msg_str += f"new nMaxFilesPerJob {current_max_files_per_job} -> {target_max_files_per_job}. "
+                    if not dry_mode:
+                        self.changeTaskSplitRulePanda(
+                            jedi_task_id, task_split_rules.split_rule_dict["nMaxFilesPerJob"], target_max_files_per_job, useCommit=False, sendLog=True
+                        )
+                tmp_log.debug(msg_str)
+                # commit
+                if not dry_mode and not self._commit():
+                    raise RuntimeError("Commit error")
+                return True, msg_str
+
+            msg_str = "not applicable"
+            _logger.debug(msg_str)
+            return False, msg_str
+        except Exception:
+            # roll back
+            if not dry_mode:
+                self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return None, "failed"
 
     # reset files in JEDI
     def resetFileStatusInJEDI(self, dn, prodManager, datasetName, lostFiles, recoverParent, simul):
