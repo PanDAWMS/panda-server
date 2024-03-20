@@ -243,6 +243,19 @@ class EventPicker:
                 # use only files in the list
                 all_files = [tmp_file for tmp_file in all_files if tmp_file["lfn"] in options["inputFileList"]]
 
+                self.logger.debug("all_files: %s" % all_files)
+                self.logger.debug("options: %s" % options)
+
+                # use only files in the list
+                if options["inputFileList"] != []:
+                    tmp_all_files = []
+                    for tmp_file in all_files:
+                        if tmp_file["lfn"] in options["inputFileList"]:
+                            tmp_all_files.append(tmp_ret)
+                    all_files = tmp_all_files
+
+                self.logger.debug("old logic all_files: %s" % all_files)
+
                 # remove redundant CN from DN
                 tmp_dn = CoreUtils.get_id_from_dn(self.user_dn)
                 tmp_ret = self.pd2p.register_dataset_container_with_datasets(
