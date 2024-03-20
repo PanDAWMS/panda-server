@@ -121,6 +121,9 @@ class EventPicker:
         Returns:
             dict: A dictionary containing the options extracted from the event picking file.
         """
+
+        tmp_logger = LogWrapper(_logger,
+                             f"get_options_from_file-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
         options = {
             "runEvent": [],
             "eventPickDataType": "",
@@ -153,9 +156,9 @@ class EventPicker:
                     elif key in ["eventPickDS", "inputFileList", "tagDS"]:
                         options[key] = value.split(",")
                         if key == "inputFileList":
-                            self.logger.debug("inputFileList: %s" % options[key])
+                            tmp_logger.debug("inputFileList: %s" % options[key])
                             options[key] = [item for item in options[key] if item != ""]
-                            self.logger.debug("inputFileList after the removal of empty string: %s" % options[key])
+                            tmp_logger.debug("inputFileList after the removal of empty string: %s" % options[key])
                     elif key == "eventPickNumSites":
                         options[key] = int(value)
                     elif key == "runEvtGuidMap":
