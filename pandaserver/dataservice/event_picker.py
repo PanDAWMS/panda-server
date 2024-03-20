@@ -153,7 +153,9 @@ class EventPicker:
                 key, value = tmp_match.groups()
                 if key in options:
                     if key == "runEvent":
-                        options[key].append(value.split(","))
+                        tmp_run_event = value.split(",")
+                        if len(tmp_run_event) == 2:
+                            options[key].append(tmp_run_event)
                     elif key in ["eventPickDS", "inputFileList", "tagDS"]:
                         options[key] = value.split(",")
                         if key == "inputFileList":
@@ -240,6 +242,8 @@ class EventPicker:
                     options["runEvtGuidMap"],
                     options["ei_api"],
                 )
+
+                self.logger.debug("all_files after convert_evt_run_to_datasets: %s" % all_files)
 
                 if not tmp_ret:
                     if "isFatal" in location_map and location_map["isFatal"] is True:
