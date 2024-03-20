@@ -8,7 +8,6 @@ import os
 import re
 import sys
 import traceback
-import datetime
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -122,9 +121,6 @@ class EventPicker:
         Returns:
             dict: A dictionary containing the options extracted from the event picking file.
         """
-
-        tmp_logger = LogWrapper(_logger,
-                             f"get_options_from_file-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
         options = {
             "runEvent": [],
             "eventPickDataType": "",
@@ -159,9 +155,7 @@ class EventPicker:
                     elif key in ["eventPickDS", "inputFileList", "tagDS"]:
                         options[key] = value.split(",")
                         if key == "inputFileList":
-                            tmp_logger.debug("inputFileList: %s" % options[key])
                             options[key] = [item for item in options[key] if item != ""]
-                            tmp_logger.debug("inputFileList after the removal of empty string: %s" % options[key])
                     elif key == "eventPickNumSites":
                         options[key] = int(value)
                     elif key == "runEvtGuidMap":
@@ -176,7 +170,7 @@ class EventPicker:
         """
         Gets the jediTaskID.
 
-        This method gets the jediTaskID from the task buffer using the user's DN and task name. It also updates the task modification time in the task buffer if the parameters contain "--eventPickSkipDaTRI".
+        This method gets the jediTaskID from the task buffer using the user's DN and task name.
 
         Parameters:
             options (dict): A dictionary containing the options extracted from the event picking file.
@@ -199,11 +193,6 @@ class EventPicker:
                 self.user_task_name = tmp_match.group(2)
                 if not self.user_task_name.endswith("/"):
                     self.user_task_name += "/"
-
-        # suppress DaTRI
-        if "--eventPickSkipDaTRI" in self.params:
-            self.logger.debug("skip DaTRI")
-            self.task_buffer.updateTaskModTimeJEDI(self.jedi_task_id)
 
         compact_dn = self.task_buffer.cleanUserID(self.user_dn)
         return self.task_buffer.getTaskIDwithTaskNameJEDI(compact_dn, self.user_task_name)
@@ -228,7 +217,6 @@ class EventPicker:
                     return True
 
                 options = self.get_options_from_file()
-                self.logger.debug(f"options in run are: {options}")
 
                 self.jedi_task_id = self.get_jedi_task_id(options)
 
@@ -243,8 +231,6 @@ class EventPicker:
                     options["ei_api"],
                 )
 
-                self.logger.debug("all_files after convert_evt_run_to_datasets: %s" % all_files)
-
                 if not tmp_ret:
                     if "isFatal" in location_map and location_map["isFatal"] is True:
                         self.ignore_error = False
@@ -253,19 +239,6 @@ class EventPicker:
 
                 # use only files in the list
                 all_files = [tmp_file for tmp_file in all_files if tmp_file["lfn"] in options["inputFileList"]]
-
-                self.logger.debug("all_files: %s" % all_files)
-                self.logger.debug("options: %s" % options)
-
-                # use only files in the list
-                if options["inputFileList"] != []:
-                    tmp_all_files = []
-                    for tmp_file in all_files:
-                        if tmp_file["lfn"] in options["inputFileList"]:
-                            tmp_all_files.append(tmp_ret)
-                    all_files = tmp_all_files
-
-                self.logger.debug("old logic all_files: %s" % all_files)
 
                 # remove redundant CN from DN
                 tmp_dn = CoreUtils.get_id_from_dn(self.user_dn)
