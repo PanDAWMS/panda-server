@@ -153,7 +153,9 @@ class EventPicker:
                     elif key in ["eventPickDS", "inputFileList", "tagDS"]:
                         options[key] = value.split(",")
                         if key == "inputFileList":
+                            self.logger.debug("inputFileList: %s" % options[key])
                             options[key] = [item for item in options[key] if item != ""]
+                            self.logger.debug("inputFileList after the removal of empty string: %s" % options[key])
                     elif key == "eventPickNumSites":
                         options[key] = int(value)
                     elif key == "runEvtGuidMap":
@@ -220,6 +222,7 @@ class EventPicker:
                     return True
 
                 options = self.get_options_from_file()
+                self.logger.debug(f"options in run are: {options}")
 
                 self.jedi_task_id = self.get_jedi_task_id(options)
 
