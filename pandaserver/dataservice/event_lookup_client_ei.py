@@ -52,8 +52,8 @@ class EventLookupClientEI:
             if tokens == "":
                 tokens = None
             try:
-                # The output is exprexted to be a string with multiple lines, each line containing information about a single event.
-                # Each line is split into items, the first two items are interpreted as integers representing a run number and an event number, respectively.
+                # The output is expected to be a string with multiple lines, each line containing information about a single event.
+                # Each line is split into items, the first two items are interpreted as integers representing a run number and an event number.
                 # These two numbers are combined into a tuple, run_event, which is used as a key in the guids dictionary.
                 # The fourth item in the line is appended to the string "Stream" to form tmp_token, and the third item is assigned to tmp_guid.
                 # An example input (tmp_output) is:
