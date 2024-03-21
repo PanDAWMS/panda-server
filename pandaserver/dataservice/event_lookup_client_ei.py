@@ -52,6 +52,14 @@ class EventLookupClientEI:
             if tokens == "":
                 tokens = None
             try:
+                # The output is exprexted to be a string with multiple lines, each line containing information about a single event.
+                # Each line is split into items, the first two items are interpreted as integers representing a run number and an event number, respectively.
+                # These two numbers are combined into a tuple, run_event, which is used as a key in the guids dictionary.
+                # The fourth item in the line is appended to the string "Stream" to form tmp_token, and the third item is assigned to tmp_guid.
+                # An example input (tmp_output) is:
+                # 123 456 789abc StreamXYZ
+                # An example output (guids dictionary) is:
+                # (123, 456): {"789abc"}
                 for tmp_line in tmp_output.split("\n"):
                     tmp_items = tmp_line.split()
                     run_event = (int(tmp_items[0]), int(tmp_items[1]))
