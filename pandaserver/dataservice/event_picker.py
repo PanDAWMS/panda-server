@@ -226,9 +226,7 @@ class EventPicker:
                     options["eventPickStreamName"],
                     options["eventPickDS"],
                     options["eventPickAmiTag"],
-                    self.user_dn,
                     options["runEvtGuidMap"],
-                    options["ei_api"],
                 )
 
                 if not tmp_ret:
