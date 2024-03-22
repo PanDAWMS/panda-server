@@ -36,14 +36,14 @@ class DDMHandler(threading.Thread):
         Starts the thread to handle DDM operations.
     """
     # constructor
-    def __init__(self, taskBuffer, vuid: str, site: str = None, dataset: str = None,
+    def __init__(self, task_buffer, vuid: str, site: str = None, dataset: str = None,
                      scope: str = None):
         """
         Constructs all the necessary attributes for the DDMHandler object.
 
         Parameters
         ----------
-            taskBuffer : TaskBuffer
+            task_buffer : TaskBuffer
                 The task buffer that contains the jobs.
             vuid : str
                 The vuid of the dataset.
@@ -57,7 +57,7 @@ class DDMHandler(threading.Thread):
 
         threading.Thread.__init__(self)
         self.vuid = vuid
-        self.task_buffer = taskBuffer
+        self.task_buffer = task_buffer
         self.site = site
         self.scope = scope
         self.dataset = dataset
