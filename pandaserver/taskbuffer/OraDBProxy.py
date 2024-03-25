@@ -3169,7 +3169,7 @@ class DBProxy:
                 return False
 
     # update the worker status as seen by the pilot
-    def updateWorkerPilotStatus(self, workerID, harvesterID, status):
+    def updateWorkerPilotStatus(self, workerID, harvesterID, status, node_id):
         comment = " /* DBProxy.updateWorkerPilotStatus */"
         method_name = comment.split(" ")[-2].split(".")[-1]
         tmp_logger = LogWrapper(
@@ -3182,10 +3182,11 @@ class DBProxy:
             ":status": status,
             ":harvesterID": harvesterID,
             ":workerID": workerID,
+            ":nodeID": node_id,
         }
-        sql = "UPDATE ATLAS_PANDA.harvester_workers SET pilotStatus=:status "
+        sql = "UPDATE ATLAS_PANDA.harvester_workers SET pilotStatus=:status,nodeID=:nodeID "
 
-        tmp_logger.debug(f"Updating to status={status} at {timestamp_utc}")
+        tmp_logger.debug(f"Updating to status={status} nodeID={node_id} at {timestamp_utc}")
 
         # add the start or end time
         if status == "started":
@@ -3200,9 +3201,10 @@ class DBProxy:
         try:
             self.conn.begin()
             self.cur.execute(sql + comment, var_map)
+            retD = self.cur.rowcount
             if not self._commit():
                 raise RuntimeError("Commit error")
-            tmp_logger.debug("Updated successfully")
+            tmp_logger.debug(f"Updated successfully with {retD}")
             return True
 
         except Exception:
