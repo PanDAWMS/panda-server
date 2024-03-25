@@ -126,13 +126,11 @@ def extract_rule_values(split_rules, rule_names, is_sub_rule=False):
     else:
         rule_separator = ","
         key_value_separator = "="
-    if is_sub_rule:
-        for tmp_name in rule_names:
-            ret[tmp_name] = None
     for tmp_rule in split_rules.split(rule_separator):
         for tmp_name in rule_names:
-            if tmp_rule.startswith(tmp_name + key_value_separator):
+            if tmp_name in split_rule_dict and tmp_rule.startswith(split_rule_dict[tmp_name] + key_value_separator):
                 ret[tmp_name] = tmp_rule.split(key_value_separator)[-1]
+                break
     for tmp_name in rule_names:
         if tmp_name not in ret:
             ret[tmp_name] = None
@@ -149,6 +147,8 @@ def replace_rule(split_rules, rule_name, rule_value, is_sub_rule=False):
     :param is_sub_rule: bool to indicate if the rule is a sub-rule
     :return: string of split rules
     """
+    if rule_name not in split_rule_dict:
+        return split_rules
     if split_rules is None:
         split_rules = ""
     if is_sub_rule:
@@ -159,12 +159,12 @@ def replace_rule(split_rules, rule_name, rule_value, is_sub_rule=False):
         key_value_separator = "="
     tmp_str = ""
     for tmp_rule in split_rules.split(rule_separator):
-        if tmp_rule.startswith(rule_name + key_value_separator):
+        if tmp_rule.startswith(split_rule_dict[rule_name] + key_value_separator):
             continue
         if tmp_str != "":
             tmp_str += rule_separator
         tmp_str += tmp_rule
     if tmp_str != "":
         tmp_str += rule_separator
-    tmp_str += rule_name + key_value_separator + str(rule_value)
+    tmp_str += split_rule_dict[rule_name] + key_value_separator + str(rule_value)
     return tmp_str
