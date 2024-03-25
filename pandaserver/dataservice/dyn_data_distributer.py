@@ -556,7 +556,7 @@ class DynDataDistributer:
             for attempt in range(max_attempts):
                 try:
                     tmp_logger.debug(f"{attempt}/{max_attempts} registerDatasetLocation {dataset_name} {tmp_location}")
-                    out = rucioAPI.registerDatasetLocation(dataset_name, [tmp_location], 14, owner)
+                    out = rucioAPI.register_dataset_location(dataset_name, [tmp_location], 14, owner)
                     tmp_logger.debug(out)
                     status = True
                     break

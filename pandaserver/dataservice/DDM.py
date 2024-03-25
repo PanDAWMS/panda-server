@@ -1,5 +1,5 @@
 """
-provide primitive methods for DDM
+Module to provide primitive methods for DDM
 
 """
 
@@ -24,31 +24,62 @@ from pandaserver.srvcore import CoreUtils
 
 # rucio
 class RucioAPI:
+    """
+    A class to interact with Rucio API
+    """
     # constructor
     def __init__(self):
+        """
+        Initialize RucioAPI instance
+        """
         pass
 
     # extract scope
-    def extract_scope(self, dsn):
-        if ":" in dsn:
-            return dsn.split(":")[:2]
-        scope = dsn.split(".")[0]
-        if dsn.startswith("user") or dsn.startswith("group"):
-            scope = ".".join(dsn.split(".")[0:2])
-        return scope, dsn
+    def extract_scope(self, dataset_name: str) -> tuple:
+        """
+        Extract scope from a given dataset name
+
+        Parameters:
+        dataset_name (str): Dataset name
+
+        Returns:
+        tuple: A tuple containing scope and dataset name
+        """
+        if ":" in dataset_name:
+            return dataset_name.split(":")[:2]
+        scope = dataset_name.split(".")[0]
+        if dataset_name.startswith("user") or dataset_name.startswith("group"):
+            scope = ".".join(dataset_name.split(".")[0:2])
+        return scope, dataset_name
 
     # register dataset
-    def registerDataset(
+    def register_dataset(
         self,
-        dsn,
-        lfns=None,
-        guids=None,
-        sizes=None,
-        checksums=None,
-        lifetime=None,
-        scope=None,
-        metadata=None,
-    ):
+        dataset_name: str,
+        lfns: list = None,
+        guids: list = None,
+        sizes: list = None,
+        checksums: list = None,
+        lifetime: int = None,
+        scope: str = None,
+        metadata: dict = None,
+    ) -> dict:
+        """
+        Register a dataset in Rucio
+
+        Parameters:
+        dataset_name (str): Dataset name
+        lfns (list, optional): List of logical file names. Defaults to None.
+        guids (list, optional): List of GUIDs. Defaults to None.
+        sizes (list, optional): List of file sizes. Defaults to None.
+        checksums (list, optional): List of checksums. Defaults to None.
+        lifetime (int, optional): Lifetime of the dataset in seconds. Defaults to None.
+        scope (str, optional): Scope of the dataset. Defaults to None.
+        metadata (dict, optional): Metadata of the dataset. Defaults to None.
+
+        Returns:
+        dict: A dictionary containing duid, version and vuid of the dataset
+        """
         if lfns is None:
             lfns = []
         if guids is None:
@@ -57,7 +88,7 @@ class RucioAPI:
             sizes = []
         if checksums is None:
             checksums = []
-        presetScope = scope
+        preset_scope = scope
         files = []
         for lfn, guid, size, checksum in zip(lfns, guids, sizes, checksums):
             if lfn.find(":") > -1:
@@ -73,62 +104,75 @@ class RucioAPI:
         # register dataset
         client = RucioClient()
         try:
-            scope, dsn = self.extract_scope(dsn)
-            if presetScope is not None:
-                scope = presetScope
-            client.add_dataset(scope=scope, name=dsn, meta=metadata)
+            scope, dataset_name = self.extract_scope(dataset_name)
+            if preset_scope is not None:
+                scope = preset_scope
+            client.add_dataset(scope=scope, name=dataset_name, meta=metadata)
             if lifetime is not None:
-                client.set_metadata(scope, dsn, key="lifetime", value=lifetime * 86400)
+                client.set_metadata(scope, dataset_name, key="lifetime", value=lifetime * 86400)
         except DataIdentifierAlreadyExists:
             pass
         # open dataset just in case
         try:
-            client.set_status(scope, dsn, open=True)
+            client.set_status(scope, dataset_name, open=True)
         except Exception:
             pass
         # add files
         if len(files) > 0:
-            iFiles = 0
-            nFiles = 1000
-            while iFiles < len(files):
-                tmpFiles = files[iFiles : iFiles + nFiles]
+            i_files = 0
+            n_files = 1000
+            while i_files < len(files):
+                tmp_files = files[i_files : i_files + n_files]
                 try:
-                    client.add_files_to_dataset(scope=scope, name=dsn, files=tmpFiles, rse=None)
+                    client.add_files_to_dataset(scope=scope, name=dataset_name, files=tmp_files, rse=None)
                 except FileAlreadyExists:
-                    for f in tmpFiles:
+                    for f in tmp_files:
                         try:
-                            client.add_files_to_dataset(scope=scope, name=dsn, files=[f], rse=None)
+                            client.add_files_to_dataset(scope=scope, name=dataset_name, files=[f], rse=None)
                         except FileAlreadyExists:
                             pass
-                iFiles += nFiles
-        vuid = hashlib.md5((scope + ":" + dsn).encode()).hexdigest()
+                i_files += n_files
+        vuid = hashlib.md5((scope + ":" + dataset_name).encode()).hexdigest()
         vuid = f"{vuid[0:8]}-{vuid[8:12]}-{vuid[12:16]}-{vuid[16:20]}-{vuid[20:32]}"
         duid = vuid
         return {"duid": duid, "version": 1, "vuid": vuid}
 
-    # register dataset location
-    def registerDatasetLocation(
+    def register_dataset_location(
         self,
-        dsn,
-        rses,
-        lifetime=None,
-        owner=None,
-        activity=None,
-        scope=None,
-        asynchronous=False,
-        grouping="DATASET",
-        notify="N",
-    ):
-        if grouping is None:
-            grouping = "DATASET"
-        presetScope = scope
-        if lifetime is not None:
-            lifetime = lifetime * 24 * 60 * 60
-        scope, dsn = self.extract_scope(dsn)
-        if presetScope is not None:
-            scope = presetScope
+        dataset_name: str,
+        rses: list,
+        lifetime: int = None,
+        owner: str = None,
+        activity: str = None,
+        scope: str = None,
+        asynchronous: bool = False,
+        grouping: str = "DATASET",
+        notify: str = "N",
+    ) -> bool:
+        """
+        Register a dataset location in Rucio
+
+        Parameters:
+        dataset_name (str): Dataset name
+        rses (list): List of RSEs
+        lifetime (int, optional): Lifetime of the dataset in seconds. Defaults to None.
+        owner (str, optional): Owner of the dataset. Defaults to None.
+        activity (str, optional): Activity associated with the dataset. Defaults to None.
+        scope (str, optional): Scope of the dataset. Defaults to None.
+        asynchronous (bool, optional): Flag to indicate if the operation is asynchronous. Defaults to False.
+        grouping (str, optional): Grouping of the dataset. Defaults to "DATASET".
+        notify (str, optional): Notification option. Defaults to "N".
+
+        Returns:
+        bool: True if the operation is successful, False otherwise
+        """
+        grouping = "DATASET" if grouping is None else grouping
+        preset_scope = scope
+        lifetime = lifetime * 24 * 60 * 60 if lifetime else None
+        scope, dataset_name = self.extract_scope(dataset_name)
+        scope = preset_scope if preset_scope else scope
         dids = []
-        did = {"scope": scope, "name": dsn}
+        did = {"scope": scope, "name": dataset_name}
         dids.append(did)
         # make location
         rses.sort()
@@ -136,9 +180,8 @@ class RucioAPI:
         # check if a replication rule already exists
         client = RucioClient()
         # owner
-        if owner is None:
-            owner = client.account
-        for rule in client.list_did_rules(scope=scope, name=dsn):
+        owner = client.account if owner is None else owner
+        for rule in client.list_did_rules(scope=scope, name=dataset_name):
             if (rule["rse_expression"] == location) and (rule["account"] == owner):
                 return True
         try:
@@ -160,7 +203,18 @@ class RucioAPI:
         return True
 
     # get user
-    def getUser(self, client, dn):
+    def getUser(self, client, dn: str) -> str:
+        """
+        This method retrieves the account name associated with a given distinguished name (dn) from the Rucio client.
+        If no account is found, it returns the default account of the Rucio client.
+
+        Parameters:
+        client (RucioClient): The Rucio client instance to interact with the Rucio server.
+        dn (str): The distinguished name (dn) for which the associated account is to be retrieved.
+
+        Returns:
+        str: The account name associated with the given dn. If no account is found, it returns the default account of the Rucio client.
+        """
         tmp_list = [i for i in client.list_accounts("user", dn)]
         if tmp_list != []:
             owner = l[0]["account"]
@@ -168,12 +222,30 @@ class RucioAPI:
         return client.account
 
     # register dataset subscription
-    def registerDatasetSubscription(self, dsn, rses, lifetime=None, owner=None, activity=None, dn=None, comment=None):
-        if lifetime is not None:
-            lifetime = lifetime * 24 * 60 * 60
-        scope, dsn = self.extract_scope(dsn)
+    def register_dataset_subscription(self, dataset_name: str, rses: list, lifetime: int = None, owner: str = None,
+                                    activity: str = None, dn: str = None, comment: str = None) -> bool:
+        """
+        Register a dataset subscription in Rucio.
+
+        This method registers a dataset subscription in Rucio by creating a replication rule for the dataset.
+        If a replication rule already exists for the dataset, the method simply returns True.
+
+        Parameters:
+        dataset_name (str): The name of the dataset.
+        rses (list): A list of RSEs where the dataset should be replicated.
+        lifetime (int, optional): The lifetime of the replication rule in seconds. Defaults to None.
+        owner (str, optional): The owner of the replication rule. Defaults to None.
+        activity (str, optional): The activity associated with the replication rule. Defaults to None.
+        dn (str, optional): The distinguished name of the user. Defaults to None.
+        comment (str, optional): A comment to be associated with the replication rule. Defaults to None.
+
+        Returns:
+        bool: True if the operation is successful, False otherwise.
+        """
+        lifetime = lifetime * 24 * 60 * 60 if lifetime else lifetime
+        scope, dataset_name = self.extract_scope(dataset_name)
         dids = []
-        did = {"scope": scope, "name": dsn}
+        did = {"scope": scope, "name": dataset_name}
         dids.append(did)
         # make location
         rses.sort()
@@ -186,7 +258,7 @@ class RucioAPI:
                 owner = self.getUser(client, dn)
             else:
                 owner = client.account
-        for rule in client.list_did_rules(scope=scope, name=dsn):
+        for rule in client.list_did_rules(scope=scope, name=dataset_name):
             if (rule["rse_expression"] == location) and (rule["account"] == owner):
                 return True
         try:
@@ -259,7 +331,7 @@ class RucioAPI:
             for datasetName in tmpMap:
                 fileList = tmpMap[datasetName]
                 # extract scope from dataset
-                scope, dsn = self.extract_scope(datasetName)
+                scope, dataset_name = self.extract_scope(datasetName)
                 filesWithRSE = []
                 filesWoRSE = []
                 for tmpFile in fileList:
@@ -274,28 +346,28 @@ class RucioAPI:
                         filesWoRSE.append(file)
                 # add attachment
                 if len(filesWithRSE) > 0:
-                    nFiles = 100
-                    iFiles = 0
-                    while iFiles < len(filesWithRSE):
+                    n_files = 100
+                    i_files = 0
+                    while i_files < len(filesWithRSE):
                         attachment = {
                             "scope": scope,
-                            "name": dsn,
-                            "dids": filesWithRSE[iFiles : iFiles + nFiles],
+                            "name": dataset_name,
+                            "dids": filesWithRSE[i_files : i_files + n_files],
                             "rse": rse,
                         }
                         attachmentList.append(attachment)
-                        iFiles += nFiles
+                        i_files += n_files
                 if len(filesWoRSE) > 0:
-                    nFiles = 100
-                    iFiles = 0
-                    while iFiles < len(filesWoRSE):
+                    n_files = 100
+                    i_files = 0
+                    while i_files < len(filesWoRSE):
                         attachment = {
                             "scope": scope,
-                            "name": dsn,
-                            "dids": filesWoRSE[iFiles : iFiles + nFiles],
+                            "name": dataset_name,
+                            "dids": filesWoRSE[i_files : i_files + n_files],
                         }
                         attachmentList.append(attachment)
-                        iFiles += nFiles
+                        i_files += n_files
         # add files
         client = RucioClient()
         client.add_files_to_datasets(attachmentList, ignore_duplicate=True)
@@ -316,7 +388,7 @@ class RucioAPI:
             files = []
             for conFileAttr in zipFileAttr["files"]:
                 # get scope
-                scope, dsn = self.extract_scope(conFileAttr["ds"])
+                scope, dataset_name = self.extract_scope(conFileAttr["ds"])
                 # convert file attribute
                 conFile = self.convFileAttr(conFileAttr, scope)
                 conFile["type"] = "FILE"
@@ -328,27 +400,27 @@ class RucioAPI:
             for rse in zipFileAttr["rse"]:
                 client.add_replicas(rse=rse, files=[zipFile])
             # add files
-            nFiles = 100
-            iFiles = 0
-            while iFiles < len(files):
+            n_files = 100
+            i_files = 0
+            while i_files < len(files):
                 client.add_files_to_archive(
                     scope=zipFile["scope"],
                     name=zipFile["name"],
-                    files=files[iFiles : iFiles + nFiles],
+                    files=files[i_files : i_files + n_files],
                 )
-                iFiles += nFiles
+                i_files += n_files
 
     # list datasets
     def listDatasets(self, datasetName, old=False):
         result = {}
         # extract scope from dataset
-        scope, dsn = self.extract_scope(datasetName)
-        if dsn.endswith("/"):
-            dsn = dsn[:-1]
+        scope, dataset_name = self.extract_scope(datasetName)
+        if dataset_name.endswith("/"):
+            dataset_name = dataset_name[:-1]
             collection = "container"
         else:
             collection = "dataset"
-        filters = {"name": dsn}
+        filters = {"name": dataset_name}
         try:
             # get dids
             client = RucioClient()
@@ -391,11 +463,11 @@ class RucioAPI:
     def listDatasetReplicas(self, datasetName):
         retMap = {}
         # extract scope from dataset
-        scope, dsn = self.extract_scope(datasetName)
+        scope, dataset_name = self.extract_scope(datasetName)
         try:
             # get replicas
             client = RucioClient()
-            itr = client.list_dataset_replicas(scope, dsn)
+            itr = client.list_dataset_replicas(scope, dataset_name)
             for item in itr:
                 rse = item["rse"]
                 retMap[rse] = [
@@ -411,26 +483,26 @@ class RucioAPI:
             return 1, f"{errType} {errVale}"
 
     # set metadata
-    def setMetaData(self, dsn, metadata=None):
+    def setMetaData(self, dataset_name, metadata=None):
         # register dataset
         client = RucioClient()
         try:
-            scope, dsn = self.extract_scope(dsn)
+            scope, dataset_name = self.extract_scope(dataset_name)
             for tmpKey in metadata:
                 tmpValue = metadata[tmpKey]
-                client.set_metadata(scope, dsn, key=tmpKey, value=tmpValue)
+                client.set_metadata(scope, dataset_name, key=tmpKey, value=tmpValue)
         except Exception:
             errType, errVale = sys.exc_info()[:2]
             return False, f"{errType} {errVale}"
         return True, ""
 
     # get metadata
-    def getMetaData(self, dsn):
+    def getMetaData(self, dataset_name):
         # register dataset
         client = RucioClient()
         try:
-            scope, dsn = self.extract_scope(dsn)
-            return True, client.get_metadata(scope, dsn)
+            scope, dataset_name = self.extract_scope(dataset_name)
+            return True, client.get_metadata(scope, dataset_name)
         except DataIdentifierNotFound:
             return True, None
         except Exception:
@@ -438,19 +510,19 @@ class RucioAPI:
             return False, f"{errType} {errVale}"
 
     # delete dataset
-    def eraseDataset(self, dsn, scope=None, grace_period=None):
-        presetScope = scope
+    def eraseDataset(self, dataset_name, scope=None, grace_period=None):
+        preset_scope = scope
         # register dataset
         client = RucioClient()
         try:
-            scope, dsn = self.extract_scope(dsn)
-            if presetScope is not None:
-                scope = presetScope
+            scope, dataset_name = self.extract_scope(dataset_name)
+            if preset_scope is not None:
+                scope = preset_scope
             if grace_period is not None:
                 value = grace_period * 60 * 60
             else:
                 value = 0.0001
-            client.set_metadata(scope=scope, name=dsn, key="lifetime", value=value)
+            client.set_metadata(scope=scope, name=dataset_name, key="lifetime", value=value)
         except DataIdentifierNotFound:
             pass
         except Exception as e:
@@ -458,12 +530,12 @@ class RucioAPI:
         return True, ""
 
     # close dataset
-    def closeDataset(self, dsn):
+    def closeDataset(self, dataset_name):
         # register dataset
         client = RucioClient()
         try:
-            scope, dsn = self.extract_scope(dsn)
-            client.set_status(scope, dsn, open=False)
+            scope, dataset_name = self.extract_scope(dataset_name)
+            client.set_status(scope, dataset_name, open=False)
         except (UnsupportedOperation, DataIdentifierNotFound):
             pass
         return True
@@ -532,12 +604,12 @@ class RucioAPI:
     # list files in dataset
     def listFilesInDataset(self, datasetName, long=False, fileList=None):
         # extract scope from dataset
-        scope, dsn = self.extract_scope(datasetName)
-        if dsn.endswith("/"):
-            dsn = dsn[:-1]
+        scope, dataset_name = self.extract_scope(datasetName)
+        if dataset_name.endswith("/"):
+            dataset_name = dataset_name[:-1]
         client = RucioClient()
         return_dict = {}
-        for x in client.list_files(scope, dsn, long=long):
+        for x in client.list_files(scope, dataset_name, long=long):
             tmpLFN = str(x["name"])
             if fileList is not None:
                 genLFN = re.sub("\.\d+$", "", tmpLFN)
@@ -559,17 +631,17 @@ class RucioAPI:
         return (return_dict, None)
 
     # get # of files in dataset
-    def getNumberOfFiles(self, datasetName, presetScope=None):
+    def getNumberOfFiles(self, datasetName, preset_scope=None):
         # extract scope from dataset
-        scope, dsn = self.extract_scope(datasetName)
-        if presetScope is not None:
-            scope = presetScope
+        scope, dataset_name = self.extract_scope(datasetName)
+        if preset_scope is not None:
+            scope = preset_scope
         client = RucioClient()
-        nFiles = 0
+        n_files = 0
         try:
-            for x in client.list_files(scope, dsn):
-                nFiles += 1
-            return True, nFiles
+            for x in client.list_files(scope, dataset_name):
+                n_files += 1
+            return True, n_files
         except DataIdentifierNotFound:
             return None, "dataset not found"
         except Exception:
@@ -582,11 +654,11 @@ class RucioAPI:
         if datasetName.endswith("/"):
             datasetName = datasetName[:-1]
         # extract scope from dataset
-        scope, dsn = self.extract_scope(datasetName)
+        scope, dataset_name = self.extract_scope(datasetName)
         client = RucioClient()
         tSize = 0
         try:
-            for x in client.list_files(scope, dsn):
+            for x in client.list_files(scope, dataset_name):
                 tSize += x["bytes"]
             return True, tSize
         except DataIdentifierNotFound:
@@ -613,11 +685,11 @@ class RucioAPI:
     # delete files from dataset
     def deleteFilesFromDataset(self, datasetName, files):
         # extract scope from dataset
-        scope, dsn = self.extract_scope(datasetName)
+        scope, dataset_name = self.extract_scope(datasetName)
         client = RucioClient()
         try:
             # delete files
-            client.detach_dids(scope=scope, name=dsn, dids=files)
+            client.detach_dids(scope=scope, name=dataset_name, dids=files)
         except DataIdentifierNotFound:
             pass
 
@@ -671,34 +743,34 @@ class RucioAPI:
         return retVal, userInfo
 
     # register container
-    def registerContainer(self, cname, datasets=[], presetScope=None):
+    def registerContainer(self, cname, datasets=[], preset_scope=None):
         if cname.endswith("/"):
             cname = cname[:-1]
         # register container
         client = RucioClient()
         try:
-            scope, dsn = self.extract_scope(cname)
-            if presetScope is not None:
-                scope = presetScope
+            scope, dataset_name = self.extract_scope(cname)
+            if preset_scope is not None:
+                scope = preset_scope
             client.add_container(scope=scope, name=cname)
         except DataIdentifierAlreadyExists:
             pass
         # add files
         if len(datasets) > 0:
             try:
-                dsns = []
+                dataset_names = []
                 for ds in datasets:
                     ds_scope, ds_name = self.extract_scope(ds)
                     if ds_scope:
-                        dsn = {"scope": ds_scope, "name": ds_name}
+                        dataset_name = {"scope": ds_scope, "name": ds_name}
                     else:
-                        dsn = {"scope": scope, "name": ds}
-                    dsns.append(dsn)
-                client.add_datasets_to_container(scope=scope, name=cname, dsns=dsns)
+                        dataset_name = {"scope": scope, "name": ds}
+                    dataset_names.append(dataset_name)
+                client.add_datasets_to_container(scope=scope, name=cname, dataset_names=dataset_names)
             except DuplicateContent:
-                for ds in dsns:
+                for ds in dataset_names:
                     try:
-                        client.add_datasets_to_container(scope=scope, name=cname, dsns=[ds])
+                        client.add_datasets_to_container(scope=scope, name=cname, dataset_names=[ds])
                     except DuplicateContent:
                         pass
         return True

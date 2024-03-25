@@ -709,7 +709,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                         for iDDMTry in range(3):
                             isFailed = False
                             try:
-                                status = rucioAPI.registerDatasetSubscription(
+                                status = rucioAPI.register_dataset_subscription(
                                     tmpName,
                                     [dq2ID],
                                     owner="panda",
@@ -763,7 +763,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                                 out = "OK"
                                 isFailed = False
                                 try:
-                                    rucioAPI.registerDatasetLocation(
+                                    rucioAPI.register_dataset_location(
                                         tmpDsNameLoc,
                                         [tmpLocName],
                                         owner="panda",
@@ -854,7 +854,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                                 tmpDN = userInfo["nickname"]
                             tmpMsg = f"registerDatasetLocation for Rucio ds={tmpDsName} site={tmpDQ2ID} id={tmpDN}"
                             self.logger.debug(tmpMsg)
-                            rucioAPI.registerDatasetLocation(
+                            rucioAPI.register_dataset_location(
                                 tmpDsName,
                                 [tmpDQ2ID],
                                 owner=tmpDN,

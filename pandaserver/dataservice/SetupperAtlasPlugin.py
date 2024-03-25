@@ -702,7 +702,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                             break
                                         for iDDMTry in range(3):
                                             try:
-                                                out = rucioAPI.registerDatasetLocation(
+                                                out = rucioAPI.register_dataset_location(
                                                     name,
                                                     [dq2ID],
                                                     lifetime=repLifeTime,
@@ -1021,7 +1021,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             )
                             for iDDMTry in range(3):
                                 try:
-                                    status = rucioAPI.registerDatasetSubscription(
+                                    status = rucioAPI.register_dataset_subscription(
                                         job.dispatchDBlock,
                                         [dq2ID],
                                         activity=optActivity,
@@ -1801,7 +1801,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         nDDMTry = 3
                         for iDDMTry in range(nDDMTry):
                             try:
-                                out = rucioAPI.registerDatasetLocation(
+                                out = rucioAPI.register_dataset_location(
                                     disDBlock,
                                     [tmpLocation],
                                     7,
@@ -1995,7 +1995,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         for iDDMTry in range(nTry):
             try:
                 # register subscription
-                status = rucioAPI.registerDatasetSubscription(dataset, [dq2ID], activity="Production Input")
+                status = rucioAPI.register_dataset_subscription(dataset, [dq2ID], activity="Production Input")
                 out = "OK"
                 break
             except Exception:
@@ -2110,7 +2110,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     )
                     endPoint = tmpSiteSpec.ddm_input[scope_input]
                     self.logger.debug(f"subscribing jumbo dis dataset {dispatchDBlock} to {endPoint}")
-                    rucioAPI.registerDatasetSubscription(
+                    rucioAPI.register_dataset_subscription(
                         dispatchDBlock,
                         [endPoint],
                         lifetime=14,
