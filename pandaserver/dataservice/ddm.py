@@ -203,7 +203,7 @@ class RucioAPI:
         return True
 
     # get user
-    def getUser(self, client, dn: str) -> str:
+    def get_user(self, client, dn: str) -> str:
         """
         This method retrieves the account name associated with a given distinguished name (dn) from the Rucio client.
         If no account is found, it returns the default account of the Rucio client.
@@ -215,8 +215,8 @@ class RucioAPI:
         Returns:
         str: The account name associated with the given dn. If no account is found, it returns the default account of the Rucio client.
         """
-        tmp_list = [i for i in client.list_accounts("user", dn)]
-        if tmp_list != []:
+        tmp_list = list(client.list_accounts("user", dn))
+        if tmp_list:
             owner = l[0]["account"]
             return owner
         return client.account
@@ -255,7 +255,7 @@ class RucioAPI:
         # owner
         if owner is None:
             if dn is not None:
-                owner = self.getUser(client, dn)
+                owner = self.get_user(client, dn)
             else:
                 owner = client.account
         for rule in client.list_did_rules(scope=scope, name=dataset_name):
