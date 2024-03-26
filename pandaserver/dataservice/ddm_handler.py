@@ -54,7 +54,6 @@ class DDMHandler(threading.Thread):
             scope : str
                 The scope of the dataset (default is None).
         """
-
         threading.Thread.__init__(self)
         self.vuid = vuid
         self.task_buffer = task_buffer
