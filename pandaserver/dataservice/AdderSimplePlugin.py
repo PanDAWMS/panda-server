@@ -6,7 +6,7 @@ import traceback
 import uuid
 
 from pandaserver.dataservice import DataServiceUtils, ErrorCode
-from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.dataservice.ddm import rucioAPI
 from rucio.common.exception import (
     DataIdentifierNotFound,
     FileConsistencyMismatch,

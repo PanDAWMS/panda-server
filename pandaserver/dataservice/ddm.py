@@ -281,44 +281,32 @@ class RucioAPI:
         return True
 
     # convert file attribute
-    def convFileAttr(self, tmpFile, scope):
-        # extract scope from LFN if available
-        if "name" in tmpFile:
-            lfn = tmpFile["name"]
-        else:
-            lfn = tmpFile["lfn"]
-        if ":" in lfn:
-            s, lfn = lfn.split(":")
-        else:
-            s = scope
+    def conv_file_attr(self, tmp_file: dict, scope: str) -> dict:
+        """
+        Convert file attribute to a dictionary
+
+        Parameters:
+        tmp_file (dict): File attribute
+        scope (str): Scope of the file
+
+        Returns:
+        dict: A dictionary containing file attributes
+        """
+        lfn = tmpFile.get("name", tmpFile.get("lfn"))
+        s, lfn = lfn.split(":") if ":" in lfn else (scope, lfn)
         # set metadata
-        meta = {}
-        if "guid" in tmpFile:
-            meta["guid"] = tmpFile["guid"]
-        if "events" in tmpFile:
-            meta["events"] = tmpFile["events"]
-        if "lumiblocknr" in tmpFile:
-            meta["lumiblocknr"] = tmpFile["lumiblocknr"]
-        if "panda_id" in tmpFile:
-            meta["panda_id"] = tmpFile["panda_id"]
-        if "campaign" in tmpFile:
-            meta["campaign"] = tmpFile["campaign"]
-        if "task_id" in tmpFile:
-            meta["task_id"] = tmpFile["task_id"]
-        if "bytes" in tmpFile:
-            fsize = tmpFile["bytes"]
-        else:
-            fsize = tmpFile["size"]
-        # set mandatory fields
+        meta_keys = ["guid", "events", "lumiblocknr", "panda_id", "campaign", "task_id"]
+        meta = {key: tmpFile[key] for key in meta_keys if key in tmpFile}
+        fsize = tmpFile.get("bytes", tmpFile.get("size"))
         file = {"scope": s, "name": lfn, "bytes": fsize, "meta": meta}
-        if "checksum" in tmpFile:
-            checksum = tmpFile["checksum"]
+        if "checksum" in tmp_file:
+            checksum = tmp_file["checksum"]
             if checksum.startswith("md5:"):
                 file["md5"] = checksum[4:]
             elif checksum.startswith("ad:"):
                 file["adler32"] = checksum[3:]
-        if "surl" in tmpFile:
-            file["pfn"] = tmpFile["surl"]
+        if "surl" in tmp_file:
+            file["pfn"] = tmp_file["surl"]
         return file
 
     # register files in dataset
@@ -336,7 +324,7 @@ class RucioAPI:
                 filesWoRSE = []
                 for tmpFile in fileList:
                     # convert file attribute
-                    file = self.convFileAttr(tmpFile, scope)
+                    file = self.conv_file_attr(tmpFile, scope)
                     # append files
                     if rse is not None and (filesWoRSEs is None or file["name"] not in filesWoRSEs):
                         filesWithRSE.append(file)
@@ -383,14 +371,14 @@ class RucioAPI:
         for zipFileName in zipMap:
             zipFileAttr = zipMap[zipFileName]
             # convert file attribute
-            zipFile = self.convFileAttr(zipFileAttr, zipFileAttr["scope"])
+            zipFile = self.conv_file_attr(zipFileAttr, zipFileAttr["scope"])
             # loop over all contents
             files = []
             for conFileAttr in zipFileAttr["files"]:
                 # get scope
                 scope, dataset_name = self.extract_scope(conFileAttr["ds"])
                 # convert file attribute
-                conFile = self.convFileAttr(conFileAttr, scope)
+                conFile = self.conv_file_attr(conFileAttr, scope)
                 conFile["type"] = "FILE"
                 if "pfn" in conFile:
                     del conFile["pfn"]

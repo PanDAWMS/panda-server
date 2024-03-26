@@ -15,7 +15,7 @@ from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils, ErrorCode
 from pandaserver.dataservice.AdderPluginBase import AdderPluginBase
 from pandaserver.dataservice.DataServiceUtils import select_scope
-from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.srvcore.MailUtils import MailUtils
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 from rucio.common.exception import (

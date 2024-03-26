@@ -17,7 +17,7 @@ import pandaserver.jobdispatcher.Protocol as Protocol
 import pandaserver.taskbuffer.ProcessGroups
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
-from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.CoreUtils import clean_user_id, resolve_bool
 from pandaserver.taskbuffer import JobUtils, PrioUtil

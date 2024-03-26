@@ -12,7 +12,7 @@ from pandaserver.brokerage import ErrorCode
 from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.dataservice.DataServiceUtils import select_scope
-from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.taskbuffer import ProcessGroups
 
 _log = PandaLogger().getLogger("broker")

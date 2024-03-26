@@ -4,7 +4,7 @@ ATLAS plugin for closer
 import sys
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
-from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.dataservice import DataServiceUtils
 
 
