@@ -99,7 +99,7 @@ def _getOkFiles(
         # get all replicas
         if rucio_url not in allOkFilesMap:
             allOkFilesMap[rucio_url] = {}
-            tmpStat, tmpAvaFiles = rucioAPI.listFileReplicas(allScopeList, allLFNs, tmpSE)
+            tmpStat, tmpAvaFiles = rucioAPI.list_file_replicas(allScopeList, allLFNs, tmpSE)
             if not tmpStat and tmpLog is not None:
                 tmpLog.debug("getOkFile failed to get file replicas")
                 tmpAvaFiles = {}

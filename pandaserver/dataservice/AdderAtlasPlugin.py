@@ -616,9 +616,9 @@ class AdderAtlasPlugin(AdderPluginBase):
                     regMsgStr = f"File registration with backend={self.ddmBackEnd} for {regNumFiles} files "
                 if len(zipFiles) > 0:
                     self.logger.debug(f"registerZipFiles {str(zipFiles)}")
-                    rucioAPI.registerZipFiles(zipFiles)
+                    rucioAPI.register_zip_files(zipFiles)
                 self.logger.debug(f"registerFilesInDatasets {str(destIdMap)} zip={str(contZipMap)}")
-                out = rucioAPI.registerFilesInDataset(destIdMap, contZipMap)
+                out = rucioAPI.register_files_in_dataset(destIdMap, contZipMap)
             except (
                 DataIdentifierNotFound,
                 FileConsistencyMismatch,
@@ -997,7 +997,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             if idMap != {}:
                 self.logger.debug(f"adding ES files {str(idMap)}")
                 try:
-                    rucioAPI.registerFilesInDataset(idMap)
+                    rucioAPI.register_files_in_dataset(idMap)
                 except DataIdentifierNotFound:
                     self.logger.debug("ignored DataIdentifierNotFound")
         except Exception:

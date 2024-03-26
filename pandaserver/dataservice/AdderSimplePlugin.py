@@ -73,7 +73,7 @@ class AdderSimplePlugin(AdderPluginBase):
                     regStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                     try:
                         self.logger.debug(f"registerFilesInDatasets {str(destIdMap)}")
-                        out = rucioAPI.registerFilesInDataset(destIdMap, {})
+                        out = rucioAPI.register_files_in_dataset(destIdMap, {})
                     except (
                         DataIdentifierNotFound,
                         FileConsistencyMismatch,

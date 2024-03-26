@@ -211,7 +211,7 @@ class DynDataDistributer:
 
         for attempt in range(max_attempts):
             tmp_log.debug(f"{attempt}/{max_attempts} listDatasetReplicas {dataset}")
-            status, replicas = rucioAPI.listDatasetReplicas(dataset)
+            status, replicas = rucioAPI.list_dataset_replicas(dataset)
             if status == 0:
                 tmp_log.debug(f"get_list_dataset_replicas->{str(replicas)}")
                 tmp_log.debug("end")
@@ -244,7 +244,7 @@ class DynDataDistributer:
         # get datasets in container
         for attempt in range(max_attempts):
             tmp_log.debug(f"{attempt}/{max_attempts} listDatasetsInContainer {container}")
-            datasets, out = rucioAPI.listDatasetsInContainer(container)
+            datasets, out = rucioAPI.list_datasets_in_container(container)
             if datasets is not None:
                 break
             time.sleep(60)
@@ -294,7 +294,7 @@ class DynDataDistributer:
             for attempt in range(max_attempts):
                 try:
                     tmp_log.debug(f"{attempt}/{max_attempts} listFilesInDataset {dataset_name}")
-                    file_items, out = rucioAPI.listFilesInDataset(dataset_name)
+                    file_items, out = rucioAPI.list_files_in_dataset(dataset_name)
                     status = True
                     break
                 except Exception:
@@ -354,7 +354,7 @@ class DynDataDistributer:
             for attempt in range(max_attempts):
                 try:
                     tmp_log.debug(f"{attempt}/{max_attempts} listFilesInDataset {dataset_name}")
-                    file_items, out = rucioAPI.listFilesInDataset(dataset_name)
+                    file_items, out = rucioAPI.list_files_in_dataset(dataset_name)
                     status = True
                     break
                 except Exception:
@@ -464,7 +464,7 @@ class DynDataDistributer:
         for attempt in range(max_attempts):
             try:
                 tmp_logger.debug(f"{attempt}/{max_attempts} registerContainer {container_name}")
-                status = rucioAPI.registerContainer(container_name, dataset_names)
+                status = rucioAPI.register_container(container_name, dataset_names)
                 out = "OK"
                 break
             except Exception:
@@ -535,7 +535,7 @@ class DynDataDistributer:
         for attempt in range(max_attempts):
             tmp_logger.debug(f"{attempt}/{max_attempts} freezeDataset {dataset_name}")
             try:
-                rucioAPI.closeDataset(dataset_name)
+                rucioAPI.close_dataset(dataset_name)
                 status = True
             except Exception:
                 err_type, err_value = sys.exc_info()[:2]
@@ -666,7 +666,7 @@ class DynDataDistributer:
         for attempt in range(max_attempts):
             tmp_logger.debug(f"{attempt}/{max_attempts} listDatasetsByGUIDs GUIDs={str(guids)}")
             try:
-                out = rucioAPI.listDatasetsByGUIDs(guids)
+                out = rucioAPI.list_datasets_by_guids(guids)
                 status = True
                 break
             except Exception:

@@ -80,7 +80,7 @@ class CloserAtlasPlugin:
                     continue
                 try:
                     self.tmp_log.debug(f"immediate close {datasetSpec.name}")
-                    rucioAPI.closeDataset(datasetSpec.name)
+                    rucioAPI.close_dataset(datasetSpec.name)
                 except Exception:
                     errtype, errvalue = sys.exc_info()[:2]
                     self.tmp_log.warning(f"failed to close : {errtype} {errvalue}")

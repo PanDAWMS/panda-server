@@ -8,6 +8,8 @@ import re
 import sys
 import traceback
 
+from typing import Dict, List, Tuple
+
 from rucio.client import Client as RucioClient
 from rucio.common.exception import (
     DataIdentifierAlreadyExists,
@@ -145,7 +147,6 @@ class RucioAPI:
         owner: str = None,
         activity: str = None,
         scope: str = None,
-        asynchronous: bool = False,
         grouping: str = "DATASET",
         notify: str = "N",
     ) -> bool:
@@ -159,7 +160,6 @@ class RucioAPI:
         owner (str, optional): Owner of the dataset. Defaults to None.
         activity (str, optional): Activity associated with the dataset. Defaults to None.
         scope (str, optional): Scope of the dataset. Defaults to None.
-        asynchronous (bool, optional): Flag to indicate if the operation is asynchronous. Defaults to False.
         grouping (str, optional): Grouping of the dataset. Defaults to "DATASET".
         notify (str, optional): Notification option. Defaults to "N".
 
@@ -292,12 +292,12 @@ class RucioAPI:
         Returns:
         dict: A dictionary containing file attributes
         """
-        lfn = tmpFile.get("name", tmpFile.get("lfn"))
+        lfn = tmp_file.get("name", tmp_file.get("lfn"))
         s, lfn = lfn.split(":") if ":" in lfn else (scope, lfn)
         # set metadata
         meta_keys = ["guid", "events", "lumiblocknr", "panda_id", "campaign", "task_id"]
-        meta = {key: tmpFile[key] for key in meta_keys if key in tmpFile}
-        fsize = tmpFile.get("bytes", tmpFile.get("size"))
+        meta = {key: tmp_file[key] for key in meta_keys if key in tmp_file}
+        fsize = tmp_file.get("bytes", tmp_file.get("size"))
         file = {"scope": s, "name": lfn, "bytes": fsize, "meta": meta}
         if "checksum" in tmp_file:
             checksum = tmp_file["checksum"]
@@ -310,99 +310,138 @@ class RucioAPI:
         return file
 
     # register files in dataset
-    def registerFilesInDataset(self, idMap, filesWoRSEs=None):
+    def register_files_in_dataset(self, id_map: dict, files_wo_rses: list = None) -> bool:
+        """
+        Register files in a dataset
+
+        Parameters:
+        id_map (dict): A dictionary containing dataset information
+        files_wo_rses (list, optional): List of files without RSEs. Defaults to None.
+
+        Returns:
+        bool: True if the operation is successful, False otherwise
+        """
         # loop over all rse
-        attachmentList = []
-        for rse in idMap:
-            tmpMap = idMap[rse]
+        attachment_list = []
+        for rse in id_map:
+            tmp_map = id_map[rse]
             # loop over all datasets
-            for datasetName in tmpMap:
-                fileList = tmpMap[datasetName]
+            for datasetName in tmp_map:
+                file_list = tmp_map[datasetName]
                 # extract scope from dataset
                 scope, dataset_name = self.extract_scope(datasetName)
-                filesWithRSE = []
-                filesWoRSE = []
-                for tmpFile in fileList:
+                files_with_rse = []
+                files_wo_rse = []
+                for tmp_file in file_list:
                     # convert file attribute
-                    file = self.conv_file_attr(tmpFile, scope)
+                    file = self.conv_file_attr(tmp_file, scope)
                     # append files
-                    if rse is not None and (filesWoRSEs is None or file["name"] not in filesWoRSEs):
-                        filesWithRSE.append(file)
+                    if rse is not None and (files_wo_rses is None or file["name"] not in files_wo_rses):
+                        files_with_rse.append(file)
                     else:
                         if "pfn" in file:
                             del file["pfn"]
-                        filesWoRSE.append(file)
+                        files_wo_rse.append(file)
                 # add attachment
-                if len(filesWithRSE) > 0:
+                if len(files_with_rse) > 0:
                     n_files = 100
                     i_files = 0
-                    while i_files < len(filesWithRSE):
+                    while i_files < len(files_with_rse):
                         attachment = {
                             "scope": scope,
                             "name": dataset_name,
-                            "dids": filesWithRSE[i_files : i_files + n_files],
+                            "dids": files_with_rse[i_files : i_files + n_files],
                             "rse": rse,
                         }
-                        attachmentList.append(attachment)
+                        attachment_list.append(attachment)
                         i_files += n_files
-                if len(filesWoRSE) > 0:
+                if len(files_wo_rse) > 0:
                     n_files = 100
                     i_files = 0
-                    while i_files < len(filesWoRSE):
+                    while i_files < len(files_wo_rse):
                         attachment = {
                             "scope": scope,
                             "name": dataset_name,
-                            "dids": filesWoRSE[i_files : i_files + n_files],
+                            "dids": files_wo_rse[i_files : i_files + n_files],
                         }
-                        attachmentList.append(attachment)
+                        attachment_list.append(attachment)
                         i_files += n_files
         # add files
         client = RucioClient()
-        client.add_files_to_datasets(attachmentList, ignore_duplicate=True)
+        client.add_files_to_datasets(attachment_list, ignore_duplicate=True)
         return True
 
     # register zip files
-    def registerZipFiles(self, zipMap):
+    def register_zip_files(self, zip_map: dict) -> None:
+        """
+        Register zip files in Rucio.
+
+        This method takes a map of zip file names to their attributes and registers the zip files in Rucio.
+        It first converts the zip file attributes to a dictionary format that Rucio can understand.
+        Then, it loops over all the files contained in the zip file, converts their attributes to the Rucio dictionary format, and appends them to a list.
+        Finally, it registers the zip file and its contained files in Rucio.
+
+        Parameters:
+        zip_map (dict): A dictionary mapping zip file names to their attributes. The structure is {zipFileName: zipFileAttr, ...}.
+
+        Returns:
+        None
+        """
         # no zip files
-        if len(zipMap) == 0:
+        if len(zip_map) == 0:
             return
         client = RucioClient()
         # loop over all zip files
-        for zipFileName in zipMap:
-            zipFileAttr = zipMap[zipFileName]
+        for zip_file_name in zip_map:
+            zip_file_attr = zip_map[zip_file_name]
             # convert file attribute
-            zipFile = self.conv_file_attr(zipFileAttr, zipFileAttr["scope"])
+            zip_file = self.conv_file_attr(zip_file_attr, zip_file_attr["scope"])
             # loop over all contents
             files = []
-            for conFileAttr in zipFileAttr["files"]:
+            for con_file_attr in zip_file_attr["files"]:
                 # get scope
-                scope, dataset_name = self.extract_scope(conFileAttr["ds"])
+                scope, dataset_name = self.extract_scope(con_file_attr["ds"])
                 # convert file attribute
-                conFile = self.conv_file_attr(conFileAttr, scope)
-                conFile["type"] = "FILE"
-                if "pfn" in conFile:
-                    del conFile["pfn"]
+                con_file = self.conv_file_attr(con_file_attr, scope)
+                con_file["type"] = "FILE"
+                if "pfn" in con_file:
+                    del con_file["pfn"]
                 # append files
-                files.append(conFile)
+                files.append(con_file)
             # register zip file
-            for rse in zipFileAttr["rse"]:
-                client.add_replicas(rse=rse, files=[zipFile])
+            for rse in zip_file_attr["rse"]:
+                client.add_replicas(rse=rse, files=[zip_file])
             # add files
             n_files = 100
             i_files = 0
             while i_files < len(files):
                 client.add_files_to_archive(
-                    scope=zipFile["scope"],
-                    name=zipFile["name"],
-                    files=files[i_files : i_files + n_files],
+                    scope=zip_file["scope"],
+                    name=zip_file["name"],
+                    files=files[i_files: i_files + n_files],
                 )
                 i_files += n_files
 
     # list datasets
-    def listDatasets(self, datasetName, old=False):
+    def list_datasets(self, dataset_name: str, old: bool = False):
+        """
+        List datasets in Rucio.
+
+        This method lists datasets in Rucio by extracting the scope from the dataset name and getting the DIDs (Data Identifiers).
+        It generates a unique identifier (vuid) for each DID and stores it in a dictionary along with the dataset name.
+        If an exception occurs during the process, it returns None and the exception message.
+
+        Parameters:
+        dataset_name (str): The name of the dataset.
+        old (bool, optional): A flag to indicate if the dataset is old. Defaults to False.
+
+        Returns:
+        Tuple[Union[dict, None], str]: A tuple containing a dictionary of datasets and their unique identifiers, and a string message.
+        If an exception occurs, the dictionary is None and the string contains the exception message.
+        """
         result = {}
         # extract scope from dataset
-        scope, dataset_name = self.extract_scope(datasetName)
+        scope, dataset_name = self.extract_scope(dataset_name)
         if dataset_name.endswith("/"):
             dataset_name = dataset_name[:-1]
             collection = "container"
@@ -414,26 +453,42 @@ class RucioAPI:
             client = RucioClient()
             for name in client.list_dids(scope, filters, collection):
                 vuid = hashlib.md5((scope + ":" + name).encode()).hexdigest()
+                # Format is a 36-character string divided into five groups separated by hyphens. The groups have 8, 4, 4, 4, and 12 characters.
+                # After the formatting, the vuid string would look something like this: 12345678-1234-1234-1234-123456789012
                 vuid = f"{vuid[0:8]}-{vuid[8:12]}-{vuid[12:16]}-{vuid[16:20]}-{vuid[20:32]}"
                 duid = vuid
                 # add /
-                if datasetName.endswith("/") and not name.endswith("/"):
+                if dataset_name.endswith("/") and not name.endswith("/"):
                     name += "/"
-                if old or ":" not in datasetName:
-                    keyName = name
+                if old or ":" not in dataset_name:
+                    key_name = name
                 else:
-                    keyName = str(f"{scope}:{name}")
-                if keyName not in result:
-                    result[keyName] = {"duid": duid, "vuids": [vuid]}
+                    key_name = str(f"{scope}:{name}")
+                if key_name not in result:
+                    result[key_name] = {"duid": duid, "vuids": [vuid]}
             return result, ""
         except Exception as e:
             return None, f"{str(e)} {traceback.format_exc()}"
 
     # list datasets in container
-    def listDatasetsInContainer(self, containerName):
+    def list_datasets_in_container(self, container_name: str):
+        """
+        List datasets in a Rucio container.
+
+        This method lists datasets in a Rucio container by extracting the scope from the container name and getting the DIDs (Data Identifiers).
+        It generates a unique identifier (vuid) for each DID and stores it in a list.
+        If an exception occurs during the process, it returns None and the exception message.
+
+        Parameters:
+        container_name (str): The name of the container.
+
+        Returns:
+        Tuple[Union[None, List[str]], str]: A tuple containing a list of datasets and a string message.
+        If an exception occurs, the list is None and the string contains the exception message.
+        """
         result = []
         # extract scope from dataset
-        scope, cn = self.extract_scope(containerName)
+        scope, cn = self.extract_scope(container_name)
         if cn.endswith("/"):
             cn = cn[:-1]
         try:
@@ -444,48 +499,62 @@ class RucioAPI:
                     result.append(str(f"{i['scope']}:{i['name']}"))
             return result, ""
         except Exception:
-            errType, errVale = sys.exc_info()[:2]
-            return None, f"{errType} {errVale}"
+            err_type, err_value = sys.exc_info()[:2]
+            return None, f"{err_type} {err_value}"
 
     # list dataset replicas
-    def listDatasetReplicas(self, datasetName):
-        retMap = {}
+    def list_dataset_replicas(self, dataset_name: str):
+        """
+        List dataset replicas in Rucio.
+
+        This method lists dataset replicas in Rucio by extracting the scope from the dataset name and getting the replicas.
+        It stores the replicas in a dictionary and returns it along with a status code.
+        If an exception occurs during the process, it returns the error type and value.
+
+        Parameters:
+        dataset_name (str): The name of the dataset.
+
+        Returns:
+        Tuple[int, Union[str, dict]]: A tuple containing a status code and a dictionary of dataset replicas or an error message.
+        If an exception occurs, the dictionary is None and the string contains the error message.
+        """
+        ret_map = {}
         # extract scope from dataset
-        scope, dataset_name = self.extract_scope(datasetName)
+        scope, dataset_name = self.extract_scope(dataset_name)
         try:
             # get replicas
             client = RucioClient()
             itr = client.list_dataset_replicas(scope, dataset_name)
             for item in itr:
                 rse = item["rse"]
-                retMap[rse] = [
+                ret_map[rse] = [
                     {
                         "total": item["length"],
                         "found": item["available_length"],
                         "immutable": 1,
                     }
                 ]
-            return 0, retMap
+            return 0, ret_map
         except Exception:
-            errType, errVale = sys.exc_info()[:2]
-            return 1, f"{errType} {errVale}"
-
-    # set metadata
-    def setMetaData(self, dataset_name, metadata=None):
-        # register dataset
-        client = RucioClient()
-        try:
-            scope, dataset_name = self.extract_scope(dataset_name)
-            for tmpKey in metadata:
-                tmpValue = metadata[tmpKey]
-                client.set_metadata(scope, dataset_name, key=tmpKey, value=tmpValue)
-        except Exception:
-            errType, errVale = sys.exc_info()[:2]
-            return False, f"{errType} {errVale}"
-        return True, ""
+            err_type, err_value = sys.exc_info()[:2]
+            return 1, f"{err_type} {err_value}"
 
     # get metadata
-    def getMetaData(self, dataset_name):
+    def get_metadata(self, dataset_name: str, scope: str = None):
+        """
+        Get metadata of a dataset in Rucio.
+
+        This method retrieves the metadata of a dataset in Rucio by extracting the scope from the dataset name and getting the metadata.
+        If an exception occurs during the process, it returns False and the exception message.
+
+        Parameters:
+        dataset_name (str): The name of the dataset.
+        scope (str, optional): The scope of the dataset. Defaults to None.
+
+        Returns:
+        Tuple[bool, Union[None, dict]]: A tuple containing a boolean indicating the success of the operation and a dictionary of metadata or an error message.
+        If an exception occurs, the boolean is False and the string contains the error message.
+        """
         # register dataset
         client = RucioClient()
         try:
@@ -494,11 +563,26 @@ class RucioAPI:
         except DataIdentifierNotFound:
             return True, None
         except Exception:
-            errType, errVale = sys.exc_info()[:2]
-            return False, f"{errType} {errVale}"
+            err_type, err_value = sys.exc_info()[:2]
+            return False, f"{err_type} {err_value}"
 
     # delete dataset
-    def eraseDataset(self, dataset_name, scope=None, grace_period=None):
+    def erase_dataset(self, dataset_name: str, scope: str = None, grace_period: int = None):
+        """
+        Delete a dataset in Rucio.
+
+        This method deletes a dataset in Rucio by extracting the scope from the dataset name and calling the erase method.
+        If an exception occurs during the process, it returns False and the exception message.
+
+        Parameters:
+        dataset_name (str): The name of the dataset.
+        scope (str, optional): The scope of the dataset. Defaults to None.
+        grace_period (int, optional): The grace period before deletion. Defaults to None.
+
+        Returns:
+        Tuple[bool, str]: A tuple containing a boolean indicating the success of the operation and a string message.
+        If an exception occurs, the boolean is False and the string contains the error message.
+        """
         preset_scope = scope
         # register dataset
         client = RucioClient()
@@ -518,7 +602,19 @@ class RucioAPI:
         return True, ""
 
     # close dataset
-    def closeDataset(self, dataset_name):
+    def close_dataset(self, dataset_name: str) -> bool:
+        """
+        Close a dataset in Rucio.
+
+        This method closes a dataset in Rucio by extracting the scope from the dataset name and setting the status of the dataset to closed.
+        If an exception occurs during the process, it ignores the exception and returns True.
+
+        Parameters:
+        dataset_name (str): The name of the dataset.
+
+        Returns:
+        bool: True if the operation is successful, False otherwise.
+        """
         # register dataset
         client = RucioClient()
         try:
@@ -529,99 +625,156 @@ class RucioAPI:
         return True
 
     # list file replicas
-    def listFileReplicas(self, scopes, lfns, rses=None):
+    def list_file_replicas(self, scopes: List[str], lfns: List[str], rses: List[str] = None):
+        """
+        List file replicas in Rucio.
+
+        This method lists file replicas in Rucio by creating a list of dictionaries containing the scope and name of each file.
+        It then retrieves the replicas for these files from Rucio and stores them in a dictionary.
+        If an exception occurs during the process, it returns False and the exception message.
+
+        Parameters:
+        scopes (List[str]): A list of scopes for the files.
+        lfns (List[str]): A list of Logical File Names (LFNs) for the files.
+        rses (List[str], optional): A list of Rucio Storage Elements (RSEs) where the files should be replicated. Defaults to None.
+
+        Returns:
+        Tuple[bool, Union[str, Dict[str, List[str]]]]: A tuple containing a boolean indicating the success of the operation and a dictionary of file replicas or an error message.
+        If an exception occurs, the boolean is False and the string contains the error message.
+        """
         try:
             client = RucioClient()
             dids = []
-            iGUID = 0
-            nGUID = 1000
-            retVal = {}
+            i_guid = 0
+            n_guid = 1000
+            ret_val = {}
             for scope, lfn in zip(scopes, lfns):
-                iGUID += 1
+                i_guid += 1
                 dids.append({"scope": scope, "name": lfn})
-                if len(dids) % nGUID == 0 or iGUID == len(lfns):
-                    for tmpDict in client.list_replicas(dids):
-                        tmpLFN = str(tmpDict["name"])
-                        tmpRses = list(tmpDict["rses"])
+                if len(dids) % n_guid == 0 or i_guid == len(lfns):
+                    for tmp_dict in client.list_replicas(dids):
+                        tmp_lfn = str(tmp_dict["name"])
+                        tmp_rses = list(tmp_dict["rses"])
                         # RSE selection
                         if rses is not None:
-                            newRSEs = []
-                            for tmpRse in tmpRses:
-                                if tmpRse in rses:
-                                    newRSEs.append(tmpRse)
-                            tmpRses = newRSEs
-                        if len(tmpRses) > 0:
-                            retVal[tmpLFN] = tmpRses
+                            tmp_rses = [tmp_rse for tmp_rse in tmp_rses if tmp_rse in rses]
+                        if len(tmp_rses) > 0:
+                            ret_val[tmp_lfn] = tmp_rses
                     dids = []
-            return True, retVal
+            return True, ret_val
         except Exception:
-            errType, errVale = sys.exc_info()[:2]
-            return False, f"{errType} {errVale}"
+            err_type, err_value = sys.exc_info()[:2]
+            return False, f"{err_type} {err_value}"
 
     # get zip files
-    def getZipFiles(self, dids, rses):
+    def get_zip_files(self, dids: List[str], rses: List[str]):
+        """
+        Get zip files from Rucio.
+
+        This method retrieves zip files from Rucio by creating a list of dictionaries containing the scope and name of each file.
+        It then retrieves the replicas for these files from Rucio and stores them in a dictionary.
+        If an exception occurs during the process, it returns False and the exception message.
+
+        Parameters:
+        dids (List[str]): A list of Data Identifiers (DIDs) for which to retrieve the associated zip files.
+        rses (List[str]): A list of Rucio Storage Elements (RSEs) where the files should be replicated.
+
+        Returns:
+        Tuple[bool, Union[str, Dict[str, Dict[str, Any]]]]: A tuple containing a boolean indicating the success of the operation and a dictionary of zip files or an error message.
+        If an exception occurs, the boolean is False and the string contains the error message.
+        """
         try:
             client = RucioClient()
             data = []
-            iGUID = 0
-            nGUID = 1000
-            retVal = {}
+            i_guid = 0
+            n_guid = 1000
+            ret_val = {}
             for did in dids:
-                iGUID += 1
+                i_guid += 1
                 scope, lfn = did.split(":")
                 data.append({"scope": scope, "name": lfn})
-                if len(data) % nGUID == 0 or iGUID == len(dids):
-                    for tmpDict in client.list_replicas(data):
-                        tmpScope = str(tmpDict["scope"])
-                        tmpLFN = str(tmpDict["name"])
-                        tmpDID = f"{tmpScope}:{tmpLFN}"
+                if len(data) % n_guid == 0 or i_guid == len(dids):
+                    for tmp_dict in client.list_replicas(data):
+                        tmp_scope = str(tmp_dict["scope"])
+                        tmp_lfn = str(tmp_dict["name"])
+                        tmp_did = f"{tmp_scope}:{tmp_lfn}"
                         # RSE selection
-                        for pfn in tmpDict["pfns"]:
-                            pfnData = tmpDict["pfns"][pfn]
-                            if (rses is None or pfnData["rse"] in rses) and pfnData["domain"] == "zip":
-                                zipFileName = pfn.split("/")[-1]
-                                zipFileName = re.sub("\?.+$", "", zipFileName)
-                                retVal[tmpDID] = client.get_metadata(tmpScope, zipFileName)
+                        for pfn in tmp_dict["pfns"]:
+                            pfn_data = tmp_dict["pfns"][pfn]
+                            if (rses is None or pfn_data["rse"] in rses) and pfn_data["domain"] == "zip":
+                                zip_file_name = pfn.split("/")[-1]
+                                zip_file_name = re.sub("\?.+$", "", zip_file_name)
+                                ret_val[tmp_did] = client.get_metadata(tmp_scope, zip_file_name)
                                 break
                     data = []
-            return True, retVal
+            return True, ret_val
         except Exception:
-            errType, errVale = sys.exc_info()[:2]
-            return False, f"{errType} {errVale}"
+            err_type, err_value = sys.exc_info()[:2]
+            return False, f"{err_type} {err_value}"
 
     # list files in dataset
-    def listFilesInDataset(self, datasetName, long=False, fileList=None):
+    def list_files_in_dataset(self, dataset_name: str, long: bool = False, file_list: List[str] = None) :
+        """
+        List files in a Rucio dataset.
+
+        This method lists files in a Rucio dataset by extracting the scope from the dataset name and getting the files.
+        It stores the files in a dictionary and returns it along with a status code.
+        If an exception occurs during the process, it returns the error type and value.
+
+        Parameters:
+        dataset_name (str): The name of the dataset.
+        long (bool, optional): A flag to indicate if the file list should be long. Defaults to False.
+        file_list (List[str], optional): A list of files to be listed. Defaults to None.
+
+        Returns:
+        Tuple[Dict[str, Dict[str, Any]], Optional[str]]: A tuple containing a dictionary of files and a string message.
+        If an exception occurs, the dictionary is None and the string contains the error message.
+        """
         # extract scope from dataset
-        scope, dataset_name = self.extract_scope(datasetName)
+        scope, dataset_name = self.extract_scope(dataset_name)
         if dataset_name.endswith("/"):
             dataset_name = dataset_name[:-1]
         client = RucioClient()
         return_dict = {}
         for x in client.list_files(scope, dataset_name, long=long):
-            tmpLFN = str(x["name"])
-            if fileList is not None:
-                genLFN = re.sub("\.\d+$", "", tmpLFN)
-                if tmpLFN not in fileList and genLFN not in fileList:
+            tmp_lfn = str(x["name"])
+            if file_list is not None:
+                gen_lfn = re.sub("\.\d+$", "", tmp_lfn)
+                if tmp_lfn not in file_list and gen_lfn not in file_list:
                     continue
-            dq2attrs = {}
-            dq2attrs["chksum"] = "ad:" + str(x["adler32"])
-            dq2attrs["md5sum"] = dq2attrs["chksum"]
-            dq2attrs["checksum"] = dq2attrs["chksum"]
-            dq2attrs["fsize"] = x["bytes"]
-            dq2attrs["filesize"] = dq2attrs["fsize"]
-            dq2attrs["scope"] = str(x["scope"])
-            dq2attrs["events"] = str(x["events"])
+            rucio_attrs = {}
+            rucio_attrs["chksum"] = "ad:" + str(x["adler32"])
+            rucio_attrs["md5sum"] = rucio_attrs["chksum"]
+            rucio_attrs["checksum"] = rucio_attrs["chksum"]
+            rucio_attrs["fsize"] = x["bytes"]
+            rucio_attrs["filesize"] = rucio_attrs["fsize"]
+            rucio_attrs["scope"] = str(x["scope"])
+            rucio_attrs["events"] = str(x["events"])
             if long:
-                dq2attrs["lumiblocknr"] = str(x["lumiblocknr"])
+                rucio_attrs["lumiblocknr"] = str(x["lumiblocknr"])
             guid = str(f"{x['guid'][0:8]}-{x['guid'][8:12]}-{x['guid'][12:16]}-{x['guid'][16:20]}-{x['guid'][20:32]}")
-            dq2attrs["guid"] = guid
-            return_dict[tmpLFN] = dq2attrs
+            rucio_attrs["guid"] = guid
+            return_dict[tmp_lfn] = rucio_attrs
         return (return_dict, None)
 
     # get # of files in dataset
-    def getNumberOfFiles(self, datasetName, preset_scope=None):
+    def get_number_of_files(self, dataset_name: str, preset_scope: str = None):
+        """
+        Get the number of files in a Rucio dataset.
+
+        This method retrieves the number of files in a Rucio dataset by extracting the scope from the dataset name and getting the files.
+        If an exception occurs during the process, it returns False and the exception message.
+
+        Parameters:
+        dataset_name (str): The name of the dataset.
+        preset_scope (str, optional): The scope of the dataset. Defaults to None.
+
+        Returns:
+        Tuple[bool, Union[int, str]]: A tuple containing a boolean indicating the success of the operation and the number of files or an error message.
+        If an exception occurs, the boolean is False and the string contains the error message.
+        """
         # extract scope from dataset
-        scope, dataset_name = self.extract_scope(datasetName)
+        scope, dataset_name = self.extract_scope(dataset_name)
         if preset_scope is not None:
             scope = preset_scope
         client = RucioClient()
@@ -633,56 +786,24 @@ class RucioAPI:
         except DataIdentifierNotFound:
             return None, "dataset not found"
         except Exception:
-            errtype, errvalue = sys.exc_info()[:2]
-            errMsg = f"{errtype.__name__} {errvalue}"
+            err_type, errvalue = sys.exc_info()[:2]
+            errMsg = f"{err_type.__name__} {errvalue}"
             return False, errMsg
-
-    # get dataset size
-    def getDatasetSize(self, datasetName):
-        if datasetName.endswith("/"):
-            datasetName = datasetName[:-1]
-        # extract scope from dataset
-        scope, dataset_name = self.extract_scope(datasetName)
-        client = RucioClient()
-        tSize = 0
-        try:
-            for x in client.list_files(scope, dataset_name):
-                tSize += x["bytes"]
-            return True, tSize
-        except DataIdentifierNotFound:
-            return None, "dataset not found"
-        except Exception:
-            errtype, errvalue = sys.exc_info()[:2]
-            errMsg = f"{errtype.__name__} {errvalue}"
-            return False, errMsg
-
-    # register files
-    def registerFiles(self, files, rse):
-        client = RucioClient()
-        try:
-            # add replicas
-            client.add_replicas(files=files, rse=rse)
-        except FileAlreadyExists:
-            pass
-        try:
-            # add rule
-            client.add_replication_rule(files, copies=1, rse_expression=rse)
-        except DuplicateRule:
-            pass
-
-    # delete files from dataset
-    def deleteFilesFromDataset(self, datasetName, files):
-        # extract scope from dataset
-        scope, dataset_name = self.extract_scope(datasetName)
-        client = RucioClient()
-        try:
-            # delete files
-            client.detach_dids(scope=scope, name=dataset_name, dids=files)
-        except DataIdentifierNotFound:
-            pass
 
     # list datasets with GUIDs
-    def listDatasetsByGUIDs(self, guids):
+    def list_datasets_by_guids(self, guids: List[str]) -> Dict[str, List[str]]:
+        """
+        List datasets in Rucio by GUIDs.
+
+        This method lists datasets in Rucio by their GUIDs. It retrieves the datasets associated with each GUID
+        and stores them in a dictionary where the keys are the GUIDs and the values are lists of datasets.
+
+        Parameters:
+        guids (List[str]): A list of GUIDs for which to retrieve the associated datasets.
+
+        Returns:
+        Dict[str, List[str]]: A dictionary mapping each GUID to a list of its associated datasets.
+        """
         client = RucioClient()
         result = {}
         for guid in guids:
@@ -690,61 +811,36 @@ class RucioAPI:
             result[guid] = datasets
         return result
 
-    # finger
-    def finger(self, dn):
-        try:
-            # get rucio API
-            client = RucioClient()
-            userInfo = None
-            retVal = False
-            x509_user_name = CoreUtils.get_bare_dn(dn)
-            oidc_user_name = CoreUtils.get_id_from_dn(dn)
-            if oidc_user_name == x509_user_name:
-                oidc_user_name = None
-            else:
-                x509_user_name = None
-            for accType in ["USER", "GROUP"]:
-                if x509_user_name is not None:
-                    userName = x509_user_name
-                    for i in client.list_accounts(account_type=accType, identity=userName):
-                        userInfo = {"nickname": i["account"], "email": i["email"]}
-                        break
-                    if userInfo is None:
-                        userName = CoreUtils.get_bare_dn(dn, keep_digits=False)
-                        for i in client.list_accounts(account_type=accType, identity=userName):
-                            userInfo = {"nickname": i["account"], "email": i["email"]}
-                            break
-                else:
-                    userName = oidc_user_name
-                try:
-                    if userInfo is None:
-                        i = client.get_account(userName)
-                        userInfo = {"nickname": i["account"], "email": i["email"]}
-                except Exception:
-                    pass
-                if userInfo is not None:
-                    retVal = True
-                    break
-        except Exception as e:
-            errMsg = f"{str(e)}"
-            userInfo = errMsg
-        return retVal, userInfo
-
     # register container
-    def registerContainer(self, cname, datasets=[], preset_scope=None):
-        if cname.endswith("/"):
-            cname = cname[:-1]
+    def register_container(self, container_name: str, datasets: List[str] = None, preset_scope: str = None) -> bool:
+        """
+        Register a container in Rucio.
+
+        This method registers a container in Rucio by extracting the scope from the container name and adding the container.
+        If the container already exists, it ignores the exception and continues.
+        If a list of datasets is provided, it adds these datasets to the container.
+
+        Parameters:
+        container_name (str): The name of the container.
+        datasets (List[str], optional): A list of datasets to be added to the container. Defaults to None.
+        preset_scope (str, optional): The scope of the container. Defaults to None.
+
+        Returns:
+        bool: True if the operation is successful, False otherwise.
+        """
+        if container_name.endswith("/"):
+            container_name = container_name[:-1]
         # register container
         client = RucioClient()
         try:
-            scope, dataset_name = self.extract_scope(cname)
+            scope, dataset_name = self.extract_scope(container_name)
             if preset_scope is not None:
                 scope = preset_scope
             client.add_container(scope=scope, name=cname)
         except DataIdentifierAlreadyExists:
             pass
         # add files
-        if len(datasets) > 0:
+        if datasets is not None and len(datasets) > 0:
             try:
                 dataset_names = []
                 for ds in datasets:
