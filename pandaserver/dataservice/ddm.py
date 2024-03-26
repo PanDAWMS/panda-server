@@ -848,11 +848,11 @@ class RucioAPI:
                     else:
                         dataset_name = {"scope": scope, "name": ds}
                     dataset_names.append(dataset_name)
-                client.add_datasets_to_container(scope=scope, name=cname, dataset_names=dataset_names)
+                client.add_datasets_to_container(scope=scope, name=container_name, dataset_names=dataset_names)
             except DuplicateContent:
                 for ds in dataset_names:
                     try:
-                        client.add_datasets_to_container(scope=scope, name=cname, dataset_names=[ds])
+                        client.add_datasets_to_container(scope=scope, name=container_name, dataset_names=[ds])
                     except DuplicateContent:
                         pass
         return True
