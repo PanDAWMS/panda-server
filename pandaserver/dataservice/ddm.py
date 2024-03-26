@@ -787,8 +787,8 @@ class RucioAPI:
             return None, "dataset not found"
         except Exception:
             err_type, errvalue = sys.exc_info()[:2]
-            errMsg = f"{err_type.__name__} {errvalue}"
-            return False, errMsg
+            err_msg = f"{err_type.__name__} {errvalue}"
+            return False, err_msg
 
     # list datasets with GUIDs
     def list_datasets_by_guids(self, guids: List[str]) -> Dict[str, List[str]]:
