@@ -8,7 +8,7 @@ import re
 import sys
 import traceback
 
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 from rucio.client import Client as RucioClient
 from rucio.common.exception import (
@@ -20,8 +20,6 @@ from rucio.common.exception import (
     FileAlreadyExists,
     UnsupportedOperation,
 )
-
-from pandaserver.srvcore import CoreUtils
 
 
 # rucio
