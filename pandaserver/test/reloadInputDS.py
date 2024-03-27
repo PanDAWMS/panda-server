@@ -1,7 +1,7 @@
 import argparse
 
 from pandaserver.config import panda_config
-from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 from pandaserver.userinterface import Client
 from rucio.client import Client as RucioClient

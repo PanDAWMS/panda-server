@@ -15,7 +15,7 @@ from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils, ErrorCode
 from pandaserver.dataservice.DataServiceUtils import select_scope
-from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.dataservice.SetupperPluginBase import SetupperPluginBase
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
@@ -226,7 +226,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     self.logger.debug("listDatasets " + job.prodDBlock)
                     prodError[job.prodDBlock] = ""
                     for iDDMTry in range(3):
-                        newOut, errMsg = rucioAPI.listDatasets(job.prodDBlock)
+                        newOut, errMsg = rucioAPI.list_datasets(job.prodDBlock)
                         if newOut is None:
                             time.sleep(10)
                         else:
@@ -352,7 +352,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     disFiles = fileList[dispatchDBlock]
                 else:
                     dids = fileList[dispatchDBlock]["lfns"]
-                    tmpZipStat, tmpZipOut = rucioAPI.getZipFiles(dids, None)
+                    tmpZipStat, tmpZipOut = rucioAPI.get_zip_files(dids, None)
                     if not tmpZipStat:
                         self.logger.debug(f"failed to get zip files : {tmpZipOut}")
                         tmpZipOut = {}
@@ -421,7 +421,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 for iDDMTry in range(3):
                     status = False
                     try:
-                        rucioAPI.closeDataset(dispatchDBlock)
+                        rucioAPI.close_dataset(dispatchDBlock)
                         status = True
                         break
                     except Exception:
@@ -702,7 +702,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                             break
                                         for iDDMTry in range(3):
                                             try:
-                                                out = rucioAPI.registerDatasetLocation(
+                                                out = rucioAPI.register_dataset_location(
                                                     name,
                                                     [dq2ID],
                                                     lifetime=repLifeTime,
@@ -735,7 +735,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         if newVUID is None:
                             self.logger.debug("listDatasets " + name)
                             for iDDMTry in range(3):
-                                newOut, errMsg = rucioAPI.listDatasets(name)
+                                newOut, errMsg = rucioAPI.list_datasets(name)
                                 if newOut is None:
                                     time.sleep(10)
                                 else:
@@ -1021,12 +1021,12 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             )
                             for iDDMTry in range(3):
                                 try:
-                                    status = rucioAPI.registerDatasetSubscription(
+                                    status = rucioAPI.register_dataset_subscription(
                                         job.dispatchDBlock,
                                         [dq2ID],
                                         activity=optActivity,
                                         lifetime=7,
-                                        dn=optOwner,
+                                        distinguished_name=optOwner,
                                         comment=optComment,
                                     )
                                     out = "OK"
@@ -1439,7 +1439,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         for iDDMTry in range(3):
             try:
                 self.logger.debug("listFilesInDataset " + dataset)
-                items, tmpDummy = rucioAPI.listFilesInDataset(dataset, fileList=fileList)
+                items, tmpDummy = rucioAPI.list_files_in_dataset(dataset, file_list=fileList)
                 status = 0
                 break
             except DataIdentifierNotFound:
@@ -1460,7 +1460,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         # get datasets in container
         self.logger.debug("listDatasetsInContainer " + container)
         for iDDMTry in range(3):
-            datasets, out = rucioAPI.listDatasetsInContainer(container)
+            datasets, out = rucioAPI.list_datasets_in_container(container)
             if datasets is None:
                 time.sleep(10)
             else:
@@ -1474,7 +1474,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         # get datasets in container
         self.logger.debug("listDatasetsInContainer " + container)
         for iDDMTry in range(3):
-            datasets, out = rucioAPI.listDatasetsInContainer(container)
+            datasets, out = rucioAPI.list_datasets_in_container(container)
             if datasets is None:
                 time.sleep(10)
             else:
@@ -1534,7 +1534,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         nTry = 3
         for iDDMTry in range(nTry):
             self.logger.debug(f"{iDDMTry}/{nTry} listDatasetReplicas {dataset}")
-            status, out = rucioAPI.listDatasetReplicas(dataset)
+            status, out = rucioAPI.list_dataset_replicas(dataset)
             if status != 0:
                 time.sleep(10)
             else:
@@ -1699,7 +1699,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         tmpZipOut = {}
                         if tmpJob.useZipToPin():
                             dids = [tmpFileList[tmpSubFileName]["lfn"] for tmpSubFileName in subFileNames]
-                            tmpZipStat, tmpZipOut = rucioAPI.getZipFiles(dids, [tmpLocation])
+                            tmpZipStat, tmpZipOut = rucioAPI.get_zip_files(dids, [tmpLocation])
                             if not tmpZipStat:
                                 self.logger.debug(f"failed to get zip files : {tmpZipOut}")
                                 tmpZipOut = {}
@@ -1785,7 +1785,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         for iDDMTry in range(3):
                             status = False
                             try:
-                                rucioAPI.closeDataset(disDBlock)
+                                rucioAPI.close_dataset(disDBlock)
                                 status = True
                                 break
                             except Exception:
@@ -1801,13 +1801,12 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         nDDMTry = 3
                         for iDDMTry in range(nDDMTry):
                             try:
-                                out = rucioAPI.registerDatasetLocation(
+                                out = rucioAPI.register_dataset_location(
                                     disDBlock,
                                     [tmpLocation],
                                     7,
                                     activity="Production Input",
                                     scope="panda",
-                                    asynchronous=True,
                                     grouping="NONE",
                                 )
                                 self.logger.debug(out)
@@ -1995,7 +1994,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         for iDDMTry in range(nTry):
             try:
                 # register subscription
-                status = rucioAPI.registerDatasetSubscription(dataset, [dq2ID], activity="Production Input")
+                status = rucioAPI.register_dataset_subscription(dataset, [dq2ID], activity="Production Input")
                 out = "OK"
                 break
             except Exception:
@@ -2091,7 +2090,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     self.logger.debug(f"registering jumbo dis dataset {dispatchDBlock} with {len(lfns)} files")
                     out = rucioAPI.registerDataset(dispatchDBlock, lfns, guids, sizes, checksums, lifetime=14)
                     vuid = out["vuid"]
-                    rucioAPI.closeDataset(dispatchDBlock)
+                    rucioAPI.close_dataset(dispatchDBlock)
                 except Exception:
                     errType, errValue = sys.exc_info()[:2]
                     self.logger.debug(f"failed to register jumbo dis dataset {dispatchDBlock} with {errType}:{errValue}")
@@ -2110,7 +2109,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     )
                     endPoint = tmpSiteSpec.ddm_input[scope_input]
                     self.logger.debug(f"subscribing jumbo dis dataset {dispatchDBlock} to {endPoint}")
-                    rucioAPI.registerDatasetSubscription(
+                    rucioAPI.register_dataset_subscription(
                         dispatchDBlock,
                         [endPoint],
                         lifetime=14,
