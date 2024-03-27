@@ -391,7 +391,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 errStr = ""
                 for iDDMTry in range(nDDMTry):
                     try:
-                        out = rucioAPI.registerDataset(
+                        out = rucioAPI.register_dataset(
                             dispatchDBlock,
                             disFiles["lfns"],
                             disFiles["guids"],
@@ -632,7 +632,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                 isOK = False
                                 for iDDMTry in range(3):
                                     try:
-                                        out = rucioAPI.registerDataset(
+                                        out = rucioAPI.register_dataset(
                                             name,
                                             metadata=tmpMetadata,
                                             lifetime=tmpLifeTime,
@@ -1741,7 +1741,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         )
                         for iDDMTry in range(nDDMTry):
                             try:
-                                out = rucioAPI.registerDataset(
+                                out = rucioAPI.register_dataset(
                                     disDBlock,
                                     lfns,
                                     guids,
@@ -2088,7 +2088,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # register dis dataset
                 try:
                     self.logger.debug(f"registering jumbo dis dataset {dispatchDBlock} with {len(lfns)} files")
-                    out = rucioAPI.registerDataset(dispatchDBlock, lfns, guids, sizes, checksums, lifetime=14)
+                    out = rucioAPI.register_dataset(dispatchDBlock, lfns, guids, sizes, checksums, lifetime=14)
                     vuid = out["vuid"]
                     rucioAPI.close_dataset(dispatchDBlock)
                 except Exception:
