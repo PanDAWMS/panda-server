@@ -6,6 +6,26 @@ Resource type specification for JEDI
 from . import JobUtils
 
 
+class ResourceSpecMapper(object):
+    def __init__(self, resource_types):
+        """
+        :param resource_types: list of ResourceSpec objects
+        """
+        self.resource_types = resource_types
+
+    def is_single_core(self, resource_name):
+        for resource_type in self.resource_types:
+            if resource_type.resource_name == resource_name:
+                return resource_type.is_single_core()
+        return False
+
+    def is_multi_core(self, resource_name):
+        for resource_type in self.resource_types:
+            if resource_type.resource_name == resource_name:
+                return resource_type.is_multi_core()
+        return False
+
+
 class ResourceSpec(object):
     # attributes
     attributes = (
@@ -104,6 +124,15 @@ class ResourceSpec(object):
             return False
 
         return True
+
+    def is_single_core(self):
+        if self.mincore == 1 and self.maxcore == 1:
+            return True
+        return False
+
+    def is_multi_core(self):
+        if self.mincore > 1:
+            return True
 
     def column_names(cls, prefix=None):
         """

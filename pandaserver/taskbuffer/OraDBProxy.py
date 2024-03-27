@@ -156,6 +156,10 @@ class DBProxy:
         self.__hs_distribution = None  # HS06s distribution of sites
         self.__t_update_distribution = None  # Timestamp when the HS06s distribution was last updated
 
+        # resource type mapper
+        self.__resource_type_mapper = None
+        self.__t_update_resource_type_mapper = None
+
         # priority boost
         self.job_prio_boost_dict = None
         self.job_prio_boost_dict_update_time = None
@@ -165,9 +169,6 @@ class DBProxy:
 
         # mb proxy
         self.mb_proxy_dict = None
-
-        # self.__reload_shares()
-        # self.__reload_hs_distribution()
 
     # connect to DB
     def connect(
