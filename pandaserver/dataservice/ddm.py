@@ -10,6 +10,7 @@ import traceback
 
 from typing import Dict, List
 
+from pandaserver.srvcore import CoreUtils
 from rucio.client import Client as RucioClient
 from rucio.common.exception import (
     DataIdentifierAlreadyExists,
