@@ -786,8 +786,8 @@ class RucioAPI:
         except DataIdentifierNotFound:
             return None, "dataset not found"
         except Exception:
-            err_type, errvalue = sys.exc_info()[:2]
-            err_msg = f"{err_type.__name__} {errvalue}"
+            err_type, err_value = sys.exc_info()[:2]
+            err_msg = f"{err_type.__name__} {err_value}"
             return False, err_msg
 
     # list datasets with GUIDs
