@@ -92,10 +92,10 @@ class RucioAPI:
         files = []
         for lfn, guid, size, checksum in zip(lfns, guids, sizes, checksums):
             if lfn.find(":") > -1:
-                s, lfn = lfn.split(":")[0], lfn.split(":")[1]
+                file_scope, lfn = lfn.split(":")[0], lfn.split(":")[1]
             else:
-                s = scope
-            file = {"scope": s, "name": lfn, "bytes": size, "meta": {"guid": guid}}
+                file_scope = scope
+            file = {"scope": file_scope, "name": lfn, "bytes": size, "meta": {"guid": guid}}
             if checksum.startswith("md5:"):
                 file["md5"] = checksum[4:]
             elif checksum.startswith("ad:"):
@@ -126,12 +126,14 @@ class RucioAPI:
                 try:
                     client.add_files_to_dataset(scope=scope, name=dataset_name, files=tmp_files, rse=None)
                 except FileAlreadyExists:
-                    for f in tmp_files:
+                    for tmp_file in tmp_files:
                         try:
-                            client.add_files_to_dataset(scope=scope, name=dataset_name, files=[f], rse=None)
+                            client.add_files_to_dataset(scope=scope, name=dataset_name, files=[tmp_file], rse=None)
                         except FileAlreadyExists:
                             pass
                 i_files += n_files
+        # Format is a 36-character string divided into five groups separated by hyphens. The groups have 8, 4, 4, 4, and 12 characters.
+        # After the formatting, the vuid string would look something like this: 12345678-1234-1234-1234-123456789012
         vuid = hashlib.md5((scope + ":" + dataset_name).encode()).hexdigest()
         vuid = f"{vuid[0:8]}-{vuid[8:12]}-{vuid[12:16]}-{vuid[16:20]}-{vuid[20:32]}"
         duid = vuid
@@ -201,7 +203,7 @@ class RucioAPI:
         return True
 
     # get user
-    def get_user(self, client, dn: str) -> str:
+    def get_user(self, client, distinguished_name: str) -> str:
         """
         This method retrieves the account name associated with a given distinguished name (dn) from the Rucio client.
         If no account is found, it returns the default account of the Rucio client.
@@ -213,15 +215,15 @@ class RucioAPI:
         Returns:
         str: The account name associated with the given dn. If no account is found, it returns the default account of the Rucio client.
         """
-        tmp_list = list(client.list_accounts("user", dn))
+        tmp_list = list(client.list_accounts("user", distinguished_name))
         if tmp_list:
-            owner = l[0]["account"]
+            owner = tmp_list[0]["account"]
             return owner
         return client.account
 
     # register dataset subscription
     def register_dataset_subscription(self, dataset_name: str, rses: list, lifetime: int = None, owner: str = None,
-                                    activity: str = None, dn: str = None, comment: str = None) -> bool:
+                                    activity: str = None, distinguished_name: str = None, comment: str = None) -> bool:
         """
         Register a dataset subscription in Rucio.
 
@@ -234,7 +236,7 @@ class RucioAPI:
         lifetime (int, optional): The lifetime of the replication rule in seconds. Defaults to None.
         owner (str, optional): The owner of the replication rule. Defaults to None.
         activity (str, optional): The activity associated with the replication rule. Defaults to None.
-        dn (str, optional): The distinguished name of the user. Defaults to None.
+        distinguished_name (str, optional): The distinguished name of the user. Defaults to None.
         comment (str, optional): A comment to be associated with the replication rule. Defaults to None.
 
         Returns:
@@ -252,8 +254,8 @@ class RucioAPI:
         client = RucioClient()
         # owner
         if owner is None:
-            if dn is not None:
-                owner = self.get_user(client, dn)
+            if distinguished_name is not None:
+                owner = self.get_user(client, distinguished_name)
             else:
                 owner = client.account
         for rule in client.list_did_rules(scope=scope, name=dataset_name):
@@ -291,12 +293,12 @@ class RucioAPI:
         dict: A dictionary containing file attributes
         """
         lfn = tmp_file.get("name", tmp_file.get("lfn"))
-        s, lfn = lfn.split(":") if ":" in lfn else (scope, lfn)
+        file_scope, lfn = lfn.split(":") if ":" in lfn else (scope, lfn)
         # set metadata
         meta_keys = ["guid", "events", "lumiblocknr", "panda_id", "campaign", "task_id"]
         meta = {key: tmp_file[key] for key in meta_keys if key in tmp_file}
         fsize = tmp_file.get("bytes", tmp_file.get("size"))
-        file = {"scope": s, "name": lfn, "bytes": fsize, "meta": meta}
+        file = {"scope": file_scope, "name": lfn, "bytes": fsize, "meta": meta}
         if "checksum" in tmp_file:
             checksum = tmp_file["checksum"]
             if checksum.startswith("md5:"):
@@ -324,10 +326,10 @@ class RucioAPI:
         for rse in id_map:
             tmp_map = id_map[rse]
             # loop over all datasets
-            for datasetName in tmp_map:
-                file_list = tmp_map[datasetName]
+            for dataset_name in tmp_map:
+                file_list = tmp_map[dataset_name]
                 # extract scope from dataset
-                scope, dataset_name = self.extract_scope(datasetName)
+                scope, dataset_name = self.extract_scope(dataset_name)
                 files_with_rse = []
                 files_wo_rse = []
                 for tmp_file in file_list:
@@ -398,7 +400,7 @@ class RucioAPI:
             files = []
             for con_file_attr in zip_file_attr["files"]:
                 # get scope
-                scope, dataset_name = self.extract_scope(con_file_attr["ds"])
+                scope, _ = self.extract_scope(con_file_attr["ds"])
                 # convert file attribute
                 con_file = self.conv_file_attr(con_file_attr, scope)
                 con_file["type"] = "FILE"
@@ -465,8 +467,8 @@ class RucioAPI:
                 if key_name not in result:
                     result[key_name] = {"duid": duid, "vuids": [vuid]}
             return result, ""
-        except Exception as e:
-            return None, f"{str(e)} {traceback.format_exc()}"
+        except Exception as error:
+            return None, f"{str(error)} {traceback.format_exc()}"
 
     # list datasets in container
     def list_datasets_in_container(self, container_name: str):
@@ -486,13 +488,13 @@ class RucioAPI:
         """
         result = []
         # extract scope from dataset
-        scope, cn = self.extract_scope(container_name)
-        if cn.endswith("/"):
-            cn = cn[:-1]
+        scope, container_name = self.extract_scope(container_name)
+        if container_name.endswith("/"):
+            container_name = container_name[:-1]
         try:
             # get dids
             client = RucioClient()
-            for i in client.list_content(scope, cn):
+            for i in client.list_content(scope, container_name):
                 if i["type"] == "DATASET":
                     result.append(str(f"{i['scope']}:{i['name']}"))
             return result, ""
@@ -595,8 +597,8 @@ class RucioAPI:
             client.set_metadata(scope=scope, name=dataset_name, key="lifetime", value=value)
         except DataIdentifierNotFound:
             pass
-        except Exception as e:
-            return False, f"{str(e)}"
+        except Exception as error:
+            return False, f"{str(error)}"
         return True, ""
 
     # close dataset
@@ -734,23 +736,23 @@ class RucioAPI:
             dataset_name = dataset_name[:-1]
         client = RucioClient()
         return_dict = {}
-        for x in client.list_files(scope, dataset_name, long=long):
-            tmp_lfn = str(x["name"])
+        for file_info in client.list_files(scope, dataset_name, long=long):
+            tmp_lfn = str(file_info["name"])
             if file_list is not None:
                 gen_lfn = re.sub("\.\d+$", "", tmp_lfn)
                 if tmp_lfn not in file_list and gen_lfn not in file_list:
                     continue
             rucio_attrs = {}
-            rucio_attrs["chksum"] = "ad:" + str(x["adler32"])
+            rucio_attrs["chksum"] = "ad:" + str(file_list["adler32"])
             rucio_attrs["md5sum"] = rucio_attrs["chksum"]
             rucio_attrs["checksum"] = rucio_attrs["chksum"]
-            rucio_attrs["fsize"] = x["bytes"]
+            rucio_attrs["fsize"] = file_list["bytes"]
             rucio_attrs["filesize"] = rucio_attrs["fsize"]
-            rucio_attrs["scope"] = str(x["scope"])
-            rucio_attrs["events"] = str(x["events"])
+            rucio_attrs["scope"] = str(file_list["scope"])
+            rucio_attrs["events"] = str(file_list["events"])
             if long:
-                rucio_attrs["lumiblocknr"] = str(x["lumiblocknr"])
-            guid = str(f"{x['guid'][0:8]}-{x['guid'][8:12]}-{x['guid'][12:16]}-{x['guid'][16:20]}-{x['guid'][20:32]}")
+                rucio_attrs["lumiblocknr"] = str(file_list["lumiblocknr"])
+            guid = str(f"{file_list['guid'][0:8]}-{file_list['guid'][8:12]}-{file_list['guid'][12:16]}-{file_list['guid'][16:20]}-{file_list['guid'][20:32]}")
             rucio_attrs["guid"] = guid
             return_dict[tmp_lfn] = rucio_attrs
         return (return_dict, None)
@@ -778,7 +780,7 @@ class RucioAPI:
         client = RucioClient()
         n_files = 0
         try:
-            for x in client.list_files(scope, dataset_name):
+            for _ in client.list_files(scope, dataset_name):
                 n_files += 1
             return True, n_files
         except DataIdentifierNotFound:

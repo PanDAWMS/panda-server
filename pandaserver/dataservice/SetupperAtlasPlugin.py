@@ -1026,7 +1026,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                         [dq2ID],
                                         activity=optActivity,
                                         lifetime=7,
-                                        dn=optOwner,
+                                        distinguished_name=optOwner,
                                         comment=optComment,
                                     )
                                     out = "OK"
