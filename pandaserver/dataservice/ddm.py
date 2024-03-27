@@ -440,13 +440,13 @@ class RucioAPI:
         """
         result = {}
         # extract scope from dataset
-        scope, dataset_name = self.extract_scope(dataset_name)
+        scope, given_dataset_name = self.extract_scope(dataset_name)
         if dataset_name.endswith("/"):
-            dataset_name = dataset_name[:-1]
+            given_dataset_name = given_dataset_name[:-1]
             collection = "container"
         else:
             collection = "dataset"
-        filters = {"name": dataset_name}
+        filters = {"name": given_dataset_name}
         try:
             # get dids
             client = RucioClient()
