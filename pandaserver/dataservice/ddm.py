@@ -857,6 +857,63 @@ class RucioAPI:
                         pass
         return True
 
+    # finger
+    def finger(self, distinguished_name: str):
+        """
+        Retrieve user information from Rucio based on the distinguished name (dn).
+
+        This method retrieves user information from Rucio by using the distinguished name (dn) to identify the user.
+        It first checks if the user is identified by an X509 certificate or an OIDC token.
+        It then iterates over the list of accounts in Rucio, looking for a match with the user's distinguished name.
+        If a match is found, it retrieves the user's nickname and email and stores them in a dictionary.
+        If no match is found, it attempts to retrieve the account information directly using the distinguished name.
+        If an exception occurs during the process, it returns the error message.
+
+        Parameters:
+        distinguished_name (str): The distinguished name of the user.
+
+        Returns:
+        Tuple[bool, Union[dict, str]]: A tuple containing a boolean indicating the success of the operation and a dictionary of user information or an error message.
+        If an exception occurs, the boolean is False and the string contains the error message.
+        """
+        try:
+            # get rucio API
+            client = RucioClient()
+            user_info = None
+            return_value = False
+            x509_user_name = CoreUtils.get_bare_dn(distinguished_name)
+            oidc_user_name = CoreUtils.get_id_from_dn(distinguished_name)
+            if oidc_user_name == x509_user_name:
+                oidc_user_name = None
+            else:
+                x509_user_name = None
+            for account_type in ["USER", "GROUP"]:
+                if x509_user_name is not None:
+                    user_name = x509_user_name
+                    for account in client.list_accounts(account_type=account_type, identity=user_name):
+                        user_info = {"nickname": account["account"], "email": account["email"]}
+                        break
+                    if user_info is None:
+                        user_name = CoreUtils.get_bare_dn(distinguished_name, keep_digits=False)
+                        for account in client.list_accounts(account_type=account_type, identity=user_name):
+                            user_info = {"nickname": account["account"], "email": account["email"]}
+                            break
+                else:
+                    user_name = oidc_user_name
+                try:
+                    if user_info is None:
+                        account = client.get_account(user_name)
+                        user_info = {"nickname": account["account"], "email": account["email"]}
+                except Exception:
+                    pass
+                if user_info is not None:
+                    return_value = True
+                    break
+        except Exception as e:
+            error_message = f"{str(e)}"
+            user_info = error_message
+        return return_value, user_info
+
 
 # instantiate
 rucioAPI = RucioAPI()
