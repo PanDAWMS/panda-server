@@ -16,7 +16,7 @@ from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils, ErrorCode
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.ddm import rucioAPI
-from pandaserver.dataservice.SetupperPluginBase import SetupperPluginBase
+from pandaserver.dataservice.setupper_plugin_base import SetupperPluginBase
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
 from rucio.common.exception import (
@@ -1049,7 +1049,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     self.logger.debug(f"failed PandaID={job.PandaID} with {job.ddmErrorDiag}")
                     failedJobs.append(job)
         # update failed jobs only. succeeded jobs should be activate by DDM callback
-        self.updateFailedJobs(failedJobs)
+        self.update_failed_jobs(failedJobs)
         # submit ddm jobs
         if ddmJobs != []:
             ddmRet = self.taskBuffer.storeJobs(ddmJobs, ddmUser, joinThr=True)
@@ -1371,7 +1371,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         # send jobs to jobsWaiting
         self.taskBuffer.keepJobs(jobsWaiting)
         # update failed job
-        self.updateFailedJobs(jobsFailed)
+        self.update_failed_jobs(jobsFailed)
         # remove waiting/failed jobs
         self.jobs = jobsProcessed
         # delete huge variables
@@ -2139,7 +2139,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     tmpFileSpec.destinationSE = jumboJobSpec.computingSite
             okJobs.append(jumboJobSpec)
         # update failed jobs
-        self.updateFailedJobs(ngJobs)
+        self.update_failed_jobs(ngJobs)
         self.jumboJobs = okJobs
         self.logger.debug("done for jumbo jobs")
         return
