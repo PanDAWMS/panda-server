@@ -30,7 +30,15 @@ class Setupper(threading.Thread):
         self,
         taskBuffer,
         jobs,
-        resubmit=False,
+        resubmit: bool = False,
+        panda_ddm: bool = False,
+        ddm_attempt: int = 0,
+        fork_run: bool = False,
+        only_ta: bool = False,
+        reset_location: bool = False,
+        first_submission: bool = True,
+
+            resubmit=False,
         pandaDDM=False,
         ddmAttempt=0,
         forkRun=False,
@@ -62,102 +70,70 @@ class Setupper(threading.Thread):
             # make a message instance
             tmpLog = LogWrapper(_logger, None)
             # run main procedure in the same process
-            if not self.forkRun:
-                tmpLog.debug("main start")
-                tmpLog.debug(f"firstSubmission={self.firstSubmission}")
-                # make Specs pickleable
-                p_job_list = []
-                for job_spec in self.jobs:
-                    p_job = PickleJobSpec()
-                    p_job.update(job_spec)
-                    p_job_list.append(p_job)
-                self.jobs = p_job_list
-                # group jobs per VO
-                voJobsMap = {}
-                ddmFreeJobs = []
-                tmpLog.debug(f"{len(self.jobs)} jobs in total")
-                for tmpJob in self.jobs:
-                    # set VO=local for DDM free
-                    if tmpJob.destinationSE == "local":
-                        tmpVO = "local"
-                    else:
-                        tmpVO = tmpJob.VO
-                    # make map
-                    voJobsMap.setdefault(tmpVO, [])
-                    voJobsMap[tmpVO].append(tmpJob)
-                # loop over all VOs
-                for tmpVO in voJobsMap:
-                    tmpJobList = voJobsMap[tmpVO]
-                    tmpLog.debug(f"vo={tmpVO} has {len(tmpJobList)} jobs")
-                    # get plugin
-                    setupperPluginClass = panda_config.getPlugin("setupper_plugins", tmpVO)
-                    if setupperPluginClass is None:
-                        # use ATLAS plug-in by default
-                        from pandaserver.dataservice.SetupperAtlasPlugin import (
-                            SetupperAtlasPlugin,
-                        )
+            tmpLog.debug("main start")
+            tmpLog.debug(f"firstSubmission={self.firstSubmission}")
+            # make Specs pickleable
+            p_job_list = []
+            for job_spec in self.jobs:
+                p_job = PickleJobSpec()
+                p_job.update(job_spec)
+                p_job_list.append(p_job)
+            self.jobs = p_job_list
+            # group jobs per VO
+            voJobsMap = {}
+            ddmFreeJobs = []
+            tmpLog.debug(f"{len(self.jobs)} jobs in total")
+            for tmpJob in self.jobs:
+                # set VO=local for DDM free
+                if tmpJob.destinationSE == "local":
+                    tmpVO = "local"
+                else:
+                    tmpVO = tmpJob.VO
+                # make map
+                voJobsMap.setdefault(tmpVO, [])
+                voJobsMap[tmpVO].append(tmpJob)
+            # loop over all VOs
+            for tmpVO in voJobsMap:
+                tmpJobList = voJobsMap[tmpVO]
+                tmpLog.debug(f"vo={tmpVO} has {len(tmpJobList)} jobs")
+                # get plugin
+                setupperPluginClass = panda_config.getPlugin("setupper_plugins", tmpVO)
+                if setupperPluginClass is None:
+                    # use ATLAS plug-in by default
+                    from pandaserver.dataservice.SetupperAtlasPlugin import (
+                        SetupperAtlasPlugin,
+                    )
 
-                        setupperPluginClass = SetupperAtlasPlugin
-                    tmpLog.debug(f"plugin name -> {setupperPluginClass.__name__}")
-                    try:
-                        # make plugin
-                        setupperPlugin = setupperPluginClass(
-                            self.taskBuffer,
-                            self.jobs,
-                            tmpLog,
-                            resubmit=self.resubmit,
-                            pandaDDM=self.pandaDDM,
-                            ddmAttempt=self.ddmAttempt,
-                            onlyTA=self.onlyTA,
-                            firstSubmission=self.firstSubmission,
-                        )
-                        # run plugin
-                        tmpLog.debug("run plugin")
-                        setupperPlugin.run()
-                        # go forward if not TA
-                        if not self.onlyTA:
-                            # update jobs
-                            tmpLog.debug("update jobs")
-                            self.updateJobs(setupperPlugin.jobs + setupperPlugin.jumboJobs, tmpLog)
-                            # execute post process
-                            tmpLog.debug("post execute plugin")
-                            setupperPlugin.postRun()
-                        tmpLog.debug("done plugin")
-                    except Exception:
-                        errtype, errvalue = sys.exc_info()[:2]
-                        tmpLog.error(f"plugin failed with {errtype}:{errvalue}")
-                tmpLog.debug("main end")
-            else:
-                tmpLog.debug("fork start")
-                # write jobs to file
-                import os
-
+                    setupperPluginClass = SetupperAtlasPlugin
+                tmpLog.debug(f"plugin name -> {setupperPluginClass.__name__}")
                 try:
-                    import cPickle as pickle
-                except ImportError:
-                    import pickle
-                outFileName = f"{panda_config.logdir}/set.{self.jobs[0].PandaID}_{str(uuid.uuid4())}"
-                outFile = open(outFileName, "wb")
-                pickle.dump(self.jobs, outFile, protocol=0)
-                outFile.close()
-                # run main procedure in another process because python doesn't release memory
-                com = f"cd {panda_config.home_dir_cwd} > /dev/null 2>&1; export HOME={panda_config.home_dir_cwd}; "
-                com += "env PYTHONPATH=%s:%s %s/python -Wignore %s/dataservice/forkSetupper.py -i %s" % (
-                    panda_config.pandaCommon_dir,
-                    panda_config.pandaPython_dir,
-                    panda_config.native_python,
-                    panda_config.pandaPython_dir,
-                    outFileName,
-                )
-                if self.onlyTA:
-                    com += " -t"
-                if not self.firstSubmission:
-                    com += " -f"
-                tmpLog.debug(com)
-                # execute
-                status, output = self.taskBuffer.processLimiter.getstatusoutput(com)
-                tmpLog.debug(f"return from main process: {status} {output}")
-                tmpLog.debug("fork end")
+                    # make plugin
+                    setupperPlugin = setupperPluginClass(
+                        self.taskBuffer,
+                        self.jobs,
+                        tmpLog,
+                        resubmit=self.resubmit,
+                        pandaDDM=self.pandaDDM,
+                        ddmAttempt=self.ddmAttempt,
+                        onlyTA=self.onlyTA,
+                        firstSubmission=self.firstSubmission,
+                    )
+                    # run plugin
+                    tmpLog.debug("run plugin")
+                    setupperPlugin.run()
+                    # go forward if not TA
+                    if not self.onlyTA:
+                        # update jobs
+                        tmpLog.debug("update jobs")
+                        self.updateJobs(setupperPlugin.jobs + setupperPlugin.jumboJobs, tmpLog)
+                        # execute post process
+                        tmpLog.debug("post execute plugin")
+                        setupperPlugin.postRun()
+                    tmpLog.debug("done plugin")
+                except Exception:
+                    errtype, errvalue = sys.exc_info()[:2]
+                    tmpLog.error(f"plugin failed with {errtype}:{errvalue}")
+            tmpLog.debug("main end")
         except Exception as e:
             tmpLog.error(f"master failed with {str(e)} {traceback.format_exc()}")
 
