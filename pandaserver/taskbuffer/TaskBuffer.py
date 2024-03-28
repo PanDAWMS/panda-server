@@ -16,7 +16,7 @@ from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice.closer import Closer
 from pandaserver.dataservice.ProcessLimiter import ProcessLimiter
-from pandaserver.dataservice.Setupper import Setupper
+from pandaserver.dataservice.setupper import Setupper
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import ErrorCode, EventServiceUtils, JobUtils, ProcessGroups
 from pandaserver.taskbuffer.DBProxyPool import DBProxyPool

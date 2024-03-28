@@ -40,7 +40,7 @@ def run(inFile, v_onlyTA, v_firstSubmission):
     )
 
     # run Setupper
-    from pandaserver.dataservice.Setupper import Setupper
+    from pandaserver.dataservice.setupper import Setupper
 
     thr = Setupper(taskBuffer, jobs, onlyTA=v_onlyTA, firstSubmission=v_firstSubmission)
     thr.start()

@@ -15,13 +15,16 @@ from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.taskbuffer.PickleJobSpec import PickleJobSpec
 
 # logger
-_logger = PandaLogger().getLogger("Setupper")
+_logger = PandaLogger().getLogger("setupper")
 
 panda_config.setupPlugin()
 
 
 # main class
 class Setupper(threading.Thread):
+    """
+    Main class for setting up the dataset.
+    """
     # constructor
     def __init__(
         self,
