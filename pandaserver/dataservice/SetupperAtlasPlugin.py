@@ -184,7 +184,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             self.logger.error(errStr)
 
     # post run
-    def postRun(self):
+    def post_run(self):
         try:
             if not self.onlyTA:
                 self.logger.debug("start postRun()")

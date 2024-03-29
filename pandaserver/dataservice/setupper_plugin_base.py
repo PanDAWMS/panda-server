@@ -45,7 +45,7 @@ class SetupperPluginBase(object):
         """
         pass
 
-    def postRun(self) -> None:
+    def post_run(self) -> None:
         """
         Abstract method to be called after the run method. To be implemented in subclasses.
         """

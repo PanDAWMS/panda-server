@@ -6,7 +6,7 @@ setup dataset
 import sys
 import threading
 import traceback
-import uuid
+from typing import List, Dict, Optional
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -29,41 +29,49 @@ class Setupper(threading.Thread):
     def __init__(
         self,
         taskBuffer,
-        jobs,
-        resubmit=False,
-        pandaDDM=False,
-        ddmAttempt=0,
-        forkRun=False,
-        onlyTA=False,
-        resetLocation=False,
-        firstSubmission=True,
+        jobs: List[object],
+        resubmit: bool = False,
+        panda_ddm: bool = False,
+        ddm_attempt: int = 0,
+        only_ta: bool = False,
+        first_submission: bool = True,
     ):
+        """
+        Constructor for the Setupper class.
+
+        :param taskBuffer: The buffer for tasks.
+        :param jobs: The jobs to be processed.
+        :param resubmit: A flag to indicate if the job is a resubmission. Defaults to False.
+        :param panda_ddm: A flag to indicate if PandaDDM is used. Defaults to False.
+        :param ddm_attempt: The number of attempts for DDM job. Defaults to 0.
+        :param only_ta: A flag to indicate if only task assignment should be run. Defaults to False.
+        :param first_submission: A flag to indicate if it's the first submission. Defaults to True.
+        """
         threading.Thread.__init__(self)
         self.jobs = jobs
-        self.taskBuffer = taskBuffer
+        self.task_buffer = taskBuffer
         # resubmission or not
         self.resubmit = resubmit
         # use PandaDDM
-        self.pandaDDM = pandaDDM
+        self.panda_ddm = panda_ddm
         # priority for ddm job
-        self.ddmAttempt = ddmAttempt
-        # fork another process because python doesn't release memory
-        self.forkRun = forkRun
+        self.ddm_attempt = ddm_attempt
         # run task assignment only
-        self.onlyTA = onlyTA
-        # reset locations
-        self.resetLocation = resetLocation
+        self.only_ta = only_ta
         # first submission
-        self.firstSubmission = firstSubmission
+        self.first_submission = first_submission
 
     # main
-    def run(self):
+    def run(self) -> None:
+        """
+        Main method for running the setup process.
+        """
         try:
             # make a message instance
-            tmpLog = LogWrapper(_logger, None)
+            tmp_log = LogWrapper(_logger, None)
             # run main procedure in the same process
-            tmpLog.debug("main start")
-            tmpLog.debug(f"firstSubmission={self.firstSubmission}")
+            tmp_log.debug("main start")
+            tmp_log.debug(f"first_submission={self.first_submission}")
             # make Specs pickleable
             p_job_list = []
             for job_spec in self.jobs:
@@ -72,124 +80,128 @@ class Setupper(threading.Thread):
                 p_job_list.append(p_job)
             self.jobs = p_job_list
             # group jobs per VO
-            voJobsMap = {}
-            ddmFreeJobs = []
-            tmpLog.debug(f"{len(self.jobs)} jobs in total")
-            for tmpJob in self.jobs:
+            vo_jobs_map = {}
+            tmp_log.debug(f"{len(self.jobs)} jobs in total")
+            for tmp_job in self.jobs:
                 # set VO=local for DDM free
-                if tmpJob.destinationSE == "local":
-                    tmpVO = "local"
+                if tmp_job.destinationSE == "local":
+                    tmp_vo = "local"
                 else:
-                    tmpVO = tmpJob.VO
+                    tmp_vo = tmp_job.VO
                 # make map
-                voJobsMap.setdefault(tmpVO, [])
-                voJobsMap[tmpVO].append(tmpJob)
+                vo_jobs_map.setdefault(tmp_vo, [])
+                vo_jobs_map[tmp_vo].append(tmp_job)
             # loop over all VOs
-            for tmpVO in voJobsMap:
-                tmpJobList = voJobsMap[tmpVO]
-                tmpLog.debug(f"vo={tmpVO} has {len(tmpJobList)} jobs")
+            for tmp_vo in vo_jobs_map:
+                tmp_job_list = vo_jobs_map[tmp_vo]
+                tmp_log.debug(f"vo={tmp_vo} has {len(tmp_job_list)} jobs")
                 # get plugin
-                setupperPluginClass = panda_config.getPlugin("setupper_plugins", tmpVO)
-                if setupperPluginClass is None:
+                setupper_plugin_class = panda_config.getPlugin("setupper_plugins", tmp_vo)
+                if setupper_plugin_class is None:
                     # use ATLAS plug-in by default
                     from pandaserver.dataservice.SetupperAtlasPlugin import (
                         SetupperAtlasPlugin,
                     )
 
-                    setupperPluginClass = SetupperAtlasPlugin
-                tmpLog.debug(f"plugin name -> {setupperPluginClass.__name__}")
+                    setupper_plugin_class = SetupperAtlasPlugin
+                tmp_log.debug(f"plugin name -> {setupper_plugin_class.__name__}")
                 try:
                     # make plugin
-                    setupperPlugin = setupperPluginClass(
-                        self.taskBuffer,
+                    setupper_plugin = setupper_plugin_class(
+                        self.task_buffer,
                         self.jobs,
-                        tmpLog,
+                        tmp_log,
                         resubmit=self.resubmit,
-                        pandaDDM=self.pandaDDM,
-                        ddmAttempt=self.ddmAttempt,
-                        onlyTA=self.onlyTA,
-                        firstSubmission=self.firstSubmission,
+                        panda_ddm=self.panda_ddm,
+                        ddm_attempt=self.ddm_attempt,
+                        only_ta=self.only_ta,
+                        first_submission=self.first_submission,
                     )
                     # run plugin
-                    tmpLog.debug("run plugin")
-                    setupperPlugin.run()
+                    tmp_log.debug("run plugin")
+                    setupper_plugin.run()
                     # go forward if not TA
-                    if not self.onlyTA:
+                    if not self.only_ta:
                         # update jobs
-                        tmpLog.debug("update jobs")
-                        self.updateJobs(setupperPlugin.jobs + setupperPlugin.jumboJobs, tmpLog)
+                        tmp_log.debug("update jobs")
+                        self.update_jobs(setupper_plugin.jobs + setupper_plugin.jumboJobs, tmp_log)
                         # execute post process
-                        tmpLog.debug("post execute plugin")
-                        setupperPlugin.postRun()
-                    tmpLog.debug("done plugin")
+                        tmp_log.debug("post execute plugin")
+                        setupper_plugin.post_run()
+                    tmp_log.debug("done plugin")
                 except Exception:
-                    errtype, errvalue = sys.exc_info()[:2]
-                    tmpLog.error(f"plugin failed with {errtype}:{errvalue}")
-            tmpLog.debug("main end")
+                    error_type, error_value = sys.exc_info()[:2]
+                    tmp_log.error(f"plugin failed with {error_type}:{error_value}")
+            tmp_log.debug("main end")
         except Exception as e:
-            tmpLog.error(f"master failed with {str(e)} {traceback.format_exc()}")
+            tmp_log.error(f"master failed with {str(e)} {traceback.format_exc()}")
 
     #  update jobs
-    def updateJobs(self, jobList, tmpLog):
-        updateJobs = []
-        failedJobs = []
-        activateJobs = []
-        waitingJobs = []
-        closeJobs = []
+    def update_jobs(self, job_list: List[object], tmp_log: LogWrapper) -> None:
+        """
+        Updates the status of jobs.
+
+        :param job_list: The list of jobs to be updated.
+        :param log: The logger to be used for logging.
+        """
+        update_jobs = []
+        failed_jobs = []
+        activate_jobs = []
+        waiting_jobs = []
         # sort out jobs
-        for job in jobList:
+        for job in job_list:
             # failed jobs
             if job.jobStatus in ["failed", "cancelled"]:
-                failedJobs.append(job)
+                failed_jobs.append(job)
             # waiting
             elif job.jobStatus == "waiting":
-                waitingJobs.append(job)
+                waiting_jobs.append(job)
             # no input jobs
             elif job.dispatchDBlock == "NULL":
-                activateJobs.append(job)
+                activate_jobs.append(job)
             # normal jobs
             else:
                 # change status
                 job.jobStatus = "assigned"
-                updateJobs.append(job)
+                update_jobs.append(job)
         # trigger merge generation if all events are done
-        newActivateJobs = []
-        nFinished = 0
-        for job in activateJobs:
+        new_activate_jobs = []
+        n_finished = 0
+        for job in activate_jobs:
             if job.notDiscardEvents() and job.allOkEvents() and not EventServiceUtils.isEventServiceMerge(job):
-                self.taskBuffer.activateJobs([job])
+                self.task_buffer.activate_jobs([job])
                 # change status
                 job.jobStatus = "finished"
-                self.taskBuffer.updateJobs([job], False)
-                nFinished += 1
+                self.task_buffer.update_jobs([job], False)
+                n_finished += 1
             else:
-                newActivateJobs.append(job)
-        activateJobs = newActivateJobs
-        tmpLog.debug(f"# of finished jobs in activated : {nFinished}")
-        newUpdateJobs = []
-        nFinished = 0
-        for job in updateJobs:
+                new_activate_jobs.append(job)
+        activate_jobs = new_activate_jobs
+        tmp_log.debug(f"# of finished jobs in activated : {n_finished}")
+        new_update_jobs = []
+        n_finished = 0
+        for job in update_jobs:
             if job.notDiscardEvents() and job.allOkEvents() and not EventServiceUtils.isEventServiceMerge(job):
-                self.taskBuffer.updateJobs([job], True)
+                self.task_buffer.updateJobs([job], True)
                 # change status
                 job.jobStatus = "finished"
-                self.taskBuffer.updateJobs([job], True)
-                nFinished += 1
+                self.task_buffer.updateJobs([job], True)
+                n_finished += 1
             else:
-                newUpdateJobs.append(job)
-        updateJobs = newUpdateJobs
-        tmpLog.debug(f"# of finished jobs in defined : {nFinished}")
+                new_update_jobs.append(job)
+        update_jobs = new_update_jobs
+        tmp_log.debug(f"# of finished jobs in defined : {n_finished}")
         # update DB
-        tmpLog.debug(f"# of activated jobs : {len(activateJobs)}")
-        self.taskBuffer.activateJobs(activateJobs)
-        tmpLog.debug(f"# of updated jobs : {len(updateJobs)}")
-        self.taskBuffer.updateJobs(updateJobs, True)
-        tmpLog.debug(f"# of failed jobs : {len(failedJobs)}")
-        self.taskBuffer.updateJobs(failedJobs, True)
-        tmpLog.debug(f"# of waiting jobs : {len(waitingJobs)}")
-        self.taskBuffer.keepJobs(waitingJobs)
+        tmp_log.debug(f"# of activated jobs : {len(activate_jobs)}")
+        self.task_buffer.activateJobs(activate_jobs)
+        tmp_log.debug(f"# of updated jobs : {len(update_jobs)}")
+        self.task_buffer.updateJobs(update_jobs, True)
+        tmp_log.debug(f"# of failed jobs : {len(failed_jobs)}")
+        self.task_buffer.updateJobs(failed_jobs, True)
+        tmp_log.debug(f"# of waiting jobs : {len(waiting_jobs)}")
+        self.task_buffer.keepJobs(waiting_jobs)
         # delete local values
-        del updateJobs
-        del failedJobs
-        del activateJobs
-        del waitingJobs
+        del update_jobs
+        del failed_jobs
+        del activate_jobs
+        del waiting_jobs
