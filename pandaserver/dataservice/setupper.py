@@ -169,10 +169,10 @@ class Setupper(threading.Thread):
         n_finished = 0
         for job in activate_jobs:
             if job.notDiscardEvents() and job.allOkEvents() and not EventServiceUtils.isEventServiceMerge(job):
-                self.task_buffer.activate_jobs([job])
+                self.task_buffer.updateJobs([job])
                 # change status
                 job.jobStatus = "finished"
-                self.task_buffer.update_jobs([job], False)
+                self.task_buffer.updateJobs([job], False)
                 n_finished += 1
             else:
                 new_activate_jobs.append(job)
