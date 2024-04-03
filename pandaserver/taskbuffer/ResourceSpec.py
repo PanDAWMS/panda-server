@@ -31,7 +31,7 @@ class ResourceSpecMapper(object):
     def is_high_memory(self, resource_name):
         for resource_type in self.resource_types:
             if resource_type.resource_name == resource_name:
-                if resource_type.minrampercore > HIMEM_THRESHOLD:
+                if resource_type.minrampercore is not None and resource_type.minrampercore > HIMEM_THRESHOLD:
                     return True
         return False
 
@@ -143,12 +143,12 @@ class ResourceSpec(object):
         return True
 
     def is_single_core(self):
-        if self.mincore == 1 and self.maxcore == 1:
+        if self.mincore is not None and self.mincore == 1 and self.maxcore is not None and self.maxcore == 1:
             return True
         return False
 
     def is_multi_core(self):
-        if self.mincore > 1:
+        if self.mincore is not None and self.mincore > 1:
             return True
 
     def column_names(cls, prefix=None):
