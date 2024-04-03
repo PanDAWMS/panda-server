@@ -23435,207 +23435,201 @@ class DBProxy:
         n_cores_queued = 0
         harvester_ids_temp = list(worker_stats)
 
-        try:
-            HIMEM = "HIMEM"
-            self.__reload_resource_spec_mapper()
+        HIMEM = "HIMEM"
+        self.__reload_resource_spec_mapper()
 
-            # get the configuration for maximum workers of each type
-            pq_data_des = self.get_config_for_pq(queue)
-            resource_type_limits = {}
-            queue_type = "production"
-            if not pq_data_des:
-                tmp_log.debug("Error retrieving queue configuration from DB, limits can not be applied")
-            else:
-                try:
-                    resource_type_limits = pq_data_des["uconfig"]["resource_type_limits"]
-                except KeyError:
-                    tmp_log.debug("No resource type limits")
-                    pass
-                try:
-                    queue_type = pq_data_des["type"]
-                except KeyError:
-                    tmp_log.error("No queue type")
-                    pass
-                try:
-                    cores_queue = pq_data_des["corecount"]
-                    if not cores_queue:
-                        cores_queue = 1
-                except KeyError:
-                    tmp_log.error("No corecount")
-                    pass
-
-            # Retrieve the assigned harvester instance and submit UPS commands only to this instance. We have had multiple
-            # cases of test instances submitting to large queues in classic pull mode and not following commands.
+        # get the configuration for maximum workers of each type
+        pq_data_des = self.get_config_for_pq(queue)
+        resource_type_limits = {}
+        queue_type = "production"
+        if not pq_data_des:
+            tmp_log.debug("Error retrieving queue configuration from DB, limits can not be applied")
+        else:
             try:
-                assigned_harvester_id = pq_data_des["harvester"]
-            except KeyErrorException:
-                assigned_harvester_id = None
-
-            harvester_ids = []
-            # If the assigned instance is working, use it for the statistics
-            if assigned_harvester_id in harvester_ids_temp:
-                harvester_ids = [assigned_harvester_id]
-
-            # Filter central harvester instances that support UPS model
-            else:
-                for harvester_id in harvester_ids_temp:
-                    if "ACT" not in harvester_id and "test_fbarreir" not in harvester_id and "cern_cloud" not in harvester_id:
-                        harvester_ids.append(harvester_id)
-
-            for harvester_id in harvester_ids:
-                for job_type in worker_stats[harvester_id]:
-                    workers_queued.setdefault(job_type, {})
-                    for resource_type in worker_stats[harvester_id][job_type]:
-                        core_factor = self.__resource_spec_mapper.translate_resourcetype_to_cores(resource_type, cores_queue)
-                        try:
-                            n_cores_running = n_cores_running + worker_stats[harvester_id][job_type][resource_type]["running"] * core_factor
-
-                            # This limit is in #JOBS or #WORKERS
-                            if resource_type in resource_type_limits:
-                                resource_type_limits[resource_type] = (
-                                    resource_type_limits[resource_type] - worker_stats[harvester_id][job_type][resource_type]["running"]
-                                )
-                                tmp_log.debug(f"Limit for rt {resource_type} down to {resource_type_limits[resource_type]}")
-
-                            # This limit is in #CORES, since it mixes single and multi core jobs
-                            if self.__resource_spec_mapper.is_high_memory(resource_type) and HIMEM in resource_type_limits:
-                                resource_type_limits[HIMEM] = (
-                                    resource_type_limits[HIMEM] - worker_stats[harvester_id][job_type][resource_type]["running"] * core_factor
-                                )
-                                tmp_log.debug(f"Limit for rt group {HIMEM} down to {resource_type_limits[HIMEM]}")
-
-                        except KeyError:
-                            pass
-
-                        try:  # submitted
-                            workers_queued[job_type].setdefault(resource_type, 0)
-                            workers_queued[job_type][resource_type] = (
-                                workers_queued[job_type][resource_type] + worker_stats[harvester_id][job_type][resource_type]["submitted"]
-                            )
-                            n_cores_queued = n_cores_queued + worker_stats[harvester_id][job_type][resource_type]["submitted"] * core_factor
-                        except KeyError:
-                            pass
-
-                        try:  # ready
-                            workers_queued[job_type].setdefault(resource_type, 0)
-                            workers_queued[job_type][resource_type] = (
-                                workers_queued[job_type][resource_type] + worker_stats[harvester_id][job_type][resource_type]["ready"]
-                            )
-                            n_cores_queued = n_cores_queued + worker_stats[harvester_id][job_type][resource_type]["ready"] * core_factor
-                        except KeyError:
-                            pass
-
-            tmp_log.debug(f"Queue {queue} queued worker overview: {workers_queued}")
-
-            # For queues that need more pressure towards reaching a target
-            n_cores_running_fake = 0
+                resource_type_limits = pq_data_des["uconfig"]["resource_type_limits"]
+            except KeyError:
+                tmp_log.debug("No resource type limits")
+                pass
             try:
-                if pq_data_des["status"] in [
-                    "online",
-                    "brokeroff",
-                ]:  # don't flood test sites with workers
-                    n_cores_running_fake = pq_data_des["params"]["ups_core_target"]
-                    tmp_log.debug(f"Using ups_core_target {n_cores_running_fake} for queue {queue}")
-            except KeyError:  # no value defined in CRIC
+                queue_type = pq_data_des["type"]
+            except KeyError:
+                tmp_log.error("No queue type")
+                pass
+            try:
+                cores_queue = pq_data_des["corecount"]
+                if not cores_queue:
+                    cores_queue = 1
+            except KeyError:
+                tmp_log.error("No corecount")
                 pass
 
-            n_cores_running = max(n_cores_running, n_cores_running_fake)
+        # Retrieve the assigned harvester instance and submit UPS commands only to this instance. We have had multiple
+        # cases of test instances submitting to large queues in classic pull mode and not following commands.
+        try:
+            assigned_harvester_id = pq_data_des["harvester"]
+        except KeyErrorException:
+            assigned_harvester_id = None
 
-            n_cores_target = max(int(n_cores_running * 0.4), 75 * cores_queue)
-            n_cores_to_submit = max(n_cores_target - n_cores_queued, 5 * cores_queue)
-            tmp_log.debug(
-                f"IN CORES: nrunning {n_cores_running}, ntarget {n_cores_target}, nqueued {n_cores_queued}. We need to process {n_cores_to_submit} cores"
-            )
+        harvester_ids = []
+        # If the assigned instance is working, use it for the statistics
+        if assigned_harvester_id in harvester_ids_temp:
+            harvester_ids = [assigned_harvester_id]
 
-            # Get the sorted global shares
-            sorted_shares = self.get_sorted_leaves()
+        # Filter central harvester instances that support UPS model
+        else:
+            for harvester_id in harvester_ids_temp:
+                if "ACT" not in harvester_id and "test_fbarreir" not in harvester_id and "cern_cloud" not in harvester_id:
+                    harvester_ids.append(harvester_id)
 
-            # Run over the activated jobs by gshare & priority, and substract them from the queued
-            # A negative value for queued will mean more pilots of that resource type are missing
-            for share in sorted_shares:
-                var_map = {":queue": queue, ":gshare": share.name}
-                sql = f"""
-                      SELECT gshare, prodsourcelabel, resource_type FROM {panda_config.schemaPANDA}.jobsactive4
-                      WHERE jobstatus = 'activated'
-                         AND computingsite=:queue
-                         AND gshare=:gshare
-                      ORDER BY currentpriority DESC
-                      """
-                self.cur.execute(sql + comment, var_map)
-                activated_jobs = self.cur.fetchall()
-                tmp_log.debug(f"Processing share: {share.name}. Got {len(activated_jobs)} activated jobs")
-                for gshare, prodsourcelabel, resource_type in activated_jobs:
+        for harvester_id in harvester_ids:
+            for job_type in worker_stats[harvester_id]:
+                workers_queued.setdefault(job_type, {})
+                for resource_type in worker_stats[harvester_id][job_type]:
                     core_factor = self.__resource_spec_mapper.translate_resourcetype_to_cores(resource_type, cores_queue)
+                    try:
+                        n_cores_running = n_cores_running + worker_stats[harvester_id][job_type][resource_type]["running"] * core_factor
 
-                    # translate prodsourcelabel to a subset of job types, typically 'user' and 'managed'
-                    job_type = JobUtils.translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel)
-                    # if we reached the limit for the resource type, skip the job
-                    if resource_type in resource_type_limits and resource_type_limits[resource_type] <= 0:
-                        # tmp_log.debug('Reached resource type limit for {0}'.format(resource_type))
-                        continue
+                        # This limit is in #JOBS or #WORKERS
+                        if resource_type in resource_type_limits:
+                            resource_type_limits[resource_type] = (
+                                resource_type_limits[resource_type] - worker_stats[harvester_id][job_type][resource_type]["running"]
+                            )
+                            tmp_log.debug(f"Limit for rt {resource_type} down to {resource_type_limits[resource_type]}")
 
-                    # if we reached the limit for the HIMEM resource type group, skip the job
-                    if self.__resource_spec_mapper.is_high_memory(resource_type) and HIMEM in resource_type_limits and resource_type_limits[HIMEM] <= 0:
-                        # tmp_log.debug('Reached resource type limit for {0}'.format(resource_type))
-                        continue
+                        # This limit is in #CORES, since it mixes single and multi core jobs
+                        if self.__resource_spec_mapper.is_high_memory(resource_type) and HIMEM in resource_type_limits:
+                            resource_type_limits[HIMEM] = (
+                                resource_type_limits[HIMEM] - worker_stats[harvester_id][job_type][resource_type]["running"] * core_factor
+                            )
+                            tmp_log.debug(f"Limit for rt group {HIMEM} down to {resource_type_limits[HIMEM]}")
 
-                    workers_queued.setdefault(job_type, {})
-                    workers_queued[job_type].setdefault(resource_type, 0)
-                    workers_queued[job_type][resource_type] = workers_queued[job_type][resource_type] - 1
-                    if workers_queued[job_type][resource_type] <= 0:
-                        # we've gone over the jobs that already have a queued worker, now we go for new workers
-                        n_cores_to_submit = n_cores_to_submit - core_factor
+                    except KeyError:
+                        pass
 
-                    # We reached the number of workers needed
-                    if n_cores_to_submit <= 0:
-                        tmp_log.debug("Reached cores needed (inner)")
-                        break
+                    try:  # submitted
+                        workers_queued[job_type].setdefault(resource_type, 0)
+                        workers_queued[job_type][resource_type] = (
+                            workers_queued[job_type][resource_type] + worker_stats[harvester_id][job_type][resource_type]["submitted"]
+                        )
+                        n_cores_queued = n_cores_queued + worker_stats[harvester_id][job_type][resource_type]["submitted"] * core_factor
+                    except KeyError:
+                        pass
+
+                    try:  # ready
+                        workers_queued[job_type].setdefault(resource_type, 0)
+                        workers_queued[job_type][resource_type] = (
+                            workers_queued[job_type][resource_type] + worker_stats[harvester_id][job_type][resource_type]["ready"]
+                        )
+                        n_cores_queued = n_cores_queued + worker_stats[harvester_id][job_type][resource_type]["ready"] * core_factor
+                    except KeyError:
+                        pass
+
+        tmp_log.debug(f"Queue {queue} queued worker overview: {workers_queued}")
+
+        # For queues that need more pressure towards reaching a target
+        n_cores_running_fake = 0
+        try:
+            if pq_data_des["status"] in [
+                "online",
+                "brokeroff",
+            ]:  # don't flood test sites with workers
+                n_cores_running_fake = pq_data_des["params"]["ups_core_target"]
+                tmp_log.debug(f"Using ups_core_target {n_cores_running_fake} for queue {queue}")
+        except KeyError:  # no value defined in CRIC
+            pass
+
+        n_cores_running = max(n_cores_running, n_cores_running_fake)
+
+        n_cores_target = max(int(n_cores_running * 0.4), 75 * cores_queue)
+        n_cores_to_submit = max(n_cores_target - n_cores_queued, 5 * cores_queue)
+        tmp_log.debug(f"IN CORES: nrunning {n_cores_running}, ntarget {n_cores_target}, nqueued {n_cores_queued}. We need to process {n_cores_to_submit} cores")
+
+        # Get the sorted global shares
+        sorted_shares = self.get_sorted_leaves()
+
+        # Run over the activated jobs by gshare & priority, and substract them from the queued
+        # A negative value for queued will mean more pilots of that resource type are missing
+        for share in sorted_shares:
+            var_map = {":queue": queue, ":gshare": share.name}
+            sql = f"""
+                  SELECT gshare, prodsourcelabel, resource_type FROM {panda_config.schemaPANDA}.jobsactive4
+                  WHERE jobstatus = 'activated'
+                     AND computingsite=:queue
+                     AND gshare=:gshare
+                  ORDER BY currentpriority DESC
+                  """
+            self.cur.execute(sql + comment, var_map)
+            activated_jobs = self.cur.fetchall()
+            tmp_log.debug(f"Processing share: {share.name}. Got {len(activated_jobs)} activated jobs")
+            for gshare, prodsourcelabel, resource_type in activated_jobs:
+                core_factor = self.__resource_spec_mapper.translate_resourcetype_to_cores(resource_type, cores_queue)
+
+                # translate prodsourcelabel to a subset of job types, typically 'user' and 'managed'
+                job_type = JobUtils.translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel)
+                # if we reached the limit for the resource type, skip the job
+                if resource_type in resource_type_limits and resource_type_limits[resource_type] <= 0:
+                    # tmp_log.debug('Reached resource type limit for {0}'.format(resource_type))
+                    continue
+
+                # if we reached the limit for the HIMEM resource type group, skip the job
+                if self.__resource_spec_mapper.is_high_memory(resource_type) and HIMEM in resource_type_limits and resource_type_limits[HIMEM] <= 0:
+                    # tmp_log.debug('Reached resource type limit for {0}'.format(resource_type))
+                    continue
+
+                workers_queued.setdefault(job_type, {})
+                workers_queued[job_type].setdefault(resource_type, 0)
+                workers_queued[job_type][resource_type] = workers_queued[job_type][resource_type] - 1
+                if workers_queued[job_type][resource_type] <= 0:
+                    # we've gone over the jobs that already have a queued worker, now we go for new workers
+                    n_cores_to_submit = n_cores_to_submit - core_factor
 
                 # We reached the number of workers needed
                 if n_cores_to_submit <= 0:
-                    tmp_log.debug("Reached cores needed (outer)")
+                    tmp_log.debug("Reached cores needed (inner)")
                     break
 
-            tmp_log.debug(f"workers_queued: {workers_queued}")
+            # We reached the number of workers needed
+            if n_cores_to_submit <= 0:
+                tmp_log.debug("Reached cores needed (outer)")
+                break
 
-            new_workers = {}
-            for job_type in workers_queued:
-                new_workers.setdefault(job_type, {})
-                for resource_type in workers_queued[job_type]:
-                    if workers_queued[job_type][resource_type] >= 0:
-                        # we have too many workers queued already, don't submit more
-                        new_workers[job_type][resource_type] = 0
-                    elif workers_queued[job_type][resource_type] < 0:
-                        # we don't have enough workers for this resource type
-                        new_workers[job_type][resource_type] = -workers_queued[job_type][resource_type] + 1
+        tmp_log.debug(f"workers_queued: {workers_queued}")
 
-            # We should still submit a basic worker, even if there are no activated jobs to avoid queue deactivation
-            workers = False
+        new_workers = {}
+        for job_type in workers_queued:
+            new_workers.setdefault(job_type, {})
+            for resource_type in workers_queued[job_type]:
+                if workers_queued[job_type][resource_type] >= 0:
+                    # we have too many workers queued already, don't submit more
+                    new_workers[job_type][resource_type] = 0
+                elif workers_queued[job_type][resource_type] < 0:
+                    # we don't have enough workers for this resource type
+                    new_workers[job_type][resource_type] = -workers_queued[job_type][resource_type] + 1
+
+        # We should still submit a basic worker, even if there are no activated jobs to avoid queue deactivation
+        workers = False
+        for job_type in new_workers:
+            for resource_type in new_workers[job_type]:
+                if new_workers[job_type][resource_type] > 0:
+                    workers = True
+                    break
+        if not workers:
+            new_workers["managed"] = {BASIC_RESOURCE_TYPE: 1}
+
+        # In case multiple harvester instances are serving a panda queue, split workers evenly between them
+        new_workers_per_harvester = {}
+        for harvester_id in harvester_ids:
+            new_workers_per_harvester.setdefault(harvester_id, {})
             for job_type in new_workers:
+                new_workers_per_harvester[harvester_id].setdefault(job_type, {})
                 for resource_type in new_workers[job_type]:
-                    if new_workers[job_type][resource_type] > 0:
-                        workers = True
-                        break
-            if not workers:
-                new_workers["managed"] = {BASIC_RESOURCE_TYPE: 1}
+                    new_workers_per_harvester[harvester_id][job_type][resource_type] = int(
+                        math.ceil(new_workers[job_type][resource_type] * 1.0 / len(harvester_ids))
+                    )
 
-            # In case multiple harvester instances are serving a panda queue, split workers evenly between them
-            new_workers_per_harvester = {}
-            for harvester_id in harvester_ids:
-                new_workers_per_harvester.setdefault(harvester_id, {})
-                for job_type in new_workers:
-                    new_workers_per_harvester[harvester_id].setdefault(job_type, {})
-                    for resource_type in new_workers[job_type]:
-                        new_workers_per_harvester[harvester_id][job_type][resource_type] = int(
-                            math.ceil(new_workers[job_type][resource_type] * 1.0 / len(harvester_ids))
-                        )
-
-            tmp_log.debug(f"Workers to submit: {new_workers_per_harvester}")
-            tmp_log.debug("done")
-            return new_workers_per_harvester
-        except:
-            tmp_log.error(traceback.format_exc())
-            return {}
+        tmp_log.debug(f"Workers to submit: {new_workers_per_harvester}")
+        tmp_log.debug("done")
+        return new_workers_per_harvester
 
     # get active consumers
     def getActiveConsumers(self, jediTaskID, jobsetID, myPandaID):
