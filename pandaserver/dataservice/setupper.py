@@ -99,7 +99,7 @@ class Setupper(threading.Thread):
                 setupper_plugin_class = panda_config.getPlugin("setupper_plugins", tmp_vo)
                 if setupper_plugin_class is None:
                     # use ATLAS plug-in by default
-                    from pandaserver.dataservice.SetupperAtlasPlugin import (
+                    from pandaserver.dataservice.setupper_atlas_plugin import (
                         SetupperAtlasPlugin,
                     )
 
