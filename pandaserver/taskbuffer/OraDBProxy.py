@@ -43,7 +43,11 @@ from pandaserver.taskbuffer.DdmSpec import DdmSpec
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.HarvesterMetricsSpec import HarvesterMetricsSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec, push_status_changes
-from pandaserver.taskbuffer.ResourceSpec import ResourceSpec
+from pandaserver.taskbuffer.ResourceSpec import (
+    BASIC_RESOURCE_TYPE,
+    ResourceSpec,
+    ResourceSpecMapper,
+)
 from pandaserver.taskbuffer.SupErrors import SupErrors
 from pandaserver.taskbuffer.Utils import create_shards
 from pandaserver.taskbuffer.WorkerSpec import WorkerSpec
@@ -157,7 +161,8 @@ class DBProxy:
         self.__t_update_distribution = None  # Timestamp when the HS06s distribution was last updated
 
         # resource type mapper
-        self.__resource_type_mapper = None
+        # if you want to use it, you need to call __reload_resource_spec_mapper first
+        self.__resource_spec_mapper = None
         self.__t_update_resource_type_mapper = None
 
         # priority boost
@@ -16808,7 +16813,7 @@ class DBProxy:
 
     # set score site to ES job
     def setScoreSiteToEs(self, jobSpec, methodName, comment):
-        _logger.debug(f"{methodName} looking for SCORE site")
+        _logger.debug(f"{methodName} looking for single-core site")
 
         # get score PQ in the nucleus associated to the site to run the small ES job
         sqlSN = "SELECT /* use_json_type */ ps2.panda_site_name "
@@ -16866,9 +16871,9 @@ class DBProxy:
                 jobSpec.resource_type = self.get_resource_type_job(jobSpec)
                 newSiteName = jobSpec.computingSite
         if newSiteName is not None:
-            _logger.info(f"{methodName} set SCORE site to {newSiteName}")
+            _logger.info(f"{methodName} set single-core site to {newSiteName}")
         else:
-            _logger.info(f"{methodName} no SCORE site for {jobSpec.computingSite}")
+            _logger.info(f"{methodName} no single-core site for {jobSpec.computingSite}")
         # return
         return
 
@@ -22671,6 +22676,18 @@ class DBProxy:
             _logger.error(f"{comment}: {type} {value}")
             return -1
 
+    def __reload_resource_spec_mapper(self):
+        # update once per hour only
+        if self.__t_update_resource_type_mapper and self.__t_update_resource_type_mapper > datetime.datetime.now() - datetime.timedelta(hours=1):
+            return
+
+        # get the resource types from the DB and make the ResourceSpecMapper object
+        resource_types = self.load_resource_types()
+        if resource_types:
+            self.__resource_spec_mapper = ResourceSpecMapper(resource_types)
+            self.__t_update_resource_type_mapper = datetime.datetime.now()
+        return
+
     def load_resource_types(self, formatting="spec"):
         """
         Load the resource type table to memory
@@ -23418,9 +23435,9 @@ class DBProxy:
         n_cores_queued = 0
         harvester_ids_temp = list(worker_stats)
 
-        # HIMEM resource types group
+        # HIMEM limit
         HIMEM = "HIMEM"
-        HIMEM_RTS = ["SCORE_HIMEM", "MCORE_HIMEM"]
+        self.__reload_resource_spec_mapper()
 
         # get the configuration for maximum workers of each type
         pq_data_des = self.get_config_for_pq(queue)
@@ -23469,7 +23486,7 @@ class DBProxy:
             for job_type in worker_stats[harvester_id]:
                 workers_queued.setdefault(job_type, {})
                 for resource_type in worker_stats[harvester_id][job_type]:
-                    core_factor = JobUtils.translate_resourcetype_to_cores(resource_type, cores_queue)
+                    core_factor = self.__resource_spec_mapper.translate_resourcetype_to_cores(resource_type, cores_queue)
                     try:
                         n_cores_running = n_cores_running + worker_stats[harvester_id][job_type][resource_type]["running"] * core_factor
 
@@ -23481,7 +23498,7 @@ class DBProxy:
                             tmpLog.debug(f"Limit for rt {resource_type} down to {resource_type_limits[resource_type]}")
 
                         # This limit is in #CORES, since it mixes single and multi core jobs
-                        if resource_type in HIMEM_RTS and HIMEM in resource_type_limits:
+                        if self.__resource_spec_mapper.is_high_memory(resource_type) and HIMEM in resource_type_limits:
                             resource_type_limits[HIMEM] = (
                                 resource_type_limits[HIMEM] - worker_stats[harvester_id][job_type][resource_type]["running"] * core_factor
                             )
@@ -23546,7 +23563,7 @@ class DBProxy:
             activated_jobs = self.cur.fetchall()
             tmpLog.debug(f"Processing share: {share.name}. Got {len(activated_jobs)} activated jobs")
             for gshare, prodsourcelabel, resource_type in activated_jobs:
-                core_factor = JobUtils.translate_resourcetype_to_cores(resource_type, cores_queue)
+                core_factor = self.__resource_spec_mapper.translate_resourcetype_to_cores(resource_type, cores_queue)
 
                 # translate prodsourcelabel to a subset of job types, typically 'user' and 'managed'
                 job_type = JobUtils.translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel)
@@ -23556,7 +23573,7 @@ class DBProxy:
                     continue
 
                 # if we reached the limit for the HIMEM resource type group, skip the job
-                if resource_type in HIMEM_RTS and HIMEM in resource_type_limits and resource_type_limits[HIMEM] <= 0:
+                if self.__resource_spec_mapper.is_high_memory(resource_type) and HIMEM in resource_type_limits and resource_type_limits[HIMEM] <= 0:
                     # tmpLog.debug('Reached resource type limit for {0}'.format(resource_type))
                     continue
 
@@ -23590,7 +23607,7 @@ class DBProxy:
                     # we don't have enough workers for this resource type
                     new_workers[job_type][resource_type] = -workers_queued[job_type][resource_type] + 1
 
-        # We should still submit a SCORE worker, even if there are no activated jobs to avoid queue deactivation
+        # We should still submit a basic worker, even if there are no activated jobs to avoid queue deactivation
         workers = False
         for job_type in new_workers:
             for resource_type in new_workers[job_type]:
@@ -23598,7 +23615,7 @@ class DBProxy:
                     workers = True
                     break
         if not workers:
-            new_workers["managed"] = {"SCORE": 1}
+            new_workers["managed"] = {BASIC_RESOURCE_TYPE: 1}
 
         # In case multiple harvester instances are serving a panda queue, split workers evenly between them
         new_workers_per_harvester = {}

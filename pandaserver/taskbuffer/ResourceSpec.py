@@ -5,6 +5,9 @@ Resource type specification for JEDI
 
 from . import JobUtils
 
+HIMEM_THRESHOLD = 2000  # MB per core
+BASIC_RESOURCE_TYPE = "SCORE"
+
 
 class ResourceSpecMapper(object):
     def __init__(self, resource_types):
@@ -24,6 +27,20 @@ class ResourceSpecMapper(object):
             if resource_type.resource_name == resource_name:
                 return resource_type.is_multi_core()
         return False
+
+    def is_high_memory(self, resource_name):
+        for resource_type in self.resource_types:
+            if resource_type.resource_name == resource_name:
+                if resource_type.minrampercore > HIMEM_THRESHOLD:
+                    return True
+        return False
+
+    def translate_resourcetype_to_cores(self, resource_name, cores_queue):
+        # if the resource type is multi-core, return the number of cores in the queue
+        if self.is_multi_core(resource_name):
+            return cores_queue
+
+        return 1
 
 
 class ResourceSpec(object):
