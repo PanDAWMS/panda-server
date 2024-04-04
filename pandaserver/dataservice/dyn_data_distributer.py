@@ -742,7 +742,7 @@ class DynDataDistributer:
                     tmp_event_run_list,
                     stream=stream_name,
                     tokens=stream_ref,
-                    amitag=ami_tag,
+                    ami_tag=ami_tag,
                 )
                 reg_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - reg_start
                 tmp_logger.debug(f"EI command: {tmp_com}")
