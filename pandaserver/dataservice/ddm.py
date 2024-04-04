@@ -328,7 +328,7 @@ class RucioAPI:
             for dataset_name in tmp_map:
                 file_list = tmp_map[dataset_name]
                 # extract scope from dataset
-                scope, dataset_name = self.extract_scope(dataset_name)
+                scope, given_dataset_name = self.extract_scope(dataset_name)
                 files_with_rse = []
                 files_without_rse = []
                 for tmp_file in file_list:
@@ -348,7 +348,7 @@ class RucioAPI:
                     while i_files < len(files_with_rse):
                         attachment = {
                             "scope": scope,
-                            "name": dataset_name,
+                            "name": given_dataset_name,
                             "dids": files_with_rse[i_files : i_files + n_files],
                             "rse": rse,
                         }
@@ -360,7 +360,7 @@ class RucioAPI:
                     while i_files < len(files_without_rse):
                         attachment = {
                             "scope": scope,
-                            "name": dataset_name,
+                            "name": given_dataset_name,
                             "dids": files_without_rse[i_files : i_files + n_files],
                         }
                         attachment_list.append(attachment)
