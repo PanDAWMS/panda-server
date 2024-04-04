@@ -71,7 +71,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         """
         try:
             self.logger.debug("start run()")
-            self._memoryCheck()
+            self.memory_check()
             bunchTag = ""
             tagJob = None
             timeStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
@@ -92,7 +92,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             if not self.onlyTA:
                 # invoke brokerage
                 self.logger.debug("brokerSchedule")
-                self._memoryCheck()
+                self.memory_check()
                 pandaserver.brokerage.broker.schedule(
                     self.jobs,
                     self.taskBuffer,
@@ -104,9 +104,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 self.remove_waiting_jobs()
                 # setup dispatch dataset
                 self.logger.debug("setupSource")
-                self._memoryCheck()
+                self.memory_check()
                 self.setup_source()
-                self._memoryCheck()
+                self.memory_check()
                 # sort by site so that larger subs are created in the next step
                 if self.jobs != [] and self.jobs[0].prodSourceLabel in [
                     "managed",
@@ -170,12 +170,12 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         # at a burst
                         self.setup_destination()
                 # make dis datasets for existing files
-                self._memoryCheck()
-                self._makeDisDatasetsForExistingfiles()
-                self._memoryCheck()
+                self.memory_check()
+                self.make_dis_datasets_for_existing_files()
+                self.memory_check()
                 # setup jumbo jobs
-                self._setupJumbojobs()
-                self._memoryCheck()
+                self.setup_jumbo_jobs()
+                self.memory_check()
             regTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - timeStart
             self.logger.debug(f"{bunchTag} took {regTime.seconds}sec")
             self.logger.debug("end run()")
@@ -194,17 +194,17 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         try:
             if not self.onlyTA:
                 self.logger.debug("start postRun()")
-                self._memoryCheck()
+                self.memory_check()
                 # subscribe sites distpatchDBlocks. this must be the last method
                 self.logger.debug("subscribeDistpatchDB")
                 self.subscribe_distpatch_db()
                 # dynamic data placement for analysis jobs
-                self._memoryCheck()
-                self._dynamicDataPlacement()
+                self.memory_check()
+                self.dynamic_data_placement()
                 # make subscription for missing
-                self._memoryCheck()
-                self._makeSubscriptionForMissing()
-                self._memoryCheck()
+                self.memory_check()
+                self.make_subscription_for_missing()
+                self.memory_check()
                 self.logger.debug("end postRun()")
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]
@@ -335,9 +335,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         self.replica_map.setdefault(job.dispatchDBlock, {})
                         if file.dataset not in self.all_teplica_map:
                             if file.dataset.endswith("/"):
-                                status, out = self.getListDatasetReplicasInContainer(file.dataset, True)
+                                status, out = self.get_list_dataset_replicas_in_container(file.dataset, True)
                             else:
-                                status, out = self.getListDatasetReplicas(file.dataset)
+                                status, out = self.get_list_dataset_replicas(file.dataset)
                             if not status:
                                 self.logger.error(out)
                                 dispError[job.dispatchDBlock] = f"could not get locations for {file.dataset}"
@@ -539,7 +539,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         if file.destinationDBlock not in snGottenDS:
                             snGottenDS.append(file.destinationDBlock)
                         # new dataset name
-                        newnameList[dest] = self.makeSubDatasetName(file.destinationDBlock, sn, job.jediTaskID)
+                        newnameList[dest] = self.make_sub_dataset_name(file.destinationDBlock, sn, job.jediTaskID)
                         if freshFlag or self.resetLocation:
                             # register original dataset and new dataset
                             nameList = [file.destinationDBlock, newnameList[dest]]
@@ -1188,7 +1188,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     prodError[dataset] = ""
                     lfnMap[dataset] = {}
                     # get LFNs
-                    status, out = self.getListFilesInDataset(dataset, inputLFNs)
+                    status, out = self.get_list_files_in_dataset(dataset, inputLFNs)
                     if status != 0:
                         self.logger.error(out)
                         prodError[dataset] = f"could not get file list of prodDBlock {dataset}"
@@ -1231,9 +1231,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     # get replica locations
                     if (self.onlyTA or job.prodSourceLabel in ["managed", "test"]) and prodError[dataset] == "" and dataset not in replicaMap:
                         if dataset.endswith("/"):
-                            status, out = self.getListDatasetReplicasInContainer(dataset, True)
+                            status, out = self.get_list_dataset_replicas_in_container(dataset, True)
                         else:
-                            status, out = self.getListDatasetReplicas(dataset)
+                            status, out = self.get_list_dataset_replicas(dataset)
                         if not status:
                             prodError[dataset] = f"could not get locations for {dataset}"
                             self.logger.error(prodError[dataset])
@@ -1420,7 +1420,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         self.jobs = jobsProcessed
 
     # memory checker
-    def _memoryCheck(self):
+    def memory_check(self):
+        """
+        Memory check method for running the setup process.
+        """
         try:
             import os
 
@@ -1453,7 +1456,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             return
 
     # get list of files in dataset
-    def getListFilesInDataset(self, dataset, fileList=None, useCache=True):
+    def get_list_files_in_dataset(self, dataset, fileList=None, useCache=True):
+        """
+        Get list files in dataset method for running the setup process.
+        """
         # use cache data
         if useCache and dataset in self.lfn_dataset_map:
             return 0, self.lfn_dataset_map[dataset]
@@ -1477,7 +1483,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return status, items
 
     # get list of datasets in container
-    def getListDatasetInContainer(self, container):
+    def get_list_dataset_in_container(self, container):
+        """
+        Get list dataset in container method for running the setup process.
+        """
         # get datasets in container
         self.logger.debug("listDatasetsInContainer " + container)
         for iDDMTry in range(3):
@@ -1491,7 +1500,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             return False, out
         return True, datasets
 
-    def getListDatasetReplicasInContainer(self, container, getMap=False):
+    def get_list_dataset_replicas_in_container(self, container, getMap=False):
+        """
+        Get list dataset replicas in container method for running the setup process.
+        """
         # get datasets in container
         self.logger.debug("listDatasetsInContainer " + container)
         for iDDMTry in range(3):
@@ -1509,7 +1521,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         allRepMap = {}
         for dataset in datasets:
             self.logger.debug("listDatasetReplicas " + dataset)
-            status, out = self.getListDatasetReplicas(dataset)
+            status, out = self.get_list_dataset_replicas(dataset)
             self.logger.debug(out)
             if not status:
                 if getMap:
@@ -1551,7 +1563,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return 0, str(allRepMap)
 
     # get list of replicas for a dataset
-    def getListDatasetReplicas(self, dataset, getMap=True):
+    def get_list_dataset_replicas(self, dataset, getMap=True):
+        """
+        Get list dataset replicas method for running the setup process.
+        """
         nTry = 3
         for iDDMTry in range(nTry):
             self.logger.debug(f"{iDDMTry}/{nTry} listDatasetReplicas {dataset}")
@@ -1584,7 +1599,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 return 1, str({})
 
     # dynamic data placement for analysis jobs
-    def _dynamicDataPlacement(self):
+    def dynamic_data_placement(self):
+        """
+        Dynamic data placement method for running the setup process.
+        """
         # only first submission
         if not self.firstSubmission:
             return
@@ -1600,7 +1618,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return
 
     # make dis datasets for existing files to avoid deletion when jobs are queued
-    def _makeDisDatasetsForExistingfiles(self):
+    def make_dis_datasets_for_existing_files(self):
+        """
+        Make dis datasets for existing files method for running the setup process.
+        """
         self.logger.debug("make dis datasets for existing files")
         # collect existing files
         dsFileMap = {}
@@ -1850,7 +1871,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return
 
     # pin input dataset
-    def _pinInputDatasets(self):
+    def pin_input_datasets(self):
+        """
+        Pin input datasets method for running the setup process.
+        """
         self.logger.debug("pin input datasets")
         # collect input datasets and locations
         doneList = []
@@ -1907,13 +1931,13 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             (
                                 status,
                                 tmpRepSitesMap,
-                            ) = self.getListDatasetReplicasInContainer(tmpFile.dataset, getMap=True)
+                            ) = self.get_list_dataset_replicas_in_container(tmpFile.dataset, getMap=True)
                             if status == 0:
                                 status = True
                             else:
                                 status = False
                         else:
-                            status, tmpRepSites = self.getListDatasetReplicas(tmpFile.dataset)
+                            status, tmpRepSites = self.get_list_dataset_replicas(tmpFile.dataset)
                             tmpRepSitesMap = {}
                             tmpRepSitesMap[tmpFile.dataset] = tmpRepSites
                         # append
@@ -1951,7 +1975,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return
 
     # make T1 subscription for missing files
-    def _makeSubscriptionForMissing(self):
+    def make_subscription_for_missing(self):
+        """
+        Make subscription for missing method for running the setup process.
+        """
         self.logger.debug("make subscriptions for missing files")
         # collect datasets
         missingList = {}
@@ -1966,7 +1993,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # check if datasets in container are used
                 if tmpDsName.endswith("/"):
                     # convert container to datasets
-                    tmpStat, tmpDsList = self.getListDatasetInContainer(tmpDsName)
+                    tmpStat, tmpDsList = self.get_list_dataset_in_container(tmpDsName)
                     if not tmpStat:
                         self.logger.error(f"failed to get datasets in container:{tmpDsName}")
                         continue
@@ -1976,7 +2003,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         if tmpDsName in missingList[tmpCloud]:
                             continue
                         # get files in each dataset
-                        tmpStat, tmpFilesInDs = self.getListFilesInDataset(tmpConstDsName)
+                        tmpStat, tmpFilesInDs = self.get_list_files_in_dataset(tmpConstDsName)
                         if not tmpStat:
                             self.logger.error(f"failed to get files in dataset:{tmpConstDsName}")
                             continue
@@ -2001,13 +2028,16 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             # register subscription
             for missDsName in missDsNameList:
                 self.logger.debug(f"make subscription at {dstDQ2ID} for missing {missDsName}")
-                self.makeSubscription(missDsName, dstDQ2ID)
+                self.make_subscription(missDsName, dstDQ2ID)
         # retrun
         self.logger.debug("make subscriptions for missing files done")
         return
 
     # make subscription
-    def makeSubscription(self, dataset, dq2ID):
+    def make_subscription(self, dataset, dq2ID):
+        """
+        Make subscription method for running the setup process.
+        """
         # return for failuer
         retFailed = False
         self.logger.debug(f"registerDatasetSubscription {dataset} {dq2ID}")
@@ -2033,7 +2063,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return True
 
     # setup jumbo jobs
-    def _setupJumbojobs(self):
+    def setup_jumbo_jobs(self):
+        """
+        Setup jumbo jobs method for running the setup process.
+        """
         if len(self.jumboJobs) == 0:
             return
         self.logger.debug("setup jumbo jobs")
@@ -2048,7 +2081,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # get files
                 if tmpFileSpec.dataset not in dsLFNsMap:
                     if tmpFileSpec.dataset not in failedDS:
-                        tmpStat, tmpMap = self.getListFilesInDataset(tmpFileSpec.dataset, useCache=False)
+                        tmpStat, tmpMap = self.get_list_files_in_dataset(tmpFileSpec.dataset, useCache=False)
                         # failed
                         if tmpStat != 0:
                             failedDS.add(tmpFileSpec.dataset)
@@ -2166,7 +2199,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return
 
     # make sub dataset name
-    def makeSubDatasetName(self, original_name, sn, task_id):
+    def make_sub_dataset_name(self, original_name, sn, task_id):
+        """
+        Make sub dataset name method for running the setup process.
+        """
         try:
             task_id = int(task_id)
             if original_name.startswith("user") or original_name.startswith("panda"):
