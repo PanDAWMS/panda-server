@@ -441,7 +441,7 @@ class RucioAPI:
         result = {}
         # extract scope from dataset
         scope, given_dataset_name = self.extract_scope(dataset_name)
-        if dataset_name.endswith("/"):
+        if given_dataset_name.endswith("/"):
             given_dataset_name = given_dataset_name[:-1]
             collection = "container"
         else:
