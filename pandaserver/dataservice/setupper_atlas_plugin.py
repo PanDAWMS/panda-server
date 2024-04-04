@@ -31,7 +31,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
     # constructor
     def __init__(self, taskBuffer, jobs, logger, **params):
         # defaults
-        defaultMap = {
+        default_map = {
             "resubmit": False,
             "pandaDDM": False,
             "ddmAttempt": 0,
@@ -39,7 +39,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             "resetLocation": False,
             "useNativeDQ2": True,
         }
-        SetupperPluginBase.__init__(self, taskBuffer, jobs, logger, params, defaultMap)
+        SetupperPluginBase.__init__(self, taskBuffer, jobs, logger, params, default_map)
         # VUIDs of dispatchDBlocks
         self.vuid_map = {}
         # file list for dispDS for PandaDDM
@@ -153,19 +153,19 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         # check _dis boundary so that the same _dis doesn't contribute to many _subs
                         if iBunch + nJobsPerDis > nBunchMax:
                             if iBunch != 0:
-                                self.setup_destination(startIdx=tmpIndexJob, nJobsInLoop=iBunch)
+                                self.setup_destination(start_idx=tmpIndexJob, n_jobs_in_loop=iBunch)
                                 tmpIndexJob += iBunch
                                 iBunch = 0
                         # increment
                         iBunch += nJobsPerDis
                     # remaining
                     if iBunch != 0:
-                        self.setup_destination(startIdx=tmpIndexJob, nJobsInLoop=iBunch)
+                        self.setup_destination(start_idx=tmpIndexJob, n_jobs_in_loop=iBunch)
                 else:
                     # make one sub per job so that each job doesn't have to wait for others to be done
                     if self.jobs != [] and self.jobs[0].prodSourceLabel in ["user", "panda"] and self.jobs[-1].currentPriority > 6000:
                         for iBunch in range(len(self.jobs)):
-                            self.setup_destination(startIdx=iBunch, nJobsInLoop=1)
+                            self.setup_destination(start_idx=iBunch, n_jobs_in_loop=1)
                     else:
                         # at a burst
                         self.setup_destination()
@@ -483,19 +483,19 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         del dispSiteMap
 
     # create dataset for outputs in the repository and assign destination
-    def setup_destination(self, startIdx=-1, nJobsInLoop=50):
+    def setup_destination(self, start_idx=-1, n_jobs_in_loop=50):
         """
         Setup destination method for running the setup process.
         """
-        self.logger.debug(f"setupDestination idx:{startIdx} n:{nJobsInLoop}")
+        self.logger.debug(f"setupDestination idx:{start_idx} n:{n_jobs_in_loop}")
         destError = {}
         datasetList = {}
         newnameList = {}
         snGottenDS = []
-        if startIdx == -1:
+        if start_idx == -1:
             jobsList = self.jobs
         else:
-            jobsList = self.jobs[startIdx : startIdx + nJobsInLoop]
+            jobsList = self.jobs[start_idx: start_idx + n_jobs_in_loop]
         for job in jobsList:
             # ignore failed jobs
             if job.jobStatus in ["failed", "cancelled"] or job.isCancelled():
@@ -1456,17 +1456,17 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             return
 
     # get list of files in dataset
-    def get_list_files_in_dataset(self, dataset, fileList=None, useCache=True):
+    def get_list_files_in_dataset(self, dataset, file_list=None, use_cache=True):
         """
         Get list files in dataset method for running the setup process.
         """
         # use cache data
-        if useCache and dataset in self.lfn_dataset_map:
+        if use_cache and dataset in self.lfn_dataset_map:
             return 0, self.lfn_dataset_map[dataset]
         for iDDMTry in range(3):
             try:
                 self.logger.debug("listFilesInDataset " + dataset)
-                items, tmpDummy = rucioAPI.list_files_in_dataset(dataset, file_list=fileList)
+                items, tmpDummy = rucioAPI.list_files_in_dataset(dataset, file_list=file_list)
                 status = 0
                 break
             except DataIdentifierNotFound:
@@ -1500,7 +1500,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             return False, out
         return True, datasets
 
-    def get_list_dataset_replicas_in_container(self, container, getMap=False):
+    def get_list_dataset_replicas_in_container(self, container, get_map=False):
         """
         Get list dataset replicas in container method for running the setup process.
         """
@@ -1514,7 +1514,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 break
         if datasets is None:
             self.logger.error(out)
-            if getMap:
+            if get_map:
                 return False, out
             return 1, out
         # loop over all datasets
@@ -1524,12 +1524,12 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             status, out = self.get_list_dataset_replicas(dataset)
             self.logger.debug(out)
             if not status:
-                if getMap:
+                if get_map:
                     return False, out
                 return status, out
             tmpRepSites = out
             # get map
-            if getMap:
+            if get_map:
                 allRepMap[dataset] = tmpRepSites
                 continue
             # otherwise get sum
@@ -1558,12 +1558,12 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     ]
         # return
         self.logger.debug(str(allRepMap))
-        if getMap:
+        if get_map:
             return True, allRepMap
         return 0, str(allRepMap)
 
     # get list of replicas for a dataset
-    def get_list_dataset_replicas(self, dataset, getMap=True):
+    def get_list_dataset_replicas(self, dataset, get_map=True):
         """
         Get list dataset replicas method for running the setup process.
         """
@@ -1579,21 +1579,21 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         if status != 0:
             self.logger.error(out)
             self.logger.error(f"bad response for {dataset}")
-            if getMap:
+            if get_map:
                 return False, {}
             else:
                 return 1, str({})
         try:
             retMap = out
             self.logger.debug(f"getListDatasetReplicas->{str(retMap)}")
-            if getMap:
+            if get_map:
                 return True, retMap
             else:
                 return 0, str(retMap)
         except Exception:
             self.logger.error(out)
             self.logger.error(f"could not convert HTTP-res to replica map for {dataset}")
-            if getMap:
+            if get_map:
                 return False, {}
             else:
                 return 1, str({})
@@ -1931,7 +1931,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             (
                                 status,
                                 tmpRepSitesMap,
-                            ) = self.get_list_dataset_replicas_in_container(tmpFile.dataset, getMap=True)
+                            ) = self.get_list_dataset_replicas_in_container(tmpFile.dataset, get_map=True)
                             if status == 0:
                                 status = True
                             else:
@@ -2034,18 +2034,18 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return
 
     # make subscription
-    def make_subscription(self, dataset, dq2ID):
+    def make_subscription(self, dataset, ddm_id):
         """
         Make subscription method for running the setup process.
         """
         # return for failuer
         retFailed = False
-        self.logger.debug(f"registerDatasetSubscription {dataset} {dq2ID}")
+        self.logger.debug(f"registerDatasetSubscription {dataset} {ddm_id}")
         nTry = 3
         for iDDMTry in range(nTry):
             try:
                 # register subscription
-                status = rucioAPI.register_dataset_subscription(dataset, [dq2ID], activity="Production Input")
+                status = rucioAPI.register_dataset_subscription(dataset, [ddm_id], activity="Production Input")
                 out = "OK"
                 break
             except Exception:
@@ -2081,7 +2081,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # get files
                 if tmpFileSpec.dataset not in dsLFNsMap:
                     if tmpFileSpec.dataset not in failedDS:
-                        tmpStat, tmpMap = self.get_list_files_in_dataset(tmpFileSpec.dataset, useCache=False)
+                        tmpStat, tmpMap = self.get_list_files_in_dataset(tmpFileSpec.dataset, use_cache=False)
                         # failed
                         if tmpStat != 0:
                             failedDS.add(tmpFileSpec.dataset)
