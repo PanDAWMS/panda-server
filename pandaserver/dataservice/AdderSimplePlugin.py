@@ -6,7 +6,7 @@ import traceback
 import uuid
 
 from pandaserver.dataservice import DataServiceUtils, ErrorCode
-from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.dataservice.ddm import rucioAPI
 from rucio.common.exception import (
     DataIdentifierNotFound,
     FileConsistencyMismatch,
@@ -73,7 +73,7 @@ class AdderSimplePlugin(AdderPluginBase):
                     regStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                     try:
                         self.logger.debug(f"registerFilesInDatasets {str(destIdMap)}")
-                        out = rucioAPI.registerFilesInDataset(destIdMap, {})
+                        out = rucioAPI.register_files_in_dataset(destIdMap, {})
                     except (
                         DataIdentifierNotFound,
                         FileConsistencyMismatch,

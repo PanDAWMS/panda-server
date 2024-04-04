@@ -3,7 +3,7 @@ import sys
 
 from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.config import panda_config
-from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.userinterface import Client
 from rucio.client import Client as RucioClient
 from rucio.common.exception import DataIdentifierNotFound

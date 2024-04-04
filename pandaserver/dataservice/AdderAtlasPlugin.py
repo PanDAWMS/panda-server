@@ -15,7 +15,7 @@ from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils, ErrorCode
 from pandaserver.dataservice.AdderPluginBase import AdderPluginBase
 from pandaserver.dataservice.DataServiceUtils import select_scope
-from pandaserver.dataservice.DDM import rucioAPI
+from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.srvcore.MailUtils import MailUtils
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 from rucio.common.exception import (
@@ -616,9 +616,9 @@ class AdderAtlasPlugin(AdderPluginBase):
                     regMsgStr = f"File registration with backend={self.ddmBackEnd} for {regNumFiles} files "
                 if len(zipFiles) > 0:
                     self.logger.debug(f"registerZipFiles {str(zipFiles)}")
-                    rucioAPI.registerZipFiles(zipFiles)
+                    rucioAPI.register_zip_files(zipFiles)
                 self.logger.debug(f"registerFilesInDatasets {str(destIdMap)} zip={str(contZipMap)}")
-                out = rucioAPI.registerFilesInDataset(destIdMap, contZipMap)
+                out = rucioAPI.register_files_in_dataset(destIdMap, contZipMap)
             except (
                 DataIdentifierNotFound,
                 FileConsistencyMismatch,
@@ -709,7 +709,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                         for iDDMTry in range(3):
                             isFailed = False
                             try:
-                                status = rucioAPI.registerDatasetSubscription(
+                                status = rucioAPI.register_dataset_subscription(
                                     tmpName,
                                     [dq2ID],
                                     owner="panda",
@@ -763,7 +763,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                                 out = "OK"
                                 isFailed = False
                                 try:
-                                    rucioAPI.registerDatasetLocation(
+                                    rucioAPI.register_dataset_location(
                                         tmpDsNameLoc,
                                         [tmpLocName],
                                         owner="panda",
@@ -854,7 +854,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                                 tmpDN = userInfo["nickname"]
                             tmpMsg = f"registerDatasetLocation for Rucio ds={tmpDsName} site={tmpDQ2ID} id={tmpDN}"
                             self.logger.debug(tmpMsg)
-                            rucioAPI.registerDatasetLocation(
+                            rucioAPI.register_dataset_location(
                                 tmpDsName,
                                 [tmpDQ2ID],
                                 owner=tmpDN,
@@ -997,7 +997,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             if idMap != {}:
                 self.logger.debug(f"adding ES files {str(idMap)}")
                 try:
-                    rucioAPI.registerFilesInDataset(idMap)
+                    rucioAPI.register_files_in_dataset(idMap)
                 except DataIdentifierNotFound:
                     self.logger.debug("ignored DataIdentifierNotFound")
         except Exception:

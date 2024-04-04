@@ -171,8 +171,7 @@ class Watcher(threading.Thread):
                             self.logger.error(f"apply_retrial_rules 2 excepted and needs to be investigated ({e}): {traceback.format_exc()}")
 
                         cThr = Closer(self.taskBuffer, destDBList, job)
-                        cThr.start()
-                        cThr.join()
+                        cThr.run()
                     self.logger.debug("done")
                     return
                 # single action

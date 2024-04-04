@@ -773,11 +773,11 @@ class TaskBuffer:
         return ret
 
     # update worker status by the pilot
-    def updateWorkerPilotStatus(self, workerID, harvesterID, status):
+    def updateWorkerPilotStatus(self, workerID, harvesterID, status, node_id):
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # update DB and buffer
-        ret = proxy.updateWorkerPilotStatus(workerID, harvesterID, status)
+        ret = proxy.updateWorkerPilotStatus(workerID, harvesterID, status, node_id)
         # release proxy
         self.proxyPool.putProxy(proxy)
         return ret

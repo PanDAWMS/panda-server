@@ -16,6 +16,7 @@ from threading import Lock
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice.AdderGen import AdderGen
@@ -797,9 +798,9 @@ class JobDispatcher:
         return self.taskBuffer.getActiveJobAttributes(pandaID, attrs)
 
     # update job status
-    def updateWorkerPilotStatus(self, workerID, harvesterID, status, timeout, accept_json):
+    def updateWorkerPilotStatus(self, workerID, harvesterID, status, timeout, accept_json, node_id):
         tmp_wrapper = _TimedMethod(self.taskBuffer.updateWorkerPilotStatus, timeout)
-        tmp_wrapper.run(workerID, harvesterID, status)
+        tmp_wrapper.run(workerID, harvesterID, status, node_id)
 
         # make response
         if tmp_wrapper.result == Protocol.TimeOutToken:
@@ -1653,10 +1654,10 @@ def getResourceTypes(req, timeout=30):
 
 
 # update the status of a worker according to the pilot
-def updateWorkerPilotStatus(req, site, workerID, harvesterID, status, timeout=60):
+def updateWorkerPilotStatus(req, site, workerID, harvesterID, status, timeout=60, node_id=None):
     tmp_log = LogWrapper(
         _logger,
-        f"updateWorkerPilotStatus workerID={workerID} harvesterID={harvesterID} status={status} PID={os.getpid()}",
+        f"updateWorkerPilotStatus workerID={workerID} harvesterID={harvesterID} status={status} nodeID={node_id} PID={os.getpid()}",
     )
     tmp_log.debug("start")
 
@@ -1675,7 +1676,7 @@ def updateWorkerPilotStatus(req, site, workerID, harvesterID, status, timeout=60
 
     accept_json = req.acceptJson()
 
-    return jobDispatcher.updateWorkerPilotStatus(workerID, harvesterID, status, timeout, accept_json)
+    return jobDispatcher.updateWorkerPilotStatus(workerID, harvesterID, status, timeout, accept_json, node_id)
 
 
 # get max workerID

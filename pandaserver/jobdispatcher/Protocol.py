@@ -256,7 +256,7 @@ class Response:
         # disk count
         self.data["maxDiskCount"] = job.maxDiskCount
         # cmtconfig
-        if ppSteps is None:
+        if ppSteps is None or job.cmtConfig not in ["NULL", None]:
             self.data["cmtConfig"] = job.cmtConfig
         else:
             self.data["cmtConfig"] = ""
