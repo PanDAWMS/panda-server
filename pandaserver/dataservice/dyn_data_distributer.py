@@ -519,7 +519,7 @@ class DynDataDistributer:
         for attempt in range(max_attempts):
             try:
                 tmp_logger.debug(f"{attempt}/{max_attempts} registerNewDataset {dataset_name} len={len(files)}")
-                out = rucioAPI.registerDataset(dataset_name, lfns, guids, file_sizes, checksums, lifetime=14)
+                out = rucioAPI.register_dataset(dataset_name, lfns, guids, file_sizes, checksums, lifetime=14)
                 tmp_logger.debug(out)
                 break
             except Exception:
