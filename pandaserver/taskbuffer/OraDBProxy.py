@@ -22890,57 +22890,67 @@ class DBProxy:
             return False, "database error"
 
     # update stat of workers with jobtype breakdown
-    def reportWorkerStats_jobtype(self, harvesterID, siteName, paramsList):
+    def reportWorkerStats_jobtype(self, harvesterID, siteName, parameter_list):
         comment = " /* DBProxy.reportWorkerStats_jobtype */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        tmpLog = LogWrapper(
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        tmp_log = LogWrapper(
             _logger,
-            methodName + f" < harvesterID={harvesterID} siteName={siteName} >",
+            f"{method_name} < harvesterID={harvesterID} siteName={siteName} >",
         )
-        tmpLog.debug("start")
-        tmpLog.debug(f"params={str(paramsList)}")
+        tmp_log.debug("start")
+        tmp_log.debug(f"params={str(parameter_list)}")
         try:
             # load new site data
-            paramsList = json.loads(paramsList)
+            parameter_list = json.loads(parameter_list)
             # set autocommit on
             self.conn.begin()
-            # delete old site data
-            sqlDel = "DELETE FROM ATLAS_PANDA.Harvester_Worker_Stats "
-            sqlDel += "WHERE harvester_ID=:harvesterID AND computingSite=:siteName "
-            varMap = dict()
-            varMap[":harvesterID"] = harvesterID
-            varMap[":siteName"] = siteName
-            self.cur.execute(sqlDel + comment, varMap)
-            # insert new site data
-            sqlI = "INSERT INTO ATLAS_PANDA.Harvester_Worker_Stats (harvester_ID, computingSite, jobType, resourceType, status, n_workers, lastUpdate) "
-            sqlI += "VALUES (:harvester_ID, :siteName, :jobType, :resourceType, :status, :n_workers, CURRENT_DATE) "
 
-            for jobType in paramsList:
-                jt_params = paramsList[jobType]
+            # lock the site data rows
+            var_map = dict()
+            var_map[":harvesterID"] = harvesterID
+            var_map[":siteName"] = siteName
+            sql_lock = "SELECT harvester_ID, computingSite FROM ATLAS_PANDA.Harvester_Worker_Stats "
+            sql_lock += "WHERE harvester_ID=:harvesterID AND computingSite=:siteName FOR UPDATE NOWAIT "
+            self.cur.execute(sql_lock + comment, var_map)
+
+            # delete them
+            sql_delete = "DELETE FROM ATLAS_PANDA.Harvester_Worker_Stats "
+            sql_delete += "WHERE harvester_ID=:harvesterID AND computingSite=:siteName "
+            self.cur.execute(sql_delete + comment, var_map)
+
+            # insert new site data
+            sql_insert = "INSERT INTO ATLAS_PANDA.Harvester_Worker_Stats (harvester_ID, computingSite, jobType, resourceType, status, n_workers, lastUpdate) "
+            sql_insert += "VALUES (:harvester_ID, :siteName, :jobType, :resourceType, :status, :n_workers, CURRENT_DATE) "
+
+            var_map_list = []
+            for jobType in parameter_list:
+                jt_params = parameter_list[jobType]
                 for resourceType in jt_params:
                     params = jt_params[resourceType]
                     if resourceType == "Undefined":
                         continue
                     for status in params:
                         n_workers = params[status]
-                        varMap = dict()
-                        varMap[":harvester_ID"] = harvesterID
-                        varMap[":siteName"] = siteName
-                        varMap[":status"] = status
-                        varMap[":jobType"] = jobType
-                        varMap[":resourceType"] = resourceType
-                        varMap[":n_workers"] = n_workers
-                        self.cur.execute(sqlI + comment, varMap)
-            # commit
+                        var_map = {
+                            ":harvester_ID": harvesterID,
+                            ":siteName": siteName,
+                            ":status": status,
+                            ":jobType": jobType,
+                            ":resourceType": resourceType,
+                            ":n_workers": n_workers,
+                        }
+                        var_map_list.append(var_map)
+
+            self.cur.executemany(sql_insert + comment, var_map_list)
+
             if not self._commit():
                 raise RuntimeError("Commit error")
-            # return
-            tmpLog.debug("done")
+
+            tmp_log.debug("done")
             return True, "OK"
         except Exception:
-            # roll back
             self._rollback()
-            self.dumpErrorMessage(tmpLog, methodName)
+            self.dumpErrorMessage(tmp_log, method_name)
             return False, "database error"
 
     # get stat of workers
