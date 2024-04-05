@@ -22911,7 +22911,14 @@ class DBProxy:
             var_map[":siteName"] = siteName
             sql_lock = "SELECT harvester_ID, computingSite FROM ATLAS_PANDA.Harvester_Worker_Stats "
             sql_lock += "WHERE harvester_ID=:harvesterID AND computingSite=:siteName FOR UPDATE NOWAIT "
-            self.cur.execute(sql_lock + comment, var_map)
+            try:
+                self.cur.execute(sql_lock + comment, var_map)
+            except Exception:
+                self._rollback()
+                message = "rows locked by another update"
+                tmp_log.debug(message)
+                tmp_log.debug("done")
+                return False, message
 
             # delete them
             sql_delete = "DELETE FROM ATLAS_PANDA.Harvester_Worker_Stats "
@@ -22948,7 +22955,7 @@ class DBProxy:
 
             tmp_log.debug("done")
             return True, "OK"
-        except Exception:
+        except Exception as e:
             self._rollback()
             self.dumpErrorMessage(tmp_log, method_name)
             return False, "database error"
