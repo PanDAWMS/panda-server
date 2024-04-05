@@ -742,16 +742,16 @@ class RucioAPI:
                 if tmp_lfn not in file_list and gen_lfn not in file_list:
                     continue
             rucio_attrs = {}
-            rucio_attrs["chksum"] = "ad:" + str(file_list["adler32"])
+            rucio_attrs["chksum"] = "ad:" + str(file_info["adler32"])
             rucio_attrs["md5sum"] = rucio_attrs["chksum"]
             rucio_attrs["checksum"] = rucio_attrs["chksum"]
-            rucio_attrs["fsize"] = file_list["bytes"]
+            rucio_attrs["fsize"] = file_info["bytes"]
             rucio_attrs["filesize"] = rucio_attrs["fsize"]
-            rucio_attrs["scope"] = str(file_list["scope"])
-            rucio_attrs["events"] = str(file_list["events"])
+            rucio_attrs["scope"] = str(file_info["scope"])
+            rucio_attrs["events"] = str(file_info["events"])
             if long:
-                rucio_attrs["lumiblocknr"] = str(file_list["lumiblocknr"])
-            guid = str(f"{file_list['guid'][0:8]}-{file_list['guid'][8:12]}-{file_list['guid'][12:16]}-{file_list['guid'][16:20]}-{file_list['guid'][20:32]}")
+                rucio_attrs["lumiblocknr"] = str(file_info["lumiblocknr"])
+            guid = str(f"{file_info['guid'][0:8]}-{file_info['guid'][8:12]}-{file_info['guid'][12:16]}-{file_info['guid'][16:20]}-{file_info['guid'][20:32]}")
             rucio_attrs["guid"] = guid
             return_dict[tmp_lfn] = rucio_attrs
         return (return_dict, None)
