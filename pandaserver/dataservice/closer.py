@@ -3,18 +3,17 @@ update dataset DB, and then close dataset and start Activator if needed
 
 """
 
-import sys
 import datetime
-
+import sys
 from typing import Dict, List
 
-from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.config import panda_config
+from pandaserver.dataservice import DataServiceUtils
 from pandaserver.dataservice.activator import Activator
 from pandaserver.taskbuffer import EventServiceUtils
-from pandaserver.dataservice import DataServiceUtils
 
 # logger
 _logger = PandaLogger().getLogger("closer")
@@ -30,8 +29,7 @@ class Closer:
     """
 
     # constructor
-    def __init__(self, taskBuffer, destination_data_blocks: List[str], job,
-                 dataset_map: Dict = None) -> None:
+    def __init__(self, taskBuffer, destination_data_blocks: List[str], job, dataset_map: Dict = None) -> None:
         """
         Constructor
 
@@ -56,8 +54,7 @@ class Closer:
         Returns:
             bool: True if all sub datasets are done, False otherwise.
         """
-        tmp_log = LogWrapper(_logger,
-                             f"check_sub_datasets_in_jobset-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_log = LogWrapper(_logger, f"check_sub_datasets_in_jobset-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
         # skip already checked
         if self.all_subscription_finished is not None:
             return self.all_subscription_finished
@@ -81,8 +78,7 @@ class Closer:
                 # count the number of unfinished
                 not_finish = self.task_buffer.countFilesWithMap({"destinationDBlock": sub_dataset, "status": "unknown"})
                 if not_finish != 0:
-                    tmp_log.debug(
-                        f"related sub dataset {sub_dataset} from {job_spec.PandaID} has {not_finish} unfinished files")
+                    tmp_log.debug(f"related sub dataset {sub_dataset} from {job_spec.PandaID} has {not_finish} unfinished files")
                     self.all_subscription_finished = False
                     break
         if self.all_subscription_finished is None:
@@ -123,9 +119,7 @@ class Closer:
         closer_plugin_class = panda_config.getPlugin("closer_plugins", self.job.VO)
         if closer_plugin_class is None and self.job.VO == "atlas":
             # use ATLAS plugin for ATLAS
-            from pandaserver.dataservice.closer_atlas_plugin import (
-                CloserAtlasPlugin,
-            )
+            from pandaserver.dataservice.closer_atlas_plugin import CloserAtlasPlugin
 
             closer_plugin_class = CloserAtlasPlugin
         if closer_plugin_class is not None:
@@ -141,9 +135,11 @@ class Closer:
             final_status (str): Final status.
         """
         # start Activator
-        if not DataServiceUtils.is_sub_dataset(
-                dataset.name) and self.job.jobStatus == "finished" and self.job.prodSourceLabel != "panda" and self.job.processingType not in [
-            "merge", "unmerge"]:
+        if (
+            not DataServiceUtils.is_sub_dataset(dataset.name)
+            and self.job.jobStatus == "finished"
+            and (self.job.prodSourceLabel != "panda" or self.job.processingType not in ["merge", "unmerge"])
+        ):
             activator_thread = Activator(self.task_buffer, dataset)
             activator_thread.run()
 
@@ -154,8 +150,7 @@ class Closer:
         updates the dataset status and finalizes pending jobs if necessary.
         """
         try:
-            tmp_log = LogWrapper(_logger,
-                                 f"run-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}-{self.panda_id}")
+            tmp_log = LogWrapper(_logger, f"run-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}-{self.panda_id}")
             tmp_log.debug(f"Start with job status: {self.job.jobStatus}")
             flag_complete = True
             final_status_dataset = []
@@ -170,10 +165,8 @@ class Closer:
                     continue
 
                 # ignore HC datasets
-                if (DataServiceUtils.is_hammercloud_dataset(destination_data_block) or
-                        DataServiceUtils.is_user_gangarbt_dataset(destination_data_block)):
-                    if (not DataServiceUtils.is_sub_dataset(destination_data_block) and
-                            not DataServiceUtils.is_lib_dataset(destination_data_block)):
+                if DataServiceUtils.is_hammercloud_dataset(destination_data_block) or DataServiceUtils.is_user_gangarbt_dataset(destination_data_block):
+                    if not DataServiceUtils.is_sub_dataset(destination_data_block) and not DataServiceUtils.is_lib_dataset(destination_data_block):
                         tmp_log.debug(f"skip HC {destination_data_block}")
                         continue
 
@@ -197,8 +190,7 @@ class Closer:
                 dataset_list.sort()
 
                 # count number of completed files
-                not_finish = self.task_buffer.countFilesWithMap(
-                    {"destinationDBlock": destination_data_block, "status": "unknown"})
+                not_finish = self.task_buffer.countFilesWithMap({"destinationDBlock": destination_data_block, "status": "unknown"})
                 if not_finish < 0:
                     tmp_log.error(f"Invalid dispatch block file count: {not_finish}")
                     flag_complete = False
