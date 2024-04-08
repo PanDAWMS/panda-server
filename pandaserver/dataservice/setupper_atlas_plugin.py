@@ -30,6 +30,14 @@ from rucio.common.exception import (
 class SetupperAtlasPlugin(SetupperPluginBase):
     # constructor
     def __init__(self, taskBuffer, jobs, logger, **params):
+        """
+        Constructor for the SetupperAtlasPlugin class.
+
+        :param taskBuffer: The buffer for tasks.
+        :param jobs: The jobs to be processed.
+        :param logger: The logger to be used for logging.
+        :param params: Additional parameters.
+        """
         # defaults
         default_map = {
             "resubmit": False,
@@ -65,7 +73,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         self.job_label = None
 
     # main
-    def run(self):
+    def run(self) -> None:
         """
         Main method for running the setup process.
         """
@@ -187,7 +195,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             self.logger.error(errStr)
 
     # post run
-    def post_run(self):
+    def post_run(self) -> None:
         """
         Post run method for running the setup process.
         """
@@ -211,7 +219,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             self.logger.error(f"postRun() : {errtype} {errvalue}")
 
     # make dispatchDBlocks, insert prod/dispatchDBlock to database
-    def setup_source(self):
+    def setup_source(self) -> None:
         """
         Setup source method for running the setup process.
         """
@@ -483,9 +491,12 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         del dispSiteMap
 
     # create dataset for outputs in the repository and assign destination
-    def setup_destination(self, start_idx=-1, n_jobs_in_loop=50):
+    def setup_destination(self, start_idx: int = -1, n_jobs_in_loop: int = 50) -> None:
         """
         Setup destination method for running the setup process.
+
+        :param start_idx: The starting index for the jobs to be processed. Defaults to -1.
+        :param n_jobs_in_loop: The number of jobs to be processed in a loop. Defaults to 50.
         """
         self.logger.debug(f"setupDestination idx:{start_idx} n:{n_jobs_in_loop}")
         destError = {}
@@ -800,7 +811,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return self.taskBuffer.insertDatasets(datasetList.values())
 
     #  subscribe sites to distpatchDBlocks
-    def subscribe_distpatch_db(self):
+    def subscribe_distpatch_db(self) -> None:
         """
         Subscribe distpatch db method for running the setup process.
         """
@@ -1088,7 +1099,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 self.taskBuffer.updateDatasets(ddmDsList)
 
     # correct LFN for attemptNr
-    def correct_lfn(self):
+    def correct_lfn(self) -> None:
         """
         Correct lfn method for running the setup process.
         """
@@ -1403,7 +1414,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         del cloudMap
 
     # remove waiting jobs
-    def remove_waiting_jobs(self):
+    def remove_waiting_jobs(self) -> None:
         """
         Remove waiting jobs method for running the setup process.
         """
@@ -1420,7 +1431,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         self.jobs = jobsProcessed
 
     # memory checker
-    def memory_check(self):
+    def memory_check(self) -> None:
         """
         Memory check method for running the setup process.
         """
@@ -1456,9 +1467,14 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             return
 
     # get list of files in dataset
-    def get_list_files_in_dataset(self, dataset, file_list=None, use_cache=True):
+    def get_list_files_in_dataset(self, dataset: str, file_list: Optional[List[str]] = None, use_cache: bool = True) -> Tuple[int, List[str]]:
         """
         Get list files in dataset method for running the setup process.
+
+        :param dataset: The dataset to get the list of files from.
+        :param file_list: The list of files. Defaults to None.
+        :param use_cache: Whether to use cache. Defaults to True.
+        :return: A tuple containing the status and the list of files.
         """
         # use cache data
         if use_cache and dataset in self.lfn_dataset_map:
@@ -1483,9 +1499,12 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return status, items
 
     # get list of datasets in container
-    def get_list_dataset_in_container(self, container):
+    def get_list_dataset_in_container(self, container: str) -> Tuple[bool, List[str]]:
         """
         Get list dataset in container method for running the setup process.
+
+        :param container: The container to get the list of datasets from.
+        :return: A tuple containing a boolean indicating the status and the list of datasets.
         """
         # get datasets in container
         self.logger.debug("listDatasetsInContainer " + container)
@@ -1500,11 +1519,15 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             return False, out
         return True, datasets
 
-    def get_list_dataset_replicas_in_container(self, container, get_map=False):
+    # get datasets in container
+    def get_list_dataset_replicas_in_container(self, container: str, get_map: bool = False) -> Tuple[int, str]:
         """
         Get list dataset replicas in container method for running the setup process.
+
+        :param container: The container to get the list of dataset replicas from.
+        :param get_map: Whether to get the map. Defaults to False.
+        :return: A tuple containing the status and the map of dataset replicas.
         """
-        # get datasets in container
         self.logger.debug("listDatasetsInContainer " + container)
         for iDDMTry in range(3):
             datasets, out = rucioAPI.list_datasets_in_container(container)
@@ -1563,9 +1586,13 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return 0, str(allRepMap)
 
     # get list of replicas for a dataset
-    def get_list_dataset_replicas(self, dataset, get_map=True):
+    def get_list_dataset_replicas(self, dataset: str, get_map: bool = True) -> Tuple[bool, str]:
         """
         Get list dataset replicas method for running the setup process.
+
+        :param dataset: The dataset to get the list of replicas from.
+        :param get_map: Whether to get the map. Defaults to True.
+        :return: A tuple containing a boolean indicating the status and the map of dataset replicas.
         """
         nTry = 3
         for iDDMTry in range(nTry):
@@ -1599,7 +1626,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 return 1, str({})
 
     # dynamic data placement for analysis jobs
-    def dynamic_data_placement(self):
+    def dynamic_data_placement(self) -> None:
         """
         Dynamic data placement method for running the setup process.
         """
@@ -1618,7 +1645,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return
 
     # make dis datasets for existing files to avoid deletion when jobs are queued
-    def make_dis_datasets_for_existing_files(self):
+    def make_dis_datasets_for_existing_files(self) -> None:
         """
         Make dis datasets for existing files method for running the setup process.
         """
@@ -1871,7 +1898,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return
 
     # pin input dataset
-    def pin_input_datasets(self):
+    def pin_input_datasets(self) -> None:
         """
         Pin input datasets method for running the setup process.
         """
@@ -1975,7 +2002,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return
 
     # make T1 subscription for missing files
-    def make_subscription_for_missing(self):
+    def make_subscription_for_missing(self) -> None:
         """
         Make subscription for missing method for running the setup process.
         """
@@ -2034,11 +2061,15 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return
 
     # make subscription
-    def make_subscription(self, dataset, ddm_id):
+    def make_subscription(self, dataset: str, ddm_id: str) -> bool:
         """
         Make subscription method for running the setup process.
+
+        :param dataset: The dataset to make the subscription for.
+        :param ddm_id: The DDM ID.
+        :return: A boolean indicating whether the subscription was made successfully.
         """
-        # return for failuer
+        # return for failure
         retFailed = False
         self.logger.debug(f"registerDatasetSubscription {dataset} {ddm_id}")
         nTry = 3
@@ -2063,7 +2094,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return True
 
     # setup jumbo jobs
-    def setup_jumbo_jobs(self):
+    def setup_jumbo_jobs(self) -> None:
         """
         Setup jumbo jobs method for running the setup process.
         """
@@ -2199,9 +2230,14 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return
 
     # make sub dataset name
-    def make_sub_dataset_name(self, original_name, sn, task_id):
+    def make_sub_dataset_name(self, original_name: str, sn: int, task_id: int) -> str:
         """
         Make sub dataset name method for running the setup process.
+
+        :param original_name: The original name of the dataset.
+        :param sn: The serial number.
+        :param task_id: The task ID.
+        :return: The sub dataset name.
         """
         try:
             task_id = int(task_id)
