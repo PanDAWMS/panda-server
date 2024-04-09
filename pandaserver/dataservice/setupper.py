@@ -9,7 +9,7 @@ import traceback
 from typing import List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
-from pandacommon.pandalogger.PandaLogger import PandaLogger+
+from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.taskbuffer.PickleJobSpec import PickleJobSpec
