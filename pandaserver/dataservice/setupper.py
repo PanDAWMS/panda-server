@@ -124,7 +124,7 @@ class Setupper(threading.Thread):
                     if not self.only_ta:
                         # update jobs
                         tmp_log.debug("update jobs")
-                        self.update_jobs(setupper_plugin.jobs + setupper_plugin.jumboJobs, tmp_log)
+                        self.update_jobs(setupper_plugin.jobs + setupper_plugin.jumbo_jobs, tmp_log)
                         # execute post process
                         tmp_log.debug("post execute plugin")
                         setupper_plugin.post_run()

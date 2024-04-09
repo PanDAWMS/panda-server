@@ -85,8 +85,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             time_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             if self.jobs is not None and len(self.jobs) > 0:
                 tag_job = self.jobs[0]
-            elif len(self.jumboJobs) > 0:
-                tag_job = self.jumboJobs[0]
+            elif len(self.jumbo_jobs) > 0:
+                tag_job = self.jumbo_jobs[0]
             if tag_job is not None:
                 bunch_tag = f"PandaID:{tag_job.PandaID} type:{tag_job.prodSourceLabel} taskID:{tag_job.taskID} pType={tag_job.processingType}"
                 self.logger.debug(bunch_tag)
@@ -2225,7 +2225,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             okJobs.append(jumboJobSpec)
         # update failed jobs
         self.update_failed_jobs(ngJobs)
-        self.jumboJobs = okJobs
+        self.jumbo_jobs = okJobs
         self.logger.debug("done for jumbo jobs")
         return
 
