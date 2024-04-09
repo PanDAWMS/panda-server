@@ -24,7 +24,7 @@ class SetupperPluginBase(object):
         self.jumbo_jobs = []
         # separate normal and jumbo jobs
         for job in jobs:
-            if EventServiceUtils.isJumboJob(tmpJob):
+            if EventServiceUtils.isJumboJob(job):
                 self.jumbo_jobs.append(job)
             else:
                 self.jobs.append(job)
