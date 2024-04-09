@@ -99,5 +99,5 @@ fi
 
 # threads per child
 if [[ -z "${PANDA_SERVER_CONF_THREADS_PER_CHILD}" ]]; then
-  export PANDA_SERVER_CONF_THREADS_PER_CHILD=100
+  export PANDA_SERVER_CONF_THREADS_PER_CHILD=25
 fi
