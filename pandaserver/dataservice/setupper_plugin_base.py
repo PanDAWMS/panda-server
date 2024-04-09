@@ -10,7 +10,7 @@ class SetupperPluginBase(object):
     Base class for setupper plugins. It separates normal and jumbo jobs and sets parameters.
     """
 
-    def __init__(self, taskBuffer, jobs: List[object], logger: object, params: Dict, default_map: Dict) -> None:
+    def __init__(self, taskBuffer, jobs: List, logger, params: Dict, default_map: Dict) -> None:
         """
         Constructor for the SetupperPluginBase class.
 

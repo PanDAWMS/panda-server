@@ -3,6 +3,8 @@ This class is a dummy plugin. It inherits from the SetupperPluginBase class.
 """
 import uuid
 
+from typing import List, Dict
+
 from pandaserver.dataservice.setupper_plugin_base import SetupperPluginBase
 
 
@@ -12,7 +14,7 @@ class SetupperDummyPlugin(SetupperPluginBase):
     """
 
     # constructor
-    def __init__(self, taskBuffer, jobs: list, logger, **params: dict) -> None:
+    def __init__(self, taskBuffer, jobs: List, logger, **params: Dict) -> None:
         """
         Constructor for the SetupperDummyPlugin class.
 

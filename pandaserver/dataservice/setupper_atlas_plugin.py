@@ -11,6 +11,8 @@ import traceback
 import uuid
 
 import pandaserver.brokerage.broker
+
+from typing import List, Dict, Tuple, Optional
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils, ErrorCode
@@ -29,7 +31,7 @@ from rucio.common.exception import (
 
 class SetupperAtlasPlugin(SetupperPluginBase):
     # constructor
-    def __init__(self, taskBuffer, jobs, logger, **params):
+    def __init__(self, taskBuffer, jobs: List, logger, **params: Dict) -> None:
         """
         Constructor for the SetupperAtlasPlugin class.
 
@@ -41,11 +43,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         # defaults
         default_map = {
             "resubmit": False,
-            "pandaDDM": False,
-            "ddmAttempt": 0,
-            "onlyTA": False,
-            "resetLocation": False,
-            "useNativeDQ2": True,
+            "panda_ddm": False,
+            "ddm_attempt": 0,
+            "only_ta": False,
         }
         SetupperPluginBase.__init__(self, taskBuffer, jobs, logger, params, default_map)
         # VUIDs of dispatchDBlocks
@@ -97,7 +97,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             # correctLFN
             self.correct_lfn()
             # run full Setupper
-            if not self.onlyTA:
+            if not self.only_ta:
                 # invoke brokerage
                 self.logger.debug("brokerSchedule")
                 self.memory_check()
@@ -188,8 +188,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             self.logger.debug(f"{bunch_tag} took {regTime.seconds}sec")
             self.logger.debug("end run()")
         except Exception:
-            errtype, errvalue = sys.exc_info()[:2]
-            errStr = f"run() : {errtype} {errvalue}"
+            error_type, error_value = sys.exc_info()[:2]
+            errStr = f"run() : {error_type} {error_value}"
             errStr.strip()
             errStr += traceback.format_exc()
             self.logger.error(errStr)
@@ -200,7 +200,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         Post run method for running the setup process.
         """
         try:
-            if not self.onlyTA:
+            if not self.only_ta:
                 self.logger.debug("start postRun()")
                 self.memory_check()
                 # subscribe sites distpatchDBlocks. this must be the last method
@@ -215,8 +215,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 self.memory_check()
                 self.logger.debug("end postRun()")
         except Exception:
-            errtype, errvalue = sys.exc_info()[:2]
-            self.logger.error(f"postRun() : {errtype} {errvalue}")
+            error_type, error_value = sys.exc_info()[:2]
+            self.logger.error(f"postRun() : {error_type} {error_value}")
 
     # make dispatchDBlocks, insert prod/dispatchDBlock to database
     def setup_source(self) -> None:
@@ -266,8 +266,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             ds.currentfiles = nfiles
                             prodList.append(ds)
                         except Exception:
-                            errtype, errvalue = sys.exc_info()[:2]
-                            self.logger.error(f"_setupSource() : {errtype} {errvalue}")
+                            error_type, error_value = sys.exc_info()[:2]
+                            self.logger.error(f"_setupSource() : {error_type} {error_value}")
                             prodError[job.prodDBlock] = "Setupper._setupSource() could not decode VUID of prodDBlock"
                 # error
                 if prodError[job.prodDBlock] != "":
@@ -421,8 +421,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         isOK = True
                         break
                     except Exception:
-                        errType, errValue = sys.exc_info()[:2]
-                        errStr = f"{errType}:{errValue}"
+                        error_type, error_value = sys.exc_info()[:2]
+                        errStr = f"{error_type}:{error_value}"
                         self.logger.error(f"registerDataset : failed with {errStr}")
                         if iDDMTry + 1 == nDDMTry:
                             break
@@ -442,8 +442,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         status = True
                         break
                     except Exception:
-                        errtype, errvalue = sys.exc_info()[:2]
-                        out = f"failed to close : {errtype} {errvalue}"
+                        error_type, error_value = sys.exc_info()[:2]
+                        out = f"failed to close : {error_type} {error_value}"
                         time.sleep(10)
                 if not status:
                     self.logger.error(out)
@@ -471,8 +471,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 dispList.append(ds)
                 self.vuid_map[ds.name] = ds.vuid
             except Exception:
-                errtype, errvalue = sys.exc_info()[:2]
-                self.logger.error(f"_setupSource() : {errtype} {errvalue}")
+                error_type, error_value = sys.exc_info()[:2]
+                self.logger.error(f"_setupSource() : {error_type} {error_value}")
                 dispError[dispatchDBlock] = "Setupper._setupSource() could not decode VUID dispatchDBlock"
         # insert datasets to DB
         self.taskBuffer.insertDatasets(prodList + dispList)
@@ -551,7 +551,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             snGottenDS.append(file.destinationDBlock)
                         # new dataset name
                         newnameList[dest] = self.make_sub_dataset_name(file.destinationDBlock, sn, job.jediTaskID)
-                        if freshFlag or self.resetLocation:
+                        if freshFlag:
                             # register original dataset and new dataset
                             nameList = [file.destinationDBlock, newnameList[dest]]
                             originalName = file.destinationDBlock
@@ -665,8 +665,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                         isOK = True
                                         break
                                     except Exception:
-                                        errType, errValue = sys.exc_info()[:2]
-                                        self.logger.error(f"registerDataset : failed with {errType}:{errValue}")
+                                        error_type, error_value = sys.exc_info()[:2]
+                                        self.logger.error(f"registerDataset : failed with {error_type}:{error_value}")
                                         time.sleep(10)
                                 if not isOK:
                                     tmpMsg = f"Setupper._setupDestination() could not register : {name}"
@@ -736,8 +736,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                                 status = True
                                                 break
                                             except Exception:
-                                                errType, errValue = sys.exc_info()[:2]
-                                                out = f"{errType}:{errValue}"
+                                                error_type, error_value = sys.exc_info()[:2]
+                                                out = f"{error_type}:{error_value}"
                                                 self.logger.error(f"registerDatasetLocation : failed with {out}")
                                                 time.sleep(10)
                                         # failed
@@ -782,8 +782,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             datasetList[(name, file.destinationSE, computingSite)] = ds
                         except Exception:
                             # set status
-                            errtype, errvalue = sys.exc_info()[:2]
-                            self.logger.error(f"_setupDestination() : {errtype} {errvalue}")
+                            error_type, error_value = sys.exc_info()[:2]
+                            self.logger.error(f"_setupDestination() : {error_type} {error_value}")
                             destError[dest] = f"Setupper._setupDestination() could not get VUID : {name}"
                 # set new destDBlock
                 if dest in newnameList:
@@ -1137,7 +1137,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         }
         # loop over all jobs
         for job in self.jobs:
-            if self.onlyTA:
+            if self.only_ta:
                 self.logger.debug(f"start TA session {job.taskID}")
             # check if sitename is known
             if job.computingSite != "NULL" and job.computingSite not in self.site_mapper.siteSpecList:
@@ -1147,7 +1147,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # append job for downstream process
                 jobsProcessed.append(job)
                 # error message for TA
-                if self.onlyTA:
+                if self.only_ta:
                     self.logger.error(job.ddmErrorDiag)
                 continue
             # ignore no prodDBlock jobs or container dataset
@@ -1240,7 +1240,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             self.logger.error(prodError[dataset])
                             self.logger.error(out)
                     # get replica locations
-                    if (self.onlyTA or job.prodSourceLabel in ["managed", "test"]) and prodError[dataset] == "" and dataset not in replicaMap:
+                    if (self.only_ta or job.prodSourceLabel in ["managed", "test"]) and prodError[dataset] == "" and dataset not in replicaMap:
                         if dataset.endswith("/"):
                             status, out = self.get_list_dataset_replicas_in_container(dataset, True)
                         else:
@@ -1280,12 +1280,12 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     jobsWaiting.append(job)
                     isFailed = True
                     # message for TA
-                    if self.onlyTA:
+                    if self.only_ta:
                         self.logger.error(prodError[dataset])
                     break
             if isFailed:
                 continue
-            if not self.onlyTA:
+            if not self.only_ta:
                 # replace generic LFN with real LFN
                 replaceList = []
                 isFailed = False
@@ -1347,7 +1347,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     # append job to processed list
                     jobsProcessed.append(job)
         # return if TA only
-        if self.onlyTA:
+        if self.only_ta:
             self.logger.debug("end TA sessions")
             return
         # set data summary fields
@@ -1395,8 +1395,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # set background-able flag
                 tmpJob.setBackgroundableFlag()
             except Exception:
-                errType, errValue = sys.exc_info()[:2]
-                self.logger.error(f"failed to set data summary fields for PandaID={tmpJob.PandaID}: {errType} {errValue}")
+                error_type, error_value = sys.exc_info()[:2]
+                self.logger.error(f"failed to set data summary fields for PandaID={tmpJob.PandaID}: {error_type} {error_value}")
         # send jobs to jobsWaiting
         self.taskBuffer.keepJobs(jobsWaiting)
         # update failed job
@@ -1461,8 +1461,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             procfile.close()
             self.logger.debug(f"MemCheck PID={os.getpid()} Name={name} VSZ={vmSize} RSS={vmRSS}")
         except Exception:
-            errtype, errvalue = sys.exc_info()[:2]
-            self.logger.error(f"memoryCheck() : {errtype} {errvalue}")
+            error_type, error_value = sys.exc_info()[:2]
+            self.logger.error(f"memoryCheck() : {error_type} {error_value}")
             self.logger.debug(f"MemCheck PID={os.getpid()} unknown")
             return
 
@@ -1491,8 +1491,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             except Exception:
                 status = -2
         if status != 0:
-            errType, errValue = sys.exc_info()[:2]
-            out = f"{errType} {errValue}"
+            error_type, error_value = sys.exc_info()[:2]
+            out = f"{error_type} {error_value}"
             return status, out
         # keep to avoid redundant lookup
         self.lfn_dataset_map[dataset] = items
@@ -1824,8 +1824,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                 isOK = True
                                 break
                             except Exception:
-                                errType, errValue = sys.exc_info()[:2]
-                                self.logger.error(f"ext registerDataset : failed with {errType}:{errValue}" + traceback.format_exc())
+                                error_type, error_value = sys.exc_info()[:2]
+                                self.logger.error(f"ext registerDataset : failed with {error_type}:{error_value}" + traceback.format_exc())
                                 if iDDMTry + 1 == nDDMTry:
                                     break
                                 self.logger.debug(f"sleep {iDDMTry}/{nDDMTry}")
@@ -1846,8 +1846,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             ds.currentfiles = 0
                             dispList.append(ds)
                         except Exception:
-                            errType, errValue = sys.exc_info()[:2]
-                            self.logger.error(f"ext registerNewDataset : failed to decode VUID for {disDBlock} - {errType} {errValue}")
+                            error_type, error_value = sys.exc_info()[:2]
+                            self.logger.error(f"ext registerNewDataset : failed to decode VUID for {disDBlock} - {error_type} {error_value}")
                             continue
                         # freezeDataset dispatch dataset
                         self.logger.debug("freezeDataset " + disDBlock)
@@ -1858,8 +1858,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                 status = True
                                 break
                             except Exception:
-                                errtype, errvalue = sys.exc_info()[:2]
-                                out = f"failed to close : {errtype} {errvalue}"
+                                error_type, error_value = sys.exc_info()[:2]
+                                out = f"failed to close : {error_type} {error_value}"
                                 time.sleep(10)
                         if not status:
                             self.logger.error(out)
@@ -1882,8 +1882,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                 isOK = True
                                 break
                             except Exception:
-                                errType, errValue = sys.exc_info()[:2]
-                                self.logger.error(f"ext registerDatasetLocation : failed with {errType}:{errValue}")
+                                error_type, error_value = sys.exc_info()[:2]
+                                self.logger.error(f"ext registerDatasetLocation : failed with {error_type}:{error_value}")
                                 if iDDMTry + 1 == nDDMTry:
                                     break
                                 self.logger.debug(f"sleep {iDDMTry}/{nDDMTry}")
@@ -2081,8 +2081,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 break
             except Exception:
                 status = False
-                errType, errValue = sys.exc_info()[:2]
-                out = f"{errType} {errValue}"
+                error_type, error_value = sys.exc_info()[:2]
+                out = f"{error_type} {error_value}"
                 time.sleep(10)
         # result
         if not status:
@@ -2177,8 +2177,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     vuid = out["vuid"]
                     rucioAPI.close_dataset(dispatchDBlock)
                 except Exception:
-                    errType, errValue = sys.exc_info()[:2]
-                    self.logger.debug(f"failed to register jumbo dis dataset {dispatchDBlock} with {errType}:{errValue}")
+                    error_type, error_value = sys.exc_info()[:2]
+                    self.logger.debug(f"failed to register jumbo dis dataset {dispatchDBlock} with {error_type}:{error_value}")
                     jumboJobSpec.jobStatus = "failed"
                     jumboJobSpec.ddmErrorCode = ErrorCode.EC_Setupper
                     jumboJobSpec.ddmErrorDiag = f"failed to register jumbo dispatch dataset {dispatchDBlock}"
@@ -2201,8 +2201,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         activity="Production Input",
                     )
                 except Exception:
-                    errType, errValue = sys.exc_info()[:2]
-                    self.logger.debug(f"failed to subscribe jumbo dis dataset {dispatchDBlock} to {endPoint} with {errType}:{errValue}")
+                    error_type, error_value = sys.exc_info()[:2]
+                    self.logger.debug(f"failed to subscribe jumbo dis dataset {dispatchDBlock} to {endPoint} with {error_type}:{error_value}")
                     jumboJobSpec.jobStatus = "failed"
                     jumboJobSpec.ddmErrorCode = ErrorCode.EC_Setupper
                     jumboJobSpec.ddmErrorDiag = f"failed to subscribe jumbo dispatch dataset {dispatchDBlock} to {endPoint}"
