@@ -80,18 +80,18 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         try:
             self.logger.debug("start run()")
             self.memory_check()
-            bunchTag = ""
-            tagJob = None
-            timeStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            bunch_tag = ""
+            tag_job = None
+            time_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             if self.jobs is not None and len(self.jobs) > 0:
-                tagJob = self.jobs[0]
+                tag_job = self.jobs[0]
             elif len(self.jumboJobs) > 0:
-                tagJob = self.jumboJobs[0]
-            if tagJob is not None:
-                bunchTag = f"PandaID:{tagJob.PandaID} type:{tagJob.prodSourceLabel} taskID:{tagJob.taskID} pType={tagJob.processingType}"
-                self.logger.debug(bunchTag)
-                self.prod_source_label = tagJob.prodSourceLabel
-                self.job_label = tagJob.job_label
+                tag_job = self.jumboJobs[0]
+            if tag_job is not None:
+                bunch_tag = f"PandaID:{tag_job.PandaID} type:{tag_job.prodSourceLabel} taskID:{tag_job.taskID} pType={tag_job.processingType}"
+                self.logger.debug(bunch_tag)
+                self.prod_source_label = tag_job.prodSourceLabel
+                self.job_label = tag_job.job_label
             # instantiate site mapper
             self.site_mapper = SiteMapper(self.taskBuffer)
             # correctLFN
@@ -184,8 +184,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # setup jumbo jobs
                 self.setup_jumbo_jobs()
                 self.memory_check()
-            regTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - timeStart
-            self.logger.debug(f"{bunchTag} took {regTime.seconds}sec")
+            regTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - time_start
+            self.logger.debug(f"{bunch_tag} took {regTime.seconds}sec")
             self.logger.debug("end run()")
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]
