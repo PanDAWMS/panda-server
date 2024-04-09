@@ -133,8 +133,8 @@ class Setupper(threading.Thread):
                     error_type, error_value = sys.exc_info()[:2]
                     tmp_log.error(f"plugin failed with {error_type}:{error_value}")
             tmp_log.debug("main end")
-        except Exception as e:
-            tmp_log.error(f"master failed with {str(e)} {traceback.format_exc()}")
+        except Exception as error:
+            tmp_log.error(f"master failed with {str(error)} {traceback.format_exc()}")
 
     #  update jobs
     def update_jobs(self, job_list: List[object], tmp_log: LogWrapper) -> None:
