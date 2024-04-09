@@ -31,14 +31,14 @@ class SetupperDummyPlugin(SetupperPluginBase):
         The main method that runs the plugin. It iterates over the jobs and their files.
         If a file is of type "log", it generates a GUID for it.
         """
-        for jobSpec in self.jobs:
-            for fileSpec in jobSpec.Files:
-                if fileSpec.type == "log":
+        for job_spec in self.jobs:
+            for file_spec in job_spec.Files:
+                if file_spec.type == "log":
                     # generate GUID
-                    fileSpec.GUID = str(uuid.uuid4())
+                    file_spec.GUID = str(uuid.uuid4())
 
     # post run
-    def post_run(self) -> None
+    def post_run(self) -> None:
         """
         This method is called after the run method. Currently, it does nothing.
         """
