@@ -120,60 +120,60 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     "managed",
                     "test",
                 ]:
-                    tmpJobMap = {}
-                    for tmpJob in self.jobs:
+                    tmp_job_map = {}
+                    for tmp_job in self.jobs:
                         # add site
-                        if tmpJob.computingSite not in tmpJobMap:
-                            tmpJobMap[tmpJob.computingSite] = []
+                        if tmp_job.computingSite not in tmp_job_map:
+                            tmp_job_map[tmp_job.computingSite] = []
                         # add job
-                        tmpJobMap[tmpJob.computingSite].append(tmpJob)
+                        tmp_job_map[tmp_job.computingSite].append(tmp_job)
                     # make new list
-                    tmpJobList = []
-                    for tmpSiteKey in tmpJobMap:
-                        tmpJobList += tmpJobMap[tmpSiteKey]
+                    tmp_job_list = []
+                    for tmp_site_key in tmp_job_map:
+                        tmp_job_list += tmp_job_map[tmp_site_key]
                     # set new list
-                    self.jobs = tmpJobList
+                    self.jobs = tmp_job_list
                 # create dataset for outputs and assign destination
                 if self.jobs != [] and self.jobs[0].prodSourceLabel in [
                     "managed",
                     "test",
                 ]:
                     # count the number of jobs per _dis
-                    iBunch = 0
-                    prevDisDsName = None
-                    nJobsPerDisList = []
-                    for tmpJob in self.jobs:
-                        if prevDisDsName is not None and prevDisDsName != tmpJob.dispatchDBlock:
-                            nJobsPerDisList.append(iBunch)
-                            iBunch = 0
+                    i_bunch = 0
+                    prev_dis_ds_name = None
+                    n_jobs_per_dis_list = []
+                    for tmp_job in self.jobs:
+                        if prev_dis_ds_name is not None and prev_dis_ds_name != tmp_job.dispatchDBlock:
+                            n_jobs_per_dis_list.append(i_bunch)
+                            i_bunch = 0
                         # increment
-                        iBunch += 1
+                        i_bunch += 1
                         # set _dis name
-                        prevDisDsName = tmpJob.dispatchDBlock
+                        prev_dis_ds_name = tmp_job.dispatchDBlock
                     # remaining
-                    if iBunch != 0:
-                        nJobsPerDisList.append(iBunch)
+                    if i_bunch != 0:
+                        n_jobs_per_dis_list.append(i_bunch)
                     # split sub datasets
-                    iBunch = 0
-                    nBunchMax = 50
-                    tmpIndexJob = 0
-                    for nJobsPerDis in nJobsPerDisList:
+                    i_bunch = 0
+                    n_bunch_max = 50
+                    tmp_index_job = 0
+                    for n_jobs_per_dis in n_jobs_per_dis_list:
                         # check _dis boundary so that the same _dis doesn't contribute to many _subs
-                        if iBunch + nJobsPerDis > nBunchMax:
-                            if iBunch != 0:
-                                self.setup_destination(start_idx=tmpIndexJob, n_jobs_in_loop=iBunch)
-                                tmpIndexJob += iBunch
-                                iBunch = 0
+                        if i_bunch + n_jobs_per_dis > n_bunch_max:
+                            if i_bunch != 0:
+                                self.setup_destination(start_idx=tmp_index_job, n_jobs_in_loop=i_bunch)
+                                tmp_index_job += i_bunch
+                                i_bunch = 0
                         # increment
-                        iBunch += nJobsPerDis
+                        i_bunch += n_jobs_per_dis
                     # remaining
-                    if iBunch != 0:
-                        self.setup_destination(start_idx=tmpIndexJob, n_jobs_in_loop=iBunch)
+                    if i_bunch != 0:
+                        self.setup_destination(start_idx=tmp_index_job, n_jobs_in_loop=i_bunch)
                 else:
                     # make one sub per job so that each job doesn't have to wait for others to be done
                     if self.jobs != [] and self.jobs[0].prodSourceLabel in ["user", "panda"] and self.jobs[-1].currentPriority > 6000:
-                        for iBunch in range(len(self.jobs)):
-                            self.setup_destination(start_idx=iBunch, n_jobs_in_loop=1)
+                        for i_bunch in range(len(self.jobs)):
+                            self.setup_destination(start_idx=i_bunch, n_jobs_in_loop=1)
                     else:
                         # at a burst
                         self.setup_destination()
@@ -184,15 +184,15 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # setup jumbo jobs
                 self.setup_jumbo_jobs()
                 self.memory_check()
-            regTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - time_start
-            self.logger.debug(f"{bunch_tag} took {regTime.seconds}sec")
+            reg_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - time_start
+            self.logger.debug(f"{bunch_tag} took {reg_time.seconds}sec")
             self.logger.debug("end run()")
         except Exception:
             error_type, error_value = sys.exc_info()[:2]
-            errStr = f"run() : {error_type} {error_value}"
-            errStr.strip()
-            errStr += traceback.format_exc()
-            self.logger.error(errStr)
+            err_str = f"run() : {error_type} {error_value}"
+            err_str.strip()
+            err_str += traceback.format_exc()
+            self.logger.error(err_str)
 
     # post run
     def post_run(self) -> None:
