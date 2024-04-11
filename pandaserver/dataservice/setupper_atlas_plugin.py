@@ -57,7 +57,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         # location map
         self.replica_map = {}
         # all replica locations
-        self.all_teplica_map = {}
+        self.all_replica_map = {}
         # replica map for special brokerage
         self.replica_map_for_broker = {}
         # available files at T2
@@ -223,14 +223,14 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         """
         Setup source method for running the setup process.
         """
-        fileList = {}
-        prodList = []
-        prodError = {}
-        dispSiteMap = {}
-        dispError = {}
-        backEndMap = {}
-        dsTaskMap = dict()
-        useZipToPinMap = dict()
+        file_list = {}
+        prod_list = []
+        prod_error = {}
+        disp_site_map = {}
+        disp_error = {}
+        back_end_map = {}
+        ds_task_map = dict()
+        use_zip_to_pin_map = dict()
         # extract prodDBlock
         for job in self.jobs:
             # ignore failed jobs
@@ -239,206 +239,206 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             # production datablock
             if job.prodDBlock != "NULL" and job.prodDBlock and (job.prodSourceLabel not in ["user", "panda"]):
                 # get VUID and record prodDBlock into DB
-                if job.prodDBlock not in prodError:
+                if job.prodDBlock not in prod_error:
                     self.logger.debug("listDatasets " + job.prodDBlock)
-                    prodError[job.prodDBlock] = ""
-                    for iDDMTry in range(3):
-                        newOut, errMsg = rucioAPI.list_datasets(job.prodDBlock)
-                        if newOut is None:
+                    prod_error[job.prodDBlock] = ""
+                    for attempt in range(3):
+                        new_out, err_msg = rucioAPI.list_datasets(job.prodDBlock)
+                        if new_out is None:
                             time.sleep(10)
                         else:
                             break
-                    if newOut is None:
-                        prodError[job.prodDBlock] = f"Setupper._setupSource() could not get VUID of prodDBlock with {errMsg}"
-                        self.logger.error(prodError[job.prodDBlock])
+                    if new_out is None:
+                        prod_error[job.prodDBlock] = f"Setupper._setupSource() could not get VUID of prodDBlock with {err_msg}"
+                        self.logger.error(prod_error[job.prodDBlock])
                     else:
-                        self.logger.debug(newOut)
+                        self.logger.debug(new_out)
                         try:
-                            vuids = newOut[job.prodDBlock]["vuids"]
-                            nfiles = 0
+                            vuids = new_out[job.prodDBlock]["vuids"]
+                            n_files = 0
                             # dataset spec
                             ds = DatasetSpec()
                             ds.vuid = vuids[0]
                             ds.name = job.prodDBlock
                             ds.type = "input"
                             ds.status = "completed"
-                            ds.numberfiles = nfiles
-                            ds.currentfiles = nfiles
-                            prodList.append(ds)
+                            ds.numberfiles = n_files
+                            ds.currentfiles = n_files
+                            prod_list.append(ds)
                         except Exception:
                             error_type, error_value = sys.exc_info()[:2]
                             self.logger.error(f"_setupSource() : {error_type} {error_value}")
-                            prodError[job.prodDBlock] = "Setupper._setupSource() could not decode VUID of prodDBlock"
+                            prod_error[job.prodDBlock] = "Setupper._setupSource() could not decode VUID of prodDBlock"
                 # error
-                if prodError[job.prodDBlock] != "":
+                if prod_error[job.prodDBlock] != "":
                     if job.jobStatus != "failed":
                         job.jobStatus = "failed"
                         job.ddmErrorCode = ErrorCode.EC_Setupper
-                        job.ddmErrorDiag = prodError[job.prodDBlock]
+                        job.ddmErrorDiag = prod_error[job.prodDBlock]
                         self.logger.debug(f"failed PandaID={job.PandaID} with {job.ddmErrorDiag}")
                     continue
             # dispatch datablock
             if job.dispatchDBlock != "NULL":
                 # useZipToPin mapping
-                useZipToPinMap[job.dispatchDBlock] = job.useZipToPin()
+                use_zip_to_pin_map[job.dispatchDBlock] = job.useZipToPin()
                 # src/dst sites
-                tmpSrcID = "BNL_ATLAS_1"
+                tmp_src_id = "BNL_ATLAS_1"
                 if self.site_mapper.checkCloud(job.getCloud()):
                     # use cloud's source
-                    tmpSrcID = self.site_mapper.getCloud(job.getCloud())["source"]
+                    tmp_src_id = self.site_mapper.getCloud(job.getCloud())["source"]
 
-                srcSiteSpec = self.site_mapper.getSite(tmpSrcID)
-                scope_src_input, scope_src_output = select_scope(srcSiteSpec, job.prodSourceLabel, job.job_label)
-                srcDQ2ID = srcSiteSpec.ddm_output[scope_src_output]
-                # use srcDQ2ID as dstDQ2ID when it is associated to dest
-                dstSiteSpec = self.site_mapper.getSite(job.computingSite)
-                scope_dst_input, scope_dst_output = select_scope(dstSiteSpec, job.prodSourceLabel, job.job_label)
-                if dstSiteSpec.ddm_endpoints_input[scope_dst_input].isAssociated(srcDQ2ID):
-                    dstDQ2ID = srcDQ2ID
+                src_site_spec = self.site_mapper.getSite(tmp_src_id)
+                scope_src_input, scope_src_output = select_scope(src_site_spec, job.prodSourceLabel, job.job_label)
+                src_ddm_id = src_site_spec.ddm_output[scope_src_output]
+                # use src_ddm_id as dst_dq2_id when it is associated to dest
+                dst_site_spec = self.site_mapper.getSite(job.computingSite)
+                scope_dst_input, scope_dst_output = select_scope(dst_site_spec, job.prodSourceLabel, job.job_label)
+                if dst_site_spec.ddm_endpoints_input[scope_dst_input].isAssociated(src_ddm_id):
+                    dst_dq2_id = src_ddm_id
                 else:
-                    dstDQ2ID = dstSiteSpec.ddm_input[scope_dst_input]
-                dispSiteMap[job.dispatchDBlock] = {
-                    "src": srcDQ2ID,
-                    "dst": dstDQ2ID,
+                    dst_dq2_id = dst_site_spec.ddm_input[scope_dst_input]
+                disp_site_map[job.dispatchDBlock] = {
+                    "src": src_ddm_id,
+                    "dst": dst_dq2_id,
                     "site": job.computingSite,
                 }
                 # filelist
-                if job.dispatchDBlock not in fileList:
-                    fileList[job.dispatchDBlock] = {
+                if job.dispatchDBlock not in file_list:
+                    file_list[job.dispatchDBlock] = {
                         "lfns": [],
                         "guids": [],
                         "fsizes": [],
                         "md5sums": [],
                         "chksums": [],
                     }
-                    dsTaskMap[job.dispatchDBlock] = job.jediTaskID
+                    ds_task_map[job.dispatchDBlock] = job.jediTaskID
                 # DDM backend
-                if job.dispatchDBlock not in backEndMap:
-                    backEndMap[job.dispatchDBlock] = "rucio"
+                if job.dispatchDBlock not in back_end_map:
+                    back_end_map[job.dispatchDBlock] = "rucio"
                 # collect LFN and GUID
                 for file in job.Files:
                     if file.type == "input" and file.status == "pending":
-                        if backEndMap[job.dispatchDBlock] != "rucio":
-                            tmpLFN = file.lfn
+                        if back_end_map[job.dispatchDBlock] != "rucio":
+                            tmp_lfn = file.lfn
                         else:
-                            tmpLFN = f"{file.scope}:{file.lfn}"
-                        if tmpLFN not in fileList[job.dispatchDBlock]["lfns"]:
-                            fileList[job.dispatchDBlock]["lfns"].append(tmpLFN)
-                            fileList[job.dispatchDBlock]["guids"].append(file.GUID)
+                            tmp_lfn = f"{file.scope}:{file.lfn}"
+                        if tmp_lfn not in file_list[job.dispatchDBlock]["lfns"]:
+                            file_list[job.dispatchDBlock]["lfns"].append(tmp_lfn)
+                            file_list[job.dispatchDBlock]["guids"].append(file.GUID)
                             if file.fsize in ["NULL", 0]:
-                                fileList[job.dispatchDBlock]["fsizes"].append(None)
+                                file_list[job.dispatchDBlock]["fsizes"].append(None)
                             else:
-                                fileList[job.dispatchDBlock]["fsizes"].append(int(file.fsize))
+                                file_list[job.dispatchDBlock]["fsizes"].append(int(file.fsize))
                             if file.md5sum in ["NULL", ""]:
-                                fileList[job.dispatchDBlock]["md5sums"].append(None)
+                                file_list[job.dispatchDBlock]["md5sums"].append(None)
                             elif file.md5sum.startswith("md5:"):
-                                fileList[job.dispatchDBlock]["md5sums"].append(file.md5sum)
+                                file_list[job.dispatchDBlock]["md5sums"].append(file.md5sum)
                             else:
-                                fileList[job.dispatchDBlock]["md5sums"].append(f"md5:{file.md5sum}")
+                                file_list[job.dispatchDBlock]["md5sums"].append(f"md5:{file.md5sum}")
                             if file.checksum in ["NULL", ""]:
-                                fileList[job.dispatchDBlock]["chksums"].append(None)
+                                file_list[job.dispatchDBlock]["chksums"].append(None)
                             else:
-                                fileList[job.dispatchDBlock]["chksums"].append(file.checksum)
+                                file_list[job.dispatchDBlock]["chksums"].append(file.checksum)
                         # get replica locations
                         self.replica_map.setdefault(job.dispatchDBlock, {})
-                        if file.dataset not in self.all_teplica_map:
+                        if file.dataset not in self.all_replica_map:
                             if file.dataset.endswith("/"):
                                 status, out = self.get_list_dataset_replicas_in_container(file.dataset, True)
                             else:
                                 status, out = self.get_list_dataset_replicas(file.dataset)
                             if not status:
                                 self.logger.error(out)
-                                dispError[job.dispatchDBlock] = f"could not get locations for {file.dataset}"
-                                self.logger.error(dispError[job.dispatchDBlock])
+                                disp_error[job.dispatchDBlock] = f"could not get locations for {file.dataset}"
+                                self.logger.error(disp_error[job.dispatchDBlock])
                             else:
                                 self.logger.debug(out)
-                                self.all_teplica_map[file.dataset] = out
-                        if file.dataset in self.all_teplica_map:
-                            self.replica_map[job.dispatchDBlock][file.dataset] = self.all_teplica_map[file.dataset]
+                                self.all_replica_map[file.dataset] = out
+                        if file.dataset in self.all_replica_map:
+                            self.replica_map[job.dispatchDBlock][file.dataset] = self.all_replica_map[file.dataset]
         # register dispatch dataset
-        dispList = []
-        for dispatchDBlock in fileList:
+        disp_list = []
+        for dispatch_data_block in file_list:
             # ignore empty dataset
-            if len(fileList[dispatchDBlock]["lfns"]) == 0:
+            if len(file_list[dispatch_data_block]["lfns"]) == 0:
                 continue
-            # use DQ2
-            if (not self.pandaDDM) and job.prodSourceLabel != "ddm":
+            # use Rucio
+            if (not self.panda_ddm) and job.prodSourceLabel != "ddm":
                 # register dispatch dataset
-                self.disp_file_list[dispatchDBlock] = fileList[dispatchDBlock]
-                if not useZipToPinMap[dispatchDBlock]:
-                    disFiles = fileList[dispatchDBlock]
+                self.disp_file_list[dispatch_data_block] = file_list[dispatch_data_block]
+                if not use_zip_to_pin_map[dispatch_data_block]:
+                    dis_files = file_list[dispatch_data_block]
                 else:
-                    dids = fileList[dispatchDBlock]["lfns"]
-                    tmpZipStat, tmpZipOut = rucioAPI.get_zip_files(dids, None)
-                    if not tmpZipStat:
-                        self.logger.debug(f"failed to get zip files : {tmpZipOut}")
-                        tmpZipOut = {}
-                    disFiles = {"lfns": [], "guids": [], "fsizes": [], "chksums": []}
-                    for tmpLFN, tmpGUID, tmpFSize, tmpChksum in zip(
-                        fileList[dispatchDBlock]["lfns"],
-                        fileList[dispatchDBlock]["guids"],
-                        fileList[dispatchDBlock]["fsizes"],
-                        fileList[dispatchDBlock]["chksums"],
+                    dids = file_list[dispatch_data_block]["lfns"]
+                    tmp_zip_stat, tmp_zip_out = rucioAPI.get_zip_files(dids, None)
+                    if not tmp_zip_stat:
+                        self.logger.debug(f"failed to get zip files : {tmp_zip_out}")
+                        tmp_zip_out = {}
+                    dis_files = {"lfns": [], "guids": [], "fsizes": [], "chksums": []}
+                    for tmp_lfn, tmp_guid, tmp_file_size, tmp_checksum in zip(
+                        file_list[dispatch_data_block]["lfns"],
+                        file_list[dispatch_data_block]["guids"],
+                        file_list[dispatch_data_block]["fsizes"],
+                        file_list[dispatch_data_block]["chksums"],
                     ):
-                        if tmpLFN in tmpZipOut:
-                            tmpZipFileName = f"{tmpZipOut[tmpLFN]['scope']}:{tmpZipOut[tmpLFN]['name']}"
-                            if tmpZipFileName not in disFiles["lfns"]:
-                                disFiles["lfns"].append(tmpZipFileName)
-                                disFiles["guids"].append(tmpZipOut[tmpLFN]["guid"])
-                                disFiles["fsizes"].append(tmpZipOut[tmpLFN]["bytes"])
-                                disFiles["chksums"].append(tmpZipOut[tmpLFN]["adler32"])
+                        if tmp_lfn in tmp_zip_out:
+                            tmp_zip_file_name = f"{tmp_zip_out[tmp_lfn]['scope']}:{tmp_zip_out[tmp_lfn]['name']}"
+                            if tmp_zip_file_name not in dis_files["lfns"]:
+                                dis_files["lfns"].append(tmp_zip_file_name)
+                                dis_files["guids"].append(tmp_zip_out[tmp_lfn]["guid"])
+                                dis_files["fsizes"].append(tmp_zip_out[tmp_lfn]["bytes"])
+                                dis_files["chksums"].append(tmp_zip_out[tmp_lfn]["adler32"])
                         else:
-                            disFiles["lfns"].append(tmpLFN)
-                            disFiles["guids"].append(tmpGUID)
-                            disFiles["fsizes"].append(tmpFSize)
-                            disFiles["chksums"].append(tmpChksum)
-                ddmBackEnd = backEndMap[dispatchDBlock]
-                if ddmBackEnd is None:
-                    ddmBackEnd = "rucio"
+                            dis_files["lfns"].append(tmp_lfn)
+                            dis_files["guids"].append(tmp_guid)
+                            dis_files["fsizes"].append(tmp_file_size)
+                            dis_files["chksums"].append(tmp_checksum)
+                ddm_back_end = back_end_map[dispatch_data_block]
+                if ddm_back_end is None:
+                    ddm_back_end = "rucio"
                 metadata = {"hidden": True, "purge_replicas": 0}
-                if dispatchDBlock in dsTaskMap and dsTaskMap[dispatchDBlock] not in [
+                if dispatch_data_block in ds_task_map and ds_task_map[dispatch_data_block] not in [
                     "NULL",
                     0,
                 ]:
-                    metadata["task_id"] = str(dsTaskMap[dispatchDBlock])
-                tmpMsg = "registerDataset {ds} {meta}"
-                self.logger.debug(tmpMsg.format(ds=dispatchDBlock, meta=str(metadata)))
-                nDDMTry = 3
-                isOK = False
-                errStr = ""
-                for iDDMTry in range(nDDMTry):
+                    metadata["task_id"] = str(ds_task_map[dispatch_data_block])
+                tmp_msg = "registerDataset {ds} {meta}"
+                self.logger.debug(tmp_msg.format(ds=dispatch_data_block, meta=str(metadata)))
+                max_attempt = 3
+                is_ok = False
+                err_str = ""
+                for attempt in range(max_attempt):
                     try:
                         out = rucioAPI.register_dataset(
-                            dispatchDBlock,
-                            disFiles["lfns"],
-                            disFiles["guids"],
-                            disFiles["fsizes"],
-                            disFiles["chksums"],
+                            dispatch_data_block,
+                            dis_files["lfns"],
+                            dis_files["guids"],
+                            dis_files["fsizes"],
+                            dis_files["chksums"],
                             lifetime=7,
                             scope="panda",
                             metadata=metadata,
                         )
-                        isOK = True
+                        is_ok = True
                         break
                     except Exception:
                         error_type, error_value = sys.exc_info()[:2]
-                        errStr = f"{error_type}:{error_value}"
-                        self.logger.error(f"registerDataset : failed with {errStr}")
-                        if iDDMTry + 1 == nDDMTry:
+                        err_str = f"{error_type}:{error_value}"
+                        self.logger.error(f"registerDataset : failed with {err_str}")
+                        if attempt + 1 == max_attempt:
                             break
-                        self.logger.debug(f"sleep {iDDMTry}/{nDDMTry}")
+                        self.logger.debug(f"sleep {attempt}/{max_attempt}")
                         time.sleep(10)
-                if not isOK:
-                    dispError[dispatchDBlock] = "Setupper._setupSource() could not register dispatchDBlock with {0}".format(errStr.split("\n")[-1])
+                if not is_ok:
+                    disp_error[dispatch_data_block] = "Setupper._setupSource() could not register dispatch_data_block with {0}".format(err_str.split("\n")[-1])
                     continue
                 self.logger.debug(out)
-                newOut = out
+                new_out = out
                 # freezeDataset dispatch dataset
-                self.logger.debug("closeDataset " + dispatchDBlock)
-                for iDDMTry in range(3):
+                self.logger.debug("closeDataset " + dispatch_data_block)
+                for attempt in range(max_attempt):
                     status = False
                     try:
-                        rucioAPI.close_dataset(dispatchDBlock)
+                        rucioAPI.close_dataset(dispatch_data_block)
                         status = True
                         break
                     except Exception:
@@ -447,48 +447,48 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         time.sleep(10)
                 if not status:
                     self.logger.error(out)
-                    dispError[dispatchDBlock] = f"Setupper._setupSource() could not freeze dispatchDBlock with {out}"
+                    disp_error[dispatch_data_block] = f"Setupper._setupSource() could not freeze dispatch_data_block with {out}"
                     continue
             else:
                 # use PandaDDM
-                self.disp_file_list[dispatchDBlock] = fileList[dispatchDBlock]
+                self.disp_file_list[dispatch_data_block] = file_list[dispatch_data_block]
                 # create a fake vuid
-                newOut = {"vuid": str(uuid.uuid4())}
+                new_out = {"vuid": str(uuid.uuid4())}
             # get VUID
             try:
-                vuid = newOut["vuid"]
+                vuid = new_out["vuid"]
                 # dataset spec. currentfiles is used to count the number of failed jobs
                 ds = DatasetSpec()
                 ds.vuid = vuid
-                ds.name = dispatchDBlock
+                ds.name = dispatch_data_block
                 ds.type = "dispatch"
                 ds.status = "defined"
-                ds.numberfiles = len(fileList[dispatchDBlock]["lfns"])
+                ds.numberfiles = len(file_list[dispatch_data_block]["lfns"])
                 try:
-                    ds.currentfiles = int(sum(filter(None, fileList[dispatchDBlock]["fsizes"])) / 1024 / 1024)
+                    ds.currentfiles = int(sum(filter(None, file_list[dispatch_data_block]["fsizes"])) / 1024 / 1024)
                 except Exception:
                     ds.currentfiles = 0
-                dispList.append(ds)
+                disp_list.append(ds)
                 self.vuid_map[ds.name] = ds.vuid
             except Exception:
                 error_type, error_value = sys.exc_info()[:2]
                 self.logger.error(f"_setupSource() : {error_type} {error_value}")
-                dispError[dispatchDBlock] = "Setupper._setupSource() could not decode VUID dispatchDBlock"
+                disp_error[dispatch_data_block] = "Setupper._setupSource() could not decode VUID dispatch_data_block"
         # insert datasets to DB
-        self.taskBuffer.insertDatasets(prodList + dispList)
+        self.taskBuffer.insertDatasets(prod_list + disp_list)
         # job status
         for job in self.jobs:
-            if job.dispatchDBlock in dispError and dispError[job.dispatchDBlock] != "":
+            if job.dispatchDBlock in disp_error and disp_error[job.dispatchDBlock] != "":
                 if job.jobStatus != "failed":
                     job.jobStatus = "failed"
                     job.ddmErrorCode = ErrorCode.EC_Setupper
-                    job.ddmErrorDiag = dispError[job.dispatchDBlock]
+                    job.ddmErrorDiag = disp_error[job.dispatchDBlock]
                     self.logger.debug(f"failed PandaID={job.PandaID} with {job.ddmErrorDiag}")
         # delete explicitly some huge variables
-        del fileList
-        del prodList
-        del prodError
-        del dispSiteMap
+        del file_list
+        del prod_list
+        del prod_error
+        del disp_site_map
 
     # create dataset for outputs in the repository and assign destination
     def setup_destination(self, start_idx: int = -1, n_jobs_in_loop: int = 50) -> None:
