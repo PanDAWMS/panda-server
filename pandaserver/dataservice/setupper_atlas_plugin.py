@@ -203,9 +203,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             if not self.only_ta:
                 self.logger.debug("start postRun()")
                 self.memory_check()
-                # subscribe sites distpatchDBlocks. this must be the last method
-                self.logger.debug("subscribeDistpatchDB")
-                self.subscribe_distpatch_db()
+                # subscribe sites dispatchDBlocks. this must be the last method
+                self.logger.debug("subscribeDispatchDB")
+                self.subscribe_dispatch_db()
                 # dynamic data placement for analysis jobs
                 self.memory_check()
                 self.dynamic_data_placement()
@@ -810,10 +810,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         # insert datasets to DB
         return self.taskBuffer.insertDatasets(dataset_list.values())
 
-    #  subscribe sites to distpatchDBlocks
-    def subscribe_distpatch_db(self) -> None:
+    #  subscribe sites to dispatchDBlocks
+    def subscribe_dispatch_db(self) -> None:
         """
-        Subscribe distpatch db method for running the setup process.
+        Subscribe dispatch db method for running the setup process.
         """
         disp_error = {}
         failed_jobs = []
@@ -947,7 +947,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         # register locations later for prestaging
                         is_ok = True
                     if not is_ok:
-                        disp_error[disp] = "Setupper._subscribeDistpatchDB() could not register location"
+                        disp_error[disp] = "Setupper._subscribeDispatchDB() could not register location"
                     else:
                         is_ok = False
                         # assign destination
@@ -1029,7 +1029,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         else:
                             opt_comment = None
                         if not is_ok:
-                            disp_error[disp] = "Setupper._subscribeDistpatchDB() could not register location for prestage"
+                            disp_error[disp] = "Setupper._subscribeDispatchDB() could not register location for prestage"
                         else:
                             # register subscription
                             self.logger.debug(
@@ -1063,7 +1063,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                     time.sleep(10)
                             if not status:
                                 self.logger.error(out)
-                                disp_error[disp] = "Setupper._subscribeDistpatchDB() could not register subscription"
+                                disp_error[disp] = "Setupper._subscribeDispatchDB() could not register subscription"
                             else:
                                 self.logger.debug(out)
             # failed jobs
