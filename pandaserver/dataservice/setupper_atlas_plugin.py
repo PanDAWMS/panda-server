@@ -205,7 +205,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 self.memory_check()
                 # subscribe sites dispatchDBlocks. this must be the last method
                 self.logger.debug("subscribeDispatchDB")
-                self.subscribe_dispatch_db()
+                self.subscribe_dispatch_data_block()
                 # dynamic data placement for analysis jobs
                 self.memory_check()
                 self.dynamic_data_placement()
@@ -811,7 +811,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return self.taskBuffer.insertDatasets(dataset_list.values())
 
     #  subscribe sites to dispatchDBlocks
-    def subscribe_dispatch_db(self) -> None:
+    def subscribe_dispatch_data_block(self) -> None:
         """
         Subscribe dispatch db method for running the setup process.
         """
