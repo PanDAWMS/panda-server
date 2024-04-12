@@ -1418,17 +1418,17 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         """
         Remove waiting jobs method for running the setup process.
         """
-        jobsWaiting = []
-        jobsProcessed = []
-        for tmpJob in self.jobs:
-            if tmpJob.jobStatus == "waiting":
-                jobsWaiting.append(tmpJob)
+        jobs_waiting = []
+        jobs_processed = []
+        for tmp_job in self.jobs:
+            if tmp_job.jobStatus == "waiting":
+                jobs_waiting.append(tmp_job)
             else:
-                jobsProcessed.append(tmpJob)
-        # send jobs to jobsWaiting
-        self.taskBuffer.keepJobs(jobsWaiting)
+                jobs_processed.append(tmp_job)
+        # send jobs to jobs_waiting
+        self.taskBuffer.keepJobs(jobs_waiting)
         # remove waiting/failed jobs
-        self.jobs = jobsProcessed
+        self.jobs = jobs_processed
 
     # memory checker
     def memory_check(self) -> None:
@@ -1439,27 +1439,27 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             import os
 
             proc_status = "/proc/%d/status" % os.getpid()
-            procfile = open(proc_status)
+            proc_file = open(proc_status)
             name = ""
-            vmSize = ""
-            vmRSS = ""
+            vm_size = ""
+            vm_rss = ""
             # extract Name,VmSize,VmRSS
-            for line in procfile:
+            for line in proc_file:
                 if line.startswith("Name:"):
                     name = line.split()[-1]
                     continue
                 if line.startswith("VmSize:"):
-                    vmSize = ""
+                    vm_size = ""
                     for item in line.split()[1:]:
-                        vmSize += item
+                        vm_size += item
                     continue
                 if line.startswith("VmRSS:"):
-                    vmRSS = ""
+                    vm_rss = ""
                     for item in line.split()[1:]:
-                        vmRSS += item
+                        vm_rss += item
                     continue
-            procfile.close()
-            self.logger.debug(f"MemCheck PID={os.getpid()} Name={name} VSZ={vmSize} RSS={vmRSS}")
+            proc_file.close()
+            self.logger.debug(f"MemCheck PID={os.getpid()} Name={name} VSZ={vm_size} RSS={vm_rss}")
         except Exception:
             error_type, error_value = sys.exc_info()[:2]
             self.logger.error(f"memoryCheck() : {error_type} {error_value}")
@@ -1479,10 +1479,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         # use cache data
         if use_cache and dataset in self.lfn_dataset_map:
             return 0, self.lfn_dataset_map[dataset]
-        for iDDMTry in range(3):
+        for attempt in range(3):
             try:
                 self.logger.debug("listFilesInDataset " + dataset)
-                items, tmpDummy = rucioAPI.list_files_in_dataset(dataset, file_list=file_list)
+                items, tmp_dummy = rucioAPI.list_files_in_dataset(dataset, file_list=file_list)
                 status = 0
                 break
             except DataIdentifierNotFound:
@@ -1508,7 +1508,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         """
         # get datasets in container
         self.logger.debug("listDatasetsInContainer " + container)
-        for iDDMTry in range(3):
+        for attempt in range(3):
             datasets, out = rucioAPI.list_datasets_in_container(container)
             if datasets is None:
                 time.sleep(10)
