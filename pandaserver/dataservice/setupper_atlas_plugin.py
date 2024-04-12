@@ -499,15 +499,15 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         :param n_jobs_in_loop: The number of jobs to be processed in a loop. Defaults to 50.
         """
         self.logger.debug(f"setupDestination idx:{start_idx} n:{n_jobs_in_loop}")
-        destError = {}
-        datasetList = {}
-        newnameList = {}
-        snGottenDS = []
+        dest_error = {}
+        dataset_list = {}
+        newname_list = {}
+        sn_gotten_ds = []
         if start_idx == -1:
-            jobsList = self.jobs
+            jobs_list = self.jobs
         else:
-            jobsList = self.jobs[start_idx: start_idx + n_jobs_in_loop]
-        for job in jobsList:
+            jobs_list = self.jobs[start_idx: start_idx + n_jobs_in_loop]
+        for job in jobs_list:
             # ignore failed jobs
             if job.jobStatus in ["failed", "cancelled"] or job.isCancelled():
                 continue
@@ -518,160 +518,160 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # don't touch with outDS for unmerge jobs
                 if job.prodSourceLabel == "panda" and job.processingType == "unmerge" and file.type != "log":
                     continue
-                # extract destinationDBlock, destinationSE and computingSite
+                # extract destinationDBlock, destinationSE and computing_site
                 dest = (
                     file.destinationDBlock,
                     file.destinationSE,
                     job.computingSite,
                     file.destinationDBlockToken,
                 )
-                if dest not in destError:
-                    destError[dest] = ""
-                    originalName = ""
+                if dest not in dest_error:
+                    dest_error[dest] = ""
+                    original_name = ""
                     if (job.prodSourceLabel == "panda") or (
                         job.prodSourceLabel in JobUtils.list_ptest_prod_sources and job.processingType in ["pathena", "prun", "gangarobot-rctest"]
                     ):
                         # keep original name
-                        nameList = [file.destinationDBlock]
+                        name_list = [file.destinationDBlock]
                     else:
                         # set freshness to avoid redundant DB lookup
-                        definedFreshFlag = None
-                        if file.destinationDBlock in snGottenDS:
+                        defined_fresh_flag = None
+                        if file.destinationDBlock in sn_gotten_ds:
                             # already checked
-                            definedFreshFlag = False
+                            defined_fresh_flag = False
                         elif job.prodSourceLabel in ["user", "test", "prod_test"]:
                             # user or test datasets are always fresh in DB
-                            definedFreshFlag = True
+                            defined_fresh_flag = True
                         # get serial number
-                        sn, freshFlag = self.taskBuffer.getSerialNumber(file.destinationDBlock, definedFreshFlag)
+                        sn, fresh_flag = self.taskBuffer.getSerialNumber(file.destinationDBlock, defined_fresh_flag)
                         if sn == -1:
-                            destError[dest] = f"Setupper._setupDestination() could not get serial num for {file.destinationDBlock}"
+                            dest_error[dest] = f"Setupper._setupDestination() could not get serial num for {file.destinationDBlock}"
                             continue
-                        if file.destinationDBlock not in snGottenDS:
-                            snGottenDS.append(file.destinationDBlock)
+                        if file.destinationDBlock not in sn_gotten_ds:
+                            sn_gotten_ds.append(file.destinationDBlock)
                         # new dataset name
-                        newnameList[dest] = self.make_sub_dataset_name(file.destinationDBlock, sn, job.jediTaskID)
-                        if freshFlag:
+                        newname_list[dest] = self.make_sub_dataset_name(file.destinationDBlock, sn, job.jediTaskID)
+                        if fresh_flag:
                             # register original dataset and new dataset
-                            nameList = [file.destinationDBlock, newnameList[dest]]
-                            originalName = file.destinationDBlock
+                            name_list = [file.destinationDBlock, newname_list[dest]]
+                            original_name = file.destinationDBlock
                         else:
                             # register new dataset only
-                            nameList = [newnameList[dest]]
+                            name_list = [newname_list[dest]]
                     # create dataset
-                    for name in nameList:
-                        computingSite = job.computingSite
-                        tmpSite = self.site_mapper.getSite(computingSite)
-                        scope_input, scope_output = select_scope(tmpSite, job.prodSourceLabel, job.job_label)
-                        if name == originalName and not name.startswith("panda.um."):
+                    for name in name_list:
+                        computing_site = job.computingSite
+                        tmp_site = self.site_mapper.getSite(computing_site)
+                        scope_input, scope_output = select_scope(tmp_site, job.prodSourceLabel, job.job_label)
+                        if name == original_name and not name.startswith("panda.um."):
                             # for original dataset
-                            computingSite = file.destinationSE
-                        newVUID = None
-                        if (not self.pandaDDM) and (job.prodSourceLabel != "ddm") and (job.destinationSE != "local"):
+                            computing_site = file.destinationSE
+                        new_vuid = None
+                        if (not self.panda_ddm) and (job.prodSourceLabel != "ddm") and (job.destinationSE != "local"):
                             # get src and dest DDM conversion is needed for unknown sites
-                            if job.prodSourceLabel == "user" and computingSite not in self.site_mapper.siteSpecList:
-                                # DQ2 ID was set by using --destSE for analysis job to transfer output
-                                tmpSrcDDM = tmpSite.ddm_output[scope_output]
+                            if job.prodSourceLabel == "user" and computing_site not in self.site_mapper.siteSpecList:
+                                # Rucio ID was set by using --destSE for analysis job to transfer output
+                                tmp_src_ddm = tmp_site.ddm_output[scope_output]
                             else:
-                                tmpSrcDDM = tmpSite.ddm_output[scope_output]
+                                tmp_src_ddm = tmp_site.ddm_output[scope_output]
                             if job.prodSourceLabel == "user" and file.destinationSE not in self.site_mapper.siteSpecList:
-                                # DQ2 ID was set by using --destSE for analysis job to transfer output
-                                tmpDstDDM = tmpSrcDDM
+                                # Rucio ID was set by using --destSE for analysis job to transfer output
+                                tmp_dst_ddm = tmp_src_ddm
                             elif DataServiceUtils.getDestinationSE(file.destinationDBlockToken) is not None:
                                 # destination is specified
-                                tmpDstDDM = DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
+                                tmp_dst_ddm = DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
                             else:
-                                tmpDstSite = self.site_mapper.getSite(file.destinationSE)
-                                scopeDstSite_input, scopeDstSite_output = select_scope(tmpDstSite, job.prodSourceLabel, job.job_label)
-                                tmpDstDDM = tmpDstSite.ddm_output[scopeDstSite_output]
+                                tmp_dst_site = self.site_mapper.getSite(file.destinationSE)
+                                scope_dst_site_input, scope_dst_site_output = select_scope(tmp_dst_site, job.prodSourceLabel, job.job_label)
+                                tmp_dst_ddm = tmp_dst_site.ddm_output[scope_dst_site_output]
                             # skip registration for _sub when src=dest
                             if (
                                 (
-                                    (tmpSrcDDM == tmpDstDDM and not EventServiceUtils.isMergeAtOS(job.specialHandling))
+                                    (tmp_src_ddm == tmp_dst_ddm and not EventServiceUtils.isMergeAtOS(job.specialHandling))
                                     or DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) is not None
                                 )
-                                and name != originalName
+                                and name != original_name
                                 and DataServiceUtils.is_sub_dataset(name)
                             ):
                                 # create a fake vuid
-                                newVUID = str(uuid.uuid4())
+                                new_vuid = str(uuid.uuid4())
                             else:
                                 # get list of tokens
-                                tmpTokenList = file.destinationDBlockToken.split(",")
+                                tmp_token_list = file.destinationDBlockToken.split(",")
 
                                 # get locations
-                                usingT1asT2 = False
-                                if job.prodSourceLabel == "user" and computingSite not in self.site_mapper.siteSpecList:
-                                    dq2IDList = [tmpSite.ddm_output[scope_output]]
+                                using_t1_as_t2 = False
+                                if job.prodSourceLabel == "user" and computing_site not in self.site_mapper.siteSpecList:
+                                    ddm_id_list = [tmp_site.ddm_output[scope_output]]
                                 else:
                                     if (
-                                        tmpSite.cloud != job.getCloud()
+                                        tmp_site.cloud != job.getCloud()
                                         and DataServiceUtils.is_sub_dataset(name)
                                         and (job.prodSourceLabel not in ["user", "panda"])
-                                        and (not tmpSite.ddm_output[scope_output].endswith("PRODDISK"))
+                                        and (not tmp_site.ddm_output[scope_output].endswith("PRODDISK"))
                                     ):
                                         # T1 used as T2. Use both DATADISK and PRODDISK as locations while T1 PRODDISK is phasing out
-                                        dq2IDList = [tmpSite.ddm_output[scope_output]]
-                                        if scope_output in tmpSite.setokens_output and "ATLASPRODDISK" in tmpSite.setokens_output[scope_output]:
-                                            dq2IDList += [tmpSite.setokens_output[scope_output]["ATLASPRODDISK"]]
-                                        usingT1asT2 = True
+                                        ddm_id_list = [tmp_site.ddm_output[scope_output]]
+                                        if scope_output in tmp_site.setokens_output and "ATLASPRODDISK" in tmp_site.setokens_output[scope_output]:
+                                            ddm_id_list += [tmp_site.setokens_output[scope_output]["ATLASPRODDISK"]]
+                                        using_t1_as_t2 = True
                                     else:
-                                        dq2IDList = [tmpSite.ddm_output[scope_output]]
+                                        ddm_id_list = [tmp_site.ddm_output[scope_output]]
                                 # use another location when token is set
                                 if not DataServiceUtils.is_sub_dataset(name) and DataServiceUtils.getDestinationSE(file.destinationDBlockToken) is not None:
                                     # destination is specified
-                                    dq2IDList = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
-                                elif (not usingT1asT2) and (file.destinationDBlockToken not in ["NULL", ""]):
-                                    dq2IDList = []
-                                    for tmpToken in tmpTokenList:
+                                    ddm_id_list = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
+                                elif (not using_t1_as_t2) and (file.destinationDBlockToken not in ["NULL", ""]):
+                                    ddm_id_list = []
+                                    for tmp_token in tmp_token_list:
                                         # set default
-                                        dq2ID = tmpSite.ddm_output[scope_output]
-                                        # convert token to DQ2ID
-                                        if tmpToken in tmpSite.setokens_output[scope_output]:
-                                            dq2ID = tmpSite.setokens_output[scope_output][tmpToken]
+                                        ddm_id = tmp_site.ddm_output[scope_output]
+                                        # convert token to DDM ID
+                                        if tmp_token in tmp_site.setokens_output[scope_output]:
+                                            ddm_id = tmp_site.setokens_output[scope_output][tmp_token]
                                         # replace or append
-                                        if len(tmpTokenList) <= 1 or name != originalName:
+                                        if len(tmp_token_list) <= 1 or name != original_name:
                                             # use location consistent with token
-                                            dq2IDList = [dq2ID]
+                                            ddm_id_list = [ddm_id]
                                             break
                                         else:
                                             # use multiple locations for _tid
-                                            if dq2ID not in dq2IDList:
-                                                dq2IDList.append(dq2ID)
+                                            if ddm_id not in ddm_id_list:
+                                                ddm_id_list.append(ddm_id)
                                 # set hidden flag for _sub
-                                tmpActivity = None
-                                tmpLifeTime = None
-                                tmpMetadata = None
-                                if name != originalName and DataServiceUtils.is_sub_dataset(name):
-                                    tmpActivity = "Production Output"
-                                    tmpLifeTime = 14
-                                    tmpMetadata = {"hidden": True, "purge_replicas": 0}
+                                tmp_activity = None
+                                tmp_life_time = None
+                                tmp_metadata = None
+                                if name != original_name and DataServiceUtils.is_sub_dataset(name):
+                                    tmp_activity = "Production Output"
+                                    tmp_life_time = 14
+                                    tmp_metadata = {"hidden": True, "purge_replicas": 0}
                                 # backend
-                                ddmBackEnd = job.getDdmBackEnd()
-                                if ddmBackEnd is None:
-                                    ddmBackEnd = "rucio"
+                                ddm_back_end = job.getDdmBackEnd()
+                                if ddm_back_end is None:
+                                    ddm_back_end = "rucio"
                                 # register dataset
-                                self.logger.debug(f"registerNewDataset {name} metadata={tmpMetadata}")
-                                isOK = False
-                                for iDDMTry in range(3):
+                                self.logger.debug(f"registerNewDataset {name} metadata={tmp_metadata}")
+                                is_ok = False
+                                for attempt in range(3):
                                     try:
                                         out = rucioAPI.register_dataset(
                                             name,
-                                            metadata=tmpMetadata,
-                                            lifetime=tmpLifeTime,
+                                            metadata=tmp_metadata,
+                                            lifetime=tmp_life_time,
                                         )
                                         self.logger.debug(out)
-                                        newVUID = out["vuid"]
-                                        isOK = True
+                                        new_vuid = out["vuid"]
+                                        is_ok = True
                                         break
                                     except Exception:
                                         error_type, error_value = sys.exc_info()[:2]
                                         self.logger.error(f"registerDataset : failed with {error_type}:{error_value}")
                                         time.sleep(10)
-                                if not isOK:
-                                    tmpMsg = f"Setupper._setupDestination() could not register : {name}"
-                                    destError[dest] = tmpMsg
-                                    self.logger.error(tmpMsg)
+                                if not is_ok:
+                                    tmp_msg = f"Setupper._setupDestination() could not register : {name}"
+                                    dest_error[dest] = tmp_msg
+                                    self.logger.error(tmp_msg)
                                     continue
                                 # register dataset locations
                                 if (
@@ -680,55 +680,55 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                     # skip registerDatasetLocations
                                     status, out = True, ""
                                 elif (
-                                    name == originalName
-                                    or tmpSrcDDM != tmpDstDDM
+                                    name == original_name
+                                    or tmp_src_ddm != tmp_dst_ddm
                                     or job.prodSourceLabel == "panda"
                                     or (
                                         job.prodSourceLabel in JobUtils.list_ptest_prod_sources
                                         and job.processingType in ["pathena", "prun", "gangarobot-rctest"]
                                     )
-                                    or len(tmpTokenList) > 1
+                                    or len(tmp_token_list) > 1
                                     or EventServiceUtils.isMergeAtOS(job.specialHandling)
                                 ):
                                     # set replica lifetime to _sub
-                                    repLifeTime = None
-                                    if (name != originalName and DataServiceUtils.is_sub_dataset(name)) or (
-                                        name == originalName and name.startswith("panda.")
+                                    rep_life_time = None
+                                    if (name != original_name and DataServiceUtils.is_sub_dataset(name)) or (
+                                        name == original_name and name.startswith("panda.")
                                     ):
-                                        repLifeTime = 14
+                                        rep_life_time = 14
                                     elif name.startswith("hc_test") or name.startswith("panda.install.") or name.startswith("user.gangarbt."):
-                                        repLifeTime = 7
+                                        rep_life_time = 7
                                     # distributed datasets for es outputs
                                     grouping = None
-                                    if name != originalName and DataServiceUtils.is_sub_dataset(name) and EventServiceUtils.isEventServiceJob(job):
-                                        dq2IDList = ["type=DATADISK"]
+                                    if name != original_name and DataServiceUtils.is_sub_dataset(name) and EventServiceUtils.isEventServiceJob(job):
+                                        ddm_id_list = ["type=DATADISK"]
                                         grouping = "NONE"
                                     # register location
-                                    isOK = True
-                                    for dq2ID in dq2IDList:
+                                    is_ok = True
+                                    for ddm_id in ddm_id_list:
                                         activity = DataServiceUtils.getActivityForOut(job.prodSourceLabel)
-                                        tmpStr = "registerDatasetLocation {name} {dq2ID} lifetime={repLifeTime} activity={activity} grouping={grouping}"
+                                        new_out = "registerDatasetLocation {name} {dq2_id} lifetime={rep_life_time} activity={activity} grouping={grouping}"
                                         self.logger.debug(
-                                            tmpStr.format(
+                                            tmp_str.format(
                                                 name=name,
-                                                dq2ID=dq2ID,
-                                                repLifeTime=repLifeTime,
+                                                dq2ID=ddm_id,
+                                                repLifeTime=rep_life_time,
                                                 activity=activity,
                                                 grouping=grouping,
                                             )
                                         )
                                         status = False
                                         # invalid location
-                                        if dq2ID is None:
-                                            out = f"wrong location : {dq2ID}"
+                                        if ddm_id is None:
+                                            out = f"wrong location : {ddm_id}"
                                             self.logger.error(out)
                                             break
-                                        for iDDMTry in range(3):
+                                        for attempt in range(3):
                                             try:
                                                 out = rucioAPI.register_dataset_location(
                                                     name,
-                                                    [dq2ID],
-                                                    lifetime=repLifeTime,
+                                                    [ddm_id],
+                                                    lifetime=rep_life_time,
                                                     activity=activity,
                                                     grouping=grouping,
                                                 )
@@ -747,68 +747,68 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                     # skip registerDatasetLocations
                                     status, out = True, ""
                                 if not status:
-                                    destError[dest] = "Could not register location : %s %s" % (
+                                    dest_error[dest] = "Could not register location : %s %s" % (
                                         name,
                                         out.split("\n")[-1],
                                     )
                         # already failed
-                        if destError[dest] != "" and name == originalName:
+                        if dest_error[dest] != "" and name == original_name:
                             break
                         # get vuid
-                        if newVUID is None:
+                        if new_vuid is None:
                             self.logger.debug("listDatasets " + name)
-                            for iDDMTry in range(3):
-                                newOut, errMsg = rucioAPI.list_datasets(name)
-                                if newOut is None:
+                            for attempt in range(3):
+                                new_out, err_msg = rucioAPI.list_datasets(name)
+                                if new_out is None:
                                     time.sleep(10)
                                 else:
                                     break
-                            if newOut is None:
-                                errMsg = f"failed to get VUID for {name} with {errMsg}"
-                                self.logger.error(errMsg)
+                            if new_out is None:
+                                err_msg = f"failed to get VUID for {name} with {err_msg}"
+                                self.logger.error(err_msg)
                             else:
-                                self.logger.debug(newOut)
-                                newVUID = newOut[name]["vuids"][0]
+                                self.logger.debug(new_out)
+                                new_vuid = new_out[name]["vuids"][0]
                         try:
                             # dataset spec
                             ds = DatasetSpec()
-                            ds.vuid = newVUID
+                            ds.vuid = new_vuid
                             ds.name = name
                             ds.type = "output"
                             ds.numberfiles = 0
                             ds.currentfiles = 0
                             ds.status = "defined"
                             # append
-                            datasetList[(name, file.destinationSE, computingSite)] = ds
+                            dataset_list[(name, file.destinationSE, computing_site)] = ds
                         except Exception:
                             # set status
                             error_type, error_value = sys.exc_info()[:2]
                             self.logger.error(f"_setupDestination() : {error_type} {error_value}")
-                            destError[dest] = f"Setupper._setupDestination() could not get VUID : {name}"
+                            dest_error[dest] = f"Setupper._setupDestination() could not get VUID : {name}"
                 # set new destDBlock
-                if dest in newnameList:
-                    file.destinationDBlock = newnameList[dest]
+                if dest in newname_list:
+                    file.destinationDBlock = newname_list[dest]
                 # update job status if failed
-                if destError[dest] != "":
+                if dest_error[dest] != "":
                     if job.jobStatus != "failed":
                         job.jobStatus = "failed"
                         job.ddmErrorCode = ErrorCode.EC_Setupper
-                        job.ddmErrorDiag = destError[dest]
+                        job.ddmErrorDiag = dest_error[dest]
                         self.logger.debug(f"failed PandaID={job.PandaID} with {job.ddmErrorDiag}")
                 else:
-                    newdest = (
+                    new_dest = (
                         file.destinationDBlock,
                         file.destinationSE,
                         job.computingSite,
                     )
                     # increment number of files
-                    datasetList[newdest].numberfiles = datasetList[newdest].numberfiles + 1
+                    dataset_list[new_dest].numberfiles = dataset_list[new_dest].numberfiles + 1
         # dump
-        for tmpDsKey in datasetList:
-            if DataServiceUtils.is_sub_dataset(tmpDsKey[0]):
-                self.logger.debug(f"made sub:{tmpDsKey[0]} for nFiles={datasetList[tmpDsKey].numberfiles}")
+        for tmp_ds_key in dataset_list:
+            if DataServiceUtils.is_sub_dataset(tmp_ds_key[0]):
+                self.logger.debug(f"made sub:{tmp_ds_key[0]} for nFiles={dataset_list[tmp_ds_key].numberfiles}")
         # insert datasets to DB
-        return self.taskBuffer.insertDatasets(datasetList.values())
+        return self.taskBuffer.insertDatasets(dataset_list.values())
 
     #  subscribe sites to distpatchDBlocks
     def subscribe_distpatch_db(self) -> None:
@@ -870,7 +870,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             break
                     self.logger.debug(f"{job.dispatchDBlock} missing at T1 : {missingAtT1}")
                 # use DQ2
-                if (not self.pandaDDM) and job.prodSourceLabel != "ddm":
+                if (not self.panda_ddm) and job.prodSourceLabel != "ddm":
                     # look for replica
                     dq2ID = srcDQ2ID
                     dq2IDList = []
