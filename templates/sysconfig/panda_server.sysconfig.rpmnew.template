@@ -61,7 +61,7 @@ fi
 
 # min number of workers
 if [[ -z "${PANDA_SERVER_CONF_MIN_WORKERS}" ]]; then
-  export PANDA_SERVER_CONF_MIN_WORKERS=25
+  export PANDA_SERVER_CONF_MIN_WORKERS=32
 fi
 
 # max number of workers
@@ -71,7 +71,17 @@ fi
 
 # max number of WSGI daemons
 if [[ -z "${PANDA_SERVER_CONF_NUM_WSGI}" ]]; then
-  export PANDA_SERVER_CONF_NUM_WSGI=12
+  export PANDA_SERVER_CONF_NUM_WSGI=32
+fi
+
+# max number of WSGI threads
+if [[ -z "${PANDA_SERVER_CONF_NUM_WSGI_THREAD}" ]]; then
+  export PANDA_SERVER_CONF_NUM_WSGI_THREAD=1
+fi
+
+# max number of WSGI daemons
+if [[ -z "${PANDA_SERVER_CONF_MAX_BACKLOG}" ]]; then
+  export PANDA_SERVER_CONF_MAX_BACKLOG=511
 fi
 
 # port
@@ -80,4 +90,14 @@ if [[ -z "${PANDA_SERVER_CONF_PORT}" ]]; then
 fi
 if [[ -z "${PANDA_SERVER_CONF_PORT_SSL}" ]]; then
   export PANDA_SERVER_CONF_PORT_SSL=25443
+fi
+
+# max connections per child
+if [[ -z "${PANDA_SERVER_CONF_MAX_CONNECTIONS}" ]]; then
+  export PANDA_SERVER_CONF_MAX_CONNECTIONS=2000
+fi
+
+# threads per child
+if [[ -z "${PANDA_SERVER_CONF_THREADS_PER_CHILD}" ]]; then
+  export PANDA_SERVER_CONF_THREADS_PER_CHILD=25
 fi
