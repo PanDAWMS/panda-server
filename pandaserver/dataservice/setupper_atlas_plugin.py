@@ -570,12 +570,12 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         if (not self.panda_ddm) and (job.prodSourceLabel != "ddm") and (job.destinationSE != "local"):
                             # get src and dest DDM conversion is needed for unknown sites
                             if job.prodSourceLabel == "user" and computing_site not in self.site_mapper.siteSpecList:
-                                # Rucio ID was set by using --destSE for analysis job to transfer output
+                                # DDM ID was set by using --destSE for analysis job to transfer output
                                 tmp_src_ddm = tmp_site.ddm_output[scope_output]
                             else:
                                 tmp_src_ddm = tmp_site.ddm_output[scope_output]
                             if job.prodSourceLabel == "user" and file.destinationSE not in self.site_mapper.siteSpecList:
-                                # Rucio ID was set by using --destSE for analysis job to transfer output
+                                # DDM ID was set by using --destSE for analysis job to transfer output
                                 tmp_dst_ddm = tmp_src_ddm
                             elif DataServiceUtils.getDestinationSE(file.destinationDBlockToken) is not None:
                                 # destination is specified
@@ -815,10 +815,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         """
         Subscribe distpatch db method for running the setup process.
         """
-        dispError = {}
-        failedJobs = []
-        ddmJobs = []
-        ddmUser = "NULL"
+        disp_error = {}
+        failed_jobs = []
+        ddm_jobs = []
+        ddm_user = "NULL"
         for job in self.jobs:
             # ignore failed jobs
             if job.jobStatus in ["failed", "cancelled"] or job.isCancelled():
@@ -827,233 +827,233 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             if job.dispatchDBlock == "NULL" or job.computingSite == "NULL":
                 continue
             # backend
-            ddmBackEnd = job.getDdmBackEnd()
-            if ddmBackEnd is None:
-                ddmBackEnd = "rucio"
+            ddm_back_end = job.getDdmBackEnd()
+            if ddm_back_end is None:
+                ddm_back_end = "rucio"
             # extract dispatchDBlock and computingSite
             disp = (job.dispatchDBlock, job.computingSite)
-            if disp not in dispError:
-                dispError[disp] = ""
-                # DQ2 IDs
-                tmpSrcID = "BNL_ATLAS_1"
+            if disp not in disp_error:
+                disp_error[disp] = ""
+                # DDM IDs
+                tmp_src_id = "BNL_ATLAS_1"
                 if job.prodSourceLabel in ["user", "panda"]:
-                    tmpSrcID = job.computingSite
+                    tmp_src_id = job.computingSite
                 elif self.site_mapper.checkCloud(job.getCloud()):
                     # use cloud's source
-                    tmpSrcID = self.site_mapper.getCloud(job.getCloud())["source"]
-                srcSite = self.site_mapper.getSite(tmpSrcID)
-                scope_srcSite_input, scope_srcSite_output = select_scope(srcSite, job.prodSourceLabel, job.job_label)
-                srcDQ2ID = srcSite.ddm_output[scope_srcSite_output]
+                    tmp_src_id = self.site_mapper.getCloud(job.getCloud())["source"]
+                src_site = self.site_mapper.getSite(tmp_src_id)
+                scope_src_site_input, scope_src_site_output = select_scope(src_site, job.prodSourceLabel, job.job_label)
+                src_ddm_id = src_site.ddm_output[scope_src_site_output]
                 # destination
-                tmpDstID = job.computingSite
-                tmpSiteSpec = self.site_mapper.getSite(job.computingSite)
-                scope_tmpSite_input, scope_tmpSite_output = select_scope(tmpSiteSpec, job.prodSourceLabel, job.job_label)
-                if srcDQ2ID != tmpSiteSpec.ddm_input[scope_tmpSite_input] and srcDQ2ID in tmpSiteSpec.setokens_input[scope_tmpSite_input].values():
+                tmp_dst_id = job.computingSite
+                tmp_site_spec = self.site_mapper.getSite(job.computingSite)
+                scope_tmp_site_input, scope_tmp_site_output = select_scope(tmp_site_spec, job.prodSourceLabel, job.job_label)
+                if src_ddm_id != tmp_site_spec.ddm_input[scope_tmp_site_input] and src_ddm_id in tmp_site_spec.setokens_input[scope_tmp_site_input].values():
                     # direct usage of remote SE. Mainly for prestaging
-                    tmpDstID = tmpSrcID
-                    self.logger.debug(f"use remote SiteSpec of {tmpDstID} for {job.computingSite}")
-                # use srcDQ2ID as dstDQ2ID when it is associated to dest
-                dstSiteSpec = self.site_mapper.getSite(tmpDstID)
-                scope_dst_input, scope_dst_output = select_scope(dstSiteSpec, job.prodSourceLabel, job.job_label)
-                if dstSiteSpec.ddm_endpoints_input[scope_dst_input].isAssociated(srcDQ2ID):
-                    dstDQ2ID = srcDQ2ID
+                    tmp_dst_id = tmp_src_id
+                    self.logger.debug(f"use remote SiteSpec of {tmp_dst_id} for {job.computingSite}")
+                # use src_ddm_id as dst_ddm_id when it is associated to dest
+                dst_site_spec = self.site_mapper.getSite(tmp_dst_id)
+                scope_dst_input, scope_dst_output = select_scope(dst_site_spec, job.prodSourceLabel, job.job_label)
+                if dst_site_spec.ddm_endpoints_input[scope_dst_input].isAssociated(src_ddm_id):
+                    dst_ddm_id = src_ddm_id
                 else:
-                    dstDQ2ID = dstSiteSpec.ddm_input[scope_dst_input]
+                    dst_ddm_id = dst_site_spec.ddm_input[scope_dst_input]
                 # check if missing at T1
-                missingAtT1 = False
+                missing_at_t1 = False
                 if job.prodSourceLabel in ["managed", "test"]:
-                    for tmpLFN in self.disp_file_list[job.dispatchDBlock]["lfns"]:
+                    for tmp_lfn in self.disp_file_list[job.dispatchDBlock]["lfns"]:
                         if job.getCloud() not in self.missing_files_in_t1:
                             break
-                        if tmpLFN in self.missing_files_in_t1[job.getCloud()] or tmpLFN.split(":")[-1] in self.missing_files_in_t1[job.getCloud()]:
-                            missingAtT1 = True
+                        if tmp_lfn in self.missing_files_in_t1[job.getCloud()] or tmp_lfn.split(":")[-1] in self.missing_files_in_t1[job.getCloud()]:
+                            missing_at_t1 = True
                             break
-                    self.logger.debug(f"{job.dispatchDBlock} missing at T1 : {missingAtT1}")
-                # use DQ2
+                    self.logger.debug(f"{job.dispatchDBlock} missing at T1 : {missing_at_t1}")
+                # use DDM
                 if (not self.panda_ddm) and job.prodSourceLabel != "ddm":
                     # look for replica
-                    dq2ID = srcDQ2ID
-                    dq2IDList = []
+                    ddm_id = src_ddm_id
+                    ddm_id_list = []
                     # register replica
-                    isOK = False
-                    if dq2ID != dstDQ2ID or missingAtT1:
+                    is_ok = False
+                    if ddm_id != dst_ddm_id or missing_at_t1:
                         # make list
                         if job.dispatchDBlock in self.replica_map:
                             # set DQ2 ID for DISK
-                            if not srcDQ2ID.endswith("_DATADISK"):
-                                hotID = re.sub("_MCDISK", "_HOTDISK", srcDQ2ID)
-                                diskID = re.sub("_MCDISK", "_DATADISK", srcDQ2ID)
-                                tapeID = re.sub("_MCDISK", "_DATATAPE", srcDQ2ID)
-                                mctapeID = re.sub("_MCDISK", "_MCTAPE", srcDQ2ID)
+                            if not src_ddm_id.endswith("_DATADISK"):
+                                hot_id = re.sub("_MCDISK", "_HOTDISK", src_ddm_id)
+                                disk_id = re.sub("_MCDISK", "_DATADISK", src_ddm_id)
+                                tape_id = re.sub("_MCDISK", "_DATATAPE", src_ddm_id)
+                                mc_tape_id = re.sub("_MCDISK", "_MCTAPE", src_ddm_id)
                             else:
-                                hotID = re.sub("_DATADISK", "_HOTDISK", srcDQ2ID)
-                                diskID = re.sub("_DATADISK", "_DATADISK", srcDQ2ID)
-                                tapeID = re.sub("_DATADISK", "_DATATAPE", srcDQ2ID)
-                                mctapeID = re.sub("_DATADISK", "_MCTAPE", srcDQ2ID)
-                            # DQ2 ID is mixed with TAIWAN-LCG2 and TW-FTT
+                                hot_id = re.sub("_DATADISK", "_HOTDISK", src_ddm_id)
+                                disk_id = re.sub("_DATADISK", "_DATADISK", src_ddm_id)
+                                tape_id = re.sub("_DATADISK", "_DATATAPE", src_ddm_id)
+                                mc_tape_id = re.sub("_DATADISK", "_MCTAPE", src_ddm_id)
+                            # DDM ID is mixed with TAIWAN-LCG2 and TW-FTT
                             if job.getCloud() in [
                                 "TW",
                             ]:
-                                tmpSiteSpec = self.site_mapper.getSite(tmpSrcID)
-                                scope_input, scope_output = select_scope(tmpSiteSpec, job.prodSourceLabel, job.job_label)
-                                if "ATLASDATADISK" in tmpSiteSpec.setokens_input[scope_input]:
-                                    diskID = tmpSiteSpec.setokens_input[scope_input]["ATLASDATADISK"]
-                                if "ATLASDATATAPE" in tmpSiteSpec.setokens_input[scope_input]:
-                                    tapeID = tmpSiteSpec.setokens_input[scope_input]["ATLASDATATAPE"]
-                                if "ATLASMCTAPE" in tmpSiteSpec.setokens_input[scope_input]:
-                                    mctapeID = tmpSiteSpec.setokens_input[scope_input]["ATLASMCTAPE"]
-                                hotID = "TAIWAN-LCG2_HOTDISK"
-                            for tmpDataset in self.replica_map[job.dispatchDBlock]:
-                                tmpRepMap = self.replica_map[job.dispatchDBlock][tmpDataset]
-                                if hotID in tmpRepMap:
+                                tmp_site_spec = self.site_mapper.getSite(tmp_src_id)
+                                scope_input, scope_output = select_scope(tmp_site_spec, job.prodSourceLabel, job.job_label)
+                                if "ATLASDATADISK" in tmp_site_spec.setokens_input[scope_input]:
+                                    disk_id = tmp_site_spec.setokens_input[scope_input]["ATLASDATADISK"]
+                                if "ATLASDATATAPE" in tmp_site_spec.setokens_input[scope_input]:
+                                    tape_id = tmp_site_spec.setokens_input[scope_input]["ATLASDATATAPE"]
+                                if "ATLASMCTAPE" in tmp_site_spec.setokens_input[scope_input]:
+                                    mc_tape_id = tmp_site_spec.setokens_input[scope_input]["ATLASMCTAPE"]
+                                hot_id = "TAIWAN-LCG2_HOTDISK"
+                            for tmp_dataset in self.replica_map[job.dispatchDBlock]:
+                                tmp_rep_map = self.replica_map[job.dispatchDBlock][tmp_dataset]
+                                if hot_id in tmp_rep_map:
                                     # HOTDISK
-                                    if hotID not in dq2IDList:
-                                        dq2IDList.append(hotID)
-                                if srcDQ2ID in tmpRepMap:
+                                    if hot_id not in ddm_id_list:
+                                        ddm_id_list.append(hot_id)
+                                if src_ddm_id in tmp_rep_map:
                                     # MCDISK
-                                    if srcDQ2ID not in dq2IDList:
-                                        dq2IDList.append(srcDQ2ID)
-                                if diskID in tmpRepMap:
+                                    if src_ddm_id not in ddm_id_list:
+                                        ddm_id_list.append(src_ddm_id)
+                                if disk_id in tmp_rep_map:
                                     # DATADISK
-                                    if diskID not in dq2IDList:
-                                        dq2IDList.append(diskID)
-                                if tapeID in tmpRepMap:
+                                    if disk_id not in ddm_id_list:
+                                        ddm_id_list.append(disk_id)
+                                if tape_id in tmp_rep_map:
                                     # DATATAPE
-                                    if tapeID not in dq2IDList:
-                                        dq2IDList.append(tapeID)
-                                if mctapeID in tmpRepMap:
+                                    if tape_id not in ddm_id_list:
+                                        ddm_id_list.append(tape_id)
+                                if mc_tape_id in tmp_rep_map:
                                     # MCTAPE
-                                    if mctapeID not in dq2IDList:
-                                        dq2IDList.append(mctapeID)
+                                    if mc_tape_id not in ddm_id_list:
+                                        ddm_id_list.append(mc_tape_id)
                             # consider cloudconfig.tier1se
-                            tmpCloudSEs = DataServiceUtils.getEndpointsAtT1(tmpRepMap, self.site_mapper, job.getCloud())
-                            useCloudSEs = []
-                            for tmpCloudSE in tmpCloudSEs:
-                                if tmpCloudSE not in dq2IDList:
-                                    useCloudSEs.append(tmpCloudSE)
-                            if useCloudSEs != []:
-                                dq2IDList += useCloudSEs
-                                self.logger.debug(f"use additional endpoints {str(useCloudSEs)} from cloudconfig")
+                            tmp_cloud_ses = DataServiceUtils.getEndpointsAtT1(tmp_rep_map, self.site_mapper, job.getCloud())
+                            use_cloud_ses = []
+                            for tmp_cloud_se in tmp_cloud_ses:
+                                if tmp_cloud_se not in ddm_id_list:
+                                    use_cloud_ses.append(tmp_cloud_se)
+                            if use_cloud_ses:
+                                ddm_id_list += use_cloud_ses
+                                self.logger.debug(f"use additional endpoints {str(use_cloud_ses)} from cloudconfig")
                         # use default location if empty
-                        if dq2IDList == []:
-                            dq2IDList = [dq2ID]
+                        if not ddm_id_list:
+                            ddm_id_list = [ddm_id]
                         # register dataset locations
-                        if missingAtT1:
+                        if missing_at_t1:
                             # without locatios to let DDM find sources
-                            isOK = True
+                            is_ok = True
                         else:
-                            isOK = True
+                            is_ok = True
                     else:
                         # register locations later for prestaging
-                        isOK = True
-                    if not isOK:
-                        dispError[disp] = "Setupper._subscribeDistpatchDB() could not register location"
+                        is_ok = True
+                    if not is_ok:
+                        disp_error[disp] = "Setupper._subscribeDistpatchDB() could not register location"
                     else:
-                        isOK = False
+                        is_ok = False
                         # assign destination
                         optSub = {
                             "DATASET_COMPLETE_EVENT": [f"http://{panda_config.pserverhosthttp}:{panda_config.pserverporthttp}/server/panda/datasetCompleted"]
                         }
-                        optSource = {}
-                        dq2ID = dstDQ2ID
+                        opt_source = {}
+                        ddm_id = dst_ddm_id
                         # prestaging
-                        if srcDQ2ID == dstDQ2ID and not missingAtT1:
+                        if src_ddm_id == dst_ddm_id and not missing_at_t1:
                             # prestage to associated endpoints
                             if job.prodSourceLabel in ["user", "panda"]:
-                                tmpSiteSpec = self.site_mapper.getSite(job.computingSite)
+                                tmp_site_spec = self.site_mapper.getSite(job.computingSite)
                                 (
-                                    scope_tmpSite_input,
-                                    scope_tmpSite_output,
-                                ) = select_scope(tmpSiteSpec, job.prodSourceLabel, job.job_label)
+                                    scope_tmp_site_input,
+                                    scope_tmp_site_output,
+                                ) = select_scope(tmp_site_spec, job.prodSourceLabel, job.job_label)
                                 # use DATADISK if possible
                                 changed = False
-                                if "ATLASDATADISK" in tmpSiteSpec.setokens_input[scope_tmpSite_input]:
-                                    tmpDq2ID = tmpSiteSpec.setokens_input[scope_tmpSite_input]["ATLASDATADISK"]
-                                    if tmpDq2ID in tmpSiteSpec.ddm_endpoints_input[scope_tmpSite_input].getLocalEndPoints():
-                                        self.logger.debug(f"use {tmpDq2ID} instead of {dq2ID} for tape prestaging")
-                                        dq2ID = tmpDq2ID
+                                if "ATLASDATADISK" in tmp_site_spec.setokens_input[scope_tmp_site_input]:
+                                    tmp_ddm_id = tmp_site_spec.setokens_input[scope_tmp_site_input]["ATLASDATADISK"]
+                                    if tmp_ddm_id in tmp_site_spec.ddm_endpoints_input[scope_tmp_site_input].getLocalEndPoints():
+                                        self.logger.debug(f"use {tmp_ddm_id} instead of {ddm_id} for tape prestaging")
+                                        ddm_id = tmp_ddm_id
                                         changed = True
                                 # use default input endpoint
                                 if not changed:
-                                    dq2ID = tmpSiteSpec.ddm_endpoints_input[scope_tmpSite_input].getDefaultRead()
-                                    self.logger.debug(f"use default_read {dq2ID} for tape prestaging")
-                            self.logger.debug(f"use {dq2ID} for tape prestaging")
+                                    ddm_id = tmp_site_spec.ddm_endpoints_input[scope_tmp_site_input].getDefaultRead()
+                                    self.logger.debug(f"use default_read {ddm_id} for tape prestaging")
+                            self.logger.debug(f"use {ddm_id} for tape prestaging")
                             # register dataset locations
-                            isOK = True
+                            is_ok = True
                         else:
-                            isOK = True
+                            is_ok = True
                             # set sources to handle T2s in another cloud and to transfer dis datasets being split in multiple sites
-                            if not missingAtT1:
-                                for tmpDQ2ID in dq2IDList:
-                                    optSource[tmpDQ2ID] = {"policy": 0}
+                            if not missing_at_t1:
+                                for tmp_ddm_id in ddm_id_list:
+                                    opt_source[tmp_ddm_id] = {"policy": 0}
                             # T1 used as T2
                             if (
-                                job.getCloud() != self.site_mapper.getSite(tmpDstID).cloud
-                                and (not dstDQ2ID.endswith("PRODDISK"))
+                                job.getCloud() != self.site_mapper.getSite(tmp_dst_id).cloud
+                                and (not dst_ddm_id.endswith("PRODDISK"))
                                 and (job.prodSourceLabel not in ["user", "panda"])
-                                and self.site_mapper.getSite(tmpDstID).cloud in ["US"]
+                                and self.site_mapper.getSite(tmp_dst_id).cloud in ["US"]
                             ):
-                                tmpDstSiteSpec = self.site_mapper.getSite(tmpDstID)
-                                scope_input, scope_output = select_scope(tmpDstSiteSpec, job.prodSourceLabel, job.job_label)
-                                seTokens = tmpDstSiteSpec.setokens_input[scope_input]
+                                tmp_dst_site_spec = self.site_mapper.getSite(tmp_dst_id)
+                                scope_input, scope_output = select_scope(tmp_dst_site_spec, job.prodSourceLabel, job.job_label)
+                                se_tokens = tmp_dst_site_spec.setokens_input[scope_input]
                                 # use T1_PRODDISK
-                                if "ATLASPRODDISK" in seTokens:
-                                    dq2ID = seTokens["ATLASPRODDISK"]
+                                if "ATLASPRODDISK" in se_tokens:
+                                    ddm_id = se_tokens["ATLASPRODDISK"]
                             elif job.prodSourceLabel in ["user", "panda"]:
                                 # use DATADISK
-                                tmpSiteSpec = self.site_mapper.getSite(job.computingSite)
+                                tmp_site_spec = self.site_mapper.getSite(job.computingSite)
                                 (
-                                    scope_tmpSite_input,
-                                    scope_tmpSite_output,
-                                ) = select_scope(tmpSiteSpec, job.prodSourceLabel, job.job_label)
-                                if "ATLASDATADISK" in tmpSiteSpec.setokens_input[scope_tmpSite_input]:
-                                    tmpDq2ID = tmpSiteSpec.setokens_input[scope_tmpSite_input]["ATLASDATADISK"]
-                                    if tmpDq2ID in tmpSiteSpec.ddm_endpoints_input[scope_tmpSite_input].getLocalEndPoints():
-                                        self.logger.debug(f"use {tmpDq2ID} instead of {dq2ID} for analysis input staging")
-                                        dq2ID = tmpDq2ID
+                                    scope_tmp_site_input,
+                                    scope_tmp_site_output,
+                                ) = select_scope(tmp_site_spec, job.prodSourceLabel, job.job_label)
+                                if "ATLASDATADISK" in tmp_site_spec.setokens_input[scope_tmp_site_input]:
+                                    tmp_ddm_id = tmp_site_spec.setokens_input[scope_tmp_site_input]["ATLASDATADISK"]
+                                    if tmp_ddm_id in tmp_site_spec.ddm_endpoints_input[scope_tmp_site_input].getLocalEndPoints():
+                                        self.logger.debug(f"use {tmp_ddm_id} instead of {ddm_id} for analysis input staging")
+                                        ddm_id = tmp_ddm_id
                         # set share and activity
                         if job.prodSourceLabel in ["user", "panda"]:
-                            optShare = "production"
-                            optActivity = "Analysis Input"
-                            optOwner = None
+                            opt_share = "production"
+                            opt_activity = "Analysis Input"
+                            opt_owner = None
                         else:
-                            optShare = "production"
-                            optOwner = None
+                            opt_share = "production"
+                            opt_owner = None
                             if job.processingType == "urgent" or job.currentPriority > 1000:
-                                optActivity = "Express"
+                                opt_activity = "Express"
                             else:
-                                optActivity = "Production Input"
+                                opt_activity = "Production Input"
                         # taskID
                         if job.jediTaskID not in ["NULL", 0]:
-                            optComment = f"task_id:{job.jediTaskID}"
+                            opt_comment = f"task_id:{job.jediTaskID}"
                         else:
-                            optComment = None
-                        if not isOK:
-                            dispError[disp] = "Setupper._subscribeDistpatchDB() could not register location for prestage"
+                            opt_comment = None
+                        if not is_ok:
+                            disp_error[disp] = "Setupper._subscribeDistpatchDB() could not register location for prestage"
                         else:
                             # register subscription
                             self.logger.debug(
                                 "%s %s %s"
                                 % (
                                     "registerDatasetSubscription",
-                                    (job.dispatchDBlock, dq2ID),
+                                    (job.dispatchDBlock, ddm_id),
                                     {
-                                        "activity": optActivity,
+                                        "activity": opt_activity,
                                         "lifetime": 7,
-                                        "dn": optOwner,
-                                        "comment": optComment,
+                                        "dn": opt_owner,
+                                        "comment": opt_comment,
                                     },
                                 )
                             )
-                            for iDDMTry in range(3):
+                            for attempt in range(3):
                                 try:
                                     status = rucioAPI.register_dataset_subscription(
                                         job.dispatchDBlock,
-                                        [dq2ID],
-                                        activity=optActivity,
+                                        [ddm_id],
+                                        activity=opt_activity,
                                         lifetime=7,
-                                        distinguished_name=optOwner,
-                                        comment=optComment,
+                                        distinguished_name=opt_owner,
+                                        comment=opt_comment,
                                     )
                                     out = "OK"
                                     break
@@ -1063,40 +1063,40 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                     time.sleep(10)
                             if not status:
                                 self.logger.error(out)
-                                dispError[disp] = "Setupper._subscribeDistpatchDB() could not register subscription"
+                                disp_error[disp] = "Setupper._subscribeDistpatchDB() could not register subscription"
                             else:
                                 self.logger.debug(out)
             # failed jobs
-            if dispError[disp] != "":
+            if disp_error[disp] != "":
                 if job.jobStatus != "failed":
                     job.jobStatus = "failed"
                     job.ddmErrorCode = ErrorCode.EC_Setupper
-                    job.ddmErrorDiag = dispError[disp]
+                    job.ddmErrorDiag = disp_error[disp]
                     self.logger.debug(f"failed PandaID={job.PandaID} with {job.ddmErrorDiag}")
-                    failedJobs.append(job)
+                    failed_jobs.append(job)
         # update failed jobs only. succeeded jobs should be activate by DDM callback
-        self.update_failed_jobs(failedJobs)
+        self.update_failed_jobs(failed_jobs)
         # submit ddm jobs
-        if ddmJobs != []:
-            ddmRet = self.taskBuffer.storeJobs(ddmJobs, ddmUser, joinThr=True)
+        if ddm_jobs != []:
+            ddm_ret = self.taskBuffer.storeJobs(ddm_jobs, ddm_user, joinThr=True)
             # update datasets
-            ddmIndex = 0
-            ddmDsList = []
-            for ddmPandaID, ddmJobDef, ddmJobName in ddmRet:
+            ddm_index = 0
+            ddm_ds_list = []
+            for ddm_panda_id, ddm_job_def, ddm_job_name in ddm_ret:
                 # invalid PandaID
-                if ddmPandaID in ["NULL", None]:
+                if ddm_panda_id in ["NULL", None]:
                     continue
                 # get dispatch dataset
-                dsName = ddmJobs[ddmIndex].jobParameters.split()[-1]
-                ddmIndex += 1
-                tmpDS = self.taskBuffer.queryDatasetWithMap({"name": dsName})
-                if tmpDS is not None:
+                ds_name = ddm_jobs[ddm_index].jobParameters.split()[-1]
+                ddm_index += 1
+                tmp_ds = self.taskBuffer.queryDatasetWithMap({"name": ds_name})
+                if tmp_ds is not None:
                     # set MoverID
-                    tmpDS.MoverID = ddmPandaID
-                    ddmDsList.append(tmpDS)
+                    tmp_ds.MoverID = ddm_panda_id
+                    ddm_ds_list.append(tmp_ds)
             # update
-            if ddmDsList != []:
-                self.taskBuffer.updateDatasets(ddmDsList)
+            if ddm_ds_list:
+                self.taskBuffer.updateDatasets(ddm_ds_list)
 
     # correct LFN for attemptNr
     def correct_lfn(self) -> None:
