@@ -1901,97 +1901,97 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         """
         self.logger.debug("pin input datasets")
         # collect input datasets and locations
-        doneList = []
-        allReplicaMap = {}
-        useShortLivedReplicasFlag = False
-        for tmpJob in self.jobs:
+        done_list = []
+        all_replica_map = {}
+        use_short_lived_replicas_flag = False
+        for tmp_job in self.jobs:
             # ignore HC jobs
-            if tmpJob.processingType.startswith("gangarobot") or tmpJob.processingType.startswith("hammercloud"):
+            if tmp_job.processingType.startswith("gangarobot") or tmp_job.processingType.startswith("hammercloud"):
                 continue
             # not pin if --useShortLivedReplicas was used
-            if tmpJob.metadata is not None and "--useShortLivedReplicas" in tmpJob.metadata:
-                if not useShortLivedReplicasFlag:
+            if tmp_job.metadata is not None and "--useShortLivedReplicas" in tmp_job.metadata:
+                if not use_short_lived_replicas_flag:
                     self.logger.debug("   skip pin due to --useShortLivedReplicas")
-                    useShortLivedReplicasFlag = True
+                    use_short_lived_replicas_flag = True
                 continue
             # use production or test or user jobs only
-            if tmpJob.prodSourceLabel not in ["managed", "test", "user"]:
+            if tmp_job.prodSourceLabel not in ["managed", "test", "user"]:
                 continue
             # ignore inappropriate status
-            if tmpJob.jobStatus in ["failed", "cancelled", "waiting"] or tmpJob.isCancelled():
+            if tmp_job.jobStatus in ["failed", "cancelled", "waiting"] or tmp_job.isCancelled():
                 continue
             # set lifetime
-            if tmpJob.prodSourceLabel in ["managed", "test"]:
-                pinLifeTime = 7
+            if tmp_job.prodSourceLabel in ["managed", "test"]:
+                pin_life_time = 7
             else:
-                pinLifeTime = 7
+                pin_life_time = 7
             # get source
-            if tmpJob.prodSourceLabel in ["managed", "test"]:
-                tmpSrcID = self.site_mapper.getCloud(tmpJob.getCloud())["source"]
-                scope_input, scope_output = select_scope(tmpSrcID, tmpJob.prodSourceLabel, tmpJob.job_label)
-                srcDQ2ID = self.site_mapper.getSite(tmpSrcID).ddm_input[scope_input]
+            if tmp_job.prodSourceLabel in ["managed", "test"]:
+                tmp_src_id = self.site_mapper.getCloud(tmp_job.getCloud())["source"]
+                scope_input, scope_output = select_scope(tmp_src_id, tmp_job.prodSourceLabel, tmp_job.job_label)
+                src_ddm_id = self.site_mapper.getSite(tmp_src_id).ddm_input[scope_input]
             else:
-                tmpSrcID = self.site_mapper.getSite(tmpJob.computingSite)
-                scope_input, scope_output = select_scope(tmpSrcID, tmpJob.prodSourceLabel, tmpJob.job_label)
-                srcDQ2ID = tmpSrcID.ddm_input[scope_input]
+                tmp_src_id = self.site_mapper.getSite(tmp_job.computingSite)
+                scope_input, scope_output = select_scope(tmp_src_id, tmp_job.prodSourceLabel, tmp_job.job_label)
+                src_ddm_id = tmp_src_id.ddm_input[scope_input]
             # prefix of DQ2 ID
-            srcDQ2IDprefix = re.sub("_[A-Z,0-9]+DISK$", "", srcDQ2ID)
+            src_ddm_id_prefix = re.sub("_[A-Z,0-9]+DISK$", "", src_ddm_id)
             # loop over all files
-            for tmpFile in tmpJob.Files:
+            for tmp_file in tmp_job.Files:
                 # use input files and ignore DBR/lib.tgz
                 if (
-                    tmpFile.type == "input"
-                    and not tmpFile.lfn.endswith(".lib.tgz")
-                    and not tmpFile.dataset.startswith("ddo")
-                    and not tmpFile.dataset.startswith("user")
-                    and not tmpFile.dataset.startswith("group")
+                    tmp_file.type == "input"
+                    and not tmp_file.lfn.endswith(".lib.tgz")
+                    and not tmp_file.dataset.startswith("ddo")
+                    and not tmp_file.dataset.startswith("user")
+                    and not tmp_file.dataset.startswith("group")
                 ):
                     # ignore pre-merged datasets
-                    if tmpFile.dataset.startswith("panda.um."):
+                    if tmp_file.dataset.startswith("panda.um."):
                         continue
                     # get replica locations
-                    if tmpFile.dataset not in allReplicaMap:
-                        if tmpFile.dataset.endswith("/"):
+                    if tmp_file.dataset not in all_replica_map:
+                        if tmp_file.dataset.endswith("/"):
                             (
                                 status,
-                                tmpRepSitesMap,
-                            ) = self.get_list_dataset_replicas_in_container(tmpFile.dataset, get_map=True)
+                                tmp_rep_sites_map,
+                            ) = self.get_list_dataset_replicas_in_container(tmp_file.dataset, get_map=True)
                             if status == 0:
                                 status = True
                             else:
                                 status = False
                         else:
-                            status, tmpRepSites = self.get_list_dataset_replicas(tmpFile.dataset)
-                            tmpRepSitesMap = {}
-                            tmpRepSitesMap[tmpFile.dataset] = tmpRepSites
+                            status, tmp_rep_sites = self.get_list_dataset_replicas(tmp_file.dataset)
+                            tmp_rep_sites_map = {}
+                            tmp_rep_sites_map[tmp_file.dataset] = tmp_rep_sites
                         # append
                         if status:
-                            allReplicaMap[tmpFile.dataset] = tmpRepSitesMap
+                            all_replica_map[tmp_file.dataset] = tmp_rep_sites_map
                         else:
                             # set empty to avoid further lookup
-                            allReplicaMap[tmpFile.dataset] = {}
+                            all_replica_map[tmp_file.dataset] = {}
                         # loop over constituent datasets
-                        self.logger.debug(f"pin DQ2 prefix={srcDQ2IDprefix}")
-                        for tmpDsName in allReplicaMap[tmpFile.dataset]:
-                            tmpRepSitesMap = allReplicaMap[tmpFile.dataset][tmpDsName]
+                        self.logger.debug(f"pin DQ2 prefix={src_ddm_id_prefix}")
+                        for tmp_ds_name in all_replica_map[tmp_file.dataset]:
+                            tmp_rep_sites_map = all_replica_map[tmp_file.dataset][tmp_ds_name]
                             # loop over locations
-                            for tmpRepSite in tmpRepSitesMap:
+                            for tmp_rep_site in tmp_rep_sites_map:
                                 if (
-                                    tmpRepSite.startswith(srcDQ2IDprefix)
-                                    and "TAPE" not in tmpRepSite
-                                    and "_LOCALGROUP" not in tmpRepSite
-                                    and "_DAQ" not in tmpRepSite
-                                    and "_TZERO" not in tmpRepSite
-                                    and "_USERDISK" not in tmpRepSite
-                                    and "_RAW" not in tmpRepSite
-                                    and "SCRATCH" not in tmpRepSite
+                                    tmp_rep_site.startswith(src_ddm_id_prefix)
+                                    and "TAPE" not in tmp_rep_site
+                                    and "_LOCALGROUP" not in tmp_rep_site
+                                    and "_DAQ" not in tmp_rep_site
+                                    and "_TZERO" not in tmp_rep_site
+                                    and "_USERDISK" not in tmp_rep_site
+                                    and "_RAW" not in tmp_rep_site
+                                    and "SCRATCH" not in tmp_rep_site
                                 ):
-                                    tmpKey = (tmpDsName, tmpRepSite)
+                                    tmp_key = (tmp_ds_name, tmp_rep_site)
                                     # already done
-                                    if tmpKey in doneList:
+                                    if tmp_key in done_list:
                                         continue
                                     # append to avoid repetition
-                                    doneList.append(tmpKey)
+                                    done_list.append(tmp_key)
                                     # set pin lifetime
                                     # status = self.setReplicaMetadata(tmpDsName,tmpRepSite,'pin_lifetime','%s days' % pinLifeTime)
         # retrun
@@ -2005,54 +2005,54 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         """
         self.logger.debug("make subscriptions for missing files")
         # collect datasets
-        missingList = {}
-        for tmpCloud in self.missing_dataset_list:
-            tmpMissDatasets = self.missing_dataset_list[tmpCloud]
+        missing_list = {}
+        for tmp_cloud in self.missing_dataset_list:
+            tmp_miss_datasets = self.missing_dataset_list[tmp_cloud]
             # append cloud
-            if tmpCloud not in missingList:
-                missingList[tmpCloud] = []
+            if tmp_cloud not in missing_list:
+                missing_list[tmp_cloud] = []
             # loop over all datasets
-            for tmpDsName in tmpMissDatasets:
-                tmpMissFiles = tmpMissDatasets[tmpDsName]
+            for tmp_ds_name in tmp_miss_datasets:
+                tmp_miss_files = tmp_miss_datasets[tmp_ds_name]
                 # check if datasets in container are used
-                if tmpDsName.endswith("/"):
+                if tmp_ds_name.endswith("/"):
                     # convert container to datasets
-                    tmpStat, tmpDsList = self.get_list_dataset_in_container(tmpDsName)
-                    if not tmpStat:
-                        self.logger.error(f"failed to get datasets in container:{tmpDsName}")
+                    tmp_stat, tmp_ds_list = self.get_list_dataset_in_container(tmp_ds_name)
+                    if not tmp_stat:
+                        self.logger.error(f"failed to get datasets in container:{tmp_ds_name}")
                         continue
                     # check if each dataset is actually used
-                    for tmpConstDsName in tmpDsList:
+                    for tmp_const_ds_name in tmp_ds_list:
                         # skip if already checked
-                        if tmpDsName in missingList[tmpCloud]:
+                        if tmp_ds_name in missing_list[tmp_cloud]:
                             continue
                         # get files in each dataset
-                        tmpStat, tmpFilesInDs = self.get_list_files_in_dataset(tmpConstDsName)
-                        if not tmpStat:
-                            self.logger.error(f"failed to get files in dataset:{tmpConstDsName}")
+                        tmp_stat, tmp_files_in_ds = self.get_list_files_in_dataset(tmp_const_ds_name)
+                        if not tmp_stat:
+                            self.logger.error(f"failed to get files in dataset:{tmp_const_ds_name}")
                             continue
                         # loop over all files to check the dataset is used
-                        for tmpLFN in tmpMissFiles:
+                        for tmp_lfn in tmp_miss_files:
                             # append if used
-                            if tmpLFN in tmpFilesInDs:
-                                missingList[tmpCloud].append(tmpConstDsName)
+                            if tmp_lfn in tmp_files_in_ds:
+                                missing_list[tmp_cloud].append(tmp_const_ds_name)
                                 break
                 else:
                     # append dataset w/o checking
-                    if tmpDsName not in missingList[tmpCloud]:
-                        missingList[tmpCloud].append(tmpDsName)
+                    if tmp_ds_name not in missing_list[tmp_cloud]:
+                        missing_list[tmp_cloud].append(tmp_ds_name)
         # make subscriptions
-        for tmpCloud in missingList:
-            missDsNameList = missingList[tmpCloud]
+        for tmp_cloud in missing_list:
+            miss_ds_name_list = missing_list[tmp_cloud]
             # get distination
-            tmpDstID = self.site_mapper.getCloud(tmpCloud)["source"]
-            tmpDstSpec = self.site_mapper.getSite(tmpDstID)
-            scope_input, scope_output = select_scope(tmpDstSpec, self.prod_source_label, self.job_label)
-            dstDQ2ID = tmpDstSpec.ddm_input[scope_input]
+            tmp_dst_id = self.site_mapper.getCloud(tmp_cloud)["source"]
+            tmp_dst_spec = self.site_mapper.getSite(tmp_dst_id)
+            scope_input, scope_output = select_scope(tmp_dst_spec, self.prod_source_label, self.job_label)
+            dst_ddm_id = tmp_dst_spec.ddm_input[scope_input]
             # register subscription
-            for missDsName in missDsNameList:
-                self.logger.debug(f"make subscription at {dstDQ2ID} for missing {missDsName}")
-                self.make_subscription(missDsName, dstDQ2ID)
+            for miss_ds_name in miss_ds_name_list:
+                self.logger.debug(f"make subscription at {dst_ddm_id} for missing {miss_ds_name}")
+                self.make_subscription(miss_ds_name, dst_ddm_id)
         # retrun
         self.logger.debug("make subscriptions for missing files done")
         return
@@ -2067,10 +2067,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         :return: A boolean indicating whether the subscription was made successfully.
         """
         # return for failure
-        retFailed = False
+        ret_failed = False
         self.logger.debug(f"registerDatasetSubscription {dataset} {ddm_id}")
-        nTry = 3
-        for iDDMTry in range(nTry):
+        for _ in range(3):
             try:
                 # register subscription
                 status = rucioAPI.register_dataset_subscription(dataset, [ddm_id], activity="Production Input")
@@ -2084,7 +2083,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         # result
         if not status:
             self.logger.error(out)
-            return retFailed
+            return ret_failed
         # update
         self.logger.debug(f"{status} {out}")
         # return
@@ -2099,130 +2098,130 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             return
         self.logger.debug("setup jumbo jobs")
         # get files in datasets
-        dsLFNsMap = {}
-        failedDS = set()
-        for jumboJobSpec in self.jumboJobs:
-            for tmpFileSpec in jumboJobSpec.Files:
+        datasets_lfns_map = {}
+        failed_ds = set()
+        for jumbo_job_spec in self.jumboJobs:
+            for tmp_file_spec in jumbo_job_spec.Files:
                 # only input
-                if tmpFileSpec.type not in ["input"]:
+                if tmp_file_spec.type not in ["input"]:
                     continue
                 # get files
-                if tmpFileSpec.dataset not in dsLFNsMap:
-                    if tmpFileSpec.dataset not in failedDS:
-                        tmpStat, tmpMap = self.get_list_files_in_dataset(tmpFileSpec.dataset, use_cache=False)
+                if tmp_file_spec.dataset not in datasets_lfns_map:
+                    if tmp_file_spec.dataset not in failed_ds:
+                        tmp_stat, tmp_map = self.get_list_files_in_dataset(tmp_file_spec.dataset, use_cache=False)
                         # failed
-                        if tmpStat != 0:
-                            failedDS.add(tmpFileSpec.dataset)
-                            self.logger.debug(f"failed to get files in {tmpFileSpec.dataset} with {tmpMap}")
+                        if tmp_stat != 0:
+                            failed_ds.add(tmp_file_spec.dataset)
+                            self.logger.debug(f"failed to get files in {tmp_file_spec.dataset} with {tmp_map}")
                         else:
                             # append
-                            dsLFNsMap[tmpFileSpec.dataset] = tmpMap
+                            datasets_lfns_map[tmp_file_spec.dataset] = tmp_map
                 # set failed if file lookup failed
-                if tmpFileSpec.dataset in failedDS:
-                    jumboJobSpec.jobStatus = "failed"
-                    jumboJobSpec.ddmErrorCode = ErrorCode.EC_GUID
-                    jumboJobSpec.ddmErrorDiag = f"failed to get files in {tmpFileSpec.dataset}"
+                if tmp_file_spec.dataset in failed_ds:
+                    jumbo_job_spec.jobStatus = "failed"
+                    jumbo_job_spec.ddmErrorCode = ErrorCode.EC_GUID
+                    jumbo_job_spec.ddmErrorDiag = f"failed to get files in {tmp_file_spec.dataset}"
                     break
         # make dis datasets
-        okJobs = []
-        ngJobs = []
-        for jumboJobSpec in self.jumboJobs:
+        ok_jobs = []
+        ng_jobs = []
+        for jumbo_job_spec in self.jumboJobs:
             # skip failed
-            if jumboJobSpec.jobStatus == "failed":
-                ngJobs.append(jumboJobSpec)
+            if jumbo_job_spec.jobStatus == "failed":
+                ng_jobs.append(jumbo_job_spec)
                 continue
             # get datatype
             try:
-                tmpDataType = jumboJobSpec.prodDBlock.split(".")[-2]
-                if len(tmpDataType) > 20:
-                    raise RuntimeError(f"data type is too log : {len(tmpDataType)} chars")
+                tmp_data_type = jumbo_job_spec.prodDBlock.split(".")[-2]
+                if len(tmp_data_type) > 20:
+                    raise RuntimeError(f"data type is too log : {len(tmp_data_type)} chars")
             except Exception:
                 # default
-                tmpDataType = "GEN"
+                tmp_data_type = "GEN"
             # files for jumbo job
-            lfnsForJumbo = self.task_buffer.getLFNsForJumbo(jumboJobSpec.jediTaskID)
+            lfns_for_jumbo = self.task_buffer.getLFNsForJumbo(jumbo_job_spec.jediTaskID)
             # make dis dataset name
-            dispatchDBlock = f"panda.{jumboJobSpec.taskID}.{time.strftime('%m.%d.%H%M')}.{tmpDataType}.jumbo_dis{jumboJobSpec.PandaID}"
+            dispatch_data_block = f"panda.{jumbo_job_spec.taskID}.{time.strftime('%m.%d.%H%M')}.{tmp_data_type}.jumbo_dis{jumbo_job_spec.PandaID}"
             # collect file attributes
             lfns = []
             guids = []
             sizes = []
             checksums = []
-            for tmpFileSpec in jumboJobSpec.Files:
+            for tmp_file_spec in jumbo_job_spec.Files:
                 # only input
-                if tmpFileSpec.type not in ["input"]:
+                if tmp_file_spec.type not in ["input"]:
                     continue
-                for tmpLFN in dsLFNsMap[tmpFileSpec.dataset]:
-                    tmpVar = dsLFNsMap[tmpFileSpec.dataset][tmpLFN]
-                    tmpLFN = f"{tmpVar['scope']}:{tmpLFN}"
-                    if tmpLFN not in lfnsForJumbo:
+                for tmp_lfn in datasets_lfns_map[tmp_file_spec.dataset]:
+                    tmp_var = datasets_lfns_map[tmp_file_spec.dataset][tmp_lfn]
+                    tmp_lfn = f"{tmp_var['scope']}:{tmp_lfn}"
+                    if tmp_lfn not in lfns_for_jumbo:
                         continue
-                    lfns.append(tmpLFN)
-                    guids.append(tmpVar["guid"])
-                    sizes.append(tmpVar["fsize"])
-                    checksums.append(tmpVar["chksum"])
+                    lfns.append(tmp_lfn)
+                    guids.append(tmp_var["guid"])
+                    sizes.append(tmp_var["fsize"])
+                    checksums.append(tmp_var["chksum"])
                 # set dis dataset
-                tmpFileSpec.dispatchDBlock = dispatchDBlock
+                tmp_file_spec.dispatchDBlock = dispatch_data_block
             # register and subscribe dis dataset
             if len(lfns) != 0:
                 # set dis dataset
-                jumboJobSpec.dispatchDBlock = dispatchDBlock
+                jumbo_job_spec.dispatchDBlock = dispatch_data_block
                 # register dis dataset
                 try:
-                    self.logger.debug(f"registering jumbo dis dataset {dispatchDBlock} with {len(lfns)} files")
-                    out = rucioAPI.register_dataset(dispatchDBlock, lfns, guids, sizes, checksums, lifetime=14)
+                    self.logger.debug(f"registering jumbo dis dataset {dispatch_data_block} with {len(lfns)} files")
+                    out = rucioAPI.register_dataset(dispatch_data_block, lfns, guids, sizes, checksums, lifetime=14)
                     vuid = out["vuid"]
-                    rucioAPI.close_dataset(dispatchDBlock)
+                    rucioAPI.close_dataset(dispatch_data_block)
                 except Exception:
                     error_type, error_value = sys.exc_info()[:2]
-                    self.logger.debug(f"failed to register jumbo dis dataset {dispatchDBlock} with {error_type}:{error_value}")
-                    jumboJobSpec.jobStatus = "failed"
-                    jumboJobSpec.ddmErrorCode = ErrorCode.EC_Setupper
-                    jumboJobSpec.ddmErrorDiag = f"failed to register jumbo dispatch dataset {dispatchDBlock}"
-                    ngJobs.append(jumboJobSpec)
+                    self.logger.debug(f"failed to register jumbo dis dataset {dispatch_data_block} with {error_type}:{error_value}")
+                    jumbo_job_spec.jobStatus = "failed"
+                    jumbo_job_spec.ddmErrorCode = ErrorCode.EC_Setupper
+                    jumbo_job_spec.ddmErrorDiag = f"failed to register jumbo dispatch dataset {dispatch_data_block}"
+                    ng_jobs.append(jumbo_job_spec)
                     continue
                 # subscribe dis dataset
                 try:
-                    tmpSiteSpec = self.site_mapper.getSite(jumboJobSpec.computingSite)
+                    tmp_site_spec = self.site_mapper.getSite(jumbo_job_spec.computingSite)
                     scope_input, scope_output = select_scope(
-                        tmpSiteSpec,
-                        jumboJobSpec.prodSourceLabel,
-                        jumboJobSpec.job_label,
+                        tmp_site_spec,
+                        jumbo_job_spec.prodSourceLabel,
+                        jumbo_job_spec.job_label,
                     )
-                    endPoint = tmpSiteSpec.ddm_input[scope_input]
-                    self.logger.debug(f"subscribing jumbo dis dataset {dispatchDBlock} to {endPoint}")
+                    end_point = tmp_site_spec.ddm_input[scope_input]
+                    self.logger.debug(f"subscribing jumbo dis dataset {dispatch_data_block} to {end_point}")
                     rucioAPI.register_dataset_subscription(
-                        dispatchDBlock,
-                        [endPoint],
+                        dispatch_data_block,
+                        [end_point],
                         lifetime=14,
                         activity="Production Input",
                     )
                 except Exception:
                     error_type, error_value = sys.exc_info()[:2]
-                    self.logger.debug(f"failed to subscribe jumbo dis dataset {dispatchDBlock} to {endPoint} with {error_type}:{error_value}")
-                    jumboJobSpec.jobStatus = "failed"
-                    jumboJobSpec.ddmErrorCode = ErrorCode.EC_Setupper
-                    jumboJobSpec.ddmErrorDiag = f"failed to subscribe jumbo dispatch dataset {dispatchDBlock} to {endPoint}"
-                    ngJobs.append(jumboJobSpec)
+                    self.logger.debug(f"failed to subscribe jumbo dis dataset {dispatch_data_block} to {end_point} with {error_type}:{error_value}")
+                    jumbo_job_spec.jobStatus = "failed"
+                    jumbo_job_spec.ddmErrorCode = ErrorCode.EC_Setupper
+                    jumbo_job_spec.ddmErrorDiag = f"failed to subscribe jumbo dispatch dataset {dispatch_data_block} to {end_point}"
+                    ng_jobs.append(jumbo_job_spec)
                     continue
                 # add dataset in DB
                 ds = DatasetSpec()
                 ds.vuid = vuid
-                ds.name = dispatchDBlock
+                ds.name = dispatch_data_block
                 ds.type = "dispatch"
                 ds.status = "defined"
                 ds.numberfiles = len(lfns)
                 ds.currentfiles = 0
                 self.task_buffer.insertDatasets([ds])
             # set destination
-            jumboJobSpec.destinationSE = jumboJobSpec.computingSite
-            for tmpFileSpec in jumboJobSpec.Files:
-                if tmpFileSpec.type in ["output", "log"] and DataServiceUtils.getDistributedDestination(tmpFileSpec.destinationDBlockToken) is None:
-                    tmpFileSpec.destinationSE = jumboJobSpec.computingSite
-            okJobs.append(jumboJobSpec)
+            jumbo_job_spec.destinationSE = jumbo_job_spec.computingSite
+            for tmp_file_spec in jumbo_job_spec.Files:
+                if tmp_file_spec.type in ["output", "log"] and DataServiceUtils.getDistributedDestination(tmp_file_spec.destinationDBlockToken) is None:
+                    tmp_file_spec.destinationSE = jumbo_job_spec.computingSite
+            ok_jobs.append(jumbo_job_spec)
         # update failed jobs
-        self.update_failed_jobs(ngJobs)
-        self.jumbo_jobs = okJobs
+        self.update_failed_jobs(ng_jobs)
+        self.jumbo_jobs = ok_jobs
         self.logger.debug("done for jumbo jobs")
         return
 
