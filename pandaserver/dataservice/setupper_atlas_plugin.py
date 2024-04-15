@@ -10,26 +10,26 @@ import time
 import traceback
 import uuid
 
+from typing import List, Dict, Tuple, Optional
+from rucio.common.exception import DataIdentifierNotFound
+
 import pandaserver.brokerage.broker
 
-from typing import List, Dict, Tuple, Optional
 from pandaserver.brokerage.SiteMapper import SiteMapper
-from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils, ErrorCode
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.dataservice.setupper_plugin_base import SetupperPluginBase
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
-from rucio.common.exception import (
-    DataIdentifierAlreadyExists,
-    DataIdentifierNotFound,
-    Duplicate,
-    FileAlreadyExists,
-)
+
 
 
 class SetupperAtlasPlugin(SetupperPluginBase):
+    """
+    setup dataset for ATLAS
+
+    """
     # constructor
     def __init__(self, taskBuffer, jobs: List, logger, **params: Dict) -> None:
         """
@@ -129,8 +129,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         tmp_job_map[tmp_job.computingSite].append(tmp_job)
                     # make new list
                     tmp_job_list = []
-                    for tmp_site_key in tmp_job_map:
-                        tmp_job_list += tmp_job_map[tmp_site_key]
+                    for jobs in tmp_job_map.values():
+                        tmp_job_list += jobs
                     # set new list
                     self.jobs = tmp_job_list
                 # create dataset for outputs and assign destination
@@ -257,14 +257,14 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             vuids = new_out[job.prodDBlock]["vuids"]
                             n_files = 0
                             # dataset spec
-                            ds = DatasetSpec()
-                            ds.vuid = vuids[0]
-                            ds.name = job.prodDBlock
-                            ds.type = "input"
-                            ds.status = "completed"
-                            ds.numberfiles = n_files
-                            ds.currentfiles = n_files
-                            prod_list.append(ds)
+                            dataset = DatasetSpec()
+                            dataset.vuid = vuids[0]
+                            dataset.name = job.prodDBlock
+                            dataset.type = "input"
+                            dataset.status = "completed"
+                            dataset.numberfiles = n_files
+                            dataset.currentfiles = n_files
+                            prod_list.append(dataset)
                         except Exception:
                             error_type, error_value = sys.exc_info()[:2]
                             self.logger.error(f"_setupSource() : {error_type} {error_value}")
@@ -288,18 +288,18 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     tmp_src_id = self.site_mapper.getCloud(job.getCloud())["source"]
 
                 src_site_spec = self.site_mapper.getSite(tmp_src_id)
-                scope_src_input, scope_src_output = select_scope(src_site_spec, job.prodSourceLabel, job.job_label)
+                _, scope_src_output = select_scope(src_site_spec, job.prodSourceLabel, job.job_label)
                 src_ddm_id = src_site_spec.ddm_output[scope_src_output]
-                # use src_ddm_id as dst_dq2_id when it is associated to dest
+                # use src_ddm_id as dst_ddm_id when it is associated to dest
                 dst_site_spec = self.site_mapper.getSite(job.computingSite)
-                scope_dst_input, scope_dst_output = select_scope(dst_site_spec, job.prodSourceLabel, job.job_label)
+                scope_dst_input, _ = select_scope(dst_site_spec, job.prodSourceLabel, job.job_label)
                 if dst_site_spec.ddm_endpoints_input[scope_dst_input].isAssociated(src_ddm_id):
-                    dst_dq2_id = src_ddm_id
+                    dst_ddm_id = src_ddm_id
                 else:
-                    dst_dq2_id = dst_site_spec.ddm_input[scope_dst_input]
+                    dst_ddm_id = dst_site_spec.ddm_input[scope_dst_input]
                 disp_site_map[job.dispatchDBlock] = {
                     "src": src_ddm_id,
-                    "dst": dst_dq2_id,
+                    "dst": dst_ddm_id,
                     "site": job.computingSite,
                 }
                 # filelist
@@ -357,9 +357,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             self.replica_map[job.dispatchDBlock][file.dataset] = self.all_replica_map[file.dataset]
         # register dispatch dataset
         disp_list = []
-        for dispatch_data_block in file_list:
+        for dispatch_data_block, block_data in file_list.items():
             # ignore empty dataset
-            if len(file_list[dispatch_data_block]["lfns"]) == 0:
+            if len(block_data["lfns"]) == 0:
                 continue
             # use Rucio
             if (not self.panda_ddm) and job.prodSourceLabel != "ddm":
@@ -458,18 +458,18 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             try:
                 vuid = new_out["vuid"]
                 # dataset spec. currentfiles is used to count the number of failed jobs
-                ds = DatasetSpec()
-                ds.vuid = vuid
-                ds.name = dispatch_data_block
-                ds.type = "dispatch"
-                ds.status = "defined"
-                ds.numberfiles = len(file_list[dispatch_data_block]["lfns"])
+                dataset = DatasetSpec()
+                dataset.vuid = vuid
+                dataset.name = dispatch_data_block
+                dataset.type = "dispatch"
+                dataset.status = "defined"
+                dataset.numberfiles = len(file_list[dispatch_data_block]["lfns"])
                 try:
-                    ds.currentfiles = int(sum(filter(None, file_list[dispatch_data_block]["fsizes"])) / 1024 / 1024)
+                    dataset.currentfiles = int(sum(filter(None, file_list[dispatch_data_block]["fsizes"])) / 1024 / 1024)
                 except Exception:
-                    ds.currentfiles = 0
-                disp_list.append(ds)
-                self.vuid_map[ds.name] = ds.vuid
+                    dataset.currentfiles = 0
+                disp_list.append(dataset)
+                self.vuid_map[dataset.name] = dataset.vuid
             except Exception:
                 error_type, error_value = sys.exc_info()[:2]
                 self.logger.error(f"_setupSource() : {error_type} {error_value}")
@@ -543,14 +543,14 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             # user or test datasets are always fresh in DB
                             defined_fresh_flag = True
                         # get serial number
-                        sn, fresh_flag = self.task_buffer.getSerialNumber(file.destinationDBlock, defined_fresh_flag)
-                        if sn == -1:
+                        serial_number, fresh_flag = self.task_buffer.getSerialNumber(file.destinationDBlock, defined_fresh_flag)
+                        if serial_number == -1:
                             dest_error[dest] = f"Setupper._setupDestination() could not get serial num for {file.destinationDBlock}"
                             continue
                         if file.destinationDBlock not in sn_gotten_ds:
                             sn_gotten_ds.append(file.destinationDBlock)
                         # new dataset name
-                        newname_list[dest] = self.make_sub_dataset_name(file.destinationDBlock, sn, job.jediTaskID)
+                        newname_list[dest] = self.make_sub_dataset_name(file.destinationDBlock, serial_number, job.jediTaskID)
                         if fresh_flag:
                             # register original dataset and new dataset
                             name_list = [file.destinationDBlock, newname_list[dest]]
@@ -562,7 +562,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     for name in name_list:
                         computing_site = job.computingSite
                         tmp_site = self.site_mapper.getSite(computing_site)
-                        scope_input, scope_output = select_scope(tmp_site, job.prodSourceLabel, job.job_label)
+                        _, scope_output = select_scope(tmp_site, job.prodSourceLabel, job.job_label)
                         if name == original_name and not name.startswith("panda.um."):
                             # for original dataset
                             computing_site = file.destinationSE
@@ -582,7 +582,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                 tmp_dst_ddm = DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
                             else:
                                 tmp_dst_site = self.site_mapper.getSite(file.destinationSE)
-                                scope_dst_site_input, scope_dst_site_output = select_scope(tmp_dst_site, job.prodSourceLabel, job.job_label)
+                                _, scope_dst_site_output = select_scope(tmp_dst_site, job.prodSourceLabel, job.job_label)
                                 tmp_dst_ddm = tmp_dst_site.ddm_output[scope_dst_site_output]
                             # skip registration for _sub when src=dest
                             if (
@@ -639,11 +639,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                             if ddm_id not in ddm_id_list:
                                                 ddm_id_list.append(ddm_id)
                                 # set hidden flag for _sub
-                                tmp_activity = None
                                 tmp_life_time = None
                                 tmp_metadata = None
                                 if name != original_name and DataServiceUtils.is_sub_dataset(name):
-                                    tmp_activity = "Production Output"
                                     tmp_life_time = 14
                                     tmp_metadata = {"hidden": True, "purge_replicas": 0}
                                 # backend
@@ -653,7 +651,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                 # register dataset
                                 self.logger.debug(f"registerNewDataset {name} metadata={tmp_metadata}")
                                 is_ok = False
-                                for attempt in range(3):
+                                for _ in range(3):
                                     try:
                                         out = rucioAPI.register_dataset(
                                             name,
@@ -707,9 +705,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                     is_ok = True
                                     for ddm_id in ddm_id_list:
                                         activity = DataServiceUtils.getActivityForOut(job.prodSourceLabel)
-                                        new_out = "registerDatasetLocation {name} {dq2_id} lifetime={rep_life_time} activity={activity} grouping={grouping}"
+                                        new_out = "registerDatasetLocation {name} {ddm_id} lifetime={rep_life_time} activity={activity} grouping={grouping}"
                                         self.logger.debug(
-                                            tmp_str.format(
+                                            new_out.format(
                                                 name=name,
                                                 dq2ID=ddm_id,
                                                 repLifeTime=rep_life_time,
@@ -723,7 +721,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                             out = f"wrong location : {ddm_id}"
                                             self.logger.error(out)
                                             break
-                                        for attempt in range(3):
+                                        for _ in range(3):
                                             try:
                                                 out = rucioAPI.register_dataset_location(
                                                     name,
@@ -757,7 +755,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         # get vuid
                         if new_vuid is None:
                             self.logger.debug("listDatasets " + name)
-                            for attempt in range(3):
+                            for _ in range(3):
                                 new_out, err_msg = rucioAPI.list_datasets(name)
                                 if new_out is None:
                                     time.sleep(10)
@@ -771,15 +769,15 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                 new_vuid = new_out[name]["vuids"][0]
                         try:
                             # dataset spec
-                            ds = DatasetSpec()
-                            ds.vuid = new_vuid
-                            ds.name = name
-                            ds.type = "output"
-                            ds.numberfiles = 0
-                            ds.currentfiles = 0
-                            ds.status = "defined"
+                            dataset = DatasetSpec()
+                            dataset.vuid = new_vuid
+                            dataset.name = name
+                            dataset.type = "output"
+                            dataset.numberfiles = 0
+                            dataset.currentfiles = 0
+                            dataset.status = "defined"
                             # append
-                            dataset_list[(name, file.destinationSE, computing_site)] = ds
+                            dataset_list[(name, file.destinationSE, computing_site)] = dataset
                         except Exception:
                             # set status
                             error_type, error_value = sys.exc_info()[:2]
@@ -804,9 +802,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     # increment number of files
                     dataset_list[new_dest].numberfiles = dataset_list[new_dest].numberfiles + 1
         # dump
-        for tmp_ds_key in dataset_list:
-            if DataServiceUtils.is_sub_dataset(tmp_ds_key[0]):
-                self.logger.debug(f"made sub:{tmp_ds_key[0]} for nFiles={dataset_list[tmp_ds_key].numberfiles}")
+        for dataset_name, dataset in dataset_list.items():
+            if DataServiceUtils.is_sub_dataset(dataset_name):
+                self.logger.debug(f"made sub:{dataset_name} for nFiles={dataset.numberfiles}")
         # insert datasets to DB
         return self.task_buffer.insertDatasets(dataset_list.values())
 
@@ -842,19 +840,19 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     # use cloud's source
                     tmp_src_id = self.site_mapper.getCloud(job.getCloud())["source"]
                 src_site = self.site_mapper.getSite(tmp_src_id)
-                scope_src_site_input, scope_src_site_output = select_scope(src_site, job.prodSourceLabel, job.job_label)
+                _, scope_src_site_output = select_scope(src_site, job.prodSourceLabel, job.job_label)
                 src_ddm_id = src_site.ddm_output[scope_src_site_output]
                 # destination
                 tmp_dst_id = job.computingSite
                 tmp_site_spec = self.site_mapper.getSite(job.computingSite)
-                scope_tmp_site_input, scope_tmp_site_output = select_scope(tmp_site_spec, job.prodSourceLabel, job.job_label)
+                scope_tmp_site_input, _ = select_scope(tmp_site_spec, job.prodSourceLabel, job.job_label)
                 if src_ddm_id != tmp_site_spec.ddm_input[scope_tmp_site_input] and src_ddm_id in tmp_site_spec.setokens_input[scope_tmp_site_input].values():
                     # direct usage of remote SE. Mainly for prestaging
                     tmp_dst_id = tmp_src_id
                     self.logger.debug(f"use remote SiteSpec of {tmp_dst_id} for {job.computingSite}")
                 # use src_ddm_id as dst_ddm_id when it is associated to dest
                 dst_site_spec = self.site_mapper.getSite(tmp_dst_id)
-                scope_dst_input, scope_dst_output = select_scope(dst_site_spec, job.prodSourceLabel, job.job_label)
+                scope_dst_input, _ = select_scope(dst_site_spec, job.prodSourceLabel, job.job_label)
                 if dst_site_spec.ddm_endpoints_input[scope_dst_input].isAssociated(src_ddm_id):
                     dst_ddm_id = src_ddm_id
                 else:
@@ -895,7 +893,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                 "TW",
                             ]:
                                 tmp_site_spec = self.site_mapper.getSite(tmp_src_id)
-                                scope_input, scope_output = select_scope(tmp_site_spec, job.prodSourceLabel, job.job_label)
+                                scope_input, _ = select_scope(tmp_site_spec, job.prodSourceLabel, job.job_label)
                                 if "ATLASDATADISK" in tmp_site_spec.setokens_input[scope_input]:
                                     disk_id = tmp_site_spec.setokens_input[scope_input]["ATLASDATADISK"]
                                 if "ATLASDATATAPE" in tmp_site_spec.setokens_input[scope_input]:
@@ -938,11 +936,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         if not ddm_id_list:
                             ddm_id_list = [ddm_id]
                         # register dataset locations
-                        if missing_at_t1:
-                            # without locatios to let DDM find sources
-                            is_ok = True
-                        else:
-                            is_ok = True
+                        is_ok = True
                     else:
                         # register locations later for prestaging
                         is_ok = True
@@ -950,10 +944,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         disp_error[disp] = "Setupper._subscribeDispatchDB() could not register location"
                     else:
                         is_ok = False
-                        # assign destination
-                        optSub = {
-                            "DATASET_COMPLETE_EVENT": [f"http://{panda_config.pserverhosthttp}:{panda_config.pserverporthttp}/server/panda/datasetCompleted"]
-                        }
                         opt_source = {}
                         ddm_id = dst_ddm_id
                         # prestaging
@@ -994,7 +984,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                 and self.site_mapper.getSite(tmp_dst_id).cloud in ["US"]
                             ):
                                 tmp_dst_site_spec = self.site_mapper.getSite(tmp_dst_id)
-                                scope_input, scope_output = select_scope(tmp_dst_site_spec, job.prodSourceLabel, job.job_label)
+                                scope_input, _ = select_scope(tmp_dst_site_spec, job.prodSourceLabel, job.job_label)
                                 se_tokens = tmp_dst_site_spec.setokens_input[scope_input]
                                 # use T1_PRODDISK
                                 if "ATLASPRODDISK" in se_tokens:
@@ -1013,11 +1003,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                         ddm_id = tmp_ddm_id
                         # set share and activity
                         if job.prodSourceLabel in ["user", "panda"]:
-                            opt_share = "production"
                             opt_activity = "Analysis Input"
                             opt_owner = None
                         else:
-                            opt_share = "production"
                             opt_owner = None
                             if job.processingType == "urgent" or job.currentPriority > 1000:
                                 opt_activity = "Express"
@@ -1045,7 +1033,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                     },
                                 )
                             )
-                            for attempt in range(3):
+                            for _ in range(3):
                                 try:
                                     status = rucioAPI.register_dataset_subscription(
                                         job.dispatchDBlock,
@@ -1057,9 +1045,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                     )
                                     out = "OK"
                                     break
-                                except Exception as e:
+                                except Exception as error:
                                     status = False
-                                    out = f"registerDatasetSubscription failed with {str(e)} {traceback.format_exc()}"
+                                    out = f"registerDatasetSubscription failed with {str(error)} {traceback.format_exc()}"
                                     time.sleep(10)
                             if not status:
                                 self.logger.error(out)
@@ -1077,12 +1065,12 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         # update failed jobs only. succeeded jobs should be activate by DDM callback
         self.update_failed_jobs(failed_jobs)
         # submit ddm jobs
-        if ddm_jobs != []:
+        if ddm_jobs:
             ddm_ret = self.task_buffer.storeJobs(ddm_jobs, ddm_user, joinThr=True)
             # update datasets
             ddm_index = 0
             ddm_ds_list = []
-            for ddm_panda_id, ddm_job_def, ddm_job_name in ddm_ret:
+            for ddm_panda_id, _, _ in ddm_ret:
                 # invalid PandaID
                 if ddm_panda_id in ["NULL", None]:
                     continue
@@ -1158,7 +1146,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             # check if T1
             tmp_src_id = self.site_mapper.getCloud(job.getCloud())["source"]
             src_site_spec = self.site_mapper.getSite(tmp_src_id)
-            src_scope_input, src_scope_output = select_scope(src_site_spec, job.prodSourceLabel, job.job_label)
+            _, src_scope_output = select_scope(src_site_spec, job.prodSourceLabel, job.job_label)
             # could happen if wrong configuration or downtime
             if src_scope_output in src_site_spec.ddm_output:
                 src_ddm_id = src_site_spec.ddm_output[src_scope_output]
@@ -1171,7 +1159,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 jobs_failed.append(job)
                 continue
             dst_site_spec = self.site_mapper.getSite(job.computingSite)
-            dst_scope_input, dst_scope_output = select_scope(dst_site_spec, job.prodSourceLabel, job.job_label)
+            dst_scope_input, _ = select_scope(dst_site_spec, job.prodSourceLabel, job.job_label)
             # could happen if wrong configuration or downtime
             if dst_scope_input in dst_site_spec.ddm_input:
                 dst_ddm_id = dst_site_spec.ddm_input[dst_scope_input]
@@ -1214,14 +1202,14 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         items = out
                         try:
                             # loop over all files
-                            for tmpLFN in items:
-                                vals = items[tmpLFN]
-                                val_map[tmpLFN] = vals
-                                gen_lfn = re.sub("\.\d+$", "", tmpLFN)
+                            for tmp_lfn in items:
+                                vals = items[tmp_lfn]
+                                val_map[tmp_lfn] = vals
+                                gen_lfn = re.sub("\.\d+$", "", tmp_lfn)
                                 if gen_lfn in lfn_map[dataset]:
                                     # get attemptNr
                                     new_att_nr = 0
-                                    new_mat = re.search("\.(\d+)$", tmpLFN)
+                                    new_mat = re.search("\.(\d+)$", tmp_lfn)
                                     if new_mat is not None:
                                         new_att_nr = int(new_mat.group(1))
                                     old_att_nr = 0
@@ -1230,9 +1218,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                         old_att_nr = int(old_mat.group(1))
                                     # compare
                                     if new_att_nr > old_att_nr:
-                                        lfn_map[dataset][gen_lfn] = tmpLFN
+                                        lfn_map[dataset][gen_lfn] = tmp_lfn
                                 else:
-                                    lfn_map[dataset][gen_lfn] = tmpLFN
+                                    lfn_map[dataset][gen_lfn] = tmp_lfn
                                 # mapping from LFN to DS
                                 lfn_ds_map[lfn_map[dataset][gen_lfn]] = dataset
                         except Exception:
@@ -1390,8 +1378,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         tmp_job.inputFileType = tmp_input_file_type
                 # protection
                 max_input_file_bytes = 99999999999
-                if tmp_job.inputFileBytes > max_input_file_bytes:
-                    tmp_job.inputFileBytes = max_input_file_bytes
+                tmp_job.inputFileBytes = min(tmp_job.inputFileBytes, max_input_file_bytes)
                 # set background-able flag
                 tmp_job.setBackgroundableFlag()
             except Exception:
@@ -1479,10 +1466,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         # use cache data
         if use_cache and dataset in self.lfn_dataset_map:
             return 0, self.lfn_dataset_map[dataset]
-        for attempt in range(3):
+        for _ in range(3):
             try:
                 self.logger.debug("listFilesInDataset " + dataset)
-                items, tmp_dummy = rucioAPI.list_files_in_dataset(dataset, file_list=file_list)
+                items, _ = rucioAPI.list_files_in_dataset(dataset, file_list=file_list)
                 status = 0
                 break
             except DataIdentifierNotFound:
@@ -1672,7 +1659,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     break
             # append site
             dest_site = self.site_mapper.getSite(tmp_job.computingSite)
-            scope_dest_input, scope_dest_output = select_scope(dest_site, tmp_job.prodSourceLabel, tmp_job.job_label)
+            scope_dest_input, _ = select_scope(dest_site, tmp_job.prodSourceLabel, tmp_job.job_label)
             dest_ddm_id = dest_site.ddm_input[scope_dest_input]
             # T1 used as T2
             if (
@@ -1681,7 +1668,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 and self.site_mapper.getSite(tmp_job.computingSite).cloud in ["US"]
             ):
                 tmp_site_spec = self.site_mapper.getSite(tmp_job.computingSite)
-                scope_tmp_site_input, scope_tmp_site_output = select_scope(tmp_site_spec, tmp_job.prodSourceLabel, tmp_job.job_label)
+                scope_tmp_site_input, _ = select_scope(tmp_site_spec, tmp_job.prodSourceLabel, tmp_job.job_label)
                 tmp_se_tokens = tmp_site_spec.setokens_input[scope_tmp_site_input]
                 if "ATLASPRODDISK" in tmp_se_tokens:
                     dest_ddm_id = tmp_se_tokens["ATLASPRODDISK"]
@@ -1740,8 +1727,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 dataset_file_map[map_key][real_dest_ddm_id]["files"][tmp_file.lfn]["fileSpecs"].append(tmp_file)
         # loop over all locations
         disp_list = []
-        for tmp_map_key in dataset_file_map:
-            tmp_dum_val = dataset_file_map[tmp_map_key]
+        for _, tmp_dum_val in dataset_file_map.items():
             for tmp_location_list in tmp_dum_val:
                 tmp_val = tmp_dum_val[tmp_location_list]
                 for tmp_location in tmp_location_list:
@@ -1834,14 +1820,14 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         try:
                             vuid = out["vuid"]
                             # dataset spec. currentfiles is used to count the number of failed jobs
-                            ds = DatasetSpec()
-                            ds.vuid = vuid
-                            ds.name = dis_dispatch_block
-                            ds.type = "dispatch"
-                            ds.status = "defined"
-                            ds.numberfiles = len(lfns)
-                            ds.currentfiles = 0
-                            disp_list.append(ds)
+                            dataset = DatasetSpec()
+                            dataset.vuid = vuid
+                            dataset.name = dis_dispatch_block
+                            dataset.type = "dispatch"
+                            dataset.status = "defined"
+                            dataset.numberfiles = len(lfns)
+                            dataset.currentfiles = 0
+                            disp_list.append(dataset)
                         except Exception:
                             error_type, error_value = sys.exc_info()[:2]
                             self.logger.error(f"ext registerNewDataset : failed to decode VUID for {dis_dispatch_block} - {error_type} {error_value}")
@@ -1920,19 +1906,14 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             # ignore inappropriate status
             if tmp_job.jobStatus in ["failed", "cancelled", "waiting"] or tmp_job.isCancelled():
                 continue
-            # set lifetime
-            if tmp_job.prodSourceLabel in ["managed", "test"]:
-                pin_life_time = 7
-            else:
-                pin_life_time = 7
             # get source
             if tmp_job.prodSourceLabel in ["managed", "test"]:
                 tmp_src_id = self.site_mapper.getCloud(tmp_job.getCloud())["source"]
-                scope_input, scope_output = select_scope(tmp_src_id, tmp_job.prodSourceLabel, tmp_job.job_label)
+                scope_input, _ = select_scope(tmp_src_id, tmp_job.prodSourceLabel, tmp_job.job_label)
                 src_ddm_id = self.site_mapper.getSite(tmp_src_id).ddm_input[scope_input]
             else:
                 tmp_src_id = self.site_mapper.getSite(tmp_job.computingSite)
-                scope_input, scope_output = select_scope(tmp_src_id, tmp_job.prodSourceLabel, tmp_job.job_label)
+                scope_input, _ = select_scope(tmp_src_id, tmp_job.prodSourceLabel, tmp_job.job_label)
                 src_ddm_id = tmp_src_id.ddm_input[scope_input]
             # prefix of DQ2 ID
             src_ddm_id_prefix = re.sub("_[A-Z,0-9]+DISK$", "", src_ddm_id)
@@ -1956,6 +1937,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                 status,
                                 tmp_rep_sites_map,
                             ) = self.get_list_dataset_replicas_in_container(tmp_file.dataset, get_map=True)
+                            status = status == 0
                             if status == 0:
                                 status = True
                             else:
@@ -2006,8 +1988,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         self.logger.debug("make subscriptions for missing files")
         # collect datasets
         missing_list = {}
-        for tmp_cloud in self.missing_dataset_list:
-            tmp_miss_datasets = self.missing_dataset_list[tmp_cloud]
+        for tmp_cloud, tmp_miss_datasets in self.missing_dataset_list.items():
             # append cloud
             if tmp_cloud not in missing_list:
                 missing_list[tmp_cloud] = []
@@ -2042,12 +2023,11 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     if tmp_ds_name not in missing_list[tmp_cloud]:
                         missing_list[tmp_cloud].append(tmp_ds_name)
         # make subscriptions
-        for tmp_cloud in missing_list:
-            miss_ds_name_list = missing_list[tmp_cloud]
+        for tmp_cloud, miss_ds_name_list in missing_list.items():
             # get distination
             tmp_dst_id = self.site_mapper.getCloud(tmp_cloud)["source"]
             tmp_dst_spec = self.site_mapper.getSite(tmp_dst_id)
-            scope_input, scope_output = select_scope(tmp_dst_spec, self.prod_source_label, self.job_label)
+            scope_input, _ = select_scope(tmp_dst_spec, self.prod_source_label, self.job_label)
             dst_ddm_id = tmp_dst_spec.ddm_input[scope_input]
             # register subscription
             for miss_ds_name in miss_ds_name_list:
@@ -2094,13 +2074,13 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         """
         Setup jumbo jobs method for running the setup process.
         """
-        if len(self.jumboJobs) == 0:
+        if len(self.jumbo_jobs) == 0:
             return
         self.logger.debug("setup jumbo jobs")
         # get files in datasets
         datasets_lfns_map = {}
         failed_ds = set()
-        for jumbo_job_spec in self.jumboJobs:
+        for jumbo_job_spec in self.jumbo_jobs:
             for tmp_file_spec in jumbo_job_spec.Files:
                 # only input
                 if tmp_file_spec.type not in ["input"]:
@@ -2125,7 +2105,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         # make dis datasets
         ok_jobs = []
         ng_jobs = []
-        for jumbo_job_spec in self.jumboJobs:
+        for jumbo_job_spec in self.jumbo_jobs:
             # skip failed
             if jumbo_job_spec.jobStatus == "failed":
                 ng_jobs.append(jumbo_job_spec)
@@ -2183,7 +2163,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # subscribe dis dataset
                 try:
                     tmp_site_spec = self.site_mapper.getSite(jumbo_job_spec.computingSite)
-                    scope_input, scope_output = select_scope(
+                    scope_input, _ = select_scope(
                         tmp_site_spec,
                         jumbo_job_spec.prodSourceLabel,
                         jumbo_job_spec.job_label,
@@ -2205,14 +2185,14 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     ng_jobs.append(jumbo_job_spec)
                     continue
                 # add dataset in DB
-                ds = DatasetSpec()
-                ds.vuid = vuid
-                ds.name = dispatch_data_block
-                ds.type = "dispatch"
-                ds.status = "defined"
-                ds.numberfiles = len(lfns)
-                ds.currentfiles = 0
-                self.task_buffer.insertDatasets([ds])
+                dataset = DatasetSpec()
+                dataset.vuid = vuid
+                dataset.name = dispatch_data_block
+                dataset.type = "dispatch"
+                dataset.status = "defined"
+                dataset.numberfiles = len(lfns)
+                dataset.currentfiles = 0
+                self.task_buffer.insertDatasets([dataset])
             # set destination
             jumbo_job_spec.destinationSE = jumbo_job_spec.computingSite
             for tmp_file_spec in jumbo_job_spec.Files:
@@ -2226,12 +2206,12 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         return
 
     # make sub dataset name
-    def make_sub_dataset_name(self, original_name: str, sn: int, task_id: int) -> str:
+    def make_sub_dataset_name(self, original_name: str, serial_number: int, task_id: int) -> str:
         """
         Make sub dataset name method for running the setup process.
 
         :param original_name: The original name of the dataset.
-        :param sn: The serial number.
+        :param serial_number: The serial number.
         :param task_id: The task ID.
         :return: The sub dataset name.
         """
@@ -2241,6 +2221,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 part_name = ".".join(original_name.split(".")[:3])
             else:
                 part_name = ".".join(original_name.split(".")[:2]) + ".NA." + ".".join(original_name.split(".")[3:5])
-            return f"{part_name}.{task_id}_sub{sn}"
+            return f"{part_name}.{task_id}_sub{serial_number}"
         except Exception:
-            return f"{original_name}_sub{sn}"
+            return f"{original_name}_sub{serial_number}"
