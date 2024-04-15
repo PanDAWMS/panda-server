@@ -328,7 +328,7 @@ class RucioAPI:
             for dataset_name in tmp_map:
                 file_list = tmp_map[dataset_name]
                 # extract scope from dataset
-                scope, dataset_name = self.extract_scope(dataset_name)
+                scope, given_dataset_name = self.extract_scope(dataset_name)
                 files_with_rse = []
                 files_without_rse = []
                 for tmp_file in file_list:
@@ -348,7 +348,7 @@ class RucioAPI:
                     while i_files < len(files_with_rse):
                         attachment = {
                             "scope": scope,
-                            "name": dataset_name,
+                            "name": given_dataset_name,
                             "dids": files_with_rse[i_files : i_files + n_files],
                             "rse": rse,
                         }
@@ -360,7 +360,7 @@ class RucioAPI:
                     while i_files < len(files_without_rse):
                         attachment = {
                             "scope": scope,
-                            "name": dataset_name,
+                            "name": given_dataset_name,
                             "dids": files_without_rse[i_files : i_files + n_files],
                         }
                         attachment_list.append(attachment)
@@ -441,7 +441,7 @@ class RucioAPI:
         result = {}
         # extract scope from dataset
         scope, given_dataset_name = self.extract_scope(dataset_name)
-        if dataset_name.endswith("/"):
+        if given_dataset_name.endswith("/"):
             given_dataset_name = given_dataset_name[:-1]
             collection = "container"
         else:
@@ -742,16 +742,16 @@ class RucioAPI:
                 if tmp_lfn not in file_list and gen_lfn not in file_list:
                     continue
             rucio_attrs = {}
-            rucio_attrs["chksum"] = "ad:" + str(file_list["adler32"])
+            rucio_attrs["chksum"] = "ad:" + str(file_info["adler32"])
             rucio_attrs["md5sum"] = rucio_attrs["chksum"]
             rucio_attrs["checksum"] = rucio_attrs["chksum"]
-            rucio_attrs["fsize"] = file_list["bytes"]
+            rucio_attrs["fsize"] = file_info["bytes"]
             rucio_attrs["filesize"] = rucio_attrs["fsize"]
-            rucio_attrs["scope"] = str(file_list["scope"])
-            rucio_attrs["events"] = str(file_list["events"])
+            rucio_attrs["scope"] = str(file_info["scope"])
+            rucio_attrs["events"] = str(file_info["events"])
             if long:
-                rucio_attrs["lumiblocknr"] = str(file_list["lumiblocknr"])
-            guid = str(f"{file_list['guid'][0:8]}-{file_list['guid'][8:12]}-{file_list['guid'][12:16]}-{file_list['guid'][16:20]}-{file_list['guid'][20:32]}")
+                rucio_attrs["lumiblocknr"] = str(file_info["lumiblocknr"])
+            guid = str(f"{file_info['guid'][0:8]}-{file_info['guid'][8:12]}-{file_info['guid'][12:16]}-{file_info['guid'][16:20]}-{file_info['guid'][20:32]}")
             rucio_attrs["guid"] = guid
             return_dict[tmp_lfn] = rucio_attrs
         return (return_dict, None)
@@ -849,11 +849,11 @@ class RucioAPI:
                     else:
                         dataset_name = {"scope": scope, "name": dataset}
                     dataset_names.append(dataset_name)
-                client.add_datasets_to_container(scope=scope, name=container_name, dataset_names=dataset_names)
+                client.add_datasets_to_container(scope=scope, name=container_name, dsns=dataset_names)
             except DuplicateContent:
                 for dataset in dataset_names:
                     try:
-                        client.add_datasets_to_container(scope=scope, name=container_name, dataset_names=[dataset])
+                        client.add_datasets_to_container(scope=scope, name=container_name, dsns=[dataset])
                     except DuplicateContent:
                         pass
         return True
