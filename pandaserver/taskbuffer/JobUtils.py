@@ -26,14 +26,6 @@ job_labels = [ANALY_PS, PROD_PS]
 priorityTasksToJumpOver = 1500
 
 
-def translate_resourcetype_to_cores(resource_type, cores_queue):
-    # resolve the multiplying core factor
-    if "MCORE" in resource_type:
-        return cores_queue
-    else:
-        return 1
-
-
 def translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel):
     if prodsourcelabel in analy_sources:
         return ANALY_PS

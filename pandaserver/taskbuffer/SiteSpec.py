@@ -82,14 +82,6 @@ class SiteSpec(object):
             return True
         return False
 
-    # get resource type
-    def getResourceType(self):
-        if self.type == "analysis":
-            return "ANALY"
-        if self.coreCount > 1:
-            return "MCORE"
-        return "SCORE"
-
     # check what type of jobs are allowed
     def getJobSeed(self):
         tmpVal = self.jobseed
@@ -157,7 +149,7 @@ class SiteSpec(object):
             return None
         return int(tmpVal)
 
-    # get minimum of remainig events for jumbo jobs
+    # get minimum of remaining events for jumbo jobs
     def getMinEventsForJumbo(self):
         tmpVal = self.getValueFromCatchall("minEventsForJumbo")
         if tmpVal is None:

@@ -3571,7 +3571,7 @@ class TaskBuffer:
 
     def getResourceTypes(self):
         """
-        Get resource types (SCORE, MCORE, SCORE_HIMEM, MCORE_HIMEM) and their definitions
+        Get resource types (SCORE, MCORE, ...) and their definitions
         """
         # get DB proxy
         proxy = self.proxyPool.getProxy()
