@@ -99,10 +99,7 @@ class Setupper(threading.Thread):
                 setupper_plugin_class = panda_config.getPlugin("setupper_plugins", tmp_vo)
                 if setupper_plugin_class is None:
                     # use ATLAS plug-in by default
-                    from pandaserver.dataservice.setupper_atlas_plugin import (
-                        SetupperAtlasPlugin,
-                    )
-
+                    from pandaserver.dataservice.setupper_atlas_plugin import SetupperAtlasPlugin
                     setupper_plugin_class = SetupperAtlasPlugin
                 tmp_log.debug(f"plugin name -> {setupper_plugin_class.__name__}")
                 try:
@@ -120,7 +117,7 @@ class Setupper(threading.Thread):
                     # run plugin
                     tmp_log.debug("run plugin")
                     setupper_plugin.run()
-                    # go forward if not TA
+                    # go forward if not Task Assignment
                     if not self.only_ta:
                         # update jobs
                         tmp_log.debug("update jobs")
@@ -148,7 +145,7 @@ class Setupper(threading.Thread):
         failed_jobs = []
         activate_jobs = []
         waiting_jobs = []
-        # sort out jobs
+        # sort jobs by status
         for job in job_list:
             # failed jobs
             if job.jobStatus in ["failed", "cancelled"]:
@@ -164,6 +161,7 @@ class Setupper(threading.Thread):
                 # change status
                 job.jobStatus = "assigned"
                 update_jobs.append(job)
+
         # trigger merge generation if all events are done
         new_activate_jobs = []
         n_finished = 0
