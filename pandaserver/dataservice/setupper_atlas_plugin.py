@@ -877,7 +877,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     if ddm_id != dst_ddm_id or missing_at_t1:
                         # make list
                         if job.dispatchDBlock in self.replica_map:
-                            # set DQ2 ID for DISK
+                            # set DDM ID for DISK
                             if not src_ddm_id.endswith("_DATADISK"):
                                 hot_id = re.sub("_MCDISK", "_HOTDISK", src_ddm_id)
                                 disk_id = re.sub("_MCDISK", "_DATADISK", src_ddm_id)
@@ -1192,7 +1192,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         self.logger.error(out)
                         prod_error[dataset] = f"could not get file list of prodDBlock {dataset}"
                         self.logger.error(prod_error[dataset])
-                        # doesn't exist in DQ2
+                        # doesn't exist in DDM
                         if status == -1:
                             missing_ds[dataset] = f"DS:{dataset} not found in DDM"
                         else:
@@ -1915,7 +1915,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 tmp_src_id = self.site_mapper.getSite(tmp_job.computingSite)
                 scope_input, _ = select_scope(tmp_src_id, tmp_job.prodSourceLabel, tmp_job.job_label)
                 src_ddm_id = tmp_src_id.ddm_input[scope_input]
-            # prefix of DQ2 ID
+            # prefix of DDM ID
             src_ddm_id_prefix = re.sub("_[A-Z,0-9]+DISK$", "", src_ddm_id)
             # loop over all files
             for tmp_file in tmp_job.Files:
@@ -1953,7 +1953,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             # set empty to avoid further lookup
                             all_replica_map[tmp_file.dataset] = {}
                         # loop over constituent datasets
-                        self.logger.debug(f"pin DQ2 prefix={src_ddm_id_prefix}")
+                        self.logger.debug(f"pin DDM prefix={src_ddm_id_prefix}")
                         for tmp_ds_name in all_replica_map[tmp_file.dataset]:
                             tmp_rep_sites_map = all_replica_map[tmp_file.dataset][tmp_ds_name]
                             # loop over locations
@@ -1976,7 +1976,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                     done_list.append(tmp_key)
                                     # set pin lifetime
                                     # status = self.setReplicaMetadata(tmpDsName,tmpRepSite,'pin_lifetime','%s days' % pinLifeTime)
-        # retrun
+        # return
         self.logger.debug("pin input datasets done")
         return
 
