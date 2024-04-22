@@ -803,6 +803,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     dataset_list[new_dest].numberfiles = dataset_list[new_dest].numberfiles + 1
         # dump
         for dataset_name, dataset in dataset_list.items():
+            # Ensure dataset_name is a string
+            if isinstance(dataset_name, tuple):
+                dataset_name = dataset_name[0]
             if DataServiceUtils.is_sub_dataset(dataset_name):
                 self.logger.debug(f"made sub:{dataset_name} for nFiles={dataset.numberfiles}")
         # insert datasets to DB
