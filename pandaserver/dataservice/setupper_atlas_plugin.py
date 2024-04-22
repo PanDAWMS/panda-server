@@ -709,8 +709,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                         self.logger.debug(
                                             new_out.format(
                                                 name=name,
-                                                dq2ID=ddm_id,
-                                                repLifeTime=rep_life_time,
+                                                ddm_id=ddm_id,
+                                                rep_life_time=rep_life_time,
                                                 activity=activity,
                                                 grouping=grouping,
                                             )
