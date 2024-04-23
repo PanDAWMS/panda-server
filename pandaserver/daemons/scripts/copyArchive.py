@@ -651,7 +651,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         else:
             last_start = None
         site_status = siteMapper.getSite(tmpSite).status
-        if stSS is True and (last_start is None or last_start < timeLimitSite or site_status in ["offline", "test"]):
+        if stSS is True and ((last_start is not None and last_start < timeLimitSite) or site_status in ["offline", "test"]):
             # get jobs
             varMap = {}
             varMap[":prodSourceLabel"] = "managed"
