@@ -6,9 +6,10 @@ import threading
 import time
 import traceback
 
-import pandaserver.taskbuffer.ErrorCode
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
+
+import pandaserver.taskbuffer.ErrorCode
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils
@@ -255,7 +256,7 @@ def main(tbuf=None, **kwargs):
 
     # close datasets
     _logger.debug("==== close datasets ====")
-    timeLimitU = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=30)
+    timeLimitU = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=1)
     timeLimitL = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=3)
     closeLock = threading.Semaphore(5)
     closeProxyLock = threading.Lock()

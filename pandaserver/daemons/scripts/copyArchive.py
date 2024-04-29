@@ -6,15 +6,16 @@ import sys
 import time
 import traceback
 
-import pandaserver.userinterface.Client as Client
 import requests
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
+from urllib3.exceptions import InsecureRequestWarning
+
+import pandaserver.userinterface.Client as Client
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.jobdispatcher.Watcher import Watcher
 from pandaserver.taskbuffer import EventServiceUtils
-from urllib3.exceptions import InsecureRequestWarning
 
 # logger
 _logger = PandaLogger().getLogger("copyArchive")
@@ -629,7 +630,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     varMap[":rFlag1"] = 2
     stDS, resDS = taskBuffer.querySQLS(sql, varMap)
     sqlSS = "SELECT laststart FROM ATLAS_PANDAMETA.siteData "
-    sqlSS += "WHERE site=:site AND flag=:flag AND hours=:hours AND laststart<:laststart "
+    sqlSS += "WHERE site=:site AND flag=:flag AND hours=:hours "
     sqlPI = "SELECT PandaID,eventService,attemptNr FROM ATLAS_PANDA.jobsActive4 "
     sqlPI += "WHERE prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) "
     sqlPI += "AND (modificationTime<:timeLimit OR stateChangeTime<:timeLimit) "
@@ -644,9 +645,13 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         varMap[":site"] = tmpSite
         varMap[":flag"] = "production"
         varMap[":hours"] = 3
-        varMap[":laststart"] = timeLimitSite
         stSS, resSS = taskBuffer.querySQLS(sqlSS, varMap)
-        if stSS is not None and len(resSS) > 0:
+        if resSS is not None and len(resSS) > 0:
+            last_start = resSS[0][0]
+        else:
+            last_start = None
+        site_status = siteMapper.getSite(tmpSite).status
+        if stSS is True and ((last_start is not None and last_start < timeLimitSite) or site_status in ["offline", "test"]):
             # get jobs
             varMap = {}
             varMap[":prodSourceLabel"] = "managed"
@@ -661,7 +666,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             stPI, resPI = taskBuffer.querySQLS(sqlPI, varMap)
             jediJobs = []
             # reassign
-            _logger.debug(f"reassignJobs for JEDI at inactive site {tmpSite} laststart={resSS[0][0]}")
+            _logger.debug(f"reassignJobs for JEDI at inactive site {tmpSite} laststart={last_start} status={site_status}")
             if resPI is not None:
                 for pandaID, eventService, attemptNr in resPI:
                     if eventService in [EventServiceUtils.esMergeJobFlagNumber]:
