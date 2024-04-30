@@ -246,6 +246,64 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         errStr = traceback.format_exc()
         tmp_log.error(errStr)
 
+    tmp_log.debug("Fork session")
+
+    # thread for fork
+    class ForkThr(threading.Thread):
+        def __init__(self, fileName):
+            threading.Thread.__init__(self)
+            self.fileName = fileName
+
+        def run(self):
+            if "VIRTUAL_ENV" in os.environ:
+                prefix = os.environ["VIRTUAL_ENV"]
+            else:
+                prefix = ""
+            setupStr = f"source {prefix}/etc/sysconfig/panda_server; "
+            runStr = f"{panda_config.native_python}/python -Wignore "
+            runStr += panda_config.pandaPython_dir + "/dataservice/forkSetupper.py -i "
+            runStr += self.fileName
+            if self.fileName.split("/")[-1].startswith("set.NULL."):
+                runStr += " -t"
+            comStr = setupStr + runStr
+            tmp_log.debug(comStr)
+            commands_get_status_output(comStr)
+
+    # get set.* files
+    filePatt = panda_config.logdir + "/" + "set.*"
+    fileList = glob.glob(filePatt)
+
+    # the max number of threads
+    maxThr = 10
+    nThr = 0
+
+    # loop over all files
+    forkThrList = []
+    timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    for tmpName in fileList:
+        if not os.path.exists(tmpName):
+            continue
+        try:
+            # takes care of only recent files
+            mod_time = datetime.datetime(*(time.gmtime(os.path.getmtime(tmpName))[:7]))
+            if datetime.timedelta(minutes=1) < (timeNow - mod_time) < datetime.timedelta(hours=1):
+                cSt, cOut = commands_get_status_output("ps aux | grep fork | grep -v PYTH")
+                # if no process is running for the file
+                if cSt == 0 and tmpName not in cOut:
+                    nThr += 1
+                    thr = ForkThr(tmpName)
+                    thr.start()
+                    forkThrList.append(thr)
+                    if nThr > maxThr:
+                        break
+        except Exception:
+            errType, errValue = sys.exc_info()[:2]
+            tmp_log.error(f"{errType} {errValue}")
+
+    # join fork threads
+    for thr in forkThrList:
+        thr.join()
+
     # stop taskBuffer if created inside this script
     if tbuf is None:
         taskBuffer.cleanup(requester=requester_id)

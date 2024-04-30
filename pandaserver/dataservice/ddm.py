@@ -10,6 +10,7 @@ import traceback
 
 from typing import Dict, List
 
+from pandaserver.srvcore import CoreUtils
 from rucio.client import Client as RucioClient
 from rucio.common.exception import (
     DataIdentifierAlreadyExists,
@@ -20,7 +21,6 @@ from rucio.common.exception import (
     FileAlreadyExists,
     UnsupportedOperation,
 )
-from pandaserver.srvcore import CoreUtils
 
 
 # rucio
@@ -910,8 +910,8 @@ class RucioAPI:
                 if user_info is not None:
                     return_value = True
                     break
-        except Exception as error:
-            error_message = f"{str(error)}"
+        except Exception as e:
+            error_message = f"{str(e)}"
             user_info = error_message
         return return_value, user_info
 
