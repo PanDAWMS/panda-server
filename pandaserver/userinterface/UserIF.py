@@ -119,7 +119,6 @@ class UserIF:
         ret = self.taskBuffer.storeJobs(
             jobs,
             user,
-            forkSetupper=False,
             fqans=userFQANs,
             hostname=host,
             toPending=toPending,
@@ -497,7 +496,6 @@ class UserIF:
         # reassign jobs
         ret = self.taskBuffer.reassignJobs(
             ids,
-            forkSetupper=False,
             forPending=forPending,
             firstSubmission=firstSubmission,
         )

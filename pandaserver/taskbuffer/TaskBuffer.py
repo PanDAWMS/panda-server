@@ -16,7 +16,7 @@ from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice.closer import Closer
 from pandaserver.dataservice.ProcessLimiter import ProcessLimiter
-from pandaserver.dataservice.Setupper import Setupper
+from pandaserver.dataservice.setupper import Setupper
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import ErrorCode, EventServiceUtils, JobUtils, ProcessGroups
 from pandaserver.taskbuffer.DBProxyPool import DBProxyPool
@@ -172,10 +172,8 @@ class TaskBuffer:
         jobs,
         user,
         joinThr=False,
-        forkSetupper=False,
         fqans=[],
         hostname="",
-        resetLocInSetupper=False,
         checkSpecialHandling=True,
         toPending=False,
         oldPandaIDs=None,
@@ -555,9 +553,7 @@ class TaskBuffer:
                     thr = Setupper(
                         self,
                         newJobs,
-                        pandaDDM=usePandaDDM,
-                        forkRun=forkSetupper,
-                        resetLocation=resetLocInSetupper,
+                        panda_ddm=usePandaDDM,
                     )
                     thr.start()
                     thr.join()
@@ -566,9 +562,7 @@ class TaskBuffer:
                     Setupper(
                         self,
                         newJobs,
-                        pandaDDM=usePandaDDM,
-                        forkRun=forkSetupper,
-                        resetLocation=resetLocInSetupper,
+                        panda_ddm=usePandaDDM,
                     ).start()
             # return jobIDs
             tmpLog.debug("end successfully")
@@ -1612,7 +1606,6 @@ class TaskBuffer:
         ids,
         attempt=0,
         joinThr=False,
-        forkSetupper=False,
         forPending=False,
         firstSubmission=True,
     ):
@@ -1689,7 +1682,6 @@ class TaskBuffer:
                     jobs,
                     resubmit=True,
                     ddmAttempt=attempt,
-                    forkRun=forkSetupper,
                     firstSubmission=firstSubmission,
                 )
                 thr.start()
@@ -1701,7 +1693,6 @@ class TaskBuffer:
                     jobs,
                     resubmit=True,
                     ddmAttempt=attempt,
-                    forkRun=forkSetupper,
                     firstSubmission=firstSubmission,
                 ).start()
         tmpLog.debug("done")
