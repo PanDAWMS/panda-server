@@ -1681,8 +1681,8 @@ class TaskBuffer:
                     self,
                     jobs,
                     resubmit=True,
-                    ddmAttempt=attempt,
-                    firstSubmission=firstSubmission,
+                    ddm_attempt=attempt,
+                    first_submission=firstSubmission,
                 )
                 thr.start()
                 thr.join()
@@ -1692,8 +1692,8 @@ class TaskBuffer:
                     self,
                     jobs,
                     resubmit=True,
-                    ddmAttempt=attempt,
-                    firstSubmission=firstSubmission,
+                    ddm_attempt=attempt,
+                    first_submission=firstSubmission,
                 ).start()
         tmpLog.debug("done")
         # return
