@@ -1681,7 +1681,7 @@ class TaskBuffer:
                     self,
                     jobs,
                     resubmit=True,
-                    ddm_attempt==attempt,
+                    ddm_attempt=attempt,
                     first_submission=firstSubmission,
                 )
                 thr.start()
