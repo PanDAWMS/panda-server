@@ -1,4 +1,5 @@
 import datetime
+import gc
 import gzip
 import json
 import os
@@ -12,12 +13,13 @@ from typing import Generator
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from werkzeug.datastructures import FileStorage
+
 from pandaserver.config import panda_config
 from pandaserver.jobdispatcher import Protocol
 from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.userinterface import Client
-from werkzeug.datastructures import FileStorage
 
 _logger = PandaLogger().getLogger("Utils")
 
@@ -90,16 +92,25 @@ def putFile(panda_request: PandaRequest, file: FileStorage) -> str:
     """
 
     tmp_log = LogWrapper(_logger, f"putFile-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+    tmp_log.debug(f"start")
 
     # check if using secure connection and the proxy is not limited
     if not Protocol.isSecure(panda_request):
+        tmp_log.error("no HTTPS")
+        tmp_log.debug("trigger garbage collection")
+        gc.collect()
+        tmp_log.debug("end")
         return ERROR_NOT_SECURE
     if "/CN=limited proxy" in panda_request.subprocess_env["SSL_CLIENT_S_DN"]:
+        tmp_log.error("limited proxy is used")
+        tmp_log.debug("trigger garbage collection")
+        gc.collect()
+        tmp_log.debug("end")
         return ERROR_LIMITED_PROXY
 
     # user name
     user_name = CoreUtils.clean_user_id(panda_request.subprocess_env["SSL_CLIENT_S_DN"])
-    tmp_log.debug(f"start {user_name} {file.filename}")
+    tmp_log.debug(f"user_name={user_name} file_path={file.filename}")
 
     # get file size limit
     if not file.filename.startswith("sources."):
@@ -120,6 +131,8 @@ def putFile(panda_request: PandaRequest, file: FileStorage) -> str:
         else:
             error_message += " Please remove redundant files from your work area"
         tmp_log.error(error_message)
+        tmp_log.debug("trigger garbage collection")
+        gc.collect()
         tmp_log.debug("end")
         return error_message
 
@@ -150,6 +163,8 @@ def putFile(panda_request: PandaRequest, file: FileStorage) -> str:
     except Exception:
         error_message = ERROR_WRITE
         tmp_log.error(error_message)
+        tmp_log.debug("trigger garbage collection")
+        gc.collect()
         tmp_log.debug("end")
         return error_message
 
@@ -190,7 +205,10 @@ def putFile(panda_request: PandaRequest, file: FileStorage) -> str:
 
             tmp_log.debug(f"inserted sandbox to DB with {output_client}")
 
+    tmp_log.debug("trigrer garbage collection")
+    gc.collect()
     tmp_log.debug("end")
+
     return "True"
 
 
