@@ -1,10 +1,10 @@
 # python venv
-@@virtual_env_setup@@
+VIRTUAL_ENV=@@virtual_env@@
 
-OPTIONS="-f ${VIRTUAL_ENV}/etc/panda/panda_server-httpd.conf"
+OPTIONS="-f @@virtual_env@@/etc/panda/panda_server-httpd.conf"
 
 # reset PATH/LD_LIBRARY_PATH since atlpan's ones break grid-tools
-PATH=${VIRTUAL_ENV}/bin:/bin:/usr/local/bin:/usr/bin
+PATH=@@virtual_env@@/bin:/bin:/usr/local/bin:/usr/bin
 LD_LIBRARY_PATH=
 
 # for DQ2
