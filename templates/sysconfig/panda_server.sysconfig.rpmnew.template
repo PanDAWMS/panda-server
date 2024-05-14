@@ -1,4 +1,7 @@
-# Configuration file for the httpd service.
+# Configuration file for the httpd service launched not through systemd,
+# e.g. in container where some parameters are dynamically set via env
+# variables while systemd services don't inherit env variables from PID1
+
 
 @@virtual_env_setup@@
 

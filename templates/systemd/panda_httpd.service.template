@@ -5,6 +5,7 @@ PartOf=panda.service
 After=panda.service
 
 [Service]
+User=atlpan
 Type=notify
 Nice=0
 EnvironmentFile=/etc/sysconfig/panda_server_env
