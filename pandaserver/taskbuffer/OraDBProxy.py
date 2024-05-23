@@ -23435,12 +23435,59 @@ class DBProxy:
         tmpLog.debug("done")
         return worker_stats_dict
 
+    def get_average_memory_workers(self, queue):
+        """
+        Calculates the average memory for running and queued workers at a particular panda queue
+
+        :param queue: name of the PanDA queue
+        :param worker_stats_harvester: worker statistics for the particular harvester instance
+
+        :return: average memory
+        """
+
+        """SELECT computingsite, harvester_id, 
+       sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) as avg_memory_queue
+FROM (
+    SELECT hws.computingsite, 
+           hws.harvester_id, 
+           hws.n_workers, 
+           hws.n_workers * NVL(rt.maxcore, NVL(sj.data.corecount, 1)) * NVL(rt.maxrampercore, sj.data.maxrss / NVL(sj.data.corecount, 1)) as total_memory,
+           NVL(rt.maxcore, NVL(sj.data.corecount, 1)) as corecount
+    FROM ATLAS_PANDA.harvester_worker_stats hws
+    JOIN ATLAS_PANDA.resource_types rt ON hws.resourcetype = rt.resource_name
+    JOIN ATLAS_PANDA.schedconfig_json sj ON hws.computingsite = sj.panda_queue
+    WHERE lastupdate > sysdate - interval '3' hour
+      AND status IN ('running', 'submitted', 'to_submit')
+) 
+GROUP BY computingsite, harvester_id
+ORDER BY harvester_id, computingsite;
+"""
+
+        comment = " /* DBProxy.get_average_memory_workers */"
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        tmp_logger = LogWrapper(_logger, method_name)
+        tmp_logger.debug("start")
+        try:
+            # sql to get the pre-calculated average memory for the queue
+            sql = "SELECT average_memory FROM ATLAS_PANDA.average_memory_workers WHERE queue=:queue "
+
+            self.cur.execute(sql + comment)
+            results = self.cur.fetchone()
+            (average_memory,) = results[0]
+
+            tmp_logger.debug(f"Queue {queue} currently has {average_memory} MB of average memory workers")
+            return average_memory
+
+        except Exception:
+            self.dumpErrorMessage(tmp_logger, method_name)
+            return None
+
     def ups_new_worker_distribution(self, queue, worker_stats):
         """
         Assuming we want to have n_cores_queued >= n_cores_running * .5, calculate how many pilots need to be submitted
         and choose the number
 
-        :param queue: name of the queue
+        :param queue: name of the PanDA queue
         :param worker_stats: queue worker stats
         :return:
         """
@@ -23461,6 +23508,8 @@ class DBProxy:
         pq_data_des = self.get_config_for_pq(queue)
         resource_type_limits = {}
         queue_type = "production"
+        average_memory_target = None
+
         if not pq_data_des:
             tmp_log.debug("Error retrieving queue configuration from DB, limits can not be applied")
         else:
@@ -23468,6 +23517,11 @@ class DBProxy:
                 resource_type_limits = pq_data_des["uconfig"]["resource_type_limits"]
             except KeyError:
                 tmp_log.debug("No resource type limits")
+                pass
+            try:
+                average_memory_target = pq_data_des["uconfig"]["average_memory"]
+            except KeyError:
+                tmp_log.debug("No average memory defined")
                 pass
             try:
                 queue_type = pq_data_des["type"]
@@ -23489,59 +23543,59 @@ class DBProxy:
         except KeyErrorException:
             assigned_harvester_id = None
 
-        harvester_ids = []
-        # If the assigned instance is working, use it for the statistics
-        if assigned_harvester_id in harvester_ids_temp:
-            harvester_ids = [assigned_harvester_id]
-
-        # Filter central harvester instances that support UPS model
+        # If there is no harvester instance assigned to the queue or there are no statistics, we exit without any action
+        if assigned_harvester_id and assigned_harvester_id in harvester_ids_temp:
+            harvester_id = assigned_harvester_id
         else:
-            for harvester_id in harvester_ids_temp:
-                if "ACT" not in harvester_id and "test_fbarreir" not in harvester_id and "cern_cloud" not in harvester_id:
-                    harvester_ids.append(harvester_id)
+            tmp_log.error("No harvester instance assigned or not in statistics")
+            return {}
 
-        for harvester_id in harvester_ids:
-            for job_type in worker_stats[harvester_id]:
-                workers_queued.setdefault(job_type, {})
-                for resource_type in worker_stats[harvester_id][job_type]:
-                    core_factor = self.__resource_spec_mapper.translate_resourcetype_to_cores(resource_type, cores_queue)
-                    try:
-                        n_cores_running = n_cores_running + worker_stats[harvester_id][job_type][resource_type]["running"] * core_factor
+        # If the site defined a memory target, calculate the memory requested by running and queued workers
+        average_memory_workers = None
+        resource_types_under_target = []
+        if average_memory_target:
+            average_memory_workers = self.get_average_memory_workers(queue)
+            resource_types_under_target = self.__resource_spec_mapper.filter_resourcetypes_by_memory_limit(average_memory_target)
 
-                        # This limit is in #JOBS or #WORKERS
-                        if resource_type in resource_type_limits:
-                            resource_type_limits[resource_type] = (
-                                resource_type_limits[resource_type] - worker_stats[harvester_id][job_type][resource_type]["running"]
-                            )
-                            tmp_log.debug(f"Limit for rt {resource_type} down to {resource_type_limits[resource_type]}")
+        for job_type in worker_stats[harvester_id]:
+            workers_queued.setdefault(job_type, {})
+            for resource_type in worker_stats[harvester_id][job_type]:
+                core_factor = self.__resource_spec_mapper.translate_resourcetype_to_cores(resource_type, cores_queue)
+                try:
+                    n_cores_running = n_cores_running + worker_stats[harvester_id][job_type][resource_type]["running"] * core_factor
 
-                        # This limit is in #CORES, since it mixes single and multi core jobs
-                        if self.__resource_spec_mapper.is_high_memory(resource_type) and HIMEM in resource_type_limits:
-                            resource_type_limits[HIMEM] = (
-                                resource_type_limits[HIMEM] - worker_stats[harvester_id][job_type][resource_type]["running"] * core_factor
-                            )
-                            tmp_log.debug(f"Limit for rt group {HIMEM} down to {resource_type_limits[HIMEM]}")
-
-                    except KeyError:
-                        pass
-
-                    try:  # submitted
-                        workers_queued[job_type].setdefault(resource_type, 0)
-                        workers_queued[job_type][resource_type] = (
-                            workers_queued[job_type][resource_type] + worker_stats[harvester_id][job_type][resource_type]["submitted"]
+                    # This limit is in #JOBS or #WORKERS, not in #CORES
+                    if resource_type in resource_type_limits:
+                        resource_type_limits[resource_type] = (
+                            resource_type_limits[resource_type] - worker_stats[harvester_id][job_type][resource_type]["running"]
                         )
-                        n_cores_queued = n_cores_queued + worker_stats[harvester_id][job_type][resource_type]["submitted"] * core_factor
-                    except KeyError:
-                        pass
+                        tmp_log.debug(f"Limit for rt {resource_type} down to {resource_type_limits[resource_type]}")
 
-                    try:  # ready
-                        workers_queued[job_type].setdefault(resource_type, 0)
-                        workers_queued[job_type][resource_type] = (
-                            workers_queued[job_type][resource_type] + worker_stats[harvester_id][job_type][resource_type]["ready"]
-                        )
-                        n_cores_queued = n_cores_queued + worker_stats[harvester_id][job_type][resource_type]["ready"] * core_factor
-                    except KeyError:
-                        pass
+                    # This limit is in #CORES, since it mixes single and multi core jobs
+                    if self.__resource_spec_mapper.is_high_memory(resource_type) and HIMEM in resource_type_limits:
+                        resource_type_limits[HIMEM] = resource_type_limits[HIMEM] - worker_stats[harvester_id][job_type][resource_type]["running"] * core_factor
+                        tmp_log.debug(f"Limit for rt group {HIMEM} down to {resource_type_limits[HIMEM]}")
+
+                except KeyError:
+                    pass
+
+                try:  # submitted
+                    workers_queued[job_type].setdefault(resource_type, 0)
+                    workers_queued[job_type][resource_type] = (
+                        workers_queued[job_type][resource_type] + worker_stats[harvester_id][job_type][resource_type]["submitted"]
+                    )
+                    n_cores_queued = n_cores_queued + worker_stats[harvester_id][job_type][resource_type]["submitted"] * core_factor
+                except KeyError:
+                    pass
+
+                try:  # ready
+                    workers_queued[job_type].setdefault(resource_type, 0)
+                    workers_queued[job_type][resource_type] = (
+                        workers_queued[job_type][resource_type] + worker_stats[harvester_id][job_type][resource_type]["ready"]
+                    )
+                    n_cores_queued = n_cores_queued + worker_stats[harvester_id][job_type][resource_type]["ready"] * core_factor
+                except KeyError:
+                    pass
 
         tmp_log.debug(f"Queue {queue} queued worker overview: {workers_queued}")
 
@@ -23566,19 +23620,27 @@ class DBProxy:
         # Get the sorted global shares
         sorted_shares = self.get_sorted_leaves()
 
-        # Run over the activated jobs by gshare & priority, and substract them from the queued
+        # Run over the activated jobs by gshare & priority, and subtract them from the queued
         # A negative value for queued will mean more pilots of that resource type are missing
         for share in sorted_shares:
             var_map = {":queue": queue, ":gshare": share.name}
-            sql = f"""
-                  SELECT gshare, prodsourcelabel, resource_type FROM {panda_config.schemaPANDA}.jobsactive4
-                  WHERE jobstatus = 'activated'
-                     AND computingsite=:queue
-                     AND gshare=:gshare
-                  ORDER BY currentpriority DESC
-                  """
+            sql = (
+                f"SELECT gshare, prodsourcelabel, resource_type FROM {panda_config.schemaPANDA}.jobsactive4 "
+                "WHERE jobstatus = 'activated' "
+                "AND computingsite=:queue "
+                "AND gshare=:gshare "
+            )
+
+            # if we need to filter on resource types
+            if resource_types_under_target:
+                resource_type_string = ", ".join([f":{item}" for item in resource_types_under_target])
+                sql += f"   AND resource_type IN ({resource_type_string}) "
+                var_map.update({f":{item}": item for item in resource_types_under_target})
+
+            sql += "ORDER BY currentpriority DESC"
             self.cur.execute(sql + comment, var_map)
             activated_jobs = self.cur.fetchall()
+
             tmp_log.debug(f"Processing share: {share.name}. Got {len(activated_jobs)} activated jobs")
             for gshare, prodsourcelabel, resource_type in activated_jobs:
                 core_factor = self.__resource_spec_mapper.translate_resourcetype_to_cores(resource_type, cores_queue)

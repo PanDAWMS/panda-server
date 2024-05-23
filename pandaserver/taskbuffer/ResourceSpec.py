@@ -42,6 +42,10 @@ class ResourceSpecMapper(object):
 
         return 1
 
+    def filter_resourcetypes_by_memory_limit(self, memory_limit):
+        resource_names = list(filter(lambda resource_type: resource_type.maxrampercore <= memory_limit, self.resource_types))
+        return resource_names
+
 
 class ResourceSpec(object):
     # attributes
