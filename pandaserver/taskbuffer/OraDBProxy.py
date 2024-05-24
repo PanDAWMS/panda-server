@@ -23441,6 +23441,7 @@ class DBProxy:
 
         :param queue: name of the PanDA queue
         :param worker_stats_harvester: worker statistics for the particular harvester instance
+        :param harvester_id: string with the harvester ID serving the queue
 
         :return: average memory
         """
