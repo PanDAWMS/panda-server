@@ -9,12 +9,11 @@ import sys
 import time
 import traceback
 import uuid
+from typing import Dict, List, Optional, Tuple
 
-from typing import List, Dict, Tuple, Optional
 from rucio.common.exception import DataIdentifierNotFound
 
 import pandaserver.brokerage.broker
-
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.dataservice import DataServiceUtils, ErrorCode
 from pandaserver.dataservice.DataServiceUtils import select_scope
@@ -24,12 +23,12 @@ from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
 
 
-
 class SetupperAtlasPlugin(SetupperPluginBase):
     """
     setup dataset for ATLAS
 
     """
+
     # constructor
     def __init__(self, taskBuffer, jobs: List, logger, **params: Dict) -> None:
         """
@@ -506,7 +505,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         if start_idx == -1:
             jobs_list = self.jobs
         else:
-            jobs_list = self.jobs[start_idx: start_idx + n_jobs_in_loop]
+            jobs_list = self.jobs[start_idx : start_idx + n_jobs_in_loop]
         for job in jobs_list:
             # ignore failed jobs
             if job.jobStatus in ["failed", "cancelled"] or job.isCancelled():
@@ -1376,14 +1375,13 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     # input project
                     if tmp_input_file_project is not None:
                         tmp_job.inputFileProject = tmp_input_file_project
-                    # input type
-                    if tmp_input_file_type is not None:
-                        tmp_job.inputFileType = tmp_input_file_type
                 # protection
                 max_input_file_bytes = 99999999999
                 tmp_job.inputFileBytes = min(tmp_job.inputFileBytes, max_input_file_bytes)
                 # set background-able flag
                 tmp_job.setBackgroundableFlag()
+                # set input and output file types
+                tmp_job.set_input_output_file_types()
             except Exception:
                 error_type, error_value = sys.exc_info()[:2]
                 self.logger.error(f"failed to set data summary fields for PandaID={tmp_job.PandaID}: {error_type} {error_value}")
@@ -1505,7 +1503,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             time.sleep(10)
         self.logger.error(out)
         return False, out
-
 
     # get datasets in container
     def get_list_dataset_replicas_in_container(self, container: str, get_map: bool = False) -> Tuple[int, str]:

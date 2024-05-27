@@ -140,6 +140,7 @@ class JobSpec(object):
         "gco2_regional",
         "gco2_global",
         "cpu_architecture_level",
+        "outputFileType",
     )
     # slots
     __slots__ = _attributes + ("Files", "_changedAttrs", "_reserveChangedState")
@@ -181,6 +182,8 @@ class JobSpec(object):
         "jobSubStatus": 80,
         "supErrorDiag": 250,
         "commandToPilot": 250,
+        "inputFileType": 32,
+        "outputFileType": 32,
     }
     # tag for special handling
     _tagForSH = {
@@ -879,6 +882,40 @@ class JobSpec(object):
             file_spec = FileSpec()
             file_spec.__setstate__(file_stat)
             self.addFile(file_spec)
+
+    # set input and output file types
+    def set_input_output_file_types(self) -> None:
+        """
+        Set input and output file types based on the input and output file names
+        """
+        in_types = set()
+        out_types = set()
+        for tmp_file in self.Files:
+            # ignore DBRelease/lib.tgz files
+            if tmp_file.dataset.startswith("ddo") or tmp_file.lfn.endswith(".lib.tgz"):
+                continue
+            # extract type while ignoring user/group/groupXY
+            tmp_items = tmp_file.dataset.split(".")
+            if (
+                len(tmp_items) > 4
+                and (not tmp_items[0] in ["", "NULL", "user", "group"])
+                and (not tmp_items[0].startswith("group"))
+                and not tmp_file.dataset.startswith("panda.um.")
+            ):
+                tmp_type = tmp_items[4]
+            else:
+                continue
+            if tmp_file.type == "input":
+                in_types.add(tmp_type)
+            elif tmp_file.type == "output":
+                out_types.add(tmp_type)
+        # set types
+        if in_types:
+            in_types = sorted(list(in_types))
+            self.inputFileType = ",".join(in_types)[: self._limitLength["inputFileType"]]
+        if out_types:
+            out_types = sorted(list(out_types))
+            self.outputFileType = ",".join(out_types)[: self._limitLength["outputFileType"]]
 
 
 # utils
