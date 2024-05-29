@@ -23452,7 +23452,7 @@ class DBProxy:
         tmp_logger.debug("start")
         try:
             # sql to calculate the average memory for the queue - harvester_id combination
-            sql = (
+            sql_running_and_submitted = (
                 "SELECT computingsite, harvester_id, "
                 "       sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) as avg_memory_queue "
                 "FROM ( "
@@ -23470,13 +23470,36 @@ class DBProxy:
                 ")GROUP BY computingsite, harvester_id; "
             )
 
+            sql_running = (
+                "SELECT computingsite, harvester_id, "
+                "       sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) as avg_memory_queue "
+                "FROM ( "
+                "    SELECT hws.computingsite, "
+                "           hws.harvester_id, "
+                "           hws.n_workers, "
+                "           hws.n_workers * NVL(rt.maxcore, NVL(sj.data.corecount, 1)) * NVL(rt.maxrampercore, sj.data.maxrss / NVL(sj.data.corecount, 1)) as total_memory, "
+                "           NVL(rt.maxcore, NVL(sj.data.corecount, 1)) as corecount "
+                "    FROM ATLAS_PANDA.harvester_worker_stats hws "
+                "    JOIN ATLAS_PANDA.resource_types rt ON hws.resourcetype = rt.resource_name "
+                "    JOIN ATLAS_PANDA.schedconfig_json sj ON hws.computingsite = sj.panda_queue "
+                "    WHERE lastupdate > CAST(SYSTIMESTAMP AT TIME ZONE 'UTC' - INTERVAL '1' HOUR AS DATE) "
+                "      AND status = 'running' "
+                "      AND computingsite=:queue AND harvester_id=:harvester_id"
+                ")GROUP BY computingsite, harvester_id; "
+            )
+
             var_map = {":queue": queue, ":harvester_id": harvester_id}
-            self.cur.execute(sql + comment, var_map)
+
+            self.cur.execute(sql_running_and_submitted + comment, var_map)
             results = self.cur.fetchone()
-            (average_memory,) = results[0]
+            (average_memory_running_submitted,) = results[0]
+
+            self.cur.execute(sql_running + comment, var_map)
+            results = self.cur.fetchone()
+            (average_memory_running,) = results[0]
 
             tmp_logger.debug(f"Queue {queue} and harvester_id {harvester_id} currently has {average_memory} MB of average memory workers")
-            return average_memory
+            return average_memory_running_submitted, average_memory_running
 
         except Exception:
             self.dumpErrorMessage(tmp_logger, method_name)
@@ -23554,10 +23577,9 @@ class DBProxy:
         average_memory_workers = None
         resource_types_under_target = []
         if average_memory_target:
-            average_memory_workers = self.get_average_memory_workers(queue, harvester_id)
+            average_memory_workers_running_submitted, average_memory_workers_running = self.get_average_memory_workers(queue, harvester_id)
             # if the queue is over memory, we will only submit lower workers in the next cycle
-            # TODO: consider/monitor the situation where there are no low-mem workers - are we going to drain the site?
-            if average_memory_workers > average_memory_target:
+            if average_memory_workers > min(average_memory_workers_running_submitted, average_memory_workers_running):
                 resource_types_under_target = self.__resource_spec_mapper.filter_resourcetypes_by_memory_limit(average_memory_target)
 
         for job_type in worker_stats[harvester_id]:
