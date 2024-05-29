@@ -22829,14 +22829,9 @@ class DBProxy:
                 type(job_spec.coreCount),
             )
         )
-
-        for resource_spec in resource_map:
-            if resource_spec.match_job(job_spec):
-                tmp_log.debug(f"done. resource_type is {resource_spec.resource_name}")
-                return resource_spec.resource_name
-
-        tmp_log.debug("done. resource_type is Undefined")
-        return "Undefined"
+        resource_type = JobUtils.get_resource_type_job(resource_map, job_spec)
+        tmp_log.debug(f"done. resource_type is {resource_type}")
+        return resource_type
 
     # update stat of workers
     def reportWorkerStats(self, harvesterID, siteName, paramsList):

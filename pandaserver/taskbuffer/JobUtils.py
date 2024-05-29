@@ -198,3 +198,17 @@ def load_jobs_json(state):
         job_spec.load_from_json_serializable(job_state)
         jobs.append(job_spec)
     return jobs
+
+
+# get resource type for a job
+def get_resource_type_job(resource_map: list, job_spec: JobSpec) -> str:
+    """
+    Get the resource type for a job based on the job's resource type and the list of resource types.
+    :param resource_map: The list of resource types.
+    :param job_spec: The job.
+    :return: The resource type.
+    """
+    for resource_spec in resource_map:
+        if resource_spec.match_job(job_spec):
+            return resource_spec.resource_name
+    return "Undefined"
