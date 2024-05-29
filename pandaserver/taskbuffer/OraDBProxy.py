@@ -23488,14 +23488,14 @@ class DBProxy:
             self.cur.execute(sql_running_and_submitted + comment, var_map)
             results = self.cur.fetchone()
             try:
-                (average_memory_running_submitted,) = results[0]
+                average_memory_running_submitted = results[0]
             except TypeError:
                 average_memory_running_submitted = 0
 
             self.cur.execute(sql_running + comment, var_map)
             results = self.cur.fetchone()
             try:
-                (average_memory_running,) = results[0]
+                average_memory_running = results[0]
             except TypeError:
                 average_memory_running = 0
 
