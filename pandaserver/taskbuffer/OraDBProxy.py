@@ -23690,6 +23690,8 @@ class DBProxy:
                     # we don't have enough workers for this resource type
                     new_workers[job_type][resource_type] = -workers_queued[job_type][resource_type] + 1
 
+        tmp_log.debug(f"preliminary new workers: {new_workers}")
+
         # We should still submit a basic worker, even if there are no activated jobs to avoid queue deactivation
         workers = False
         for job_type in new_workers:
@@ -23700,16 +23702,9 @@ class DBProxy:
         if not workers:
             new_workers["managed"] = {BASIC_RESOURCE_TYPE: 1}
 
-        # In case multiple harvester instances are serving a panda queue, split workers evenly between them
-        new_workers_per_harvester = {}
-        for harvester_id in harvester_ids:
-            new_workers_per_harvester.setdefault(harvester_id, {})
-            for job_type in new_workers:
-                new_workers_per_harvester[harvester_id].setdefault(job_type, {})
-                for resource_type in new_workers[job_type]:
-                    new_workers_per_harvester[harvester_id][job_type][resource_type] = int(
-                        math.ceil(new_workers[job_type][resource_type] * 1.0 / len(harvester_ids))
-                    )
+        tmp_log.debug(f"new workers: {new_workers}")
+
+        new_workers_per_harvester = {harvester_id: new_workers}
 
         tmp_log.debug(f"Workers to submit: {new_workers_per_harvester}")
         tmp_log.debug("done")
