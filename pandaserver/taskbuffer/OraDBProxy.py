@@ -23448,8 +23448,7 @@ class DBProxy:
         try:
             # sql to calculate the average memory for the queue - harvester_id combination
             sql_running_and_submitted = (
-                "SELECT computingsite, harvester_id, "
-                "       sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) as avg_memory_queue "
+                "SELECT sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) "
                 "FROM ( "
                 "    SELECT hws.computingsite, "
                 "           hws.harvester_id, "
@@ -23466,8 +23465,7 @@ class DBProxy:
             )
 
             sql_running = (
-                "SELECT computingsite, harvester_id, "
-                "       sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) as avg_memory_queue "
+                "SELECT sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) "
                 "FROM ( "
                 "    SELECT hws.computingsite, "
                 "           hws.harvester_id, "
