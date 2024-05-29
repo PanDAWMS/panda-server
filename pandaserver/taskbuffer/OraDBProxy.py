@@ -23497,9 +23497,12 @@ class DBProxy:
             try:
                 (average_memory_running,) = results[0]
             except TypeError:
-                average_memory_running_submitted = 0
+                average_memory_running = 0
 
-            tmp_logger.debug(f"Queue {queue} and harvester_id {harvester_id} currently has {average_memory} MB of average memory workers")
+            tmp_logger.debug(
+                f"Queue {queue} and harvester_id {harvester_id} currently has ({average_memory_running_submitted}, {average_memory_running}) "
+                f"MB of average memory workers"
+            )
             return average_memory_running_submitted, average_memory_running
 
         except Exception:
