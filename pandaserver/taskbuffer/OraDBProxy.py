@@ -23462,7 +23462,7 @@ class DBProxy:
                 "    WHERE lastupdate > CAST(SYSTIMESTAMP AT TIME ZONE 'UTC' - INTERVAL '1' HOUR AS DATE) "
                 "      AND status IN ('running', 'submitted', 'to_submit') "
                 "      AND computingsite=:queue AND harvester_id=:harvester_id"
-                ")GROUP BY computingsite, harvester_id; "
+                ")GROUP BY computingsite, harvester_id "
             )
 
             sql_running = (
@@ -23480,18 +23480,24 @@ class DBProxy:
                 "    WHERE lastupdate > CAST(SYSTIMESTAMP AT TIME ZONE 'UTC' - INTERVAL '1' HOUR AS DATE) "
                 "      AND status = 'running' "
                 "      AND computingsite=:queue AND harvester_id=:harvester_id"
-                ")GROUP BY computingsite, harvester_id; "
+                ")GROUP BY computingsite, harvester_id "
             )
 
             var_map = {":queue": queue, ":harvester_id": harvester_id}
 
             self.cur.execute(sql_running_and_submitted + comment, var_map)
             results = self.cur.fetchone()
-            (average_memory_running_submitted,) = results[0]
+            try:
+                (average_memory_running_submitted,) = results[0]
+            except TypeError:
+                average_memory_running_submitted = 0
 
             self.cur.execute(sql_running + comment, var_map)
             results = self.cur.fetchone()
-            (average_memory_running,) = results[0]
+            try:
+                (average_memory_running,) = results[0]
+            except TypeError:
+                average_memory_running_submitted = 0
 
             tmp_logger.debug(f"Queue {queue} and harvester_id {harvester_id} currently has {average_memory} MB of average memory workers")
             return average_memory_running_submitted, average_memory_running
