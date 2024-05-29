@@ -23498,7 +23498,7 @@ class DBProxy:
 
         except Exception:
             self.dumpErrorMessage(tmp_logger, method_name)
-            return None
+            return 0, 0
 
     def ups_new_worker_distribution(self, queue, worker_stats):
         """
@@ -23537,7 +23537,7 @@ class DBProxy:
                 tmp_log.debug("No resource type limits")
                 pass
             try:
-                average_memory_target = pq_data_des["uconfig"]["average_memory"]
+                average_memory_target = pq_data_des["params"]["average_memory"]
             except KeyError:
                 tmp_log.debug("No average memory defined")
                 pass
