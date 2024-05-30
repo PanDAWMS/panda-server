@@ -23583,6 +23583,8 @@ class DBProxy:
             if average_memory_target < min(average_memory_workers_running_submitted, average_memory_workers_running):
                 resource_types_under_target = self.__resource_spec_mapper.filter_out_high_memory_resourcetypes()
                 tmp_log.debug(f"Accepting {resource_types_under_target} resource types to respect mean memory target")
+        else:
+            tmp_log.debug(f"Accepting all resource types as under memory target")
 
         for job_type in worker_stats[harvester_id]:
             workers_queued.setdefault(job_type, {})
