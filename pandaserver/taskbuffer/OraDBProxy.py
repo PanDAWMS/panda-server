@@ -23582,6 +23582,7 @@ class DBProxy:
             # if the queue is over memory, we will only submit lower workers in the next cycle
             if average_memory_target > min(average_memory_workers_running_submitted, average_memory_workers_running):
                 resource_types_under_target = self.__resource_spec_mapper.filter_resourcetypes_by_memory_limit(average_memory_target)
+                tmp_log.debug("Accepting {resource_types_under_target} resource types to respect mean memory target")
 
         for job_type in worker_stats[harvester_id]:
             workers_queued.setdefault(job_type, {})
