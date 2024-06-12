@@ -109,7 +109,7 @@ RUN chmod -R 777 /var/cache/pandaserver
 RUN mkdir -p /var/trf/user
 
 RUN mkdir /tmp/panda-wnscript && cd /tmp/panda-wnscript && \
-    git clone git://git@github.com/PanDAWMS/panda-wnscript.git && \
+    git clone https://github.com/PanDAWMS/panda-wnscript.git && \
     cp -R panda-wnscript/dist/* /var/trf/user/ && \
     cd / && rm -rf /tmp/panda-wnscript
 
