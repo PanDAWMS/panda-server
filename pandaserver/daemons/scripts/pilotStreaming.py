@@ -4,10 +4,10 @@ import traceback
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
+
 from pandaserver.config import panda_config
 
-# logger
-_logger = PandaLogger().getLogger("PilotStreaming")
+_logger = PandaLogger().getLogger("pilot_streaming")
 
 
 class PilotStreaming(object):
@@ -31,20 +31,21 @@ class PilotStreaming(object):
         ups_queues = self.tbuf.ups_get_queues()
         self._logger.debug(f"UPS queues: {ups_queues}")
 
-        # get worker stats
+        # load the worker stats from the database
         worker_stats = self.tbuf.ups_load_worker_stats()
 
+        # iterate over the UPS queues
         for ups_queue in ups_queues:
-            # get the worker and job stats for the queue
+            # separate the worker and job stats for the queue
             try:
                 tmp_worker_stats = worker_stats[ups_queue]
                 self._logger.debug(f"worker_stats for queue {ups_queue}: {tmp_worker_stats}")
-                # tmp_job_stats = job_stats[ups_queue]
             except KeyError:
                 # skip queue if no data available
                 self._logger.debug(f"No worker stats for queue {ups_queue}")
                 continue
 
+            # calculate the new worker distribution and save the harvester commands in the database
             try:
                 new_workers_per_harvester = self.tbuf.ups_new_worker_distribution(ups_queue, tmp_worker_stats)
                 self._logger.info(f"queue: {ups_queue}, results: {new_workers_per_harvester}")
@@ -70,7 +71,7 @@ class PilotStreaming(object):
             except Exception:
                 self._logger.error(traceback.format_exc())
 
-        # timing
+        # log the timing
         time_stop = time.time()
         self._logger.debug(f"Done. Pilot streaming took: {time_stop - time_start} s")
 
@@ -94,9 +95,11 @@ def main(tbuf=None, **kwargs):
         )
     else:
         taskBuffer = tbuf
-    # run
+
+    # run the pilot streaming logic
     PilotStreaming(tbuf=taskBuffer).run()
-    # stop taskBuffer if created inside this script
+
+    # stop the taskBuffer if it was created inside this script
     if tbuf is None:
         taskBuffer.cleanup(requester=requester_id)
 
