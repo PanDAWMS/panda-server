@@ -243,30 +243,30 @@ def sendMsgToLoggerHTTP(msgList, job):
 
 
 # get T2 candidates when files are missing at T2
-def getT2CandList(tmpJob, siteMapper, t2FilesMap):
+def getT2CandList(tmpJob, siteMapper, satellitesFilesMap):
     if tmpJob is None:
         return []
     # no cloud info
-    if tmpJob.getCloud() not in t2FilesMap:
+    if tmpJob.getCloud() not in satellitesFilesMap:
         return []
     # loop over all files
     tmpCandT2s = None
     for tmpFile in tmpJob.Files:
         if tmpFile.type == "input" and tmpFile.status == "missing":
             # no dataset info
-            if tmpFile.dataset not in t2FilesMap[tmpJob.getCloud()]:
+            if tmpFile.dataset not in satellitesFilesMap[tmpJob.getCloud()]:
                 return []
             # initial candidates
             if tmpCandT2s is None:
-                tmpCandT2s = t2FilesMap[tmpJob.getCloud()][tmpFile.dataset]["sites"]
+                tmpCandT2s = satellitesFilesMap[tmpJob.getCloud()][tmpFile.dataset]["sites"]
             # check all candidates
             newCandT2s = []
             for tmpCandT2 in tmpCandT2s:
                 # site doesn't have the dataset
-                if tmpCandT2 not in t2FilesMap[tmpJob.getCloud()][tmpFile.dataset]["sites"]:
+                if tmpCandT2 not in satellitesFilesMap[tmpJob.getCloud()][tmpFile.dataset]["sites"]:
                     continue
                 # site has the file
-                if tmpFile.lfn in t2FilesMap[tmpJob.getCloud()][tmpFile.dataset]["sites"][tmpCandT2]:
+                if tmpFile.lfn in satellitesFilesMap[tmpJob.getCloud()][tmpFile.dataset]["sites"][tmpCandT2]:
                     if tmpCandT2 not in newCandT2s:
                         newCandT2s.append(tmpCandT2)
             # set new candidates
@@ -522,7 +522,7 @@ def schedule(
             # send jobs to T2 when files are missing at T1
             goToT2Flag = False
             if job is not None and job.computingSite == "NULL" and job.prodSourceLabel in ("test", "managed") and specialBrokergageSiteList == []:
-                currentT2CandList = getT2CandList(job, siteMapper, t2FilesMap)
+                currentT2CandList = getT2CandList(job, siteMapper, satellitesFilesMap)
                 if currentT2CandList != []:
                     goToT2Flag = True
                     specialBrokergageSiteList = currentT2CandList
