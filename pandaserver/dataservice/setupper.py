@@ -25,7 +25,11 @@ panda_config.setupPlugin()
 # main class
 class Setupper(threading.Thread):
     """
-    Main class for setting up the dataset.
+    The Setupper class is the main class responsible for setting up the dataset in the PanDA server.
+    The Setupper class is initialized with a list of jobs that need to be processed, along with several other parameters such as whether the job is a resubmission, the number of attempts for DDM job, and whether it's the first submission.
+    The class contains a run method which is the main method for running the setup process. This method groups jobs per VO, gets the appropriate plugin for each VO, and runs the plugin. It also updates the jobs and executes the post process of the plugin.
+    The class also contains an update_jobs method which updates the status of jobs. This method sorts jobs by status, updates the jobs in the task buffer, and updates the database.
+    This class uses the PandaLogger for logging and the panda_config for configuration. It also imports several other modules from the pandaserver package.
     """
     # constructor
     def __init__(
@@ -58,7 +62,15 @@ class Setupper(threading.Thread):
     # main
     def run(self) -> None:
         """
-        Main method for running the setup process.
+        This is the main method for running the setup process. It is responsible for the following:
+        1. Creating a message instance for logging.
+        2. Making the job specifications pickleable for serialization.
+        3. Grouping jobs per Virtual Organization (VO).
+        4. Getting the appropriate plugin for each VO and running it.
+        5. Updating the jobs and executing the post process of the plugin.
+        This method handles any exceptions that occur during the setup process and logs the error message.
+
+        :return: None
         """
         try:
             # make a message instance
@@ -126,10 +138,15 @@ class Setupper(threading.Thread):
     #  update jobs
     def update_jobs(self, job_list: List[object], tmp_log: LogWrapper) -> None:
         """
-        Updates the status of jobs.
+        This method is responsible for updating the status of jobs in the PanDA server.
+        It sorts the jobs by their status into different categories: failed, waiting, no input, and normal jobs.
+        For each category, it performs the appropriate actions. For example, it changes their status to "assigned".
+        It also handles the activation of jobs. If a job should not discard any events, all events in the job are okay, and the job is not an Event Service Merge job, then the job's status is updated to "finished".
+        This method also updates the database with the new job statuses.
 
         :param job_list: The list of jobs to be updated.
-        :param log: The logger to be used for logging.
+        :param tmp_log: The logger to be used for logging.
+        :return: None
         """
         update_jobs = []
         failed_jobs = []
