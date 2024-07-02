@@ -1,6 +1,9 @@
 """
-setup dataset for ATLAS
-
+This module is designed to setup datasets for the ATLAS experiment.
+The setup process involves preparing the necessary data and resources for the ATLAS jobs to run.
+This includes tasks such as data placement, dataset creation, and job configuration.
+The 'SetupperAtlasPlugin' class in this module inherits from the 'SetupperPluginBase' class and overrides its methods to provide ATLAS-specific functionality.
+The 'setupper.py' module uses this plugin when setting up datasets for ATLAS jobs.
 """
 
 import datetime
@@ -25,8 +28,9 @@ from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
 
 class SetupperAtlasPlugin(SetupperPluginBase):
     """
-    setup dataset for ATLAS
-
+    This class is a plugin for setting up datasets specifically for the ATLAS experiment.
+    It inherits from the SetupperPluginBase class and overrides its methods to provide
+    ATLAS-specific functionality.
     """
 
     # constructor
@@ -42,9 +46,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         # defaults
         default_map = {
             "resubmit": False,
-            "panda_ddm": False,
             "ddm_attempt": 0,
-            "only_ta": False,
         }
         SetupperPluginBase.__init__(self, taskBuffer, jobs, logger, params, default_map)
         # VUIDs of dispatchDBlocks
@@ -96,93 +98,92 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             # correctLFN
             self.correct_lfn()
             # run full Setupper
-            if not self.only_ta:
-                # invoke brokerage
-                self.logger.debug("brokerSchedule")
-                self.memory_check()
-                pandaserver.brokerage.broker.schedule(
-                    self.jobs,
-                    self.task_buffer,
-                    self.site_mapper,
-                    replicaMap=self.replica_map_for_broker,
-                    t2FilesMap=self.available_lfns_in_t2,
-                )
-                # remove waiting jobs
-                self.remove_waiting_jobs()
-                # setup dispatch dataset
-                self.logger.debug("setupSource")
-                self.memory_check()
-                self.setup_source()
-                self.memory_check()
-                # sort by site so that larger subs are created in the next step
-                if self.jobs != [] and self.jobs[0].prodSourceLabel in [
-                    "managed",
-                    "test",
-                ]:
-                    tmp_job_map = {}
-                    for tmp_job in self.jobs:
-                        # add site
-                        if tmp_job.computingSite not in tmp_job_map:
-                            tmp_job_map[tmp_job.computingSite] = []
-                        # add job
-                        tmp_job_map[tmp_job.computingSite].append(tmp_job)
-                    # make new list
-                    tmp_job_list = []
-                    for jobs in tmp_job_map.values():
-                        tmp_job_list += jobs
-                    # set new list
-                    self.jobs = tmp_job_list
-                # create dataset for outputs and assign destination
-                if self.jobs != [] and self.jobs[0].prodSourceLabel in [
-                    "managed",
-                    "test",
-                ]:
-                    # count the number of jobs per _dis
-                    i_bunch = 0
-                    prev_dis_ds_name = None
-                    n_jobs_per_dis_list = []
-                    for tmp_job in self.jobs:
-                        if prev_dis_ds_name is not None and prev_dis_ds_name != tmp_job.dispatchDBlock:
-                            n_jobs_per_dis_list.append(i_bunch)
-                            i_bunch = 0
-                        # increment
-                        i_bunch += 1
-                        # set _dis name
-                        prev_dis_ds_name = tmp_job.dispatchDBlock
-                    # remaining
-                    if i_bunch != 0:
+            # invoke brokerage
+            self.logger.debug("brokerSchedule")
+            self.memory_check()
+            pandaserver.brokerage.broker.schedule(
+                self.jobs,
+                self.task_buffer,
+                self.site_mapper,
+                replicaMap=self.replica_map_for_broker,
+                t2FilesMap=self.available_lfns_in_t2,
+            )
+            # remove waiting jobs
+            self.remove_waiting_jobs()
+            # setup dispatch dataset
+            self.logger.debug("setupSource")
+            self.memory_check()
+            self.setup_source()
+            self.memory_check()
+            # sort by site so that larger subs are created in the next step
+            if self.jobs != [] and self.jobs[0].prodSourceLabel in [
+                "managed",
+                "test",
+            ]:
+                tmp_job_map = {}
+                for tmp_job in self.jobs:
+                    # add site
+                    if tmp_job.computingSite not in tmp_job_map:
+                        tmp_job_map[tmp_job.computingSite] = []
+                    # add job
+                    tmp_job_map[tmp_job.computingSite].append(tmp_job)
+                # make new list
+                tmp_job_list = []
+                for jobs in tmp_job_map.values():
+                    tmp_job_list += jobs
+                # set new list
+                self.jobs = tmp_job_list
+            # create dataset for outputs and assign destination
+            if self.jobs != [] and self.jobs[0].prodSourceLabel in [
+                "managed",
+                "test",
+            ]:
+                # count the number of jobs per _dis
+                i_bunch = 0
+                prev_dis_ds_name = None
+                n_jobs_per_dis_list = []
+                for tmp_job in self.jobs:
+                    if prev_dis_ds_name is not None and prev_dis_ds_name != tmp_job.dispatchDBlock:
                         n_jobs_per_dis_list.append(i_bunch)
-                    # split sub datasets
-                    i_bunch = 0
-                    n_bunch_max = 50
-                    tmp_index_job = 0
-                    for n_jobs_per_dis in n_jobs_per_dis_list:
-                        # check _dis boundary so that the same _dis doesn't contribute to many _subs
-                        if i_bunch + n_jobs_per_dis > n_bunch_max:
-                            if i_bunch != 0:
-                                self.setup_destination(start_idx=tmp_index_job, n_jobs_in_loop=i_bunch)
-                                tmp_index_job += i_bunch
-                                i_bunch = 0
-                        # increment
-                        i_bunch += n_jobs_per_dis
-                    # remaining
-                    if i_bunch != 0:
-                        self.setup_destination(start_idx=tmp_index_job, n_jobs_in_loop=i_bunch)
+                        i_bunch = 0
+                    # increment
+                    i_bunch += 1
+                    # set _dis name
+                    prev_dis_ds_name = tmp_job.dispatchDBlock
+                # remaining
+                if i_bunch != 0:
+                    n_jobs_per_dis_list.append(i_bunch)
+                # split sub datasets
+                i_bunch = 0
+                n_bunch_max = 50
+                tmp_index_job = 0
+                for n_jobs_per_dis in n_jobs_per_dis_list:
+                    # check _dis boundary so that the same _dis doesn't contribute to many _subs
+                    if i_bunch + n_jobs_per_dis > n_bunch_max:
+                        if i_bunch != 0:
+                            self.setup_destination(start_idx=tmp_index_job, n_jobs_in_loop=i_bunch)
+                            tmp_index_job += i_bunch
+                            i_bunch = 0
+                    # increment
+                    i_bunch += n_jobs_per_dis
+                # remaining
+                if i_bunch != 0:
+                    self.setup_destination(start_idx=tmp_index_job, n_jobs_in_loop=i_bunch)
+            else:
+                # make one sub per job so that each job doesn't have to wait for others to be done
+                if self.jobs != [] and self.jobs[0].prodSourceLabel in ["user", "panda"] and self.jobs[-1].currentPriority > 6000:
+                    for i_bunch in range(len(self.jobs)):
+                        self.setup_destination(start_idx=i_bunch, n_jobs_in_loop=1)
                 else:
-                    # make one sub per job so that each job doesn't have to wait for others to be done
-                    if self.jobs != [] and self.jobs[0].prodSourceLabel in ["user", "panda"] and self.jobs[-1].currentPriority > 6000:
-                        for i_bunch in range(len(self.jobs)):
-                            self.setup_destination(start_idx=i_bunch, n_jobs_in_loop=1)
-                    else:
-                        # at a burst
-                        self.setup_destination()
-                # make dis datasets for existing files
-                self.memory_check()
-                self.make_dis_datasets_for_existing_files()
-                self.memory_check()
-                # setup jumbo jobs
-                self.setup_jumbo_jobs()
-                self.memory_check()
+                    # at a burst
+                    self.setup_destination()
+            # make dis datasets for existing files
+            self.memory_check()
+            self.make_dis_datasets_for_existing_files()
+            self.memory_check()
+            # setup jumbo jobs
+            self.setup_jumbo_jobs()
+            self.memory_check()
             reg_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - time_start
             self.logger.debug(f"{bunch_tag} took {reg_time.seconds}sec")
             self.logger.debug("end run()")
@@ -199,20 +200,19 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         Post run method for running the setup process.
         """
         try:
-            if not self.only_ta:
-                self.logger.debug("start postRun()")
-                self.memory_check()
-                # subscribe sites dispatchDBlocks. this must be the last method
-                self.logger.debug("subscribeDispatchDB")
-                self.subscribe_dispatch_data_block()
-                # dynamic data placement for analysis jobs
-                self.memory_check()
-                self.dynamic_data_placement()
-                # make subscription for missing
-                self.memory_check()
-                self.make_subscription_for_missing()
-                self.memory_check()
-                self.logger.debug("end postRun()")
+            self.logger.debug("start postRun()")
+            self.memory_check()
+            # subscribe sites dispatchDBlocks. this must be the last method
+            self.logger.debug("subscribeDispatchDB")
+            self.subscribe_dispatch_data_block()
+            # dynamic data placement for analysis jobs
+            self.memory_check()
+            self.dynamic_data_placement()
+            # make subscription for missing
+            self.memory_check()
+            self.make_subscription_for_missing()
+            self.memory_check()
+            self.logger.debug("end postRun()")
         except Exception:
             error_type, error_value = sys.exc_info()[:2]
             self.logger.error(f"postRun() : {error_type} {error_value}")
@@ -361,7 +361,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             if len(block_data["lfns"]) == 0:
                 continue
             # use Rucio
-            if (not self.panda_ddm) and job.prodSourceLabel != "ddm":
+            if job.prodSourceLabel != "ddm":
                 # register dispatch dataset
                 self.disp_file_list[dispatch_data_block] = file_list[dispatch_data_block]
                 if not use_zip_to_pin_map[dispatch_data_block]:
@@ -566,7 +566,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             # for original dataset
                             computing_site = file.destinationSE
                         new_vuid = None
-                        if (not self.panda_ddm) and (job.prodSourceLabel != "ddm") and (job.destinationSE != "local"):
+                        if (job.prodSourceLabel != "ddm") and (job.destinationSE != "local"):
                             # get src and dest DDM conversion is needed for unknown sites
                             if job.prodSourceLabel == "user" and computing_site not in self.site_mapper.siteSpecList:
                                 # DDM ID was set by using --destSE for analysis job to transfer output
@@ -870,7 +870,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             break
                     self.logger.debug(f"{job.dispatchDBlock} missing at T1 : {missing_at_t1}")
                 # use DDM
-                if (not self.panda_ddm) and job.prodSourceLabel != "ddm":
+                if job.prodSourceLabel != "ddm":
                     # look for replica
                     ddm_id = src_ddm_id
                     ddm_id_list = []
@@ -1127,8 +1127,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         }
         # loop over all jobs
         for job in self.jobs:
-            if self.only_ta:
-                self.logger.debug(f"start TA session {job.taskID}")
             # check if sitename is known
             if job.computingSite != "NULL" and job.computingSite not in self.site_mapper.siteSpecList:
                 job.jobStatus = "failed"
@@ -1137,8 +1135,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # append job for downstream process
                 jobs_processed.append(job)
                 # error message for TA
-                if self.only_ta:
-                    self.logger.error(job.ddmErrorDiag)
                 continue
             # ignore no prodDBlock jobs or container dataset
             if job.prodDBlock == "NULL":
@@ -1230,7 +1226,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             self.logger.error(prod_error[dataset])
                             self.logger.error(out)
                     # get replica locations
-                    if (self.only_ta or job.prodSourceLabel in ["managed", "test"]) and prod_error[dataset] == "" and dataset not in replica_map:
+                    if (job.prodSourceLabel in ["managed", "test"]) and prod_error[dataset] == "" and dataset not in replica_map:
                         if dataset.endswith("/"):
                             status, out = self.get_list_dataset_replicas_in_container(dataset, True)
                         else:
@@ -1269,77 +1265,69 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     # append job to waiting list
                     jobs_waiting.append(job)
                     is_failed = True
-                    # message for TA
-                    if self.only_ta:
-                        self.logger.error(prod_error[dataset])
                     break
             if is_failed:
                 continue
-            if not self.only_ta:
-                # replace generic LFN with real LFN
-                replace_list = []
-                is_failed = False
-                for file in job.Files:
-                    if file.type == "input" and file.dispatchDBlock == "NULL":
-                        add_to_lfn_map = True
-                        if file.GUID == "NULL":
-                            # get LFN w/o attemptNr
-                            basename = re.sub("\.\d+$", "", file.lfn)
-                            if basename == file.lfn:
-                                # replace
-                                if basename in lfn_map[file.dataset]:
-                                    file.lfn = lfn_map[file.dataset][basename]
-                                    replace_list.append((basename, file.lfn))
-                            # set GUID
-                            if file.lfn in val_map:
-                                file.GUID = val_map[file.lfn]["guid"]
-                                file.fsize = val_map[file.lfn]["fsize"]
-                                file.md5sum = val_map[file.lfn]["md5sum"]
-                                file.checksum = val_map[file.lfn]["chksum"]
-                                file.scope = val_map[file.lfn]["scope"]
-                                # remove white space
-                                if file.md5sum is not None:
-                                    file.md5sum = file.md5sum.strip()
-                                if file.checksum is not None:
-                                    file.checksum = file.checksum.strip()
-                        else:
-                            if job.prodSourceLabel not in ["managed", "test"]:
-                                add_to_lfn_map = False
-                        # check missing file
-                        if file.GUID == "NULL" or job.prodSourceLabel in [
-                            "managed",
-                            "test",
-                        ]:
-                            if file.lfn not in val_map:
-                                # append job to waiting list
-                                err_msg = f"GUID for {file.lfn} not found in rucio"
-                                self.logger.error(err_msg)
-                                file.status = "missing"
-                                if job not in jobs_failed:
-                                    job.jobStatus = "failed"
-                                    job.ddmErrorCode = ErrorCode.EC_GUID
-                                    job.ddmErrorDiag = err_msg
-                                    jobs_failed.append(job)
-                                    is_failed = True
-                                continue
-                        # add to all_lfns/all_guids
-                        if add_to_lfn_map:
-                            all_lfns.setdefault(job.getCloud(), [])
-                            all_guids.setdefault(job.getCloud(), [])
-                            all_scopes.setdefault(job.getCloud(), [])
-                            all_lfns[job.getCloud()].append(file.lfn)
-                            all_guids[job.getCloud()].append(file.GUID)
-                            all_scopes[job.getCloud()].append(file.scope)
-                # modify jobParameters
-                if not is_failed:
-                    for patt, repl in replace_list:
-                        job.jobParameters = re.sub(f"{patt} ", f"{repl} ", job.jobParameters)
-                    # append job to processed list
-                    jobs_processed.append(job)
-        # return if TA only
-        if self.only_ta:
-            self.logger.debug("end TA sessions")
-            return
+            # replace generic LFN with real LFN
+            replace_list = []
+            is_failed = False
+            for file in job.Files:
+                if file.type == "input" and file.dispatchDBlock == "NULL":
+                    add_to_lfn_map = True
+                    if file.GUID == "NULL":
+                        # get LFN w/o attemptNr
+                        basename = re.sub("\.\d+$", "", file.lfn)
+                        if basename == file.lfn:
+                            # replace
+                            if basename in lfn_map[file.dataset]:
+                                file.lfn = lfn_map[file.dataset][basename]
+                                replace_list.append((basename, file.lfn))
+                        # set GUID
+                        if file.lfn in val_map:
+                            file.GUID = val_map[file.lfn]["guid"]
+                            file.fsize = val_map[file.lfn]["fsize"]
+                            file.md5sum = val_map[file.lfn]["md5sum"]
+                            file.checksum = val_map[file.lfn]["chksum"]
+                            file.scope = val_map[file.lfn]["scope"]
+                            # remove white space
+                            if file.md5sum is not None:
+                                file.md5sum = file.md5sum.strip()
+                            if file.checksum is not None:
+                                file.checksum = file.checksum.strip()
+                    else:
+                        if job.prodSourceLabel not in ["managed", "test"]:
+                            add_to_lfn_map = False
+                    # check missing file
+                    if file.GUID == "NULL" or job.prodSourceLabel in [
+                        "managed",
+                        "test",
+                    ]:
+                        if file.lfn not in val_map:
+                            # append job to waiting list
+                            err_msg = f"GUID for {file.lfn} not found in rucio"
+                            self.logger.error(err_msg)
+                            file.status = "missing"
+                            if job not in jobs_failed:
+                                job.jobStatus = "failed"
+                                job.ddmErrorCode = ErrorCode.EC_GUID
+                                job.ddmErrorDiag = err_msg
+                                jobs_failed.append(job)
+                                is_failed = True
+                            continue
+                    # add to all_lfns/all_guids
+                    if add_to_lfn_map:
+                        all_lfns.setdefault(job.getCloud(), [])
+                        all_guids.setdefault(job.getCloud(), [])
+                        all_scopes.setdefault(job.getCloud(), [])
+                        all_lfns[job.getCloud()].append(file.lfn)
+                        all_guids[job.getCloud()].append(file.GUID)
+                        all_scopes[job.getCloud()].append(file.scope)
+            # modify jobParameters
+            if not is_failed:
+                for patt, repl in replace_list:
+                    job.jobParameters = re.sub(f"{patt} ", f"{repl} ", job.jobParameters)
+                # append job to processed list
+                jobs_processed.append(job)
         # set data summary fields
         for tmp_job in self.jobs:
             try:
@@ -2024,7 +2012,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         missing_list[tmp_cloud].append(tmp_ds_name)
         # make subscriptions
         for tmp_cloud, miss_ds_name_list in missing_list.items():
-            # get distination
+            # get destination
             tmp_dst_id = self.site_mapper.getCloud(tmp_cloud)["source"]
             tmp_dst_spec = self.site_mapper.getSite(tmp_dst_id)
             scope_input, _ = select_scope(tmp_dst_spec, self.prod_source_label, self.job_label)
@@ -2033,7 +2021,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             for miss_ds_name in miss_ds_name_list:
                 self.logger.debug(f"make subscription at {dst_ddm_id} for missing {miss_ds_name}")
                 self.make_subscription(miss_ds_name, dst_ddm_id)
-        # retrun
         self.logger.debug("make subscriptions for missing files done")
         return
 

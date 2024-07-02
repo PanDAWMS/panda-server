@@ -1,6 +1,8 @@
 """
-setup dataset
-
+This module is responsible for setting up the dataset for the PanDA server.
+This module contains the Setupper class, which is a thread that sets up the dataset for a list of jobs. The jobs are processed according to various parameters, such as whether the job is a resubmission, the number of attempts for DDM job, and whether it's the first submission.
+The Setupper class also contains methods for running the setup process and updating the status of jobs.
+This module uses the PandaLogger for logging and the panda_config for configuration. It also imports several other modules from the pandaserver package.
 """
 
 import sys
@@ -31,9 +33,7 @@ class Setupper(threading.Thread):
         taskBuffer,
         jobs: List[object],
         resubmit: bool = False,
-        panda_ddm: bool = False,
         ddm_attempt: int = 0,
-        only_ta: bool = False,
         first_submission: bool = True,
     ):
         """
@@ -42,9 +42,7 @@ class Setupper(threading.Thread):
         :param taskBuffer: The buffer for tasks.
         :param jobs: The jobs to be processed.
         :param resubmit: A flag to indicate if the job is a resubmission. Defaults to False.
-        :param panda_ddm: A flag to indicate if PandaDDM is used. Defaults to False.
         :param ddm_attempt: The number of attempts for DDM job. Defaults to 0.
-        :param only_ta: A flag to indicate if only task assignment should be run. Defaults to False.
         :param first_submission: A flag to indicate if it's the first submission. Defaults to True.
         """
         threading.Thread.__init__(self)
@@ -52,12 +50,8 @@ class Setupper(threading.Thread):
         self.task_buffer = taskBuffer
         # resubmission or not
         self.resubmit = resubmit
-        # use PandaDDM
-        self.panda_ddm = panda_ddm
         # priority for ddm job
         self.ddm_attempt = ddm_attempt
-        # run task assignment only
-        self.only_ta = only_ta
         # first submission
         self.first_submission = first_submission
 
@@ -109,22 +103,18 @@ class Setupper(threading.Thread):
                         self.jobs,
                         tmp_log,
                         resubmit=self.resubmit,
-                        panda_ddm=self.panda_ddm,
                         ddm_attempt=self.ddm_attempt,
-                        only_ta=self.only_ta,
                         first_submission=self.first_submission,
                     )
                     # run plugin
                     tmp_log.debug("run plugin")
                     setupper_plugin.run()
-                    # go forward if not Task Assignment
-                    if not self.only_ta:
-                        # update jobs
-                        tmp_log.debug("update jobs")
-                        self.update_jobs(setupper_plugin.jobs + setupper_plugin.jumbo_jobs, tmp_log)
-                        # execute post process
-                        tmp_log.debug("post execute plugin")
-                        setupper_plugin.post_run()
+                    # update jobs
+                    tmp_log.debug("update jobs")
+                    self.update_jobs(setupper_plugin.jobs + setupper_plugin.jumbo_jobs, tmp_log)
+                    # execute post process
+                    tmp_log.debug("post execute plugin")
+                    setupper_plugin.post_run()
                     tmp_log.debug("done plugin")
                 except Exception:
                     error_type, error_value = sys.exc_info()[:2]
@@ -165,21 +155,33 @@ class Setupper(threading.Thread):
         # trigger merge generation if all events are done
         new_activate_jobs = []
         n_finished = 0
+        # Iterate over each job in the activate_jobs list
         for job in activate_jobs:
+            # Check if the job should not discard events, if all events are okay, and if the job is not an Event Service Merge job
+            # notDiscardEvents() returns True if the job should not discard any events
+            # allOkEvents() returns True if all events in the job are okay (no errors or issues)
             if job.notDiscardEvents() and job.allOkEvents() and not EventServiceUtils.isEventServiceMerge(job):
+                # If all conditions are met, update the job in the task buffer
                 self.task_buffer.updateJobs([job])
-                # change status
+                # Change the job status to "finished"
                 job.jobStatus = "finished"
+                # Update the job in the task buffer again with the new status
+                # The second parameter False indicates that the job status should not be checked before the update
                 self.task_buffer.updateJobs([job], False)
+                # Increment the counter for finished jobs
                 n_finished += 1
             else:
+                # If any of the conditions are not met, add the job to a new list new_activate_jobs
                 new_activate_jobs.append(job)
+        # Replace the activate_jobs list with new_activate_jobs
         activate_jobs = new_activate_jobs
         tmp_log.debug(f"# of finished jobs in activated : {n_finished}")
         new_update_jobs = []
         n_finished = 0
+        # Repeat a similar process for the update_jobs list
         for job in update_jobs:
             if job.notDiscardEvents() and job.allOkEvents() and not EventServiceUtils.isEventServiceMerge(job):
+                # The second parameter True indicates that the job status should be checked before the update
                 self.task_buffer.updateJobs([job], True)
                 # change status
                 job.jobStatus = "finished"
@@ -189,14 +191,17 @@ class Setupper(threading.Thread):
                 new_update_jobs.append(job)
         update_jobs = new_update_jobs
         tmp_log.debug(f"# of finished jobs in defined : {n_finished}")
-        # update DB
+        # Update the database
         tmp_log.debug(f"# of activated jobs : {len(activate_jobs)}")
         self.task_buffer.activateJobs(activate_jobs)
         tmp_log.debug(f"# of updated jobs : {len(update_jobs)}")
+        # Update the jobs in the 'update_jobs' list. The 'True' argument indicates that the jobs are to be updated immediately
         self.task_buffer.updateJobs(update_jobs, True)
         tmp_log.debug(f"# of failed jobs : {len(failed_jobs)}")
+        # Update the failed jobs in the 'failed_jobs' list. The 'True' argument indicates that the jobs are to be updated immediately
         self.task_buffer.updateJobs(failed_jobs, True)
         tmp_log.debug(f"# of waiting jobs : {len(waiting_jobs)}")
+        # Keep the jobs in the 'waiting_jobs' list in the waiting state
         self.task_buffer.keepJobs(waiting_jobs)
         # delete local values
         del update_jobs
