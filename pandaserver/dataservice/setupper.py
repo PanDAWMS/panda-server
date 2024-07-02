@@ -1,6 +1,6 @@
 """
 This module is responsible for setting up the dataset for the PanDA server.
-This module contains the Setupper class, which is a thread that sets up the dataset for a list of jobs. The jobs are processed according to various parameters, such as whether the job is a resubmission, the number of attempts for DDM job, and whether it's the first submission.
+This module contains the Setupper class, which is a thread that sets up the dataset for a list of jobs. The jobs are processed according to various parameters, such as whether the job is a resubmission and whether it's the first submission.
 The Setupper class also contains methods for running the setup process and updating the status of jobs.
 This module uses the PandaLogger for logging and the panda_config for configuration. It also imports several other modules from the pandaserver package.
 """
@@ -26,7 +26,7 @@ panda_config.setupPlugin()
 class Setupper(threading.Thread):
     """
     The Setupper class is the main class responsible for setting up the dataset in the PanDA server.
-    The Setupper class is initialized with a list of jobs that need to be processed, along with several other parameters such as whether the job is a resubmission, the number of attempts for DDM job, and whether it's the first submission.
+    The Setupper class is initialized with a list of jobs that need to be processed, along with several other parameters such as whether the job is a resubmission and whether it's the first submission.
     The class contains a run method which is the main method for running the setup process. This method groups jobs per VO, gets the appropriate plugin for each VO, and runs the plugin. It also updates the jobs and executes the post process of the plugin.
     The class also contains an update_jobs method which updates the status of jobs. This method sorts jobs by status, updates the jobs in the task buffer, and updates the database.
     This class uses the PandaLogger for logging and the panda_config for configuration. It also imports several other modules from the pandaserver package.
@@ -37,7 +37,6 @@ class Setupper(threading.Thread):
         taskBuffer,
         jobs: List[object],
         resubmit: bool = False,
-        ddm_attempt: int = 0,
         first_submission: bool = True,
     ):
         """
@@ -46,7 +45,6 @@ class Setupper(threading.Thread):
         :param taskBuffer: The buffer for tasks.
         :param jobs: The jobs to be processed.
         :param resubmit: A flag to indicate if the job is a resubmission. Defaults to False.
-        :param ddm_attempt: The number of attempts for DDM job. Defaults to 0.
         :param first_submission: A flag to indicate if it's the first submission. Defaults to True.
         """
         threading.Thread.__init__(self)
@@ -54,8 +52,6 @@ class Setupper(threading.Thread):
         self.task_buffer = taskBuffer
         # resubmission or not
         self.resubmit = resubmit
-        # priority for ddm job
-        self.ddm_attempt = ddm_attempt
         # first submission
         self.first_submission = first_submission
 
@@ -115,7 +111,6 @@ class Setupper(threading.Thread):
                         self.jobs,
                         tmp_log,
                         resubmit=self.resubmit,
-                        ddm_attempt=self.ddm_attempt,
                         first_submission=self.first_submission,
                     )
                     # run plugin

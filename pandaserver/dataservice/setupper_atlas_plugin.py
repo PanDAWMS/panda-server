@@ -46,7 +46,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         # defaults
         default_map = {
             "resubmit": False,
-            "ddm_attempt": 0,
         }
         SetupperPluginBase.__init__(self, taskBuffer, jobs, logger, params, default_map)
         # VUIDs of dispatchDBlocks
