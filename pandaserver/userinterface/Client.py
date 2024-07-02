@@ -20,6 +20,8 @@ except ImportError:
 
 import json
 
+from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
+
 from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
 # configuration
@@ -155,6 +157,7 @@ class _Curl:
     # GET method
     def get(self, url, data):
         use_https = is_https(url)
+        url = replace_hostname_in_url_randomly(url)
         # make command
         com = f"{self.path} --silent --get"
         if not self.verifyHost:
@@ -212,6 +215,7 @@ class _Curl:
     # POST method
     def post(self, url, data, via_file=False):
         use_https = is_https(url)
+        url = replace_hostname_in_url_randomly(url)
         # make command
         com = f"{self.path} --silent"
         if not self.verifyHost:
@@ -278,6 +282,7 @@ class _Curl:
     # PUT method
     def put(self, url, data):
         use_https = is_https(url)
+        url = replace_hostname_in_url_randomly(url)
         # make command
         com = f"{self.path} --silent"
         if not self.verifyHost:

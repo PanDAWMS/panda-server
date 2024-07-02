@@ -7,7 +7,6 @@ import hashlib
 import re
 import sys
 import traceback
-
 from typing import Dict, List
 
 from rucio.client import Client as RucioClient
@@ -20,6 +19,7 @@ from rucio.common.exception import (
     FileAlreadyExists,
     UnsupportedOperation,
 )
+
 from pandaserver.srvcore import CoreUtils
 
 
@@ -28,6 +28,7 @@ class RucioAPI:
     """
     A class to interact with Rucio API
     """
+
     # constructor
     def __init__(self):
         """
@@ -222,8 +223,9 @@ class RucioAPI:
         return client.account
 
     # register dataset subscription
-    def register_dataset_subscription(self, dataset_name: str, rses: list, lifetime: int = None, owner: str = None,
-                                    activity: str = None, distinguished_name: str = None, comment: str = None) -> bool:
+    def register_dataset_subscription(
+        self, dataset_name: str, rses: list, lifetime: int = None, owner: str = None, activity: str = None, distinguished_name: str = None, comment: str = None
+    ) -> bool:
         """
         Register a dataset subscription in Rucio.
 
@@ -417,7 +419,7 @@ class RucioAPI:
                 client.add_files_to_archive(
                     scope=zip_file["scope"],
                     name=zip_file["name"],
-                    files=files[i_files: i_files + n_files],
+                    files=files[i_files : i_files + n_files],
                 )
                 i_files += n_files
 
@@ -712,7 +714,7 @@ class RucioAPI:
             return False, f"{err_type} {err_value}"
 
     # list files in dataset
-    def list_files_in_dataset(self, dataset_name: str, long: bool = False, file_list: List[str] = None) :
+    def list_files_in_dataset(self, dataset_name: str, long: bool = False, file_list: List[str] = None):
         """
         List files in a Rucio dataset.
 
@@ -890,14 +892,24 @@ class RucioAPI:
                 x509_user_name = None
             for account_type in ["USER", "GROUP"]:
                 if x509_user_name is not None:
-                    user_name = x509_user_name
-                    for account in client.list_accounts(account_type=account_type, identity=user_name):
-                        user_info = {"nickname": account["account"], "email": account["email"]}
-                        break
-                    if user_info is None:
-                        user_name = CoreUtils.get_bare_dn(distinguished_name, keep_digits=False)
-                        for account in client.list_accounts(account_type=account_type, identity=user_name):
-                            user_info = {"nickname": account["account"], "email": account["email"]}
+                    user_names = [x509_user_name]
+                    # replace / with , and reverse substrings to be converted to RFC format
+                    tmp_list = user_names[-1].split("/")
+                    if "" in tmp_list:
+                        tmp_list.remove("")
+                    user_names.append(",".join(tmp_list[::-1]))
+                    # remove /CN=\d
+                    user_names.append(CoreUtils.get_bare_dn(distinguished_name, keep_digits=False))
+                    # replace / with , and reverse substrings to be converted to RFC format
+                    tmp_list = user_names[-1].split("/")
+                    if "" in tmp_list:
+                        tmp_list.remove("")
+                    user_names.append(",".join(tmp_list[::-1]))
+                    for user_name in user_names:
+                        for i in client.list_accounts(account_type=account_type, identity=user_name):
+                            user_info = {"nickname": i["account"], "email": i["email"]}
+                            break
+                        if user_info is not None:
                             break
                 else:
                     user_name = oidc_user_name

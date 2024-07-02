@@ -105,6 +105,14 @@ RUN chmod -R 777 /var/lib/logrotate
 RUN chmod -R 777 /var/cric
 RUN chmod -R 777 /var/cache/pandaserver
 
+# to have trf files under /var/trf/user
+RUN mkdir -p /var/trf/user
+
+RUN mkdir /tmp/panda-wnscript && cd /tmp/panda-wnscript && \
+    git clone https://github.com/PanDAWMS/panda-wnscript.git && \
+    cp -R panda-wnscript/dist/* /var/trf/user/ && \
+    cd / && rm -rf /tmp/panda-wnscript
+
 ENV PANDA_LOCK_DIR /var/run/panda
 RUN mkdir -p ${PANDA_LOCK_DIR} && chmod 777 ${PANDA_LOCK_DIR}
 

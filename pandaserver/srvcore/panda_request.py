@@ -36,27 +36,33 @@ class PandaRequest:
                 if panda_config.token_authType == "oidc":
                     self.authenticated = False
                     if "HTTP_ORIGIN" in env:
+                        # two formats, vo:role and vo.role
                         vo = env["HTTP_ORIGIN"]
-                        vo_group = vo.replace(":", ".")
+                        # only vo.role for auth filename which is a key of auth_vo_dict
+                        vo_role = vo.replace(":", ".")
                     else:
                         vo = None
-                        vo_group = ""
+                        vo_role = ""
                     token = token_decoder.deserialize_token(serialized_token, panda_config.auth_config, vo, tmp_log)
                     # extract role
                     if vo:
-                        vo = token["vo"].split(":")[0]
-                        vo = vo.split(".")[0]
-                        if vo != token["vo"]:
-                            role = token["vo"].split(":")[-1]
-                            role = role.split(".")[-1]
+                        if ":" in token["vo"]:
+                            # vo:role
+                            vo, role = token["vo"].split(":")
+                        else:
+                            # vo.role
+                            vo = token["vo"].split(".")[0]
+                            if vo != token["vo"]:
+                                role = token["vo"].split(":")[-1]
+                                role = role.split(".")[-1]
                     # check vo
                     if vo not in panda_config.auth_policies:
                         self.message = f"Unknown vo : {vo}"
                         tmp_log.error(f"{self.message} - {env['HTTP_AUTHORIZATION']}")
                     else:
                         # robot
-                        if vo_group in panda_config.auth_vo_dict and "robot_ids" in panda_config.auth_vo_dict[vo_group]:
-                            robot_ids = [i for i in panda_config.auth_vo_dict[vo_group].get("robot_ids").split(",") if i]
+                        if vo_role in panda_config.auth_vo_dict and "robot_ids" in panda_config.auth_vo_dict[vo_role]:
+                            robot_ids = [i for i in panda_config.auth_vo_dict[vo_role].get("robot_ids").split(",") if i]
                             if token["sub"] in robot_ids:
                                 if "groups" not in token:
                                     if role:
