@@ -61,14 +61,14 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         self.all_replica_map = {}
         # replica map for special brokerage
         self.replica_map_for_broker = {}
-        # available files at T2
-        self.available_lfns_in_t2 = {}
+        # available files at satellite sites
+        self.available_lfns_in_satellites= {}
         # list of missing datasets
         self.missing_dataset_list = {}
         # lfn ds map
         self.lfn_dataset_map = {}
-        # missing files at T1
-        self.missing_files_in_t1 = {}
+        # missing files at nucleus sites
+        self.missing_files_in_nucleus = {}
         # source label
         self.prod_source_label = None
         self.job_label = None
@@ -106,7 +106,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 self.task_buffer,
                 self.site_mapper,
                 replicaMap=self.replica_map_for_broker,
-                t2FilesMap=self.available_lfns_in_t2,
+                satellitesFilesMap=self.available_lfns_in_satellites,
             )
             # remove waiting jobs
             self.remove_waiting_jobs()
@@ -863,9 +863,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 missing_at_t1 = False
                 if job.prodSourceLabel in ["managed", "test"]:
                     for tmp_lfn in self.disp_file_list[job.dispatchDBlock]["lfns"]:
-                        if job.getCloud() not in self.missing_files_in_t1:
+                        if job.getCloud() not in self.missing_files_in_nucleus:
                             break
-                        if tmp_lfn in self.missing_files_in_t1[job.getCloud()] or tmp_lfn.split(":")[-1] in self.missing_files_in_t1[job.getCloud()]:
+                        if tmp_lfn in self.missing_files_in_nucleus[job.getCloud()] or tmp_lfn.split(":")[-1] in self.missing_files_in_nucleus[job.getCloud()]:
                             missing_at_t1 = True
                             break
                     self.logger.debug(f"{job.dispatchDBlock} missing at T1 : {missing_at_t1}")
@@ -1176,9 +1176,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     if file.dataset not in datasets:
                         datasets.append(file.dataset)
                 if src_ddm_id == dst_ddm_id and file.type == "input" and job.prodSourceLabel in ["managed", "test", "ptest"] and file.status != "ready":
-                    if job.getCloud() not in self.missing_files_in_t1:
-                        self.missing_files_in_t1[job.getCloud()] = set()
-                    self.missing_files_in_t1[job.getCloud()].add(file.lfn)
+                    if job.getCloud() not in self.missing_files_in_nucleus:
+                        self.missing_files_in_nucleus[job.getCloud()] = set()
+                    self.missing_files_in_nucleus[job.getCloud()].add(file.lfn)
             # get LFN list
             for dataset in datasets:
                 if dataset not in lfn_map:
@@ -1686,12 +1686,12 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # if available at T2
                 real_dest_ddm_id = (dest_ddm_id,)
                 if (
-                    tmp_job.getCloud() in self.available_lfns_in_t2
-                    and tmp_file.dataset in self.available_lfns_in_t2[tmp_job.getCloud()]
-                    and tmp_job.computingSite in self.available_lfns_in_t2[tmp_job.getCloud()][tmp_file.dataset]["sites"]
-                    and tmp_file.lfn in self.available_lfns_in_t2[tmp_job.getCloud()][tmp_file.dataset]["sites"][tmp_job.computingSite]
+                    tmp_job.getCloud() in self.available_lfns_in_satellites
+                    and tmp_file.dataset in self.available_lfns_in_satellites[tmp_job.getCloud()]
+                    and tmp_job.computingSite in self.available_lfns_in_satellites[tmp_job.getCloud()][tmp_file.dataset]["sites"]
+                    and tmp_file.lfn in self.available_lfns_in_satellites[tmp_job.getCloud()][tmp_file.dataset]["sites"][tmp_job.computingSite]
                 ):
-                    real_dest_ddm_id = self.available_lfns_in_t2[tmp_job.getCloud()][tmp_file.dataset]["siteDQ2IDs"][tmp_job.computingSite]
+                    real_dest_ddm_id = self.available_lfns_in_satellites[tmp_job.getCloud()][tmp_file.dataset]["siteDQ2IDs"][tmp_job.computingSite]
                     real_dest_ddm_id = tuple(real_dest_ddm_id)
                 # append
                 if real_dest_ddm_id not in dataset_file_map[map_key]:

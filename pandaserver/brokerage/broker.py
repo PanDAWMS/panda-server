@@ -382,7 +382,7 @@ def schedule(
     pd2pT1=False,
     reportLog=False,
     minPriority=None,
-    t2FilesMap={},
+    satellitesFilesMap={},
     preferredCountries=[],
     siteReliability=None,
 ):
