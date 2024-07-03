@@ -1605,7 +1605,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 and self.site_mapper.getSite(tmp_job.computingSite).cloud in ["US"]
             ):
                 tmp_site_spec = self.site_mapper.getSite(tmp_job.computingSite)
-                scope_tmp_site_input, scope_tmp_site_output = select_scope(tmp_site_spec, tmp_job.prodSourceLabel, tmp_job.job_label)
+                scope_tmp_site_input, _ = select_scope(tmp_site_spec, tmp_job.prodSourceLabel, tmp_job.job_label)
                 tmp_se_tokens = tmp_site_spec.setokens_input[scope_tmp_site_input]
                 if "ATLASPRODDISK" in tmp_se_tokens:
                     dest_ddm_id = tmp_se_tokens["ATLASPRODDISK"]
