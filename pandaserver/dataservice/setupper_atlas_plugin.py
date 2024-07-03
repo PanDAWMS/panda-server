@@ -848,7 +848,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # destination
                 tmp_dst_id = job.computingSite
                 tmp_site_spec = self.site_mapper.getSite(job.computingSite)
-                scope_tmp_site_input, _ = select_scope(tmp_site_spec, job.prodSourceLabel, job.job_label)
+                scope_tmp_site_input, scope_tmp_site_output = select_scope(tmp_site_spec, job.prodSourceLabel, job.job_label)
                 if src_ddm_id != tmp_site_spec.ddm_input[scope_tmp_site_input] and src_ddm_id in tmp_site_spec.setokens_input[scope_tmp_site_input].values():
                     # direct usage of remote SE. Mainly for prestaging
                     tmp_dst_id = tmp_src_id
@@ -880,6 +880,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     if ddm_id != dst_ddm_id or missing_at_t1:
                         # make list
                         if job.dispatchDBlock in self.replica_map:
+                            for tmp_dataset in self.replica_map[job.dispatchDBlock]:
+                                tmp_rep_map = self.replica_map[job.dispatchDBlock][tmp_dataset]
                             # consider cloudconfig.tier1se
                             tmp_cloud_ses = DataServiceUtils.getEndpointsAtT1(tmp_rep_map, self.site_mapper, job.getCloud())
                             use_cloud_ses = []
@@ -1294,7 +1296,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 tmp_job.nInputDataFiles = 0
                 tmp_job.inputFileBytes = 0
                 tmp_input_file_project = None
-                tmp_input_file_type = None
                 for tmp_file in tmp_job.Files:
                     # use input files and ignore DBR/lib.tgz
                     # lib.tgz is the user sandbox
@@ -1307,14 +1308,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             tmp_input_items = tmp_file.dataset.split(".")
                             # input project
                             tmp_input_file_project = tmp_input_items[0].split(":")[-1]
-                            # input type. ignore user/group/groupXY
-                            if (
-                                len(tmp_input_items) > 4
-                                and (not tmp_input_items[0] in ["", "NULL", "user", "group"])
-                                and (not tmp_input_items[0].startswith("group"))
-                                and not tmp_file.dataset.startswith("panda.um.")
-                            ):
-                                tmp_input_file_type = tmp_input_items[4]
                 # set input type and project
                 if tmp_job.prodDBlock not in ["", None, "NULL"]:
                     # input project
@@ -1612,7 +1605,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 and self.site_mapper.getSite(tmp_job.computingSite).cloud in ["US"]
             ):
                 tmp_site_spec = self.site_mapper.getSite(tmp_job.computingSite)
-                scope_tmp_site_input, _ = select_scope(tmp_site_spec, tmp_job.prodSourceLabel, tmp_job.job_label)
+                scope_tmp_site_input, scope_tmp_site_output = select_scope(tmp_site_spec, tmp_job.prodSourceLabel, tmp_job.job_label)
                 tmp_se_tokens = tmp_site_spec.setokens_input[scope_tmp_site_input]
                 if "ATLASPRODDISK" in tmp_se_tokens:
                     dest_ddm_id = tmp_se_tokens["ATLASPRODDISK"]
