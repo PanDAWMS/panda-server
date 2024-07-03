@@ -610,10 +610,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                         and DataServiceUtils.is_sub_dataset(name)
                                         and (job.prodSourceLabel not in ["user", "panda"])
                                     ):
-                                        # T1 used as T2. Use both DATADISK and PRODDISK as locations while T1 PRODDISK is phasing out
+                                        # T1 used as T2. Use DATADISK as location
                                         ddm_id_list = [tmp_site.ddm_output[scope_output]]
-                                        if scope_output in tmp_site.setokens_output and "ATLASPRODDISK" in tmp_site.setokens_output[scope_output]:
-                                            ddm_id_list += [tmp_site.setokens_output[scope_output]["ATLASPRODDISK"]]
                                         using_t1_as_t2 = True
                                     else:
                                         ddm_id_list = [tmp_site.ddm_output[scope_output]]
@@ -944,9 +942,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                 tmp_dst_site_spec = self.site_mapper.getSite(tmp_dst_id)
                                 scope_input, _ = select_scope(tmp_dst_site_spec, job.prodSourceLabel, job.job_label)
                                 se_tokens = tmp_dst_site_spec.setokens_input[scope_input]
-                                # use T1_PRODDISK
-                                if "ATLASPRODDISK" in se_tokens:
-                                    ddm_id = se_tokens["ATLASPRODDISK"]
                             elif job.prodSourceLabel in ["user", "panda"]:
                                 # use DATADISK
                                 tmp_site_spec = self.site_mapper.getSite(job.computingSite)
@@ -1607,8 +1602,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 tmp_site_spec = self.site_mapper.getSite(tmp_job.computingSite)
                 scope_tmp_site_input, _ = select_scope(tmp_site_spec, tmp_job.prodSourceLabel, tmp_job.job_label)
                 tmp_se_tokens = tmp_site_spec.setokens_input[scope_tmp_site_input]
-                if "ATLASPRODDISK" in tmp_se_tokens:
-                    dest_ddm_id = tmp_se_tokens["ATLASPRODDISK"]
             # backend
             ddm_back_end = "rucio"
             map_key_job = (dest_ddm_id, log_sub_ds_name)
