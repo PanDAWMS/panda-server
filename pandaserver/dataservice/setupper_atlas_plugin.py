@@ -114,7 +114,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             self.memory_check()
             self.setup_source()
             self.memory_check()
-            # sort by site so that larger subs are created in the next step
+            # sort by site so that larger sub datasets are created in the next step
             if self.jobs != [] and self.jobs[0].prodSourceLabel in [
                 "managed",
                 "test",
@@ -170,6 +170,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     self.setup_destination(start_idx=tmp_index_job, n_jobs_in_loop=i_bunch)
             else:
                 # make one sub per job so that each job doesn't have to wait for others to be done
+                # Special jobs for SW installation and HC seem to be above 6000
                 if self.jobs != [] and self.jobs[0].prodSourceLabel in ["user", "panda"] and self.jobs[-1].currentPriority > 6000:
                     for i_bunch in range(len(self.jobs)):
                         self.setup_destination(start_idx=i_bunch, n_jobs_in_loop=1)
@@ -219,7 +220,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
     # make dispatchDBlocks, insert prod/dispatchDBlock to database
     def setup_source(self) -> None:
         """
-        Setup source method for running the setup process.
+        Make dispatchDBlocks, insert prod/dispatchDBlock to database
+        Transfer input to satellite
         """
         file_list = {}
         prod_list = []
@@ -228,6 +230,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         disp_error = {}
         back_end_map = {}
         ds_task_map = dict()
+        # special datasets in rucio where files are zipped into a file
         use_zip_to_pin_map = dict()
         # extract prodDBlock
         for job in self.jobs:
@@ -280,7 +283,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # useZipToPin mapping
                 use_zip_to_pin_map[job.dispatchDBlock] = job.useZipToPin()
                 # src/dst sites
-                tmp_src_id = "BNL_ATLAS_1"
+                tmp_src_id = "UNKNOWN"
                 if self.site_mapper.checkCloud(job.getCloud()):
                     # use cloud's source
                     tmp_src_id = self.site_mapper.getCloud(job.getCloud())["source"]
@@ -491,7 +494,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
     # create dataset for outputs in the repository and assign destination
     def setup_destination(self, start_idx: int = -1, n_jobs_in_loop: int = 50) -> None:
         """
-        Setup destination method for running the setup process.
+        Create dataset for outputs in the repository and assign destination
 
         :param start_idx: The starting index for the jobs to be processed. Defaults to -1.
         :param n_jobs_in_loop: The number of jobs to be processed in a loop. Defaults to 50.
@@ -606,7 +609,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                         tmp_site.cloud != job.getCloud()
                                         and DataServiceUtils.is_sub_dataset(name)
                                         and (job.prodSourceLabel not in ["user", "panda"])
-                                        and (not tmp_site.ddm_output[scope_output].endswith("PRODDISK"))
                                     ):
                                         # T1 used as T2. Use both DATADISK and PRODDISK as locations while T1 PRODDISK is phasing out
                                         ddm_id_list = [tmp_site.ddm_output[scope_output]]
@@ -694,7 +696,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                         rep_life_time = 14
                                     elif name.startswith("hc_test") or name.startswith("panda.install.") or name.startswith("user.gangarbt."):
                                         rep_life_time = 7
-                                    # distributed datasets for es outputs
+                                    # distributed datasets for Event Service output
                                     grouping = None
                                     if name != original_name and DataServiceUtils.is_sub_dataset(name) and EventServiceUtils.isEventServiceJob(job):
                                         ddm_id_list = ["type=DATADISK"]
@@ -834,7 +836,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             if disp not in disp_error:
                 disp_error[disp] = ""
                 # DDM IDs
-                tmp_src_id = "BNL_ATLAS_1"
+                tmp_src_id = "UNKNOWN"
                 if job.prodSourceLabel in ["user", "panda"]:
                     tmp_src_id = job.computingSite
                 elif self.site_mapper.checkCloud(job.getCloud()):
@@ -878,52 +880,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     if ddm_id != dst_ddm_id or missing_at_t1:
                         # make list
                         if job.dispatchDBlock in self.replica_map:
-                            # set DDM ID for DISK
-                            if not src_ddm_id.endswith("_DATADISK"):
-                                hot_id = re.sub("_MCDISK", "_HOTDISK", src_ddm_id)
-                                disk_id = re.sub("_MCDISK", "_DATADISK", src_ddm_id)
-                                tape_id = re.sub("_MCDISK", "_DATATAPE", src_ddm_id)
-                                mc_tape_id = re.sub("_MCDISK", "_MCTAPE", src_ddm_id)
-                            else:
-                                hot_id = re.sub("_DATADISK", "_HOTDISK", src_ddm_id)
-                                disk_id = re.sub("_DATADISK", "_DATADISK", src_ddm_id)
-                                tape_id = re.sub("_DATADISK", "_DATATAPE", src_ddm_id)
-                                mc_tape_id = re.sub("_DATADISK", "_MCTAPE", src_ddm_id)
-                            # DDM ID is mixed with TAIWAN-LCG2 and TW-FTT
-                            if job.getCloud() in [
-                                "TW",
-                            ]:
-                                tmp_site_spec = self.site_mapper.getSite(tmp_src_id)
-                                scope_input, _ = select_scope(tmp_site_spec, job.prodSourceLabel, job.job_label)
-                                if "ATLASDATADISK" in tmp_site_spec.setokens_input[scope_input]:
-                                    disk_id = tmp_site_spec.setokens_input[scope_input]["ATLASDATADISK"]
-                                if "ATLASDATATAPE" in tmp_site_spec.setokens_input[scope_input]:
-                                    tape_id = tmp_site_spec.setokens_input[scope_input]["ATLASDATATAPE"]
-                                if "ATLASMCTAPE" in tmp_site_spec.setokens_input[scope_input]:
-                                    mc_tape_id = tmp_site_spec.setokens_input[scope_input]["ATLASMCTAPE"]
-                                hot_id = "TAIWAN-LCG2_HOTDISK"
-                            for tmp_dataset in self.replica_map[job.dispatchDBlock]:
-                                tmp_rep_map = self.replica_map[job.dispatchDBlock][tmp_dataset]
-                                if hot_id in tmp_rep_map:
-                                    # HOTDISK
-                                    if hot_id not in ddm_id_list:
-                                        ddm_id_list.append(hot_id)
-                                if src_ddm_id in tmp_rep_map:
-                                    # MCDISK
-                                    if src_ddm_id not in ddm_id_list:
-                                        ddm_id_list.append(src_ddm_id)
-                                if disk_id in tmp_rep_map:
-                                    # DATADISK
-                                    if disk_id not in ddm_id_list:
-                                        ddm_id_list.append(disk_id)
-                                if tape_id in tmp_rep_map:
-                                    # DATATAPE
-                                    if tape_id not in ddm_id_list:
-                                        ddm_id_list.append(tape_id)
-                                if mc_tape_id in tmp_rep_map:
-                                    # MCTAPE
-                                    if mc_tape_id not in ddm_id_list:
-                                        ddm_id_list.append(mc_tape_id)
                             # consider cloudconfig.tier1se
                             tmp_cloud_ses = DataServiceUtils.getEndpointsAtT1(tmp_rep_map, self.site_mapper, job.getCloud())
                             use_cloud_ses = []
@@ -980,7 +936,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             # T1 used as T2
                             if (
                                 job.getCloud() != self.site_mapper.getSite(tmp_dst_id).cloud
-                                and (not dst_ddm_id.endswith("PRODDISK"))
                                 and (job.prodSourceLabel not in ["user", "panda"])
                                 and self.site_mapper.getSite(tmp_dst_id).cloud in ["US"]
                             ):
@@ -1275,6 +1230,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     add_to_lfn_map = True
                     if file.GUID == "NULL":
                         # get LFN w/o attemptNr
+                        # regexp to remove a dot followed by one or more digits at the end of the file name
+                        # for example "data_file.123" will become "data_file"
                         basename = re.sub("\.\d+$", "", file.lfn)
                         if basename == file.lfn:
                             # replace
@@ -1340,6 +1297,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 tmp_input_file_type = None
                 for tmp_file in tmp_job.Files:
                     # use input files and ignore DBR/lib.tgz
+                    # lib.tgz is the user sandbox
                     if tmp_file.type == "input" and (not tmp_file.dataset.startswith("ddo")) and not tmp_file.lfn.endswith(".lib.tgz"):
                         tmp_job.nInputDataFiles += 1
                         if tmp_file.fsize not in ["NULL", None, 0, "0"]:
@@ -1651,7 +1609,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             # T1 used as T2
             if (
                 tmp_job.getCloud() != self.site_mapper.getSite(tmp_job.computingSite).cloud
-                and not dest_ddm_id.endswith("PRODDISK")
                 and self.site_mapper.getSite(tmp_job.computingSite).cloud in ["US"]
             ):
                 tmp_site_spec = self.site_mapper.getSite(tmp_job.computingSite)
