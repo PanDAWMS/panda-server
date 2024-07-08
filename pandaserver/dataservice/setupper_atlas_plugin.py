@@ -61,7 +61,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         # replica map for special brokerage
         self.replica_map_for_broker = {}
         # available files at satellite sites
-        self.available_lfns_in_satellites= {}
+        self.available_lfns_in_satellites = {}
         # list of missing datasets
         self.missing_dataset_list = {}
         # lfn ds map
@@ -169,7 +169,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 if i_bunch != 0:
                     self.setup_destination(start_idx=tmp_index_job, n_jobs_in_loop=i_bunch)
             else:
-                # make one sub per job so that each job doesn't have to wait for others to be done
+                # make one sub dataset per job so that each job doesn't have to wait for others to be done
                 # Special jobs for SW installation and HC seem to be above 6000
                 if self.jobs != [] and self.jobs[0].prodSourceLabel in ["user", "panda"] and self.jobs[-1].currentPriority > 6000:
                     for i_bunch in range(len(self.jobs)):
@@ -601,7 +601,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                 tmp_token_list = file.destinationDBlockToken.split(",")
 
                                 # get locations
-                                using_t1_as_t2 = False
+                                using_nucleus_as_satellite = False
                                 if job.prodSourceLabel == "user" and computing_site not in self.site_mapper.siteSpecList:
                                     ddm_id_list = [tmp_site.ddm_output[scope_output]]
                                 else:
@@ -610,16 +610,16 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                         and DataServiceUtils.is_sub_dataset(name)
                                         and (job.prodSourceLabel not in ["user", "panda"])
                                     ):
-                                        # T1 used as T2. Use DATADISK as location
+                                        # Nucleus used as Satellite. Use DATADISK as location
                                         ddm_id_list = [tmp_site.ddm_output[scope_output]]
-                                        using_t1_as_t2 = True
+                                        using_nucleus_as_satellite = True
                                     else:
                                         ddm_id_list = [tmp_site.ddm_output[scope_output]]
                                 # use another location when token is set
                                 if not DataServiceUtils.is_sub_dataset(name) and DataServiceUtils.getDestinationSE(file.destinationDBlockToken) is not None:
                                     # destination is specified
                                     ddm_id_list = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
-                                elif (not using_t1_as_t2) and (file.destinationDBlockToken not in ["NULL", ""]):
+                                elif (not using_nucleus_as_satellite) and (file.destinationDBlockToken not in ["NULL", ""]):
                                     ddm_id_list = []
                                     for tmp_token in tmp_token_list:
                                         # set default
@@ -858,16 +858,16 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     dst_ddm_id = src_ddm_id
                 else:
                     dst_ddm_id = dst_site_spec.ddm_input[scope_dst_input]
-                # check if missing at T1
-                missing_at_t1 = False
+                # check if missing at Nucleus
+                missing_at_nucleus = False
                 if job.prodSourceLabel in ["managed", "test"]:
                     for tmp_lfn in self.disp_file_list[job.dispatchDBlock]["lfns"]:
                         if job.getCloud() not in self.missing_files_in_nucleus:
                             break
                         if tmp_lfn in self.missing_files_in_nucleus[job.getCloud()] or tmp_lfn.split(":")[-1] in self.missing_files_in_nucleus[job.getCloud()]:
-                            missing_at_t1 = True
+                            missing_at_nucleus = True
                             break
-                    self.logger.debug(f"{job.dispatchDBlock} missing at T1 : {missing_at_t1}")
+                    self.logger.debug(f"{job.dispatchDBlock} missing at Nucleus : {missing_at_nucleus}")
                 # use DDM
                 if job.prodSourceLabel != "ddm":
                     # look for replica
@@ -875,13 +875,13 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     ddm_id_list = []
                     # register replica
                     is_ok = False
-                    if ddm_id != dst_ddm_id or missing_at_t1:
+                    if ddm_id != dst_ddm_id or missing_at_nucleus:
                         # make list
                         if job.dispatchDBlock in self.replica_map:
                             for tmp_dataset in self.replica_map[job.dispatchDBlock]:
                                 tmp_rep_map = self.replica_map[job.dispatchDBlock][tmp_dataset]
                             # consider cloudconfig.tier1se
-                            tmp_cloud_ses = DataServiceUtils.getEndpointsAtT1(tmp_rep_map, self.site_mapper, job.getCloud())
+                            tmp_cloud_ses = DataServiceUtils.get_endpoints_at_nucleus(tmp_rep_map, self.site_mapper, job.getCloud())
                             use_cloud_ses = []
                             for tmp_cloud_se in tmp_cloud_ses:
                                 if tmp_cloud_se not in ddm_id_list:
@@ -904,7 +904,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         opt_source = {}
                         ddm_id = dst_ddm_id
                         # prestaging
-                        if src_ddm_id == dst_ddm_id and not missing_at_t1:
+                        if src_ddm_id == dst_ddm_id and not missing_at_nucleus:
                             # prestage to associated endpoints
                             if job.prodSourceLabel in ["user", "panda"]:
                                 tmp_site_spec = self.site_mapper.getSite(job.computingSite)
@@ -929,11 +929,11 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             is_ok = True
                         else:
                             is_ok = True
-                            # set sources to handle T2s in another cloud and to transfer dis datasets being split in multiple sites
-                            if not missing_at_t1:
+                            # set sources to handle Satellites in another cloud and to transfer dis datasets being split in multiple sites
+                            if not missing_at_nucleus:
                                 for tmp_ddm_id in ddm_id_list:
                                     opt_source[tmp_ddm_id] = {"policy": 0}
-                            # T1 used as T2
+                            # Nucleus used as Satellite
                             if (
                                 job.getCloud() != self.site_mapper.getSite(tmp_dst_id).cloud
                                 and (job.prodSourceLabel not in ["user", "panda"])
@@ -1092,7 +1092,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # append job to processed list
                 jobs_processed.append(job)
                 continue
-            # check if T1
+            # check if Nucleus
             tmp_src_id = self.site_mapper.getCloud(job.getCloud())["source"]
             src_site_spec = self.site_mapper.getSite(tmp_src_id)
             _, src_scope_output = select_scope(src_site_spec, job.prodSourceLabel, job.job_label)
@@ -1594,7 +1594,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             dest_site = self.site_mapper.getSite(tmp_job.computingSite)
             scope_dest_input, _ = select_scope(dest_site, tmp_job.prodSourceLabel, tmp_job.job_label)
             dest_ddm_id = dest_site.ddm_input[scope_dest_input]
-            # T1 used as T2
+            # Nucleus used as Satellite
             if (
                 tmp_job.getCloud() != self.site_mapper.getSite(tmp_job.computingSite).cloud
                 and self.site_mapper.getSite(tmp_job.computingSite).cloud in ["US"]
@@ -1625,7 +1625,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # or files are cached
                 if tmp_file.status not in ["ready"]:
                     continue
-                # if available at T2
+                # if available at Satellite
                 real_dest_ddm_id = (dest_ddm_id,)
                 if (
                     tmp_job.getCloud() in self.available_lfns_in_satellites
@@ -1910,7 +1910,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         self.logger.debug("pin input datasets done")
         return
 
-    # make T1 subscription for missing files
+    # make Nucleus subscription for missing files
     def make_subscription_for_missing(self) -> None:
         """
         Make subscription for missing method for running the setup process.

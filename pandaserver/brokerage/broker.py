@@ -242,8 +242,8 @@ def sendMsgToLoggerHTTP(msgList, job):
         _log.error(f"sendMsgToLoggerHTTP : {errType} {errValue}")
 
 
-# get T2 candidates when files are missing at T2
-def getT2CandList(tmpJob, siteMapper, satellitesFilesMap):
+# get Satellite candidates when files are missing at Satellite
+def get_satellite_cand_list(tmpJob, siteMapper, satellitesFilesMap):
     if tmpJob is None:
         return []
     # no cloud info
@@ -522,7 +522,7 @@ def schedule(
             # send jobs to T2 when files are missing at T1
             goToT2Flag = False
             if job is not None and job.computingSite == "NULL" and job.prodSourceLabel in ("test", "managed") and specialBrokergageSiteList == []:
-                currentT2CandList = getT2CandList(job, siteMapper, satellitesFilesMap)
+                currentT2CandList = get_satellite_cand_list(job, siteMapper, satellitesFilesMap)
                 if currentT2CandList != []:
                     goToT2Flag = True
                     specialBrokergageSiteList = currentT2CandList
