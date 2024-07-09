@@ -116,14 +116,7 @@ class UserIF:
                 _logger.error("submitJobs : checking username for userVO[%s]: username not found, defaulting to %s. %s %s" % (userVO, user))
 
         # store jobs
-        ret = self.taskBuffer.storeJobs(
-            jobs,
-            user,
-            fqans=userFQANs,
-            hostname=host,
-            toPending=toPending,
-            userVO=userVO,
-        )
+        ret = self.taskBuffer.storeJobs(jobs, user, fqans=userFQANs, hostname=host, toPending=toPending, userVO=userVO, useDefaultMemory=True)
         _logger.debug(f"submitJobs {user} ->:{len(ret)}")
 
         # serialize

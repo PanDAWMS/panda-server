@@ -182,6 +182,7 @@ class TaskBuffer:
         esJobsetMap=None,
         getEsJobsetMap=False,
         unprocessedMap=None,
+        useDefaultMemory=False,
     ):
         try:
             tmpLog = LogWrapper(_logger, f"storeJobs <{CoreUtils.clean_user_id(user)}>")
@@ -364,6 +365,9 @@ class TaskBuffer:
             except Exception:
                 pass
             for idxJob, job in enumerate(jobs):
+                # site spec for later usage
+                tmpSiteSpec = siteMapper.getSite(job.computingSite)
+
                 # set JobID. keep original JobID when retry
                 if (
                     userJobID != -1
@@ -416,9 +420,24 @@ class TaskBuffer:
                 # set relocation flag
                 if job.computingSite != "NULL" and job.relocationFlag != 2:
                     job.relocationFlag = 1
-                # protection agains empty jobParameters
+                # protection against empty jobParameters
                 if job.jobParameters in ["", None, "NULL"]:
                     job.jobParameters = " "
+
+                # Protection against missing memory definition
+                # We are going to use 2GB as a default value, as this was the usual ATLAS slot memory.
+                # There is no other major reason and it could be over-dimensioned.
+                if useDefaultMemory and job.minRamCount == 0:
+                    if job.coreCount not in ["NULL", None]:
+                        coreCount = 1
+                    else:
+                        coreCount = job.coreCount
+
+                    if tmpSiteSpec.maxrss:
+                        jobSpec.minRamCount = min(2000 * coreCount, tmpSiteSpec.maxrss)
+                    else:
+                        jobSpec.minRamCount = 2000 * coreCount
+
                 # set country group and nJobs (=taskID)
                 if job.prodSourceLabel in JobUtils.analy_sources:
                     if job.lockedby != "jedi":
@@ -450,7 +469,6 @@ class TaskBuffer:
                     JobUtils.PROD_PS,
                     JobUtils.ANALY_PS,
                 ):
-                    tmpSiteSpec = siteMapper.getSite(job.computingSite)
                     queue_type = tmpSiteSpec.type
                     if queue_type == "analysis":
                         job.job_label = JobUtils.ANALY_PS
