@@ -21,7 +21,7 @@ from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice.AdderGen import AdderGen
 from pandaserver.jobdispatcher import DispatcherUtils, Protocol
-from pandaserver.proxycache import panda_proxy_cache
+from pandaserver.proxycache import panda_proxy_cache, token_cache
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import EventServiceUtils
 
@@ -123,6 +123,10 @@ class JobDispatcher:
         self.siteMapperCache = None
         # lock
         self.lock = Lock()
+        # proxy cacher
+        self.proxy_cacher = panda_proxy_cache.MyProxyInterface()
+        # token cacher
+        self.token_cacher = token_cache.TokenCache()
 
     # set task buffer
     def init(self, taskBuffer):
@@ -147,27 +151,40 @@ class JobDispatcher:
         self.lock.release()
 
     # set user proxy
-    def setUserProxy(self, response, realDN=None, role=None):
+    def set_user_proxy(self, response, distinguished_name=None, role=None, tokenized=False) -> tuple[bool, str]:
+        """
+        Set user proxy to the response
+
+        :param response: response object
+        :param distinguished_name: the distinguished name of the user
+        :param role: the role of the user
+        :param tokenized: whether the response should contain a token instead of a proxy
+
+        :return: a tuple containing a boolean indicating success and a message
+        """
         try:
-            if realDN is None:
-                realDN = response.data["prodUserID"]
+            if distinguished_name is None:
+                distinguished_name = response.data["prodUserID"]
             # remove redundant extensions
-            realDN = CoreUtils.get_bare_dn(realDN, keep_digits=False)
-            pIF = panda_proxy_cache.MyProxyInterface()
-            tmpOut = pIF.retrieve(realDN, role=role)
+            distinguished_name = CoreUtils.get_bare_dn(distinguished_name, keep_digits=False)
+            if not tokenized:
+                # get proxy
+                output = self.proxy_cacher.retrieve(distinguished_name, role=role)
+            else:
+                # get token
+                output = self.token_cacher.get_access_token(distinguished_name)
             # not found
-            if tmpOut is None:
-                tmpMsg = f"proxy not found for {realDN}"
-                response.appendNode("errorDialog", tmpMsg)
-                return False, tmpMsg
+            if output is None:
+                tmp_msg = f"""{"token" if tokenized else "proxy"} not found for {distinguished_name}"""
+                response.appendNode("errorDialog", tmp_msg)
+                return False, tmp_msg
             # set
-            response.appendNode("userProxy", tmpOut)
+            response.appendNode("userProxy", output)
             return True, ""
-        except Exception:
-            errtype, errvalue = sys.exc_info()[:2]
-            tmpMsg = f"proxy retrieval failed with {errtype.__name__} {errvalue}"
-            response.appendNode("errorDialog", tmpMsg)
-            return False, tmpMsg
+        except Exception as e:
+            tmp_msg = f"""{"token" if tokenized else "proxy"} retrieval failed with {str(e)}"""
+            response.appendNode("errorDialog", tmp_msg)
+            return False, tmp_msg
 
     # get job
     def getJob(
@@ -304,13 +321,13 @@ class JobDispatcher:
                             tmpLog.warning(f"{siteName} {node} '{compactDN}' no permission to retrieve user proxy")
                         else:
                             if useProxyCache:
-                                tmpStat, tmpOut = self.setUserProxy(
+                                tmpStat, tmpOut = self.set_user_proxy(
                                     response,
                                     proxyCacheSites[siteName]["dn"],
                                     proxyCacheSites[siteName]["role"],
                                 )
                             else:
-                                tmpStat, tmpOut = self.setUserProxy(response)
+                                tmpStat, tmpOut = self.set_user_proxy(response)
                             if not tmpStat:
                                 tmpLog.warning(f"{siteName} {node} failed to get user proxy : {tmpOut}")
                     except Exception as e:
@@ -754,42 +771,52 @@ class JobDispatcher:
         return response.encode(accept_json)
 
     # get proxy
-    def getProxy(self, realDN, role, targetDN):
-        if targetDN is None:
-            targetDN = realDN
-        tmpLog = LogWrapper(_logger, f"getProxy PID={os.getpid()}")
-        tmpMsg = f'start DN="{realDN}" role={role} target="{targetDN}" '
-        tmpLog.debug(tmpMsg)
-        if realDN is None:
+    def get_proxy(self, real_distinguished_name, role, target_distinguished_name, tokenized) -> str | dict:
+        """
+        Get proxy for a user with a role
+
+        :param real_distinguished_name: actual distinguished name of the user
+        :param role: role of the user
+        :param target_distinguished_name: target distinguished name if the user wants to get proxy for someone else. This is one of client_name defined in token_cache_config when getting a token
+        :param tokenized: whether the response should contain a token instead of a proxy
+
+        :return: response in URL encoded string or dictionary
+        """
+        if target_distinguished_name is None:
+            target_distinguished_name = real_distinguished_name
+        tmp_log = LogWrapper(_logger, f"getProxy PID={os.getpid()}")
+        tmp_msg = f'start DN="{real_distinguished_name}" role={role} target="{target_distinguished_name}" '
+        tmp_log.debug(tmp_msg)
+        if real_distinguished_name is None:
             # cannot extract DN
-            tmpMsg += "failed since DN cannot be extracted"
-            tmpLog.debug(tmpMsg)
+            tmp_msg += "failed since DN cannot be extracted"
+            tmp_log.debug(tmp_msg)
             response = Protocol.Response(Protocol.SC_Perms, "Cannot extract DN from proxy. not HTTPS?")
         else:
             # get compact DN
-            compactDN = self.taskBuffer.cleanUserID(realDN)
+            compact_name = self.taskBuffer.cleanUserID(real_distinguished_name)
             # check permission
             self.specialDispatchParams.update()
             if "allowProxy" not in self.specialDispatchParams:
-                allowProxy = []
+                allowed_names = []
             else:
-                allowProxy = self.specialDispatchParams["allowProxy"]
-            if compactDN not in allowProxy:
+                allowed_names = self.specialDispatchParams["allowProxy"]
+            if compact_name not in allowed_names:
                 # permission denied
-                tmpMsg += f"failed since '{compactDN}' not in the authorized user list who have 'p' in {panda_config.schemaMETA}.USERS.GRIDPREF "
-                tmpMsg += "to get proxy"
-                tmpLog.debug(tmpMsg)
-                response = Protocol.Response(Protocol.SC_Perms, tmpMsg)
+                tmp_msg += f"failed since '{compact_name}' not in the authorized user list who have 'p' in {panda_config.schemaMETA}.USERS.GRIDPREF "
+                tmp_msg += "to get proxy"
+                tmp_log.debug(tmp_msg)
+                response = Protocol.Response(Protocol.SC_Perms, tmp_msg)
             else:
                 # get proxy
                 response = Protocol.Response(Protocol.SC_Success, "")
-                tmpStat, tmpMsg = self.setUserProxy(response, targetDN, role)
-                if not tmpStat:
-                    tmpLog.debug(tmpMsg)
+                tmp_status, tmp_msg = self.set_user_proxy(response, target_distinguished_name, role, tokenized)
+                if not tmp_status:
+                    tmp_log.debug(tmp_msg)
                     response.appendNode("StatusCode", Protocol.SC_ProxyError)
                 else:
-                    tmpMsg = "successful sent proxy"
-                    tmpLog.debug(tmpMsg)
+                    tmp_msg = "successful sent proxy"
+                    tmp_log.debug(tmp_msg)
         # return
         return response.encode(True)
 
@@ -1576,12 +1603,18 @@ def getKeyPair(req, publicKeyName, privateKeyName):
 
 
 # get proxy
-def getProxy(req, role=None, dn=None):
+def getProxy(req, role=None, dn=None, tokenized=None):
     # get DN
     realDN = _getDN(req)
     if role == "":
         role = None
-    return jobDispatcher.getProxy(realDN, role, dn)
+    if isinstance(tokenized, bool):
+        pass
+    elif tokenized == "True":
+        tokenized = True
+    else:
+        tokenized = False
+    return jobDispatcher.get_proxy(realDN, role, dn, tokenized)
 
 
 # check pilot permission

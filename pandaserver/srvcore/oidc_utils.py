@@ -112,7 +112,7 @@ class TokenDecoder:
 
 
 # get an access token with client_credentials flow
-def get_access_token(token_endpoint, client_id, client_secret, scope=None, timeout=180):
+def get_access_token(token_endpoint, client_id, client_secret, scope=None, timeout=180) -> tuple[bool, str]:
     """
     Get an access token with client_credentials flow
 

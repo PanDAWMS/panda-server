@@ -18,7 +18,7 @@ _logger = PandaLogger().getLogger("token_cache")
 
 class TokenCache:
     """
-    A class used to download access tokens for OIDC token exchange flow
+    A class used to download and give access tokens for OIDC token exchange flow
 
     """
 
@@ -28,7 +28,9 @@ class TokenCache:
         Constructs all the necessary attributes for the TokenCache object.
         Attributes:
             target_path : str
-                The path to store the access tokens
+                The base path to store the access tokens
+            file_prefix : str
+                The prefix of the access token files
             refresh_interval : int
                 The interval to refresh the access tokens (default is 60 minutes)
         """
@@ -41,6 +43,16 @@ class TokenCache:
         else:
             self.file_prefix = "access_token_"
         self.refresh_interval = refresh_interval
+
+    # construct target path
+    def construct_target_path(self, client_name) -> str:
+        """
+        Constructs the target path to store an access token
+
+        :param client_name : client name
+        :return: the target path
+        """
+        return os.path.join(self.target_path, f"{self.file_prefix}{client_name}")
 
     # main
     def run(self):
@@ -63,7 +75,7 @@ class TokenCache:
                 for client_name, client_config in token_cache_config.items():
                     tmp_log.debug(f"client_name={client_name}")
                     # target path
-                    target_path = os.path.join(self.target_path, f"{self.file_prefix}{client_name}")
+                    target_path = self.construct_target_path(client_name)
                     # check if fresh
                     if os.path.exists(target_path):
                         mod_time = datetime.datetime.fromtimestamp(os.stat(target_path).st_mtime, datetime.timezone.utc)
@@ -87,3 +99,20 @@ class TokenCache:
         tmp_log.debug("================= end ==================")
         tmp_log.debug("done")
         return
+
+    # get access token for a client
+    def get_access_token(self, client_name) -> str | None:
+        """
+        Get an access token string for a client. None is returned if the access token is not found
+
+        :param client_name : client name
+        :return: the access token
+        """
+        target_path = self.construct_target_path(client_name)
+        token = None
+        if os.path.exists(target_path):
+            with open(target_path) as f:
+                token = f.read()
+        if not token:
+            token = None
+        return token
