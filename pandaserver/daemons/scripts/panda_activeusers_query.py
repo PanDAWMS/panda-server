@@ -5,7 +5,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
 
 from pandaserver.config import panda_config
-from pandaserver.proxycache import panda_proxy_cache
+from pandaserver.proxycache import panda_proxy_cache, token_cache
 from pandaserver.srvcore import CoreUtils
 
 # logger
@@ -61,6 +61,12 @@ def main(tbuf=None, **kwargs):
         tmpLog.debug(f"check proxy cache for {name}")
         for role in roles:
             my_proxy_interface_instance.checkProxy(realDN, role=role, name=name)
+
+    # instantiate Token Cache
+    tmpLog.debug("Token Cache start")
+    token_cacher = token_cache.TokenCache()
+    token_cacher.run()
+    tmpLog.debug("Token Cache done")
 
     # stop taskBuffer if created inside this script
     if tbuf is None:
