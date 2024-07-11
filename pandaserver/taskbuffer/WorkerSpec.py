@@ -35,6 +35,7 @@ class WorkerSpec(object):
         "harvesterHost",
         "errorCode",
         "jobType",
+        "minRamCount",
     )
     # slots
     __slots__ = _attributes + ("_changedAttrs",)
