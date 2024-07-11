@@ -777,7 +777,8 @@ class JobDispatcher:
 
         :param real_distinguished_name: actual distinguished name of the user
         :param role: role of the user
-        :param target_distinguished_name: target distinguished name if the user wants to get proxy for someone else. This is one of client_name defined in token_cache_config when getting a token
+        :param target_distinguished_name: target distinguished name if the user wants to get proxy for someone else.
+                                          This is one of client_name defined in token_cache_config when getting a token
         :param tokenized: whether the response should contain a token instead of a proxy
 
         :return: response in URL encoded string or dictionary
