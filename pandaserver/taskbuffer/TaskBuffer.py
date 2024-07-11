@@ -1678,7 +1678,6 @@ class TaskBuffer:
                     self,
                     jobs,
                     resubmit=True,
-                    ddm_attempt=attempt,
                     first_submission=firstSubmission,
                 )
                 thr.start()
@@ -1689,7 +1688,6 @@ class TaskBuffer:
                     self,
                     jobs,
                     resubmit=True,
-                    ddm_attempt=attempt,
                     first_submission=firstSubmission,
                 ).start()
         tmpLog.debug("done")
