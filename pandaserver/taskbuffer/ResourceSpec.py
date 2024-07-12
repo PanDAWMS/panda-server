@@ -28,10 +28,10 @@ class ResourceSpecMapper(object):
                 return resource_type.is_multi_core()
         return False
 
-    def is_high_memory(self, resource_name):
+    def is_high_memory(self, resource_name, memory_threshold=HIMEM_THRESHOLD):
         for resource_type in self.resource_types:
             if resource_type.resource_name == resource_name:
-                if resource_type.minrampercore is not None and resource_type.minrampercore > HIMEM_THRESHOLD:
+                if resource_type.minrampercore is not None and resource_type.minrampercore > memory_threshold:
                     return True
         return False
 
@@ -42,11 +42,11 @@ class ResourceSpecMapper(object):
 
         return 1
 
-    def filter_out_high_memory_resourcetypes(self):
+    def filter_out_high_memory_resourcetypes(self, memory_threshold=HIMEM_THRESHOLD):
         resource_names = list(
             map(
                 lambda resource_type: resource_type.resource_name,
-                filter(lambda resource_type: not self.is_high_memory(resource_type.resource_name), self.resource_types),
+                filter(lambda resource_type: not self.is_high_memory(resource_type.resource_name, memory_threshold), self.resource_types),
             )
         )
         return resource_names

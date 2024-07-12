@@ -23544,7 +23544,10 @@ class DBProxy:
                 tmp_log.debug("No resource type limits")
                 pass
             try:
-                average_memory_target = pq_data_des["params"]["average_memory"]
+                if pq_data_des["meanrss"] != 0:
+                    average_memory_target = pq_data_des["meanrss"]
+                else:
+                    tmp_log.debug("meanrss is 0, not using it as average_memory_target")
             except KeyError:
                 tmp_log.debug("No average memory defined")
                 pass
@@ -23581,7 +23584,7 @@ class DBProxy:
             average_memory_workers_running_submitted, average_memory_workers_running = self.get_average_memory_workers(queue, harvester_id)
             # if the queue is over memory, we will only submit lower workers in the next cycle
             if average_memory_target < min(average_memory_workers_running_submitted, average_memory_workers_running):
-                resource_types_under_target = self.__resource_spec_mapper.filter_out_high_memory_resourcetypes()
+                resource_types_under_target = self.__resource_spec_mapper.filter_out_high_memory_resourcetypes(memory_threshold=average_memory_target)
                 tmp_log.debug(f"Accepting {resource_types_under_target} resource types to respect mean memory target")
             else:
                 tmp_log.debug(f"Accepting all resource types as under memory target")
