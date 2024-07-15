@@ -93,6 +93,10 @@ class CachedObject:
     def __getitem__(self, name):
         return self.cachedObj[name]
 
+    # get method
+    def get(self, *var):
+        return self.cachedObj.get(*var)
+
     # get object
     def getObj(self):
         self.lock.acquire()
@@ -127,6 +131,12 @@ class JobDispatcher:
         self.proxy_cacher = panda_proxy_cache.MyProxyInterface()
         # token cacher
         self.token_cacher = token_cache.TokenCache()
+        # config of token cacher
+        try:
+            with open(panda_config.token_cache_config) as f:
+                self.token_cache_config = json.load(f)
+        except Exception:
+            self.token_cache_config = {}
 
     # set task buffer
     def init(self, taskBuffer):
@@ -143,12 +153,22 @@ class JobDispatcher:
             self.pilotOwners = self.taskBuffer.getPilotOwners()
         # special dipatcher parameters
         if self.specialDispatchParams is None:
-            self.specialDispatchParams = CachedObject(60 * 10, self.taskBuffer.getSpecialDispatchParams)
+            self.specialDispatchParams = CachedObject(60 * 10, self.get_special_dispatch_params)
         # site mapper cache
         if self.siteMapperCache is None:
             self.siteMapperCache = CachedObject(60 * 10, self.getSiteMapper)
         # release
         self.lock.release()
+
+    # get special parameters for dispatcher
+    def get_special_dispatch_params(self):
+        """
+        Wrapper function around taskBuffer.get_special_dispatch_params to convert list to set since task buffer cannot return set
+        """
+        param = self.taskBuffer.get_special_dispatch_params()
+        for client_name in param["tokenKeys"]:
+            param["tokenKeys"][client_name]["fullList"] = set(param["tokenKeys"][client_name]["fullList"])
+        return param
 
     # set user proxy
     def set_user_proxy(self, response, distinguished_name=None, role=None, tokenized=False) -> tuple[bool, str]:
@@ -656,13 +676,10 @@ class JobDispatcher:
             compactDN = self.taskBuffer.cleanUserID(realDN)
             # check permission
             self.specialDispatchParams.update()
-            if "allowKey" not in self.specialDispatchParams:
-                allowKey = []
-            else:
-                allowKey = self.specialDispatchParams["allowKey"]
+            allowKey = self.specialDispatchParams.get("allowKeyPair", [])
             if compactDN not in allowKey:
                 # permission denied
-                tmpMsg += f"failed since '{compactDN}' not in the authorized user list who have 'k' in {panda_config.schemaMETA}.USERS.GRIDPREF"
+                tmpMsg += f"failed since '{compactDN}' not authorized with 'k' in {panda_config.schemaMETA}.USERS.GRIDPREF"
                 _logger.debug(tmpMsg)
                 response = Protocol.Response(Protocol.SC_Perms, tmpMsg)
             else:
@@ -694,15 +711,46 @@ class JobDispatcher:
         # return
         return response.encode(acceptJson)
 
+    # get a token key
+    def get_token_key(self, distinguished_name, client_name, accept_json):
+        tmp_log = LogWrapper(_logger, f"get_token_key client={client_name} PID={os.getpid()}")
+        if distinguished_name is None:
+            # cannot extract DN
+            tmp_msg = "failed since DN cannot be extracted. non-HTTPS?"
+            tmp_log.debug(tmp_msg)
+            response = Protocol.Response(Protocol.SC_Perms, tmp_msg)
+        else:
+            # get compact DN
+            compact_name = self.taskBuffer.cleanUserID(distinguished_name)
+            # check permission
+            self.specialDispatchParams.update()
+            allowed_users = self.specialDispatchParams.get("allowTokenKey", [])
+            if compact_name not in allowed_users:
+                # permission denied
+                tmp_msg = f"denied since '{compact_name}' not authorized with 't' in {panda_config.schemaMETA}.USERS.GRIDPREF"
+                tmp_log.debug(tmp_msg)
+                response = Protocol.Response(Protocol.SC_Perms, tmp_msg)
+            else:
+                # get a token key
+                if client_name not in self.specialDispatchParams["tokenKeys"]:
+                    # token key is missing
+                    tmp_msg = f"token key is missing for '{client_name}"
+                    tmp_log.debug(tmp_msg)
+                    response = Protocol.Response(Protocol.SC_MissKey, tmp_msg)
+                else:
+                    # token key is available
+                    response = Protocol.Response(Protocol.SC_Success)
+                    response.appendNode("tokenKey", self.specialDispatchParams["tokenKeys"][client_name]["latest"])
+                    tmp_msg = f"sent token key to '{compact_name}'"
+                    tmp_log.debug(tmp_msg)
+        # return
+        return response.encode(accept_json)
+
     # get DNs authorized for S3
     def getDNsForS3(self):
         # check permission
         self.specialDispatchParams.update()
-        if "allowKey" not in self.specialDispatchParams:
-            allowKey = []
-        else:
-            allowKey = self.specialDispatchParams["allowKey"]
-            allowKey = filter(None, allowKey)
+        allowKey = self.specialDispatchParams.get("allowKeyPair", [])
         # return
         return json.dumps(allowKey)
 
@@ -771,7 +819,7 @@ class JobDispatcher:
         return response.encode(accept_json)
 
     # get proxy
-    def get_proxy(self, real_distinguished_name, role, target_distinguished_name, tokenized) -> str | dict:
+    def get_proxy(self, real_distinguished_name, role, target_distinguished_name, tokenized, token_key) -> str | dict:
         """
         Get proxy for a user with a role
 
@@ -780,12 +828,13 @@ class JobDispatcher:
         :param target_distinguished_name: target distinguished name if the user wants to get proxy for someone else.
                                           This is one of client_name defined in token_cache_config when getting a token
         :param tokenized: whether the response should contain a token instead of a proxy
+        :param token_key: key to get the token from the token cache
 
         :return: response in URL encoded string or dictionary
         """
         if target_distinguished_name is None:
             target_distinguished_name = real_distinguished_name
-        tmp_log = LogWrapper(_logger, f"getProxy PID={os.getpid()}")
+        tmp_log = LogWrapper(_logger, f"get_proxy PID={os.getpid()}")
         tmp_msg = f'start DN="{real_distinguished_name}" role={role} target="{target_distinguished_name}" '
         tmp_log.debug(tmp_msg)
         if real_distinguished_name is None:
@@ -806,6 +855,19 @@ class JobDispatcher:
                 # permission denied
                 tmp_msg += f"failed since '{compact_name}' not in the authorized user list who have 'p' in {panda_config.schemaMETA}.USERS.GRIDPREF "
                 tmp_msg += "to get proxy"
+                tmp_log.debug(tmp_msg)
+                response = Protocol.Response(Protocol.SC_Perms, tmp_msg)
+            elif (
+                tokenized
+                and target_distinguished_name in self.token_cache_config
+                and self.token_cache_config[target_distinguished_name].get("use_token_key") is True
+                and (
+                    target_distinguished_name not in self.specialDispatchParams["tokenKeys"]
+                    or token_key not in self.specialDispatchParams["tokenKeys"][target_distinguished_name]["fullList"]
+                )
+            ):
+                # invalid token key
+                tmp_msg += f"failed since token key is invalid for {target_distinguished_name}"
                 tmp_log.debug(tmp_msg)
                 response = Protocol.Response(Protocol.SC_Perms, tmp_msg)
             else:
@@ -1604,7 +1666,7 @@ def getKeyPair(req, publicKeyName, privateKeyName):
 
 
 # get proxy
-def getProxy(req, role=None, dn=None, tokenized=None):
+def getProxy(req, role=None, dn=None, tokenized=None, token_key=None):
     # get DN
     realDN = _getDN(req)
     if role == "":
@@ -1615,7 +1677,14 @@ def getProxy(req, role=None, dn=None, tokenized=None):
         tokenized = True
     else:
         tokenized = False
-    return jobDispatcher.get_proxy(realDN, role, dn, tokenized)
+    return jobDispatcher.get_proxy(realDN, role, dn, tokenized, token_key)
+
+
+# get a token key
+def get_token_key(req, client_name):
+    # get DN
+    realDN = _getDN(req)
+    return jobDispatcher.get_token_key(realDN, client_name, req.acceptJson())
 
 
 # check pilot permission

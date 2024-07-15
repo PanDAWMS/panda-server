@@ -64,7 +64,7 @@ def main(tbuf=None, **kwargs):
 
     # instantiate Token Cache
     tmpLog.debug("Token Cache start")
-    token_cacher = token_cache.TokenCache()
+    token_cacher = token_cache.TokenCache(task_buffer=taskBuffer)
     token_cacher.run()
     tmpLog.debug("Token Cache done")
 

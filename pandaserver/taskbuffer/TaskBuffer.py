@@ -970,15 +970,6 @@ class TaskBuffer:
         _logger.debug(f"getJobs : took {t_total}s for {siteName} nJobs={nJobs} prodSourceLabel={prodSourceLabel}")
         # release proxy
         self.proxyPool.putProxy(proxy)
-        # get Proxy Key
-        proxyKey = {}
-        if getProxyKey and len(jobs) > 0:
-            # get MetaDB proxy
-            proxy = self.proxyPool.getProxy()
-            # get Proxy Key
-            proxyKey = proxy.getProxyKey(jobs[0].prodUserID)
-            # release proxy
-            self.proxyPool.putProxy(proxy)
         # get secret
         secrets_map = {}
         for job in jobs:
@@ -1000,7 +991,7 @@ class TaskBuffer:
                     self.proxyPool.putProxy(proxy)
                     secrets_map[panda_config.pilot_secrets] = secret
         # return
-        return jobs + [nSent, proxyKey, secrets_map]
+        return jobs + [nSent, {}, secrets_map]
 
     # run task assignment
     def runTaskAssignment(self, jobs):
@@ -2268,31 +2259,6 @@ class TaskBuffer:
         # return
         return ret
 
-    # get number of analysis jobs per user
-    def getNUserJobs(self, siteName):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get number of analysis jobs per user
-        tmpRet = proxy.getNUserJobs(siteName)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # get log proxy
-        proxy = self.proxyPool.getProxy()
-        # get Proxy Key
-        ret = {}
-        for userID in tmpRet:
-            nJobs = tmpRet[userID]
-            proxyKey = proxy.getProxyKey(userID)
-            if proxyKey != {}:
-                # add nJobs
-                proxyKey["nJobs"] = nJobs
-                # append
-                ret[userID] = proxyKey
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
     # get number of activated analysis jobs
     def getNAnalysisJobs(self, nProcesses):
         # get DBproxy
@@ -2445,11 +2411,11 @@ class TaskBuffer:
         return ret
 
     # get special dipatcher parameters
-    def getSpecialDispatchParams(self):
+    def get_special_dispatch_params(self):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.getSpecialDispatchParams()
+        ret = proxy.get_special_dispatch_params()
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -2499,34 +2465,12 @@ class TaskBuffer:
         # return
         return ret
 
-    # register proxy key
-    def registerProxyKey(self, params):
+    # register a token key
+    def register_token_key(self, client_name, lifetime):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # register proxy key
-        ret = proxy.registerProxyKey(params)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-    # register proxy key
-    def registerProxyKey(self, params):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # register proxy key
-        ret = proxy.registerProxyKey(params)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-    # get proxy key
-    def getProxyKey(self, dn):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get proxy key
-        ret = proxy.getProxyKey(dn)
+        ret = proxy.register_token_key(client_name, lifetime)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
