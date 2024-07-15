@@ -109,3 +109,32 @@ class TokenDecoder:
             return decoded
         except Exception:
             raise
+
+
+# get an access token with client_credentials flow
+def get_access_token(token_endpoint, client_id, client_secret, scope=None, timeout=180) -> tuple[bool, str]:
+    """
+    Get an access token with client_credentials flow
+
+    :param token_endpoint: URL for token request
+    :param client_id: client ID
+    :param client_secret: client secret
+    :param scope: space separated string of scopes
+    :param timeout: timeout in seconds
+
+    :return: (True, access_token) or (False, error_str)
+    """
+    try:
+        token_request = {
+            "grant_type": "client_credentials",
+            "client_id": client_id,
+            "client_secret": client_secret,
+        }
+        if scope:
+            token_request["scope"] = scope
+        token_response = requests.post(token_endpoint, data=token_request, timeout=timeout)
+        token_response.raise_for_status()
+        return True, token_response.json()["access_token"]
+    except Exception as e:
+        error_str = f"failed to get access token with {str(e)}"
+        return False, error_str

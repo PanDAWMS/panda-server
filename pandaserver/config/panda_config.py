@@ -139,6 +139,9 @@ try:
 except Exception:
     tmpSelf.__dict__["auth_config"] = {}
 
+if "token_cache_config" not in tmpSelf.__dict__:
+    tmpSelf.__dict__["token_cache_config"] = "/opt/panda/etc/panda/token_cache_config.json"
+
 # use cert in configurator
 if "configurator_use_cert" not in tmpSelf.__dict__:
     tmpSelf.__dict__["configurator_use_cert"] = True
