@@ -869,7 +869,7 @@ class JobDispatcher:
                 # invalid token key
                 tmp_msg += f"failed since token key is invalid for {target_distinguished_name}"
                 tmp_log.debug(tmp_msg)
-                response = Protocol.Response(Protocol.SC_Perms, tmp_msg)
+                response = Protocol.Response(Protocol.SC_Invalid, tmp_msg)
             else:
                 # get proxy
                 response = Protocol.Response(Protocol.SC_Success, "")
