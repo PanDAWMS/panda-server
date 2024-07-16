@@ -32,6 +32,7 @@ allowed_methods += [
     "updateEventRanges",
     "getDNsForS3",
     "getProxy",
+    "get_access_token",
     "get_token_key",
     "getCommands",
     "ackCommands",
