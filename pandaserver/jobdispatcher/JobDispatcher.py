@@ -819,7 +819,7 @@ class JobDispatcher:
         return response.encode(accept_json)
 
     # get proxy
-    def get_proxy(self, real_distinguished_name, role, target_distinguished_name, tokenized, token_key) -> str | dict:
+    def get_proxy(self, real_distinguished_name: str, role: str | None, target_distinguished_name: str | None, tokenized: bool, token_key: str | None) -> dict:
         """
         Get proxy for a user with a role
 
@@ -830,7 +830,7 @@ class JobDispatcher:
         :param tokenized: whether the response should contain a token instead of a proxy
         :param token_key: key to get the token from the token cache
 
-        :return: response in URL encoded string or dictionary
+        :return: response in dictionary
         """
         if target_distinguished_name is None:
             target_distinguished_name = real_distinguished_name
@@ -1666,18 +1666,19 @@ def getKeyPair(req, publicKeyName, privateKeyName):
 
 
 # get proxy
-def getProxy(req, role=None, dn=None, tokenized=None, token_key=None):
+def getProxy(req, role=None, dn=None):
     # get DN
     realDN = _getDN(req)
     if role == "":
         role = None
-    if isinstance(tokenized, bool):
-        pass
-    elif tokenized == "True":
-        tokenized = True
-    else:
-        tokenized = False
-    return jobDispatcher.get_proxy(realDN, role, dn, tokenized, token_key)
+    return jobDispatcher.get_proxy(realDN, role, dn, False, None)
+
+
+# get access token
+def get_access_token(req, client_name, token_key=None):
+    # get DN
+    real_dn = _getDN(req)
+    return jobDispatcher.get_proxy(real_dn, None, client_name, True, token_key)
 
 
 # get a token key
