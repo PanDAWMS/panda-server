@@ -135,12 +135,19 @@ def getSitesWithDataset(
 
 
 # get the list of sites where dataset is available
-def getEndpointsAtT1(tmpRepMap, siteMapper, cloudName):
+def get_endpoints_at_nucleus(tmpRepMap, siteMapper, cloudName):
+    """
+    Retrieves a list of DDM endpoints at the nucleus for a given cloud.
+
+    Returns:
+        list: A list of DDM endpoints that are part of the nucleus for the specified cloud. This list includes
+              only those endpoints that have replicas of the datasets in `tmpRepMap`.
+    """
     retList = []
     # get cloud SEs
     tmpCloud = siteMapper.getCloud(cloudName)
     cloudSEs = tmpCloud["tier1SE"]
-    # check T1 endpoints
+    # check Nucleus endpoints
     for tmpSePat in cloudSEs:
         # ignore empty
         if tmpSePat == "":

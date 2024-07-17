@@ -354,7 +354,6 @@ class TaskBuffer:
             # loop over all jobs
             ret = []
             newJobs = []
-            usePandaDDM = False
             firstLiveLog = True
             nRunJob = 0
             if esJobsetMap is None:
@@ -553,7 +552,6 @@ class TaskBuffer:
                     thr = Setupper(
                         self,
                         newJobs,
-                        panda_ddm=usePandaDDM,
                     )
                     thr.start()
                     thr.join()
@@ -562,7 +560,6 @@ class TaskBuffer:
                     Setupper(
                         self,
                         newJobs,
-                        panda_ddm=usePandaDDM,
                     ).start()
             # return jobIDs
             tmpLog.debug("end successfully")
@@ -1672,7 +1669,6 @@ class TaskBuffer:
                     self,
                     jobs,
                     resubmit=True,
-                    ddm_attempt=attempt,
                     first_submission=firstSubmission,
                 )
                 thr.start()
@@ -1683,7 +1679,6 @@ class TaskBuffer:
                     self,
                     jobs,
                     resubmit=True,
-                    ddm_attempt=attempt,
                     first_submission=firstSubmission,
                 ).start()
         tmpLog.debug("done")
