@@ -568,13 +568,6 @@ class UserIF:
         # return
         return ret
 
-    # register proxy key
-    def registerProxyKey(self, params):
-        # register
-        ret = self.taskBuffer.registerProxyKey(params)
-        # return
-        return ret
-
     # get ban users
     def get_ban_users(self):
         ret = self.taskBuffer.get_ban_users()
@@ -587,13 +580,6 @@ class UserIF:
         ret = self.taskBuffer.getPandaClientVer()
         # return
         return ret
-
-    # get proxy key
-    def getProxyKey(self, dn):
-        # get files
-        ret = self.taskBuffer.getProxyKey(dn)
-        # serialize
-        return WrappedPickle.dumps(ret)
 
     # get slimmed file info with PandaIDs
     def getSlimmedFileInfoPandaIDs(self, pandaIDsStr, dn):
@@ -1572,50 +1558,6 @@ def getScriptOfflineRunning(req, pandaID, days=None):
     except Exception:
         days = None
     return userIF.getScriptOfflineRunning(pandaID, days)
-
-
-# register proxy key
-def registerProxyKey(req, credname, origin, myproxy):
-    # check security
-    if not isSecure(req):
-        return False
-    # get DN
-    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
-        return False
-    # get expiration date
-    if "SSL_CLIENT_V_END" not in req.subprocess_env:
-        return False
-    params = {}
-    params["dn"] = _getDN(req)
-    # set parameters
-    params["credname"] = credname
-    params["origin"] = origin
-    params["myproxy"] = myproxy
-    # convert SSL_CLIENT_V_END
-    try:
-        expTime = req.subprocess_env["SSL_CLIENT_V_END"]
-        # remove redundant white spaces
-        expTime = re.sub("\s+", " ", expTime)
-        # convert to timestamp
-        expTime = time.strptime(expTime, "%b %d %H:%M:%S %Y %Z")
-        params["expires"] = time.strftime("%Y-%m-%d %H:%M:%S", expTime)
-    except Exception:
-        _logger.error(f"registerProxyKey : failed to convert {req.subprocess_env['SSL_CLIENT_V_END']}")
-    # execute
-    return userIF.registerProxyKey(params)
-
-
-# register proxy key
-def getProxyKey(req):
-    # check security
-    if not isSecure(req):
-        return False
-    # get DN
-    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
-        return False
-    dn = _getDN(req)
-    # execute
-    return userIF.getProxyKey(dn)
 
 
 # get JobIDs in a time range

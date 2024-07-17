@@ -46,7 +46,7 @@ class ResourceSpecMapper(object):
         resource_names = list(
             map(
                 lambda resource_type: resource_type.resource_name,
-                filter(lambda resource_type: self.is_high_memory(resource_type.resource_name), self.resource_types),
+                filter(lambda resource_type: not self.is_high_memory(resource_type.resource_name), self.resource_types),
             )
         )
         return resource_names

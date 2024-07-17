@@ -62,7 +62,12 @@ class PandaRequest:
                     else:
                         # robot
                         if vo_role in panda_config.auth_vo_dict and "robot_ids" in panda_config.auth_vo_dict[vo_role]:
-                            robot_ids = [i for i in panda_config.auth_vo_dict[vo_role].get("robot_ids").split(",") if i]
+                            robot_ids = panda_config.auth_vo_dict[vo_role].get("robot_ids")
+                            if isinstance(robot_ids, str):
+                                robot_ids = robot_ids.split(",")
+                            if not robot_ids:
+                                robot_ids = []
+                            robot_ids = [i for i in robot_ids if i]
                             if token["sub"] in robot_ids:
                                 if "groups" not in token:
                                     if role:
