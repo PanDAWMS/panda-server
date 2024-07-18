@@ -1561,13 +1561,14 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             return
         return
 
-    # make dis datasets for existing files to avoid deletion when jobs are queued
-    def make_dis_datasets_for_existing_files(self) -> None:
+    def collect_existing_files(self):
         """
-        Make dis datasets for existing files method for running the setup process.
+        Collects existing files to avoid deletion when jobs are queued.
+        This method iterates over all jobs and collects files that should not be deleted,
+        organizing them by destination DDM endpoint and log dataset name.
+
+        :return: A dictionary mapping (destination DDM endpoint, log dataset name) to a list of files.
         """
-        self.logger.debug("make dis datasets for existing files")
-        # collect existing files
         dataset_file_map = {}
         n_max_jobs = 20
         n_jobs_map = {}
@@ -1596,8 +1597,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             dest_ddm_id = dest_site.ddm_input[scope_dest_input]
             # Nucleus used as Satellite
             if (
-                tmp_job.getCloud() != self.site_mapper.getSite(tmp_job.computingSite).cloud
-                and self.site_mapper.getSite(tmp_job.computingSite).cloud in ["US"]
+                    tmp_job.getCloud() != self.site_mapper.getSite(tmp_job.computingSite).cloud
+                    and self.site_mapper.getSite(tmp_job.computingSite).cloud in ["US"]
             ):
                 tmp_site_spec = self.site_mapper.getSite(tmp_job.computingSite)
                 scope_tmp_site_input, _ = select_scope(tmp_site_spec, tmp_job.prodSourceLabel, tmp_job.job_label)
@@ -1628,12 +1629,17 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # if available at Satellite
                 real_dest_ddm_id = (dest_ddm_id,)
                 if (
-                    tmp_job.getCloud() in self.available_lfns_in_satellites
-                    and tmp_file.dataset in self.available_lfns_in_satellites[tmp_job.getCloud()]
-                    and tmp_job.computingSite in self.available_lfns_in_satellites[tmp_job.getCloud()][tmp_file.dataset]["sites"]
-                    and tmp_file.lfn in self.available_lfns_in_satellites[tmp_job.getCloud()][tmp_file.dataset]["sites"][tmp_job.computingSite]
+                        tmp_job.getCloud() in self.available_lfns_in_satellites
+                        and tmp_file.dataset in self.available_lfns_in_satellites[tmp_job.getCloud()]
+                        and tmp_job.computingSite in
+                        self.available_lfns_in_satellites[tmp_job.getCloud()][tmp_file.dataset]["sites"]
+                        and tmp_file.lfn in
+                        self.available_lfns_in_satellites[tmp_job.getCloud()][tmp_file.dataset]["sites"][
+                            tmp_job.computingSite]
                 ):
-                    real_dest_ddm_id = self.available_lfns_in_satellites[tmp_job.getCloud()][tmp_file.dataset]["siteDQ2IDs"][tmp_job.computingSite]
+                    real_dest_ddm_id = \
+                    self.available_lfns_in_satellites[tmp_job.getCloud()][tmp_file.dataset]["siteDQ2IDs"][
+                        tmp_job.computingSite]
                     real_dest_ddm_id = tuple(real_dest_ddm_id)
                 # append
                 if real_dest_ddm_id not in dataset_file_map[map_key]:
@@ -1655,6 +1661,13 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     }
                 # add file spec
                 dataset_file_map[map_key][real_dest_ddm_id]["files"][tmp_file.lfn]["fileSpecs"].append(tmp_file)
+        return dataset_file_map
+
+    def create_dispatch_datasets(self, dataset_file_map):
+        """
+        Creates dispatch datasets for the collected files.
+        Returns a list of datasets to be inserted into the database.
+        """
         # loop over all locations
         disp_list = []
         for _, tmp_dum_val in dataset_file_map.items():
@@ -1805,6 +1818,19 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         # failure
                         if not is_ok:
                             continue
+        return disp_list
+
+    # make dis datasets for existing files to avoid deletion when jobs are queued
+    def make_dis_datasets_for_existing_files(self) -> None:
+        """
+        Make dis datasets for existing files method for running the setup process.
+        """
+        self.logger.debug("make dis datasets for existing files")
+        # collect existing files
+        dataset_file_map = self.collect_existing_files()
+        # create dispatch datasets for the collected files
+        disp_list = self.create_dispatch_datasets(dataset_file_map)
+
         # insert datasets to DB
         self.task_buffer.insertDatasets(disp_list)
         self.logger.debug("finished to make dis datasets for existing files")
