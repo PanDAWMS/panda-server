@@ -23492,9 +23492,10 @@ class DBProxy:
             except TypeError:
                 average_memory_running = 0
 
-            tmp_logger.debug(
-                f"Queue {queue} and harvester_id {harvester_id} currently has ({average_memory_running_submitted}, {average_memory_running}) "
-                f"MB of average memory workers"
+            tmp_logger.info(
+                f"computingsite={queue} and harvester_id={harvester_id} currently has "
+                f"meanrss_running_submitted={average_memory_running_submitted} "
+                f"meanrss_running={average_memory_running} MB"
             )
             return average_memory_running_submitted, average_memory_running
 
