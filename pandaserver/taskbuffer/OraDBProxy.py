@@ -23425,15 +23425,16 @@ class DBProxy:
         tmpLog.debug("done")
         return worker_stats_dict
 
-    def get_average_memory_workers(self, queue, harvester_id):
+    def get_average_memory_workers(self, queue, harvester_id, target):
         """
         Calculates the average memory for running and queued workers at a particular panda queue
 
         :param queue: name of the PanDA queue
         :param worker_stats_harvester: worker statistics for the particular harvester instance
         :param harvester_id: string with the harvester ID serving the queue
+        :param target: memory target for the queue in MB. This value is only used in the logging
 
-        :return: average memory
+        :return: average_memory_running_submitted, average_memory_running
         """
 
         comment = " /* DBProxy.get_average_memory_workers */"
@@ -23492,9 +23493,11 @@ class DBProxy:
             except TypeError:
                 average_memory_running = 0
 
-            tmp_logger.debug(
-                f"Queue {queue} and harvester_id {harvester_id} currently has ({average_memory_running_submitted}, {average_memory_running}) "
-                f"MB of average memory workers"
+            tmp_logger.info(
+                f"computingsite={queue} and harvester_id={harvester_id} currently has "
+                f"meanrss_running_submitted={average_memory_running_submitted} "
+                f"meanrss_running={average_memory_running} "
+                f"meanrss_target={target} MB"
             )
             return average_memory_running_submitted, average_memory_running
 
@@ -23539,7 +23542,10 @@ class DBProxy:
                 tmp_log.debug("No resource type limits")
                 pass
             try:
-                average_memory_target = pq_data_des["params"]["average_memory"]
+                if pq_data_des["meanrss"] != 0:
+                    average_memory_target = pq_data_des["meanrss"]
+                else:
+                    tmp_log.debug("meanrss is 0, not using it as average_memory_target")
             except KeyError:
                 tmp_log.debug("No average memory defined")
                 pass
@@ -23573,10 +23579,12 @@ class DBProxy:
         # If the site defined a memory target, calculate the memory requested by running and queued workers
         resource_types_under_target = []
         if average_memory_target:
-            average_memory_workers_running_submitted, average_memory_workers_running = self.get_average_memory_workers(queue, harvester_id)
+            average_memory_workers_running_submitted, average_memory_workers_running = self.get_average_memory_workers(
+                queue, harvester_id, average_memory_target
+            )
             # if the queue is over memory, we will only submit lower workers in the next cycle
             if average_memory_target < min(average_memory_workers_running_submitted, average_memory_workers_running):
-                resource_types_under_target = self.__resource_spec_mapper.filter_out_high_memory_resourcetypes()
+                resource_types_under_target = self.__resource_spec_mapper.filter_out_high_memory_resourcetypes(memory_threshold=average_memory_target)
                 tmp_log.debug(f"Accepting {resource_types_under_target} resource types to respect mean memory target")
             else:
                 tmp_log.debug(f"Accepting all resource types as under memory target")
