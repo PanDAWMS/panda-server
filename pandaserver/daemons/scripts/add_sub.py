@@ -7,11 +7,12 @@ import threading
 import time
 import traceback
 
-import pandaserver.taskbuffer.ErrorCode
-import pandaserver.userinterface.Client as Client
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
+
+import pandaserver.taskbuffer.ErrorCode
+import pandaserver.userinterface.Client as Client
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.srvcore.CoreUtils import commands_get_status_output
@@ -132,7 +133,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         tmpMethod = match.group(2)
                         tmpSite = match.group(3)
                         tmpNode = match.group(4)
-                        tmpType = match.group(5)
 
                         # protection against corrupted entries from pilot,
                         # e.g. pilot reading site json from cvmfs while it was being updated
