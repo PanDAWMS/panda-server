@@ -11,13 +11,6 @@ import sys
 import time
 import traceback
 
-from pandaserver.config import panda_config
-from pandaserver.dataservice import DataServiceUtils, ErrorCode
-from pandaserver.dataservice.AdderPluginBase import AdderPluginBase
-from pandaserver.dataservice.DataServiceUtils import select_scope
-from pandaserver.dataservice.ddm import rucioAPI
-from pandaserver.srvcore.MailUtils import MailUtils
-from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 from rucio.common.exception import (
     DataIdentifierNotFound,
     FileConsistencyMismatch,
@@ -29,6 +22,14 @@ from rucio.common.exception import (
     RSEProtocolNotSupported,
     UnsupportedOperation,
 )
+
+from pandaserver.config import panda_config
+from pandaserver.dataservice import DataServiceUtils, ErrorCode
+from pandaserver.dataservice.AdderPluginBase import AdderPluginBase
+from pandaserver.dataservice.DataServiceUtils import select_scope
+from pandaserver.dataservice.ddm import rucioAPI
+from pandaserver.srvcore.MailUtils import MailUtils
+from pandaserver.taskbuffer import EventServiceUtils, JobUtils
 
 
 class AdderAtlasPlugin(AdderPluginBase):
@@ -706,7 +707,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                                 },
                             )
                         )
-                        for iDDMTry in range(3):
+                        for _ in range(3):
                             isFailed = False
                             try:
                                 status = rucioAPI.register_dataset_subscription(
@@ -759,7 +760,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                                     {"lifetime": "14 days"},
                                 )
                             )
-                            for iDDMTry in range(3):
+                            for _ in range(3):
                                 out = "OK"
                                 isFailed = False
                                 try:
