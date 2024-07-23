@@ -169,7 +169,7 @@ def get_endpoints_at_nucleus(tmpRepMap, siteMapper, cloudName):
     return retList
 
 
-# check if DBR
+# check if the dataset is a DB release
 def isDBR(datasetName):
     if datasetName.startswith("ddo"):
         return True
