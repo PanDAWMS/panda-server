@@ -4,6 +4,7 @@ import sys
 # special permission
 PERMISSION_KEY = "k"
 PERMISSION_PROXY = "p"
+PERMISSION_TOKEN_KEY = "t"
 PERMISSION_SUPER_USER = "s"
 PERMISSION_SUPER_GROUP = "g"
 

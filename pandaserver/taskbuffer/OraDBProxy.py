@@ -10010,44 +10010,6 @@ class DBProxy:
             _logger.error(f"getJobStatisticsPerUserSite : {errtype} {errvalue}")
             return {}
 
-    # get number of analysis jobs per user
-    def getNUserJobs(self, siteName):
-        comment = " /* DBProxy.getNUserJobs */"
-        _logger.debug(f"getNUserJobs({siteName})")
-        sql0 = "SELECT prodUserID,count(*) FROM ATLAS_PANDA.jobsActive4 "
-        sql0 += "WHERE jobStatus=:jobStatus AND prodSourceLabel in (:prodSourceLabel1,:prodSourceLabel2) "
-        sql0 += "AND computingSite=:computingSite GROUP BY prodUserID "
-        varMap = {}
-        varMap[":computingSite"] = siteName
-        varMap[":jobStatus"] = "activated"
-        varMap[":prodSourceLabel1"] = "user"
-        varMap[":prodSourceLabel2"] = "panda"
-        ret = {}
-        try:
-            # start transaction
-            self.conn.begin()
-            # select
-            self.cur.arraysize = 10000
-            _logger.debug(1)
-            self.cur.execute(sql0 + comment, varMap)
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # create map
-            for prodUserID, nJobs in res:
-                ret[prodUserID] = nJobs
-            # return
-            _logger.debug(f"getNUserJobs() : {str(ret)}")
-            return ret
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getNUserJobs : {type} {value}")
-            return {}
-
     # get number of activated analysis jobs
     def getNAnalysisJobs(self, nProcesses):
         comment = " /* DBProxy.getNAnalysisJobs */"
@@ -11427,38 +11389,64 @@ class DBProxy:
             return ret
 
     # get special dispatcher parameters
-    def getSpecialDispatchParams(self):
-        comment = " /* DBProxy.getSpecialDispatchParams */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        _logger.debug(f"{methodName} start")
+    def get_special_dispatch_params(self):
+        """
+        Get the following special parameters for dispatcher.
+          Authorized name lists for proxy, key-pair, and token-key retrieval
+          Key pairs
+          Token keys
+        """
+        comment = " /* DBProxy.get_special_dispatch_params */"
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
         try:
-            retMap = {}
+            return_map = {}
             # set autocommit on
             self.conn.begin()
-            # select to get the list of authorized users
-            allowKey = []
-            allowProxy = []
-            sql = "SELECT DISTINCT name, gridpref FROM ATLAS_PANDAMETA.users " "WHERE (status IS NULL OR status<>:ngStatus) AND gridpref IS NOT NULL "
-            varMap = {}
-            varMap[":ngStatus"] = "disabled"
             self.cur.arraysize = 100000
-            self.cur.execute(sql + comment, varMap)
-            resList = self.cur.fetchall()
+            # get token keys
+            token_keys = {}
+            sql = f"SELECT dn, credname FROM {panda_config.schemaMETA}.proxykey WHERE expires>:limit ORDER BY expires DESC "
+            var_map = {":limit": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)}
+            self.cur.execute(sql + comment, var_map)
+            res_list = self.cur.fetchall()
+            for client_name, token_key in res_list:
+                token_keys.setdefault(client_name, {"fullList": [], "latest": token_key})
+                token_keys[client_name]["fullList"].append(token_key)
+            return_map["tokenKeys"] = token_keys
+            tmp_list = [f"""{k}:{len(token_keys[k]["fullList"])}""" for k in token_keys]
+            tmp_log.debug(f"""got token keys {",".join(tmp_list)}""")
+            # select to get the list of authorized users
+            allow_key = []
+            allow_proxy = []
+            allow_token = []
+            sql = "SELECT DISTINCT name, gridpref FROM ATLAS_PANDAMETA.users " "WHERE (status IS NULL OR status<>:ngStatus) AND gridpref IS NOT NULL "
+            var_map = {":ngStatus": "disabled"}
+            self.cur.execute(sql + comment, var_map)
+            res_list = self.cur.fetchall()
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            for compactDN, gridpref in resList:
+            for compactDN, gridpref in res_list:
                 # users authorized for proxy retrieval
                 if PrioUtil.PERMISSION_PROXY in gridpref:
-                    if compactDN not in allowProxy:
-                        allowProxy.append(compactDN)
+                    if compactDN not in allow_proxy:
+                        allow_proxy.append(compactDN)
                 # users authorized for key-pair retrieval
                 if PrioUtil.PERMISSION_KEY in gridpref:
-                    if compactDN not in allowKey:
-                        allowKey.append(compactDN)
-            retMap["allowKey"] = allowKey
-            retMap["allowProxy"] = allowProxy
-            _logger.debug(f"{methodName} got {len(retMap['allowKey'])} users for key {len(retMap['allowProxy'])} users for proxy")
+                    if compactDN not in allow_key:
+                        allow_key.append(compactDN)
+                # users authorized for token-key retrieval
+                if PrioUtil.PERMISSION_TOKEN_KEY in gridpref:
+                    if compactDN not in allow_token:
+                        allow_token.append(compactDN)
+            return_map["allowKeyPair"] = allow_key
+            return_map["allowProxy"] = allow_proxy
+            return_map["allowTokenKey"] = allow_token
+            tmp_log.debug(
+                f"got authed users key-pair:{len(return_map['allowKeyPair'])}, proxy:{len(return_map['allowProxy'])}, token-key:{len(return_map['allowTokenKey'])}"
+            )
             # read key pairs
             keyPair = {}
             try:
@@ -11467,17 +11455,17 @@ class DBProxy:
                     tmpF = open(keyName)
                     keyPair[os.path.basename(keyName)] = tmpF.read()
                     tmpF.close()
-            except Exception:
-                self.dumpErrorMessage(_logger, methodName)
-            retMap["keyPair"] = keyPair
-            _logger.debug(f"{methodName} got {len(retMap['keyPair'])} key files")
-            _logger.debug(f"{methodName} done")
-            return retMap
+            except Exception as e:
+                tmp_log.error(f"failed read key-pairs with {str(e)}")
+            return_map["keyPair"] = keyPair
+            tmp_log.debug(f"got {len(return_map['keyPair'])} key-pair files")
+            tmp_log.debug("done")
+            return return_map
         except Exception:
             # roll back
             self._rollback()
             # error
-            self.dumpErrorMessage(_logger, methodName)
+            self.dumpErrorMessage(_logger, method_name)
             return {}
 
     # extract name from DN
@@ -11902,73 +11890,80 @@ class DBProxy:
             _logger.error(f"getPandaClientVer : {type} {value}")
             return ""
 
-    # register proxy key
-    def registerProxyKey(self, params):
-        comment = " /* DBProxy.registerProxyKey */"
-        _logger.debug(f"register ProxyKey {str(params)}")
+    # register token key
+    def register_token_key(self, client_name: str, lifetime: int) -> bool:
+        """
+        Register token key for a client with a lifetime and delete expired tokens
+
+        :param client_name: client name who owns the token key
+        :param lifetime: lifetime of the token key in hours
+
+        :return: True if succeeded. False otherwise
+        """
+        comment = " /* DBProxy.register_token_key */"
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        method_name += f" < client={client_name} >"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
         try:
             # set autocommit on
             self.conn.begin()
-            # construct SQL
-            vals = {}
-            sql0 = "INSERT INTO ATLAS_PANDAMETA.proxykey (id,"
-            sql1 = "VALUES (ATLAS_PANDAMETA.PROXYKEY_ID_SEQ.nextval,"
-
-            for key in params:
-                val = params[key]
-                sql0 += f"{key},"
-                sql1 += f":{key},"
-                vals[f":{key}"] = val
-            sql0 = sql0[:-1]
-            sql1 = sql1[:-1]
-            sql = sql0 + ") " + sql1 + ") "
-            # insert
-            self.cur.execute(sql + comment, vals)
+            time_now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            expire_at = time_now + datetime.timedelta(hours=lifetime)
+            # check if a new key was registered recently
+            sql = f"SELECT 1 FROM {panda_config.schemaMETA}.proxykey WHERE dn=:dn AND expires>:limit "
+            var_map = {":dn": client_name, ":limit": expire_at - datetime.timedelta(hours=1)}
+            self.cur.execute(sql + comment, var_map)
+            res = self.cur.fetchone()
+            if res:
+                tmp_log.debug("skip as a new key was registered recently")
+            else:
+                # get max ID
+                sql = "SELECT MAX(ID) FROM ATLAS_PANDAMETA.proxykey "
+                self.cur.execute(sql + comment, {})
+                res = self.cur.fetchone()
+                if not res:
+                    max_id = 0
+                else:
+                    (max_id,) = res
+                max_id += 1
+                max_id %= 10000000
+                # register a key
+                sql = (
+                    f"INSERT INTO {panda_config.schemaMETA}.proxykey (ID,DN,CREDNAME,CREATED,EXPIRES,ORIGIN,MYPROXY) "
+                    "VALUES(:id,:dn,:credname,:created,:expires,:origin,:myproxy) "
+                )
+                var_map = {
+                    ":id": max_id,
+                    ":dn": client_name,
+                    ":credname": str(uuid.uuid4()),
+                    ":created": time_now,
+                    ":expires": expire_at,
+                    ":origin": "panda",
+                    ":myproxy": "NA",
+                }
+                try:
+                    self.cur.execute(sql + comment, var_map)
+                    tmp_log.debug(f"registered a new key with id={max_id}")
+                except Exception as e:
+                    # ignore ID duplication error
+                    tmp_log.debug(f"ignoring registration failure with {str(e)}")
+            # delete obsolete keys
+            sql = "DELETE FROM ATLAS_PANDAMETA.proxykey WHERE expires<:limit "
+            var_map = {":limit": time_now}
+            self.cur.execute(sql + comment, var_map)
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
             # return True
+            tmp_log.debug("done")
             return True
         except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"registerProxyKey : {type} {value}")
             # roll back
             self._rollback()
-            return ""
-
-    # get proxy key
-    def getProxyKey(self, dn):
-        comment = " /* DBProxy.getProxyKey */"
-        _logger.debug(f"get ProxyKey {dn}")
-        try:
-            # set autocommit on
-            self.conn.begin()
-            # construct SQL
-            sql = "SELECT credname,expires,origin,myproxy FROM ATLAS_PANDAMETA.proxykey WHERE dn=:dn ORDER BY expires DESC"
-            varMap = {}
-            varMap[":dn"] = dn
-            # select
-            self.cur.execute(sql + comment, varMap)
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # return
-            retMap = {}
-            if res is not None and len(res) != 0:
-                credname, expires, origin, myproxy = res[0]
-                retMap["credname"] = credname
-                retMap["expires"] = expires
-                retMap["origin"] = origin
-                retMap["myproxy"] = myproxy
-            _logger.debug(retMap)
-            return retMap
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getProxyKey : {type} {value}")
-            # roll back
-            self._rollback()
-            return {}
+            # dump error
+            self.dumpErrorMessage(_logger, method_name)
+            return False
 
     # check site access
     def checkSiteAccess(self, siteid, longDN):
