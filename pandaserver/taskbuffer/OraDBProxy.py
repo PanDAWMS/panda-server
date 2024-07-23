@@ -23495,7 +23495,7 @@ class DBProxy:
 
             tmp_logger.info(
                 f"computingsite={queue} and harvester_id={harvester_id} currently has "
-                f"meanrss_running_submitted={average_memory_running_submitted} and "
+                f"meanrss_running_submitted={average_memory_running_submitted} "
                 f"meanrss_running={average_memory_running} "
                 f"meanrss_target={target} MB"
             )
