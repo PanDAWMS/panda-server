@@ -161,7 +161,6 @@ from pandaserver.userinterface.UserIF import (
     retryTask,
     send_command_to_job,
     set_user_secret,
-    setCloudTaskByUser,
     setDebugMode,
     setNumSlotsForWP,
     submitJobs,
