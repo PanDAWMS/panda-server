@@ -11,11 +11,12 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 
 # import PandaLogger before idds modules not to change message levels of other modules
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from ruamel.yaml import YAML
+
 from pandaserver.srvcore.CoreUtils import clean_user_id, commands_get_status_output
 from pandaserver.srvcore.MailUtils import MailUtils
 from pandaserver.workflow import pcwl_utils, workflow_utils
 from pandaserver.workflow.snakeparser import Parser
-from ruamel import yaml
 
 _logger = PandaLogger().getLogger("workflow_processor")
 
@@ -174,7 +175,8 @@ def core_exec(sandbox_url, log_token, dump_workflow, ops_file, user_name, test_m
                         workflow_name = ops["data"].get("workflow_name")
                         nodes, root_in = pcwl_utils.parse_workflow_file(ops["data"]["workflowSpecFile"], tmpLog)
                         with open(ops["data"]["workflowInputFile"]) as workflow_input:
-                            data = yaml.safe_load(workflow_input)
+                            yaml = YAML(typ="safe", pure=True)
+                            data = yaml.load(workflow_input)
                         # noinspection DuplicatedCode
                         s_id, t_nodes, nodes = pcwl_utils.resolve_nodes(nodes, root_in, data, 0, set(), ops["data"]["outDS"], tmpLog)
                         workflow_utils.set_workflow_outputs(nodes)
