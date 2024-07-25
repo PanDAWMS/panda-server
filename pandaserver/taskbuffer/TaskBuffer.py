@@ -3748,11 +3748,11 @@ class TaskBuffer:
         return ret
 
     # get the distribution of new workers to submit
-    def get_average_memory_workers(self, queue, harvester_id):
+    def get_average_memory_workers(self, queue, harvester_id, target):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.get_average_memory_workers(queue, harvester_id)
+        ret = proxy.get_average_memory_workers(queue, harvester_id, target)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
