@@ -448,9 +448,9 @@ def schedule(
                 nRunningMap = taskBuffer.getnRunningInSiteData()
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs = sorted(jobs, key=functools.cmp_to_key(_compFunc))
+
         # brokerage for analysis
         candidateForAnal = True
-        relCloudMap = {}
         loggerMessages = []
         # get all input files for bulk LFC lookup
         allLFNs = []
@@ -463,6 +463,7 @@ def schedule(
                         allLFNs.append(tmpFile.lfn)
                         allGUIDs.append(tmpFile.GUID)
                         allScopes.append(tmpFile.scope)
+
         # loop over all jobs + terminator(None)
         for job in jobs + [None]:
             indexJob += 1
