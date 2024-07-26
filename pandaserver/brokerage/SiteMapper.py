@@ -365,7 +365,7 @@ class SiteMapper:
                 if site_spec_tmp.status == "offline":
                     sites_offline.append(f"{site_name_tmp}")
 
-            _logger.debug("========= {cloud_name_tmp} cloud dump =========")
+            _logger.debug(f"========= {cloud_name_tmp} cloud dump =========")
             _logger.debug(f"Cloud:{cloud_name_tmp} has {cloud_spec_tmp['sites']}")
             if sites_offline:
                 _logger.debug(f"Cloud:{cloud_name_tmp} has sites offline:{sites_offline}")
