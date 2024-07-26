@@ -15,6 +15,7 @@ from pathlib import Path
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
+
 from pandaserver.config import panda_config
 
 # logger
@@ -127,11 +128,6 @@ class cacheSchedConfig:
             retList.append(dictData)
         return retList
 
-    def getStucturedQueueStatus(self):
-        self.getQueueData()
-        self.getCloudStatus()
-        self.maskQueuesByCloud()
-
     def getQueueData(self, site=None, queue=None):
         # Dump schedconfig in a single query (it's not very big)
         varDict = {}
@@ -146,23 +142,6 @@ class cacheSchedConfig:
             self.queueData = self.query_column_sql(sql, varDict)
         else:
             self.queueData = self.query_column_sql(sql)
-
-    def getCloudStatus(self):
-        sql = f"SELECT name, status from {panda_config.schemaMETA}.CLOUDCONFIG"
-        r = self.tbuf.querySQL(sql, None)
-        self.cloudStatus = dict()
-        for row in r:
-            self.cloudStatus[row[0]] = row[1]
-
-    def maskQueuesByCloud(self):
-        """Force queue status to offline if the cloud is offline"""
-        for queue in self.queueData:
-            try:
-                if self.cloudStatus[queue["cloud"]] == "offline":
-                    queue["status"] = "offline"
-                    _logger.info(f"Queue {queue['nickname']} forced offline (cloud = {queue['cloud']} is offline)")
-            except KeyError:
-                _logger.error(f"No valid cloud status for queue {queue['nickname']} (cloud = {queue['cloud']})")
 
     def dumpSingleQueue(self, queueDict, dest="/tmp", outputSet="all", format="txt"):
         try:
@@ -282,9 +261,11 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             )
         else:
             taskBuffer = tbuf
-        # initialze
+
+        # initialize
         cacher = cacheSchedConfig(tbuf=taskBuffer)
-        cacher.getStucturedQueueStatus()
+        cacher.getQueueData()
+
         # dump
         for queue in cacher.queueData:
             cacher.dumpSingleQueue(queue, dest=args.dirname, outputSet="pilot", format="pilot")
