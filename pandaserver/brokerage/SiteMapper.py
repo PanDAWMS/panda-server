@@ -111,7 +111,7 @@ class SiteMapper:
                         for resource_spec_tmp in resource_types:
                             child_site_spec = self.get_child_site_spec(site_spec_tmp, resource_spec_tmp)
                             if child_site_spec:
-                                self.siteSpecList[child_site_spec.site_name_tmp] = child_site_spec
+                                self.siteSpecList[child_site_spec.sitename] = child_site_spec
 
                         # set unified flag
                         site_spec_tmp.is_unified = True
