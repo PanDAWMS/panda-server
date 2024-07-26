@@ -371,3 +371,7 @@ class SiteMapper:
                 _logger.debug(f"Cloud:{cloud_name_tmp} has sites offline:{sites_offline}")
             if sites_with_issues:
                 _logger.debug(f"Cloud:{cloud_name_tmp} has sites that don't exist:{sites_with_issues}")
+
+        # dump the WORLD cloud sites
+        _logger.debug("========= WORLD cloud dump =========")
+        _logger.debug(f"Cloud:WORLD has {self.worldCloudSpec['sites']}")
