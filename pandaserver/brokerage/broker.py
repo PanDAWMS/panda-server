@@ -32,36 +32,41 @@ skipBrokerageProTypes = ["prod_test"]
 
 
 # comparison function for sort
-def _compFunc(jobA, jobB):
+def _compFunc(job_a, job_b):
+    # This comparison helps in sorting the jobs based on the order of their computing sites in the _allSites list.
     # append site if not in list
-    if jobA.computingSite not in _allSites:
-        _allSites.append(jobA.computingSite)
-    if jobB.computingSite not in _allSites:
-        _allSites.append(jobB.computingSite)
-    # compare
-    indexA = _allSites.index(jobA.computingSite)
-    indexB = _allSites.index(jobB.computingSite)
-    if indexA > indexB:
+    if job_a.computingSite not in _allSites:
+        _allSites.append(job_a.computingSite)
+    if job_b.computingSite not in _allSites:
+        _allSites.append(job_b.computingSite)
+
+    # compare site indices
+    index_a = _allSites.index(job_a.computingSite)
+    index_b = _allSites.index(job_b.computingSite)
+
+    if index_a > index_b:
         return 1
-    elif indexA < indexB:
+    elif index_a < index_b:
         return -1
     else:
         return 0
 
 
 # release checker
-def _checkRelease(jobRels, siteRels):
-    # all on/off
-    if "True" in siteRels:
+def _checkRelease(job_releases, site_releases):
+    # Check for all on/off
+    if "True" in site_releases:
         return True
-    if "False" in siteRels:
+    if "False" in site_releases:
         return False
-    # loop over all releases
-    for tmpRel in jobRels.split("\n"):
-        relVer = re.sub("^Atlas-", "", tmpRel)
-        # not available releases
-        if relVer not in siteRels:
+
+    # Loop over all releases
+    for release in job_releases.split("\n"):
+        release_version = re.sub(r"^Atlas-", "", release)
+        # Release not available
+        if release_version not in site_releases:
             return False
+
     return True
 
 
@@ -83,19 +88,21 @@ def _getOkFiles(
     except Exception:
         pass
     rucio_sites.sort()
-    if rucio_sites == []:
+    if not rucio_sites:
         rucio_site = v_ce.ddm_input[scope_association_input]
     else:
         rucio_site = ""
         for tmpID in rucio_sites:
             rucio_site += f"{tmpID},"
         rucio_site = rucio_site[:-1]
+
     # set LFC and SE name
     rucio_url = "rucio://atlas-rucio.cern.ch:/grid/atlas"
     tmpSE = v_ce.ddm_endpoints_input[scope_association_input].getAllEndPoints()
     if tmpLog is not None:
         tmpLog.debug(f"getOkFiles for {v_ce.sitename} with rucio_site:{rucio_site}, rucio_url:{rucio_url}, SE:{str(tmpSE)}")
     anyID = "any"
+
     # use bulk lookup
     if allLFNs != []:
         # get all replicas
@@ -181,11 +188,9 @@ def _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog):
         tmpJob.dispatchDBlock = "NULL"
 
 
-# check number/size of inputs
-def _isTooManyInput(nFilesPerJob, inputSizePerJob):
-    # the number of inputs is larger than 5 or
-    # size of inputs is larger than 500MB
-    if nFilesPerJob > 5 or inputSizePerJob > 500 * 1024 * 1024:
+# Check if the number/size of inputs is too large
+def _isTooMuchInput(n_files_per_job, input_size_per_job):
+    if n_files_per_job > 5 or input_size_per_job > 500 * 1024 * 1024:
         return True
     return False
 
@@ -226,52 +231,56 @@ def sendMsgToLoggerHTTP(msgList, job):
 
 
 # get Satellite candidates when files are missing at Satellite
-def get_satellite_cand_list(tmpJob, siteMapper, satellitesFilesMap):
-    if tmpJob is None:
+def get_satellite_candidate_list(tmp_job, site_mapper, satellites_files_map):
+    # no job or cloud information
+    if not tmp_job or tmp_job.getCloud() not in satellites_files_map:
         return []
-    # no cloud info
-    if tmpJob.getCloud() not in satellitesFilesMap:
-        return []
+
     # loop over all files
-    tmpCandT2s = None
-    for tmpFile in tmpJob.Files:
-        if tmpFile.type == "input" and tmpFile.status == "missing":
+    tmp_t2_candidates = None
+    for tmp_file in tmp_job.Files:
+        if tmp_file.type == "input" and tmp_file.status == "missing":
             # no dataset info
-            if tmpFile.dataset not in satellitesFilesMap[tmpJob.getCloud()]:
+            if tmp_file.dataset not in satellites_files_map[tmp_job.getCloud()]:
                 return []
             # initial candidates
-            if tmpCandT2s is None:
-                tmpCandT2s = satellitesFilesMap[tmpJob.getCloud()][tmpFile.dataset]["sites"]
+            if tmp_t2_candidates is None:
+                tmp_t2_candidates = satellites_files_map[tmp_job.getCloud()][tmp_file.dataset]["sites"]
+
             # check all candidates
-            newCandT2s = []
-            for tmpCandT2 in tmpCandT2s:
+            new_t2_candidates = []
+            for tmp_t2_candidate in tmp_t2_candidates:
                 # site doesn't have the dataset
-                if tmpCandT2 not in satellitesFilesMap[tmpJob.getCloud()][tmpFile.dataset]["sites"]:
+                if tmp_t2_candidate not in satellites_files_map[tmp_job.getCloud()][tmp_file.dataset]["sites"]:
                     continue
+
                 # site has the file
-                if tmpFile.lfn in satellitesFilesMap[tmpJob.getCloud()][tmpFile.dataset]["sites"][tmpCandT2]:
-                    if tmpCandT2 not in newCandT2s:
-                        newCandT2s.append(tmpCandT2)
+                if tmp_file.lfn in satellites_files_map[tmp_job.getCloud()][tmp_file.dataset]["sites"][tmp_t2_candidate]:
+                    if tmp_t2_candidate not in new_t2_candidates:
+                        new_t2_candidates.append(tmp_t2_candidate)
+
             # set new candidates
-            tmpCandT2s = newCandT2s
-            if tmpCandT2s == []:
+            tmp_t2_candidates = new_t2_candidates
+            if not tmp_t2_candidates:
                 break
     # return [] if no missing files
-    if tmpCandT2s is None:
+    if tmp_t2_candidates is None:
         return []
     # return
-    tmpCandT2s.sort()
-    return tmpCandT2s
+    tmp_t2_candidates.sort()
+    return tmp_t2_candidates
 
 
 # make compact dialog message
 def makeCompactDiagMessage(header, results):
-    # limit
-    maxSiteList = 5
-    # types for compact format
-    compactTypeList = ["status", "cpucore"]
-    # message mapping
-    messageMap = {
+    # Limit for compact format
+    max_site_list = 5
+
+    # Types for compact format
+    compact_type_list = ["status", "cpucore"]
+
+    # Message mapping for different result types
+    message_map = {
         "rel": "missing rel/cache",
         "pilot": "no pilot",
         "status": "not online",
@@ -283,51 +292,48 @@ def makeCompactDiagMessage(header, results):
         "cpucore": "CPU core mismatch",
         "scratch": "small scratch disk",
     }
-    # put header
+
+    # Initialize the return string with the header
     if header in ["", None]:
-        retStr = "No candidate - "
+        return_string = "No candidate - "
     else:
-        retStr = f"special brokerage for {header} - "
-    # count number of sites per type
-    numTypeMap = {}
-    for resultType in results:
-        resultList = results[resultType]
-        # ignore empty
-        if len(resultList) == 0:
+        return_string = f"special brokerage for {header} - "
+
+    # Count the number of sites per type
+    num_type_map = {}
+    for result_type, result_list in results.items():
+        if len(result_list) == 0:
             continue
-        # add
-        nSites = len(resultList)
-        if nSites not in numTypeMap:
-            numTypeMap[nSites] = []
-        numTypeMap[nSites].append(resultType)
-    # sort
-    numTypeKeys = sorted(numTypeMap)
-    # use compact format for largest one
-    largeTypes = None
-    if len(numTypeKeys) > 0:
-        largeTypes = numTypeMap[numTypeKeys[-1]]
-    # loop over all types
-    for numTypeKey in numTypeKeys:
-        for resultType in numTypeMap[numTypeKey]:
-            # label
-            if resultType in messageMap:
-                retStr += f"{messageMap[resultType]} at "
+        num_sites = len(result_list)
+        if num_sites not in num_type_map:
+            num_type_map[num_sites] = []
+        num_type_map[num_sites].append(result_type)
+
+    # Sort the keys and determine the largest types
+    num_type_keys = sorted(num_type_map)
+    large_types = num_type_map[num_type_keys[-1]] if num_type_keys else None
+
+    # Loop over all types and construct the message
+    for num_type_key in num_type_keys:
+        for result_type in num_type_map[num_type_key]:
+            # Add the label for the result type
+            if result_type in message_map:
+                return_string += f"{message_map[result_type]} at "
             else:
-                retStr += f"{resultType} at"
-            # use comact format or not
-            if (resultType in compactTypeList + largeTypes or len(results[resultType]) >= maxSiteList) and header in ["", None, "reprocessing"]:
-                if len(results[resultType]) == 1:
-                    retStr += f"{len(results[resultType])} site"
-                else:
-                    retStr += f"{len(results[resultType])} sites"
+                return_string += f"{result_type} at "
+
+            # Use compact format or list all sites
+            if (result_type in compact_type_list + large_types or len(results[result_type]) >= max_site_list) and header in ["", None, "reprocessing"]:
+                return_string += f"{len(results[result_type])} site" if len(results[result_type]) == 1 else f"{len(results[result_type])} sites"
             else:
-                for tmpSite in results[resultType]:
-                    retStr += f"{tmpSite},"
-                retStr = retStr[:-1]
-            retStr += ". "
-    retStr = retStr[:-2]
-    # return
-    return retStr
+                return_string += ",".join(results[result_type])
+
+            return_string += ". "
+
+    # Remove the trailing period and space
+    return_string = return_string.rstrip(". ")
+
+    return return_string
 
 
 # schedule
@@ -356,8 +362,8 @@ def schedule(
 
     try:
         tmpLog.debug(
-            f"start {forAnalysis} {str(setScanSiteList)} {trustIS} {distinguishedName} minPrio={minPriority} "
-            f"pref={str(preferredCountries)} siteRel={siteReliability}"
+            f"start forAnalysis={forAnalysis} setScanSiteList={str(setScanSiteList)} trustIS={trustIS} DN={distinguishedName} "
+            f"minPrio={minPriority} pref={str(preferredCountries)} siteRel={siteReliability}"
         )
         if specialWeight != {}:
             tmpLog.debug(f"PD2P weight : {str(specialWeight)}")
@@ -392,7 +398,7 @@ def schedule(
         prevCoreCount = None
         prevIsJEDI = None
         prevDDM = None
-        prevBrokergageSiteList = None
+        prevBrokerageSiteList = None
         prevManualPreset = None
         prevGoToT2Flag = None
         prevWorkingGroup = None
@@ -479,7 +485,7 @@ def schedule(
             # send jobs to T2 when files are missing at T1
             goToT2Flag = False
             if job is not None and job.computingSite == "NULL" and job.prodSourceLabel in ("test", "managed") and specialBrokerageSiteList == []:
-                currentT2CandList = get_satellite_cand_list(job, siteMapper, satellitesFilesMap)
+                currentT2CandList = get_satellite_candidate_list(job, siteMapper, satellitesFilesMap)
                 if currentT2CandList != []:
                     goToT2Flag = True
                     specialBrokerageSiteList = currentT2CandList
@@ -561,7 +567,7 @@ def schedule(
                 or prevWorkingGroup != job.workingGroup
                 or prevProType != job.processingType
                 or (prevMaxCpuCount != job.maxCpuCount and not isJEDI)
-                or prevBrokergageSiteList != specialBrokerageSiteList
+                or prevBrokerageSiteList != specialBrokerageSiteList
                 or prevIsJEDI != isJEDI
                 or prevDDM != job.getDdmBackEnd()
             ):
@@ -599,7 +605,7 @@ def schedule(
                     "scratch": [],
                 }
                 # determine site
-                if (iJob == 0 or chosen_ce != "TOBEDONE") and prevBrokergageSiteList in [None, []]:
+                if (iJob == 0 or chosen_ce != "TOBEDONE") and prevBrokerageSiteList in [None, []]:
                     # file scan for pre-assigned jobs
                     jobsInBunch = jobs[indexJob - iJob - 1 : indexJob - 1]
                     if (
@@ -632,9 +638,9 @@ def schedule(
                     # load balancing
                     minSites = {}
                     nMinSites = 2
-                    if prevBrokergageSiteList != []:
+                    if prevBrokerageSiteList != []:
                         # special brokerage
-                        scanSiteList = prevBrokergageSiteList
+                        scanSiteList = prevBrokerageSiteList
                     elif setScanSiteList == []:
                         if siteMapper.checkCloud(previousCloud):
                             # use cloud sites
@@ -652,7 +658,7 @@ def schedule(
                     # use T1 for jobs with many inputs when weight is negative
                     if (
                         (not forAnalysis)
-                        and _isTooManyInput(nFilesPerJob, inputSizePerJob)
+                        and _isTooMuchInput(nFilesPerJob, inputSizePerJob)
                         and siteMapper.getCloud(previousCloud)["weight"] < 0
                         and prevManualPreset is False
                         and (prevCoreCount not in ["NULL", None] and prevCoreCount > 1)
@@ -1067,7 +1073,7 @@ def schedule(
                                         winv = float(nAssJobs + nActJobs) / float(1 + nRunJobsPerGroup) / (float(1 + nPilotsGet) / float(1 + nPilotsUpdate))
                                 winv *= float(multiCloudFactor)
                                 # send jobs to T1 when they require many or large inputs
-                                if _isTooManyInput(nFilesPerJob, inputSizePerJob):
+                                if _isTooMuchInput(nFilesPerJob, inputSizePerJob):
                                     if site == siteMapper.getCloud(previousCloud)["source"] or (
                                         previousCloud in hospitalQueueMap and site in hospitalQueueMap[previousCloud]
                                     ):
@@ -1178,6 +1184,7 @@ def schedule(
                                 chosenCE = tmp_chosen_ce
                                 maxNfiles = nFiles
                                 okFiles = tmpOKFiles
+
                     # set job spec
                     tmpLog.debug(f"indexJob      : {indexJob}")
                     tmpLog.debug(f"nInputs/Job   : {nFilesPerJob}")
@@ -1249,7 +1256,7 @@ def schedule(
                                     errtype, errvalue = sys.exc_info()[:2]
                                     tmpLog.error(f"failed to set diag for {tmpJob.PandaID}: {errtype} {errvalue}")
                                     tmpJob.brokerageErrorDiag = "failed to set diag. see brokerage log in the panda server"
-                            elif prevBrokergageSiteList not in [[], None]:
+                            elif prevBrokerageSiteList not in [[], None]:
                                 try:
                                     # make message
                                     tmpJob.brokerageErrorDiag = makeCompactDiagMessage(prevBrokerageNote, resultsForAnal)
@@ -1350,7 +1357,7 @@ def schedule(
             prevDirectAcc = job.transferType
             prevCoreCount = job.coreCount
             prevMaxCpuCount = job.maxCpuCount
-            prevBrokergageSiteList = specialBrokerageSiteList
+            prevBrokerageSiteList = specialBrokerageSiteList
             prevManualPreset = manualPreset
             prevGoToT2Flag = goToT2Flag
             prevWorkingGroup = job.workingGroup
