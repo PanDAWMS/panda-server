@@ -1,71 +1,48 @@
 import copy
-import re
 import sys
 import traceback
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
-from pandaserver.config import panda_config
+
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.taskbuffer.NucleusSpec import NucleusSpec
 
-# default site
-from pandaserver.taskbuffer.SiteSpec import SiteSpec
-
-# logger
 _logger = PandaLogger().getLogger("SiteMapper")
 
-defSite = SiteSpec()
-defSite.sitename = panda_config.def_sitename
-defSite.nickname = panda_config.def_nickname
-defSite.ddm_input = {"default": panda_config.def_ddm}
-defSite.ddm_output = {"default": panda_config.def_ddm}
-defSite.type = panda_config.def_type
-defSite.status = panda_config.def_status
-defSite.setokens_input = {}
-defSite.setokens_output = {}
-defSite.ddm_endpoints_input = {}
-defSite.ddm_endpoints_output = {}
-
-worldCloudName = "WORLD"
-nucleusTag = "nucleus:"
-
-
-########################################################################
+# constants
+WORLD_CLOUD = "WORLD"
+NUCLEUS_TAG = "nucleus:"
 
 
 class SiteMapper:
-    # constructor
     def __init__(self, taskBuffer, verbose=False):
         _logger.debug("__init__ SiteMapper")
         try:
-            # site list
             self.siteSpecList = {}
-
-            # sites not belonging to a cloud
-            self.defCloudSites = []
-
-            # cloud specification
             self.cloudSpec = {}
-
-            # spec for WORLD cloud
             self.worldCloudSpec = {}
-
-            # nuclei
             self.nuclei = {}
-
-            # satellites
             self.satellites = {}
 
             # get resource types
-            resourceTypes = taskBuffer.load_resource_types()
+            resource_types = taskBuffer.load_resource_types()
+
+            # read sites information from database in the format
+            # {'PANDA_QUEUE_1': < pandaserver.taskbuffer.SiteSpec.SiteSpec object1 >,
+            #  'PANDA_QUEUE_2': < pandaserver.taskbuffer.SiteSpec.SiteSpec object2 >, ...}
+            site_spec_dictionary = taskBuffer.getSiteInfo()
+
             # create CloudSpec list
+            # TODO: remove the need for this
             tmpCloudListDB = taskBuffer.getCloudList()
             for tmpName in tmpCloudListDB:
                 tmpCloudSpec = tmpCloudListDB[tmpName]
                 cloudSpec = {}
+
                 # copy attributes from CloudSepc
                 for tmpAttr in tmpCloudSpec._attributes:
                     cloudSpec[tmpAttr] = getattr(tmpCloudSpec, tmpAttr)
+
                 # append additional attributes
                 #    source : Panda siteID for source
                 #    dest   : Panda siteID for dest
@@ -73,206 +50,239 @@ class SiteMapper:
                 cloudSpec["source"] = cloudSpec["tier1"]
                 cloudSpec["dest"] = cloudSpec["tier1"]
                 cloudSpec["sites"] = []
-                if tmpName == worldCloudName:
+                if tmpName == WORLD_CLOUD:
                     self.worldCloudSpec = cloudSpec
                 else:
                     self.cloudSpec[tmpName] = cloudSpec
                     _logger.debug(f"Cloud->{tmpName} {str(self.cloudSpec[tmpName])}")
+
             # add WORLD cloud
             self.worldCloudSpec["sites"] = []
-            firstDefault = True
-            # read full list from DB
-            siteFullList = taskBuffer.getSiteInfo()
-            siteIDsList = {}
-            for tmpNickname in siteFullList:
-                siteIDsList.setdefault(siteFullList[tmpNickname].sitename, [])
-                siteIDsList[siteFullList[tmpNickname].sitename].append(tmpNickname)
-            # read DB to produce paramters in siteinfo dynamically
-            for tmpID in siteIDsList:
-                tmpNicknameList = siteIDsList[tmpID]
-                for tmpNickname in tmpNicknameList:
-                    # invalid nickname
-                    if tmpNickname not in siteFullList:
-                        continue
-                    # get full spec
-                    ret = siteFullList[tmpNickname]
-                    # append
-                    if ret is None:
-                        _logger.error(f"Could not read site info for {tmpID}:{tmpNickname}")
-                    elif (
-                        (firstDefault and tmpID == defSite.sitename)
-                        or (tmpID not in self.siteSpecList)
-                        or (tmpID in self.siteSpecList and self.siteSpecList[tmpID].status in ["offline", ""])
-                    ):
-                        # overwrite default or remove existing offline
-                        if firstDefault and tmpID == defSite.sitename:
-                            del self.siteSpecList[tmpID]
-                            firstDefault = False
-                        elif tmpID in self.siteSpecList and self.siteSpecList[tmpID].status in ["offline", ""]:
-                            del self.siteSpecList[tmpID]
-                        # append
-                        if tmpID not in self.siteSpecList:
-                            # don't use site for production when cloud is undefined
-                            if ret.runs_production() and ret.cloud == "":
-                                _logger.error(f"Empty cloud for {tmpID}:{tmpNickname}")
-                            else:
-                                self.siteSpecList[tmpID] = ret
-                    else:
-                        # overwrite status
-                        if ret.status not in ["offline", ""]:
-                            if self.siteSpecList[tmpID].status != "online":
-                                self.siteSpecList[tmpID].status = ret.status
-                            # use larger maxinputsize and memory
-                            try:
-                                if ret.status in ["online"]:
-                                    if self.siteSpecList[tmpID].maxinputsize < ret.maxinputsize or ret.maxinputsize == 0:
-                                        self.siteSpecList[tmpID].maxinputsize = ret.maxinputsize
-                                    if (self.siteSpecList[tmpID].memory != 0 and self.siteSpecList[tmpID].memory < ret.memory) or ret.memory == 0:
-                                        self.siteSpecList[tmpID].memory = ret.memory
-                            except Exception:
-                                errtype, errvalue = sys.exc_info()[:2]
-                                _logger.error(f"{tmpID} memory/inputsize failure : {errtype} {errvalue}")
-                    # collect nuclei and satellites
-                    self.collectNS(ret)
+
+            # read DB to produce parameters in siteinfo dynamically
+            for site_name_tmp, site_spec_tmp in site_spec_dictionary.items():
+                # we can't find the site info for the queue
+                if not site_spec_tmp:
+                    _logger.error(f"Could not read site info for {site_name_tmp}")
+
+                # if the current site has not been processed yet
+                # or the current site has been processed and is offline or has no status
+                elif (site_name_tmp not in self.siteSpecList) or (
+                    site_name_tmp in self.siteSpecList and self.siteSpecList[site_name_tmp].status in ["offline", ""]
+                ):
+                    # remove existing offline site
+                    if site_name_tmp in self.siteSpecList and self.siteSpecList[site_name_tmp].status in ["offline", ""]:
+                        del self.siteSpecList[site_name_tmp]
+
+                    # add the site information
+                    if site_name_tmp not in self.siteSpecList:
+                        # don't use site for production when cloud is undefined
+                        if site_spec_tmp.runs_production() and not site_spec_tmp.cloud:
+                            _logger.error(f"Empty cloud for {site_name_tmp}")
+                        else:
+                            self.siteSpecList[site_name_tmp] = site_spec_tmp
+
+                # if the current site has been processed and is not offline or has a status
+                else:
+                    # overwrite status
+                    if site_spec_tmp.status not in ["offline", ""]:
+                        if self.siteSpecList[site_name_tmp].status != "online":
+                            self.siteSpecList[site_name_tmp].status = site_spec_tmp.status
+
+                        # use larger maxinputsize and memory
+                        try:
+                            if site_spec_tmp.status in ["online"]:
+                                if self.siteSpecList[site_name_tmp].maxinputsize < site_spec_tmp.maxinputsize or site_spec_tmp.maxinputsize == 0:
+                                    self.siteSpecList[site_name_tmp].maxinputsize = site_spec_tmp.maxinputsize
+                                if (
+                                    self.siteSpecList[site_name_tmp].memory != 0 and self.siteSpecList[site_name_tmp].memory < site_spec_tmp.memory
+                                ) or site_spec_tmp.memory == 0:
+                                    self.siteSpecList[site_name_tmp].memory = site_spec_tmp.memory
+                        except Exception:
+                            error_type, error_value = sys.exc_info()[:2]
+                            _logger.error(f"{site_name_tmp} memory/inputsize failure : {error_type} {error_value}")
+
             # make virtual queues from unified queues
             try:
-                for siteName in list(self.siteSpecList):
-                    siteSpec = self.siteSpecList[siteName]
-                    if siteSpec.hasValueInCatchall("unifiedPandaQueue") or siteSpec.capability == "ucore":
-                        for resourceSpec in resourceTypes:
-                            # make site spec for child
-                            childSiteSpec = copy.copy(siteSpec)
-                            childSiteSpec.sitename = f"{siteSpec.sitename}/{resourceSpec.resource_name}"
-                            coreCount = max(1, siteSpec.coreCount)
-                            # skip if not good for core count requirement
-                            if resourceSpec.mincore is not None and coreCount < resourceSpec.mincore:
-                                continue
-                            # change resource requirements
-                            if resourceSpec.maxcore is None:
-                                childSiteSpec.coreCount = max(coreCount, resourceSpec.mincore)
-                            else:
-                                childSiteSpec.coreCount = max(
-                                    min(coreCount, resourceSpec.maxcore),
-                                    resourceSpec.mincore,
-                                )
-                            if resourceSpec.minrampercore is not None:
-                                childSiteSpec.minrss = max(
-                                    childSiteSpec.coreCount * resourceSpec.minrampercore,
-                                    siteSpec.minrss * childSiteSpec.coreCount / coreCount,
-                                )
-                            else:
-                                childSiteSpec.minrss = max(
-                                    siteSpec.minrss * childSiteSpec.coreCount / coreCount,
-                                    siteSpec.minrss,
-                                )
-                            if resourceSpec.maxrampercore is not None:
-                                childSiteSpec.maxrss = min(
-                                    childSiteSpec.coreCount * resourceSpec.maxrampercore,
-                                    siteSpec.maxrss * childSiteSpec.coreCount / coreCount,
-                                )
-                            else:
-                                childSiteSpec.maxrss = min(
-                                    siteSpec.maxrss * childSiteSpec.coreCount / coreCount,
-                                    siteSpec.maxrss,
-                                )
-                            # set unified name
-                            childSiteSpec.unified_name = siteSpec.sitename
+                for site_name_tmp in list(self.siteSpecList):
+                    site_spec_tmp = self.siteSpecList[site_name_tmp]
+                    if site_spec_tmp.capability == "ucore":
+                        # add child sites
+                        for resource_spec_tmp in resource_types:
+                            child_site_spec = self.get_child_site_spec(site_spec_tmp, resource_spec_tmp)
+                            if child_site_spec:
+                                self.siteSpecList[child_site_spec.site_name_tmp] = child_site_spec
 
-                            # append
-                            self.siteSpecList[childSiteSpec.sitename] = childSiteSpec
-                            self.collectNS(childSiteSpec)
                         # set unified flag
-                        siteSpec.is_unified = True
+                        site_spec_tmp.is_unified = True
             except Exception:
                 _logger.error(traceback.format_exc())
+
+            # collect nuclei and satellites for main and child sites
+            for site_spec_tmp in self.siteSpecList.values():
+                self.collect_nuclei_and_satellites(site_spec_tmp)
+
             # make cloudSpec
+            # TODO: remove the need for this
             for siteSpec in self.siteSpecList.values():
                 # choose only prod or grandly unified sites
                 if not siteSpec.runs_production():
                     continue
+
                 # append prod site in cloud
                 for tmpCloud in siteSpec.cloudlist:
                     if tmpCloud in self.cloudSpec:
                         if siteSpec.sitename not in self.cloudSpec[tmpCloud]["sites"]:
                             # append
                             self.cloudSpec[tmpCloud]["sites"].append(siteSpec.sitename)
-                    else:
-                        # append to the default cloud
-                        if siteSpec.sitename not in self.defCloudSites:
-                            # append
-                            self.defCloudSites.append(siteSpec.sitename)
+
                 # add to WORLD cloud
                 if siteSpec.sitename not in self.worldCloudSpec["sites"]:
                     self.worldCloudSpec["sites"].append(siteSpec.sitename)
-            # set defCloudSites for backward compatibility
-            if "US" in self.cloudSpec:
-                # use US sites
-                self.defCloudSites = self.cloudSpec["US"]["sites"]
-            else:
-                # add def site as a protection if defCloudSites is empty
-                self.defCloudSites.append(defSite.sitename)
-            # dump sites
-            if verbose:
-                _logger.debug("========= dump =========")
-                for tmpSite in self.siteSpecList:
-                    tmpSiteSpec = self.siteSpecList[tmpSite]
-                    _logger.debug(f"Site->{str(tmpSiteSpec)}")
-            # check
-            for tmpCloud in self.cloudSpec:
-                tmpVals = self.cloudSpec[tmpCloud]
-                # set T1
+
+            # set the T1 at the beginning of the cloud site lists
+            for cloud_name_tmp, cloud_spec_tmp in self.cloudSpec.items():
                 try:
-                    tmpVals["sites"].remove(tmpVals["dest"])
+                    cloud_spec_tmp["sites"].remove(cloud_spec_tmp["dest"])
                 except Exception:
                     pass
-                tmpVals["sites"].insert(0, tmpVals["dest"])
-                # dump
-                _logger.debug(f"Cloud:{tmpCloud} has {tmpVals['sites']}")
-                for tmpSite in tmpVals["sites"]:
-                    if tmpSite not in self.siteSpecList:
-                        _logger.debug(f"  '{tmpSite}' doesn't exist")
-                        continue
-                    tmpSiteSpec = self.siteSpecList[tmpSite]
-                    if tmpSiteSpec.status in ["offline"]:
-                        _logger.debug(f"  {tmpSite}:{tmpSiteSpec.status}")
-            _logger.debug(f"Cloud:XX has {self.defCloudSites}")
+                cloud_spec_tmp["sites"].insert(0, cloud_spec_tmp["dest"])
+
+            # dump site information in verbose mode and cloud information
+            if verbose:
+                self.dump_site_information()
+            self.dump_cloud_information()
+
         except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"__init__ SiteMapper : {type} {value}")
+            error_type, error_value, _ = sys.exc_info()
+            _logger.error(f"__init__ SiteMapper : {error_type} {error_value}")
             _logger.error(traceback.format_exc())
+
         _logger.debug("__init__ SiteMapper done")
 
+    def dump_site_information(self):
+        _logger.debug("========= site dump =========")
+        for tmp_site_spec in self.siteSpecList.values():
+            _logger.debug(f"Site->{str(tmp_site_spec)}")
+
+    def dump_cloud_information(self):
+        for cloud_name_tmp, cloud_spec_tmp in self.cloudSpec.items():
+            # Generate lists of sites with special cases (offline or not existing)
+            sites_with_issues = []
+            sites_offline = []
+            for site_name_tmp in cloud_spec_tmp["sites"]:
+                if site_name_tmp not in self.siteSpecList:
+                    sites_with_issues.append({site_name_tmp})
+                    continue
+
+                site_spec_tmp = self.siteSpecList[site_name_tmp]
+                if site_spec_tmp.status == "offline":
+                    sites_offline.append(f"{site_name_tmp}")
+
+            _logger.debug("========= {cloud_name_tmp} cloud dump =========")
+            _logger.debug(f"Cloud:{cloud_name_tmp} has {cloud_spec_tmp['sites']}")
+            if sites_offline:
+                _logger.debug(f"Cloud:{cloud_name_tmp} has sites offline:{sites_offline}")
+            if sites_with_issues:
+                _logger.debug(f"Cloud:{cloud_name_tmp} has sites that don't exist:{sites_with_issues}")
+
+    def get_child_site_spec(self, site_spec, resource_spec):
+        core_count = max(1, site_spec.coreCount)
+
+        # make sure our queue is compatible with the resource type
+        if resource_spec.mincore is not None and core_count < resource_spec.mincore:
+            return None
+
+        # copy the site spec for the child site and later overwrite relevant fields
+        child_site_spec = copy.copy(site_spec)
+        child_site_spec.sitename = f"{site_spec.sitename}/{resource_spec.resource_name}"
+
+        # calculate the core count for the child queue
+        if resource_spec.maxcore is None:
+            child_site_spec.coreCount = max(core_count, resource_spec.mincore)
+        else:
+            child_site_spec.coreCount = max(
+                min(core_count, resource_spec.maxcore),
+                resource_spec.mincore,
+            )
+
+        # calculate the minRSS for the child queue
+        if resource_spec.minrampercore is not None:
+            child_site_spec.minrss = max(
+                child_site_spec.coreCount * resource_spec.minrampercore,
+                site_spec.minrss * child_site_spec.coreCount / core_count,
+            )
+        else:
+            child_site_spec.minrss = max(
+                site_spec.minrss * child_site_spec.coreCount / core_count,
+                site_spec.minrss,
+            )
+
+        # calculate the maxRSS for the child queue
+        if resource_spec.maxrampercore is not None:
+            child_site_spec.maxrss = min(
+                child_site_spec.coreCount * resource_spec.maxrampercore,
+                site_spec.maxrss * child_site_spec.coreCount / core_count,
+            )
+        else:
+            child_site_spec.maxrss = min(
+                site_spec.maxrss * child_site_spec.coreCount / core_count,
+                site_spec.maxrss,
+            )
+
+        # set unified name
+        child_site_spec.unified_name = site_spec.sitename
+
+        return child_site_spec
+
     # collect nuclei and satellites
-    def collectNS(self, ret):
-        if ret.runs_production():
-            if ret.role == "nucleus":
-                target = self.nuclei
-            elif ret.role == "satellite":
-                target = self.satellites
-            else:
-                return
-            if ret.pandasite not in target:
-                atom = NucleusSpec(ret.pandasite)
-                atom.state = ret.pandasite_state
-                mode = ret.bare_nucleus_mode()
-                if mode:
-                    atom.set_bare_nucleus_mode(mode)
-                secondary = ret.secondary_nucleus()
-                if secondary:
-                    atom.set_secondary_nucleus(secondary)
-                if ret.role == "satellite":
-                    atom.set_satellite()
-                try:
-                    atom.set_default_endpoint_out(ret.ddm_endpoints_output["default"].getDefaultWrite())
-                except Exception:
-                    pass
-                target[ret.pandasite] = atom
-            target[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output, ret.ddm_endpoints_input)
+    def collect_nuclei_and_satellites(self, ret):
+        # only consider production sites
+        if not ret.runs_production():
+            return
+
+        # target will point to the nuclei or satellites attribute in the SiteMapper object
+        if ret.role == "nucleus":
+            target = self.nuclei
+        elif ret.role == "satellite":
+            target = self.satellites
+        else:
+            return
+
+        if ret.pandasite not in target:
+            atom = NucleusSpec(ret.pandasite)
+            atom.state = ret.pandasite_state
+
+            # set if there is a bare nucleus mode (only, allow)
+            mode = ret.bare_nucleus_mode()
+            if mode:
+                atom.set_bare_nucleus_mode(mode)
+
+            # set if this is a secondary nucleus
+            secondary = ret.secondary_nucleus()
+            if secondary:
+                atom.set_secondary_nucleus(secondary)
+
+            # set if this is a satellite
+            if ret.role == "satellite":
+                atom.set_satellite()
+
+            # set the default endpoint out
+            try:
+                atom.set_default_endpoint_out(ret.ddm_endpoints_output["default"].getDefaultWrite())
+            except Exception:
+                pass
+
+            # add the atom to the dictionary of nuclei/satellites in the SiteMapper object
+            target[ret.pandasite] = atom
+
+        # add the sitename and ddm endpoints
+        target[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output, ret.ddm_endpoints_input)
 
     # accessor for site
     def getSite(self, site):
         try:
-            if site.startswith(nucleusTag):
+            if site.startswith(NUCLEUS_TAG):
                 tmpName = site.split(":")[-1]
                 if tmpName in self.nuclei:
                     site = self.nuclei[tmpName].getOnePandaSite()
@@ -282,14 +292,13 @@ class SiteMapper:
             pass
         if site in self.siteSpecList:
             return self.siteSpecList[site]
-        else:
-            # return default site
-            return defSite
+
+        return None
 
     # check if site exists
     def checkSite(self, site):
         try:
-            if site.startswith(nucleusTag):
+            if site.startswith(NUCLEUS_TAG):
                 tmpName = site.split(":")[-1]
                 if tmpName in self.nuclei:
                     site = self.nuclei[tmpName].getOnePandaSite()
@@ -302,7 +311,7 @@ class SiteMapper:
     # resolve nucleus
     def resolveNucleus(self, site):
         try:
-            if site.startswith(nucleusTag):
+            if site.startswith(NUCLEUS_TAG):
                 tmpName = site.split(":")[-1]
                 if tmpName in self.nuclei:
                     site = self.nuclei[tmpName].getOnePandaSite()
@@ -318,27 +327,21 @@ class SiteMapper:
     def getCloud(self, cloud):
         if cloud in self.cloudSpec:
             return self.cloudSpec[cloud]
-        elif cloud == worldCloudName:
+
+        if cloud == WORLD_CLOUD:
             return self.worldCloudSpec
-        else:
-            # return sites in default cloud
-            ret = {
-                "source": "default",
-                "dest": "default",
-                "sites": self.defCloudSites,
-                "transtimelo": 2,
-                "transtimehi": 1,
-            }
-            return ret
+
+        return None
 
     # accessor for cloud
     def checkCloud(self, cloud):
         if cloud in self.cloudSpec:
             return True
-        elif cloud == worldCloudName:
+
+        if cloud == WORLD_CLOUD:
             return True
-        else:
-            return False
+
+        return False
 
     # accessor for cloud list
     def getCloudList(self):
