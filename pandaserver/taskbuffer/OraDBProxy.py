@@ -145,10 +145,7 @@ class DBProxy:
         self.beyondPledgeRatio = {}
         # update time for pledge resource ratio
         self.updateTimeForPledgeRatio = None
-        # fairshare policy
-        self.fairsharePolicy = {}
-        # update time for fairshare policy
-        self.updateTimeForFairsharePolicy = None
+
         # hostname
         self.myHostName = socket.getfqdn()
         self.backend = panda_config.backend
