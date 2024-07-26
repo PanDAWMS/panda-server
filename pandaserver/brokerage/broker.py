@@ -122,20 +122,6 @@ def _getOkFiles(
         return {}
 
 
-# check reprocessing or not
-def _isReproJob(tmpJob):
-    if tmpJob is not None:
-        if tmpJob.processingType in ["reprocessing"]:
-            return True
-        if tmpJob.transformation in [
-            "csc_cosmics_trf.py",
-            "csc_BSreco_trf.py",
-            "BStoESDAODDPD_trf.py",
-        ]:
-            return True
-    return False
-
-
 # set 'ready' if files are already there
 def _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog):
     tmpLog.debug(str(okFiles))
