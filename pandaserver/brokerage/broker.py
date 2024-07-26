@@ -515,17 +515,17 @@ def schedule(
             elif job.jobStatus == "failed":
                 continue
             # list of sites for special brokerage
-            specialBrokergageSiteList = []
+            specialBrokerageSiteList = []
             # note for brokerage
             brokerageNote = ""
             # send jobs to T2 when files are missing at T1
             goToT2Flag = False
-            if job is not None and job.computingSite == "NULL" and job.prodSourceLabel in ("test", "managed") and specialBrokergageSiteList == []:
+            if job is not None and job.computingSite == "NULL" and job.prodSourceLabel in ("test", "managed") and specialBrokerageSiteList == []:
                 currentT2CandList = get_satellite_cand_list(job, siteMapper, satellitesFilesMap)
                 if currentT2CandList != []:
                     goToT2Flag = True
-                    specialBrokergageSiteList = currentT2CandList
-                    tmpLog.debug(f"PandaID:{job.PandaID} -> set SiteList={specialBrokergageSiteList} to use T2 for missing files at T1")
+                    specialBrokerageSiteList = currentT2CandList
+                    tmpLog.debug(f"PandaID:{job.PandaID} -> set SiteList={specialBrokerageSiteList} to use T2 for missing files at T1")
                     brokerageNote = "useT2"
             # set computingSite to T1 for high priority jobs
             if (
@@ -534,13 +534,13 @@ def schedule(
                 and job.currentPriority >= 950
                 and job.computingSite == "NULL"
                 and job.prodSourceLabel in ("test", "managed")
-                and specialBrokergageSiteList == []
+                and specialBrokerageSiteList == []
             ):
-                specialBrokergageSiteList = [siteMapper.getCloud(job.getCloud())["source"]]
+                specialBrokerageSiteList = [siteMapper.getCloud(job.getCloud())["source"]]
                 # set site list to use T1 and T1_VL
                 if job.getCloud() in hospitalQueueMap:
-                    specialBrokergageSiteList += hospitalQueueMap[job.getCloud()]
-                tmpLog.debug(f"PandaID:{job.PandaID} -> set SiteList={specialBrokergageSiteList} for high prio")
+                    specialBrokerageSiteList += hospitalQueueMap[job.getCloud()]
+                tmpLog.debug(f"PandaID:{job.PandaID} -> set SiteList={specialBrokerageSiteList} for high prio")
                 brokerageNote = "highPrio"
             # use limited sites for MP jobs
             if (
@@ -549,14 +549,14 @@ def schedule(
                 and job.prodSourceLabel in ("test", "managed")
                 and job.coreCount not in [None, "NULL"]
                 and job.coreCount > 1
-                and specialBrokergageSiteList == []
+                and specialBrokerageSiteList == []
             ):
                 for tmpSiteName in siteMapper.getCloud(job.getCloud())["sites"]:
                     if siteMapper.checkSite(tmpSiteName):
                         tmpSiteSpec = siteMapper.getSite(tmpSiteName)
                         if tmpSiteSpec.coreCount > 1:
-                            specialBrokergageSiteList.append(tmpSiteName)
-                tmpLog.debug(f"PandaID:{job.PandaID} -> set SiteList={specialBrokergageSiteList} for MP={job.coreCount}cores")
+                            specialBrokerageSiteList.append(tmpSiteName)
+                tmpLog.debug(f"PandaID:{job.PandaID} -> set SiteList={specialBrokerageSiteList} for MP={job.coreCount}cores")
                 brokerageNote = f"MP={job.coreCount}core"
             # use limited sites for reprocessing
             if (
@@ -564,19 +564,19 @@ def schedule(
                 and job.computingSite == "NULL"
                 and job.prodSourceLabel in ("test", "managed")
                 and job.processingType in ["reprocessing"]
-                and specialBrokergageSiteList == []
+                and specialBrokerageSiteList == []
             ):
                 for tmpSiteName in siteMapper.getCloud(job.getCloud())["sites"]:
                     if siteMapper.checkSite(tmpSiteName):
                         tmpSiteSpec = siteMapper.getSite(tmpSiteName)
                         if _checkRelease(job.AtlasRelease, tmpSiteSpec.validatedreleases):
-                            specialBrokergageSiteList.append(tmpSiteName)
-                tmpLog.debug(f"PandaID:{job.PandaID} -> set SiteList={specialBrokergageSiteList} for processingType={job.processingType}")
+                            specialBrokerageSiteList.append(tmpSiteName)
+                tmpLog.debug(f"PandaID:{job.PandaID} -> set SiteList={specialBrokerageSiteList} for processingType={job.processingType}")
                 brokerageNote = f"{job.processingType}"
             # manually set site
             manualPreset = False
-            if job is not None and job.computingSite != "NULL" and job.prodSourceLabel in ("test", "managed") and specialBrokergageSiteList == []:
-                specialBrokergageSiteList = [job.computingSite]
+            if job is not None and job.computingSite != "NULL" and job.prodSourceLabel in ("test", "managed") and specialBrokerageSiteList == []:
+                specialBrokerageSiteList = [job.computingSite]
                 manualPreset = True
                 brokerageNote = "presetSite"
             overwriteSite = False
@@ -603,7 +603,7 @@ def schedule(
                 or prevWorkingGroup != job.workingGroup
                 or prevProType != job.processingType
                 or (prevMaxCpuCount != job.maxCpuCount and not isJEDI)
-                or prevBrokergageSiteList != specialBrokergageSiteList
+                or prevBrokergageSiteList != specialBrokerageSiteList
                 or prevIsJEDI != isJEDI
                 or prevDDM != job.getDdmBackEnd()
             ):
@@ -1407,7 +1407,7 @@ def schedule(
             prevDirectAcc = job.transferType
             prevCoreCount = job.coreCount
             prevMaxCpuCount = job.maxCpuCount
-            prevBrokergageSiteList = specialBrokergageSiteList
+            prevBrokergageSiteList = specialBrokerageSiteList
             prevManualPreset = manualPreset
             prevGoToT2Flag = goToT2Flag
             prevWorkingGroup = job.workingGroup
