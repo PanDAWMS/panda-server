@@ -160,32 +160,6 @@ class SiteMapper:
 
         _logger.debug("__init__ SiteMapper done")
 
-    def dump_site_information(self):
-        _logger.debug("========= site dump =========")
-        for tmp_site_spec in self.siteSpecList.values():
-            _logger.debug(f"Site->{str(tmp_site_spec)}")
-
-    def dump_cloud_information(self):
-        for cloud_name_tmp, cloud_spec_tmp in self.cloudSpec.items():
-            # Generate lists of sites with special cases (offline or not existing)
-            sites_with_issues = []
-            sites_offline = []
-            for site_name_tmp in cloud_spec_tmp["sites"]:
-                if site_name_tmp not in self.siteSpecList:
-                    sites_with_issues.append({site_name_tmp})
-                    continue
-
-                site_spec_tmp = self.siteSpecList[site_name_tmp]
-                if site_spec_tmp.status == "offline":
-                    sites_offline.append(f"{site_name_tmp}")
-
-            _logger.debug("========= {cloud_name_tmp} cloud dump =========")
-            _logger.debug(f"Cloud:{cloud_name_tmp} has {cloud_spec_tmp['sites']}")
-            if sites_offline:
-                _logger.debug(f"Cloud:{cloud_name_tmp} has sites offline:{sites_offline}")
-            if sites_with_issues:
-                _logger.debug(f"Cloud:{cloud_name_tmp} has sites that don't exist:{sites_with_issues}")
-
     def get_child_site_spec(self, site_spec, resource_spec):
         core_count = max(1, site_spec.coreCount)
 
@@ -276,52 +250,43 @@ class SiteMapper:
             # add the atom to the dictionary of nuclei/satellites in the SiteMapper object
             target[ret.pandasite] = atom
 
-        # add the sitename and ddm endpoints
+        # add the site name and ddm endpoints
         target[ret.pandasite].add(ret.sitename, ret.ddm_endpoints_output, ret.ddm_endpoints_input)
 
-    # accessor for site
-    def getSite(self, site):
+    def clean_site_name(self, site_name):
         try:
-            if site.startswith(NUCLEUS_TAG):
-                tmpName = site.split(":")[-1]
-                if tmpName in self.nuclei:
-                    site = self.nuclei[tmpName].getOnePandaSite()
-                elif tmpName in self.satellites:
-                    site = self.satellites[tmpName].getOnePandaSite()
+            if site_name.startswith(NUCLEUS_TAG):
+                tmp_name = site_name.split(":")[-1]
+                if tmp_name in self.nuclei:
+                    site_name = self.nuclei[tmp_name].getOnePandaSite()
+                elif tmp_name in self.satellites:
+                    site_name = self.satellites[tmp_name].getOnePandaSite()
         except Exception:
             pass
-        if site in self.siteSpecList:
-            return self.siteSpecList[site]
+
+        return site_name
+
+    # accessor for site
+    def getSite(self, site_name):
+        site_name = self.clean_site_name(site_name)
+
+        # Return the site spec if it exists
+        if site_name in self.siteSpecList:
+            return self.siteSpecList[site_name]
 
         return None
 
     # check if site exists
-    def checkSite(self, site):
-        try:
-            if site.startswith(NUCLEUS_TAG):
-                tmpName = site.split(":")[-1]
-                if tmpName in self.nuclei:
-                    site = self.nuclei[tmpName].getOnePandaSite()
-                elif tmpName in self.satellites:
-                    site = self.satellites[tmpName].getOnePandaSite()
-        except Exception:
-            pass
-        return site in self.siteSpecList
+    def checkSite(self, site_name):
+        site_name = self.clean_site_name(site_name)
+        return site_name in self.siteSpecList
 
     # resolve nucleus
-    def resolveNucleus(self, site):
-        try:
-            if site.startswith(NUCLEUS_TAG):
-                tmpName = site.split(":")[-1]
-                if tmpName in self.nuclei:
-                    site = self.nuclei[tmpName].getOnePandaSite()
-                elif tmpName in self.satellites:
-                    site = self.satellites[tmpName].getOnePandaSite()
-        except Exception:
-            pass
-        if site == "NULL":
-            site = None
-        return site
+    def resolveNucleus(self, site_name):
+        site_name = self.clean_site_name(site_name)
+        if site_name == "NULL":
+            site_name = None
+        return site_name
 
     # accessor for cloud
     def getCloud(self, cloud):
@@ -347,28 +312,62 @@ class SiteMapper:
     def getCloudList(self):
         return list(self.cloudSpec)
 
-    # get ddm point
-    def getDdmEndpoint(self, siteID, storageToken, prodSourceLabel, job_label):
-        if not self.checkSite(siteID):
+    # get DDM endpoint
+    def getDdmEndpoint(self, site_name, storage_token, prod_source_label, job_label):
+        # Skip if site doesn't exist
+        if not self.checkSite(site_name):
             return None
-        siteSpec = self.getSite(siteID)
-        scope_input, scope_output = select_scope(siteSpec, prodSourceLabel, job_label)
-        if storageToken in siteSpec.setokens_output[scope_output]:
-            return siteSpec.setokens_output[scope_output][storageToken]
-        return siteSpec.ddm_output[scope_output]
+
+        # Get the site spec and the input/output scope
+        site_spec = self.getSite(site_name)
+        scope_input, scope_output = select_scope(site_spec, prod_source_label, job_label)
+
+        if storage_token in site_spec.setokens_output[scope_output]:
+            return site_spec.setokens_output[scope_output][storage_token]
+
+        return site_spec.ddm_output[scope_output]
 
     # get nucleus
-    def getNucleus(self, tmpName):
-        if tmpName in self.nuclei:
-            return self.nuclei[tmpName]
-        if tmpName in self.satellites:
-            return self.satellites[tmpName]
+    def getNucleus(self, site_name):
+        if site_name in self.nuclei:
+            return self.nuclei[site_name]
+        if site_name in self.satellites:
+            return self.satellites[site_name]
         return None
 
-    # get nucleus with ddm endpoint
-    def getNucleusWithDdmEndpoint(self, ddmEndpoint):
-        for nucleusName in self.nuclei:
-            nucleusSpec = self.nuclei[nucleusName]
-            if nucleusSpec.isAssociatedEndpoint(ddmEndpoint):
-                return nucleusName
+    # get nucleus with DDM endpoint
+    def getNucleusWithDdmEndpoint(self, ddm_endpoint):
+        # scan through the nuclei until we find the one with the DDM endpoint associated
+        for nucleus_name in self.nuclei:
+            nucleus_spec = self.nuclei[nucleus_name]
+
+            # found it
+            if nucleus_spec.isAssociatedEndpoint(ddm_endpoint):
+                return nucleus_name
         return None
+
+    def dump_site_information(self):
+        _logger.debug("========= site dump =========")
+        for tmp_site_spec in self.siteSpecList.values():
+            _logger.debug(f"Site->{str(tmp_site_spec)}")
+
+    def dump_cloud_information(self):
+        for cloud_name_tmp, cloud_spec_tmp in self.cloudSpec.items():
+            # Generate lists of sites with special cases (offline or not existing)
+            sites_with_issues = []
+            sites_offline = []
+            for site_name_tmp in cloud_spec_tmp["sites"]:
+                if site_name_tmp not in self.siteSpecList:
+                    sites_with_issues.append({site_name_tmp})
+                    continue
+
+                site_spec_tmp = self.siteSpecList[site_name_tmp]
+                if site_spec_tmp.status == "offline":
+                    sites_offline.append(f"{site_name_tmp}")
+
+            _logger.debug("========= {cloud_name_tmp} cloud dump =========")
+            _logger.debug(f"Cloud:{cloud_name_tmp} has {cloud_spec_tmp['sites']}")
+            if sites_offline:
+                _logger.debug(f"Cloud:{cloud_name_tmp} has sites offline:{sites_offline}")
+            if sites_with_issues:
+                _logger.debug(f"Cloud:{cloud_name_tmp} has sites that don't exist:{sites_with_issues}")
