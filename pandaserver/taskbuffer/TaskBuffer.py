@@ -1038,17 +1038,6 @@ class TaskBuffer:
         # return
         return res
 
-    # get fairshare policy
-    def getFairsharePolicy(self):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # run
-        res = proxy.getFairsharePolicy(True)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return res
-
     # check merge job generation status
     def checkMergeGenerationStatus(self, dn, jobID):
         # return for NA

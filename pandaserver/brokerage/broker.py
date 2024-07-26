@@ -8,6 +8,7 @@ import traceback
 import uuid
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+
 from pandaserver.brokerage import ErrorCode
 from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils
@@ -461,7 +462,6 @@ def schedule(
                 break
 
         # get statistics
-        fairsharePolicy = {}
         newJobStatWithPrio = {}
         jobStatBrokerClouds = {}
         jobStatBrokerCloudsWithPrio = {}
@@ -483,7 +483,6 @@ def schedule(
             if not forAnalysis:
                 jobStatBroker = {}
                 jobStatBrokerClouds = taskBuffer.getJobStatisticsBrokerage()
-                fairsharePolicy = taskBuffer.getFairsharePolicy()
             else:
                 if minPriority is None:
                     jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage()
@@ -943,77 +942,7 @@ def schedule(
                                 if prevProType in skipBrokerageProTypes:
                                     # use original processingType since prod_test is in the test category and thus is interfered by validations
                                     tmpProGroup = prevProType
-                                # production share
-                                skipDueToShare = False
-                                try:
-                                    if not forAnalysis and prevSourceLabel in ["managed"] and site in fairsharePolicy:
-                                        for tmpPolicy in fairsharePolicy[site]["policyList"]:
-                                            # ignore priority policy
-                                            if tmpPolicy["priority"] is not None:
-                                                continue
-                                            # only zero share
-                                            if tmpPolicy["share"] != "0%":
-                                                continue
-                                            # check group
-                                            if tmpPolicy["group"] is not None:
-                                                if "*" in tmpPolicy["group"]:
-                                                    # wildcard
-                                                    tmpPatt = "^" + tmpPolicy["group"].replace("*", ".*") + "$"
-                                                    if re.search(tmpPatt, prevWorkingGroup) is None:
-                                                        continue
-                                                else:
-                                                    # normal definition
-                                                    if prevWorkingGroup != tmpPolicy["group"]:
-                                                        continue
-                                            else:
-                                                # catch all except WGs used by other policies
-                                                groupInDefList = fairsharePolicy[site]["groupList"]
-                                                usedByAnother = False
-                                                # loop over all groups
-                                                for groupInDefItem in groupInDefList:
-                                                    if "*" in groupInDefItem:
-                                                        # wildcard
-                                                        tmpPatt = "^" + groupInDefItem.replace("*", ".*") + "$"
-                                                        if (
-                                                            re.search(
-                                                                tmpPatt,
-                                                                prevWorkingGroup,
-                                                            )
-                                                            is not None
-                                                        ):
-                                                            usedByAnother = True
-                                                            break
-                                                    else:
-                                                        # normal definition
-                                                        if prevWorkingGroup == groupInDefItem:
-                                                            usedByAnother = True
-                                                            break
-                                                if usedByAnother:
-                                                    continue
-                                            # check type
-                                            if tmpPolicy["type"] is not None:
-                                                if tmpPolicy["type"] == tmpProGroup:
-                                                    skipDueToShare = True
-                                                    break
-                                            else:
-                                                # catch all except PGs used by other policies
-                                                typeInDefList = fairsharePolicy[site]["typeList"][tmpPolicy["group"]]
-                                                usedByAnother = False
-                                                for typeInDefItem in typeInDefList:
-                                                    if typeInDefItem == tmpProGroup:
-                                                        usedByAnother = True
-                                                        break
-                                                if not usedByAnother:
-                                                    skipDueToShare = True
-                                                    break
-                                        # skip
-                                        if skipDueToShare:
-                                            tmpLog.debug(f" skip: {site} zero share")
-                                            resultsForAnal["share"].append(site)
-                                            continue
-                                except Exception:
-                                    errtype, errvalue = sys.exc_info()[:2]
-                                    tmpLog.error(f"share check : {errtype} {errvalue}")
+
                                 # the number of assigned and activated
                                 if not forAnalysis:
                                     jobStatBrokerClouds.setdefault(previousCloud, {})
