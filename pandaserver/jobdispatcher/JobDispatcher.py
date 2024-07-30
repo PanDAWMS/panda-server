@@ -839,7 +839,7 @@ class JobDispatcher:
         tmp_log.debug(tmp_msg)
         if real_distinguished_name is None:
             # cannot extract DN
-            tmp_msg += "failed since DN cannot be extracted"
+            tmp_msg = "failed since DN cannot be extracted"
             tmp_log.debug(tmp_msg)
             response = Protocol.Response(Protocol.SC_Perms, "Cannot extract DN from proxy. not HTTPS?")
         else:
@@ -853,8 +853,11 @@ class JobDispatcher:
                 allowed_names = self.specialDispatchParams["allowProxy"]
             if compact_name not in allowed_names:
                 # permission denied
-                tmp_msg += f"failed since '{compact_name}' not in the authorized user list who have 'p' in {panda_config.schemaMETA}.USERS.GRIDPREF "
-                tmp_msg += "to get proxy"
+                tmp_msg = f"failed since '{compact_name}' not in the authorized user list who have 'p' in {panda_config.schemaMETA}.USERS.GRIDPREF "
+                if not tokenized:
+                    tmp_msg += "to get proxy"
+                else:
+                    tmp_msg += "to get access token"
                 tmp_log.debug(tmp_msg)
                 response = Protocol.Response(Protocol.SC_Perms, tmp_msg)
             elif (
@@ -867,7 +870,7 @@ class JobDispatcher:
                 )
             ):
                 # invalid token key
-                tmp_msg += f"failed since token key is invalid for {target_distinguished_name}"
+                tmp_msg = f"failed since token key is invalid for {target_distinguished_name}"
                 tmp_log.debug(tmp_msg)
                 response = Protocol.Response(Protocol.SC_Invalid, tmp_msg)
             else:
