@@ -386,46 +386,6 @@ def submitJobs(jobs, srvID=None, toPending=False):
         return EC_Failed, output + "\n" + errStr
 
 
-# run task assignment
-def runTaskAssignment(jobs):
-    """Run the task brokerage
-
-    args:
-        ids: list of typical JobSpecs for tasks to be assigned
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        return code
-              True: request is processed
-              False: not processed
-    """
-    # set hostname
-    hostname = socket.getfqdn()
-    for job in jobs:
-        job.creationHost = hostname
-    # serialize
-    strJobs = pickle_dumps(jobs)
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
-    # execute
-    url = baseURLSSL + "/runTaskAssignment"
-    data = {"jobs": strJobs}
-    status, output = curl.post(url, data)
-    if status != 0:
-        print(output)
-        return status, output
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR runTaskAssignment : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
-
-
 # get job status
 def getJobStatus(ids, use_json=False):
     """Get job status
@@ -486,65 +446,6 @@ def getPandaIDwithJobExeID(ids):
     except Exception:
         type, value, traceBack = sys.exc_info()
         errStr = f"ERROR getPandaIDwithJobExeID : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
-
-
-# get assigning task
-def getAssigningTask():
-    """Get the list of IDs of tasks which are being assigned by the
-    task brokerage
-
-       args:
-       returns:
-           status code
-                 0: communication succeeded to the panda server
-                 255: communication failure
-           the list of taskIDs
-    """
-    # instantiate curl
-    curl = _Curl()
-    # execute
-    url = baseURL + "/getAssigningTask"
-    status, output = curl.get(url, {})
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        print(output)
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getAssigningTask : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
-
-
-# get assigned cloud for tasks
-def seeCloudTask(ids):
-    """Check to which clouds the tasks are assigned
-
-    args:
-        ids: the list of taskIDs
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        the list of clouds (or Nones if tasks are not yet assigned)
-     raises:
-        EC_Failed: if communication failure to the panda server
-
-    """
-    # serialize
-    strIDs = pickle_dumps(ids)
-    # instantiate curl
-    curl = _Curl()
-    # execute
-    url = baseURL + "/seeCloudTask"
-    data = {"ids": strIDs}
-    status, output = curl.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR seeCloudTask : {type} {value}"
         print(errStr)
         return EC_Failed, output + "\n" + errStr
 

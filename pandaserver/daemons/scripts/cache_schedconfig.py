@@ -15,6 +15,7 @@ from pathlib import Path
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
+
 from pandaserver.config import panda_config
 
 # logger
@@ -198,10 +199,6 @@ class cacheSchedConfig:
                 shutil.copy(file, newfile)
         except Exception:
             raise
-
-    def dumpQueues(self, queueArray, dest="/tmp", outputSet="all", format="txt"):
-        for queueDict in queueArray:
-            self.dumpSingleQueue(queueArray, dest, outputSet, format)
 
     def queueDictPythonise(self, queueDict, deepCopy=True):
         """Turn queue dictionary with SQL text fields into a more stuctured python representation"""

@@ -14,10 +14,11 @@ import traceback
 import uuid
 import xml.dom.minidom
 
-import pandaserver.dataservice.ErrorCode
-import pandaserver.taskbuffer.ErrorCode
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+
+import pandaserver.dataservice.ErrorCode
+import pandaserver.taskbuffer.ErrorCode
 from pandaserver.config import panda_config
 from pandaserver.dataservice import closer
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils, retryModule
@@ -664,25 +665,20 @@ class AdderGen(object):
                     if fullLFN is not None:
                         fullLfnMap[lfn] = fullLFN
             except Exception:
-                # check if file exists
-                # if os.path.exists(self.xmlFile):
-                if True:
-                    type, value, traceBack = sys.exc_info()
-                    self.logger.error(f": {type} {value}")
-                    # set failed anyway
-                    self.job.jobStatus = "failed"
-                    # XML error happens when pilot got killed due to wall-time limit or failures in wrapper
-                    if (
-                        (self.job.pilotErrorCode in [0, "0", "NULL"])
-                        and (self.job.taskBufferErrorCode not in [pandaserver.taskbuffer.ErrorCode.EC_WorkerDone])
-                        and (self.job.transExitCode in [0, "0", "NULL"])
-                    ):
-                        self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
-                        self.job.ddmErrorDiag = "Could not get GUID/LFN/MD5/FSIZE/SURL from pilot XML"
-                    return 2
-                else:
-                    # XML was deleted
-                    return 1
+                type, value, traceBack = sys.exc_info()
+                self.logger.error(f": {type} {value}")
+                # set failed anyway
+                self.job.jobStatus = "failed"
+                # XML error happens when pilot got killed due to wall-time limit or failures in wrapper
+                if (
+                    (self.job.pilotErrorCode in [0, "0", "NULL"])
+                    and (self.job.taskBufferErrorCode not in [pandaserver.taskbuffer.ErrorCode.EC_WorkerDone])
+                    and (self.job.transExitCode in [0, "0", "NULL"])
+                ):
+                    self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
+                    self.job.ddmErrorDiag = "Could not get GUID/LFN/MD5/FSIZE/SURL from pilot XML"
+                return 2
+
         # parse metadata to get nEvents
         nEventsFrom = None
         try:

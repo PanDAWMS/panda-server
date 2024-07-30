@@ -812,16 +812,6 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         return ret
 
-    # retry failed analysis jobs in Active4
-    def retryJobsInActive(self, prodUserName, jobDefinitionID, isJEDI=False):
-        # get DB proxy
-        proxy = self.proxyPool.getProxy()
-        # update DB
-        ret = proxy.retryJobsInActive(prodUserName, jobDefinitionID, isJEDI)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        return ret
-
     # activate jobs
     def activateJobs(self, jobs):
         # get DB proxy
@@ -989,54 +979,6 @@ class TaskBuffer:
                     secrets_map[panda_config.pilot_secrets] = secret
         # return
         return jobs + [nSent, {}, secrets_map]
-
-    # run task assignment
-    def runTaskAssignment(self, jobs):
-        # get DB proxy
-        proxy = self.proxyPool.getProxy()
-        # loop over all jobs
-        retList = []
-        newJobs = []
-        for job in jobs:
-            ret = None
-            if job.taskID not in ["NULL", 0, ""]:
-                # get cloud
-                cloudTask = proxy.getCloudTask(job.taskID)
-                if cloudTask is not None and cloudTask.status == "assigned":
-                    ret = cloudTask.cloud
-            if ret is None:
-                # append for TA
-                newJobs.append(job)
-            retList.append(ret)
-        # release DB proxy
-        self.proxyPool.putProxy(proxy)
-        # run setupper
-        if newJobs != []:
-            pass
-        # return clouds
-        return retList
-
-    # reset modification time of a task to shorten retry interval
-    def resetTmodCloudTask(self, tid):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # run
-        res = proxy.resetTmodCloudTask(tid)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return res
-
-    # get assigning task
-    def getAssigningTask(self):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # run
-        res = proxy.getAssigningTask()
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return res
 
     # get fairshare policy
     def getFairsharePolicy(self):
@@ -1285,83 +1227,6 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # get
         ret = proxy.getPandIDsWithIdInArch(prodUserName, id, isJobset)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-    # get the number of waiting jobs with a dataset
-    def getNumWaitingJobsForPD2P(self, datasetName):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get
-        nJobs = proxy.getNumWaitingJobsForPD2P(datasetName)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return nJobs
-
-    # get the number of waiting jobsets with a dataset
-    def getNumWaitingJobsetsForPD2P(self, datasetName):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get
-        nJobs = proxy.getNumWaitingJobsetsForPD2P(datasetName)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return nJobs
-
-    # lock job for re-brokerage
-    def lockJobForReBrokerage(self, dn, jobID, simulation, forceOpt, forFailed=False):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get IDs
-        ret = proxy.lockJobForReBrokerage(dn, jobID, simulation, forceOpt, forFailed)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-    # reset buildJob for re-brokerage
-    def resetBuildJobForReBrokerage(self, pandaID):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get IDs
-        ret = proxy.resetBuildJobForReBrokerage(pandaID)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-    # get PandaIDs using libDS for re-brokerage
-    def getPandaIDsForReBrokerage(self, userName, jobID, fromActive, forFailed=False):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get IDs
-        ret = proxy.getPandaIDsForReBrokerage(userName, jobID, fromActive, forFailed)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-    # get input datasets for rebroerage
-    def getInDatasetsForReBrokerage(self, jobID, userName):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get IDs
-        ret = proxy.getInDatasetsForReBrokerage(jobID, userName)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-    # get outDSs with userName/jobID
-    def getOutDSsForReBrokerage(self, userName, jobID):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get IDs
-        ret = proxy.getOutDSsForReBrokerage(userName, jobID)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
@@ -2265,50 +2130,6 @@ class TaskBuffer:
         # return
         return ret
 
-    # get CloudTask
-    def getCloudTask(self, tid):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # count
-        ret = proxy.getCloudTask(tid)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-    # set cloud to CloudTask
-    def setCloudTask(self, cloudTask):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # count
-        ret = proxy.setCloudTask(cloudTask)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-    # see CloudTask
-    def seeCloudTask(self, tid):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # count
-        ret = proxy.seeCloudTask(tid)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-    # set cloud to CloudTask by user
-    def setCloudTaskByUser(self, user, tid, cloud, status, forceUpdate=False):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # count
-        ret = proxy.setCloudTaskByUser(user, tid, cloud, status, forceUpdate)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
     # update site data
     def updateSiteData(self, hostID, pilotRequests, interval=3):
         # get DBproxy
@@ -2647,17 +2468,6 @@ class TaskBuffer:
         # return
         return ret
 
-    # get MoU share for T2 PD2P
-    def getMouShareForT2PD2P(self):
-        # query an SQL return Status
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.getMouShareForT2PD2P()
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
     # insert TaskParams
     def insertTaskParamsPanda(
         self,
@@ -2847,17 +2657,6 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # exec
         ret = proxy.changeTaskPriorityPanda(jediTaskID, newPriority)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-    # get WAN data flow matrix
-    def getWanDataFlowMaxtrix(self):
-        # get proxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        ret = proxy.getWanDataFlowMaxtrix()
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
