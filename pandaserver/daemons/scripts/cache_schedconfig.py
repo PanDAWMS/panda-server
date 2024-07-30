@@ -178,10 +178,6 @@ class cacheSchedConfig:
         except Exception:
             raise
 
-    def dumpQueues(self, queueArray, dest="/tmp", outputSet="all", format="txt"):
-        for queueDict in queueArray:
-            self.dumpSingleQueue(queueArray, dest, outputSet, format)
-
     def queueDictPythonise(self, queueDict, deepCopy=True):
         """Turn queue dictionary with SQL text fields into a more stuctured python representation"""
         if deepCopy:

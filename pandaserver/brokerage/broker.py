@@ -81,7 +81,7 @@ def _getOkFiles(
     tmpLog=None,
     allScopeList=None,
 ):
-    scope_association_input, scope_association_output = select_scope(v_ce, prodsourcelabel, job_label)
+    scope_association_input, _ = select_scope(v_ce, prodsourcelabel, job_label)
     rucio_sites = list(v_ce.setokens_input[scope_association_input].values())
     try:
         rucio_sites.remove("")
@@ -136,8 +136,8 @@ def _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog):
     allOK = True
     tmpSiteSpec = siteMapper.getSite(tmpJob.computingSite)
     tmpSrcSpec = siteMapper.getSite(siteMapper.getCloud(tmpJob.getCloud())["source"])
-    scope_association_site_input, scope_association_site_output = select_scope(tmpSiteSpec, tmpJob.prodSourceLabel, tmpJob.job_label)
-    scope_association_src_input, scope_association_src_output = select_scope(tmpSrcSpec, tmpJob.prodSourceLabel, tmpJob.job_label)
+    scope_association_site_input, _ = select_scope(tmpSiteSpec, tmpJob.prodSourceLabel, tmpJob.job_label)
+    scope_association_src_input, _ = select_scope(tmpSrcSpec, tmpJob.prodSourceLabel, tmpJob.job_label)
     tmpTapeEndPoints = tmpSiteSpec.ddm_endpoints_input[scope_association_site_input].getTapeEndPoints()
     # direct usage of remote SE
     if (
@@ -413,7 +413,6 @@ def schedule(
         diskThresholdT2 = 200
         diskThresholdAna = 200
         diskThresholdPD2P = 1024 * 3
-        manyInputsThr = 20
         weightUsedByBrokerage = {}
         prestageSites = []
 
@@ -897,7 +896,6 @@ def schedule(
                             if prevProType in skipBrokerageProTypes:
                                 # use original processingType since prod_test is in the test category and thus is interfered by validations
                                 tmpProGroup = prevProType
-
                             # the number of assigned and activated
                             if not forAnalysis:
                                 jobStatBrokerClouds.setdefault(previousCloud, {})
@@ -1232,23 +1230,23 @@ def schedule(
                             tmpJob.brokerageErrorCode = ErrorCode.EC_Release
                             if tmpJob.relocationFlag in [1, 2]:
                                 try:
-                                    if resultsForAnal["pilot"] != []:
+                                    if resultsForAnal["pilot"]:
                                         tmpJob.brokerageErrorDiag = f"{tmpJob.computingSite} no pilots"
-                                    elif resultsForAnal["disk"] != []:
+                                    elif resultsForAnal["disk"]:
                                         tmpJob.brokerageErrorDiag = f"SE full at {tmpJob.computingSite}"
-                                    elif resultsForAnal["memory"] != []:
+                                    elif resultsForAnal["memory"]:
                                         tmpJob.brokerageErrorDiag = f"RAM shortage at {tmpJob.computingSite}"
-                                    elif resultsForAnal["status"] != []:
+                                    elif resultsForAnal["status"]:
                                         tmpJob.brokerageErrorDiag = f"{tmpJob.computingSite} not online"
-                                    elif resultsForAnal["share"] != []:
+                                    elif resultsForAnal["share"]:
                                         tmpJob.brokerageErrorDiag = f"{tmpJob.computingSite} zero share"
-                                    elif resultsForAnal["cpucore"] != []:
+                                    elif resultsForAnal["cpucore"]:
                                         tmpJob.brokerageErrorDiag = f"CPU core mismatch at {tmpJob.computingSite}"
-                                    elif resultsForAnal["maxtime"] != []:
+                                    elif resultsForAnal["maxtime"]:
                                         tmpJob.brokerageErrorDiag = f"short walltime at {tmpJob.computingSite}"
-                                    elif resultsForAnal["transferring"] != []:
+                                    elif resultsForAnal["transferring"]:
                                         tmpJob.brokerageErrorDiag = f"too many transferring at {tmpJob.computingSite}"
-                                    elif resultsForAnal["scratch"] != []:
+                                    elif resultsForAnal["scratch"]:
                                         tmpJob.brokerageErrorDiag = f"small scratch disk at {tmpJob.computingSite}"
                                     else:
                                         tmpJob.brokerageErrorDiag = f"{tmpJob.AtlasRelease}/{tmpJob.cmtConfig} not found at {tmpJob.computingSite}"

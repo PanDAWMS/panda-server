@@ -64,7 +64,6 @@ class Configurator(threading.Thread):
             self.log_stream.error("The site dump was not retrieved correctly")
             return False
         self.log_stream.debug("Done")
-        self.site_endpoint_dict = self.get_site_endpoint_dictionary()
 
         self.log_stream.debug("Getting DDM endpoints dump...")
         self.endpoint_dump = aux.get_dump(self.CRIC_URL_DDMENDPOINTS)
@@ -72,6 +71,7 @@ class Configurator(threading.Thread):
             self.log_stream.error("The endpoint dump was not retrieved correctly")
             return False
         self.log_stream.debug("Done")
+
         self.log_stream.debug("Parsing endpoints...")
         self.endpoint_token_dict = self.parse_endpoints()
         self.log_stream.debug("Done")
@@ -157,16 +157,6 @@ class Configurator(threading.Thread):
                 self.log_stream.debug(f"parse_endpoints: skipped endpoint {endpoint} (type: {endpoint_config['type']}, state: {endpoint_config['state']})")
 
         return endpoint_token_dict
-
-    def get_site_endpoint_dictionary(self):
-        """
-        Converts the CRIC site dump into a site dictionary containing the list of DDM endpoints for each site
-        """
-        site_to_endpoints_dict = {}
-        for site, site_config in self.site_dump.items():
-            site_to_endpoints_dict[site] = list(site_config["ddmendpoints"])
-
-        return site_to_endpoints_dict
 
     def process_site_dumps(self):
         """

@@ -4,6 +4,7 @@ import time
 from urllib.parse import urlparse
 
 import requests
+
 from pandaserver.config import panda_config
 
 GB = 1024**3
@@ -16,7 +17,6 @@ LATENCY = "latency"
 PACKETLOSS = "packetloss"
 DONE = "done"
 QUEUED = "queued"
-TOTAL = "total"
 LATEST = "latest"
 H1 = "1h"
 H6 = "6h"
@@ -47,7 +47,7 @@ def get_dump(url):
     else:
         cert = None
         ca_certs = False
-    for i in range(1, 4):  # 3 retries
+    for _ in range(1, 4):  # 3 retries
         try:
             r = requests.get(url, cert=cert, verify=ca_certs, timeout=REQUESTS_TIMEOUT)
             if r.status_code == requests.codes.ok:
@@ -63,7 +63,7 @@ def query_grafana_proxy(query, bearer_token):
         "Authorization": f"Bearer {bearer_token}",
     }
     grafana_proxy_url = "https://monit-grafana.cern.ch/api/datasources/proxy/10349/_msearch"
-    for i in range(1, 4):  # 3 retries
+    for _ in range(1, 4):  # 3 retries
         try:
             r = requests.post(grafana_proxy_url, data=query, headers=headers)
             if r.status_code == requests.codes.ok:

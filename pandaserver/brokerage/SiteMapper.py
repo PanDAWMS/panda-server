@@ -335,17 +335,6 @@ class SiteMapper:
             return self.satellites[site_name]
         return None
 
-    # get nucleus with DDM endpoint
-    def getNucleusWithDdmEndpoint(self, ddm_endpoint):
-        # scan through the nuclei until we find the one with the DDM endpoint associated
-        for nucleus_name in self.nuclei:
-            nucleus_spec = self.nuclei[nucleus_name]
-
-            # found it
-            if nucleus_spec.isAssociatedEndpoint(ddm_endpoint):
-                return nucleus_name
-        return None
-
     def dump_site_information(self):
         _logger.debug("========= site dump =========")
         for tmp_site_spec in self.siteSpecList.values():

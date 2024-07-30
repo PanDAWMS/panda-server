@@ -835,7 +835,7 @@ class JobDispatcher:
         if target_distinguished_name is None:
             target_distinguished_name = real_distinguished_name
         tmp_log = LogWrapper(_logger, f"get_proxy PID={os.getpid()}")
-        tmp_msg = f'start DN="{real_distinguished_name}" role={role} target="{target_distinguished_name}" '
+        tmp_msg = f"""start DN="{real_distinguished_name}" role={role} target="{target_distinguished_name}" tokenized={tokenized} token_key={token_key}"""
         tmp_log.debug(tmp_msg)
         if real_distinguished_name is None:
             # cannot extract DN

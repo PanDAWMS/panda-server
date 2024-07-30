@@ -2,7 +2,6 @@
 EXECUTING = "executing"
 QUEUED = "queued"
 PLEDGED = "pledged"
-IGNORE = "ignore"
 
 
 class Node(object):

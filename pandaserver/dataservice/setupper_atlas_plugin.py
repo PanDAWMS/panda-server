@@ -1595,10 +1595,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             scope_dest_input, _ = select_scope(dest_site, tmp_job.prodSourceLabel, tmp_job.job_label)
             dest_ddm_id = dest_site.ddm_input[scope_dest_input]
             # Nucleus used as Satellite
-            if (
-                tmp_job.getCloud() != self.site_mapper.getSite(tmp_job.computingSite).cloud
-                and self.site_mapper.getSite(tmp_job.computingSite).cloud in ["US"]
-            ):
+            if tmp_job.getCloud() != self.site_mapper.getSite(tmp_job.computingSite).cloud and self.site_mapper.getSite(tmp_job.computingSite).cloud in ["US"]:
                 tmp_site_spec = self.site_mapper.getSite(tmp_job.computingSite)
                 scope_tmp_site_input, _ = select_scope(tmp_site_spec, tmp_job.prodSourceLabel, tmp_job.job_label)
                 tmp_se_tokens = tmp_site_spec.setokens_input[scope_tmp_site_input]
@@ -1808,106 +1805,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         # insert datasets to DB
         self.task_buffer.insertDatasets(disp_list)
         self.logger.debug("finished to make dis datasets for existing files")
-        return
-
-    # pin input dataset
-    def pin_input_datasets(self) -> None:
-        """
-        Pin input datasets method for running the setup process.
-        """
-        self.logger.debug("pin input datasets")
-        # collect input datasets and locations
-        done_list = []
-        all_replica_map = {}
-        use_short_lived_replicas_flag = False
-        for tmp_job in self.jobs:
-            # ignore HC jobs
-            if tmp_job.processingType.startswith("gangarobot") or tmp_job.processingType.startswith("hammercloud"):
-                continue
-            # not pin if --useShortLivedReplicas was used
-            if tmp_job.metadata is not None and "--useShortLivedReplicas" in tmp_job.metadata:
-                if not use_short_lived_replicas_flag:
-                    self.logger.debug("   skip pin due to --useShortLivedReplicas")
-                    use_short_lived_replicas_flag = True
-                continue
-            # use production or test or user jobs only
-            if tmp_job.prodSourceLabel not in ["managed", "test", "user"]:
-                continue
-            # ignore inappropriate status
-            if tmp_job.jobStatus in ["failed", "cancelled", "waiting"] or tmp_job.isCancelled():
-                continue
-            # get source
-            if tmp_job.prodSourceLabel in ["managed", "test"]:
-                tmp_src_id = self.site_mapper.getCloud(tmp_job.getCloud())["source"]
-                scope_input, _ = select_scope(tmp_src_id, tmp_job.prodSourceLabel, tmp_job.job_label)
-                src_ddm_id = self.site_mapper.getSite(tmp_src_id).ddm_input[scope_input]
-            else:
-                tmp_src_id = self.site_mapper.getSite(tmp_job.computingSite)
-                scope_input, _ = select_scope(tmp_src_id, tmp_job.prodSourceLabel, tmp_job.job_label)
-                src_ddm_id = tmp_src_id.ddm_input[scope_input]
-            # prefix of DDM ID
-            src_ddm_id_prefix = re.sub("_[A-Z,0-9]+DISK$", "", src_ddm_id)
-            # loop over all files
-            for tmp_file in tmp_job.Files:
-                # use input files and ignore DBR/lib.tgz
-                if (
-                    tmp_file.type == "input"
-                    and not tmp_file.lfn.endswith(".lib.tgz")
-                    and not tmp_file.dataset.startswith("ddo")
-                    and not tmp_file.dataset.startswith("user")
-                    and not tmp_file.dataset.startswith("group")
-                ):
-                    # ignore pre-merged datasets
-                    if tmp_file.dataset.startswith("panda.um."):
-                        continue
-                    # get replica locations
-                    if tmp_file.dataset not in all_replica_map:
-                        if tmp_file.dataset.endswith("/"):
-                            (
-                                status,
-                                tmp_rep_sites_map,
-                            ) = self.get_list_dataset_replicas_in_container(tmp_file.dataset, get_map=True)
-                            status = status == 0
-                            if status == 0:
-                                status = True
-                            else:
-                                status = False
-                        else:
-                            status, tmp_rep_sites = self.get_list_dataset_replicas(tmp_file.dataset)
-                            tmp_rep_sites_map = {}
-                            tmp_rep_sites_map[tmp_file.dataset] = tmp_rep_sites
-                        # append
-                        if status:
-                            all_replica_map[tmp_file.dataset] = tmp_rep_sites_map
-                        else:
-                            # set empty to avoid further lookup
-                            all_replica_map[tmp_file.dataset] = {}
-                        # loop over constituent datasets
-                        self.logger.debug(f"pin DDM prefix={src_ddm_id_prefix}")
-                        for tmp_ds_name in all_replica_map[tmp_file.dataset]:
-                            tmp_rep_sites_map = all_replica_map[tmp_file.dataset][tmp_ds_name]
-                            # loop over locations
-                            for tmp_rep_site in tmp_rep_sites_map:
-                                if (
-                                    tmp_rep_site.startswith(src_ddm_id_prefix)
-                                    and "TAPE" not in tmp_rep_site
-                                    and "_LOCALGROUP" not in tmp_rep_site
-                                    and "_DAQ" not in tmp_rep_site
-                                    and "_TZERO" not in tmp_rep_site
-                                    and "_USERDISK" not in tmp_rep_site
-                                    and "_RAW" not in tmp_rep_site
-                                    and "SCRATCH" not in tmp_rep_site
-                                ):
-                                    tmp_key = (tmp_ds_name, tmp_rep_site)
-                                    # already done
-                                    if tmp_key in done_list:
-                                        continue
-                                    # append to avoid repetition
-                                    done_list.append(tmp_key)
-                                    # set pin lifetime
-                                    # status = self.setReplicaMetadata(tmpDsName,tmpRepSite,'pin_lifetime','%s days' % pinLifeTime)
-        # return
-        self.logger.debug("pin input datasets done")
         return
 
     # make Nucleus subscription for missing files
