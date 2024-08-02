@@ -52,6 +52,14 @@ RUN ln -s /opt/panda/lib/python*/site-packages/mod_wsgi/server/mod_wsgi*.so /etc
 # install the oracle client to be able to support Oracle
 RUN /opt/panda/bin/pip install --no-cache-dir oracledb
 
+# install Oracle Instant Client and tnsnames.ora
+RUN wget https://download.oracle.com/otn_software/linux/instantclient/oracle-instantclient-basic-linuxx64.rpm -P /tmp/ && \
+    yum install /tmp/oracle-instantclient-basic-linuxx64.rpm -y && \
+    wget https://download.oracle.com/otn_software/linux/instantclient/oracle-instantclient-sqlplus-linuxx64.rpm -P /tmp/ && \
+    yum install /tmp/oracle-instantclient-sqlplus-linuxx64.rpm -y && \
+    rpm -ivh http://linuxsoft.cern.ch/cern/centos/7/cernonly/x86_64/Packages/oracle-instantclient-tnsnames.ora-1.4.4-1.el7.cern.noarch.rpm
+
+
 WORKDIR /
 RUN rm -rf /tmp/src
 
