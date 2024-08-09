@@ -59,15 +59,12 @@ class MailUtils:
                     listToAddr.append(tmpToAddr)
                     newToAddr += f"{tmpToAddr},"
             toAddr = newToAddr[:-1]
+
             # make message
             fromAdd = panda_config.emailSender
-            message = f"""Subject: {mailSubject}
-From: {fromAdd}
-To: {toAddr}
-
-{mailBody}
-"""
+            message = f"Subject: {mailSubject}\n" f"From: {fromAdd}\n" f"To: {toAddr}\n\n" f"{mailBody}"
             message = self.addTailer(message)
+
             # send mail
             _logger.debug(f"send to {toAddr}\n{message}")
             stderrLog = StderrLogger(_logger)
@@ -90,36 +87,6 @@ To: {toAddr}
         except Exception:
             pass
         _logger.debug("end SEND session")
-        return retVal
-
-    # send update notification to user
-    def sendSiteAccessUpdate(self, toAddr, newStatus, pandaSite):
-        # subject
-        mailSubject = f"PANDA Update on Access Request for {pandaSite}"
-        # message
-        mailBody = f"Hello,\n\nYour access request for {pandaSite} has been {newStatus.upper()} \n"
-        # send
-        retVal = self.send(toAddr, mailSubject, mailBody)
-        # return
-        return retVal
-
-    # send requests to cloud responsible
-    def sendSiteAccessRequest(self, toAddr, requestsMap, cloud):
-        # subject
-        mailSubject = f"PANDA Access Requests in {cloud}"
-        # message
-        mailBody = "Hello,\n\nThere are access requests to be approved or rejected.\n\n"
-        for pandaSite in requestsMap:
-            userNames = requestsMap[pandaSite]
-            mailBody += f"   {pandaSite}\n"
-            userStr = ""
-            for userName in userNames:
-                userStr += f" {userName},"
-            userStr = userStr[:-1]
-            mailBody += f"       {userStr}\n\n"
-        # send
-        retVal = self.send(toAddr, mailSubject, mailBody)
-        # return
         return retVal
 
     # add tailer

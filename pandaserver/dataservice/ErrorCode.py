@@ -15,9 +15,6 @@ EC_Subscription = 201
 # location registration failures
 EC_Location = 203
 
-# lost file (taskbuffer.ErrorCode.EC_LostFile)
-EC_LostFile = 110
-
 # missing nEvents
 EC_MissingNumEvents = 204
 

@@ -408,6 +408,9 @@ class Node(object):
                         self.output_types.append(re.search(r"_([^_]+)/$", tmp_item["dataset"]).group(1))
                     else:
                         self.output_types.append(re.search(r"}\.(.+)$", tmp_item["value"]).group(1))
+            # add a dummy output if empty. this is to allow association to downstream steps which is described through outputs
+            if not self.output_types:
+                self.output_types.append("dummy")
             # container
             if not container_image:
                 if "container_name" in task_params:

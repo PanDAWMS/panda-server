@@ -1,9 +1,9 @@
 import copy
-import re
 import sys
 import traceback
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+
 from pandaserver.config import panda_config
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.taskbuffer.NucleusSpec import NucleusSpec
@@ -360,12 +360,4 @@ class SiteMapper:
             return self.nuclei[tmpName]
         if tmpName in self.satellites:
             return self.satellites[tmpName]
-        return None
-
-    # get nucleus with ddm endpoint
-    def getNucleusWithDdmEndpoint(self, ddmEndpoint):
-        for nucleusName in self.nuclei:
-            nucleusSpec = self.nuclei[nucleusName]
-            if nucleusSpec.isAssociatedEndpoint(ddmEndpoint):
-                return nucleusName
         return None

@@ -12,9 +12,6 @@ EC_Expire = 102
 # aborted
 EC_Aborted = 103
 
-# wait timeout
-EC_WaitTimeout = 104
-
 # reassigned by re-brokerage
 EC_Reassigned = 105
 
@@ -23,9 +20,6 @@ EC_Retried = 106
 
 # retried by pilot
 EC_PilotRetried = 107
-
-# lost file (=dataservice.ErrorCode.EC_LostFile)
-EC_LostFile = 110
 
 # retried for event service
 EC_EventServiceRetried = 111

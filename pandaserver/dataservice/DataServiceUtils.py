@@ -2,6 +2,7 @@ import re
 import sys
 
 from OpenSSL import crypto
+
 from pandaserver.taskbuffer import JobUtils
 
 
@@ -168,19 +169,7 @@ def get_endpoints_at_nucleus(tmpRepMap, siteMapper, cloudName):
     return retList
 
 
-# check DDM response
-def isDQ2ok(out):
-    if (
-        out.find("DQ2 internal server exception") != -1
-        or out.find("An error occurred on the central catalogs") != -1
-        or out.find("MySQL server has gone away") != -1
-        or out == "()"
-    ):
-        return False
-    return True
-
-
-# check if DBR
+# check if the dataset is a DB release
 def isDBR(datasetName):
     if datasetName.startswith("ddo"):
         return True
@@ -202,19 +191,6 @@ def getDatasetType(dataset):
     except Exception:
         pass
     return datasetType
-
-
-# check certificate
-def checkCertificate(certName):
-    try:
-        cert = crypto.load_certificate(crypto.FILETYPE_PEM, open(certName).read())
-        if cert.has_expired() is True:
-            return False, f"{certName} expired"
-        else:
-            return True, None
-    except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        return False, f"{errtype.__name__}:{errvalue}"
 
 
 # get sites which share DDM endpoint
@@ -334,6 +310,7 @@ def select_scope(site_spec, prodsourcelabel, job_label):
 
     return scope_input, scope_output
 
+
 def is_top_level_dataset(dataset_name: str) -> bool:
     """
     Check if top dataset
@@ -345,6 +322,7 @@ def is_top_level_dataset(dataset_name: str) -> bool:
         bool: True if top dataset, False otherwise.
     """
     return re.sub("_sub\d+$", "", dataset_name) == dataset_name
+
 
 def is_sub_dataset(dataset_name: str) -> bool:
     """
@@ -358,6 +336,7 @@ def is_sub_dataset(dataset_name: str) -> bool:
     """
     return re.search("_sub\d+$", dataset_name) is not None
 
+
 def is_tid_dataset(destination_data_block: str) -> bool:
     """
     Check if the destination data block ends with '_tid' followed by one or more digits.
@@ -369,6 +348,7 @@ def is_tid_dataset(destination_data_block: str) -> bool:
         bool: True if the destination data block ends with '_tid' followed by one or more digits, False otherwise.
     """
     return re.search("_tid[\d_]+$", destination_data_block) is not None
+
 
 def is_hammercloud_dataset(destination_data_block: str) -> bool:
     """
@@ -382,6 +362,7 @@ def is_hammercloud_dataset(destination_data_block: str) -> bool:
     """
     return re.search("^hc_test\.", destination_data_block) is not None
 
+
 def is_user_gangarbt_dataset(destination_data_block: str) -> bool:
     """
     Check if the destination data block starts with 'user.gangarbt.'.
@@ -393,6 +374,7 @@ def is_user_gangarbt_dataset(destination_data_block: str) -> bool:
         bool: True if the destination data block starts with 'user.gangarbt.', False otherwise.
     """
     return re.search("^user\.gangarbt\.", destination_data_block) is not None
+
 
 def is_lib_dataset(destination_data_block: str) -> bool:
     """

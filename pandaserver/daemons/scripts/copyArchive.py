@@ -170,7 +170,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         sql = "SELECT distinct jediTaskID FROM ATLAS_PANDA.jobsActive4 "
         sql += "WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus and modificationTime<:timeLimit "
         tmp, res = taskBuffer.querySQLS(sql, varMap)
-        checkedDS = set()
+
         for (jediTaskID,) in res:
             varMap = {}
             varMap[":jediTaskID"] = jediTaskID

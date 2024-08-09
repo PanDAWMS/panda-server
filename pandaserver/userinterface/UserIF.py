@@ -129,20 +129,6 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
-    # run task assignment
-    def runTaskAssignment(self, jobsStr):
-        try:
-            # deserialize jobspecs
-            jobs = WrappedPickle.loads(jobsStr)
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"runTaskAssignment : {type} {value}")
-            jobs = []
-        # run
-        ret = self.taskBuffer.runTaskAssignment(jobs)
-        # serialize
-        return WrappedPickle.dumps(ret)
-
     # get serial number for group job
     def getSerialNumberForGroupJob(self, name):
         # get
@@ -257,43 +243,11 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
-    # get assigned cloud for tasks
-    def seeCloudTask(self, idsStr):
-        try:
-            # deserialize jobspecs
-            ids = WrappedPickle.loads(idsStr)
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"seeCloudTask : {type} {value}")
-            ids = []
-        _logger.debug(f"seeCloudTask start : {ids}")
-        # peek jobs
-        ret = {}
-        for id in ids:
-            tmpRet = self.taskBuffer.seeCloudTask(id)
-            ret[id] = tmpRet
-        _logger.debug("seeCloudTask end")
-        # serialize
-        return WrappedPickle.dumps(ret)
-
     # get active datasets
     def getActiveDatasets(self, computingSite, prodSourceLabel):
         # run
         ret = self.taskBuffer.getActiveDatasets(computingSite, prodSourceLabel)
         # return
-        return ret
-
-    # get assigning task
-    def getAssigningTask(self):
-        # run
-        ret = self.taskBuffer.getAssigningTask()
-        # serialize
-        return WrappedPickle.dumps(ret)
-
-    # set task by user
-    def setCloudTaskByUser(self, user, tid, cloud, status):
-        # run
-        ret = self.taskBuffer.setCloudTaskByUser(user, tid, cloud, status)
         return ret
 
     # get job statistics
@@ -1163,14 +1117,6 @@ def submitJobs(req, jobs, toPending=None):
     return userIF.submitJobs(jobs, user, host, fqans, prodRole, toPending)
 
 
-# run task assignment
-def runTaskAssignment(req, jobs):
-    # check security
-    if not isSecure(req):
-        return "False"
-    return userIF.runTaskAssignment(jobs)
-
-
 # get job status
 def getJobStatus(req, ids, no_pickle=None):
     return userIF.getJobStatus(ids, req.acceptJson(), no_pickle)
@@ -1196,28 +1142,6 @@ def getQueuedAnalJobs(req, site):
 # get active datasets
 def getActiveDatasets(req, computingSite, prodSourceLabel="managed"):
     return userIF.getActiveDatasets(computingSite, prodSourceLabel)
-
-
-# get assigning task
-def getAssigningTask(req):
-    return userIF.getAssigningTask()
-
-
-# get assigned cloud for tasks
-def seeCloudTask(req, ids):
-    return userIF.seeCloudTask(ids)
-
-
-# set task by user
-def setCloudTaskByUser(req, tid, cloud="", status=""):
-    # get DN
-    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
-        return "ERROR: SSL connection is required"
-    user = _getDN(req)
-    # check role
-    if not _hasProdRole(req):
-        return "ERROR: production role is required"
-    return userIF.setCloudTaskByUser(user, tid, cloud, status)
 
 
 # set debug mode
