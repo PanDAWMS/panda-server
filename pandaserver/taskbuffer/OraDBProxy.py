@@ -37,7 +37,6 @@ from pandaserver.taskbuffer import (
     SiteSpec,
     task_split_rules,
 )
-from pandaserver.taskbuffer.CloudTaskSpec import CloudTaskSpec
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
 from pandaserver.taskbuffer.DdmSpec import DdmSpec
 from pandaserver.taskbuffer.FileSpec import FileSpec
