@@ -1596,10 +1596,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             scope_dest_input, _ = select_scope(dest_site, tmp_job.prodSourceLabel, tmp_job.job_label)
             dest_ddm_id = dest_site.ddm_input[scope_dest_input]
             # Nucleus used as Satellite
-            if (
-                    tmp_job.getCloud() != self.site_mapper.getSite(tmp_job.computingSite).cloud
-                    and self.site_mapper.getSite(tmp_job.computingSite).cloud in ["US"]
-            ):
+            if tmp_job.getCloud() != self.site_mapper.getSite(tmp_job.computingSite).cloud and self.site_mapper.getSite(tmp_job.computingSite).cloud in ["US"]:
                 tmp_site_spec = self.site_mapper.getSite(tmp_job.computingSite)
                 scope_tmp_site_input, _ = select_scope(tmp_site_spec, tmp_job.prodSourceLabel, tmp_job.job_label)
                 tmp_se_tokens = tmp_site_spec.setokens_input[scope_tmp_site_input]
@@ -1629,23 +1626,19 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # if available at Satellite
                 real_dest_ddm_id = (dest_ddm_id,)
                 if (
-                        tmp_job.getCloud() in self.available_lfns_in_satellites
-                        and tmp_file.dataset in self.available_lfns_in_satellites[tmp_job.getCloud()]
-                        and tmp_job.computingSite in
-                        self.available_lfns_in_satellites[tmp_job.getCloud()][tmp_file.dataset]["sites"]
-                        and tmp_file.lfn in
-                        self.available_lfns_in_satellites[tmp_job.getCloud()][tmp_file.dataset]["sites"][
-                            tmp_job.computingSite]
+                    tmp_job.getCloud() in self.available_lfns_in_satellites
+                    and tmp_file.dataset in self.available_lfns_in_satellites[tmp_job.getCloud()]
+                    and tmp_job.computingSite in self.available_lfns_in_satellites[tmp_job.getCloud()][tmp_file.dataset]["sites"]
+                    and tmp_file.lfn in self.available_lfns_in_satellites[tmp_job.getCloud()][tmp_file.dataset]["sites"][tmp_job.computingSite]
                 ):
-                    real_dest_ddm_id = \
-                    self.available_lfns_in_satellites[tmp_job.getCloud()][tmp_file.dataset]["siteDQ2IDs"][
-                        tmp_job.computingSite]
+                    real_dest_ddm_id = self.available_lfns_in_satellites[tmp_job.getCloud()][tmp_file.dataset]["siteDQ2IDs"][tmp_job.computingSite]
                     real_dest_ddm_id = tuple(real_dest_ddm_id)
                 # append
                 if real_dest_ddm_id not in dataset_file_map[map_key]:
                     dataset_file_map[map_key][real_dest_ddm_id] = {
                         "taskID": tmp_job.taskID,
                         "PandaID": tmp_job.PandaID,
+                        "useZipToPin": tmp_job.useZipToPin(),
                         "files": {},
                     }
                 if tmp_file.lfn not in dataset_file_map[map_key][real_dest_ddm_id]["files"]:
@@ -1692,7 +1685,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         fsizes = []
                         chksums = []
                         tmp_zip_out = {}
-                        if tmp_job.useZipToPin():
+                        if tmp_val["useZipToPin"]:
                             dids = [tmp_file_list[tmp_sub_file_name]["lfn"] for tmp_sub_file_name in sub_file_names]
                             tmp_zip_stat, tmp_zip_out = rucioAPI.get_zip_files(dids, [tmp_location])
                             if not tmp_zip_stat:
