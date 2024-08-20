@@ -2402,50 +2402,6 @@ class TaskBuffer:
         # return
         return ret
 
-    # get user subscriptions
-    def getUserSubscriptions(self, datasetName, timeRange):
-        # query an SQL return Status
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.getUserSubscriptions(datasetName, timeRange)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-    # get the number of user subscriptions
-    def getNumUserSubscriptions(self):
-        # query an SQL return Status
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.getNumUserSubscriptions()
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-    # add user subscriptions
-    def addUserSubscription(self, datasetName, dq2IDs):
-        # query an SQL return Status
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.addUserSubscription(datasetName, dq2IDs)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-    # increment counter for subscription
-    def incrementUsedCounterSubscription(self, datasetName):
-        # query an SQL return Status
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.incrementUsedCounterSubscription(datasetName)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
     # get active datasets
     def getActiveDatasets(self, computingSite, prodSourceLabel):
         # query an SQL return Status
