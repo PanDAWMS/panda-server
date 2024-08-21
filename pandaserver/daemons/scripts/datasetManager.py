@@ -698,7 +698,7 @@ def main(tbuf=None, **kwargs):
                             guids.append(file.GUID)
                             scopes.append(file.scope)
                             nTokens += len(file.destinationDBlockToken.split(","))
-                    # get files in LRC
+                    # get files
                     _logger.debug(f"{job.PandaID} Cloud:{job.cloud}")
                     tmpStat, okFiles = rucioAPI.list_file_replicas(scopes, lfns, seList)
                     if not tmpStat:

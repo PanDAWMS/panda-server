@@ -618,7 +618,7 @@ def schedule(
                     ):
                         # get site spec
                         tmp_chosen_ce = siteMapper.getSite(computingSite)
-                        # get files from LRC
+                        # get files
                         okFiles = _getOkFiles(
                             tmp_chosen_ce,
                             fileList,
@@ -1159,12 +1159,12 @@ def schedule(
                                 minWinv = tmpWinv
                         chosenCE = siteMapper.getSite(minSite)
                     else:
-                        # compare # of files in LRC
+                        # compare # of files
                         maxNfiles = -1
                         for site in minSites:
                             tmp_chosen_ce = siteMapper.getSite(site)
 
-                            # get files from LRC
+                            # get files
                             tmpOKFiles = _getOkFiles(
                                 tmp_chosen_ce,
                                 fileList,
