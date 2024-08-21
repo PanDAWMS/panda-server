@@ -37,7 +37,6 @@ from pandaserver.taskbuffer import (
     SiteSpec,
     task_split_rules,
 )
-from pandaserver.taskbuffer.CloudTaskSpec import CloudTaskSpec
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
 from pandaserver.taskbuffer.DdmSpec import DdmSpec
 from pandaserver.taskbuffer.FileSpec import FileSpec
@@ -11106,125 +11105,6 @@ class DBProxy:
                 _logger.error(f"peekJobLog : {type} {value}")
                 # return None
                 return None
-
-    # get user subscriptions
-    def getUserSubscriptions(self, datasetName, timeRange):
-        comment = " /* DBProxy.getUserSubscriptions */"
-        _logger.debug(f"getUserSubscriptions({datasetName},{timeRange})")
-        sql0 = "SELECT site FROM ATLAS_PANDAMETA.UserSubs "
-        sql0 += "WHERE datasetName=:datasetName and modificationDate>CURRENT_DATE-:timeRange"
-        varMap = {}
-        varMap[":datasetName"] = datasetName
-        varMap[":timeRange"] = timeRange
-        try:
-            # start transaction
-            self.conn.begin()
-            # select
-            self.cur.execute(sql0 + comment, varMap)
-            resSs = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            retList = []
-            for (tmpSite,) in resSs:
-                retList.append(tmpSite)
-            return retList
-        except Exception:
-            # roll back
-            self._rollback()
-            errType, errValue = sys.exc_info()[:2]
-            _logger.error(f"getUserSubscriptions : {errType} {errValue}")
-            return []
-
-    # get the number of user subscriptions
-    def getNumUserSubscriptions(self):
-        comment = " /* DBProxy.getNumUserSubscriptions */"
-        _logger.debug("getNumUserSubscriptions")
-        sql0 = "SELECT site,COUNT(*) FROM ATLAS_PANDAMETA.UserSubs "
-        sql0 += "WHERE creationDate>CURRENT_DATE-2 GROUP BY site"
-        try:
-            # start transaction
-            self.conn.begin()
-            # select
-            self.cur.execute(sql0 + comment, {})
-            resSs = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            retList = {}
-            for tmpSite, countNum in resSs:
-                retList[tmpSite] = countNum
-            return retList
-        except Exception:
-            # roll back
-            self._rollback()
-            errType, errValue = sys.exc_info()[:2]
-            _logger.error(f"getNumUserSubscriptions : {errType} {errValue}")
-            return []
-
-    # add user subscriptions
-    def addUserSubscription(self, datasetName, dq2IDs):
-        comment = " /* DBProxy.addUserSubscription */"
-        _logger.debug(f"addUserSubscription({datasetName},{dq2IDs})")
-        sql0 = "INSERT INTO ATLAS_PANDAMETA.UserSubs "
-        sql0 += "(datasetName,site,creationDate,modificationDate,nUsed) "
-        sql0 += "VALUES (:datasetName,:site,CURRENT_DATE,CURRENT_DATE,:nUsed)"
-        try:
-            # start transaction
-            self.conn.begin()
-            for site in dq2IDs:
-                varMap = {}
-                varMap[":datasetName"] = datasetName
-                varMap[":site"] = site
-                varMap[":nUsed"] = 0
-                # insert
-                self.cur.execute(sql0 + comment, varMap)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            return True
-        except Exception:
-            # roll back
-            self._rollback()
-            errType, errValue = sys.exc_info()[:2]
-            _logger.error(f"addUserSubscription : {errType} {errValue}")
-            return False
-
-    # increment counter for subscription
-    def incrementUsedCounterSubscription(self, datasetName):
-        comment = " /* DBProxy.incrementUsedCounterSubscription */"
-        _logger.debug(f"incrementUsedCounterSubscription({datasetName})")
-        sql0 = "UPDATE ATLAS_PANDAMETA.UserSubs SET nUsed=nUsed+1 "
-        sql0 += "WHERE datasetName=:datasetName AND nUsed IS NOT NULL"
-        sqlU = "SELECT MAX(nUsed) FROM ATLAS_PANDAMETA.UserSubs "
-        sqlU += "WHERE datasetName=:datasetName"
-        try:
-            # start transaction
-            self.conn.begin()
-            varMap = {}
-            varMap[":datasetName"] = datasetName
-            # update
-            self.cur.execute(sql0 + comment, varMap)
-            # get nUsed
-            nUsed = 0
-            retU = self.cur.rowcount
-            if retU > 0:
-                # get nUsed
-                self.cur.execute(sqlU + comment, varMap)
-                self.cur.arraysize = 10
-                res = self.cur.fetchone()
-                if res is not None:
-                    nUsed = res[0]
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            return nUsed
-        except Exception:
-            # roll back
-            self._rollback()
-            errType, errValue = sys.exc_info()[:2]
-            _logger.error(f"incrementUsedCounterSubscription : {errType} {errValue}")
-            return -1
 
     # get active datasets
     def getActiveDatasets(self, computingSite, prodSourceLabel):

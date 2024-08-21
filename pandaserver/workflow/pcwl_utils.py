@@ -157,6 +157,7 @@ def resolve_nodes(node_list, root_inputs, data, serial_id, parent_ids, out_ds_na
                 tmp_sources = tmp_data["source"]
                 if "parent_id" in tmp_data:
                     tmp_parent_ids = tmp_data["parent_id"]
+                    tmp_parent_ids += [None] * (len(tmp_sources) - len(tmp_parent_ids))
                 else:
                     tmp_parent_ids = [None] * len(tmp_sources)
             else:

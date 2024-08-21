@@ -1561,13 +1561,14 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             return
         return
 
-    # make dis datasets for existing files to avoid deletion when jobs are queued
-    def make_dis_datasets_for_existing_files(self) -> None:
+    def collect_existing_files(self):
         """
-        Make dis datasets for existing files method for running the setup process.
+        Collects existing files to avoid deletion when jobs are queued.
+        This method iterates over all jobs and collects files that should not be deleted,
+        organizing them by destination DDM endpoint and log dataset name.
+
+        :return: A dictionary mapping (destination DDM endpoint, log dataset name) to a list of files.
         """
-        self.logger.debug("make dis datasets for existing files")
-        # collect existing files
         dataset_file_map = {}
         n_max_jobs = 20
         n_jobs_map = {}
@@ -1637,6 +1638,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     dataset_file_map[map_key][real_dest_ddm_id] = {
                         "taskID": tmp_job.taskID,
                         "PandaID": tmp_job.PandaID,
+                        "useZipToPin": tmp_job.useZipToPin(),
                         "files": {},
                     }
                 if tmp_file.lfn not in dataset_file_map[map_key][real_dest_ddm_id]["files"]:
@@ -1652,6 +1654,13 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     }
                 # add file spec
                 dataset_file_map[map_key][real_dest_ddm_id]["files"][tmp_file.lfn]["fileSpecs"].append(tmp_file)
+        return dataset_file_map
+
+    def create_dispatch_datasets(self, dataset_file_map):
+        """
+        Creates dispatch datasets for the collected files.
+        Returns a list of datasets to be inserted into the database.
+        """
         # loop over all locations
         disp_list = []
         for _, tmp_dum_val in dataset_file_map.items():
@@ -1676,7 +1685,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         fsizes = []
                         chksums = []
                         tmp_zip_out = {}
-                        if tmp_job.useZipToPin():
+                        if tmp_val["useZipToPin"]:
                             dids = [tmp_file_list[tmp_sub_file_name]["lfn"] for tmp_sub_file_name in sub_file_names]
                             tmp_zip_stat, tmp_zip_out = rucioAPI.get_zip_files(dids, [tmp_location])
                             if not tmp_zip_stat:
@@ -1802,6 +1811,19 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         # failure
                         if not is_ok:
                             continue
+        return disp_list
+
+    # make dis datasets for existing files to avoid deletion when jobs are queued
+    def make_dis_datasets_for_existing_files(self) -> None:
+        """
+        Make dis datasets for existing files method for running the setup process.
+        """
+        self.logger.debug("make dis datasets for existing files")
+        # collect existing files
+        dataset_file_map = self.collect_existing_files()
+        # create dispatch datasets for the collected files
+        disp_list = self.create_dispatch_datasets(dataset_file_map)
+
         # insert datasets to DB
         self.task_buffer.insertDatasets(disp_list)
         self.logger.debug("finished to make dis datasets for existing files")
