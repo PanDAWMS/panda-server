@@ -22,11 +22,6 @@ _log = PandaLogger().getLogger("broker")
 # all known sites
 _allSites = []
 
-
-# non LRC checking
-_disableLRCcheck = []
-
-
 # processingType to skip brokerage
 skipBrokerageProTypes = ["prod_test"]
 
@@ -113,16 +108,18 @@ def _getOkFiles(
                 tmpLog.debug("getOkFile failed to get file replicas")
                 tmpAvaFiles = {}
             allOkFilesMap[rucio_url][anyID] = tmpAvaFiles
+
         # get files for each rucio_site
         if rucio_site not in allOkFilesMap[rucio_url]:
             allOkFilesMap[rucio_url][rucio_site] = allOkFilesMap[rucio_url][anyID]
+
         # make return map
         retMap = {}
         for tmpLFN in v_files:
             if tmpLFN in allOkFilesMap[rucio_url][rucio_site]:
                 retMap[tmpLFN] = allOkFilesMap[rucio_url][rucio_site][tmpLFN]
         tmpLog.debug("getOkFiles done")
-        # return
+
         return retMap
     else:
         # old style
@@ -139,6 +136,7 @@ def _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog):
     scope_association_site_input, _ = select_scope(tmpSiteSpec, tmpJob.prodSourceLabel, tmpJob.job_label)
     scope_association_src_input, _ = select_scope(tmpSrcSpec, tmpJob.prodSourceLabel, tmpJob.job_label)
     tmpTapeEndPoints = tmpSiteSpec.ddm_endpoints_input[scope_association_site_input].getTapeEndPoints()
+
     # direct usage of remote SE
     if (
         tmpSiteSpec.ddm_input[scope_association_site_input] != tmpSrcSpec.ddm_input[scope_association_src_input]
@@ -146,6 +144,7 @@ def _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog):
     ):
         tmpSiteSpec = tmpSrcSpec
         tmpLog.debug(f"{tmpJob.PandaID} uses remote SiteSpec of {tmpSrcSpec.sitename} for {tmpJob.computingSite}")
+
     for tmpFile in tmpJob.Files:
         if tmpFile.type == "input":
             if tmpFile.status == "ready":
@@ -168,6 +167,7 @@ def _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog):
                         else:
                             # there is a tape copy
                             tapeCopy = True
+
                     # trigger prestage when disk copy doesn't exist or token is TAPE
                     if tapeOnly or (tapeCopy and tmpFile.dispatchDBlockToken in ["ATLASDATATAPE", "ATLASMCTAPE"]):
                         allOK = False
@@ -212,6 +212,7 @@ def sendMsgToLoggerHTTP(msgList, job):
             message = msgHead + " : " + msgBody
             # dump locally
             _log.debug(message)
+
             # get logger
             _pandaLogger = PandaLogger()
             _pandaLogger.lock()
@@ -231,7 +232,7 @@ def sendMsgToLoggerHTTP(msgList, job):
 
 
 # get Satellite candidates when files are missing at Satellite
-def get_satellite_candidate_list(tmp_job, site_mapper, satellites_files_map):
+def get_satellite_candidate_list(tmp_job, satellites_files_map):
     # no job or cloud information
     if not tmp_job or tmp_job.getCloud() not in satellites_files_map:
         return []
@@ -263,9 +264,11 @@ def get_satellite_candidate_list(tmp_job, site_mapper, satellites_files_map):
             tmp_t2_candidates = new_t2_candidates
             if not tmp_t2_candidates:
                 break
+
     # return [] if no missing files
     if tmp_t2_candidates is None:
         return []
+
     # return
     tmp_t2_candidates.sort()
     return tmp_t2_candidates
@@ -484,7 +487,7 @@ def schedule(
             # send jobs to T2 when files are missing at T1
             goToT2Flag = False
             if job is not None and job.computingSite == "NULL" and job.prodSourceLabel in ("test", "managed") and specialBrokerageSiteList == []:
-                currentT2CandList = get_satellite_candidate_list(job, siteMapper, satellitesFilesMap)
+                currentT2CandList = get_satellite_candidate_list(job, satellitesFilesMap)
                 if currentT2CandList != []:
                     goToT2Flag = True
                     specialBrokerageSiteList = currentT2CandList
@@ -1160,21 +1163,19 @@ def schedule(
                         maxNfiles = -1
                         for site in minSites:
                             tmp_chosen_ce = siteMapper.getSite(site)
-                            # search LRC
-                            if site in _disableLRCcheck:
-                                tmpOKFiles = {}
-                            else:
-                                # get files from LRC
-                                tmpOKFiles = _getOkFiles(
-                                    tmp_chosen_ce,
-                                    fileList,
-                                    allLFNs,
-                                    allOkFilesMap,
-                                    job.proSourceLabel,
-                                    job.job_label,
-                                    tmpLog,
-                                    allScopes,
-                                )
+
+                            # get files from LRC
+                            tmpOKFiles = _getOkFiles(
+                                tmp_chosen_ce,
+                                fileList,
+                                allLFNs,
+                                allOkFilesMap,
+                                job.proSourceLabel,
+                                job.job_label,
+                                tmpLog,
+                                allScopes,
+                            )
+
                             nFiles = len(tmpOKFiles)
                             tmpLog.debug(f"site:{site} - nFiles:{nFiles}/{len(fileList)} {str(tmpOKFiles)}")
                             # choose site holding max # of files
