@@ -1845,6 +1845,13 @@ class TaskBuffer:
         # return
         return retList
 
+    # trigger cleanup of internal datasets used by a task
+    def trigger_cleanup_internal_datasets(self, task_id: int) -> bool:
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.trigger_cleanup_internal_datasets(task_id)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
     # delete dataset
     def deleteDatasets(self, datasets):
         # get DBproxy

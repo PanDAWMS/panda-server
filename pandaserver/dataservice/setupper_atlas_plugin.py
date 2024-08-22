@@ -230,6 +230,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         disp_error = {}
         back_end_map = {}
         ds_task_map = dict()
+        jedi_task_id = None
         # special datasets in rucio where files are zipped into a file
         use_zip_to_pin_map = dict()
         # extract prodDBlock
@@ -237,6 +238,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             # ignore failed jobs
             if job.jobStatus in ["failed", "cancelled"] or job.isCancelled():
                 continue
+            if jedi_task_id is None and job.jediTaskID not in ["NULL", None, 0]:
+                jedi_task_id = job.jediTaskID
             # production datablock
             if job.prodDBlock != "NULL" and job.prodDBlock and (job.prodSourceLabel not in ["user", "panda"]):
                 # get VUID and record prodDBlock into DB
@@ -469,6 +472,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     dataset.currentfiles = int(sum(filter(None, file_list[dispatch_data_block]["fsizes"])) / 1024 / 1024)
                 except Exception:
                     dataset.currentfiles = 0
+                if jedi_task_id is not None:
+                    dataset.MoverID = jedi_task_id
                 disp_list.append(dataset)
                 self.vuid_map[dataset.name] = dataset.vuid
             except Exception:
@@ -816,7 +821,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         """
         disp_error = {}
         failed_jobs = []
-        ddm_jobs = []
         ddm_user = "NULL"
         for job in self.jobs:
             # ignore failed jobs
@@ -1015,29 +1019,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     job.ddmErrorDiag = disp_error[disp]
                     self.logger.debug(f"failed PandaID={job.PandaID} with {job.ddmErrorDiag}")
                     failed_jobs.append(job)
-        # update failed jobs only. succeeded jobs should be activate by DDM callback
+        # update failed jobs only. succeeded jobs should be activated by DDM callback
         self.update_failed_jobs(failed_jobs)
-        # submit ddm jobs
-        if ddm_jobs:
-            ddm_ret = self.task_buffer.storeJobs(ddm_jobs, ddm_user, joinThr=True)
-            # update datasets
-            ddm_index = 0
-            ddm_ds_list = []
-            for ddm_panda_id, _, _ in ddm_ret:
-                # invalid PandaID
-                if ddm_panda_id in ["NULL", None]:
-                    continue
-                # get dispatch dataset
-                ds_name = ddm_jobs[ddm_index].jobParameters.split()[-1]
-                ddm_index += 1
-                tmp_ds = self.task_buffer.queryDatasetWithMap({"name": ds_name})
-                if tmp_ds is not None:
-                    # set MoverID
-                    tmp_ds.MoverID = ddm_panda_id
-                    ddm_ds_list.append(tmp_ds)
-            # update
-            if ddm_ds_list:
-                self.task_buffer.updateDatasets(ddm_ds_list)
 
     # correct LFN for attemptNr
     def correct_lfn(self) -> None:
@@ -1763,13 +1746,15 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             dataset.status = "defined"
                             dataset.numberfiles = len(lfns)
                             dataset.currentfiles = 0
+                            if tmp_val["taskID"] not in [None, "NULL"]:
+                                dataset.MoverID = tmp_val["taskID"]
                             disp_list.append(dataset)
                         except Exception:
                             error_type, error_value = sys.exc_info()[:2]
                             self.logger.error(f"ext registerNewDataset : failed to decode VUID for {dis_dispatch_block} - {error_type} {error_value}")
                             continue
                         # freezeDataset dispatch dataset
-                        self.logger.debug("freezeDataset " + dis_dispatch_block)
+                        self.logger.debug(f"freezeDataset {dis_dispatch_block}")
                         for attempt in range(3):
                             status = False
                             try:
@@ -2040,6 +2025,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 dataset.status = "defined"
                 dataset.numberfiles = len(lfns)
                 dataset.currentfiles = 0
+                dataset.MoverID = jumbo_job_spec.jediTaskID
                 self.task_buffer.insertDatasets([dataset])
             # set destination
             jumbo_job_spec.destinationSE = jumbo_job_spec.computingSite
