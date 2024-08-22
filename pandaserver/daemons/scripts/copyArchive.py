@@ -734,12 +734,10 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     varMap = {}
     varMap[":jobStatus"] = "defined"
     varMap[":prodSourceLabel_p"] = "panda"
-    varMap[":prodSourceLabel_u"] = "user"
     varMap[":timeLimit"] = timeLimit
-    varMap[":lockedBy"] = "jedi"
     status, res = taskBuffer.querySQLS(
         "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE ((prodSourceLabel=:prodSourceLabel_p AND transformation LIKE '%build%') OR "
-        "(prodSourceLabel=:prodSourceLabel_u AND lockedBy<>:lockedBy)) AND jobStatus=:jobStatus AND creationTime<:timeLimit ORDER BY PandaID",
+        "lockedBy IS NULL) AND jobStatus=:jobStatus AND creationTime<:timeLimit ORDER BY PandaID",
         varMap,
     )
     jobs = []
