@@ -12220,7 +12220,7 @@ class DBProxy:
                 tmpResNumDone = self.cur.fetchone()
                 if tmpResNumDone is not None:
                     (numDone,) = tmpResNumDone
-                    if numDone in [100]:
+                    if numDone in [5, 100]:
                         # reset walltimeUnit to recalcurate task parameters
                         varMap = {}
                         varMap[":jediTaskID"] = jobSpec.jediTaskID
