@@ -1326,11 +1326,7 @@ class TaskBuffer:
             for tmpDS in dsFileMap:
                 tmpFileList = dsFileMap[tmpDS]
                 for tmpLFN in tmpFileList:
-                    scrStr += "rucio download "
-                    scrStr += f"{tmpLFN}\n"
-                    # ln
-                    tmpScope, tmpBareLFN = tmpLFN.split(":")
-                    scrStr += f"ln -fs {tmpScope}/{tmpBareLFN} ./{tmpBareLFN}\n"
+                    scrStr += f"rucio download {tmpLFN} --no-subdir\n"
             if isUser:
                 scrStr += "\n#get trf\n"
                 scrStr += f"wget {tmpTrfs[0]}\n"
