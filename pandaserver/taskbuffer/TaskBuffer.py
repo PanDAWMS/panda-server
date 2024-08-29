@@ -1311,7 +1311,7 @@ class TaskBuffer:
                 tmpPars = tmpJob.jobParameters.split("\n")
                 tmpTrfs = tmpJob.transformation.split("\n")
             if not (len(tmpRels) == len(tmpPars) == len(tmpTrfs)):
-                return "ERROR: The number of releases or parameters or trfs is inconsitent with others"
+                return "ERROR: The number of releases or parameters or trfs is inconsistent with others"
             # construct script
             scrStr = "#retrieve inputs\n\n"
             # collect inputs
