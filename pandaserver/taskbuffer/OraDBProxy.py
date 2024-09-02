@@ -9757,79 +9757,37 @@ class DBProxy:
             self._rollback()
             return ret_empty
 
-    # get cloud list
-    def getCloudList(self):
+    def get_cloud_list(self):
+        """
+        Get a list of distinct cloud names from the database.
+        """
         comment = " /* DBProxy.getCloudList */"
-        _logger.debug("getCloudList start")
+        method_name = comment.split(" ")[-2].split(".")[-1]
+
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
         try:
-            # set autocommit on
-            self.conn.begin()
-            # select
-            sql = "SELECT name,tier1,tier1SE,relocation,weight,server,status,transtimelo,"
-            sql += "transtimehi,waittime,validation,mcshare,countries,fasttrack,nprestage,"
-            sql += "pilotowners "
-            sql += "FROM ATLAS_PANDAMETA.cloudconfig"
-            self.cur.arraysize = 10000
-            self.cur.execute(sql + comment)
-            resList = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            ret = {}
-            if resList is not None and len(resList) != 0:
-                for res in resList:
-                    # change None to ''
-                    resTmp = []
-                    for tmpItem in res:
-                        if tmpItem is None:
-                            tmpItem = ""
-                        resTmp.append(tmpItem)
-                    (
-                        name,
-                        tier1,
-                        tier1SE,
-                        relocation,
-                        weight,
-                        server,
-                        status,
-                        transtimelo,
-                        transtimehi,
-                        waittime,
-                        validation,
-                        mcshare,
-                        countries,
-                        fasttrack,
-                        nprestage,
-                        pilotowners,
-                    ) = resTmp
-                    # instantiate CloudSpec
-                    tmpC = CloudSpec.CloudSpec()
-                    tmpC.name = name
-                    tmpC.tier1 = tier1
-                    tmpC.tier1SE = re.sub(" ", "", tier1SE).split(",")
-                    tmpC.relocation = relocation
-                    tmpC.weight = weight
-                    tmpC.server = server
-                    tmpC.status = status
-                    tmpC.transtimelo = transtimelo
-                    tmpC.transtimehi = transtimehi
-                    tmpC.waittime = waittime
-                    tmpC.validation = validation
-                    tmpC.mcshare = mcshare
-                    tmpC.countries = countries
-                    tmpC.fasttrack = fasttrack
-                    tmpC.nprestage = nprestage
-                    tmpC.pilotowners = pilotowners
-                    # append
-                    ret[name] = tmpC
-            _logger.debug("getCloudList done")
-            return ret
+            with self.conn:
+                sql = (
+                    "SELECT DISTINCT sj.data.cloud AS cloud "
+                    "FROM atlas_panda.schedconfig_json sj "
+                    "UNION "
+                    "SELECT 'WORLD' AS cloud "
+                    "FROM dual "
+                    "ORDER BY cloud"
+                )
+                self.cur.arraysize = 100
+                self.cur.execute(sql + comment)
+                results = self.cur.fetchall()
+                clouds = [result[0] for result in results]
+
+            tmp_log.debug("done")
+            return clouds
         except Exception:
             type, value, traceBack = sys.exc_info()
-            _logger.error(f"getCloudList : {type} {value}")
-            # roll back
+            tmp_log.error(f"failed with: {type} {value}")
             self._rollback()
-            return {}
+            return []
 
     # check sites with release/cache
     def checkSitesWithRelease(

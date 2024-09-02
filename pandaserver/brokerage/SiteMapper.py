@@ -32,34 +32,15 @@ class SiteMapper:
             #  'PANDA_QUEUE_2': < pandaserver.taskbuffer.SiteSpec.SiteSpec object2 >, ...}
             site_spec_dictionary = taskBuffer.getSiteInfo()
 
-            # create CloudSpec list
-            # TODO: remove the need for this
-            tmpCloudListDB = taskBuffer.getCloudList()
-            for tmpName in tmpCloudListDB:
-                tmpCloudSpec = tmpCloudListDB[tmpName]
-                cloudSpec = {}
-
-                # copy attributes from CloudSepc
-                for tmpAttr in tmpCloudSpec._attributes:
-                    cloudSpec[tmpAttr] = getattr(tmpCloudSpec, tmpAttr)
-
-                # append additional attributes
-                #    source : Panda siteID for source
-                #    dest   : Panda siteID for dest
-                #    sites  : Panda siteIDs in the cloud
-                cloudSpec["source"] = cloudSpec["tier1"]
-                cloudSpec["dest"] = cloudSpec["tier1"]
-                cloudSpec["sites"] = []
-                if tmpName == WORLD_CLOUD:
-                    self.worldCloudSpec = cloudSpec
+            # create dictionary with clouds
+            clouds = taskBuffer.get_cloud_list()
+            for tmp_name in clouds:
+                if tmp_name == WORLD_CLOUD:
+                    self.worldCloudSpec = {"sites": []}
                 else:
-                    self.cloudSpec[tmpName] = cloudSpec
-                    _logger.debug(f"Cloud->{tmpName} {str(self.cloudSpec[tmpName])}")
+                    self.cloudSpec[tmp_name] = {"sites": []}
 
-            # add WORLD cloud
-            self.worldCloudSpec["sites"] = []
-
-            # read DB to produce parameters in siteinfo dynamically
+            # read DB to produce parameters in site info dynamically
             for site_name_tmp, site_spec_tmp in site_spec_dictionary.items():
                 # we can't find the site info for the queue
                 if not site_spec_tmp:
@@ -122,23 +103,21 @@ class SiteMapper:
             for site_spec_tmp in self.siteSpecList.values():
                 self.collect_nuclei_and_satellites(site_spec_tmp)
 
-            # make cloudSpec
-            # TODO: remove the need for this
-            for siteSpec in self.siteSpecList.values():
+            # group sites by cloud
+            for tmp_site_spec in self.tmp_site_specList.values():
                 # choose only prod or grandly unified sites
-                if not siteSpec.runs_production():
+                if not tmp_site_spec.runs_production():
                     continue
 
-                # append prod site in cloud
-                for tmpCloud in siteSpec.cloudlist:
-                    if tmpCloud in self.cloudSpec:
-                        if siteSpec.sitename not in self.cloudSpec[tmpCloud]["sites"]:
-                            # append
-                            self.cloudSpec[tmpCloud]["sites"].append(siteSpec.sitename)
+                # append prod site to cloud structure
+                for tmp_cloud in tmp_site_spec.cloudlist:
+                    if tmp_cloud in self.cloudSpec:
+                        if tmp_site_spec.sitename not in self.cloudSpec[tmp_cloud]["sites"]:
+                            self.cloudSpec[tmp_cloud]["sites"].append(tmp_site_spec.sitename)
 
                 # add to WORLD cloud
-                if siteSpec.sitename not in self.worldCloudSpec["sites"]:
-                    self.worldCloudSpec["sites"].append(siteSpec.sitename)
+                if tmp_site_spec.sitename not in self.worldCloudSpec["sites"]:
+                    self.worldCloudSpec["sites"].append(tmp_site_spec.sitename)
 
             # set the T1 at the beginning of the cloud site lists
             for cloud_name_tmp, cloud_spec_tmp in self.cloudSpec.items():

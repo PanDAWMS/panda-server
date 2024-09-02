@@ -336,45 +336,32 @@ def makeCompactDiagMessage(header, results):
     # Remove the trailing period and space
     return_string = return_string.rstrip(". ")
 
+
+"""
     return return_string
+(
+                self.jobs,
+                self.task_buffer,
+                self.site_mapper,
+                replicaMap=self.replica_map_for_broker,
+                satellitesFilesMap=self.available_lfns_in_satellites,
+            )
+"""
 
 
 # schedule
-def schedule(
-    jobs,
-    taskBuffer,
-    siteMapper,
-    forAnalysis=False,
-    setScanSiteList=[],
-    trustIS=False,
-    distinguishedName=None,
-    specialWeight={},
-    getWeight=False,
-    sizeMapForCheck={},
-    datasetSize=0,
-    replicaMap={},
-    pd2pT1=False,
-    reportLog=False,
-    minPriority=None,
-    satellitesFilesMap={},
-    preferredCountries=[],
-    siteReliability=None,
-):
+def schedule(jobs, taskBuffer, siteMapper, replicaMap={}, satellitesFilesMap={}):
     timestamp = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat("/")
     tmpLog = LogWrapper(_log, f"start_ts={timestamp}")
 
     try:
-        tmpLog.debug(
-            f"start forAnalysis={forAnalysis} setScanSiteList={str(setScanSiteList)} trustIS={trustIS} DN={distinguishedName} "
-            f"minPrio={minPriority} pref={str(preferredCountries)} siteRel={siteReliability}"
-        )
-        if specialWeight != {}:
-            tmpLog.debug(f"PD2P weight : {str(specialWeight)}")
-        tmpLog.debug(f"replicaMap : {str(replicaMap)}")
+        tmpLog.debug(f"start replicaMap : {str(replicaMap)}")
+
         # no jobs
         if len(jobs) == 0:
             tmpLog.debug("finished : no jobs")
             return
+
         allOkFilesMap = {}
 
         nJob = 20
@@ -414,9 +401,6 @@ def schedule(
 
         diskThresholdT1 = 20 * 1024
         diskThresholdT2 = 200
-        diskThresholdAna = 200
-        diskThresholdPD2P = 1024 * 3
-        weightUsedByBrokerage = {}
         prestageSites = []
 
         # check if only JEDI
@@ -428,7 +412,6 @@ def schedule(
 
         # get statistics
         newJobStatWithPrio = {}
-        jobStatBrokerClouds = {}
         jobStatBrokerCloudsWithPrio = {}
         hospitalQueueMap = {}
         if len(jobs) > 0 and (
@@ -441,24 +424,16 @@ def schedule(
             jobStatistics = {}
             jobStatBroker = {}
             jobStatBrokerClouds = {}
-            nRunningMap = {}
 
         else:
-            jobStatistics = taskBuffer.getJobStatistics(forAnal=forAnalysis)
-            if not forAnalysis:
-                jobStatBroker = {}
-                jobStatBrokerClouds = taskBuffer.getJobStatisticsBrokerage()
-            else:
-                if minPriority is None:
-                    jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage()
-                else:
-                    jobStatBroker = taskBuffer.getJobStatisticsAnalBrokerage(minPriority=minPriority)
-                nRunningMap = taskBuffer.getnRunningInSiteData()
+            jobStatistics = taskBuffer.getJobStatistics(forAnal=False)
+            jobStatBroker = {}
+            jobStatBrokerClouds = taskBuffer.getJobStatisticsBrokerage()
+
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs = sorted(jobs, key=functools.cmp_to_key(_compFunc))
 
         # brokerage for analysis
-        candidateForAnal = True
         loggerMessages = []
         # get all input files for bulk LFC lookup
         allLFNs = []
@@ -643,38 +618,20 @@ def schedule(
                     if prevBrokerageSiteList != []:
                         # special brokerage
                         scanSiteList = prevBrokerageSiteList
-                    elif setScanSiteList == []:
+                    else:
                         if siteMapper.checkCloud(previousCloud):
                             # use cloud sites
                             scanSiteList = siteMapper.getCloud(previousCloud)["sites"]
                         else:
                             # use default sites
                             scanSiteList = siteMapper.getCloud("default")["sites"]
-                    else:
-                        # use given sites
-                        scanSiteList = setScanSiteList
 
                     # the number/size of inputs per job
                     nFilesPerJob = float(totalNumInputs) / float(iJob)
                     inputSizePerJob = float(totalInputSize) / float(iJob)
-                    # use T1 for jobs with many inputs when weight is negative
-                    if (
-                        (not forAnalysis)
-                        and _isTooMuchInput(nFilesPerJob, inputSizePerJob)
-                        and siteMapper.getCloud(previousCloud)["weight"] < 0
-                        and prevManualPreset is False
-                        and (prevCoreCount not in ["NULL", None] and prevCoreCount > 1)
-                    ):
-                        scanSiteList = [siteMapper.getCloud(previousCloud)["source"]]
-                        # set site list to use T1 and T1_VL
-                        if previousCloud in hospitalQueueMap:
-                            scanSiteList += hospitalQueueMap[previousCloud]
 
                     # found candidate
                     foundOneCandidate = False
-                    # randomize the order
-                    if forAnalysis:
-                        random.shuffle(scanSiteList)
 
                     # loop over all sites
                     for site in scanSiteList:
@@ -695,24 +652,16 @@ def schedule(
                             if (prevManualPreset is False) and (site.endswith("test") or site.endswith("Test") or site.startswith("Test")):
                                 continue
                             # ignore analysis queues
-                            if (not forAnalysis) and (not tmpSiteSpec.runs_production()):
+                            if not tmpSiteSpec.runs_production():
                                 continue
                             # check status
                             if tmpSiteSpec.status in [
                                 "offline",
                                 "brokeroff",
                             ] and computingSite in ["NULL", None, ""]:
-                                if forAnalysis and prevProType in [
-                                    "hammercloud",
-                                    "gangarobot",
-                                    "gangarobot-squid",
-                                ]:
-                                    # ignore site status for HC
-                                    pass
-                                else:
-                                    tmpLog.debug(f" skip: status {tmpSiteSpec.status}")
-                                    resultsForAnal["status"].append(site)
-                                    continue
+                                tmpLog.debug(f" skip: status {tmpSiteSpec.status}")
+                                resultsForAnal["status"].append(site)
+                                continue
                             if (
                                 tmpSiteSpec.status == "test"
                                 and (
@@ -789,12 +738,6 @@ def schedule(
                                     errtype, errvalue = sys.exc_info()[:2]
                                     tmpLog.error(f"disk check : {errtype} {errvalue}")
                             tmpLog.debug(f"   maxwdir={tmpSiteSpec.maxwdir}")
-                            # reliability
-                            if forAnalysis and isinstance(siteReliability, int):
-                                if tmpSiteSpec.reliabilityLevel is not None and tmpSiteSpec.reliabilityLevel > siteReliability:
-                                    tmpLog.debug(f" skip: insufficient reliability {tmpSiteSpec.reliabilityLevel} > {siteReliability}")
-                                    resultsForAnal["reliability"].append(site)
-                                    continue
 
                             # get pilot statistics
                             nPilotsGet = 0
@@ -837,73 +780,50 @@ def schedule(
                                     "transferring": 0,
                                 },
                             )
-                            # set nRunning
-                            if forAnalysis:
-                                nRunningMap.setdefault(site, 0)
-                            # check space
-                            if specialWeight != {}:
-                                # for PD2P
-                                if site in sizeMapForCheck:
-                                    # threshold for PD2P max(5%,3TB)
-                                    thrForThisSite = int(sizeMapForCheck[site]["total"] * 5 / 100)
-                                    if thrForThisSite < diskThresholdPD2P:
-                                        thrForThisSite = diskThresholdPD2P
-                                    remSpace = sizeMapForCheck[site]["total"] - sizeMapForCheck[site]["used"]
-                                    tmpLog.debug(f"   space available={sizeMapForCheck[site]['total']} remain={remSpace} thr={thrForThisSite}")
-                                    if remSpace - datasetSize < thrForThisSite:
-                                        tmpLog.debug(f"  skip: disk shortage {remSpace}-{datasetSize}< {thrForThisSite}")
-                                        if getWeight:
-                                            weightUsedByBrokerage[site] = "NA : disk shortage"
-                                        continue
-                            else:
-                                if tmpSiteSpec.space:
-                                    # production
-                                    if not forAnalysis:
-                                        # take assigned/activated/running jobs into account for production
-                                        nJobsIn = float(jobStatistics[site]["assigned"])
-                                        nJobsOut = float(jobStatistics[site]["activated"] + jobStatistics[site]["running"])
-                                        # get remaining space and threshold
-                                        if site == siteMapper.getCloud(previousCloud)["source"]:
-                                            # T1
-                                            remSpace = float(tmpSiteSpec.space) - 0.2 * nJobsOut
-                                            remSpace = int(remSpace)
-                                            diskThreshold = diskThresholdT1
-                                        else:
-                                            # T2
-                                            remSpace = float(tmpSiteSpec.space) - 0.2 * nJobsOut - 2.0 * nJobsIn
-                                            remSpace = int(remSpace)
-                                            diskThreshold = diskThresholdT2
-                                    else:
-                                        # analysis
-                                        remSpace = tmpSiteSpec.space
-                                        diskThreshold = diskThresholdAna
-                                    tmpLog.debug(f"   space available={tmpSiteSpec.space} remain={remSpace}")
-                                    if remSpace < diskThreshold:
-                                        tmpLog.debug(f"  skip: disk shortage < {diskThreshold}")
-                                        resultsForAnal["disk"].append(site)
-                                        # keep message to logger
-                                        try:
-                                            if prevSourceLabel in [
-                                                "managed",
-                                                "test",
-                                            ]:
-                                                # make message
-                                                message = f"{site} - disk {remSpace} < {diskThreshold}"
-                                                if message not in loggerMessages:
-                                                    loggerMessages.append(message)
-                                        except Exception:
-                                            pass
-                                        continue
+
+                            if tmpSiteSpec.space:
+                                # production
+                                # take assigned/activated/running jobs into account for production
+                                nJobsIn = float(jobStatistics[site]["assigned"])
+                                nJobsOut = float(jobStatistics[site]["activated"] + jobStatistics[site]["running"])
+                                # get remaining space and threshold
+                                if site == siteMapper.getCloud(previousCloud)["source"]:
+                                    # T1
+                                    remSpace = float(tmpSiteSpec.space) - 0.2 * nJobsOut
+                                    remSpace = int(remSpace)
+                                    diskThreshold = diskThresholdT1
+                                else:
+                                    # T2
+                                    remSpace = float(tmpSiteSpec.space) - 0.2 * nJobsOut - 2.0 * nJobsIn
+                                    remSpace = int(remSpace)
+                                    diskThreshold = diskThresholdT2
+
+                                tmpLog.debug(f"   space available={tmpSiteSpec.space} remain={remSpace}")
+                                if remSpace < diskThreshold:
+                                    tmpLog.debug(f"  skip: disk shortage < {diskThreshold}")
+                                    resultsForAnal["disk"].append(site)
+                                    # keep message to logger
+                                    try:
+                                        if prevSourceLabel in [
+                                            "managed",
+                                            "test",
+                                        ]:
+                                            # make message
+                                            message = f"{site} - disk {remSpace} < {diskThreshold}"
+                                            if message not in loggerMessages:
+                                                loggerMessages.append(message)
+                                    except Exception:
+                                        pass
+                                    continue
                             # get the process group
                             tmpProGroup = ProcessGroups.getProcessGroup(prevProType)
                             if prevProType in skipBrokerageProTypes:
                                 # use original processingType since prod_test is in the test category and thus is interfered by validations
                                 tmpProGroup = prevProType
                             # the number of assigned and activated
-                            if not forAnalysis:
-                                jobStatBrokerClouds.setdefault(previousCloud, {})
-                                # use number of jobs in the cloud
-                                jobStatBroker = jobStatBrokerClouds[previousCloud]
+                            jobStatBrokerClouds.setdefault(previousCloud, {})
+                            # use number of jobs in the cloud
+                            jobStatBroker = jobStatBrokerClouds[previousCloud]
                             if site not in jobStatBroker:
                                 jobStatBroker[site] = {}
                             if tmpProGroup not in jobStatBroker[site]:
@@ -915,7 +835,7 @@ def schedule(
                                 }
                             # count # of assigned and activated jobs for prod by taking priorities in to account
                             nRunJobsPerGroup = None
-                            if not forAnalysis and prevSourceLabel in [
+                            if prevSourceLabel in [
                                 "managed",
                                 "test",
                             ]:
@@ -950,8 +870,6 @@ def schedule(
                                     nAssJobs += newJobStatWithPrio[tmpNewPriority][previousCloud][site][tmpProGroup]
                             else:
                                 nAssJobs = jobStatBroker[site][tmpProGroup]["assigned"]
-                                if forAnalysis and "defined" in jobStatBroker[site][tmpProGroup]:
-                                    nAssJobs += jobStatBroker[site][tmpProGroup]["defined"]
                                 nActJobs = jobStatBroker[site][tmpProGroup]["activated"]
 
                             # limit of the number of transferring jobs
@@ -959,8 +877,8 @@ def schedule(
                                 maxTransferring = 2000
                             else:
                                 maxTransferring = tmpSiteSpec.transferringlimit
-                            # get ration of transferring to running
-                            if not forAnalysis and tmpSiteSpec.cloud not in ["ND"]:
+                            # get ratio of transferring to running
+                            if tmpSiteSpec.cloud not in ["ND"]:
                                 nTraJobs = 0
                                 nRunJobs = 0
                                 for tmpGroupForTra in jobStatBroker[site]:
@@ -982,124 +900,45 @@ def schedule(
                             # get ratio of running jobs = run(cloud)/run(all) for multi cloud (disabled)
                             multiCloudFactor = 1
 
-                            # calculate weight
-                            if specialWeight != {}:
-                                if not pd2pT1:
-                                    # weight for T2 PD2P
-                                    nSubs = 1
-                                    if site in specialWeight:
-                                        nSubs = specialWeight[site]
-                                    tmpLog.debug(
-                                        "   %s nSubs:%s assigned:%s activated:%s running:%s nWNsG:%s nWNsU:%s"
-                                        % (
-                                            site,
-                                            nSubs,
-                                            nAssJobs,
-                                            nActJobs,
-                                            nRunningMap[site],
-                                            nPilotsGet,
-                                            nPilotsUpdate,
-                                        )
-                                    )
-                                    winv = (
-                                        float(nSubs)
-                                        * float(nAssJobs + nActJobs)
-                                        / float(1 + nRunningMap[site])
-                                        / (1.0 + float(nPilotsGet) / float(1 + nPilotsUpdate))
-                                    )
-                                    if getWeight:
-                                        weightUsedByBrokerage[site] = "(1+%s/%s)*%s/%s/%s" % (
-                                            nPilotsGet,
-                                            1 + nPilotsUpdate,
-                                            1 + nRunningMap[site],
-                                            nAssJobs + nActJobs,
-                                            nSubs,
-                                        )
-                                else:
-                                    # weight for T1 PD2P
-                                    tmpLog.debug(f"   {site} MoU:{specialWeight[site]}")
-                                    winv = 1.0 / float(specialWeight[site])
-                                    if getWeight:
-                                        weightUsedByBrokerage[site] = f"{specialWeight[site]}"
+                            if nRunJobsPerGroup is None:
+                                tmpLog.debug(
+                                    "   %s assigned:%s activated:%s running:%s nPilotsGet:%s nPilotsUpdate:%s"
+                                    % (site, nAssJobs, nActJobs, jobStatistics[site]["running"], nPilotsGet, nPilotsUpdate)
+                                )
                             else:
-                                if not forAnalysis:
-                                    if nRunJobsPerGroup is None:
-                                        tmpLog.debug(
-                                            "   %s assigned:%s activated:%s running:%s nPilotsGet:%s nPilotsUpdate:%s multiCloud:%s"
-                                            % (
-                                                site,
-                                                nAssJobs,
-                                                nActJobs,
-                                                jobStatistics[site]["running"],
-                                                nPilotsGet,
-                                                nPilotsUpdate,
-                                                multiCloudFactor,
-                                            )
-                                        )
-                                    else:
-                                        tmpLog.debug(
-                                            "   %s assigned:%s activated:%s runningGroup:%s nPilotsGet:%s nPilotsUpdate:%s multiCloud:%s"
-                                            % (
-                                                site,
-                                                nAssJobs,
-                                                nActJobs,
-                                                nRunJobsPerGroup,
-                                                nPilotsGet,
-                                                nPilotsUpdate,
-                                                multiCloudFactor,
-                                            )
-                                        )
-                                else:
+                                tmpLog.debug(
+                                    "   %s assigned:%s activated:%s runningGroup:%s nPilotsGet:%s nPilotsUpdate:%s"
+                                    % (site, nAssJobs, nActJobs, nRunJobsPerGroup, nPilotsGet, nPilotsUpdate)
+                                )
+
+                            if nRunJobsPerGroup is None:
+                                winv = (
+                                    float(nAssJobs + nActJobs) / float(1 + jobStatistics[site]["running"]) / (float(1 + nPilotsGet) / float(1 + nPilotsUpdate))
+                                )
+                            else:
+                                winv = float(nAssJobs + nActJobs) / float(1 + nRunJobsPerGroup) / (float(1 + nPilotsGet) / float(1 + nPilotsUpdate))
+                            winv *= float(multiCloudFactor)
+                            # send jobs to T1 when they require many or large inputs
+                            if _isTooMuchInput(nFilesPerJob, inputSizePerJob):
+                                if site == siteMapper.getCloud(previousCloud)["source"] or (
+                                    previousCloud in hospitalQueueMap and site in hospitalQueueMap[previousCloud]
+                                ):
+                                    cloudT1Weight = 2.0
+                                    # use weight in cloudconfig
+                                    try:
+                                        tmpCloudT1Weight = float(siteMapper.getCloud(previousCloud)["weight"])
+                                        if tmpCloudT1Weight != 0.0:
+                                            cloudT1Weight = tmpCloudT1Weight
+                                    except Exception:
+                                        pass
+                                    winv /= cloudT1Weight
                                     tmpLog.debug(
-                                        "   %s assigned:%s activated:%s running:%s nWNsG:%s nWNsU:%s"
-                                        % (
-                                            site,
-                                            nAssJobs,
-                                            nActJobs,
-                                            nRunningMap[site],
-                                            nPilotsGet,
-                                            nPilotsUpdate,
-                                        )
+                                        f"   special weight for {site} : nInputs/Job={nFilesPerJob} inputSize/Job={inputSizePerJob} weight={cloudT1Weight}"
                                     )
-                                if forAnalysis:
-                                    winv = float(nAssJobs + nActJobs) / float(1 + nRunningMap[site]) / (1.0 + float(nPilotsGet) / float(1 + nPilotsUpdate))
-                                else:
-                                    if nRunJobsPerGroup is None:
-                                        winv = (
-                                            float(nAssJobs + nActJobs)
-                                            / float(1 + jobStatistics[site]["running"])
-                                            / (float(1 + nPilotsGet) / float(1 + nPilotsUpdate))
-                                        )
-                                    else:
-                                        winv = float(nAssJobs + nActJobs) / float(1 + nRunJobsPerGroup) / (float(1 + nPilotsGet) / float(1 + nPilotsUpdate))
-                                winv *= float(multiCloudFactor)
-                                # send jobs to T1 when they require many or large inputs
-                                if _isTooMuchInput(nFilesPerJob, inputSizePerJob):
-                                    if site == siteMapper.getCloud(previousCloud)["source"] or (
-                                        previousCloud in hospitalQueueMap and site in hospitalQueueMap[previousCloud]
-                                    ):
-                                        cloudT1Weight = 2.0
-                                        # use weight in cloudconfig
-                                        try:
-                                            tmpCloudT1Weight = float(siteMapper.getCloud(previousCloud)["weight"])
-                                            if tmpCloudT1Weight != 0.0:
-                                                cloudT1Weight = tmpCloudT1Weight
-                                        except Exception:
-                                            pass
-                                        winv /= cloudT1Weight
-                                        tmpLog.debug(
-                                            f"   special weight for {site} : nInputs/Job={nFilesPerJob} inputSize/Job={inputSizePerJob} weight={cloudT1Weight}"
-                                        )
                         # found at least one candidate
                         foundOneCandidate = True
                         tmpLog.debug(f"Site:{site} 1/Weight:{winv}")
-                        if forAnalysis and trustIS and reportLog:
-                            resultsForAnal["weight"].append(
-                                (
-                                    site,
-                                    f"(1+{nPilotsGet}/{1 + nPilotsUpdate})*{1 + nRunningMap[site]}/{nAssJobs + nActJobs}",
-                                )
-                            )
+
                         # choose largest nMinSites weights
                         minSites[site] = winv
                         if len(minSites) > nMinSites:
@@ -1135,13 +974,11 @@ def schedule(
                     # set default
                     if len(minSites) == 0:
                         # cloud's list
-                        if forAnalysis or siteMapper.checkCloud(previousCloud):
+                        if siteMapper.checkCloud(previousCloud):
                             minSites[scanSiteList[0]] = 0
                         else:
                             minSites[panda_config.def_sitename] = 0
-                        # release not found
-                        if forAnalysis and trustIS:
-                            candidateForAnal = False
+
                     # use only one site for prod_test to skip LFC scan
                     if prevProType in skipBrokerageProTypes:
                         if len(minSites) > 1:
@@ -1190,34 +1027,7 @@ def schedule(
                     tmpLog.debug(f"inputSize/Job : {inputSizePerJob}")
                     for tmpJob in jobs[indexJob - iJob - 1 : indexJob - 1]:
                         # set computingSite
-                        if (not candidateForAnal) and forAnalysis and trustIS:
-                            resultsForAnalStr = "ERROR : No candidate. "
-                            if resultsForAnal["rel"] != []:
-                                if prevCmtConfig in ["", "NULL", None]:
-                                    resultsForAnalStr += f"Release:{prevRelease} was not found at {str(resultsForAnal['rel'])}. "
-                                else:
-                                    resultsForAnalStr += f"Release:{prevRelease}/{prevCmtConfig} was not found at {str(resultsForAnal['rel'])}. "
-                            if resultsForAnal["pilot"] != []:
-                                resultsForAnalStr += f"{str(resultsForAnal['pilot'])} are inactive (no pilots for last 3 hours). "
-                            if resultsForAnal["disk"] != []:
-                                resultsForAnalStr += f"Disk shortage < {diskThresholdAna}GB at {str(resultsForAnal['disk'])}. "
-                            if resultsForAnal["memory"] != []:
-                                resultsForAnalStr += f"Insufficient RAM at {str(resultsForAnal['memory'])}. "
-                            if resultsForAnal["maxtime"] != []:
-                                resultsForAnalStr += f"Shorter walltime limit than maxCpuCount:{prevMaxCpuCount} at "
-                                for tmpItem in resultsForAnal["maxtime"]:
-                                    if siteMapper.checkSite(tmpItem):
-                                        resultsForAnalStr += f"{tmpItem}:{siteMapper.getSite(tmpItem).maxtime},"
-                                resultsForAnalStr = resultsForAnalStr[:-1]
-                                resultsForAnalStr += ". "
-                            if resultsForAnal["status"] != []:
-                                resultsForAnalStr += f"{str(resultsForAnal['status'])} are not online. "
-                            if resultsForAnal["reliability"] != []:
-                                resultsForAnalStr += f"Insufficient reliability at {str(resultsForAnal['reliability'])}. "
-                            resultsForAnalStr = resultsForAnalStr[:-1]
-                            tmpJob.computingSite = resultsForAnalStr
-                        else:
-                            tmpJob.computingSite = chosenCE.sitename
+                        tmpJob.computingSite = chosenCE.sitename
                         tmpLog.debug(f"PandaID:{tmpJob.PandaID} -> site:{tmpJob.computingSite}")
 
                         # fail jobs if no sites have the release
@@ -1291,7 +1101,7 @@ def schedule(
                         jobStatistics[tmpJob.computingSite]["assigned"] += 1
                         jobStatBroker[tmpJob.computingSite][tmpProGroup]["assigned"] += 1
                         # update statistics by taking priorities into account
-                        if not forAnalysis and prevSourceLabel in ["managed", "test"]:
+                        if prevSourceLabel in ["managed", "test"]:
                             newJobStatWithPrio.setdefault(prevPriority, {})
                             newJobStatWithPrio[prevPriority].setdefault(tmpJob.getCloud(), {})
                             newJobStatWithPrio[prevPriority][tmpJob.getCloud()].setdefault(tmpJob.computingSite, {})
@@ -1453,7 +1263,7 @@ def schedule(
         except Exception:
             pass
         # send analysis brokerage info when jobs are submitted
-        if len(jobs) > 0 and jobs[0] is not None and not forAnalysis and not pd2pT1 and specialWeight == {}:
+        if len(jobs) > 0 and jobs[0] is not None:
             # for analysis job. FIXME once ganga is updated to send analy brokerage info
             if jobs[0].prodSourceLabel in ["user", "panda"] and jobs[0].processingType in ["pathena", "prun"]:
                 # send countryGroup
@@ -1469,12 +1279,10 @@ def schedule(
                 tmpMsgList.append(tmpMsg)
                 # send log
                 sendMsgToLoggerHTTP(tmpMsgList, jobs[0])
+
         # finished
         tmpLog.debug(f"N lookup for prio : {len(jobStatBrokerCloudsWithPrio)}")
         tmpLog.debug("finished")
-        if getWeight:
-            return weightUsedByBrokerage
+
     except Exception as e:
         tmpLog.error(f"schedule : {str(e)} {traceback.format_exc()}")
-        if getWeight:
-            return {}

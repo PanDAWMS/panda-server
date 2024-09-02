@@ -980,7 +980,6 @@ class TaskBuffer:
         # return
         return jobs + [nSent, {}, secrets_map]
 
-
     # check merge job generation status
     def checkMergeGenerationStatus(self, dn, jobID):
         # return for NA
@@ -2176,11 +2175,11 @@ class TaskBuffer:
         return ret
 
     # get cloud list
-    def getCloudList(self):
+    def get_cloud_list(self):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get cloud list
-        ret = proxy.getCloudList()
+        ret = proxy.get_cloud_list()
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
