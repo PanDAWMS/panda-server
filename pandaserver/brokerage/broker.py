@@ -335,21 +335,9 @@ def makeCompactDiagMessage(header, results):
 
     # Remove the trailing period and space
     return_string = return_string.rstrip(". ")
-
-
-"""
     return return_string
-(
-                self.jobs,
-                self.task_buffer,
-                self.site_mapper,
-                replicaMap=self.replica_map_for_broker,
-                satellitesFilesMap=self.available_lfns_in_satellites,
-            )
-"""
 
 
-# schedule
 def schedule(jobs, taskBuffer, siteMapper, replicaMap={}, satellitesFilesMap={}):
     timestamp = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat("/")
     tmpLog = LogWrapper(_log, f"start_ts={timestamp}")
