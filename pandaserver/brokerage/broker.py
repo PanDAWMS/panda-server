@@ -413,7 +413,6 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}, satellitesFilesMap={})
         # get statistics
         newJobStatWithPrio = {}
         jobStatBrokerCloudsWithPrio = {}
-        hospitalQueueMap = {}
         if len(jobs) > 0 and (
             jobs[0].processingType.startswith("gangarobot")
             or jobs[0].processingType.startswith("hammercloud")
@@ -478,9 +477,6 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}, satellitesFilesMap={})
                 and specialBrokerageSiteList == []
             ):
                 specialBrokerageSiteList = [siteMapper.getCloud(job.getCloud())["source"]]
-                # set site list to use T1 and T1_VL
-                if job.getCloud() in hospitalQueueMap:
-                    specialBrokerageSiteList += hospitalQueueMap[job.getCloud()]
                 tmpLog.debug(f"PandaID:{job.PandaID} -> set SiteList={specialBrokerageSiteList} for high prio")
                 brokerageNote = "highPrio"
             # use limited sites for MP jobs
@@ -920,9 +916,7 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}, satellitesFilesMap={})
                             winv *= float(multiCloudFactor)
                             # send jobs to T1 when they require many or large inputs
                             if _isTooMuchInput(nFilesPerJob, inputSizePerJob):
-                                if site == siteMapper.getCloud(previousCloud)["source"] or (
-                                    previousCloud in hospitalQueueMap and site in hospitalQueueMap[previousCloud]
-                                ):
+                                if site == siteMapper.getCloud(previousCloud)["source"]:
                                     cloudT1Weight = 2.0
                                     # use weight in cloudconfig
                                     try:
