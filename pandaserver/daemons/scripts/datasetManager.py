@@ -729,9 +729,7 @@ def main(tbuf=None, **kwargs):
                             timeOutValue = TRANSFER_TIMEOUT_HI_PRIORITY
                         else:
                             timeOutValue = TRANSFER_TIMEOUT_LO_PRIORITY
-                        # protection
-                        if timeOutValue < 1:
-                            timeOutValue = 1
+
                         timeOut = self.timeNow - datetime.timedelta(days=timeOutValue)
                         _logger.debug(f"{job.PandaID}  Priority:{job.currentPriority} Limit:{str(timeOut)} End:{str(endTime)}")
                         if endTime < timeOut:
