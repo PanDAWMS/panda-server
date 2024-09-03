@@ -1,6 +1,5 @@
 import datetime
 import functools
-import random
 import re
 import sys
 import time
@@ -338,7 +337,7 @@ def makeCompactDiagMessage(header, results):
     return return_string
 
 
-def schedule(jobs, taskBuffer, siteMapper, replicaMap={}, satellitesFilesMap={}):
+def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
     timestamp = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat("/")
     tmpLog = LogWrapper(_log, f"start_ts={timestamp}")
 
@@ -415,7 +414,6 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}, satellitesFilesMap={})
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs = sorted(jobs, key=functools.cmp_to_key(_compFunc))
 
-        # brokerage for analysis
         loggerMessages = []
         # get all input files for bulk LFC lookup
         allLFNs = []
@@ -437,62 +435,14 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}, satellitesFilesMap={})
                 pass
             elif job.jobStatus == "failed":
                 continue
+
             # list of sites for special brokerage
             specialBrokerageSiteList = []
             # note for brokerage
             brokerageNote = ""
             # send jobs to T2 when files are missing at T1
             goToT2Flag = False
-            if job is not None and job.computingSite == "NULL" and job.prodSourceLabel in ("test", "managed") and specialBrokerageSiteList == []:
-                currentT2CandList = get_satellite_candidate_list(job, satellitesFilesMap)
-                if currentT2CandList != []:
-                    goToT2Flag = True
-                    specialBrokerageSiteList = currentT2CandList
-                    tmpLog.debug(f"PandaID:{job.PandaID} -> set SiteList={specialBrokerageSiteList} to use T2 for missing files at T1")
-                    brokerageNote = "useT2"
-            # set computingSite to T1 for high priority jobs
-            if (
-                job is not None
-                and job.currentPriority not in [None, "NULL"]
-                and job.currentPriority >= 950
-                and job.computingSite == "NULL"
-                and job.prodSourceLabel in ("test", "managed")
-                and specialBrokerageSiteList == []
-            ):
-                specialBrokerageSiteList = [siteMapper.getCloud(job.getCloud())["source"]]
-                tmpLog.debug(f"PandaID:{job.PandaID} -> set SiteList={specialBrokerageSiteList} for high prio")
-                brokerageNote = "highPrio"
-            # use limited sites for MP jobs
-            if (
-                job is not None
-                and job.computingSite == "NULL"
-                and job.prodSourceLabel in ("test", "managed")
-                and job.coreCount not in [None, "NULL"]
-                and job.coreCount > 1
-                and specialBrokerageSiteList == []
-            ):
-                for tmpSiteName in siteMapper.getCloud(job.getCloud())["sites"]:
-                    if siteMapper.checkSite(tmpSiteName):
-                        tmpSiteSpec = siteMapper.getSite(tmpSiteName)
-                        if tmpSiteSpec.coreCount > 1:
-                            specialBrokerageSiteList.append(tmpSiteName)
-                tmpLog.debug(f"PandaID:{job.PandaID} -> set SiteList={specialBrokerageSiteList} for MP={job.coreCount}cores")
-                brokerageNote = f"MP={job.coreCount}core"
-            # use limited sites for reprocessing
-            if (
-                job is not None
-                and job.computingSite == "NULL"
-                and job.prodSourceLabel in ("test", "managed")
-                and job.processingType in ["reprocessing"]
-                and specialBrokerageSiteList == []
-            ):
-                for tmpSiteName in siteMapper.getCloud(job.getCloud())["sites"]:
-                    if siteMapper.checkSite(tmpSiteName):
-                        tmpSiteSpec = siteMapper.getSite(tmpSiteName)
-                        if _checkRelease(job.AtlasRelease, tmpSiteSpec.validatedreleases):
-                            specialBrokerageSiteList.append(tmpSiteName)
-                tmpLog.debug(f"PandaID:{job.PandaID} -> set SiteList={specialBrokerageSiteList} for processingType={job.processingType}")
-                brokerageNote = f"{job.processingType}"
+
             # manually set site
             manualPreset = False
             if job is not None and job.computingSite != "NULL" and job.prodSourceLabel in ("test", "managed") and specialBrokerageSiteList == []:
@@ -876,8 +826,6 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}, satellitesFilesMap={})
                                         if message not in loggerMessages:
                                             loggerMessages.append(message)
                                     continue
-                            # get ratio of running jobs = run(cloud)/run(all) for multi cloud (disabled)
-                            multiCloudFactor = 1
 
                             if nRunJobsPerGroup is None:
                                 tmpLog.debug(
@@ -896,22 +844,7 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}, satellitesFilesMap={})
                                 )
                             else:
                                 winv = float(nAssJobs + nActJobs) / float(1 + nRunJobsPerGroup) / (float(1 + nPilotsGet) / float(1 + nPilotsUpdate))
-                            winv *= float(multiCloudFactor)
-                            # send jobs to T1 when they require many or large inputs
-                            if _isTooMuchInput(nFilesPerJob, inputSizePerJob):
-                                if site == siteMapper.getCloud(previousCloud)["source"]:
-                                    cloudT1Weight = 2.0
-                                    # use weight in cloudconfig
-                                    try:
-                                        tmpCloudT1Weight = float(siteMapper.getCloud(previousCloud)["weight"])
-                                        if tmpCloudT1Weight != 0.0:
-                                            cloudT1Weight = tmpCloudT1Weight
-                                    except Exception:
-                                        pass
-                                    winv /= cloudT1Weight
-                                    tmpLog.debug(
-                                        f"   special weight for {site} : nInputs/Job={nFilesPerJob} inputSize/Job={inputSizePerJob} weight={cloudT1Weight}"
-                                    )
+
                         # found at least one candidate
                         foundOneCandidate = True
                         tmpLog.debug(f"Site:{site} 1/Weight:{winv}")

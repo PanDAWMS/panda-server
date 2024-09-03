@@ -100,13 +100,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             # invoke brokerage
             self.logger.debug("brokerSchedule")
             self.memory_check()
-            pandaserver.brokerage.broker.schedule(
-                self.jobs,
-                self.task_buffer,
-                self.site_mapper,
-                replicaMap=self.replica_map_for_broker,
-                satellitesFilesMap=self.available_lfns_in_satellites,
-            )
+            pandaserver.brokerage.broker.schedule(self.jobs, self.task_buffer, self.site_mapper, replicaMap=self.replica_map_for_broker)
             # remove waiting jobs
             self.remove_waiting_jobs()
             # setup dispatch dataset
