@@ -517,10 +517,7 @@ class DBProxy:
         ]:
             job.currentPriority = 7000
         elif job.prodSourceLabel == "user":
-            if job.processingType in [
-                "usermerge",
-                "pmerge",
-            ] and job.currentPriority not in ["NULL", None]:
+            if job.processingType == "pmerge" and job.currentPriority not in ["NULL", None]:
                 # avoid prio reduction for merge jobs
                 pass
             else:
@@ -7669,9 +7666,7 @@ class DBProxy:
                     # job not found
                     if processingType is None:
                         continue
-                    # ignore merge jobs
-                    if processingType in ["usermerge"]:
-                        continue
+
                     # start transaction
                     self.conn.begin()
                     # select LFNs

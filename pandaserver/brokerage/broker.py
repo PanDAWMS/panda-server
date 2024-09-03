@@ -401,12 +401,7 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}, satellitesFilesMap={})
         # get statistics
         newJobStatWithPrio = {}
         jobStatBrokerCloudsWithPrio = {}
-        if len(jobs) > 0 and (
-            jobs[0].processingType.startswith("gangarobot")
-            or jobs[0].processingType.startswith("hammercloud")
-            or jobs[0].processingType in ["pandamover", "usermerge"]
-            or onlyJEDI
-        ):
+        if len(jobs) > 0 and (jobs[0].processingType.startswith("gangarobot") or jobs[0].processingType.startswith("hammercloud") or onlyJEDI):
             # disable redundant counting for HC
             jobStatistics = {}
             jobStatBroker = {}
