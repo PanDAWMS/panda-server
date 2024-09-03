@@ -131,18 +131,8 @@ def _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog):
     tmpLog.debug(str(okFiles))
     allOK = True
     tmpSiteSpec = siteMapper.getSite(tmpJob.computingSite)
-    tmpSrcSpec = siteMapper.getSite(siteMapper.getCloud(tmpJob.getCloud())["source"])
     scope_association_site_input, _ = select_scope(tmpSiteSpec, tmpJob.prodSourceLabel, tmpJob.job_label)
-    scope_association_src_input, _ = select_scope(tmpSrcSpec, tmpJob.prodSourceLabel, tmpJob.job_label)
     tmpTapeEndPoints = tmpSiteSpec.ddm_endpoints_input[scope_association_site_input].getTapeEndPoints()
-
-    # direct usage of remote SE
-    if (
-        tmpSiteSpec.ddm_input[scope_association_site_input] != tmpSrcSpec.ddm_input[scope_association_src_input]
-        and tmpSrcSpec.ddm_input[scope_association_src_input] in tmpSiteSpec.setokens_input[scope_association_site_input].values()
-    ):
-        tmpSiteSpec = tmpSrcSpec
-        tmpLog.debug(f"{tmpJob.PandaID} uses remote SiteSpec of {tmpSrcSpec.sitename} for {tmpJob.computingSite}")
 
     for tmpFile in tmpJob.Files:
         if tmpFile.type == "input":
@@ -152,10 +142,7 @@ def _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog):
                 # cached file
                 tmpFile.status = "cached"
                 tmpFile.dispatchDBlock = "NULL"
-            elif (
-                tmpJob.computingSite == siteMapper.getCloud(tmpJob.getCloud())["source"]
-                or tmpSiteSpec.ddm_input[scope_association_site_input] == tmpSrcSpec.ddm_input[scope_association_src_input]
-            ):
+            elif tmpJob.computingSite == siteMapper.getCloud(tmpJob.getCloud())["source"]:
                 # use DDM prestage only for on-tape files
                 if len(tmpTapeEndPoints) > 0 and tmpFile.lfn in okFiles:
                     tapeOnly = True
@@ -551,9 +538,6 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
                         if siteMapper.checkCloud(previousCloud):
                             # use cloud sites
                             scanSiteList = siteMapper.getCloud(previousCloud)["sites"]
-                        else:
-                            # use default sites
-                            scanSiteList = siteMapper.getCloud("default")["sites"]
 
                     # the number/size of inputs per job
                     nFilesPerJob = float(totalNumInputs) / float(iJob)
