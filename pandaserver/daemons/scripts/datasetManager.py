@@ -19,11 +19,12 @@ from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.dataservice.finisher import Finisher
 from pandaserver.taskbuffer import EventServiceUtils
 
-# logger
 _logger = PandaLogger().getLogger("datasetManager")
 
+TRANSFER_TIMEOUT_HI_PRIORITY = 2
+TRANSFER_TIMEOUT_LO_PRIORITY = 6
 
-# main
+
 def main(tbuf=None, **kwargs):
     _logger.debug("===================== start =====================")
 
@@ -724,17 +725,10 @@ def main(tbuf=None, **kwargs):
                         if endTime == "NULL":
                             endTime = job.startTime
                         # priority-dependent timeout
-                        tmpCloudSpec = siteMapper.getCloud(job.cloud)
                         if job.currentPriority >= 800 and (job.prodSourceLabel not in ["user"]):
-                            if "transtimehi" in tmpCloudSpec:
-                                timeOutValue = tmpCloudSpec["transtimehi"]
-                            else:
-                                timeOutValue = 1
+                            timeOutValue = TRANSFER_TIMEOUT_HI_PRIORITY
                         else:
-                            if "transtimelo" in tmpCloudSpec:
-                                timeOutValue = tmpCloudSpec["transtimelo"]
-                            else:
-                                timeOutValue = 2
+                            timeOutValue = TRANSFER_TIMEOUT_LO_PRIORITY
                         # protection
                         if timeOutValue < 1:
                             timeOutValue = 1
