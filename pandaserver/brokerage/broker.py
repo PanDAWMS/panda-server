@@ -142,27 +142,22 @@ def _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog):
                 # cached file
                 tmpFile.status = "cached"
                 tmpFile.dispatchDBlock = "NULL"
-            elif tmpJob.computingSite == siteMapper.getCloud(tmpJob.getCloud())["source"]:
-                # use DDM prestage only for on-tape files
-                if len(tmpTapeEndPoints) > 0 and tmpFile.lfn in okFiles:
-                    tapeOnly = True
-                    tapeCopy = False
-                    for tmpSE in okFiles[tmpFile.lfn]:
-                        if tmpSE not in tmpTapeEndPoints:
-                            tapeOnly = False
-                        else:
-                            # there is a tape copy
-                            tapeCopy = True
-
-                    # trigger prestage when disk copy doesn't exist or token is TAPE
-                    if tapeOnly or (tapeCopy and tmpFile.dispatchDBlockToken in ["ATLASDATATAPE", "ATLASMCTAPE"]):
-                        allOK = False
+            # use DDM prestage only for on-tape files
+            elif len(tmpTapeEndPoints) > 0 and tmpFile.lfn in okFiles:
+                tapeOnly = True
+                tapeCopy = False
+                for tmpSE in okFiles[tmpFile.lfn]:
+                    if tmpSE not in tmpTapeEndPoints:
+                        tapeOnly = False
                     else:
-                        # set ready
-                        tmpFile.status = "ready"
-                        tmpFile.dispatchDBlock = "NULL"
+                        # there is a tape copy
+                        tapeCopy = True
+
+                # trigger prestage when disk copy doesn't exist or token is TAPE
+                if tapeOnly or (tapeCopy and tmpFile.dispatchDBlockToken in ["ATLASDATATAPE", "ATLASMCTAPE"]):
+                    allOK = False
                 else:
-                    # set ready anyway even if LFC is down. i.e. okFiles doesn't contain the file
+                    # set ready
                     tmpFile.status = "ready"
                     tmpFile.dispatchDBlock = "NULL"
             else:
@@ -694,40 +689,6 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
                                 },
                             )
 
-                            if tmpSiteSpec.space:
-                                # production
-                                # take assigned/activated/running jobs into account for production
-                                nJobsIn = float(jobStatistics[site]["assigned"])
-                                nJobsOut = float(jobStatistics[site]["activated"] + jobStatistics[site]["running"])
-                                # get remaining space and threshold
-                                if site == siteMapper.getCloud(previousCloud)["source"]:
-                                    # T1
-                                    remSpace = float(tmpSiteSpec.space) - 0.2 * nJobsOut
-                                    remSpace = int(remSpace)
-                                    diskThreshold = diskThresholdT1
-                                else:
-                                    # T2
-                                    remSpace = float(tmpSiteSpec.space) - 0.2 * nJobsOut - 2.0 * nJobsIn
-                                    remSpace = int(remSpace)
-                                    diskThreshold = diskThresholdT2
-
-                                tmpLog.debug(f"   space available={tmpSiteSpec.space} remain={remSpace}")
-                                if remSpace < diskThreshold:
-                                    tmpLog.debug(f"  skip: disk shortage < {diskThreshold}")
-                                    resultsForAnal["disk"].append(site)
-                                    # keep message to logger
-                                    try:
-                                        if prevSourceLabel in [
-                                            "managed",
-                                            "test",
-                                        ]:
-                                            # make message
-                                            message = f"{site} - disk {remSpace} < {diskThreshold}"
-                                            if message not in loggerMessages:
-                                                loggerMessages.append(message)
-                                    except Exception:
-                                        pass
-                                    continue
                             # get the process group
                             tmpProGroup = ProcessGroups.getProcessGroup(prevProType)
                             if prevProType in skipBrokerageProTypes:
@@ -1087,19 +1048,11 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
                     job.cloud = chosen_ce.cloud
             # set destinationSE
             destSE = job.destinationSE
-            if siteMapper.checkCloud(job.getCloud()):
-                # use cloud dest for non-exsiting sites
-                if job.prodSourceLabel != "user" and job.destinationSE not in siteMapper.siteSpecList and job.destinationSE != "local":
-                    if DataServiceUtils.checkJobDestinationSE(job) is not None:
-                        destSE = DataServiceUtils.checkJobDestinationSE(job)
-                    else:
-                        destSE = siteMapper.getCloud(job.getCloud())["dest"]
-                    job.destinationSE = destSE
-
             if overwriteSite:
                 # overwrite SE for analysis jobs which set non-existing sites
                 destSE = job.computingSite
                 job.destinationSE = destSE
+
             # set dispatchDBlock and destinationSE
             first = True
             for file in job.Files:

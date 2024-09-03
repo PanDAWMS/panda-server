@@ -202,9 +202,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             # dynamic data placement for analysis jobs
             self.memory_check()
             self.dynamic_data_placement()
-            # make subscription for missing
-            self.memory_check()
-            self.make_subscription_for_missing()
             self.memory_check()
             self.logger.debug("end postRun()")
         except Exception:
@@ -1821,62 +1818,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         # insert datasets to DB
         self.task_buffer.insertDatasets(disp_list)
         self.logger.debug("finished to make dis datasets for existing files")
-        return
-
-    # make Nucleus subscription for missing files
-    def make_subscription_for_missing(self) -> None:
-        """
-        Make subscription for missing method for running the setup process.
-        """
-        self.logger.debug("make subscriptions for missing files")
-        # collect datasets
-        missing_list = {}
-        for tmp_cloud, tmp_miss_datasets in self.missing_dataset_list.items():
-            # append cloud
-            if tmp_cloud not in missing_list:
-                missing_list[tmp_cloud] = []
-            # loop over all datasets
-            for tmp_ds_name in tmp_miss_datasets:
-                tmp_miss_files = tmp_miss_datasets[tmp_ds_name]
-                # check if datasets in container are used
-                if tmp_ds_name.endswith("/"):
-                    # convert container to datasets
-                    tmp_stat, tmp_ds_list = self.get_list_dataset_in_container(tmp_ds_name)
-                    if not tmp_stat:
-                        self.logger.error(f"failed to get datasets in container:{tmp_ds_name}")
-                        continue
-                    # check if each dataset is actually used
-                    for tmp_const_ds_name in tmp_ds_list:
-                        # skip if already checked
-                        if tmp_ds_name in missing_list[tmp_cloud]:
-                            continue
-                        # get files in each dataset
-                        tmp_stat, tmp_files_in_ds = self.get_list_files_in_dataset(tmp_const_ds_name)
-                        if not tmp_stat:
-                            self.logger.error(f"failed to get files in dataset:{tmp_const_ds_name}")
-                            continue
-                        # loop over all files to check the dataset is used
-                        for tmp_lfn in tmp_miss_files:
-                            # append if used
-                            if tmp_lfn in tmp_files_in_ds:
-                                missing_list[tmp_cloud].append(tmp_const_ds_name)
-                                break
-                else:
-                    # append dataset w/o checking
-                    if tmp_ds_name not in missing_list[tmp_cloud]:
-                        missing_list[tmp_cloud].append(tmp_ds_name)
-        # make subscriptions
-        for tmp_cloud, miss_ds_name_list in missing_list.items():
-            # get destination
-            tmp_dst_id = self.site_mapper.getCloud(tmp_cloud)["source"]
-            tmp_dst_spec = self.site_mapper.getSite(tmp_dst_id)
-            scope_input, _ = select_scope(tmp_dst_spec, self.prod_source_label, self.job_label)
-            dst_ddm_id = tmp_dst_spec.ddm_input[scope_input]
-            # register subscription
-            for miss_ds_name in miss_ds_name_list:
-                self.logger.debug(f"make subscription at {dst_ddm_id} for missing {miss_ds_name}")
-                self.make_subscription(miss_ds_name, dst_ddm_id)
-        self.logger.debug("make subscriptions for missing files done")
         return
 
     # make subscription
