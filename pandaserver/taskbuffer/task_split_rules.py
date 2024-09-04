@@ -1,6 +1,7 @@
 # split rules
 split_rule_dict = {
     "allowEmptyInput": "AE",
+    "allowIncompleteInDS": "AI",
     "addNthFieldToLFN": "AN",
     "allowPartialFinish": "AP",
     "altStageOut": "AT",
