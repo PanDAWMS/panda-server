@@ -9465,14 +9465,6 @@ class DBProxy:
                             except Exception:
                                 pass
 
-                        # cloud list
-                        if queue_data.get("cloud") not in ["", None]:
-                            ret.cloudlist = [queue_data["cloud"].split(",")[0]]
-                            if queue_data.get("multicloud") not in ["", None, "None"]:
-                                ret.cloudlist += queue_data["multicloud"].split(",")
-                        else:
-                            ret.cloudlist = []
-
                         # convert releases to list
                         ret.releases = []
                         if queue_data.get("releases"):

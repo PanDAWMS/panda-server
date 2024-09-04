@@ -110,22 +110,13 @@ class SiteMapper:
                     continue
 
                 # append prod site to cloud structure
-                for tmp_cloud in tmp_site_spec.cloudlist:
-                    if tmp_cloud in self.cloudSpec:
-                        if tmp_site_spec.sitename not in self.cloudSpec[tmp_cloud]["sites"]:
-                            self.cloudSpec[tmp_cloud]["sites"].append(tmp_site_spec.sitename)
+                if tmp_site_spec.cloud and tmp_site_spec.cloud in self.cloudSpec:
+                    if tmp_site_spec.sitename not in self.cloudSpec[tmp_site_spec.cloud]["sites"]:
+                        self.cloudSpec[tmp_site_spec.cloud]["sites"].append(tmp_site_spec.sitename)
 
                 # add to WORLD cloud
                 if tmp_site_spec.sitename not in self.worldCloudSpec["sites"]:
                     self.worldCloudSpec["sites"].append(tmp_site_spec.sitename)
-
-            # set the T1 at the beginning of the cloud site lists
-            for cloud_name_tmp, cloud_spec_tmp in self.cloudSpec.items():
-                try:
-                    cloud_spec_tmp["sites"].remove(cloud_spec_tmp["dest"])
-                except Exception:
-                    pass
-                cloud_spec_tmp["sites"].insert(0, cloud_spec_tmp["dest"])
 
             # dump site information in verbose mode and cloud information
             if verbose:

@@ -217,7 +217,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         file_list = {}
         prod_list = []
         prod_error = {}
-        disp_site_map = {}
         disp_error = {}
         back_end_map = {}
         ds_task_map = dict()
@@ -273,27 +272,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             if job.dispatchDBlock != "NULL":
                 # useZipToPin mapping
                 use_zip_to_pin_map[job.dispatchDBlock] = job.useZipToPin()
-                # src/dst sites
-                tmp_src_id = "UNKNOWN"
-                if self.site_mapper.checkCloud(job.getCloud()):
-                    # use cloud's source
-                    tmp_src_id = self.site_mapper.getCloud(job.getCloud())["source"]
 
-                src_site_spec = self.site_mapper.getSite(tmp_src_id)
-                _, scope_src_output = select_scope(src_site_spec, job.prodSourceLabel, job.job_label)
-                src_ddm_id = src_site_spec.ddm_output[scope_src_output]
-                # use src_ddm_id as dst_ddm_id when it is associated to dest
-                dst_site_spec = self.site_mapper.getSite(job.computingSite)
-                scope_dst_input, _ = select_scope(dst_site_spec, job.prodSourceLabel, job.job_label)
-                if dst_site_spec.ddm_endpoints_input[scope_dst_input].isAssociated(src_ddm_id):
-                    dst_ddm_id = src_ddm_id
-                else:
-                    dst_ddm_id = dst_site_spec.ddm_input[scope_dst_input]
-                disp_site_map[job.dispatchDBlock] = {
-                    "src": src_ddm_id,
-                    "dst": dst_ddm_id,
-                    "site": job.computingSite,
-                }
                 # filelist
                 if job.dispatchDBlock not in file_list:
                     file_list[job.dispatchDBlock] = {
@@ -480,7 +459,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         del file_list
         del prod_list
         del prod_error
-        del disp_site_map
 
     # create dataset for outputs in the repository and assign destination
     def setup_destination(self, start_idx: int = -1, n_jobs_in_loop: int = 50) -> None:
