@@ -674,15 +674,6 @@ def main(tbuf=None, **kwargs):
                         seList = [job.destinationSE]
                     elif tmpNucleus is not None:
                         seList = list(tmpNucleus.allDdmEndPoints)
-                    elif siteMapper.checkCloud(job.cloud):
-                        # normal production jobs
-                        if DataServiceUtils.checkJobDestinationSE(job) is None:
-                            tmpDstID = siteMapper.getCloud(job.cloud)["dest"]
-                        else:
-                            tmpDstID = job.destinationSE
-                        tmpDstSite = siteMapper.getSite(tmpDstID)
-                        scope_input, scope_output = select_scope(tmpDstSite, job.prodSourceLabel)
-                        seList = tmpDstSite.ddm_endpoints_output[scope_output].getLocalEndPoints()
                     # get LFN list
                     lfns = []
                     guids = []
@@ -741,7 +732,7 @@ def main(tbuf=None, **kwargs):
                                     strMiss += f" {lfn}"
                             job.jobStatus = "failed"
                             job.taskBufferErrorCode = pandaserver.taskbuffer.ErrorCode.EC_Transfer
-                            job.taskBufferErrorDiag = "transfer timeout for " + strMiss
+                            job.taskBufferErrorDiag = f"transfer timeout for {strMiss}"
                             guidMap = {}
                             for file in job.Files:
                                 # set file status
