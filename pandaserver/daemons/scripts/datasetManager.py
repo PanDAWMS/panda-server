@@ -674,9 +674,11 @@ def main(tbuf=None, **kwargs):
                     elif tmpNucleus is not None:
                         seList = list(tmpNucleus.allDdmEndPoints)
                     elif siteMapper.checkCloud(job.cloud):
+                        _logger.debug(f"Checking cloud {job.cloud}")
                         # normal production jobs
                         if DataServiceUtils.checkJobDestinationSE(job) is None:
                             tmpDstID = siteMapper.getCloud(job.cloud)["dest"]
+                            _logger.debug(f"Set tmpDstID to {tmpDstID}")
                         else:
                             tmpDstID = job.destinationSE
                         tmpDstSite = siteMapper.getSite(tmpDstID)
