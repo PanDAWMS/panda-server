@@ -217,6 +217,7 @@ class Node(object):
     # resolve workload-specific parameters
     def resolve_params(self, task_template=None, id_map=None, workflow=None):
         if self.type in ["prun", "junction", "reana"]:
+            print("********")
             dict_inputs = self.convert_dict_inputs()
             if "opt_secondaryDSs" in dict_inputs:
                 # look for secondaryDsTypes if missing
@@ -230,9 +231,6 @@ class Node(object):
                                 dict_inputs["opt_secondaryDsTypes"].append(parent_node.output_types[0])
                                 added = True
                                 break
-                            # use None if not found
-                            dict_inputs["opt_secondaryDsTypes"].append(None)
-                            added = True
                         if not added:
                             # use None if not found
                             dict_inputs["opt_secondaryDsTypes"].append(None)
