@@ -2185,6 +2185,17 @@ class TaskBuffer:
         # return
         return ret
 
+    # get cloud details
+    def get_cloud_details(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get cloud details
+        ret = proxy.get_cloud_details()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
     # check sites with release/cache
     def checkSitesWithRelease(
         self,
