@@ -9787,7 +9787,7 @@ class DBProxy:
         tmp_log.debug("start")
         try:
             with self.conn:
-                sql = f"SELECT name, tier1, tier1se " f"FROM {panda_config.schemaPANDAMETA}.cloudconfig "
+                sql = f"SELECT name, tier1, tier1se " f"FROM {panda_config.schemaMETA}.cloudconfig "
                 self.cur.arraysize = 100
                 self.cur.execute(sql + comment)
                 results = self.cur.fetchall()
