@@ -100,11 +100,11 @@ class SiteMapper:
                 _logger.error(traceback.format_exc())
 
             # collect nuclei and satellites for main and child sites
-            for site_spec_tmp in self.siteSpecList.values():
-                self.collect_nuclei_and_satellites(site_spec_tmp)
+            for tmp_site_spec in self.siteSpecList.values():
+                self.collect_nuclei_and_satellites(tmp_site_spec)
 
             # group sites by cloud
-            for tmp_site_spec in self.tmp_site_specList.values():
+            for tmp_site_spec in self.siteSpecList.values():
                 # choose only prod or grandly unified sites
                 if not tmp_site_spec.runs_production():
                     continue
