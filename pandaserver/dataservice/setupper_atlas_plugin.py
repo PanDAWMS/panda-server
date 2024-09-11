@@ -821,9 +821,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 missing_at_nucleus = False
                 if job.prodSourceLabel in ["managed", "test"]:
                     for tmp_lfn in self.disp_file_list[job.dispatchDBlock]["lfns"]:
-                        if job.getCloud() not in self.missing_files_in_nucleus:
+                        tmp_cloud = job.getCloud()
+                        if tmp_cloud not in self.missing_files_in_nucleus:
                             break
-                        if tmp_lfn in self.missing_files_in_nucleus[job.getCloud()] or tmp_lfn.split(":")[-1] in self.missing_files_in_nucleus[job.getCloud()]:
+                        if tmp_lfn in self.missing_files_in_nucleus[tmp_cloud] or tmp_lfn.split(":")[-1] in self.missing_files_in_nucleus[tmp_cloud]:
                             missing_at_nucleus = True
                             break
                     tmp_logger.debug(f"{job.dispatchDBlock} missing at Nucleus : {missing_at_nucleus}")
@@ -986,33 +987,14 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             if ddm_ds_list:
                 self.task_buffer.updateDatasets(ddm_ds_list)
 
-    # correct LFN for attemptNr
-    def correct_lfn(self) -> None:
-        """
-        Correct lfn method for running the setup process.
-        """
-
-        tmp_logger = LogWrapper(self.logger, "<method : correct_lfn>")
-
-        lfn_map = {}
-        val_map = {}
-        prod_error = {}
-        missing_ds = {}
-        jobs_waiting = []
-        jobs_failed = []
-        jobs_processed = []
-        all_lfns = {}
-        all_guids = {}
-        all_scopes = {}
-        lfn_ds_map = {}
-        replica_map = {}
-        tmp_logger.debug("start")
+    def collect_input_lfns(self):
         # collect input LFNs
         input_lfns = set()
         for tmp_job in self.jobs:
             for tmp_file in tmp_job.Files:
                 if tmp_file.type == "input":
                     input_lfns.add(tmp_file.lfn)
+                    # Removes attemptNr from LFN name
                     gen_lfn = re.sub("\.\d+$", "", tmp_file.lfn)
                     input_lfns.add(gen_lfn)
                     if tmp_file.GUID not in ["NULL", "", None]:
@@ -1025,6 +1007,33 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             "fsize": tmp_file.fsize,
                             "scope": tmp_file.scope,
                         }
+        return input_lfns
+
+    # correct LFN for attemptNr
+    def correct_lfn(self) -> None:
+        """
+        Correct lfn method for running the setup process.
+        """
+
+        tmp_logger = LogWrapper(self.logger, "<method : correct_lfn>")
+
+        lfn_map = {}
+        val_map = {}
+        prod_error = {}
+        missing_datasets = {}
+        jobs_waiting = []
+        jobs_failed = []
+        jobs_processed = []
+        all_lfns = {}
+        all_guids = {}
+        all_scopes = {}
+        lfn_ds_map = {}
+        replica_map = {}
+        tmp_logger.debug("start")
+
+        # collect input LFNs
+        input_lfns = self.collect_input_lfns()
+
         # loop over all jobs
         for job in self.jobs:
             # check if sitename is known
@@ -1034,7 +1043,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 job.ddmErrorDiag = f"computingSite:{job.computingSite} is unknown"
                 # append job for downstream process
                 jobs_processed.append(job)
-                # error message for TA
                 continue
             # ignore no prodDBlock jobs or container dataset
             if job.prodDBlock == "NULL":
@@ -1072,32 +1080,40 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 jobs_failed.append(job)
                 continue
 
-            # collect datasets
+            # collect datasets and missing files
             datasets = []
             for file in job.Files:
+                # make a list of input datasets
                 if file.type == "input" and file.dispatchDBlock == "NULL" and (file.GUID == "NULL" or job.prodSourceLabel in ["managed", "test", "ptest"]):
                     if file.dataset not in datasets:
                         datasets.append(file.dataset)
+
+                # make a map of LFNs that are missing per cloud/nucleus
                 if src_ddm_id == dst_ddm_id and file.type == "input" and job.prodSourceLabel in ["managed", "test", "ptest"] and file.status != "ready":
                     cloud = job.getCloud()
                     self.missing_files_in_nucleus.setdefault(cloud, set()).add(file.lfn)
 
-            # get LFN list
+            # get file information for the LFNs
             for dataset in datasets:
+                # make a dataset to lfn map
                 if dataset not in lfn_map:
                     prod_error[dataset] = ""
                     lfn_map[dataset] = {}
-                    # get LFNs
+
+                    # get the file information (size, checksum, ...) for the selected LFNs
                     status, out = self.get_list_files_in_dataset(dataset, input_lfns)
+                    # issue getting the files in dataset
                     if status != 0:
                         tmp_logger.error(out)
-                        prod_error[dataset] = f"could not get file list of prodDBlock {dataset}"
-                        tmp_logger.error(prod_error[dataset])
-                        # doesn't exist in DDM
+                        error_message = f"could not get file list of prodDBlock {dataset}"
+                        prod_error[dataset] = error_message
+                        tmp_logger.error(error_message)
+                        # doesn't exist in DDM, record it as missing
                         if status == -1:
-                            missing_ds[dataset] = f"DS:{dataset} not found in DDM"
+                            missing_datasets[dataset] = f"DS:{dataset} not found in DDM"
                         else:
-                            missing_ds[dataset] = out
+                            missing_datasets[dataset] = out
+                    # issue getting the files in dataset
                     else:
                         # make map (key: LFN w/o attemptNr, value: LFN with attemptNr)
                         items = out
@@ -1106,6 +1122,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             for tmp_lfn in items:
                                 vals = items[tmp_lfn]
                                 val_map[tmp_lfn] = vals
+                                # Removes attemptNr from LFN name
                                 gen_lfn = re.sub("\.\d+$", "", tmp_lfn)
                                 if gen_lfn in lfn_map[dataset]:
                                     # get attemptNr
@@ -1128,6 +1145,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             prod_error[dataset] = f"could not convert HTTP-res to map for prodDBlock {dataset}"
                             tmp_logger.error(prod_error[dataset])
                             tmp_logger.error(out)
+
                     # get replica locations
                     if (job.prodSourceLabel in ["managed", "test"]) and prod_error[dataset] == "" and dataset not in replica_map:
                         if dataset.endswith("/"):
@@ -1140,29 +1158,34 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             tmp_logger.error(out)
                         else:
                             replica_map[dataset] = out
-                            # append except DBR
+                            # append except DBRelease dataset
                             if not dataset.startswith("ddo"):
                                 self.replica_map_for_broker[dataset] = out
-            # error
+
+            # mark job with a missing dataset as failed and update files as missing
             is_failed = False
-            # check for failed
             for dataset in datasets:
-                if dataset in missing_ds:
+                if dataset in missing_datasets:
                     job.jobStatus = "failed"
                     job.ddmErrorCode = ErrorCode.EC_GUID
-                    job.ddmErrorDiag = missing_ds[dataset]
+                    job.ddmErrorDiag = missing_datasets[dataset]
+
                     # set missing
                     for tmp_file in job.Files:
                         if tmp_file.dataset == dataset:
                             tmp_file.status = "missing"
-                    # append
+
+                    # append to job_failed
                     jobs_failed.append(job)
                     is_failed = True
-                    tmp_logger.debug(f"{job.PandaID} failed with {missing_ds[dataset]}")
+                    tmp_logger.debug(f"{job.PandaID} failed with {missing_datasets[dataset]}")
                     break
+            # skip to the next job
             if is_failed:
                 continue
-            # check for waiting
+
+            # check for waiting jobs
+            is_failed = False
             for dataset in datasets:
                 if prod_error[dataset] != "":
                     # append job to waiting list
@@ -1171,6 +1194,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     break
             if is_failed:
                 continue
+
             # replace generic LFN with real LFN
             replace_list = []
             is_failed = False
@@ -1202,6 +1226,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     else:
                         if job.prodSourceLabel not in ["managed", "test"]:
                             add_to_lfn_map = False
+
                     # check missing file
                     if file.GUID == "NULL" or job.prodSourceLabel in [
                         "managed",
@@ -1219,26 +1244,28 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                 jobs_failed.append(job)
                                 is_failed = True
                             continue
+
                     # add to all_lfns/all_guids
                     if add_to_lfn_map:
-                        all_lfns.setdefault(job.getCloud(), [])
-                        all_guids.setdefault(job.getCloud(), [])
-                        all_scopes.setdefault(job.getCloud(), [])
-                        all_lfns[job.getCloud()].append(file.lfn)
-                        all_guids[job.getCloud()].append(file.GUID)
-                        all_scopes[job.getCloud()].append(file.scope)
+                        tmp_cloud = job.getCloud()
+                        all_lfns.setdefault(tmp_cloud, []).append(file.lfn)
+                        all_guids.setdefault(tmp_cloud, []).append(file.GUID)
+                        all_scopes.setdefault(tmp_cloud, []).append(file.scope)
+
             # modify jobParameters
             if not is_failed:
                 for patt, repl in replace_list:
                     job.jobParameters = re.sub(f"{patt} ", f"{repl} ", job.jobParameters)
                 # append job to processed list
                 jobs_processed.append(job)
+
         # set data summary fields
         for tmp_job in self.jobs:
             try:
                 # set only for production/analysis/test
                 if tmp_job.prodSourceLabel not in ["managed", "test", "user", "prod_test"] + JobUtils.list_ptest_prod_sources:
                     continue
+
                 # loop over all files
                 tmp_job.nInputDataFiles = 0
                 tmp_job.inputFileBytes = 0
@@ -1270,12 +1297,14 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             except Exception:
                 error_type, error_value = sys.exc_info()[:2]
                 tmp_logger.error(f"failed to set data summary fields for PandaID={tmp_job.PandaID}: {error_type} {error_value}")
+
         # send jobs to jobs_waiting
         self.task_buffer.keepJobs(jobs_waiting)
         # update failed job
         self.update_failed_jobs(jobs_failed)
         # remove waiting/failed jobs
         self.jobs = jobs_processed
+
         # delete huge variables
         del lfn_map
         del val_map
