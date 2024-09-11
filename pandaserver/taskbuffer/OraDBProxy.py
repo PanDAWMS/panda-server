@@ -9776,6 +9776,34 @@ class DBProxy:
             self._rollback()
             return []
 
+    def get_cloud_details(self):
+        """
+        This is a temporary function, while we see how we can remove the leftovers
+        """
+        comment = " /* DBProxy.get_cloud_details */"
+        method_name = comment.split(" ")[-2].split(".")[-1]
+
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        try:
+            with self.conn:
+                sql = f"SELECT name, tier1, tier1se " f"FROM {panda_config.schemaPANDAMETA}.cloudconfig "
+                self.cur.arraysize = 100
+                self.cur.execute(sql + comment)
+                results = self.cur.fetchall()
+                cloud_map = {}
+                for result in results:
+                    name, tier1, tier1_se = result
+                    cloud_map[name] = {"tier1": tier1, "tier1SE": re.sub(" ", "", tier1_se).split(",")}
+
+            tmp_log.debug("done")
+            return cloud_map
+        except Exception:
+            type, value, traceBack = sys.exc_info()
+            tmp_log.error(f"failed with: {type} {value}")
+            self._rollback()
+            return {}
+
     # check sites with release/cache
     def checkSitesWithRelease(
         self,
