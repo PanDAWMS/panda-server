@@ -9748,7 +9748,7 @@ class DBProxy:
         """
         Get a list of distinct cloud names from the database.
         """
-        comment = " /* DBProxy.getCloudList */"
+        comment = " /* DBProxy.get_cloud_list */"
         method_name = comment.split(" ")[-2].split(".")[-1]
 
         tmp_log = LogWrapper(_logger, method_name)
