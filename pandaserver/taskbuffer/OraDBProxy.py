@@ -9756,12 +9756,12 @@ class DBProxy:
         try:
             with self.conn:
                 sql = (
-                    "SELECT DISTINCT sj.data.cloud AS cloud "
-                    "FROM atlas_panda.schedconfig_json sj "
-                    "UNION "
-                    "SELECT 'WORLD' AS cloud "
-                    "FROM dual "
-                    "ORDER BY cloud"
+                    f"SELECT /* use_json_type */ DISTINCT sj.data.cloud AS cloud "
+                    f"FROM {panda_config.schemaPANDA}.schedconfig_json sj "
+                    f"UNION "
+                    f"SELECT 'WORLD' AS cloud "
+                    f"FROM dual "
+                    f"ORDER BY cloud"
                 )
                 self.cur.arraysize = 100
                 self.cur.execute(sql + comment)
