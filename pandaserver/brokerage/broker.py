@@ -589,17 +589,17 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
                             tmpLog.debug(f"   status={tmpSiteSpec.status}")
                             # check core count
                             if tmpSiteSpec.coreCount > 1:
-                                # use multi-core queue for MP jobs
+                                # use multi-core queue only for multi-core jobs
                                 if prevCoreCount not in [None, "NULL"] and prevCoreCount > 1:
                                     pass
                                 else:
-                                    tmpLog.debug(f"  skip: MP site ({tmpSiteSpec.coreCount} core) for job.coreCount={prevCoreCount}")
+                                    tmpLog.debug(f"  skip: multi-core site ({tmpSiteSpec.coreCount} core) for job.coreCount={prevCoreCount}")
                                     resultsForAnal["cpucore"].append(site)
                                     continue
                             else:
-                                # use single core for non-MP jobs
+                                # use single-core for single-core jobs
                                 if prevCoreCount not in [None, "NULL"] and prevCoreCount > 1:
-                                    tmpLog.debug(f"  skip: single core site ({tmpSiteSpec.coreCount} core) for job.coreCount={prevCoreCount}")
+                                    tmpLog.debug(f"  skip: single-core site ({tmpSiteSpec.coreCount} core) for job.coreCount={prevCoreCount}")
                                     resultsForAnal["cpucore"].append(site)
                                     continue
                             # check max memory
