@@ -674,6 +674,7 @@ def main(tbuf=None, **kwargs):
                         seList = [job.destinationSE]
                     elif tmpNucleus is not None:
                         seList = list(tmpNucleus.allDdmEndPoints)
+
                     # get LFN list
                     lfns = []
                     guids = []

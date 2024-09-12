@@ -519,7 +519,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 statsPerShare.setdefault(gshare, {"nq": 0, "nr": 0})
                 statsPerPQ.setdefault(computingSite, {})
                 statsPerPQ[computingSite].setdefault(gshare, {"nq": 0, "nr": 0})
-                if jobStatus in ["definied", "assigned", "activated", "starting"]:
+                if jobStatus in ["defined", "assigned", "activated", "starting"]:
                     statsPerPQ[computingSite][gshare]["nq"] += nJobs
                     statsPerShare[gshare]["nq"] += nJobs
                 elif jobStatus == "running":
@@ -728,6 +728,26 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             _logger.debug(f"reassignJobs for JEDI defined jobs ({jediJobs[iJob:iJob + nJob]})")
             Client.killJobs(jediJobs[iJob : iJob + nJob], 51, keepUnmerged=True)
             iJob += nJob
+
+    # reassign stalled defined build and non-JEDI jobs
+    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=timeoutValue)
+    varMap = {}
+    varMap[":jobStatus"] = "defined"
+    varMap[":prodSourceLabel_p"] = "panda"
+    varMap[":timeLimit"] = timeLimit
+    status, res = taskBuffer.querySQLS(
+        "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE ((prodSourceLabel=:prodSourceLabel_p AND transformation LIKE '%build%') OR "
+        "lockedBy IS NULL) AND jobStatus=:jobStatus AND creationTime<:timeLimit ORDER BY PandaID",
+        varMap,
+    )
+    jobs = []
+    if res is not None:
+        for (id,) in res:
+            jobs.append(id)
+    # kill
+    if len(jobs):
+        Client.killJobs(jobs, 2)
+        _logger.debug(f"reassign stalled defined build and non-JEDI jobs with timeout {timeoutValue}min ({str(jobs)})")
 
     # reassign long-waiting jobs in defined table
     timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)

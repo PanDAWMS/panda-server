@@ -230,9 +230,6 @@ class Node(object):
                                 dict_inputs["opt_secondaryDsTypes"].append(parent_node.output_types[0])
                                 added = True
                                 break
-                            # use None if not found
-                            dict_inputs["opt_secondaryDsTypes"].append(None)
-                            added = True
                         if not added:
                             # use None if not found
                             dict_inputs["opt_secondaryDsTypes"].append(None)

@@ -1300,7 +1300,7 @@ class TaskBuffer:
                 tmpPars = tmpJob.jobParameters.split("\n")
                 tmpTrfs = tmpJob.transformation.split("\n")
             if not (len(tmpRels) == len(tmpPars) == len(tmpTrfs)):
-                return "ERROR: The number of releases or parameters or trfs is inconsitent with others"
+                return "ERROR: The number of releases or parameters or trfs is inconsistent with others"
             # construct script
             scrStr = "#retrieve inputs\n\n"
             # collect inputs
@@ -1315,11 +1315,7 @@ class TaskBuffer:
             for tmpDS in dsFileMap:
                 tmpFileList = dsFileMap[tmpDS]
                 for tmpLFN in tmpFileList:
-                    scrStr += "rucio download "
-                    scrStr += f"{tmpLFN}\n"
-                    # ln
-                    tmpScope, tmpBareLFN = tmpLFN.split(":")
-                    scrStr += f"ln -fs {tmpScope}/{tmpBareLFN} ./{tmpBareLFN}\n"
+                    scrStr += f"rucio download {tmpLFN} --no-subdir\n"
             if isUser:
                 scrStr += "\n#get trf\n"
                 scrStr += f"wget {tmpTrfs[0]}\n"
@@ -1833,6 +1829,13 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         # return
         return retList
+
+    # trigger cleanup of internal datasets used by a task
+    def trigger_cleanup_internal_datasets(self, task_id: int) -> bool:
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.trigger_cleanup_internal_datasets(task_id)
+        self.proxyPool.putProxy(proxy)
+        return ret
 
     # delete dataset
     def deleteDatasets(self, datasets):

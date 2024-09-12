@@ -2033,6 +2033,7 @@ def changeTaskSplitRulePanda(req, jediTaskID, attrName, attrValue):
         return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     # check attribute
     if attrName not in [
+        "AI",
         "TW",
         "EC",
         "ES",

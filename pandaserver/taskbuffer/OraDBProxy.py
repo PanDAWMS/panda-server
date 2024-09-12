@@ -6690,6 +6690,43 @@ class DBProxy:
             _logger.error(f"deleteDataset() : {type} {value}")
             return False
 
+    # trigger cleanup of internal datasets used by a task
+    def trigger_cleanup_internal_datasets(self, task_id: int) -> bool:
+        """
+        Set deleting flag to dispatch datasets used by a task, which triggers deletion in datasetManager
+        """
+        comment = " /* DBProxy.trigger_cleanup_internal_datasets */"
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        tmp_log = LogWrapper(_logger, f"{method_name} < jediTaskID={task_id} >")
+        tmp_log.debug("start")
+        sql1 = (
+            f"UPDATE {panda_config.schemaPANDA}.Datasets SET status=:newStatus,modificationdate=CURRENT_DATE "
+            "WHERE type=:type AND MoverID=:taskID AND status IN (:status_d,:status_c) "
+        )
+        try:
+            # start transaction
+            self.conn.begin()
+            # update
+            var_map = {
+                ":type": "dispatch",
+                ":newStatus": "deleting",
+                ":taskID": task_id,
+                ":status_d": "defined",
+                ":status_c": "completed",
+            }
+            self.cur.execute(sql1 + comment, var_map)
+            ret_u = self.cur.rowcount
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmp_log.debug(f"set flag to {ret_u} dispatch datasets")
+            return True
+        except Exception:
+            # roll back
+            self._rollback()
+            self.dumpErrorMessage(_logger, method_name)
+            return False
+
     # get serial number for dataset, insert dummy datasets to increment SN
     def getSerialNumber(self, datasetname, definedFreshFlag=None):
         comment = " /* DBProxy.getSerialNumber */"
@@ -11961,7 +11998,7 @@ class DBProxy:
                 tmpResNumDone = self.cur.fetchone()
                 if tmpResNumDone is not None:
                     (numDone,) = tmpResNumDone
-                    if numDone in [100]:
+                    if numDone in [5, 100]:
                         # reset walltimeUnit to recalcurate task parameters
                         varMap = {}
                         varMap[":jediTaskID"] = jobSpec.jediTaskID
