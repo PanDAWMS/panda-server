@@ -368,8 +368,6 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
         nWNmap = {}
         indexJob = 0
 
-        diskThresholdT1 = 20 * 1024
-        diskThresholdT2 = 200
         prestageSites = []
 
         # check if only JEDI

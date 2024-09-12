@@ -80,7 +80,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         """
         Main method for running the setup process.
         """
-        tmp_logger = LogWrapper(self.logger, "<method : run>")
+        tmp_logger = LogWrapper(self.logger, "<run>")
         try:
             tmp_logger.debug("start")
             self.memory_check()
@@ -200,7 +200,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         """
         Post run method for running the setup process.
         """
-        tmp_logger = LogWrapper(self.logger, "<method : post_run>")
+        tmp_logger = LogWrapper(self.logger, "<post_run>")
         try:
             tmp_logger.debug("start")
             self.memory_check()
@@ -225,7 +225,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         Transfer input to satellite
         """
 
-        tmp_logger = LogWrapper(self.logger, "<method : setup_source>")
+        tmp_logger = LogWrapper(self.logger, "<setup_source>")
 
         file_list = {}
         prod_list = []
@@ -485,7 +485,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         :param start_idx: The starting index for the jobs to be processed. Defaults to -1.
         :param n_jobs_in_loop: The number of jobs to be processed in a loop. Defaults to 50.
         """
-        tmp_logger = LogWrapper(self.logger, "<method : setup_destination>")
+        tmp_logger = LogWrapper(self.logger, "<setup_destination>")
         tmp_logger.debug(f"idx:{start_idx} n:{n_jobs_in_loop}")
 
         dest_error = {}
@@ -788,7 +788,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         """
         Subscribe dispatch db method for running the setup process.
         """
-        tmp_logger = LogWrapper(self.logger, "<method : subscribe_dispatch_data_block>")
+        tmp_logger = LogWrapper(self.logger, "<subscribe_dispatch_data_block>")
 
         disp_error = {}
         failed_jobs = []
@@ -998,7 +998,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         Correct lfn method for running the setup process.
         """
 
-        tmp_logger = LogWrapper(self.logger, "<method : correct_lfn>")
+        tmp_logger = LogWrapper(self.logger, "<correct_lfn>")
 
         lfn_map = {}
         val_map = {}
@@ -1319,7 +1319,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         """
         Memory check method for running the setup process.
         """
-        tmp_logger = LogWrapper(self.logger, "<method : memory_check>")
+        tmp_logger = LogWrapper(self.logger, "<memory_check>")
 
         try:
             proc_status = f"/proc/{os.getpid()}/status"
@@ -1361,7 +1361,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         :return: A tuple containing the status and the list of files.
         """
 
-        tmp_logger = LogWrapper(self.logger, "<method : get_list_files_in_dataset>")
+        tmp_logger = LogWrapper(self.logger, "<get_list_files_in_dataset>")
 
         # use cache data
         if use_cache and dataset in self.lfn_dataset_map:
@@ -1397,7 +1397,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         :return: A tuple containing a boolean indicating the status and the list of datasets.
         """
 
-        tmp_logger = LogWrapper(self.logger, "<method : get_list_dataset_in_container>")
+        tmp_logger = LogWrapper(self.logger, "<get_list_dataset_in_container>")
 
         # get datasets in container
         tmp_logger.debug(container)
@@ -1419,7 +1419,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         :param get_map: Whether to get the map. Defaults to False.
         :return: A tuple containing the status and the map of dataset replicas.
         """
-        tmp_logger = LogWrapper(self.logger, "<method : get_list_dataset_replicas_in_container>")
+        tmp_logger = LogWrapper(self.logger, "<get_list_dataset_replicas_in_container>")
         tmp_logger.debug(container)
 
         datasets = None
@@ -1491,7 +1491,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         :return: A tuple containing a boolean indicating the status and the map of dataset replicas.
         """
 
-        tmp_logger = LogWrapper(self.logger, "<method : get_list_dataset_replicas>")
+        tmp_logger = LogWrapper(self.logger, "<get_list_dataset_replicas>")
 
         out = ""
         for attempt in range(3):
@@ -1638,7 +1638,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         Returns a list of datasets to be inserted into the database.
         """
 
-        tmp_logger = LogWrapper(self.logger, "<method : create_dispatch_datasets>")
+        tmp_logger = LogWrapper(self.logger, "<create_dispatch_datasets>")
 
         # loop over all locations
         disp_list = []
@@ -1792,7 +1792,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         """
         Make dis datasets for existing files method for running the setup process.
         """
-        tmp_logger = LogWrapper(self.logger, "<method : make_dis_datasets_for_existing_files>")
+        tmp_logger = LogWrapper(self.logger, "<make_dis_datasets_for_existing_files>")
         tmp_logger.debug("start")
 
         # collect existing files
@@ -1815,7 +1815,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         :return: A boolean indicating whether the subscription was made successfully.
         """
         ret_failed = False
-        tmp_logger = LogWrapper(self.logger, "<method : make_subscription>")
+        tmp_logger = LogWrapper(self.logger, "<make_subscription>")
         tmp_logger.debug(f"register_dataset_subscription {dataset} {ddm_id}")
         for _ in range(3):
             try:
@@ -1842,7 +1842,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         Setup jumbo jobs method for running the setup process.
         """
 
-        tmp_logger = LogWrapper(self.logger, "<method : setup_jumbo_jobs>")
+        tmp_logger = LogWrapper(self.logger, "<setup_jumbo_jobs>")
 
         if len(self.jumbo_jobs) == 0:
             return
