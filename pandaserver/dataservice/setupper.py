@@ -70,8 +70,8 @@ class Setupper(threading.Thread):
         :return: None
         """
         try:
-            # make a message instance
-            tmp_log = LogWrapper(_logger, "<method : run>")
+            # prefix: None will trigger to use a timestamp as prefix, which is used to group runs
+            tmp_log = LogWrapper(_logger, None)
             # run main procedure in the same process
             tmp_log.debug("start")
             tmp_log.debug(f"first_submission={self.first_submission}")
