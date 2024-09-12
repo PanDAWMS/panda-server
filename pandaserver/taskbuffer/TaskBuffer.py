@@ -182,6 +182,7 @@ class TaskBuffer:
         esJobsetMap=None,
         getEsJobsetMap=False,
         unprocessedMap=None,
+        bulk_job_insert=False,
     ):
         try:
             tmpLog = LogWrapper(_logger, f"storeJobs <{CoreUtils.clean_user_id(user)}>")
@@ -347,6 +348,8 @@ class TaskBuffer:
             totalNumFiles = 0
             for job in jobs:
                 totalNumFiles += len(job.Files)
+            # bulk fetch PandaIDs
+            new_panda_ids = proxy.bulk_fetch_panda_ids(len(jobs))
             # bulk fetch fileIDs
             fileIDPool = []
             if totalNumFiles > 0:
@@ -354,7 +357,6 @@ class TaskBuffer:
             # loop over all jobs
             ret = []
             newJobs = []
-            firstLiveLog = True
             nRunJob = 0
             if esJobsetMap is None:
                 esJobsetMap = {}
@@ -362,7 +364,13 @@ class TaskBuffer:
                 tmpLog.debug(f"jediTaskID={jobs[0].jediTaskID} len(esJobsetMap)={len(esJobsetMap)} nJobs={len(jobs)}")
             except Exception:
                 pass
+            job_ret_list = []
+            params_for_bulk_insert = []
+            special_handling_list = []
+            num_original_event_service_jobs = 0
             for idxJob, job in enumerate(jobs):
+                # set PandaID
+                job.PandaID = new_panda_ids[idxJob]
                 # set JobID. keep original JobID when retry
                 if (
                     userJobID != -1
@@ -478,6 +486,7 @@ class TaskBuffer:
                         job.jobsetID = esJobsetMap[esIndex]
                     else:
                         origEsJob = True
+                        num_original_event_service_jobs += 1
                     # sort files since file order is important for positional event number
                     job.sortFiles()
                 if oldPandaIDs is not None and len(oldPandaIDs) > idxJob:
@@ -494,56 +503,76 @@ class TaskBuffer:
                 if not isOK:
                     # skip since there is no ready event
                     job.PandaID = None
-                tmpRetI = proxy.insertNewJob(
-                    job,
-                    user,
-                    serNum,
-                    weight,
-                    priorityOffset,
-                    userVO,
-                    groupJobSerialNum,
-                    toPending,
-                    origEsJob,
-                    eventServiceInfo,
-                    oldPandaIDs=jobOldPandaIDs,
-                    relationType=relationType,
-                    fileIDPool=fileIDPool,
-                    origSpecialHandling=origSH,
-                    unprocessedMap=unprocessedMap,
-                    prio_reduction=prio_reduction,
-                )
-                if unprocessedMap is not None:
-                    tmpRetI, unprocessedMap = tmpRetI
-                if not tmpRetI:
-                    # reset if failed
-                    job.PandaID = None
+                if not bulk_job_insert:
+                    tmp_ret_i = proxy.insertNewJob(
+                        job,
+                        user,
+                        serNum,
+                        weight,
+                        priorityOffset,
+                        userVO,
+                        groupJobSerialNum,
+                        toPending,
+                        origEsJob,
+                        eventServiceInfo,
+                        oldPandaIDs=jobOldPandaIDs,
+                        relationType=relationType,
+                        fileIDPool=fileIDPool,
+                        origSpecialHandling=origSH,
+                        unprocessedMap=unprocessedMap,
+                        prio_reduction=prio_reduction,
+                    )
+                    if unprocessedMap is not None:
+                        tmp_ret_i, unprocessedMap = tmp_ret_i
                 else:
-                    # live log
-                    if job.prodSourceLabel in JobUtils.analy_sources:
-                        if " --liveLog " in job.jobParameters:
-                            # enable liveLog only for the first one
-                            if firstLiveLog:
-                                # set file name
-                                repPatt = f" --liveLog stdout.{job.PandaID} "
-                            else:
-                                # remove the option
-                                repPatt = " "
-                            job.jobParameters = re.sub(" --liveLog ", repPatt, job.jobParameters)
-                            firstLiveLog = False
-                    # append
-                    newJobs.append(job)
+                    # keep parameters for late bulk execution
+                    params_for_bulk_insert.append(
+                        [
+                            [job, user, serNum, weight, priorityOffset, userVO, groupJobSerialNum, toPending, origEsJob, eventServiceInfo],
+                            {
+                                "oldPandaIDs": jobOldPandaIDs,
+                                "relationType": relationType,
+                                "fileIDPool": fileIDPool,
+                                "origSpecialHandling": origSH,
+                                "unprocessedMap": unprocessedMap,
+                                "prio_reduction": prio_reduction,
+                            },
+                        ]
+                    )
+                    special_handling_list.append(origSH)
+                    tmp_ret_i = True
+                if tmp_ret_i and origEsJob:
                     # mapping of jobsetID for event service
-                    if origEsJob:
-                        esJobsetMap[esIndex] = job.jobsetID
-                if job.prodSourceLabel in JobUtils.analy_sources + JobUtils.list_ptest_prod_sources:
-                    ret.append((job.PandaID, job.jobDefinitionID, {"jobsetID": job.jobsetID}))
-                else:
-                    ret.append((job.PandaID, job.jobDefinitionID, job.jobName))
+                    esJobsetMap[esIndex] = job.jobsetID
+                job_ret_list.append([job, tmp_ret_i])
                 serNum += 1
                 try:
                     fileIDPool = fileIDPool[len(job.Files) :]
                 except Exception:
                     fileIDPool = []
+            # bulk insert
+            if bulk_job_insert:
+                # get jobset IDs for event service jobs
+                if num_original_event_service_jobs > 0:
+                    new_jobset_ids = proxy.bulk_fetch_panda_ids(num_original_event_service_jobs)
+                else:
+                    new_jobset_ids = []
+                tmp_ret, job_ret_list = proxy.bulk_insert_new_jobs(jobs[0].jediTaskID, params_for_bulk_insert, new_jobset_ids, special_handling_list)
+                if not tmp_ret:
+                    raise RuntimeError("bulk job insert failed")
+
+            # check returns
+            for job, tmp_ret_i in job_ret_list:
+                if not tmp_ret_i:
+                    # reset if failed
+                    job.PandaID = None
+                else:
+                    # append
+                    newJobs.append(job)
+                if job.prodSourceLabel in JobUtils.analy_sources + JobUtils.list_ptest_prod_sources:
+                    ret.append((job.PandaID, job.jobDefinitionID, {"jobsetID": job.jobsetID}))
+                else:
+                    ret.append((job.PandaID, job.jobDefinitionID, job.jobName))
             # release DB proxy
             self.proxyPool.putProxy(proxy)
             # set up dataset

@@ -23,7 +23,7 @@ class SQLDumper(object):
     def my_executemany(self, sql, vars=None):
         if vars is None:
             vars = []
-        _logger.debug(f"SQL={sql} var={str(vars)}")
+        _logger.debug(f"SQL_many={sql} var_many={str(vars)}")
         return self.cursor.executemany(sql, vars)
 
     def __getattribute__(self, name):
