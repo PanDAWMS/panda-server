@@ -12,11 +12,11 @@ from typing import List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer import EventServiceUtils
 from pandaserver.taskbuffer.PickleJobSpec import PickleJobSpec
 
-# logger
 _logger = PandaLogger().getLogger("setupper")
 
 panda_config.setupPlugin()
@@ -31,6 +31,7 @@ class Setupper(threading.Thread):
     The class also contains an update_jobs method which updates the status of jobs. This method sorts jobs by status, updates the jobs in the task buffer, and updates the database.
     This class uses the PandaLogger for logging and the panda_config for configuration. It also imports several other modules from the pandaserver package.
     """
+
     # constructor
     def __init__(
         self,
@@ -70,9 +71,9 @@ class Setupper(threading.Thread):
         """
         try:
             # make a message instance
-            tmp_log = LogWrapper(_logger, None)
+            tmp_log = LogWrapper(_logger, "<method : run>")
             # run main procedure in the same process
-            tmp_log.debug("main start")
+            tmp_log.debug("start")
             tmp_log.debug(f"first_submission={self.first_submission}")
             # make Specs pickleable
             p_job_list = []
@@ -101,7 +102,10 @@ class Setupper(threading.Thread):
                 setupper_plugin_class = panda_config.getPlugin("setupper_plugins", tmp_vo)
                 if setupper_plugin_class is None:
                     # use ATLAS plug-in by default
-                    from pandaserver.dataservice.setupper_atlas_plugin import SetupperAtlasPlugin
+                    from pandaserver.dataservice.setupper_atlas_plugin import (
+                        SetupperAtlasPlugin,
+                    )
+
                     setupper_plugin_class = SetupperAtlasPlugin
                 tmp_log.debug(f"plugin name -> {setupper_plugin_class.__name__}")
                 try:
@@ -126,9 +130,9 @@ class Setupper(threading.Thread):
                 except Exception:
                     error_type, error_value = sys.exc_info()[:2]
                     tmp_log.error(f"plugin failed with {error_type}:{error_value}")
-            tmp_log.debug("main end")
+            tmp_log.debug("end")
         except Exception as error:
-            tmp_log.error(f"master failed with {str(error)} {traceback.format_exc()}")
+            tmp_log.error(f"failed with {str(error)} {traceback.format_exc()}")
 
     #  update jobs
     def update_jobs(self, job_list: List[object], tmp_log: LogWrapper) -> None:
