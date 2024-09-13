@@ -342,7 +342,7 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
         prioInterval = 50
         totalNumInputs = 0
         totalInputSize = 0
-        chosen_ce = None
+        chosen_panda_queue = None
         prodDBlock = None
         computingSite = None
         dispatchDBlock = None
@@ -370,12 +370,9 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
 
         prestageSites = []
 
-        # check if only JEDI
-        onlyJEDI = True
-        for tmpJob in jobs:
-            if tmpJob.lockedby != "jedi":
-                onlyJEDI = False
-                break
+        # JEDI sets lockedby='jedi' to all jobs. The only jobs in ATLAS that bypass JEDI are coming from hammercloud and they are setting the computingSite
+        # check if all jobs come from JEDI
+        onlyJEDI = all(tmpJob.lockedby == "jedi" for tmpJob in jobs)
 
         # get statistics
         newJobStatWithPrio = {}
@@ -430,10 +427,12 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
                 manualPreset = True
                 brokerageNote = "presetSite"
             overwriteSite = False
+
             # check JEDI
             isJEDI = False
-            if job is not None and job.lockedby == "jedi" and job.processingType != "evtest":
+            if job is not None and job.lockedby == "jedi":
                 isJEDI = True
+
             # new bunch or terminator
             if (
                 job is None
@@ -491,7 +490,7 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
                     "scratch": [],
                 }
                 # determine site
-                if (iJob == 0 or chosen_ce != "TOBEDONE") and prevBrokerageSiteList in [None, []]:
+                if (iJob == 0 or chosen_panda_queue != "TOBEDONE") and prevBrokerageSiteList in [None, []]:
                     # file scan for pre-assigned jobs
                     jobsInBunch = jobs[indexJob - iJob - 1 : indexJob - 1]
                     if (
@@ -501,10 +500,10 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
                         and (jobsInBunch[0].prodSourceLabel in ["managed", "software"] or re.search("test", jobsInBunch[0].prodSourceLabel) is not None)
                     ):
                         # get site spec
-                        tmp_chosen_ce = siteMapper.getSite(computingSite)
+                        tmp_chosen_panda_queue = siteMapper.getSite(computingSite)
                         # get files
                         okFiles = _getOkFiles(
-                            tmp_chosen_ce,
+                            tmp_chosen_panda_queue,
                             fileList,
                             allLFNs,
                             allOkFilesMap,
@@ -771,14 +770,13 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
                                     continue
 
                             if nRunJobsPerGroup is None:
-                                tmpLog.debug(
-                                    "   %s assigned:%s activated:%s running:%s nPilotsGet:%s nPilotsUpdate:%s"
-                                    % (site, nAssJobs, nActJobs, jobStatistics[site]["running"], nPilotsGet, nPilotsUpdate)
+                                tmpLog.debug(f"   {site} assigned:{nAssJobs} activated:{nActJobs} running:{jobStatistics[site]['running']} "
+                                             f"nPilotsGet:{nPilotsGet} nPilotsUpdate:{nPilotsUpdate}"
                                 )
                             else:
                                 tmpLog.debug(
-                                    "   %s assigned:%s activated:%s runningGroup:%s nPilotsGet:%s nPilotsUpdate:%s"
-                                    % (site, nAssJobs, nActJobs, nRunJobsPerGroup, nPilotsGet, nPilotsUpdate)
+                                    f"   {site} assigned:{nAssJobs} activated:{nActJobs} runningGroup:{nRunJobsPerGroup} nPilotsGet:{nPilotsGet} "
+                                    f"nPilotsUpdate:{nPilotsUpdate}"
                                 )
 
                             if nRunJobsPerGroup is None:
@@ -852,11 +850,11 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
                         # compare # of files
                         maxNfiles = -1
                         for site in minSites:
-                            tmp_chosen_ce = siteMapper.getSite(site)
+                            tmp_chosen_panda_queue = siteMapper.getSite(site)
 
                             # get files
                             tmpOKFiles = _getOkFiles(
-                                tmp_chosen_ce,
+                                tmp_chosen_panda_queue,
                                 fileList,
                                 allLFNs,
                                 allOkFilesMap,
@@ -870,7 +868,7 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
                             tmpLog.debug(f"site:{site} - nFiles:{nFiles}/{len(fileList)} {str(tmpOKFiles)}")
                             # choose site holding max # of files
                             if nFiles > maxNfiles:
-                                chosenCE = tmp_chosen_ce
+                                chosenCE = tmp_chosen_panda_queue
                                 maxNfiles = nFiles
                                 okFiles = tmpOKFiles
 
@@ -991,20 +989,21 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
                 # already define computingSite
                 if job.computingSite != "NULL":
                     # instantiate KnownSite
-                    chosen_ce = siteMapper.getSite(job.computingSite)
+                    chosen_panda_queue = siteMapper.getSite(job.computingSite)
+
                     # if site doesn't exist, use the default site
                     if job.homepackage.startswith("AnalysisTransforms"):
-                        if chosen_ce.sitename == panda_config.def_sitename:
-                            chosen_ce = siteMapper.getSite(panda_config.def_queue)
+                        if chosen_panda_queue.sitename == panda_config.def_sitename:
+                            chosen_panda_queue = siteMapper.getSite(panda_config.def_queue)
                             overwriteSite = True
                 else:
                     # default for Analysis jobs
                     if job.homepackage.startswith("AnalysisTransforms"):
-                        chosen_ce = siteMapper.getSite(panda_config.def_queue)
+                        chosen_panda_queue = siteMapper.getSite(panda_config.def_queue)
                         overwriteSite = True
                     else:
-                        # set chosen_ce
-                        chosen_ce = "TOBEDONE"
+                        # set chosen_panda_queue
+                        chosen_panda_queue = "TOBEDONE"
             # increment iJob
             iJob += 1
             # reserve computingSite and cloud
@@ -1030,20 +1029,20 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
             if job.currentPriority not in [None, "NULL"]:
                 prevPriority = (job.currentPriority / prioInterval) * prioInterval
             # assign site
-            if chosen_ce != "TOBEDONE":
-                job.computingSite = chosen_ce.sitename
+            if chosen_panda_queue != "TOBEDONE":
+                job.computingSite = chosen_panda_queue.sitename
                 if job.computingElement == "NULL":
                     if job.prodSourceLabel == "ddm":
                         # use nickname for ddm jobs
-                        job.computingElement = chosen_ce.nickname
+                        job.computingElement = chosen_panda_queue.nickname
 
                 # update statistics
                 jobStatistics.setdefault(job.computingSite, {"assigned": 0, "activated": 0, "running": 0})
                 jobStatistics[job.computingSite]["assigned"] += 1
-                tmpLog.debug(f"PandaID:{job.PandaID} -> preset site:{chosen_ce.sitename}")
+                tmpLog.debug(f"PandaID:{job.PandaID} -> preset site:{chosen_panda_queue.sitename}")
                 # set cloud
                 if job.cloud in ["NULL", None, ""]:
-                    job.cloud = chosen_ce.cloud
+                    job.cloud = chosen_panda_queue.cloud
 
             # set destinationSE
             destSE = job.destinationSE
