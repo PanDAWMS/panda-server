@@ -359,7 +359,6 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
         prevDDM = None
         prevBrokerageSiteList = None
         prevManualPreset = None
-        prevGoToT2Flag = None
         prevWorkingGroup = None
         prevMaxCpuCount = None
         prevBrokerageNote = None
@@ -417,8 +416,6 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
             specialBrokerageSiteList = []
             # note for brokerage
             brokerageNote = ""
-            # send jobs to T2 when files are missing at T1
-            goToT2Flag = False
 
             # manually set site
             manualPreset = False
@@ -472,7 +469,6 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
                     tmpLog.debug(f"  coreCount      {prevCoreCount}")
                     tmpLog.debug(f"  maxCpuCount    {prevMaxCpuCount}")
                     tmpLog.debug(f"  transferType   {prevDirectAcc}")
-                    tmpLog.debug(f"  goToT2         {prevGoToT2Flag}")
                     tmpLog.debug(f"  DDM            {prevDDM}")
                 # brokerage decisions
                 resultsForAnal = {
@@ -1020,7 +1016,6 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
             prevMaxCpuCount = job.maxCpuCount
             prevBrokerageSiteList = specialBrokerageSiteList
             prevManualPreset = manualPreset
-            prevGoToT2Flag = goToT2Flag
             prevWorkingGroup = job.workingGroup
             prevBrokerageNote = brokerageNote
             prevIsJEDI = isJEDI
