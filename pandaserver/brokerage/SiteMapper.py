@@ -6,6 +6,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.taskbuffer.NucleusSpec import NucleusSpec
+from pandaserver.taskbuffer.SiteSpec import SiteSpec
 
 _logger = PandaLogger().getLogger("SiteMapper")
 
