@@ -9,6 +9,18 @@ from pandaserver.taskbuffer.NucleusSpec import NucleusSpec
 
 _logger = PandaLogger().getLogger("SiteMapper")
 
+DEFAULT_SITE = SiteSpec()
+DEFAULT_SITE.sitename = panda_config.def_sitename
+DEFAULT_SITE.nickname = panda_config.def_nickname
+DEFAULT_SITE.ddm_input = {"default": panda_config.def_ddm}
+DEFAULT_SITE.ddm_output = {"default": panda_config.def_ddm}
+DEFAULT_SITE.type = panda_config.def_type
+DEFAULT_SITE.status = panda_config.def_status
+DEFAULT_SITE.setokens_input = {}
+DEFAULT_SITE.setokens_output = {}
+DEFAULT_SITE.ddm_endpoints_input = {}
+DEFAULT_SITE.ddm_endpoints_output = {}
+
 # constants
 WORLD_CLOUD = "WORLD"
 NUCLEUS_TAG = "nucleus:"
@@ -245,7 +257,8 @@ class SiteMapper:
         if site_name in self.siteSpecList:
             return self.siteSpecList[site_name]
 
-        return None
+        # return default site
+        return DEFAULT_SITE
 
     # check if site exists
     def checkSite(self, site_name):
@@ -267,7 +280,12 @@ class SiteMapper:
         if cloud == WORLD_CLOUD:
             return self.worldCloudSpec
 
-        return None
+        # return some default sites
+        default_cloud = {
+            "source": "default",
+            "sites": self.cloudSpec['US']['sites'],
+        }
+        return default_cloud
 
     # accessor for cloud
     def checkCloud(self, cloud):

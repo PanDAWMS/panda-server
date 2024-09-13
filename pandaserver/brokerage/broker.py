@@ -1044,8 +1044,16 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
                 # set cloud
                 if job.cloud in ["NULL", None, ""]:
                     job.cloud = chosen_ce.cloud
+
             # set destinationSE
             destSE = job.destinationSE
+            if siteMapper.checkCloud(job.getCloud()):
+                # use cloud dest for non-existing sites
+                if job.prodSourceLabel != "user" and job.destinationSE not in siteMapper.siteSpecList and job.destinationSE != "local":
+                    if DataServiceUtils.checkJobDestinationSE(job) is not None:
+                        destSE = DataServiceUtils.checkJobDestinationSE(job)
+                    job.destinationSE = destSE
+
             if overwriteSite:
                 # overwrite SE for analysis jobs which set non-existing sites
                 destSE = job.computingSite
