@@ -465,21 +465,22 @@ class DBProxy:
         origSpecialHandling=None,
         unprocessedMap=None,
         prio_reduction=True,
+        no_late_bulk_exec=True,
+        extracted_sqls=None,
+        new_jobset_id=None,
     ):
         comment = " /* DBProxy.insertNewJob */"
         methodName = comment.split(" ")[-2].split(".")[-1]
         methodName += f" <JediTaskID={job.jediTaskID} idPool={len(fileIDPool)}>"
         tmp_log = LogWrapper(_logger, methodName)
 
+        # insert jobs to jobsDefined4 or jobsWaiting4
         if not toPending:
             sql1 = f"INSERT INTO ATLAS_PANDA.jobsDefined4 ({JobSpec.columnNames()}) "
         else:
             sql1 = f"INSERT INTO ATLAS_PANDA.jobsWaiting4 ({JobSpec.columnNames()}) "
-        sql1 += JobSpec.bindValuesExpression(useSeq=True)
-        sql1 += " RETURNING PandaID INTO :newPandaID"
+        sql1 += JobSpec.bindValuesExpression(useSeq=False)
 
-        # make sure PandaID is NULL
-        job.PandaID = None
         # job status
         if not toPending:
             job.jobStatus = "defined"
@@ -500,7 +501,7 @@ class DBProxy:
         if job.prodUserID == "NULL" or job.prodSourceLabel in ["user", "panda"]:
             job.prodUserID = user
 
-        # compact user name
+        # compact username
         job.prodUserName = self.cleanUserID(job.prodUserID)
         if job.prodUserName in ["", "NULL"]:
             # use prodUserID as compact user name
@@ -583,104 +584,27 @@ class DBProxy:
                 useJEDI = False
 
             # begin transaction
-            self.conn.begin()
+            if no_late_bulk_exec:
+                self.conn.begin()
 
             # get jobsetID for event service
             if origEsJob:
-                if self.backend == "mysql":
-                    # fake sequence
-                    sql = " INSERT INTO ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ (col) VALUES (NULL) "
-                    self.cur.arraysize = 10
-                    self.cur.execute(sql + comment, {})
-                    sql2 = """ SELECT LAST_INSERT_ID() """
-                    self.cur.execute(sql2 + comment, {})
-                    (job.jobsetID,) = self.cur.fetchone()
+                if not no_late_bulk_exec:
+                    job.jobsetID = new_jobset_id
                 else:
-                    sqlESS = "SELECT ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ.nextval FROM dual "
-                    self.cur.arraysize = 10
-                    self.cur.execute(sqlESS + comment, {})
-                    (job.jobsetID,) = self.cur.fetchone()
-
-            # check input
-            if useJEDI:
-                allInputOK = True
-                if eventServiceInfo is None or eventServiceInfo == {} or origEsJob:
-                    sqlCheckJediFile = "SELECT status,keepTrack,attemptNr,type "
-                    sqlCheckJediFile += "FROM ATLAS_PANDA.JEDI_Dataset_Contents "
-                    sqlCheckJediFile += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-                    sqlCheckJediFile += "FOR UPDATE "
-                    for file in job.Files:
-                        # skip if no JEDI
-                        if file.fileID == "NULL":
-                            continue
-                        # only input
-                        if file.type not in ["input", "pseudo_input"]:
-                            continue
-                        varMap = {}
-                        varMap[":fileID"] = file.fileID
-                        varMap[":datasetID"] = file.datasetID
-                        varMap[":jediTaskID"] = file.jediTaskID
-                        self.cur.execute(sqlCheckJediFile + comment, varMap)
-                        retFC = self.cur.fetchone()
-                        if retFC is None:
-                            allInputOK = False
-                            tmp_log.debug(f"input check failed - missing jediTaskID:{file.jediTaskID} datasetID={file.datasetID} fileID={file.fileID}")
-                            break
-                        tmpStatus, tmpKeepTrack, tmpAttemptNr, tmpType = retFC
-                        # only keep track
-                        if tmpKeepTrack != 1:
-                            continue
-                        # ignore lib
-                        if tmpType in ["lib"]:
-                            continue
-                        # check attemptNr
-                        if tmpAttemptNr != file.attemptNr:
-                            allInputOK = False
-                            tmp_log.debug(
-                                "input check failed - bad attemptNr %s:%s jediTaskID:%s datasetID=%s fileID=%s"
-                                % (
-                                    tmpAttemptNr,
-                                    file.attemptNr,
-                                    file.jediTaskID,
-                                    file.datasetID,
-                                    file.fileID,
-                                )
-                            )
-                            break
-                        # check status
-                        if tmpStatus != "picked":
-                            allInputOK = False
-                            tmp_log.debug(
-                                f"input check failed - bad status {tmpStatus} jediTaskID:{file.jediTaskID} datasetID={file.datasetID} fileID={file.fileID}"
-                            )
-                            break
-                if not allInputOK:
-                    # commit
-                    if not self._commit():
-                        raise RuntimeError("Commit error")
-                    if unprocessedMap is not None:
-                        return (False, unprocessedMap)
-                    return False
-
-            # insert job
-            varMap = job.valuesMap(useSeq=True)
-            varMap[":newPandaID"] = self.cur.var(varNUMBER)
-            retI = self.cur.execute(sql1 + comment, varMap)
-
-            # set PandaID
-            val = self.getvalue_corrector(self.cur.getvalue(varMap[":newPandaID"]))
-            job.PandaID = int(val)
-
-            # get jobsetID
-            if job.jobsetID in [None, "NULL", -1]:
-                jobsetID = 0
-            else:
-                jobsetID = job.jobsetID
-            jobsetID = "%06d" % jobsetID
-            try:
-                strJediTaskID = str(job.jediTaskID)
-            except Exception:
-                strJediTaskID = ""
+                    if self.backend == "mysql":
+                        # fake sequence
+                        sql = " INSERT INTO ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ (col) VALUES (NULL) "
+                        self.cur.arraysize = 10
+                        self.cur.execute(sql + comment, {})
+                        sql2 = """ SELECT LAST_INSERT_ID() """
+                        self.cur.execute(sql2 + comment, {})
+                        (job.jobsetID,) = self.cur.fetchone()
+                    else:
+                        sqlESS = "SELECT ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ.nextval FROM dual "
+                        self.cur.arraysize = 10
+                        self.cur.execute(sqlESS + comment, {})
+                        (job.jobsetID,) = self.cur.fetchone()
 
             # get originPandaID
             originPandaID = None
@@ -709,15 +633,25 @@ class DBProxy:
             # update jobName
             if newJobName != job.jobName:
                 job.jobName = newJobName
-                if not toPending:
-                    sqlJobName = "UPDATE ATLAS_PANDA.jobsDefined4 "
-                else:
-                    sqlJobName = "UPDATE ATLAS_PANDA.jobsWaiting4 "
-                sqlJobName += "SET jobName=:jobName WHERE PandaID=:pandaID "
-                varMap = {}
-                varMap[":jobName"] = job.jobName
-                varMap[":pandaID"] = job.PandaID
-                self.cur.execute(sqlJobName + comment, varMap)
+
+            # insert job
+            if no_late_bulk_exec:
+                varMap = job.valuesMap(useSeq=False)
+                self.cur.execute(sql1 + comment, varMap)
+            else:
+                extracted_sqls["job"] = {"sql": sql1 + comment, "vars": [job.valuesMap(useSeq=False)]}
+
+            # get jobsetID
+            if job.jobsetID in [None, "NULL", -1]:
+                jobsetID = 0
+            else:
+                jobsetID = job.jobsetID
+            jobsetID = "%06d" % jobsetID
+            try:
+                strJediTaskID = str(job.jediTaskID)
+            except Exception:
+                strJediTaskID = ""
+
             # reset changed attribute list
             job.resetChangedList()
             # insert files
@@ -975,7 +909,10 @@ class DBProxy:
                             varMaps.append(varMap)
                             nEventsToProcess += 1
                         tmp_log.debug(f"{job.PandaID} insert {len(varMaps)} event ranges jediTaskID:{job.jediTaskID}")
-                        self.cur.executemany(sqlJediEvent + comment, varMaps)
+                        if no_late_bulk_exec:
+                            self.cur.executemany(sqlJediEvent + comment, varMaps)
+                        else:
+                            extracted_sqls["event"] = {"sql": sqlJediEvent + comment, "vars": varMaps}
                         tmp_log.debug(f"{job.PandaID} inserted {len(varMaps)} event ranges jediTaskID:{job.jediTaskID}")
                         totalInputEvents += eventServiceInfo[file.lfn]["nEvents"]
             if job.notDiscardEvents() and origEsJob and nEventsToProcess == 0:
@@ -1002,7 +939,10 @@ class DBProxy:
             # bulk insert files
             if len(varMapsForFile) > 0:
                 tmp_log.debug(f"{job.PandaID} bulk insert {len(varMapsForFile)} files for jediTaskID:{job.jediTaskID}")
-                self.cur.executemany(sqlFileW + comment, varMapsForFile)
+                if no_late_bulk_exec:
+                    self.cur.executemany(sqlFileW + comment, varMapsForFile)
+                else:
+                    extracted_sqls["file"] = {"sql": sqlFileW + comment, "vars": varMapsForFile}
             # update nFilesWaiting
             if len(nFilesWaitingMap) > 0:
                 sqlJediNFW = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets "
@@ -1044,18 +984,25 @@ class DBProxy:
                         varMap[":startEvent"] = 0
                         varMap[":lastEvent"] = 0
                         varMaps.append(varMap)
-                self.cur.executemany(sqlJediEvent + comment, varMaps)
+                if no_late_bulk_exec:
+                    self.cur.executemany(sqlJediEvent + comment, varMaps)
+                else:
+                    extracted_sqls["dynamic"] = {"sql": sqlJediEvent + comment, "vars": varMaps}
                 tmp_log.debug(f"{job.PandaID} inserted {len(varMaps)} dyn events jediTaskID:{job.jediTaskID}")
             # update t_task
             if useJEDI and job.prodSourceLabel not in ["panda"] and job.processingType != "pmerge":
                 varMap = {}
                 varMap[":jediTaskID"] = job.jediTaskID
+                varMap[":nJobs"] = 1
                 schemaDEFT = self.getSchemaDEFT()
                 sqlTtask = f"UPDATE {schemaDEFT}.T_TASK "
-                sqlTtask += "SET total_req_jobs=total_req_jobs+1,timestamp=CURRENT_DATE "
+                sqlTtask += "SET total_req_jobs=total_req_jobs+:nJobs,timestamp=CURRENT_DATE "
                 sqlTtask += "WHERE taskid=:jediTaskID "
-                tmp_log.debug(sqlTtask + comment + str(varMap))
-                self.cur.execute(sqlTtask + comment, varMap)
+                if no_late_bulk_exec:
+                    tmp_log.debug(sqlTtask + comment + str(varMap))
+                    self.cur.execute(sqlTtask + comment, varMap)
+                else:
+                    extracted_sqls["t_task"] = {"sql": sqlTtask + comment, "vars": [varMap]}
                 tmp_log.debug(f"{job.PandaID} updated T_TASK jediTaskID:{job.jediTaskID}")
             # metadata
             if job.prodSourceLabel in ["user", "panda"] and job.metadata != "":
@@ -1064,7 +1011,10 @@ class DBProxy:
                 varMap[":PandaID"] = job.PandaID
                 varMap[":metaData"] = job.metadata
                 tmp_log.debug(f"{job.PandaID} inserting meta jediTaskID:{job.jediTaskID}")
-                self.cur.execute(sqlMeta + comment, varMap)
+                if no_late_bulk_exec:
+                    self.cur.execute(sqlMeta + comment, varMap)
+                else:
+                    extracted_sqls["meta"] = {"sql": sqlMeta + comment, "vars": [varMap]}
                 tmp_log.debug(f"{job.PandaID} inserted meta jediTaskID:{job.jediTaskID}")
             # job parameters
             if job.prodSourceLabel not in ["managed"]:
@@ -1079,7 +1029,10 @@ class DBProxy:
             varMap[":PandaID"] = job.PandaID
             varMap[":param"] = job.jobParameters
             tmp_log.debug(f"{job.PandaID} inserting jobParam jediTaskID:{job.jediTaskID}")
-            self.cur.execute(sqlJob + comment, varMap)
+            if no_late_bulk_exec:
+                self.cur.execute(sqlJob + comment, varMap)
+            else:
+                extracted_sqls["jobparams"] = {"sql": sqlJob + comment, "vars": [varMap]}
             tmp_log.debug(f"{job.PandaID} inserted jobParam jediTaskID:{job.jediTaskID}")
             # update input
             if (
@@ -1088,11 +1041,11 @@ class DBProxy:
                 and job.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs
                 and not (EventServiceUtils.isEventServiceJob(job) and not origEsJob)
             ):
-                self.updateInputStatusJedi(job.jediTaskID, job.PandaID, "queued")
+                self.updateInputStatusJedi(job.jediTaskID, job.PandaID, "queued", no_late_bulk_exec=no_late_bulk_exec, extracted_sqls=extracted_sqls)
             # record retry history
             if oldPandaIDs is not None and len(oldPandaIDs) > 0:
                 tmp_log.debug(f"{job.PandaID} recording history nOld={len(oldPandaIDs)} jediTaskID:{job.jediTaskID}")
-                self.recordRetryHistoryJEDI(job.jediTaskID, job.PandaID, oldPandaIDs, relationType)
+                self.recordRetryHistoryJEDI(job.jediTaskID, job.PandaID, oldPandaIDs, relationType, no_late_bulk_exec, extracted_sqls)
                 tmp_log.debug(f"{job.PandaID} recorded history jediTaskID:{job.jediTaskID}")
             # record jobset
             if origEsJob:
@@ -1101,6 +1054,8 @@ class DBProxy:
                     job.PandaID,
                     [job.jobsetID],
                     EventServiceUtils.relationTypeJS_ID,
+                    no_late_bulk_exec,
+                    extracted_sqls,
                 )
                 # record jobset history
                 if oldPandaIDs is not None and len(oldPandaIDs) > 0:
@@ -1113,6 +1068,8 @@ class DBProxy:
                                 job.jobsetID,
                                 [oldJobsetID],
                                 EventServiceUtils.relationTypeJS_Retry,
+                                no_late_bulk_exec,
+                                extracted_sqls,
                             )
             # record jobset mapping for event service
             if EventServiceUtils.isEventServiceJob(job) and EventServiceUtils.isResurrectConsumers(job.specialHandling):
@@ -1121,28 +1078,108 @@ class DBProxy:
                     job.jobsetID,
                     [job.PandaID],
                     EventServiceUtils.relationTypeJS_Map,
+                    no_late_bulk_exec,
+                    extracted_sqls,
                 )
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            tmp_log.debug(f"{job.PandaID} all OK jediTaskID:{job.jediTaskID}")
-            # record status change
-            try:
-                self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)
-            except Exception:
-                tmp_log.error("recordStatusChange in insertNewJob")
-            self.push_job_status_message(job, job.PandaID, job.jobStatus, job.jediTaskID, origSpecialHandling)
+            if no_late_bulk_exec:
+                # commit
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+                tmp_log.debug(f"{job.PandaID} all OK jediTaskID:{job.jediTaskID}")
+                # record status change
+                try:
+                    self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)
+                except Exception:
+                    tmp_log.error("recordStatusChange in insertNewJob")
+                self.push_job_status_message(job, job.PandaID, job.jobStatus, job.jediTaskID, origSpecialHandling)
+            else:
+                self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job, no_late_bulk_exec=False, extracted_sqls=extracted_sqls)
             if unprocessedMap is not None:
                 return True, unprocessedMap
             return True
         except Exception:
             # roll back
-            self._rollback()
+            if no_late_bulk_exec:
+                self._rollback()
             # error
             self.dumpErrorMessage(_logger, methodName)
             if unprocessedMap is not None:
                 return False, unprocessedMap
             return False
+
+    # bulk insert new jobs
+    def bulk_insert_new_jobs(self, jedi_task_id, arg_list, new_jobset_id_list, special_handling_list):
+        method_name = f"bulk_insert_new_jobs < jediTaskID={jedi_task_id} > "
+        tmp_log = LogWrapper(_logger, method_name)
+        try:
+            start_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            tmp_log.debug("start")
+            sql_key_list = ["job", "event", "file", "dynamic", "t_task", "meta", "jobparams", "retry_history", "state_change", "jedi_input"]
+            self.conn.begin()
+            return_list = []
+            extracted_sqls = {}
+            for args, kwargs in arg_list:
+                tmp_extracted_sqls = {}
+                new_kwargs = {
+                    "no_late_bulk_exec": False,
+                    "extracted_sqls": tmp_extracted_sqls,
+                }
+                if kwargs.get("origEsJob"):
+                    new_kwargs["new_jobset_id"] = new_jobset_id_list.pop(0)
+                kwargs.update(new_kwargs)
+                ret = self.insertNewJob(*args, **kwargs)
+                job = args[0]
+                if kwargs.get("unprocessedMap") is not None:
+                    tmp_ret, _ = ret
+                else:
+                    tmp_ret = ret
+                if not tmp_ret:
+                    job.PandaID = None
+                else:
+                    # combine SQLs
+                    for target_key in sql_key_list:
+                        if target_key in tmp_extracted_sqls:
+                            extracted_sqls.setdefault(target_key, {"sqls": [], "vars": {}})
+                            if tmp_extracted_sqls[target_key]["sql"] not in extracted_sqls[target_key]["sqls"]:
+                                extracted_sqls[target_key]["sqls"].append(tmp_extracted_sqls[target_key]["sql"])
+                                extracted_sqls[target_key]["vars"][tmp_extracted_sqls[target_key]["sql"]] = []
+                            extracted_sqls[target_key]["vars"][tmp_extracted_sqls[target_key]["sql"]] += tmp_extracted_sqls[target_key]["vars"]
+                return_list.append([job, ret])
+            # consolidate SQLs for t_task
+            if "t_task" in extracted_sqls:
+                for sql in extracted_sqls["t_task"]["sqls"]:
+                    old_vars = extracted_sqls["t_task"]["vars"][sql]
+                    n_jobs_map = {}
+                    for var in old_vars:
+                        n_jobs_map.setdefault(var[":jediTaskID"], 0)
+                        n_jobs_map[var[":jediTaskID"]] += var[":nJobs"]
+                    extracted_sqls["t_task"]["vars"][sql] = []
+                    for k, v in n_jobs_map.items():
+                        extracted_sqls["t_task"]["vars"][sql].append({":jediTaskID": k, ":nJobs": v})
+            # bulk execution
+            tmp_log.debug(f"bulk execution for {len(arg_list)} jobs")
+            for target_key in sql_key_list:
+                if target_key not in extracted_sqls:
+                    continue
+                for sql in extracted_sqls[target_key]["sqls"]:
+                    self.cur.executemany(sql, extracted_sqls[target_key]["vars"][sql])
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # send messages
+            for (job, _), special_handling in zip(return_list, special_handling_list):
+                self.push_job_status_message(job, job.PandaID, job.jobStatus, job.jediTaskID, special_handling)
+            exec_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
+            tmp_log.debug("done OK. took %s.%03d sec" % (exec_time.seconds, exec_time.microseconds / 1000))
+            return True, return_list
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            exec_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
+            tmp_log.debug("done NG. took %s.%03d sec" % (exec_time.seconds, exec_time.microseconds / 1000))
+            return False, None
 
     # activate job. move job from jobsDefined to jobsActive
     def activateJob(self, job):
@@ -11523,7 +11560,7 @@ class DBProxy:
             return False, {}
 
     # record status change
-    def recordStatusChange(self, pandaID, jobStatus, jobInfo=None, infoMap={}, useCommit=True):
+    def recordStatusChange(self, pandaID, jobStatus, jobInfo=None, infoMap={}, useCommit=True, no_late_bulk_exec=True, extracted_sqls=None):
         comment = " /* DBProxy.recordStatusChange */"
         # check config
         if not hasattr(panda_config, "record_statuschange") or panda_config.record_statuschange is not True:
@@ -11554,16 +11591,20 @@ class DBProxy:
         sql += "VALUES (:PandaID,CURRENT_DATE,:jobStatus,:prodSourceLabel,:cloud,:computingSite,:modificationHost,CURRENT_TIMESTAMP) "
         try:
             # start transaction
-            if useCommit:
-                self.conn.begin()
-            self.cur.execute(sql + comment, varMap)
-            # commit
-            if useCommit:
-                if not self._commit():
-                    raise RuntimeError("Commit error")
+            if no_late_bulk_exec:
+                if useCommit:
+                    self.conn.begin()
+                self.cur.execute(sql + comment, varMap)
+                # commit
+                if useCommit:
+                    if not self._commit():
+                        raise RuntimeError("Commit error")
+            else:
+                extracted_sqls.setdefault("state_change", {"sql": sql + comment, "vars": []})
+                extracted_sqls["state_change"]["vars"].append(varMap)
         except Exception:
             # roll back
-            if useCommit:
+            if useCommit and no_late_bulk_exec:
                 self._rollback()
             errType, errValue = sys.exc_info()[:2]
             _logger.error(f"recordStatusChange {pandaID} {jobStatus}: {errType} {errValue}")
@@ -17848,7 +17889,7 @@ class DBProxy:
             return False, None
 
     # record retry history
-    def recordRetryHistoryJEDI(self, jediTaskID, newPandaID, oldPandaIDs, relationType):
+    def recordRetryHistoryJEDI(self, jediTaskID, newPandaID, oldPandaIDs, relationType, no_late_bulk_exec=True, extracted_sqls=None):
         comment = " /* DBProxy.recordRetryHistoryJEDI */"
         methodName = comment.split(" ")[-2].split(".")[-1]
         methodName += f" <PandaID={newPandaID}>"
@@ -17886,7 +17927,11 @@ class DBProxy:
                     varMap[":originPandaID"] = originID
                     if relationType is not None:
                         varMap[":relationType"] = relationType
-                    self.cur.execute(sqlIN + comment, varMap)
+                    if no_late_bulk_exec:
+                        self.cur.execute(sqlIN + comment, varMap)
+                    else:
+                        extracted_sqls.setdefault("retry_history", {"sql": sqlIN + comment, "vars": []})
+                        extracted_sqls["retry_history"]["vars"].append(varMap)
         # return
         tmpLog.debug("done")
 
@@ -19949,6 +19994,38 @@ class DBProxy:
             self._rollback()
             # error
             self.dumpErrorMessage(_logger, methodName)
+            return []
+
+    # bulk fetch PandaIDs
+    def bulk_fetch_panda_ids(self, num_ids):
+        comment = " /* JediDBProxy.bulk_fetch_panda_ids */"
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        tmp_log = LogWrapper(_logger, method_name + f" <num={num_ids}>")
+        tmp_log.debug("start")
+        try:
+            new_ids = []
+            var_map = {}
+            var_map[":nIDs"] = num_ids
+            # sql to get fileID
+            sqlFID = "SELECT ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ.nextval FROM "
+            sqlFID += "(SELECT level FROM dual CONNECT BY level<=:nIDs) "
+            # start transaction
+            self.conn.begin()
+            self.cur.arraysize = 10000
+            self.cur.execute(sqlFID + comment, var_map)
+            resFID = self.cur.fetchall()
+            for (id,) in resFID:
+                new_ids.append(id)
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmp_log.debug(f"got {len(new_ids)} IDs")
+            return sorted(new_ids)
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(tmp_log, method_name)
             return []
 
     # bulk fetch fileIDs
@@ -22875,7 +22952,7 @@ class DBProxy:
             return (1, "database error in the panda server")
 
     # update input status in JEDI
-    def updateInputStatusJedi(self, jediTaskID, pandaID, newStatus, checkOthers=False):
+    def updateInputStatusJedi(self, jediTaskID, pandaID, newStatus, checkOthers=False, no_late_bulk_exec=True, extracted_sqls=None):
         comment = " /* DBProxy.updateInputStatusJedi */"
         method_name = comment.split(" ")[-2].split(".")[-1]
         method_name += f" < jediTaskID={jediTaskID} PandaID={pandaID} >"
@@ -22908,7 +22985,7 @@ class DBProxy:
             varMap[":PandaID"] = pandaID
             varMap[":type1"] = "input"
             varMap[":type2"] = "pseudo_input"
-            self.cur.execute(sqlF, varMap)
+            self.cur.execute(sqlF + comment, varMap)
             resF = self.cur.fetchall()
             # get status and attemptNr in JEDI
             sqlJ = "SELECT status,proc_status,attemptNr,maxAttempt,failedAttempt,maxFailure "
@@ -22935,7 +23012,7 @@ class DBProxy:
                     varMap[":fileID"] = fileID
                     varMap[":attemptNr"] = f_attemptNr
                     varMap[":jobStatus"] = otherStatus
-                    self.cur.execute(sqlC, varMap)
+                    self.cur.execute(sqlC + comment, varMap)
                     resC = self.cur.fetchall()
                     if len(resC) > 0:
                         tmp_log.debug(f"skip to update fileID={fileID} to {newStatus} since others like PandaID={resC[0][0]} is {otherStatus}")
@@ -22945,7 +23022,7 @@ class DBProxy:
                 varMap[":jediTaskID"] = jediTaskID
                 varMap[":datasetID"] = datasetID
                 varMap[":fileID"] = fileID
-                self.cur.execute(sqlJ, varMap)
+                self.cur.execute(sqlJ + comment, varMap)
                 (
                     fileStatus,
                     oldStatus,
@@ -22981,9 +23058,13 @@ class DBProxy:
                 varMap[":fileID"] = fileID
                 varMap[":attemptNr"] = f_attemptNr
                 varMap[":newStatus"] = tmpNewStatus
-                self.cur.execute(sqlU, varMap)
-                nRow = self.cur.rowcount
-                tmp_log.debug(f"{oldStatus} -> {tmpNewStatus} for fileID={fileID} with {nRow}")
+                if no_late_bulk_exec:
+                    self.cur.execute(sqlU + comment, varMap)
+                    nRow = self.cur.rowcount
+                    tmp_log.debug(f"{oldStatus} -> {tmpNewStatus} for fileID={fileID} with {nRow}")
+                else:
+                    extracted_sqls.setdefault("jedi_input", {"sql": sqlU + comment, "vars": []})
+                    extracted_sqls["jedi_input"]["vars"].append(varMap)
             # return
             tmp_log.debug("done")
             return True
