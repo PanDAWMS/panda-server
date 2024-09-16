@@ -3503,49 +3503,49 @@ class DBProxy:
         getValMap[":oldJobStatus"] = "activated"
         getValMap[":computingSite"] = siteName
 
-        # sql1 is the WHERE clause with all the applicable filters for the request
-        sql1 = "WHERE jobStatus=:oldJobStatus AND computingSite=:computingSite "
+        # clause with all the applicable filters for the request
+        sql_where_clause = "WHERE jobStatus=:oldJobStatus AND computingSite=:computingSite "
         if mem not in [0, "0"]:
-            sql1 += "AND (minRamCount<=:minRamCount OR minRamCount=0) "
+            sql_where_clause += "AND (minRamCount<=:minRamCount OR minRamCount=0) "
             getValMap[":minRamCount"] = mem
         if diskSpace not in [0, "0"]:
-            sql1 += "AND (maxDiskCount<=:maxDiskCount OR maxDiskCount=0) "
+            sql_where_clause += "AND (maxDiskCount<=:maxDiskCount OR maxDiskCount=0) "
             getValMap[":maxDiskCount"] = diskSpace
         if background is True:
-            sql1 += "AND jobExecutionID=1 "
+            sql_where_clause += "AND jobExecutionID=1 "
         if resourceType is not None:
-            sql1 += "AND resource_type=:resourceType "
+            sql_where_clause += "AND resource_type=:resourceType "
             getValMap[":resourceType"] = resourceType
         if prodSourceLabel == "user":
-            sql1 += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3) "
+            sql_where_clause += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3) "
             getValMap[":prodSourceLabel1"] = "user"
             getValMap[":prodSourceLabel2"] = "panda"
             getValMap[":prodSourceLabel3"] = "install"
         elif prodSourceLabel == "ddm":
-            sql1 += "AND prodSourceLabel=:prodSourceLabel "
+            sql_where_clause += "AND prodSourceLabel=:prodSourceLabel "
             getValMap[":prodSourceLabel"] = "ddm"
         elif prodSourceLabel in [None, "managed"]:
-            sql1 += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4) "
+            sql_where_clause += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4) "
             getValMap[":prodSourceLabel1"] = "managed"
             getValMap[":prodSourceLabel2"] = "test"
             getValMap[":prodSourceLabel3"] = "prod_test"
             getValMap[":prodSourceLabel4"] = "install"
         elif prodSourceLabel == "software":
-            sql1 += "AND prodSourceLabel=:prodSourceLabel "
+            sql_where_clause += "AND prodSourceLabel=:prodSourceLabel "
             getValMap[":prodSourceLabel"] = "software"
         elif prodSourceLabel == "test" and computingElement is not None:
             if is_gu and jobType == "user":
-                sql1 += "AND processingType=:processingType1 "
+                sql_where_clause += "AND processingType=:processingType1 "
                 getValMap[":processingType1"] = "gangarobot"  # analysis HC jobs
             else:
-                sql1 += "AND (processingType=:processingType1 "
-                sql1 += "OR prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3)) "
+                sql_where_clause += "AND (processingType=:processingType1 "
+                sql_where_clause += "OR prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3)) "
                 getValMap[":processingType1"] = "gangarobot"  # analysis HC jobs
                 getValMap[":prodSourceLabel1"] = "prod_test"  # production HC jobs
                 getValMap[":prodSourceLabel2"] = "install"
                 getValMap[":prodSourceLabel3"] = "test"
         elif prodSourceLabel == "unified":
-            sql1 += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5,:prodSourceLabel6) "
+            sql_where_clause += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5,:prodSourceLabel6) "
             getValMap[":prodSourceLabel1"] = "managed"
             getValMap[":prodSourceLabel2"] = "test"
             getValMap[":prodSourceLabel3"] = "prod_test"
@@ -3553,20 +3553,21 @@ class DBProxy:
             getValMap[":prodSourceLabel5"] = "user"
             getValMap[":prodSourceLabel6"] = "panda"
         else:
-            sql1 += "AND prodSourceLabel=:prodSourceLabel "
+            sql_where_clause += "AND prodSourceLabel=:prodSourceLabel "
             getValMap[":prodSourceLabel"] = prodSourceLabel
+        
         # user ID
         if prodUserID is not None:
             # get compact DN
             compactDN = self.cleanUserID(prodUserID)
             if compactDN in ["", "NULL", None]:
                 compactDN = prodUserID
-            sql1 += "AND prodUserName=:prodUserName "
+            sql_where_clause += "AND prodUserName=:prodUserName "
             getValMap[":prodUserName"] = compactDN
 
         # taskID
         if taskID not in [None, "NULL"]:
-            sql1 += "AND jediTaskID=:taskID "
+            sql_where_clause += "AND jediTaskID=:taskID "
             getValMap[":taskID"] = taskID
 
         # get the sorting criteria (global shares, age, etc.)
@@ -3575,9 +3576,8 @@ class DBProxy:
             for tmp_key in sorting_varmap:
                 getValMap[tmp_key] = sorting_varmap[tmp_key]
 
-        # sql2 is query to get the DB entry for a specific PanDA ID
-        sql2 = f"SELECT {JobSpec.columnNames()} FROM ATLAS_PANDA.jobsActive4 "
-        sql2 += "WHERE PandaID=:PandaID"
+        # query to get the DB entry for a specific PanDA ID
+        sql_select_job = f"SELECT {JobSpec.columnNames()} FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
         retJobs = []
         nSent = 0
         getValMapOrig = copy.copy(getValMap)
@@ -3586,92 +3586,12 @@ class DBProxy:
             timeLimit = datetime.timedelta(seconds=timeout - 10)
             timeStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             tmpLog = LogWrapper(_logger, f"getJobs : {datetime.datetime.isoformat(timeStart)} -> ")
-            attLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=15)
-            attSQL = "AND ((creationTime<:creationTime AND attemptNr>1) OR attemptNr<=1) "
+
             # get nJobs
             for iJob in range(nJobs):
                 getValMap = copy.copy(getValMapOrig)
                 pandaID = 0
-                fileMapForMem = {}
-                # select channel for ddm jobs
-                if prodSourceLabel == "ddm":
-                    sqlDDM = (
-                        "SELECT count(*),jobStatus,sourceSite,destinationSite,transferType FROM ATLAS_PANDA.jobsActive4 WHERE computingSite=:computingSite AND prodSourceLabel=:prodSourceLabel "
-                        + attSQL
-                        + "GROUP BY jobStatus,sourceSite,destinationSite,transferType"
-                    )
-                    ddmValMap = {}
-                    ddmValMap[":computingSite"] = siteName
-                    ddmValMap[":creationTime"] = attLimit
-                    ddmValMap[":prodSourceLabel"] = "ddm"
-                    _logger.debug(sqlDDM + comment + str(ddmValMap))
-                    # start transaction
-                    self.conn.begin()
-                    # select
-                    self.cur.arraysize = 100
-                    self.cur.execute(sqlDDM + comment, ddmValMap)
-                    resDDM = self.cur.fetchall()
-                    # commit
-                    if not self._commit():
-                        raise RuntimeError("Commit error")
-                    # make a channel map
-                    channelMap = {}
-                    for (
-                        tmp_count,
-                        tmp_jobStatus,
-                        tmp_sourceSite,
-                        tmp_destinationSite,
-                        tmp_transferType,
-                    ) in resDDM:
-                        # use source,dest,type as the key
-                        channel = (
-                            tmp_sourceSite,
-                            tmp_destinationSite,
-                            tmp_transferType,
-                        )
-                        if channel not in channelMap:
-                            channelMap[channel] = {}
-                        # ignore holding
-                        if tmp_jobStatus == "holding":
-                            continue
-                        # distinguish activate from other stats
-                        if tmp_jobStatus != "activated":
-                            tmp_jobStatus = "others"
-                        # append
-                        if tmp_jobStatus not in channelMap[channel]:
-                            channelMap[channel][tmp_jobStatus] = int(tmp_count)
-                        else:
-                            channelMap[channel][tmp_jobStatus] += int(tmp_count)
-                    _logger.debug(channelMap)
-                    # choose channel
-                    channels = list(channelMap)
-                    random.shuffle(channels)
-                    foundChannel = False
-                    for channel in channels:
-                        # no activated jobs
-                        if "activated" not in channelMap[channel] or channelMap[channel]["activated"] == 0:
-                            continue
-                        maxRunning = 15
-                        # prestaging job
-                        if channel[0] == channel[1] and channel[2] == "dis":
-                            maxRunning = 50
-                        if "others" not in channelMap[channel] or channelMap[channel]["others"] < maxRunning:
-                            # set SQL
-                            sql1 += "AND sourceSite=:sourceSite AND destinationSite=:destinationSite AND transferType=:transferType "
-                            getValMap[":sourceSite"] = channel[0]
-                            getValMap[":destinationSite"] = channel[1]
-                            getValMap[":transferType"] = channel[2]
-                            foundChannel = True
-                            break
-                    # no proper channel
-                    if not foundChannel:
-                        _logger.debug(f"getJobs : no DDM jobs for Site {siteName}")
-                        break
-                # get job
-                if prodSourceLabel in ["ddm"]:
-                    # to add some delay for attempts
-                    sql1 += attSQL
-                    getValMap[":creationTime"] = attLimit
+
                 nTry = 1
                 for iTry in range(nTry):
                     # set siteID
@@ -3686,7 +3606,7 @@ class DBProxy:
                         if toGetPandaIDs:
                             # get PandaIDs
                             sqlP = "SELECT /*+ INDEX_RS_ASC(tab (PRODSOURCELABEL COMPUTINGSITE JOBSTATUS) ) */ PandaID,currentPriority,specialHandling FROM ATLAS_PANDA.jobsActive4 tab "
-                            sqlP += sql1
+                            sqlP += sql_where_clause
 
                             if sorting_sql:
                                 sqlP = "SELECT * FROM (" + sqlP
@@ -3755,7 +3675,7 @@ class DBProxy:
                                 varMapSent[":modificationTime"] = sentLimit
                                 varMapSent[":prodSourceLabel1"] = "managed"
                                 varMapSent[":prodSourceLabel2"] = "test"
-                                # start
+
                                 # start transaction
                                 self.conn.begin()
                                 # pre-lock
@@ -3861,7 +3781,7 @@ class DBProxy:
                 varMap = {}
                 varMap[":PandaID"] = pandaID
                 self.cur.arraysize = 10
-                self.cur.execute(sql2 + comment, varMap)
+                self.cur.execute(sql_select_job + comment, varMap)
                 res = self.cur.fetchone()
                 if len(res) == 0:
                     # commit
@@ -4050,7 +3970,6 @@ class DBProxy:
                 mergeInputFiles = []
                 mergeFileObjStoreMap = {}
                 mergeZipPandaIDs = []
-                mergeZipLFNs = set()
                 for tmpFileID in eventRangeIDs:
                     tmpMapEventRangeID = eventRangeIDs[tmpFileID]
                     jobProcessIDs = sorted(tmpMapEventRangeID)
