@@ -975,14 +975,15 @@ class TaskBuffer:
         _logger.debug(f"getJobs : took {t_total}s for {siteName} nJobs={nJobs} prodSourceLabel={prodSourceLabel}")
         # release proxy
         self.proxyPool.putProxy(proxy)
+
         # get secret
         secrets_map = {}
         for job in jobs:
             if job.use_secrets() and job.prodUserName not in secrets_map:
                 # get secret
                 proxy = self.proxyPool.getProxy()
-                tmpS, secret = proxy.get_user_secrets(job.prodUserName)
-                if not tmpS:
+                tmp_status, secret = proxy.get_user_secrets(job.prodUserName)
+                if not tmp_status:
                     secret = None
                 self.proxyPool.putProxy(proxy)
                 secrets_map[job.prodUserName] = secret
@@ -990,8 +991,8 @@ class TaskBuffer:
                 if panda_config.pilot_secrets not in secrets_map:
                     # get secret
                     proxy = self.proxyPool.getProxy()
-                    tmpS, secret = proxy.get_user_secrets(panda_config.pilot_secrets)
-                    if not tmpS:
+                    tmp_status, secret = proxy.get_user_secrets(panda_config.pilot_secrets)
+                    if not tmp_status:
                         secret = None
                     self.proxyPool.putProxy(proxy)
                     secrets_map[panda_config.pilot_secrets] = secret
