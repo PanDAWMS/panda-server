@@ -19,7 +19,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
-from pandaserver.dataservice.AdderGen import AdderGen
+from pandaserver.dataservice.adder_gen import AdderGen
 from pandaserver.jobdispatcher import DispatcherUtils, Protocol
 from pandaserver.proxycache import panda_proxy_cache, token_cache
 from pandaserver.srvcore import CoreUtils
@@ -478,7 +478,7 @@ class JobDispatcher:
                 # add output to dataset
                 if result not in ["badattemptnr", "alreadydone"] and (jobStatus == "failed" or jobStatus == "finished"):
                     adder_gen = AdderGen(self.taskBuffer, jobID, jobStatus, attemptNr)
-                    adder_gen.dumpFileReport(xml, attemptNr)
+                    adder_gen.dump_file_report(xml, attemptNr)
                     del adder_gen
             else:
                 # failed
