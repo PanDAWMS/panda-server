@@ -1105,8 +1105,8 @@ def getJob(
     tmpLog.debug(
         f"{siteName},nJobs={nJobs},cpu={cpu},mem={mem},disk={diskSpace},source_label={prodSourceLabel},"
         f"node={node},ce={computingElement},rel={AtlasRelease},user={prodUserID},proxy={getProxyKey},"
-        f"c_group={countryGroup},w_group={workingGroup},{allowOtherCountry},taskID={taskID},DN:{realDN},"
-        f"role:{prodManager},token:{token},val:{validToken},FQAN:{str(fqans)},json:{req.acceptJson()},"
+        f"c_group={countryGroup},w_group={workingGroup},{allowOtherCountry},taskID={taskID},DN={realDN},"
+        f"role={prodManager},token={token},val={validToken},FQAN={str(fqans)},json={req.acceptJson()},"
         f"bg={background},rt={resourceType},harvester_id={harvester_id},worker_id={worker_id},"
         f"schedulerID={schedulerID},jobType={jobType},viaTopic={viaTopic}"
     )
