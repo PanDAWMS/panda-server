@@ -25,7 +25,7 @@ from rucio.common.exception import (
 
 from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils, ErrorCode
-from pandaserver.dataservice.AdderPluginBase import AdderPluginBase
+from pandaserver.dataservice.adder_plugin_base import AdderPluginBase
 from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.srvcore.MailUtils import MailUtils
@@ -82,7 +82,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                     self.job.ddmErrorDiag = f"destinationSE {self.job.destinationSE} is unknown in schedconfig"
                     self.logger.error(f"{self.job.ddmErrorDiag}")
                     # set fatal error code and return
-                    self.result.setFatal()
+                    self.result.set_fatal()
                     return
             # protection against disappearance of src from schedconfig
             if not self.siteMapper.checkSite(self.job.computingSite):
@@ -90,7 +90,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                 self.job.ddmErrorDiag = f"computingSite {self.job.computingSite} is unknown in schedconfig"
                 self.logger.error(f"{self.job.ddmErrorDiag}")
                 # set fatal error code and return
-                self.result.setFatal()
+                self.result.set_fatal()
                 return
             # check if the job has something to transfer
             self.logger.debug(f"alt stage-out:{str(self.job.altStgOutFileList())}")
@@ -149,7 +149,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                 self.logger.debug("terminated when adding")
                 return
             # succeeded
-            self.result.setSucceeded()
+            self.result.set_succeeded()
             self.logger.debug("end plugin")
         except Exception:
             errtype, errvalue = sys.exc_info()[:2]
@@ -157,7 +157,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             errStr += traceback.format_exc()
             self.logger.debug(errStr)
             # set fatal error code
-            self.result.setFatal()
+            self.result.set_fatal()
         # return
         return
 
@@ -192,12 +192,12 @@ class AdderAtlasPlugin(AdderPluginBase):
         # add nEvents info for zip files
         for tmpZipFileName in zipFileMap:
             tmpZipContents = zipFileMap[tmpZipFileName]
-            if tmpZipFileName not in self.extraInfo["nevents"]:
+            if tmpZipFileName not in self.extra_info["nevents"]:
                 for tmpZipContent in tmpZipContents:
                     for tmpLFN in list(nEventsInput):
                         if re.search("^" + tmpZipContent + "$", tmpLFN) is not None and tmpLFN in nEventsInput and nEventsInput[tmpLFN] is not None:
-                            self.extraInfo["nevents"].setdefault(tmpZipFileName, 0)
-                            self.extraInfo["nevents"][tmpZipFileName] += nEventsInput[tmpLFN]
+                            self.extra_info["nevents"].setdefault(tmpZipFileName, 0)
+                            self.extra_info["nevents"][tmpZipFileName] += nEventsInput[tmpLFN]
         # check files
         idMap = {}
         # fileList = []
@@ -268,7 +268,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                 try:
                     # check nevents
                     if file.type == "output" and not isZipFile and not self.addToTopOnly and self.job.prodSourceLabel in ["managed"]:
-                        if file.lfn not in self.extraInfo["nevents"]:
+                        if file.lfn not in self.extra_info["nevents"]:
                             toSkip = False
                             # exclude some formats
                             for patt in ["TXT", "NTUP", "HIST"]:
@@ -279,8 +279,8 @@ class AdderAtlasPlugin(AdderPluginBase):
                                 self.logger.warning(errMsg)
                                 self.job.ddmErrorCode = ErrorCode.EC_MissingNumEvents
                                 raise ValueError(errMsg)
-                        if file.lfn not in self.extraInfo["guid"] or file.GUID != self.extraInfo["guid"][file.lfn]:
-                            self.logger.debug(f"extraInfo = {str(self.extraInfo)}")
+                        if file.lfn not in self.extra_info["guid"] or file.GUID != self.extra_info["guid"][file.lfn]:
+                            self.logger.debug(f"extra_info = {str(self.extra_info)}")
                             errMsg = f"GUID is inconsistent between jobReport and pilot report for {file.lfn}"
                             self.logger.warning(errMsg)
                             self.job.ddmErrorCode = ErrorCode.EC_InconsistentGUID
@@ -310,7 +310,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                     }
                     # add SURLs if LFC registration is required
                     if self.useCentralLFC():
-                        fileAttrs["surl"] = self.extraInfo["surl"][file.lfn]
+                        fileAttrs["surl"] = self.extra_info["surl"][file.lfn]
                         if fileAttrs["surl"] is None:
                             del fileAttrs["surl"]
                         # get destination
@@ -365,11 +365,11 @@ class AdderAtlasPlugin(AdderPluginBase):
                             dsDestMap[fileDestinationDBlock] = tmpDestList
                     # extra meta data
                     if self.ddmBackEnd == "rucio":
-                        if file.lfn in self.extraInfo["lbnr"]:
-                            fileAttrs["lumiblocknr"] = self.extraInfo["lbnr"][file.lfn]
-                        if file.lfn in self.extraInfo["nevents"]:
-                            fileAttrs["events"] = self.extraInfo["nevents"][file.lfn]
-                        elif self.extraInfo["nevents"] != {}:
+                        if file.lfn in self.extra_info["lbnr"]:
+                            fileAttrs["lumiblocknr"] = self.extra_info["lbnr"][file.lfn]
+                        if file.lfn in self.extra_info["nevents"]:
+                            fileAttrs["events"] = self.extra_info["nevents"][file.lfn]
+                        elif self.extra_info["nevents"] != {}:
                             fileAttrs["events"] = None
                         # if file.jediTaskID not in [0,None,'NULL']:
                         #    fileAttrs['task_id'] = file.jediTaskID
@@ -378,9 +378,9 @@ class AdderAtlasPlugin(AdderPluginBase):
                             fileAttrs["campaign"] = campaign
                     # extract OS files
                     hasNormalURL = True
-                    if file.lfn in self.extraInfo["endpoint"] and self.extraInfo["endpoint"][file.lfn] != []:
+                    if file.lfn in self.extra_info["endpoint"] and self.extra_info["endpoint"][file.lfn] != []:
                         # hasNormalURL = False # FIXME once the pilot chanages to send srm endpoints in addition to OS
-                        for pilotEndPoint in self.extraInfo["endpoint"][file.lfn]:
+                        for pilotEndPoint in self.extra_info["endpoint"][file.lfn]:
                             # pilot uploaded to endpoint consistently with original job definition
                             if pilotEndPoint in dsDestMap[fileDestinationDBlock]:
                                 hasNormalURL = True
@@ -517,7 +517,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                 except Exception as e:
                     errStr = str(e)
                     self.logger.error(errStr + " " + traceback.format_exc())
-                    self.result.setFatal()
+                    self.result.set_fatal()
                     self.job.ddmErrorDiag = "failed before adding files : " + errStr
                     return 1
         # release some memory
@@ -574,7 +574,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         self.logger.debug(f"idMap = {idMap}")
         self.logger.debug(f"subMap = {subMap}")
         self.logger.debug(f"dsDestMap = {dsDestMap}")
-        self.logger.debug(f"extraInfo = {str(self.extraInfo)}")
+        self.logger.debug(f"extra_info = {str(self.extra_info)}")
         # check consistency of destinationDBlock
         hasSub = False
         for destinationDBlock in idMap:
@@ -585,7 +585,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         if idMap != {} and self.goToTransferring and not hasSub:
             errStr = "no sub datasets for transferring. destinationDBlock may be wrong"
             self.logger.error(errStr)
-            self.result.setFatal()
+            self.result.set_fatal()
             self.job.ddmErrorDiag = "failed before adding files : " + errStr
             return 1
         # add data
@@ -667,9 +667,9 @@ class AdderAtlasPlugin(AdderPluginBase):
                     else:
                         self.job.ddmErrorDiag = errMsg + extractedErrStr
                     if isFatal:
-                        self.result.setFatal()
+                        self.result.set_fatal()
                     else:
-                        self.result.setTemporary()
+                        self.result.set_temporary()
                     return 1
                 self.logger.error(f"Try:{iTry}")
                 # sleep
@@ -738,12 +738,12 @@ class AdderAtlasPlugin(AdderPluginBase):
                             if self.job.ddmErrorCode == ErrorCode.EC_Subscription:
                                 # fatal error
                                 self.job.ddmErrorDiag = f"subscription failure with {out}"
-                                self.result.setFatal()
+                                self.result.set_fatal()
                             else:
                                 # temoprary errors
                                 self.job.ddmErrorCode = ErrorCode.EC_Adder
                                 self.job.ddmErrorDiag = f"could not register subscription : {tmpName}"
-                                self.result.setTemporary()
+                                self.result.set_temporary()
                             return 1
                         self.logger.debug(f"{str(out)}")
                     else:
@@ -785,12 +785,12 @@ class AdderAtlasPlugin(AdderPluginBase):
                                 if self.job.ddmErrorCode == ErrorCode.EC_Location:
                                     # fatal error
                                     self.job.ddmErrorDiag = f"location registration failure with {out}"
-                                    self.result.setFatal()
+                                    self.result.set_fatal()
                                 else:
                                     # temoprary errors
                                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                                     self.job.ddmErrorDiag = f"could not register location : {tmpDsNameLoc}"
-                                    self.result.setTemporary()
+                                    self.result.set_temporary()
                                 return 1
                             self.logger.debug(f"{str(out)}")
                     # set dataset status
@@ -817,7 +817,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                         # skip alternative stage-out
                         if tmpFile.lfn in self.job.altStgOutFileList():
                             continue
-                        self.result.transferringFiles.append(tmpFile.lfn)
+                        self.result.transferring_files.append(tmpFile.lfn)
         elif "--mergeOutput" not in self.job.jobParameters:
             # send request to DaTRI unless files will be merged
             tmpTopDatasets = {}
@@ -893,8 +893,8 @@ class AdderAtlasPlugin(AdderPluginBase):
         if self.goToMerging and self.jobStatus not in ["failed", "cancelled", "closed"]:
             for tmpFileList in idMap.values():
                 for tmpFile in tmpFileList:
-                    if tmpFile["lfn"] not in self.result.mergingFiles:
-                        self.result.mergingFiles.append(tmpFile["lfn"])
+                    if tmpFile["lfn"] not in self.result.merging_files:
+                        self.result.merging_files.append(tmpFile["lfn"])
         # register ES files
         if (EventServiceUtils.isEventServiceJob(self.job) or EventServiceUtils.isJumboJob(self.job)) and not EventServiceUtils.isJobCloningJob(self.job):
             if self.job.registerEsFiles():
@@ -903,7 +903,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                 except Exception:
                     errType, errValue = sys.exc_info()[:2]
                     self.logger.error(f"failed to register ES files with {errType}:{errValue}")
-                    self.result.setTemporary()
+                    self.result.set_temporary()
                     return 1
         # properly finished
         self.logger.debug("addFiles end")
