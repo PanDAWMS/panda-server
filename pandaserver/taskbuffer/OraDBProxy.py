@@ -3463,17 +3463,12 @@ class DBProxy:
         nJobs,
         siteName,
         prodSourceLabel,
-        cpu,
         mem,
         diskSpace,
         node,
         timeout,
         computingElement,
-        atlasRelease,
         prodUserID,
-        countryGroup,
-        workingGroup,
-        allowOtherCountry,
         taskID,
         background,
         resourceType,
@@ -3521,18 +3516,12 @@ class DBProxy:
             getValMap[":prodSourceLabel1"] = "user"
             getValMap[":prodSourceLabel2"] = "panda"
             getValMap[":prodSourceLabel3"] = "install"
-        elif prodSourceLabel == "ddm":
-            sql_where_clause += "AND prodSourceLabel=:prodSourceLabel "
-            getValMap[":prodSourceLabel"] = "ddm"
         elif prodSourceLabel in [None, "managed"]:
             sql_where_clause += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4) "
             getValMap[":prodSourceLabel1"] = "managed"
             getValMap[":prodSourceLabel2"] = "test"
             getValMap[":prodSourceLabel3"] = "prod_test"
             getValMap[":prodSourceLabel4"] = "install"
-        elif prodSourceLabel == "software":
-            sql_where_clause += "AND prodSourceLabel=:prodSourceLabel "
-            getValMap[":prodSourceLabel"] = "software"
         elif prodSourceLabel == "test" and computingElement is not None:
             if is_gu and jobType == "user":
                 sql_where_clause += "AND processingType=:processingType1 "
