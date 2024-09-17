@@ -3457,7 +3457,7 @@ class DBProxy:
                 self.dumpErrorMessage(_logger, methodName)
                 return False
 
-    def construct_where_clause(site_name, mem, disk_space, background, resource_type, prod_source_label, computing_element, is_gu, job_type, prod_user_id, task_id):
+    def construct_where_clause(site_name, mem, disk_space, background, resource_type, prod_source_label, computing_element, is_gu, job_type, prod_user_id, task_id, average_memory_limit):
         get_val_map = {
             ":oldJobStatus": "activated",
             ":computingSite": site_name
@@ -3523,6 +3523,10 @@ class DBProxy:
         if task_id not in [None, "NULL"]:
             sql_where_clause += "AND jediTaskID=:taskID "
             get_val_map[":taskID"] = task_id
+            
+        if average_memory_limit:
+            sql_where_clause += "AND minramcount<:average_memory_limit "
+            get_val_map[":average_memory_limit"] = average_memory_limit
 
         return sql_where_clause, get_val_map
 
@@ -3563,8 +3567,36 @@ class DBProxy:
         else:
             maxAttemptIDx = 10
 
+        # get the configuration for maximum workers of each type
+        is_push_queue = False
+        average_memory_target = None
+        average_memory_limit = None
+        pq_data_des = self.get_config_for_pq(siteName)
+        if not pq_data_des:
+            tmp_log.debug("Error retrieving queue configuration from DB, limits can not be applied")
+        else:
+            try:
+                if pq_data_des["meanrss"] != 0:
+                    average_memory_target = pq_data_des["meanrss"]
+            except KeyError:
+                pass
+            try:
+                workflow = pq_data_des["workflow"]
+                if workflow == 'push':
+                    is_push_queue = True
+            except KeyError:
+                pass
+
+        if is_push_queue and average_memory_target:
+            average_memory_jobs_running_submitted, average_memory_jobs_running = self.get_average_memory_jobs(
+                siteName, average_memory_target
+            )
+            if average_memory_jobs_running_submitted > average_memory_target or average_memory_jobs_running > average_memory_target:
+                average_memory_limit = average_memory_target
+                
+
         # generate the WHERE clauses based on the requirements for the job
-        sql_where_clause, getValMap = construct_where_clause(
+        sql_where_clause, getValMap = self.construct_where_clause(
             site_name=siteName,
             mem=mem,
             disk_space=diskSpace,
@@ -3575,7 +3607,8 @@ class DBProxy:
             is_gu=is_gu,
             job_type=jobType,
             prod_user_id=prodUserID,
-            task_id=taskID
+            task_id=taskID,
+            average_memory_limit=average_memory_limit
         )
 
         # get the sorting criteria (global shares, age, etc.)
