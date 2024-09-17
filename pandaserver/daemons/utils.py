@@ -87,6 +87,12 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
     start_ts = time.time()
     # expiry time
     expiry_ts = start_ts + worker_lifetime
+    # timestamp of getting last message
+    last_msg_ts = start_ts
+    # timestamp of last warning of no message
+    last_no_msg_warn_ts = start_ts
+    # interval in second for warning of no message
+    no_msg_warn_interval = 300
     # create taskBuffer object if not given
     if tbuf is None:
         # initialize oracledb using dummy connection
@@ -147,10 +153,18 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
         while True:
             try:
                 one_msg = msg_queue.get(timeout=5)
+                last_msg_ts = time.time()
                 break
             except queue.Empty:
+                now_ts = time.time()
+                # timeout warning if not getting messages for long time
+                no_msg_duration = now_ts - last_msg_ts
+                last_no_msg_warn_duration = now_ts - last_no_msg_warn_ts
+                if no_msg_duration >= no_msg_warn_interval and last_no_msg_warn_duration >= no_msg_warn_interval:
+                    tmp_log.warning(f"no message gotten for {no_msg_duration:.3f} sec")
+                    last_no_msg_warn_ts = now_ts
                 # timeout to get from queue, check whether to keep going
-                if time.time() > expiry_ts:
+                if now_ts > expiry_ts:
                     # worker expired, do not keep going
                     keep_going = False
                     break
