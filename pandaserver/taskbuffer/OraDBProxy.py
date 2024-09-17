@@ -22058,7 +22058,7 @@ class DBProxy:
         tmp_logger.debug("start")
         try:
             sql_running_and_submitted = (
-                f"SELECT COMPUTINGSITE, SUM(NJOBS * PRORATED_MEM_AVG) / SUM(NJOBS) AS avg_memory "
+                f"SELECT /*+ RESULT_CACHE */ COMPUTINGSITE, SUM(NJOBS * PRORATED_MEM_AVG) / SUM(NJOBS) AS avg_memory "
                 f"FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS "
                 f"WHERE COMPUTINGSITE = :computingsite "
                 f"AND jobstatus IN ('running', 'starting') "
@@ -22066,7 +22066,7 @@ class DBProxy:
             )
 
             sql_running = (
-                f"SELECT COMPUTINGSITE, SUM(NJOBS * PRORATED_MEM_AVG) / SUM(NJOBS) AS avg_memory "
+                f"SELECT /*+ RESULT_CACHE */ COMPUTINGSITE, SUM(NJOBS * PRORATED_MEM_AVG) / SUM(NJOBS) AS avg_memory "
                 f"FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS "
                 f"WHERE COMPUTINGSITE = :computingsite "
                 f"AND jobstatus = 'running' "
@@ -22121,7 +22121,7 @@ class DBProxy:
         try:
             # sql to calculate the average memory for the queue - harvester_id combination
             sql_running_and_submitted = (
-                "SELECT sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) "
+                "SELECT /*+ RESULT_CACHE */ sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) "
                 "FROM ( "
                 "    SELECT hws.computingsite, "
                 "           hws.harvester_id, "
@@ -22138,7 +22138,7 @@ class DBProxy:
             )
 
             sql_running = (
-                "SELECT sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) "
+                "SELECT /*+ RESULT_CACHE */ sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) "
                 "FROM ( "
                 "    SELECT hws.computingsite, "
                 "           hws.harvester_id, "
