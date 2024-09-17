@@ -182,7 +182,7 @@ class AdderGen:
                     if EventServiceUtils.isJobCloningJob(self.job) and self.job_status == "finished":
                         # get semaphore for storeonce
                         if EventServiceUtils.getJobCloningType(self.job) == "storeonce":
-                            self.taskBuffer.getEventRanges(self.job.PandaID, self.job.jobsetID, self.jediTaskID, 1, False, False, None)
+                            self.taskBuffer.getEventRanges(self.job.PandaID, self.job.jobsetID, self.job.jediTaskID, 1, False, False, None)
                         # check semaphore
                         check_jc = self.taskBuffer.checkClonedJob(self.job)
                         if check_jc is None:
@@ -208,7 +208,7 @@ class AdderGen:
                 add_result = None
                 adder_plugin = None
                 # parse XML
-                parse_result = self.parseXML()
+                parse_result = self.parse_xml()
                 if parse_result < 2:
                     # interaction with DDM
                     try:
@@ -361,8 +361,7 @@ class AdderGen:
                             pass
                 # protection
                 max_output_file_bytes = 99999999999
-                if self.job.outputFileBytes > max_output_file_bytes:
-                    self.job.outputFileBytes = max_output_file_bytes
+                self.job.outputFileBytes = min(self.job.outputFileBytes, max_output_file_bytes)
                 # set cancelled state
                 if self.job.commandToPilot == "tobekilled" and self.job.jobStatus == "failed":
                     self.job.jobStatus = "cancelled"
@@ -480,8 +479,8 @@ class AdderGen:
                                         "scope": file.scope,
                                     }
                                 )
-                        if guid_list != []:
-                            retG = self.taskBuffer.setGUIDs(guid_list)
+                        if guid_list:
+                            self.taskBuffer.setGUIDs(guid_list)
                         if destination_dispatch_block_list:
                             # start Closer
                             if adder_plugin is not None and hasattr(adder_plugin, "dataset_map") and adder_plugin.dataset_map != {}:
@@ -539,7 +538,7 @@ class AdderGen:
 
     # parse XML
     # 0: succeeded, 1: harmless error to exit, 2: fatal error, 3: event service
-    def parseXML(self):
+    def parse_xml(self):
         """
         Parse the XML data associated with the job to extract file information.
 
@@ -576,7 +575,7 @@ class AdderGen:
         surls = []
         full_lfn_map = {}
         n_events_map = {}
-        guid_map = dict()
+        guid_map = {}
         try:
             # root  = xml.dom.minidom.parse(self.xmlFile)
             root = xml.dom.minidom.parseString(self.data)
@@ -617,9 +616,7 @@ class AdderGen:
                     self.extra_info["endpoint"][lfn].append(str(endpoint_node.firstChild.data))
                 # error check
                 if (lfn not in input_lfns) and (fsize is None or (md5sum is None and adler32 is None)):
-                    if EventServiceUtils.isEventServiceMerge(self.job):
-                        continue
-                    else:
+                    if not EventServiceUtils.isEventServiceMerge(self.job):
                         raise RuntimeError("fsize/md5sum/adler32/surl=None")
                 # append
                 lfns.append(lfn)
@@ -669,9 +666,7 @@ class AdderGen:
                         self.extra_info["endpoint"][lfn] = file_data["endpoint"]
                     # error check
                     if (lfn not in input_lfns) and (fsize is None or (md5sum is None and adler32 is None)):
-                        if EventServiceUtils.isEventServiceMerge(self.job):
-                            continue
-                        else:
+                        if not EventServiceUtils.isEventServiceMerge(self.job):
                             raise RuntimeError("fsize/md5sum/adler32/surl=None")
                     # append
                     lfns.append(lfn)
@@ -687,8 +682,8 @@ class AdderGen:
                     if full_lfn is not None:
                         full_lfn_map[lfn] = full_lfn
             except Exception:
-                type, value, traceback = sys.exc_info()
-                self.logger.error(f": {type} {value}")
+                exc_type, value, _ = sys.exc_info()
+                self.logger.error(f": {exc_type} {value}")
                 # set failed anyway
                 self.job.jobStatus = "failed"
                 # XML error happens when pilot got killed due to wall-time limit or failures in wrapper
@@ -787,7 +782,7 @@ class AdderGen:
                         # failed by pilot
                         file.status = "failed"
                         self.logger.debug(f"failed input : {file.lfn}")
-            elif file.type == "output" or file.type == "log":
+            elif file.type in {"output", "log"}:
                 # add only log file for failed jobs
                 if self.job_status == "failed" and file.type != "log":
                     file.status = "failed"
@@ -829,8 +824,8 @@ class AdderGen:
                 except Exception:
                     # status
                     file.status = "failed"
-                    type, value, traceback = sys.exc_info()
-                    self.logger.error(f": {type} {value}")
+                    exc_type, value, _ = sys.exc_info()
+                    self.logger.error(f": {exc_type} {value}")
                 # set lumi block number
                 if lumi_block_nr is not None and file.status != "failed":
                     self.extra_info["lbnr"][file.lfn] = lumi_block_nr
@@ -883,8 +878,8 @@ class AdderGen:
                         orig_to_new_map[original_lfn].append(new_lfn)
                         break
         # copy file records
-        for original_lfn in orig_to_new_map:
-            tmp_stat = self.taskBuffer.copy_file_records(orig_to_new_map[original_lfn], original_output_files[original_lfn])
+        for original_lfn, new_lfn in orig_to_new_map.items():
+            tmp_stat = self.taskBuffer.copy_file_records(new_lfn, original_output_files[original_lfn])
             if not tmp_stat:
                 return False
         # refresh job info
