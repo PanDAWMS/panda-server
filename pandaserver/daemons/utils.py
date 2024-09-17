@@ -26,7 +26,7 @@ END_SIGNALS = [
     signal.SIGTERM,
 ]
 
-# mandatory attributes and thier type of daemon
+# mandatory attributes and their type of daemon
 MANDATORY_ATTRS = [
     ("module", str),
     ("period", int),
@@ -177,9 +177,9 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
             last_run_end_ts = 0
             # component name in lock table
             component = f"pandaD.{dem_name}"
-            # whether the daemon shoule be synchronized among nodes
+            # whether the daemon should be synchronized among nodes
             if is_sync:
-                # sychronized daemon, check process lock in DB
+                # synchronized daemon, check process lock in DB
                 ret_val, locked_time = tbuf.checkProcessLock_PANDA(
                     component=component,
                     pid=my_full_pid,
