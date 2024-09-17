@@ -278,7 +278,7 @@ class DBProxy:
     # Internal caching of a result. Use only for information with low update frequency and low memory footprint
     def memoize(f):
         memo = {}
-        kwd_mark = object()
+        kwd_mark = object()                 
 
         def helper(self, *args, **kwargs):
             now = datetime.datetime.now()
@@ -3503,14 +3503,18 @@ class DBProxy:
         if mem not in [0, "0"]:
             sql_where_clause += "AND (minRamCount<=:minRamCount OR minRamCount=0) "
             getValMap[":minRamCount"] = mem
+
         if diskSpace not in [0, "0"]:
             sql_where_clause += "AND (maxDiskCount<=:maxDiskCount OR maxDiskCount=0) "
             getValMap[":maxDiskCount"] = diskSpace
+
         if background is True:
             sql_where_clause += "AND jobExecutionID=1 "
+
         if resourceType is not None:
             sql_where_clause += "AND resource_type=:resourceType "
             getValMap[":resourceType"] = resourceType
+
         if prodSourceLabel == "user":
             sql_where_clause += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3) "
             getValMap[":prodSourceLabel1"] = "user"
@@ -21982,6 +21986,67 @@ class DBProxy:
 
         tmpLog.debug("done")
         return worker_stats_dict
+
+    def get_average_memory_jobs(self, queue, target):
+        """
+        Calculates the average memory for running and queued (starting) jobs at a particular panda queue.
+        This function is equivalent to the get_average_memory_workers (for PULL), but is meant for PUSH queues.
+
+        :param queue: name of the PanDA queue
+        :param target: memory target for the queue in MB. This value is only used in the logging
+
+        :return: average_memory_running_submitted, average_memory_running
+        """
+
+        comment = " /* DBProxy.get_average_memory_jobs */"
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        tmp_logger = LogWrapper(_logger, method_name)
+        tmp_logger.debug("start")
+        try:
+            sql_running_and_starting = (
+                f"SELECT COMPUTINGSITE, SUM(NJOBS * PRORATED_MEM_AVG) / SUM(NJOBS) AS avg_memory "
+                f"FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS "
+                f"WHERE COMPUTINGSITE = :computingsite "
+                f"AND jobstatus IN ('running', 'starting') "
+                f"GROUP BY COMPUTINGSITE;"
+            )
+
+            sql_running = (
+                f"SELECT COMPUTINGSITE, SUM(NJOBS * PRORATED_MEM_AVG) / SUM(NJOBS) AS avg_memory "
+                f"FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS "
+                f"WHERE COMPUTINGSITE = :computingsite "
+                f"AND jobstatus = 'running' "
+                f"GROUP BY COMPUTINGSITE;"
+            )
+
+            var_map = {":queue": queue}
+
+            self.cur.execute(sql_running_and_submitted + comment, var_map)
+            results = self.cur.fetchone()
+            try:
+                average_memory_running_submitted = results[1] if results[1] is not None else 0
+            except TypeError:
+                average_memory_running_submitted = 0
+
+            self.cur.execute(sql_running + comment, var_map)
+            results = self.cur.fetchone()
+            try:
+                average_memory_running = results[1] if results[1] is not None else 0
+            except TypeError:
+                average_memory_running = 0
+
+            tmp_logger.info(
+                f"computingsite={queue} currently has "
+                f"meanrss_running_submitted={average_memory_running_submitted} "
+                f"meanrss_running={average_memory_running} "
+                f"meanrss_target={target} MB"
+            )
+            return average_memory_running_submitted, average_memory_running
+
+        except Exception:
+            self.dumpErrorMessage(tmp_logger, method_name)
+            return 0, 0
+
 
     def get_average_memory_workers(self, queue, harvester_id, target):
         """
