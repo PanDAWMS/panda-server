@@ -19,11 +19,12 @@ from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.dataservice.finisher import Finisher
 from pandaserver.taskbuffer import EventServiceUtils
 
-# logger
 _logger = PandaLogger().getLogger("datasetManager")
 
+TRANSFER_TIMEOUT_HI_PRIORITY = 2
+TRANSFER_TIMEOUT_LO_PRIORITY = 6
 
-# main
+
 def main(tbuf=None, **kwargs):
     _logger.debug("===================== start =====================")
 
@@ -673,17 +674,7 @@ def main(tbuf=None, **kwargs):
                         seList = [job.destinationSE]
                     elif tmpNucleus is not None:
                         seList = list(tmpNucleus.allDdmEndPoints)
-                    elif siteMapper.checkCloud(job.cloud):
-                        _logger.debug(f"Checking cloud {job.cloud}")
-                        # normal production jobs
-                        if DataServiceUtils.checkJobDestinationSE(job) is None:
-                            tmpDstID = siteMapper.getCloud(job.cloud)["dest"]
-                            _logger.debug(f"Set tmpDstID to {tmpDstID}")
-                        else:
-                            tmpDstID = job.destinationSE
-                        tmpDstSite = siteMapper.getSite(tmpDstID)
-                        scope_input, scope_output = select_scope(tmpDstSite, job.prodSourceLabel)
-                        seList = tmpDstSite.ddm_endpoints_output[scope_output].getLocalEndPoints()
+
                     # get LFN list
                     lfns = []
                     guids = []
@@ -700,7 +691,7 @@ def main(tbuf=None, **kwargs):
                             guids.append(file.GUID)
                             scopes.append(file.scope)
                             nTokens += len(file.destinationDBlockToken.split(","))
-                    # get files in LRC
+                    # get files
                     _logger.debug(f"{job.PandaID} Cloud:{job.cloud}")
                     tmpStat, okFiles = rucioAPI.list_file_replicas(scopes, lfns, seList)
                     if not tmpStat:
@@ -726,20 +717,11 @@ def main(tbuf=None, **kwargs):
                         if endTime == "NULL":
                             endTime = job.startTime
                         # priority-dependent timeout
-                        tmpCloudSpec = siteMapper.getCloud(job.cloud)
                         if job.currentPriority >= 800 and (job.prodSourceLabel not in ["user"]):
-                            if "transtimehi" in tmpCloudSpec:
-                                timeOutValue = tmpCloudSpec["transtimehi"]
-                            else:
-                                timeOutValue = 1
+                            timeOutValue = TRANSFER_TIMEOUT_HI_PRIORITY
                         else:
-                            if "transtimelo" in tmpCloudSpec:
-                                timeOutValue = tmpCloudSpec["transtimelo"]
-                            else:
-                                timeOutValue = 2
-                        # protection
-                        if timeOutValue < 1:
-                            timeOutValue = 1
+                            timeOutValue = TRANSFER_TIMEOUT_LO_PRIORITY
+
                         timeOut = self.timeNow - datetime.timedelta(days=timeOutValue)
                         _logger.debug(f"{job.PandaID}  Priority:{job.currentPriority} Limit:{str(timeOut)} End:{str(endTime)}")
                         if endTime < timeOut:
@@ -751,7 +733,7 @@ def main(tbuf=None, **kwargs):
                                     strMiss += f" {lfn}"
                             job.jobStatus = "failed"
                             job.taskBufferErrorCode = pandaserver.taskbuffer.ErrorCode.EC_Transfer
-                            job.taskBufferErrorDiag = "transfer timeout for " + strMiss
+                            job.taskBufferErrorDiag = f"transfer timeout for {strMiss}"
                             guidMap = {}
                             for file in job.Files:
                                 # set file status
