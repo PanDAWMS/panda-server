@@ -112,7 +112,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             self.logger.debug(f"alt stage-out:{str(self.job.altStgOutFileList())}")
             something_to_transfer = False
             for file in self.job.Files:
-                if file.type == "output" or file.type == "log":
+                if file.type in {"output", "log"}:
                     if file.status == "nooutput":
                         continue
                     if DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) is None and file.lfn not in self.job.altStgOutFileList():
@@ -196,7 +196,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         zip_file_map = self.job.getZipFileMap()
         # get campaign
         campaign = None
-        n_events_input = dict()
+        n_events_input = {}
         if self.job.jediTaskID not in [0, None, "NULL"]:
             tmp_ret = self.taskBuffer.getTaskAttributesPanda(self.job.jediTaskID, ["campaign"])
             if "campaign" in tmp_ret:
@@ -238,7 +238,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         for file in self.job.Files:
             # gc
             gc.collect()
-            if file.type == "output" or file.type == "log":
+            if file.type in {'output', 'log'}:
                 # prepare the site spec and scope for the destinationSE site
                 destination_se_site_spec = self.siteMapper.getSite(file.destinationSE)
                 scope_dst_se_site_spec_input, scope_dst_se_site_spec_output = select_scope(destination_se_site_spec, self.job.prodSourceLabel, self.job.job_label)
@@ -272,7 +272,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                 if file.lfn in zip_file_map:
                     is_zip_file = True
                     if file.lfn not in zip_files and not self.add_to_top_only:
-                        zip_files[file.lfn] = dict()
+                        zip_files[file.lfn] = {}
                 else:
                     is_zip_file = False
                 # check if zip content
@@ -288,7 +288,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                             break
                     if zip_file_name is not None:
                         if zip_file_name not in zip_files:
-                            zip_files[zip_file_name] = dict()
+                            zip_files[zip_file_name] = {}
                         cont_zip_map[file.lfn] = zip_file_name
                 try:
                     # check nevents
@@ -404,7 +404,6 @@ class AdderAtlasPlugin(AdderPluginBase):
                     # extract OS files
                     has_normal_url = True
                     if file.lfn in self.extra_info["endpoint"] and self.extra_info["endpoint"][file.lfn] != []:
-                        # hasNormalURL = False # FIXME once the pilot chanages to send srm endpoints in addition to OS
                         for pilot_end_point in self.extra_info["endpoint"][file.lfn]:
                             # pilot uploaded to endpoint consistently with original job definition
                             if pilot_end_point in dataset_destination_map[file_destination_dispatch_block]:
@@ -429,8 +428,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                             zip_files[zip_file_name]["files"].append(file_attrs)
                         if is_zip_file and not self.add_to_top_only:
                             # copy file attribute for zip file registration
-                            for tmp_file_attr_name in file_attrs:
-                                tmp_file_attr_val = file_attrs[tmp_file_attr_name]
+                            for tmp_file_attr_name, tmp_file_attr_val in file_attrs.items():
                                 zip_files[file.lfn][tmp_file_attr_name] = tmp_file_attr_val
                             zip_files[file.lfn]["scope"] = file.scope
                             zip_files[file.lfn]["rse"] = dataset_destination_map[file_destination_dispatch_block]
@@ -607,7 +605,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             if match is not None:
                 has_sub = True
                 break
-        if id_map != {} and self.go_to_transferring and not has_sub:
+        if id_map and self.go_to_transferring and not has_sub:
             err_str = "no sub datasets for transferring. destinationDBlock may be wrong"
             self.logger.error(err_str)
             self.result.set_fatal()
@@ -618,8 +616,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         # count the number of files
         reg_num_files = 0
         reg_file_list = []
-        for tmp_reg_dataset in id_map:
-            tmp_reg_list = id_map[tmp_reg_dataset]
+        for tmp_reg_dataset, tmp_reg_list in id_map.items():
             for tmp_reg_item in tmp_reg_list:
                 if tmp_reg_item["lfn"] not in reg_file_list:
                     reg_num_files += 1
@@ -667,15 +664,12 @@ class AdderAtlasPlugin(AdderPluginBase):
                 err_type, err_value = sys.exc_info()[:2]
                 out = f"{err_type} : {err_value}"
                 out += traceback.format_exc()
-                if (
-                    "value too large for column" in out
-                    or "unique constraint (ATLAS_RUCIO.DIDS_GUID_IDX) violate" in out
-                    or "unique constraint (ATLAS_RUCIO.DIDS_PK) violated" in out
-                    or "unique constraint (ATLAS_RUCIO.ARCH_CONTENTS_PK) violated" in out
-                ):
-                    is_fatal = True
-                else:
-                    is_fatal = False
+                is_fatal = (
+                        "value too large for column" in out
+                        or "unique constraint (ATLAS_RUCIO.DIDS_GUID_IDX) violate" in out
+                        or "unique constraint (ATLAS_RUCIO.DIDS_PK) violated" in out
+                        or "unique constraint (ATLAS_RUCIO.ARCH_CONTENTS_PK) violated" in out
+                )
                 is_failed = True
             reg_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - reg_start
             self.logger.debug(reg_msg_str + "took %s.%03d sec" % (reg_time.seconds, reg_time.microseconds / 1000))
@@ -715,8 +709,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         else:
             sub_activity = "Production Output"
         if self.job.prodSourceLabel not in ["user"]:
-            for tmp_name in sub_map:
-                tmp_val = sub_map[tmp_name]
+            for tmp_name, tmp_val in sub_map.items():
                 for ddm_id, opt_sub, opt_source in tmp_val:
                     if not self.go_to_merging:
                         # make subscription for prod jobs
@@ -847,8 +840,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             # send request to DaTRI unless files will be merged
             tmp_top_datasets = {}
             # collect top-level datasets
-            for tmp_name in sub_map:
-                tmp_val = sub_map[tmp_name]
+            for tmp_name, tmp_val in sub_map.items():
                 for ddm_id, opt_sub, opt_source in tmp_val:
                     tmp_top_name = sub_to_ds_map[tmp_name]
                     # append
@@ -859,15 +851,14 @@ class AdderAtlasPlugin(AdderPluginBase):
             # remove redundant CN from DN
             tmp_dn = self.job.prodUserID
             # send request
-            if tmp_top_datasets != {} and self.job_status == "finished":
+            if tmp_top_datasets and self.job_status == "finished":
                 try:
                     status, user_info = rucioAPI.finger(tmp_dn)
                     if not status:
                         raise RuntimeError(f"user info not found for {tmp_dn} with {user_info}")
                     user_endpoints = []
                     # loop over all output datasets
-                    for tmp_dataset_name in tmp_top_datasets:
-                        ddm_id_list = tmp_top_datasets[tmp_dataset_name]
+                    for tmp_dataset_name, ddm_id_list in tmp_top_datasets.items():
                         for tmp_ddm_id in ddm_id_list:
                             if tmp_ddm_id == "NULL":
                                 continue
@@ -1018,7 +1009,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             # get ES dataset name
             event_service_dataset = EventServiceUtils.getEsDatasetName(self.job.jediTaskID)
             # collect files
-            id_map = dict()
+            id_map = {}
             file_set = set()
             for file_spec in self.job.Files:
                 if file_spec.type != "zipoutput":
@@ -1050,12 +1041,12 @@ class AdderAtlasPlugin(AdderPluginBase):
                 if rse is not None and rse["is_deterministic"]:
                     endpoint_name = rse["name"]
                     if endpoint_name not in id_map:
-                        id_map[endpoint_name] = dict()
+                        id_map[endpoint_name] = {}
                     if event_service_dataset not in id_map[endpoint_name]:
                         id_map[endpoint_name][event_service_dataset] = []
                     id_map[endpoint_name][event_service_dataset].append(file_data)
             # add files to dataset
-            if id_map != {}:
+            if id_map:
                 self.logger.debug(f"adding ES files {str(id_map)}")
                 try:
                     rucioAPI.register_files_in_dataset(id_map)
