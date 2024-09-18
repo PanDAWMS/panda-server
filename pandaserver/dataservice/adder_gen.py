@@ -20,7 +20,7 @@ from pandaserver.config import panda_config
 from pandaserver.dataservice import closer
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils, retryModule
 
-_logger = PandaLogger().getLogger("Adder")
+_logger = PandaLogger().getLogger("adder")
 
 panda_config.setupPlugin()
 
