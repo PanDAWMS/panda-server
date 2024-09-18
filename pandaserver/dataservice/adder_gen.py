@@ -111,7 +111,7 @@ class AdderGen:
         adder_plugin_class = panda_config.getPlugin("adder_plugins", tmp_vo, tmp_group)
         if adder_plugin_class is None:
             # use ATLAS plugin by default
-            from pandaserver.dataservice.AdderAtlasPlugin import AdderAtlasPlugin
+            from pandaserver.dataservice.adder_atlas_plugin import AdderAtlasPlugin
 
             adder_plugin_class = AdderAtlasPlugin
         self.logger.debug(f"plugin name {adder_plugin_class.__name__}")
@@ -153,7 +153,7 @@ class AdderGen:
                 )
                 # execute
                 self.logger.debug("plugin is ready for ES file registration")
-                adder_plugin.registerEventServiceFiles()
+                adder_plugin.register_event_service_files()
             else:
                 # check file status in JEDI
                 if not self.job.isCancelled() and self.job.taskBufferErrorCode not in [pandaserver.taskbuffer.ErrorCode.EC_PilotRetried]:
