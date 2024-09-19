@@ -3602,16 +3602,10 @@ class DBProxy:
             except KeyError:
                 pass
 
-        tmpLog.debug(f"Push: {is_push_queue}, average_memory_target: {average_memory_target}")
         if is_push_queue and average_memory_target:
             average_memory_jobs_running_submitted, average_memory_jobs_running = self.get_average_memory_jobs(siteName, average_memory_target)
-            tmpLog.debug(
-                f"average_memory_jobs_running_submitted: {average_memory_jobs_running_submitted}, average_memory_jobs_running: {average_memory_jobs_running}"
-            )
             if average_memory_jobs_running_submitted > average_memory_target or average_memory_jobs_running > average_memory_target:
                 average_memory_limit = average_memory_target
-
-        tmpLog.debug(f"Retrieved average_memory_limit: {average_memory_limit}")
 
         # generate the WHERE clauses based on the requirements for the job
         sql_where_clause, getValMap = self.construct_where_clause(
@@ -3628,8 +3622,6 @@ class DBProxy:
             task_id=taskID,
             average_memory_limit=average_memory_limit,
         )
-
-        tmpLog.debug(f"WHERE clause: {sql_where_clause}")
 
         # get the sorting criteria (global shares, age, etc.)
         sorting_sql, sorting_varmap = self.getSortingCriteria(siteName, maxAttemptIDx)
