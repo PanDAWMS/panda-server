@@ -205,7 +205,7 @@ def putFile(panda_request: PandaRequest, file: FileStorage) -> str:
 
             tmp_log.debug(f"inserted sandbox to DB with {output_client}")
 
-    tmp_log.debug("trigrer garbage collection")
+    tmp_log.debug("trigger garbage collection")
     gc.collect()
     tmp_log.debug("end")
 
