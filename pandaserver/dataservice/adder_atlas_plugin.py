@@ -83,14 +83,14 @@ class AdderAtlasPlugin(AdderPluginBase):
                 self.go_to_merging = True
             # check if the job should go to transferring
             src_site_spec = self.siteMapper.getSite(self.job.computingSite)
-            scope_src_site_spec_input, scope_src_site_spec_output = select_scope(src_site_spec, self.job.prodSourceLabel, self.job.job_label)
+            _, scope_src_site_spec_output = select_scope(src_site_spec, self.job.prodSourceLabel, self.job.job_label)
             tmp_src_ddm = src_site_spec.ddm_output[scope_src_site_spec_output]
             if self.job.prodSourceLabel == "user" and self.job.destinationSE not in self.siteMapper.siteSpecList:
                 # DQ2 ID was set by using --destSE for analysis job to transfer output
                 tmp_dst_ddm = self.job.destinationSE
             else:
                 dst_site_spec = self.siteMapper.getSite(self.job.destinationSE)
-                scope_dst_site_spec_input, scope_dst_site_spec_output = select_scope(dst_site_spec, self.job.prodSourceLabel, self.job.job_label)
+                _, scope_dst_site_spec_output = select_scope(dst_site_spec, self.job.prodSourceLabel, self.job.job_label)
                 tmp_dst_ddm = dst_site_spec.ddm_output[scope_dst_site_spec_output]
                 # protection against disappearance of dest from schedconfig
                 if not self.siteMapper.checkSite(self.job.destinationSE) and self.job.destinationSE != "local":
@@ -191,7 +191,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             return 0
         # get the computingsite spec and scope
         src_site_spec = self.siteMapper.getSite(self.job.computingSite)
-        scope_src_site_spec_input, scope_src_site_spec_output = select_scope(src_site_spec, self.job.prodSourceLabel, self.job.job_label)
+        _, scope_src_site_spec_output = select_scope(src_site_spec, self.job.prodSourceLabel, self.job.job_label)
         # zip file map
         zip_file_map = self.job.getZipFileMap()
         # get campaign
@@ -241,7 +241,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             if file.type in {'output', 'log'}:
                 # prepare the site spec and scope for the destinationSE site
                 destination_se_site_spec = self.siteMapper.getSite(file.destinationSE)
-                scope_dst_se_site_spec_input, scope_dst_se_site_spec_output = select_scope(destination_se_site_spec, self.job.prodSourceLabel, self.job.job_label)
+                _, scope_dst_se_site_spec_output = select_scope(destination_se_site_spec, self.job.prodSourceLabel, self.job.job_label)
 
                 # added to map
                 if file.datasetID in ds_id_to_ds_map:
@@ -316,7 +316,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                         try:
                             fsize = int(file.fsize)
                         except Exception:
-                            error_type, error_value, error_traceback = sys.exc_info()
+                            error_type, error_value, _ = sys.exc_info()
                             self.logger.error(f"{self.job_id} : {error_type} {error_value}")
                     # use top-level dataset name for alternative stage-out
                     if file.lfn not in self.job.altStgOutFileList():
@@ -340,9 +340,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                             del file_attrs["surl"]
                         # get destination
                         if file_destination_dispatch_block not in dataset_destination_map:
-                            to_convert = True
                             if file.lfn in self.job.altStgOutFileList():
-                                to_convert = False
                                 # alternative stage-out
                                 if DataServiceUtils.getDestinationSE(file.destinationDBlockToken) is not None:
                                     # RSE is specified
@@ -363,12 +361,10 @@ class AdderAtlasPlugin(AdderPluginBase):
                             ):
                                 tmp_dest_list = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
                                 # RSE is specified
-                                to_convert = False
                             elif DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) is not None:
                                 tmp_dest_list = [DataServiceUtils.getDistributedDestination(file.destinationDBlockToken)]
                                 dist_datsets.add(file_destination_dispatch_block)
                                 # RSE is specified for distributed datasets
-                                to_convert = False
                             elif (
                                 src_site_spec.cloud != self.job.cloud
                                 and (not src_site_spec.ddm_output[scope_src_site_spec_output].endswith("PRODDISK"))
@@ -616,7 +612,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         # count the number of files
         reg_num_files = 0
         reg_file_list = []
-        for tmp_reg_dataset, tmp_reg_list in id_map.items():
+        for _, tmp_reg_list in id_map.items():
             for tmp_reg_item in tmp_reg_list:
                 if tmp_reg_item["lfn"] not in reg_file_list:
                     reg_num_files += 1
