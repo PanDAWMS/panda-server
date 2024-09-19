@@ -13,7 +13,6 @@ from pandaserver.dataservice.ddm import rucioAPI
 from rucio.common.exception import (
     DataIdentifierNotFound,
     FileConsistencyMismatch,
-    InsufficientAccountLimit,
     InvalidObject,
     InvalidPath,
     InvalidRSEExpression,
