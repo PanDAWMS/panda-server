@@ -22079,7 +22079,7 @@ class DBProxy:
                 f"FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS "
                 f"WHERE COMPUTINGSITE = :computingsite "
                 f"AND jobstatus IN ('running', 'starting') "
-                f"GROUP BY COMPUTINGSITE;"
+                f"GROUP BY COMPUTINGSITE"
             )
 
             sql_running = (
@@ -22087,7 +22087,7 @@ class DBProxy:
                 f"FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS "
                 f"WHERE COMPUTINGSITE = :computingsite "
                 f"AND jobstatus = 'running' "
-                f"GROUP BY COMPUTINGSITE;"
+                f"GROUP BY COMPUTINGSITE"
             )
 
             var_map = {":computingsite": computingsite}
