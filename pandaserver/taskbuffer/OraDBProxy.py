@@ -3560,6 +3560,9 @@ class DBProxy:
         4. Pack the files and if jobs are AES also the event ranges
         """
         comment = " /* DBProxy.getJobs */"
+        timeStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        tmpLog = LogWrapper(_logger, f"getJobs : {datetime.datetime.isoformat(timeStart)} -> ")
+        tmpLog.debug("Start")
 
         # Number of PanDAIDs that will be tried
         if hasattr(panda_config, "nJobsInGetJob"):
@@ -3573,7 +3576,7 @@ class DBProxy:
         average_memory_limit = None
         pq_data_des = self.get_config_for_pq(siteName)
         if not pq_data_des:
-            tmp_log.debug("Error retrieving queue configuration from DB, limits can not be applied")
+            tmpLog.debug("Error retrieving queue configuration from DB, limits can not be applied")
         else:
             try:
                 if pq_data_des["meanrss"] != 0:
@@ -3593,7 +3596,8 @@ class DBProxy:
             )
             if average_memory_jobs_running_submitted > average_memory_target or average_memory_jobs_running > average_memory_target:
                 average_memory_limit = average_memory_target
-                
+        
+        tmpLog.debug(f"Retrieved average_memory_limit: {average_memory_limit}")
 
         # generate the WHERE clauses based on the requirements for the job
         sql_where_clause, getValMap = self.construct_where_clause(
@@ -3620,12 +3624,10 @@ class DBProxy:
         retJobs = []
         nSent = 0
         getValMapOrig = copy.copy(getValMap)
-        tmpLog = None
-        
+
         try:
             timeLimit = datetime.timedelta(seconds=timeout - 10)
-            timeStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-            tmpLog = LogWrapper(_logger, f"getJobs : {datetime.datetime.isoformat(timeStart)} -> ")
+
 
             # get nJobs
             for iJob in range(nJobs):
