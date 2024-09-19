@@ -22058,12 +22058,12 @@ class DBProxy:
         tmpLog.debug("done")
         return worker_stats_dict
 
-    def get_average_memory_jobs(self, queue, target):
+    def get_average_memory_jobs(self, computingsite, target):
         """
         Calculates the average memory for running and queued (starting) jobs at a particular panda queue.
         This function is equivalent to the get_average_memory_workers (for PULL), but is meant for PUSH queues.
 
-        :param queue: name of the PanDA queue
+        :param computingsite: name of the PanDA queue
         :param target: memory target for the queue in MB. This value is only used in the logging
 
         :return: average_memory_running_submitted, average_memory_running
@@ -22090,7 +22090,7 @@ class DBProxy:
                 f"GROUP BY COMPUTINGSITE;"
             )
 
-            var_map = {":queue": queue}
+            var_map = {":computingsite": computingsite}
 
             self.cur.execute(sql_running_and_submitted + comment, var_map)
             results = self.cur.fetchone()
@@ -22107,7 +22107,7 @@ class DBProxy:
                 average_memory_running = 0
 
             tmp_logger.info(
-                f"computingsite={queue} currently has "
+                f"computingsite={computingsite} currently has "
                 f"meanrss_running_submitted={average_memory_running_submitted} "
                 f"meanrss_running={average_memory_running} "
                 f"meanrss_target={target} MB"
