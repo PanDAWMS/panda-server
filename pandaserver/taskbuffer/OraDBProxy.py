@@ -278,7 +278,7 @@ class DBProxy:
     # Internal caching of a result. Use only for information with low update frequency and low memory footprint
     def memoize(f):
         memo = {}
-        kwd_mark = object()                 
+        kwd_mark = object()
 
         def helper(self, *args, **kwargs):
             now = datetime.datetime.now()
@@ -3457,11 +3457,22 @@ class DBProxy:
                 self.dumpErrorMessage(_logger, methodName)
                 return False
 
-    def construct_where_clause(self, site_name, mem, disk_space, background, resource_type, prod_source_label, computing_element, is_gu, job_type, prod_user_id, task_id, average_memory_limit):
-        get_val_map = {
-            ":oldJobStatus": "activated",
-            ":computingSite": site_name
-        }
+    def construct_where_clause(
+        self,
+        site_name,
+        mem,
+        disk_space,
+        background,
+        resource_type,
+        prod_source_label,
+        computing_element,
+        is_gu,
+        job_type,
+        prod_user_id,
+        task_id,
+        average_memory_limit,
+    ):
+        get_val_map = {":oldJobStatus": "activated", ":computingSite": site_name}
 
         sql_where_clause = "WHERE jobStatus=:oldJobStatus AND computingSite=:computingSite "
 
@@ -3502,7 +3513,9 @@ class DBProxy:
                 get_val_map[":prodSourceLabel2"] = "install"
                 get_val_map[":prodSourceLabel3"] = "test"
         elif prod_source_label == "unified":
-            sql_where_clause += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5,:prodSourceLabel6) "
+            sql_where_clause += (
+                "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5,:prodSourceLabel6) "
+            )
             get_val_map[":prodSourceLabel1"] = "managed"
             get_val_map[":prodSourceLabel2"] = "test"
             get_val_map[":prodSourceLabel3"] = "prod_test"
@@ -3523,13 +3536,12 @@ class DBProxy:
         if task_id not in [None, "NULL"]:
             sql_where_clause += "AND jediTaskID=:taskID "
             get_val_map[":taskID"] = task_id
-            
+
         if average_memory_limit:
             sql_where_clause += "AND minramcount<:average_memory_limit "
             get_val_map[":average_memory_limit"] = average_memory_limit
 
         return sql_where_clause, get_val_map
-
 
     # get jobs
     def getJobs(
@@ -3585,18 +3597,16 @@ class DBProxy:
                 pass
             try:
                 workflow = pq_data_des["workflow"]
-                if workflow == 'push':
+                if workflow == "push":
                     is_push_queue = True
             except KeyError:
                 pass
 
         if is_push_queue and average_memory_target:
-            average_memory_jobs_running_submitted, average_memory_jobs_running = self.get_average_memory_jobs(
-                siteName, average_memory_target
-            )
+            average_memory_jobs_running_submitted, average_memory_jobs_running = self.get_average_memory_jobs(siteName, average_memory_target)
             if average_memory_jobs_running_submitted > average_memory_target or average_memory_jobs_running > average_memory_target:
                 average_memory_limit = average_memory_target
-        
+
         tmpLog.debug(f"Retrieved average_memory_limit: {average_memory_limit}")
 
         # generate the WHERE clauses based on the requirements for the job
@@ -3612,16 +3622,16 @@ class DBProxy:
             job_type=jobType,
             prod_user_id=prodUserID,
             task_id=taskID,
-            average_memory_limit=average_memory_limit
+            average_memory_limit=average_memory_limit,
         )
-        
+
         tmpLog.debug(f"WHERE clause: {sql_where_clause}")
 
         # get the sorting criteria (global shares, age, etc.)
         sorting_sql, sorting_varmap = self.getSortingCriteria(siteName, maxAttemptIDx)
         if sorting_varmap:  # copy the var map, but not the sql, since it has to be at the very end
             for tmp_key in sorting_varmap:
-                getValMap[tmp_key] = sorting_varmap[tmp_key]                
+                getValMap[tmp_key] = sorting_varmap[tmp_key]
 
         retJobs = []
         nSent = 0
@@ -3818,7 +3828,7 @@ class DBProxy:
                 tmpLog.debug(f"Site {siteName} : retU {retU} : PandaID {pandaID} - {prodSourceLabel}")
                 if pandaID == 0:
                     break
-                
+
                 # start transaction
                 self.conn.begin()
                 # query to get the DB entry for a specific PanDA ID
@@ -4067,7 +4077,7 @@ class DBProxy:
                                     mergeFileObjStoreMap[tmpZipInputFileSpec.lfn] = tmpEsOutZipFile["osid"]
                 for tmpInputFileSpec in mergeInputFiles:
                     job.addFile(tmpInputFileSpec)
-                
+
                 # job parameters
                 sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
                 varMap = {}
@@ -4079,7 +4089,7 @@ class DBProxy:
                     except AttributeError:
                         job.jobParameters = str(clobJobP)
                     break
-                
+
                 # remove or extract parameters for merge
                 if EventServiceUtils.isEventServiceJob(job) or EventServiceUtils.isJumboJob(job) or EventServiceUtils.isCoJumboJob(job):
                     try:
@@ -4109,7 +4119,7 @@ class DBProxy:
                         pass
                     # pass in/out map for merging via metadata
                     job.metadata = [mergeInputOutputMap, mergeFileObjStoreMap]
-                
+
                 # read task parameters
                 if job.lockedby == "jedi":
                     sqlTP = f"SELECT ioIntensity,ioIntensityUnit FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
@@ -4121,13 +4131,13 @@ class DBProxy:
                         ioIntensity, ioIntensityUnit = resTP
                         job.set_task_attribute("ioIntensity", ioIntensity)
                         job.set_task_attribute("ioIntensityUnit", ioIntensityUnit)
-                
+
                 if not self._commit():
                     raise RuntimeError("Commit error")
 
                 # append the job to the returned list
                 retJobs.append(job)
-                
+
                 # record status change
                 try:
                     self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)
@@ -22103,7 +22113,6 @@ class DBProxy:
         except Exception:
             self.dumpErrorMessage(tmp_logger, method_name)
             return 0, 0
-
 
     def get_average_memory_workers(self, queue, harvester_id, target):
         """
