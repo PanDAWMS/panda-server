@@ -3457,7 +3457,7 @@ class DBProxy:
                 self.dumpErrorMessage(_logger, methodName)
                 return False
 
-    def construct_where_clause(site_name, mem, disk_space, background, resource_type, prod_source_label, computing_element, is_gu, job_type, prod_user_id, task_id, average_memory_limit):
+    def construct_where_clause(self, site_name, mem, disk_space, background, resource_type, prod_source_label, computing_element, is_gu, job_type, prod_user_id, task_id, average_memory_limit):
         get_val_map = {
             ":oldJobStatus": "activated",
             ":computingSite": site_name
