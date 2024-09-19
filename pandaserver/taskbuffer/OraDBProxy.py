@@ -3614,12 +3614,14 @@ class DBProxy:
             task_id=taskID,
             average_memory_limit=average_memory_limit
         )
+        
+        tmpLog.debug(f"WHERE clause: {sql_where_clause}")
 
         # get the sorting criteria (global shares, age, etc.)
         sorting_sql, sorting_varmap = self.getSortingCriteria(siteName, maxAttemptIDx)
         if sorting_varmap:  # copy the var map, but not the sql, since it has to be at the very end
             for tmp_key in sorting_varmap:
-                getValMap[tmp_key] = sorting_varmap[tmp_key]
+                getValMap[tmp_key] = sorting_varmap[tmp_key]                
 
         retJobs = []
         nSent = 0
@@ -3627,7 +3629,6 @@ class DBProxy:
 
         try:
             timeLimit = datetime.timedelta(seconds=timeout - 10)
-
 
             # get nJobs
             for iJob in range(nJobs):
