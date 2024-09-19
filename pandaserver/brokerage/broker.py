@@ -1046,8 +1046,6 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
                 if job.prodSourceLabel != "user" and job.destinationSE not in siteMapper.siteSpecList and job.destinationSE != "local":
                     if DataServiceUtils.checkJobDestinationSE(job) is not None:
                         destSE = DataServiceUtils.checkJobDestinationSE(job)
-                    else:
-                        destSE = siteMapper.getCloud(job.getCloud())["dest"]
                     job.destinationSE = destSE
 
             if overwriteSite:
