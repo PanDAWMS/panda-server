@@ -4,14 +4,10 @@ add data to dataset
 """
 
 import datetime
-import os
 import re
 import sys
 import time
-
-# import fcntl
 import traceback
-import uuid
 import xml.dom.minidom
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -612,6 +608,7 @@ class AdderGen(object):
                     chksums.append(f"md5:{md5sum}")
                 if fullLFN is not None:
                     fullLfnMap[lfn] = fullLFN
+            self.logger.debug("XML was used")
         except Exception:
             # parse json
             try:
@@ -664,6 +661,7 @@ class AdderGen(object):
                         chksums.append(f"md5:{md5sum}")
                     if fullLFN is not None:
                         fullLfnMap[lfn] = fullLFN
+                self.logger.debug("JSON was used")
             except Exception:
                 type, value, traceBack = sys.exc_info()
                 self.logger.error(f": {type} {value}")
@@ -703,6 +701,7 @@ class AdderGen(object):
                         nEventsMap[lfn] = nevents
                         break
             nEventsFrom = "xml"
+            self.logger.debug("XML was used to parse metadata")
         except Exception:
             pass
         # parse json
@@ -724,6 +723,7 @@ class AdderGen(object):
                     except Exception:
                         pass
             nEventsFrom = "json"
+            self.logger.debug("JSON was used to parse metadata")
         except Exception:
             pass
         # use nEvents and GUIDs reported by the pilot if no job report

@@ -76,14 +76,16 @@ class AdderAtlasPlugin(AdderPluginBase):
                 dstSiteSpec = self.siteMapper.getSite(self.job.destinationSE)
                 scopeDstSiteSpec_input, scopeDstSiteSpec_output = select_scope(dstSiteSpec, self.job.prodSourceLabel, self.job.job_label)
                 tmpDstDDM = dstSiteSpec.ddm_output[scopeDstSiteSpec_output]
+
                 # protection against disappearance of dest from schedconfig
-                if not self.siteMapper.checkSite(self.job.destinationSE) and self.job.destinationSE != "local":
+                if self.job.destinationSE not in ["NULL", None] and not self.siteMapper.checkSite(self.job.destinationSE) and self.job.destinationSE != "local":
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                     self.job.ddmErrorDiag = f"destinationSE {self.job.destinationSE} is unknown in schedconfig"
                     self.logger.error(f"{self.job.ddmErrorDiag}")
                     # set fatal error code and return
                     self.result.setFatal()
                     return
+
             # protection against disappearance of src from schedconfig
             if not self.siteMapper.checkSite(self.job.computingSite):
                 self.job.ddmErrorCode = ErrorCode.EC_Adder
@@ -115,6 +117,9 @@ class AdderAtlasPlugin(AdderPluginBase):
                 pass
             elif tmpSrcDDM == tmpDstDDM:
                 # same DQ2ID for src/dest
+                pass
+            elif self.job.destinationSE in ["NULL", None]:
+                # jobs stayed without destinationSE, e.g. there is no job output
                 pass
             elif self.addToTopOnly:
                 # already in transferring
