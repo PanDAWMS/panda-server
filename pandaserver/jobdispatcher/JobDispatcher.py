@@ -154,18 +154,13 @@ class JobDispatcher:
         self,
         siteName,
         prodSourceLabel,
-        cpu,
         mem,
         diskSpace,
         node,
         timeout,
         computingElement,
-        atlasRelease,
         prodUserID,
         getProxyKey,
-        countryGroup,
-        workingGroup,
-        allowOtherCountry,
         realDN,
         taskID,
         nJobs,
@@ -205,18 +200,12 @@ class JobDispatcher:
             tmpNumJobs,
             siteName,
             prodSourceLabel,
-            cpu,
             mem,
             diskSpace,
             node,
             timeout,
             computingElement,
-            atlasRelease,
             prodUserID,
-            getProxyKey,
-            countryGroup,
-            workingGroup,
-            allowOtherCountry,
             taskID,
             background,
             resourceType,
@@ -1046,39 +1035,12 @@ def getJob(
     else:
         viaTopic = False
     tmpLog.debug(
-        "%s,nJobs=%s,cpu=%s,mem=%s,disk=%s,source_label=%s,node=%s,ce=%s,rel=%s,user=%s,proxy=%s,c_group=%s,"
-        "w_group=%s,%s,taskID=%s,DN:%s,role:%s,token:%s,val:%s,FQAN:%s,json:%s,bg=%s,rt=%s,"
-        "harvester_id=%s,worker_id=%s,schedulerID=%s,jobType=%s,viaTopic=%s"
-        % (
-            siteName,
-            nJobs,
-            cpu,
-            mem,
-            diskSpace,
-            prodSourceLabel,
-            node,
-            computingElement,
-            AtlasRelease,
-            prodUserID,
-            getProxyKey,
-            countryGroup,
-            workingGroup,
-            allowOtherCountry,
-            taskID,
-            realDN,
-            prodManager,
-            token,
-            validToken,
-            str(fqans),
-            req.acceptJson(),
-            background,
-            resourceType,
-            harvester_id,
-            worker_id,
-            schedulerID,
-            jobType,
-            viaTopic,
-        )
+        f"{siteName},nJobs={nJobs},cpu={cpu},mem={mem},disk={diskSpace},source_label={prodSourceLabel},"
+        f"node={node},ce={computingElement},rel={AtlasRelease},user={prodUserID},proxy={getProxyKey},"
+        f"c_group={countryGroup},w_group={workingGroup},{allowOtherCountry},taskID={taskID},DN={realDN},"
+        f"role={prodManager},token={token},val={validToken},FQAN={str(fqans)},json={req.acceptJson()},"
+        f"bg={background},rt={resourceType},harvester_id={harvester_id},worker_id={worker_id},"
+        f"schedulerID={schedulerID},jobType={jobType},viaTopic={viaTopic}"
     )
     try:
         dummyNumSlots = int(nJobs)
@@ -1105,18 +1067,13 @@ def getJob(
     return jobDispatcher.getJob(
         siteName,
         prodSourceLabel,
-        cpu,
         mem,
         diskSpace,
         node,
         int(timeout),
         computingElement,
-        AtlasRelease,
         prodUserID,
         getProxyKey,
-        countryGroup,
-        workingGroup,
-        allowOtherCountry,
         realDN,
         taskID,
         nJobs,
