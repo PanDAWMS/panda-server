@@ -215,7 +215,7 @@ def application(environ, start_response):
     tmp_log = LogWrapper(_logger, f"PID={os.getpid()} {method_name}", seeMem=True)
     cont_length = int(environ.get("CONTENT_LENGTH", 0))
     json_body = environ.get("CONTENT_TYPE", None) == "application/json"
-    tmp_log.debug(f"start content-length={cont_length} json={json_body}")
+    tmp_log.debug(f"""start content-length={cont_length} json={json_body} origin={environ.get("HTTP_ORIGIN", None)}""")
 
     start_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     return_type = None

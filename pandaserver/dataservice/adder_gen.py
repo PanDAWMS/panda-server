@@ -631,6 +631,7 @@ class AdderGen:
                     chksums.append(f"md5:{md5sum}")
                 if full_lfn is not None:
                     full_lfn_map[lfn] = full_lfn
+            self.logger.debug("XML was used")
         except Exception:
             # parse json
             try:
@@ -681,6 +682,7 @@ class AdderGen:
                         chksums.append(f"md5:{md5sum}")
                     if full_lfn is not None:
                         full_lfn_map[lfn] = full_lfn
+                self.logger.debug("JSON was used")
             except Exception:
                 exc_type, value, _ = sys.exc_info()
                 self.logger.error(f": {exc_type} {value}")
@@ -720,6 +722,7 @@ class AdderGen:
                         n_events_map[lfn] = n_events
                         break
             n_events_from = "xml"
+            self.logger.debug("XML was used to parse metadata")
         except Exception:
             pass
         # parse json
@@ -741,6 +744,7 @@ class AdderGen:
                     except Exception:
                         pass
             n_events_from = "json"
+            self.logger.debug("JSON was used to parse metadata")
         except Exception:
             pass
         # use nEvents and GUIDs reported by the pilot if no job report

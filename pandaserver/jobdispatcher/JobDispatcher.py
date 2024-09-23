@@ -50,64 +50,7 @@ class _TimedMethod:
         thr.join()  # self.timeout)
 
 
-# cached object
-class CachedObject:
-    # constructor
-    def __init__(self, timeInterval, updateFunc):
-        # cached object
-        self.cachedObj = None
-        # datetime of last updated
-        self.lastUpdated = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-        # how frequently update DN/token map
-        self.timeInterval = datetime.timedelta(seconds=timeInterval)
-        # lock
-        self.lock = Lock()
-        # function to update object
-        self.updateFunc = updateFunc
-
-    # update obj
-    def update(self):
-        # get current datetime
-        current = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-        # lock
-        self.lock.acquire()
-        # update if old
-        if self.cachedObj is None or current - self.lastUpdated > self.timeInterval:
-            self.cachedObj = self.updateFunc()
-            self.lastUpdated = current
-        # release
-        self.lock.release()
-        # return
-        return
-
-    # contains
-    def __contains__(self, item):
-        contains = False
-        try:
-            contains = item in self.cachedObj
-        except TypeError:
-            pass
-        return contains
-
-    # get item
-    def __getitem__(self, name):
-        return self.cachedObj[name]
-
-    # get method
-    def get(self, *var):
-        return self.cachedObj.get(*var)
-
-    # get object
-    def getObj(self):
-        self.lock.acquire()
-        return self.cachedObj
-
-    # release object
-    def releaseObj(self):
-        self.lock.release()
-
-
-# job dipatcher
+# job dispatcher
 class JobDispatcher:
     # constructor
     def __init__(self):
@@ -151,12 +94,12 @@ class JobDispatcher:
         # get pilot owners
         if self.pilotOwners is None:
             self.pilotOwners = self.taskBuffer.getPilotOwners()
-        # special dipatcher parameters
+        # special dispatcher parameters
         if self.specialDispatchParams is None:
-            self.specialDispatchParams = CachedObject(60 * 10, self.get_special_dispatch_params)
+            self.specialDispatchParams = CoreUtils.CachedObject("dispatcher_params", 60 * 10, self.get_special_dispatch_params, _logger)
         # site mapper cache
         if self.siteMapperCache is None:
-            self.siteMapperCache = CachedObject(60 * 10, self.getSiteMapper)
+            self.siteMapperCache = CoreUtils.CachedObject("site_mapper", 60 * 10, self.getSiteMapper, _logger)
         # release
         self.lock.release()
 
@@ -168,7 +111,7 @@ class JobDispatcher:
         param = self.taskBuffer.get_special_dispatch_params()
         for client_name in param["tokenKeys"]:
             param["tokenKeys"][client_name]["fullList"] = set(param["tokenKeys"][client_name]["fullList"])
-        return param
+        return True, param
 
     # set user proxy
     def set_user_proxy(self, response, distinguished_name=None, role=None, tokenized=False) -> tuple[bool, str]:
@@ -756,7 +699,7 @@ class JobDispatcher:
 
     # get site mapper
     def getSiteMapper(self):
-        return SiteMapper(self.taskBuffer)
+        return True, SiteMapper(self.taskBuffer)
 
     def getCommands(self, harvester_id, n_commands, timeout, accept_json):
         """

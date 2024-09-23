@@ -102,7 +102,7 @@ class Response:
         inDsLfnMap = {}
         inLFNset = set()
         if siteMapperCache is not None:
-            siteMapper = siteMapperCache.getObj()
+            siteMapper = siteMapperCache.get_object()
             siteSpec = siteMapper.getSite(job.computingSite)
             # resolve destSE
             try:
@@ -111,7 +111,7 @@ class Response:
                     tmpFile.destinationSE = siteMapper.resolveNucleus(tmpFile.destinationSE)
             except Exception:
                 pass
-            siteMapperCache.releaseObj()
+            siteMapperCache.release_object()
         for file in job.Files:
             if file.type == "input":
                 if EventServiceUtils.isJumboJob(job) and file.lfn in inLFNset:

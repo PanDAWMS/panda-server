@@ -156,6 +156,87 @@ class CachedObject:
         self.update()
         return self.cachedObj[name]
 
+    # get method
+    def get(self, *var):
+        return self.cachedObj.get(*var)
+
+    # get object
+    def get_object(self):
+        self.lock.acquire()
+        return self.cachedObj
+
+    # release object
+    def release_object(self):
+        self.lock.release()
+
+
+# dictionary of caches
+class CacheDict:
+    """
+    Dictionary of caches with periodic cleanup
+    """
+
+    # constructor
+    def __init__(self, update_interval=10, cleanup_interval=60):
+        self.idx = 0
+        self.lock = Lock()
+        self.cache_dict = {}
+        self.update_interval = datetime.timedelta(minutes=update_interval)
+        self.cleanup_interval = datetime.timedelta(minutes=cleanup_interval)
+        self.last_cleanup = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+
+    def cleanup(self, tmp_log):
+        """
+        Cleanup caches
+        :param tmp_log: logger
+        """
+        with self.lock:
+            current = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            if current - self.last_cleanup > self.cleanup_interval:
+                for name in list(self.cache_dict):
+                    cache = self.cache_dict[name]
+                    if current - cache["last_updated"] > self.cleanup_interval:
+                        tmp_log.debug(f"""deleting cache #{self.cache_dict[name]["idx"]}""")
+                        del self.cache_dict[name]
+                self.last_cleanup = current
+
+    def get(self, name, tmp_log, update_func, *update_args, **update_kwargs):
+        """
+        Get updated object
+        :param name: name of cache
+        :param tmp_log: logger
+        :param update_func: function to update object
+        :param update_args: arguments for update function
+        :param update_kwargs: keyword arguments for update function
+        :return: object or None
+        """
+        self.cleanup(tmp_log)
+        with self.lock:
+            obj = self.cache_dict.get(name)
+            current = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            if not obj:
+                tmp_log.debug(f"creating new cache #{self.idx}")
+                # create new cache
+                obj = {
+                    "obj": update_func(*update_args, **update_kwargs),
+                    "last_updated": current,
+                    "update_func": update_func,
+                    "update_args": update_args,
+                    "update_kwargs": update_kwargs,
+                    "idx": self.idx,
+                }
+                self.cache_dict[name] = obj
+                self.idx += 1
+            else:
+                # update if old
+                if current - obj["last_updated"] > self.update_interval:
+                    tmp_log.debug(f"""updating cache #{obj["idx"]}""")
+                    obj["obj"] = obj["update_func"](*obj["update_args"], **obj["update_kwargs"])
+                    obj["last_updated"] = current
+                else:
+                    tmp_log.debug(f"""reusing cache #{obj["idx"]}""")
+            return obj["obj"]
+
 
 # convert datetime to string
 class NonJsonObjectEncoder(json.JSONEncoder):

@@ -535,7 +535,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         serial_number, fresh_flag = self.task_buffer.getSerialNumber(file.destinationDBlock, defined_fresh_flag)
                         if serial_number == -1:
                             dest_error[dest] = f"Setupper._setupDestination() could not get serial num for {file.destinationDBlock}"
-                            continue
+                            break
                         if file.destinationDBlock not in sn_gotten_ds:
                             sn_gotten_ds.append(file.destinationDBlock)
                         # new dataset name
@@ -653,7 +653,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                     tmp_msg = f"Setupper._setupDestination() could not register : {name}"
                                     dest_error[dest] = tmp_msg
                                     tmp_logger.error(tmp_msg)
-                                    continue
+                                    break
                                 # register dataset locations
                                 if (
                                     job.lockedby == "jedi" and job.getDdmBackEnd() == "rucio" and job.prodSourceLabel in ["panda", "user"]
@@ -721,7 +721,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                     status, out = True, ""
                                 if not status:
                                     dest_error[dest] = f"Could not register location : {name} {out.splitlines()[-1]}"
-
+                                    break
                         # already failed
                         if dest_error[dest] != "" and name == original_name:
                             break
@@ -758,13 +758,21 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # set new destDBlock
                 if dest in newname_list:
                     file.destinationDBlock = newname_list[dest]
+            for file in job.Files:
+                dest = (
+                    file.destinationDBlock,
+                    file.destinationSE,
+                    job.computingSite,
+                    file.destinationDBlockToken,
+                )
                 # update job status if failed
-                if dest_error[dest] != "":
+                if dest in dest_error and dest_error[dest] != "":
                     if job.jobStatus != "failed":
                         job.jobStatus = "failed"
                         job.ddmErrorCode = ErrorCode.EC_Setupper
                         job.ddmErrorDiag = dest_error[dest]
                         tmp_logger.debug(f"failed PandaID={job.PandaID} with {job.ddmErrorDiag}")
+                    break
                 else:
                     new_dest = (
                         file.destinationDBlock,
@@ -772,7 +780,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         job.computingSite,
                     )
                     # increment number of files
-                    dataset_list[new_dest].numberfiles = dataset_list[new_dest].numberfiles + 1
+                    if new_dest in dataset_list:
+                        dataset_list[new_dest].numberfiles = dataset_list[new_dest].numberfiles + 1
         # dump
         for dataset_name, dataset in dataset_list.items():
             # Ensure dataset_name is a string
