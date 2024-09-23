@@ -23535,7 +23535,7 @@ class DBProxy:
 
         comment = " /* DBProxy.get_config_for_pq */"
         method_name = comment.split(" ")[-2].split(".")[-1]
-        tmp_log = LogWrapper(_logger, +f" <{method_name} {pq_name}>")
+        tmp_log = LogWrapper(_logger, f"<{method_name} {pq_name}>")
         tmp_log.debug("start")
 
         var_map = {":pq": pq_name}
