@@ -3590,8 +3590,7 @@ class DBProxy:
                 pass
             try:
                 workflow = pq_data_des["workflow"]
-                tmpLog.debug(f"workflow: {workflow}, type: {type(workflow)}")
-                if workflow == "push":
+                if workflow and workflow.startswith("push"):
                     is_push_queue = True
             except KeyError:
                 pass
