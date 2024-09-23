@@ -3590,7 +3590,7 @@ class DBProxy:
                 pass
             try:
                 workflow = pq_data_des["workflow"]
-                if workflow == "push":
+                if workflow and workflow.startswith("push"):
                     is_push_queue = True
             except KeyError:
                 pass
@@ -23534,7 +23534,7 @@ class DBProxy:
 
         comment = " /* DBProxy.get_config_for_pq */"
         method_name = comment.split(" ")[-2].split(".")[-1]
-        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log = LogWrapper(_logger, +f" <{method_name} {pq_name}>")
         tmp_log.debug("start")
 
         var_map = {":pq": pq_name}
