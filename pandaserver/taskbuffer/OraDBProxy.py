@@ -3560,14 +3560,14 @@ class DBProxy:
         via_topic,
     ):
         """
-        1. Construct where clause (sql1) based on applicable filters for request
+        1. Construct where clause (sql_where_clause) based on applicable filters for request
         2. Select n jobs with the highest priorities and the lowest pandaids
         3. Update the jobs to status SENT
         4. Pack the files and if jobs are AES also the event ranges
         """
         comment = " /* DBProxy.getJobs */"
         timeStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-        tmpLog = LogWrapper(_logger, f"getJobs : {datetime.datetime.isoformat(timeStart)} -> ")
+        tmpLog = LogWrapper(_logger, f"getJobs : {siteName} {datetime.datetime.isoformat(timeStart)} -> ")
         tmpLog.debug("Start")
 
         # Number of PanDAIDs that will be tried
