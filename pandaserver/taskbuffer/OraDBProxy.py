@@ -27,7 +27,6 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils, srv_msg_utils
 from pandaserver.taskbuffer import (
-    CloudSpec,
     ErrorCode,
     EventServiceUtils,
     GlobalShares,
