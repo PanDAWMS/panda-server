@@ -27,7 +27,6 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils, srv_msg_utils
 from pandaserver.taskbuffer import (
-    CloudSpec,
     ErrorCode,
     EventServiceUtils,
     GlobalShares,
@@ -3451,23 +3450,104 @@ class DBProxy:
                 self.dumpErrorMessage(_logger, methodName)
                 return False
 
+    def construct_where_clause(
+        self,
+        site_name,
+        mem,
+        disk_space,
+        background,
+        resource_type,
+        prod_source_label,
+        computing_element,
+        is_gu,
+        job_type,
+        prod_user_id,
+        task_id,
+        average_memory_limit,
+    ):
+        get_val_map = {":oldJobStatus": "activated", ":computingSite": site_name}
+
+        sql_where_clause = "WHERE jobStatus=:oldJobStatus AND computingSite=:computingSite "
+
+        if mem not in [0, "0"]:
+            sql_where_clause += "AND (minRamCount<=:minRamCount OR minRamCount=0) "
+            get_val_map[":minRamCount"] = mem
+
+        if disk_space not in [0, "0"]:
+            sql_where_clause += "AND (maxDiskCount<=:maxDiskCount OR maxDiskCount=0) "
+            get_val_map[":maxDiskCount"] = disk_space
+
+        if background is True:
+            sql_where_clause += "AND jobExecutionID=1 "
+
+        if resource_type is not None:
+            sql_where_clause += "AND resource_type=:resourceType "
+            get_val_map[":resourceType"] = resource_type
+
+        if prod_source_label == "user":
+            sql_where_clause += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3) "
+            get_val_map[":prodSourceLabel1"] = "user"
+            get_val_map[":prodSourceLabel2"] = "panda"
+            get_val_map[":prodSourceLabel3"] = "install"
+        elif prod_source_label in [None, "managed"]:
+            sql_where_clause += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4) "
+            get_val_map[":prodSourceLabel1"] = "managed"
+            get_val_map[":prodSourceLabel2"] = "test"
+            get_val_map[":prodSourceLabel3"] = "prod_test"
+            get_val_map[":prodSourceLabel4"] = "install"
+        elif prod_source_label == "test" and computing_element is not None:
+            if is_gu and job_type == "user":
+                sql_where_clause += "AND processingType=:processingType1 "
+                get_val_map[":processingType1"] = "gangarobot"
+            else:
+                sql_where_clause += "AND (processingType=:processingType1 OR prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3)) "
+                get_val_map[":processingType1"] = "gangarobot"
+                get_val_map[":prodSourceLabel1"] = "prod_test"
+                get_val_map[":prodSourceLabel2"] = "install"
+                get_val_map[":prodSourceLabel3"] = "test"
+        elif prod_source_label == "unified":
+            sql_where_clause += (
+                "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5,:prodSourceLabel6) "
+            )
+            get_val_map[":prodSourceLabel1"] = "managed"
+            get_val_map[":prodSourceLabel2"] = "test"
+            get_val_map[":prodSourceLabel3"] = "prod_test"
+            get_val_map[":prodSourceLabel4"] = "install"
+            get_val_map[":prodSourceLabel5"] = "user"
+            get_val_map[":prodSourceLabel6"] = "panda"
+        else:
+            sql_where_clause += "AND prodSourceLabel=:prodSourceLabel "
+            get_val_map[":prodSourceLabel"] = prod_source_label
+
+        if prod_user_id is not None:
+            compact_dn = self.cleanUserID(prod_user_id)
+            if compact_dn in ["", "NULL", None]:
+                compact_dn = prod_user_id
+            sql_where_clause += "AND prodUserName=:prodUserName "
+            get_val_map[":prodUserName"] = compact_dn
+
+        if task_id not in [None, "NULL"]:
+            sql_where_clause += "AND jediTaskID=:taskID "
+            get_val_map[":taskID"] = task_id
+
+        if average_memory_limit:
+            sql_where_clause += "AND minramcount<:average_memory_limit "
+            get_val_map[":average_memory_limit"] = average_memory_limit
+
+        return sql_where_clause, get_val_map
+
     # get jobs
     def getJobs(
         self,
         nJobs,
         siteName,
         prodSourceLabel,
-        cpu,
         mem,
         diskSpace,
         node,
         timeout,
         computingElement,
-        atlasRelease,
         prodUserID,
-        countryGroup,
-        workingGroup,
-        allowOtherCountry,
         taskID,
         background,
         resourceType,
@@ -3479,12 +3559,15 @@ class DBProxy:
         via_topic,
     ):
         """
-        1. Construct where clause (sql1) based on applicable filters for request
+        1. Construct where clause (sql_where_clause) based on applicable filters for request
         2. Select n jobs with the highest priorities and the lowest pandaids
         3. Update the jobs to status SENT
         4. Pack the files and if jobs are AES also the event ranges
         """
         comment = " /* DBProxy.getJobs */"
+        timeStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        tmpLog = LogWrapper(_logger, f"getJobs : {siteName} {datetime.datetime.isoformat(timeStart)} -> ")
+        tmpLog.debug("Start")
 
         # Number of PanDAIDs that will be tried
         if hasattr(panda_config, "nJobsInGetJob"):
@@ -3492,76 +3575,46 @@ class DBProxy:
         else:
             maxAttemptIDx = 10
 
-        # construct where clause
-        getValMap = {}
-        getValMap[":oldJobStatus"] = "activated"
-        getValMap[":computingSite"] = siteName
-
-        # sql1 is the WHERE clause with all the applicable filters for the request
-        sql1 = "WHERE jobStatus=:oldJobStatus AND computingSite=:computingSite "
-        if mem not in [0, "0"]:
-            sql1 += "AND (minRamCount<=:minRamCount OR minRamCount=0) "
-            getValMap[":minRamCount"] = mem
-        if diskSpace not in [0, "0"]:
-            sql1 += "AND (maxDiskCount<=:maxDiskCount OR maxDiskCount=0) "
-            getValMap[":maxDiskCount"] = diskSpace
-        if background is True:
-            sql1 += "AND jobExecutionID=1 "
-        if resourceType is not None:
-            sql1 += "AND resource_type=:resourceType "
-            getValMap[":resourceType"] = resourceType
-        if prodSourceLabel == "user":
-            sql1 += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3) "
-            getValMap[":prodSourceLabel1"] = "user"
-            getValMap[":prodSourceLabel2"] = "panda"
-            getValMap[":prodSourceLabel3"] = "install"
-        elif prodSourceLabel == "ddm":
-            sql1 += "AND prodSourceLabel=:prodSourceLabel "
-            getValMap[":prodSourceLabel"] = "ddm"
-        elif prodSourceLabel in [None, "managed"]:
-            sql1 += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4) "
-            getValMap[":prodSourceLabel1"] = "managed"
-            getValMap[":prodSourceLabel2"] = "test"
-            getValMap[":prodSourceLabel3"] = "prod_test"
-            getValMap[":prodSourceLabel4"] = "install"
-        elif prodSourceLabel == "software":
-            sql1 += "AND prodSourceLabel=:prodSourceLabel "
-            getValMap[":prodSourceLabel"] = "software"
-        elif prodSourceLabel == "test" and computingElement is not None:
-            if is_gu and jobType == "user":
-                sql1 += "AND processingType=:processingType1 "
-                getValMap[":processingType1"] = "gangarobot"  # analysis HC jobs
-            else:
-                sql1 += "AND (processingType=:processingType1 "
-                sql1 += "OR prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3)) "
-                getValMap[":processingType1"] = "gangarobot"  # analysis HC jobs
-                getValMap[":prodSourceLabel1"] = "prod_test"  # production HC jobs
-                getValMap[":prodSourceLabel2"] = "install"
-                getValMap[":prodSourceLabel3"] = "test"
-        elif prodSourceLabel == "unified":
-            sql1 += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2,:prodSourceLabel3,:prodSourceLabel4,:prodSourceLabel5,:prodSourceLabel6) "
-            getValMap[":prodSourceLabel1"] = "managed"
-            getValMap[":prodSourceLabel2"] = "test"
-            getValMap[":prodSourceLabel3"] = "prod_test"
-            getValMap[":prodSourceLabel4"] = "install"
-            getValMap[":prodSourceLabel5"] = "user"
-            getValMap[":prodSourceLabel6"] = "panda"
+        # get the configuration for maximum workers of each type
+        is_push_queue = False
+        average_memory_target = None
+        average_memory_limit = None
+        pq_data_des = self.get_config_for_pq(siteName)
+        if not pq_data_des:
+            tmpLog.debug("Error retrieving queue configuration from DB, limits can not be applied")
         else:
-            sql1 += "AND prodSourceLabel=:prodSourceLabel "
-            getValMap[":prodSourceLabel"] = prodSourceLabel
-        # user ID
-        if prodUserID is not None:
-            # get compact DN
-            compactDN = self.cleanUserID(prodUserID)
-            if compactDN in ["", "NULL", None]:
-                compactDN = prodUserID
-            sql1 += "AND prodUserName=:prodUserName "
-            getValMap[":prodUserName"] = compactDN
+            try:
+                if pq_data_des["meanrss"] != 0:
+                    average_memory_target = pq_data_des["meanrss"]
+            except KeyError:
+                pass
+            try:
+                workflow = pq_data_des["workflow"]
+                if workflow and workflow.startswith("push"):
+                    is_push_queue = True
+            except KeyError:
+                pass
 
-        # taskID
-        if taskID not in [None, "NULL"]:
-            sql1 += "AND jediTaskID=:taskID "
-            getValMap[":taskID"] = taskID
+        if is_push_queue and average_memory_target:
+            average_memory_jobs_running_submitted, average_memory_jobs_running = self.get_average_memory_jobs(siteName, average_memory_target)
+            if average_memory_jobs_running_submitted > average_memory_target or average_memory_jobs_running > average_memory_target:
+                average_memory_limit = average_memory_target
+
+        # generate the WHERE clauses based on the requirements for the job
+        sql_where_clause, getValMap = self.construct_where_clause(
+            site_name=siteName,
+            mem=mem,
+            disk_space=diskSpace,
+            background=background,
+            resource_type=resourceType,
+            prod_source_label=prodSourceLabel,
+            computing_element=computingElement,
+            is_gu=is_gu,
+            job_type=jobType,
+            prod_user_id=prodUserID,
+            task_id=taskID,
+            average_memory_limit=average_memory_limit,
+        )
 
         # get the sorting criteria (global shares, age, etc.)
         sorting_sql, sorting_varmap = self.getSortingCriteria(siteName, maxAttemptIDx)
@@ -3569,103 +3622,18 @@ class DBProxy:
             for tmp_key in sorting_varmap:
                 getValMap[tmp_key] = sorting_varmap[tmp_key]
 
-        # sql2 is query to get the DB entry for a specific PanDA ID
-        sql2 = f"SELECT {JobSpec.columnNames()} FROM ATLAS_PANDA.jobsActive4 "
-        sql2 += "WHERE PandaID=:PandaID"
         retJobs = []
         nSent = 0
         getValMapOrig = copy.copy(getValMap)
-        tmpLog = None
+
         try:
             timeLimit = datetime.timedelta(seconds=timeout - 10)
-            timeStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-            tmpLog = LogWrapper(_logger, f"getJobs : {datetime.datetime.isoformat(timeStart)} -> ")
-            attLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=15)
-            attSQL = "AND ((creationTime<:creationTime AND attemptNr>1) OR attemptNr<=1) "
+
             # get nJobs
             for iJob in range(nJobs):
                 getValMap = copy.copy(getValMapOrig)
                 pandaID = 0
-                fileMapForMem = {}
-                # select channel for ddm jobs
-                if prodSourceLabel == "ddm":
-                    sqlDDM = (
-                        "SELECT count(*),jobStatus,sourceSite,destinationSite,transferType FROM ATLAS_PANDA.jobsActive4 WHERE computingSite=:computingSite AND prodSourceLabel=:prodSourceLabel "
-                        + attSQL
-                        + "GROUP BY jobStatus,sourceSite,destinationSite,transferType"
-                    )
-                    ddmValMap = {}
-                    ddmValMap[":computingSite"] = siteName
-                    ddmValMap[":creationTime"] = attLimit
-                    ddmValMap[":prodSourceLabel"] = "ddm"
-                    _logger.debug(sqlDDM + comment + str(ddmValMap))
-                    # start transaction
-                    self.conn.begin()
-                    # select
-                    self.cur.arraysize = 100
-                    self.cur.execute(sqlDDM + comment, ddmValMap)
-                    resDDM = self.cur.fetchall()
-                    # commit
-                    if not self._commit():
-                        raise RuntimeError("Commit error")
-                    # make a channel map
-                    channelMap = {}
-                    for (
-                        tmp_count,
-                        tmp_jobStatus,
-                        tmp_sourceSite,
-                        tmp_destinationSite,
-                        tmp_transferType,
-                    ) in resDDM:
-                        # use source,dest,type as the key
-                        channel = (
-                            tmp_sourceSite,
-                            tmp_destinationSite,
-                            tmp_transferType,
-                        )
-                        if channel not in channelMap:
-                            channelMap[channel] = {}
-                        # ignore holding
-                        if tmp_jobStatus == "holding":
-                            continue
-                        # distinguish activate from other stats
-                        if tmp_jobStatus != "activated":
-                            tmp_jobStatus = "others"
-                        # append
-                        if tmp_jobStatus not in channelMap[channel]:
-                            channelMap[channel][tmp_jobStatus] = int(tmp_count)
-                        else:
-                            channelMap[channel][tmp_jobStatus] += int(tmp_count)
-                    _logger.debug(channelMap)
-                    # choose channel
-                    channels = list(channelMap)
-                    random.shuffle(channels)
-                    foundChannel = False
-                    for channel in channels:
-                        # no activated jobs
-                        if "activated" not in channelMap[channel] or channelMap[channel]["activated"] == 0:
-                            continue
-                        maxRunning = 15
-                        # prestaging job
-                        if channel[0] == channel[1] and channel[2] == "dis":
-                            maxRunning = 50
-                        if "others" not in channelMap[channel] or channelMap[channel]["others"] < maxRunning:
-                            # set SQL
-                            sql1 += "AND sourceSite=:sourceSite AND destinationSite=:destinationSite AND transferType=:transferType "
-                            getValMap[":sourceSite"] = channel[0]
-                            getValMap[":destinationSite"] = channel[1]
-                            getValMap[":transferType"] = channel[2]
-                            foundChannel = True
-                            break
-                    # no proper channel
-                    if not foundChannel:
-                        _logger.debug(f"getJobs : no DDM jobs for Site {siteName}")
-                        break
-                # get job
-                if prodSourceLabel in ["ddm"]:
-                    # to add some delay for attempts
-                    sql1 += attSQL
-                    getValMap[":creationTime"] = attLimit
+
                 nTry = 1
                 for iTry in range(nTry):
                     # set siteID
@@ -3680,7 +3648,7 @@ class DBProxy:
                         if toGetPandaIDs:
                             # get PandaIDs
                             sqlP = "SELECT /*+ INDEX_RS_ASC(tab (PRODSOURCELABEL COMPUTINGSITE JOBSTATUS) ) */ PandaID,currentPriority,specialHandling FROM ATLAS_PANDA.jobsActive4 tab "
-                            sqlP += sql1
+                            sqlP += sql_where_clause
 
                             if sorting_sql:
                                 sqlP = "SELECT * FROM (" + sqlP
@@ -3749,7 +3717,7 @@ class DBProxy:
                                 varMapSent[":modificationTime"] = sentLimit
                                 varMapSent[":prodSourceLabel1"] = "managed"
                                 varMapSent[":prodSourceLabel2"] = "test"
-                                # start
+
                                 # start transaction
                                 self.conn.begin()
                                 # pre-lock
@@ -3846,16 +3814,18 @@ class DBProxy:
                 if retU == 0:
                     # reset pandaID
                     pandaID = 0
-                tmpLog.debug(f"Site {siteName} : retU {retU} : PandaID {pandaID} - {prodSourceLabel}")
+                tmpLog.debug(f"retU {retU} : PandaID {pandaID} - {prodSourceLabel}")
                 if pandaID == 0:
                     break
+
                 # start transaction
                 self.conn.begin()
-                # select
+                # query to get the DB entry for a specific PanDA ID
+                sql_select_job = f"SELECT {JobSpec.columnNames()} FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
                 varMap = {}
                 varMap[":PandaID"] = pandaID
                 self.cur.arraysize = 10
-                self.cur.execute(sql2 + comment, varMap)
+                self.cur.execute(sql_select_job + comment, varMap)
                 res = self.cur.fetchone()
                 if len(res) == 0:
                     # commit
@@ -3865,12 +3835,13 @@ class DBProxy:
                 # instantiate Job
                 job = JobSpec()
                 job.pack(res)
+
                 # sql to read range
                 sqlRR = "SELECT /*+ INDEX_RS_ASC(tab JEDI_EVENTS_FILEID_IDX) NO_INDEX_FFS(tab JEDI_EVENTS_PK) NO_INDEX_SS(tab JEDI_EVENTS_PK) */ "
                 sqlRR += "PandaID,job_processID,attemptNr,objStore_ID,zipRow_ID,path_convention "
                 sqlRR += f"FROM {panda_config.schemaJEDI}.JEDI_Events tab "
                 sqlRR += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID AND status=:eventStatus "
-                # sql to read log backet IDs
+                # sql to read log bucket IDs
                 sqlLBK = "SELECT jobMetrics FROM ATLAS_PANDA.jobsArchived4 WHERE PandaID=:PandaID "
                 sqlLBK += "UNION "
                 sqlLBK += "SELECT jobMetrics FROM ATLAS_PANDAARCH.jobsArchived WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30) "
@@ -4044,7 +4015,6 @@ class DBProxy:
                 mergeInputFiles = []
                 mergeFileObjStoreMap = {}
                 mergeZipPandaIDs = []
-                mergeZipLFNs = set()
                 for tmpFileID in eventRangeIDs:
                     tmpMapEventRangeID = eventRangeIDs[tmpFileID]
                     jobProcessIDs = sorted(tmpMapEventRangeID)
@@ -4096,6 +4066,7 @@ class DBProxy:
                                     mergeFileObjStoreMap[tmpZipInputFileSpec.lfn] = tmpEsOutZipFile["osid"]
                 for tmpInputFileSpec in mergeInputFiles:
                     job.addFile(tmpInputFileSpec)
+
                 # job parameters
                 sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
                 varMap = {}
@@ -4107,6 +4078,7 @@ class DBProxy:
                     except AttributeError:
                         job.jobParameters = str(clobJobP)
                     break
+
                 # remove or extract parameters for merge
                 if EventServiceUtils.isEventServiceJob(job) or EventServiceUtils.isJumboJob(job) or EventServiceUtils.isCoJumboJob(job):
                     try:
@@ -4136,7 +4108,8 @@ class DBProxy:
                         pass
                     # pass in/out map for merging via metadata
                     job.metadata = [mergeInputOutputMap, mergeFileObjStoreMap]
-                # read task param
+
+                # read task parameters
                 if job.lockedby == "jedi":
                     sqlTP = f"SELECT ioIntensity,ioIntensityUnit FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
                     varMap = {}
@@ -4147,12 +4120,13 @@ class DBProxy:
                         ioIntensity, ioIntensityUnit = resTP
                         job.set_task_attribute("ioIntensity", ioIntensity)
                         job.set_task_attribute("ioIntensityUnit", ioIntensityUnit)
-                # commit
+
                 if not self._commit():
                     raise RuntimeError("Commit error")
 
-                # append
+                # append the job to the returned list
                 retJobs.append(job)
+
                 # record status change
                 try:
                     self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)
@@ -21853,6 +21827,66 @@ class DBProxy:
         tmpLog.debug("done")
         return worker_stats_dict
 
+    def get_average_memory_jobs(self, computingsite, target):
+        """
+        Calculates the average memory for running and queued (starting) jobs at a particular panda queue.
+        This function is equivalent to the get_average_memory_workers (for PULL), but is meant for PUSH queues.
+
+        :param computingsite: name of the PanDA queue
+        :param target: memory target for the queue in MB. This value is only used in the logging
+
+        :return: average_memory_running_submitted, average_memory_running
+        """
+
+        comment = " /* DBProxy.get_average_memory_jobs */"
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        tmp_logger = LogWrapper(_logger, method_name)
+        tmp_logger.debug("start")
+        try:
+            sql_running_and_submitted = (
+                f"SELECT /*+ RESULT_CACHE */ COMPUTINGSITE, SUM(NJOBS * PRORATED_MEM_AVG) / SUM(NJOBS) AS avg_memory "
+                f"FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS "
+                f"WHERE COMPUTINGSITE = :computingsite "
+                f"AND jobstatus IN ('running', 'starting') "
+                f"GROUP BY COMPUTINGSITE"
+            )
+
+            sql_running = (
+                f"SELECT /*+ RESULT_CACHE */ COMPUTINGSITE, SUM(NJOBS * PRORATED_MEM_AVG) / SUM(NJOBS) AS avg_memory "
+                f"FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS "
+                f"WHERE COMPUTINGSITE = :computingsite "
+                f"AND jobstatus = 'running' "
+                f"GROUP BY COMPUTINGSITE"
+            )
+
+            var_map = {":computingsite": computingsite}
+
+            self.cur.execute(sql_running_and_submitted + comment, var_map)
+            results = self.cur.fetchone()
+            try:
+                average_memory_running_submitted = results[1] if results[1] is not None else 0
+            except TypeError:
+                average_memory_running_submitted = 0
+
+            self.cur.execute(sql_running + comment, var_map)
+            results = self.cur.fetchone()
+            try:
+                average_memory_running = results[1] if results[1] is not None else 0
+            except TypeError:
+                average_memory_running = 0
+
+            tmp_logger.info(
+                f"computingsite={computingsite} currently has "
+                f"meanrss_running_submitted={average_memory_running_submitted} "
+                f"meanrss_running={average_memory_running} "
+                f"meanrss_target={target} MB"
+            )
+            return average_memory_running_submitted, average_memory_running
+
+        except Exception:
+            self.dumpErrorMessage(tmp_logger, method_name)
+            return 0, 0
+
     def get_average_memory_workers(self, queue, harvester_id, target):
         """
         Calculates the average memory for running and queued workers at a particular panda queue
@@ -21872,7 +21906,7 @@ class DBProxy:
         try:
             # sql to calculate the average memory for the queue - harvester_id combination
             sql_running_and_submitted = (
-                "SELECT sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) "
+                "SELECT /*+ RESULT_CACHE */ sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) "
                 "FROM ( "
                 "    SELECT hws.computingsite, "
                 "           hws.harvester_id, "
@@ -21889,7 +21923,7 @@ class DBProxy:
             )
 
             sql_running = (
-                "SELECT sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) "
+                "SELECT /*+ RESULT_CACHE */ sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) "
                 "FROM ( "
                 "    SELECT hws.computingsite, "
                 "           hws.harvester_id, "
@@ -23500,7 +23534,7 @@ class DBProxy:
 
         comment = " /* DBProxy.get_config_for_pq */"
         method_name = comment.split(" ")[-2].split(".")[-1]
-        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log = LogWrapper(_logger, f"<{method_name} {pq_name}>")
         tmp_log.debug("start")
 
         var_map = {":pq": pq_name}
