@@ -3815,7 +3815,7 @@ class DBProxy:
                 if retU == 0:
                     # reset pandaID
                     pandaID = 0
-                tmpLog.debug(f"Site {siteName} : retU {retU} : PandaID {pandaID} - {prodSourceLabel}")
+                tmpLog.debug(f"retU {retU} : PandaID {pandaID} - {prodSourceLabel}")
                 if pandaID == 0:
                     break
 
