@@ -3599,7 +3599,7 @@ class DBProxy:
             average_memory_jobs_running_submitted, average_memory_jobs_running = self.get_average_memory_jobs(siteName, average_memory_target)
             if average_memory_jobs_running_submitted > average_memory_target or average_memory_jobs_running > average_memory_target:
                 average_memory_limit = average_memory_target
-                tmpLog.info("Queue {siteName} meanRSS will be throttled to jobs under {average_memory_limit}MB")
+                tmpLog.info(f"Queue {siteName} meanRSS will be throttled to jobs under {average_memory_limit}MB")
 
         # generate the WHERE clauses based on the requirements for the job
         sql_where_clause, getValMap = self.construct_where_clause(
