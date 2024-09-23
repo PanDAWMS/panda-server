@@ -999,17 +999,6 @@ class TaskBuffer:
         # return
         return jobs + [nSent, {}, secrets_map]
 
-    # get fairshare policy
-    def getFairsharePolicy(self):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # run
-        res = proxy.getFairsharePolicy(True)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return res
-
     # check merge job generation status
     def checkMergeGenerationStatus(self, dn, jobID):
         # return for NA
@@ -2208,11 +2197,22 @@ class TaskBuffer:
         return ret
 
     # get cloud list
-    def getCloudList(self):
+    def get_cloud_list(self):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get cloud list
-        ret = proxy.getCloudList()
+        ret = proxy.get_cloud_list()
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        # return
+        return ret
+
+    # get cloud details
+    def get_cloud_details(self):
+        # get DBproxy
+        proxy = self.proxyPool.getProxy()
+        # get cloud details
+        ret = proxy.get_cloud_details()
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return

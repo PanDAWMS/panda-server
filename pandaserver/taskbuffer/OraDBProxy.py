@@ -144,10 +144,7 @@ class DBProxy:
         self.beyondPledgeRatio = {}
         # update time for pledge resource ratio
         self.updateTimeForPledgeRatio = None
-        # fairshare policy
-        self.fairsharePolicy = {}
-        # update time for fairshare policy
-        self.updateTimeForFairsharePolicy = None
+
         # hostname
         self.myHostName = socket.getfqdn()
         self.backend = panda_config.backend
@@ -521,10 +518,7 @@ class DBProxy:
         ]:
             job.currentPriority = 7000
         elif job.prodSourceLabel == "user":
-            if job.processingType in [
-                "usermerge",
-                "pmerge",
-            ] and job.currentPriority not in ["NULL", None]:
+            if job.processingType == "pmerge" and job.currentPriority not in ["NULL", None]:
                 # avoid prio reduction for merge jobs
                 pass
             else:
@@ -7721,9 +7715,7 @@ class DBProxy:
                     # job not found
                     if processingType is None:
                         continue
-                    # ignore merge jobs
-                    if processingType in ["usermerge"]:
-                        continue
+
                     # start transaction
                     self.conn.begin()
                     # select LFNs
@@ -9522,14 +9514,6 @@ class DBProxy:
                             except Exception:
                                 pass
 
-                        # cloud list
-                        if queue_data.get("cloud") not in ["", None]:
-                            ret.cloudlist = [queue_data["cloud"].split(",")[0]]
-                            if queue_data.get("multicloud") not in ["", None, "None"]:
-                                ret.cloudlist += queue_data["multicloud"].split(",")
-                        else:
-                            ret.cloudlist = []
-
                         # convert releases to list
                         ret.releases = []
                         if queue_data.get("releases"):
@@ -9809,269 +9793,63 @@ class DBProxy:
             self._rollback()
             return ret_empty
 
-    # get fairshare policy
-    def getFairsharePolicy(self, getNewMap=False):
-        comment = " /* DBProxy.getFairsharePolicy */"
-        # check utime
-        if (
-            not getNewMap
-            and self.updateTimeForFairsharePolicy is not None
-            and (datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - self.updateTimeForFairsharePolicy) < datetime.timedelta(minutes=15)
-        ):
-            return
-        if not getNewMap:
-            # update utime
-            self.updateTimeForFairsharePolicy = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-        _logger.debug("getFairsharePolicy")
-        try:
-            # set autocommit on
-            self.conn.begin()
-            # get default share
-            cloudShareMap = {}
-            cloudTier1Map = {}
-            sqlD = "SELECT name, fairshare, tier1 FROM ATLAS_PANDAMETA.cloudconfig"
-            self.cur.arraysize = 100000
-            self.cur.execute(sqlD + comment)
-            res = self.cur.fetchall()
-            for cloudName, cloudShare, cloudTier1 in res:
-                try:
-                    cloudTier1Map[cloudName] = cloudTier1.split(",")
-                except Exception:
-                    pass
-                if cloudShare not in ["", None]:
-                    cloudShareMap[cloudName] = cloudShare
-            # get share per site
-            sql = "SELECT /* use_json_type */ scj.panda_queue, scj.data.fairsharepolicy, scj.data.cloud "
-            sql += "FROM ATLAS_PANDA.schedconfig_json scj "
-            sql += "WHERE scj.data.type != 'analysis' "
-            sql += "GROUP BY scj.panda_queue, scj.data.fairsharepolicy, scj.data.cloud"
+    def get_cloud_list(self):
+        """
+        Get a list of distinct cloud names from the database.
+        """
+        comment = " /* DBProxy.get_cloud_list */"
+        method_name = comment.split(" ")[-2].split(".")[-1]
 
-            self.cur.execute(sql + comment)
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # update policy
-            fairsharePolicy = {}
-            for siteid, fairsharePolicyStr, cloudName in res:
-                try:
-                    # consolidate to WORLD
-                    cloudName = "WORLD"
-                    # share is undefined
-                    usingCloudShare = ""
-                    if fairsharePolicyStr in ["", None, " None"]:
-                        # skip if share is not defined at site or cloud
-                        if cloudName not in cloudShareMap:
-                            continue
-                        # use cloud share
-                        fairsharePolicyStr = cloudShareMap[cloudName]
-                        usingCloudShare = cloudName
-                    # decompose
-                    hasNonPrioPolicy = False
-                    for tmpItem in fairsharePolicyStr.split(","):
-                        # skip empty
-                        tmpItem = tmpItem.strip()
-                        if tmpItem == "":
-                            continue
-                        # keep name
-                        tmpPolicy = {"name": tmpItem}
-                        # group
-                        tmpPolicy["group"] = None
-                        tmpMatch = re.search("group=([^:]+)", tmpItem)
-                        if tmpMatch is not None:
-                            if tmpMatch.group(1) in ["", "central", "*", "any"]:
-                                # use None for catchall
-                                pass
-                            else:
-                                tmpPolicy["group"] = tmpMatch.group(1)
-                        # type
-                        tmpPolicy["type"] = None
-                        tmpMatch = re.search("type=([^:]+)", tmpItem)
-                        if tmpMatch is not None:
-                            if tmpMatch.group(1) in ["*", "any"]:
-                                # use None for catchall
-                                pass
-                            else:
-                                tmpPolicy["type"] = tmpMatch.group(1)
-                        # priority
-                        tmpPolicy["priority"] = None
-                        tmpPolicy["prioCondition"] = None
-                        tmpMatch = re.search("priority([=<>]+)(\d+)", tmpItem)
-                        if tmpMatch is not None:
-                            tmpPolicy["priority"] = int(tmpMatch.group(2))
-                            tmpPolicy["prioCondition"] = tmpMatch.group(1)
-                        else:
-                            hasNonPrioPolicy = True
-                        # workqueue_ID
-                        tmpPolicy["id"] = None
-                        tmpMatch = re.search("id=([^:]+)", tmpItem)
-                        if tmpMatch is not None:
-                            if tmpMatch.group(1) in ["*", "any"]:
-                                # use None for catchall
-                                pass
-                            else:
-                                try:
-                                    tmpPolicy["id"] = int(tmpMatch.group(1))
-                                except Exception:
-                                    pass
-                        # share
-                        tmpPolicy["share"] = tmpItem.split(":")[-1]
-                        # append
-                        if siteid not in fairsharePolicy:
-                            fairsharePolicy[siteid] = {"policyList": []}
-                        fairsharePolicy[siteid]["policyList"].append(tmpPolicy)
-                    # add any:any if only priority policies
-                    if not hasNonPrioPolicy:
-                        tmpPolicy = {
-                            "name": "type=any",
-                            "group": None,
-                            "type": None,
-                            "id": None,
-                            "priority": None,
-                            "prioCondition": None,
-                            "share": "100%",
-                        }
-                        fairsharePolicy[siteid]["policyList"].append(tmpPolicy)
-                    # some translation
-                    fairsharePolicy[siteid]["usingGroup"] = False
-                    fairsharePolicy[siteid]["usingType"] = False
-                    fairsharePolicy[siteid]["usingID"] = False
-                    fairsharePolicy[siteid]["usingPrio"] = False
-                    fairsharePolicy[siteid]["usingCloud"] = usingCloudShare
-                    fairsharePolicy[siteid]["groupList"] = []
-                    fairsharePolicy[siteid]["typeList"] = {}
-                    fairsharePolicy[siteid]["idList"] = []
-                    fairsharePolicy[siteid]["groupListWithPrio"] = []
-                    fairsharePolicy[siteid]["typeListWithPrio"] = {}
-                    fairsharePolicy[siteid]["idListWithPrio"] = []
-                    for tmpDefItem in fairsharePolicy[siteid]["policyList"]:
-                        # using WG
-                        if tmpDefItem["group"] is not None:
-                            fairsharePolicy[siteid]["usingGroup"] = True
-                        # using PG
-                        if tmpDefItem["type"] is not None:
-                            fairsharePolicy[siteid]["usingType"] = True
-                        # using workqueue_ID
-                        if tmpDefItem["id"] is not None:
-                            fairsharePolicy[siteid]["usingID"] = True
-                        # using prio
-                        if tmpDefItem["priority"] is not None:
-                            fairsharePolicy[siteid]["usingPrio"] = True
-                        # get list of WG and PG with/without priority
-                        if tmpDefItem["priority"] is None:
-                            # get list of woringGroups
-                            if tmpDefItem["group"] is not None and not tmpDefItem["group"] in fairsharePolicy[siteid]["groupList"]:
-                                fairsharePolicy[siteid]["groupList"].append(tmpDefItem["group"])
-                            # get list of processingGroups
-                            if tmpDefItem["group"] not in fairsharePolicy[siteid]["typeList"]:
-                                fairsharePolicy[siteid]["typeList"][tmpDefItem["group"]] = []
-                            if tmpDefItem["type"] is not None and not tmpDefItem["type"] in fairsharePolicy[siteid]["typeList"][tmpDefItem["group"]]:
-                                fairsharePolicy[siteid]["typeList"][tmpDefItem["group"]].append(tmpDefItem["type"])
-                            # get list of workqueue_ids
-                            if tmpDefItem["id"] is not None and not tmpDefItem["id"] in fairsharePolicy[siteid]["idList"]:
-                                fairsharePolicy[siteid]["idList"].append(tmpDefItem["id"])
-                        else:
-                            # get list of woringGroups
-                            if tmpDefItem["group"] is not None and not tmpDefItem["group"] in fairsharePolicy[siteid]["groupListWithPrio"]:
-                                fairsharePolicy[siteid]["groupListWithPrio"].append(tmpDefItem["group"])
-                            # get list of processingGroups
-                            if tmpDefItem["group"] not in fairsharePolicy[siteid]["typeListWithPrio"]:
-                                fairsharePolicy[siteid]["typeListWithPrio"][tmpDefItem["group"]] = []
-                            if tmpDefItem["type"] is not None and not tmpDefItem["type"] in fairsharePolicy[siteid]["typeListWithPrio"][tmpDefItem["group"]]:
-                                fairsharePolicy[siteid]["typeListWithPrio"][tmpDefItem["group"]].append(tmpDefItem["type"])
-                            # get list of workqueue_ids
-                            if tmpDefItem["id"] is not None and not tmpDefItem["id"] in fairsharePolicy[siteid]["idListWithPrio"]:
-                                fairsharePolicy[siteid]["idListWithPrio"].append(tmpDefItem["id"])
-                except Exception:
-                    errtype, errvalue = sys.exc_info()[:2]
-                    _logger.warning(f"getFairsharePolicy : wrong definition '{fairsharePolicy}' for {siteid} : {errtype} {errvalue}")
-            _logger.debug(f"getFairsharePolicy -> {str(fairsharePolicy)}")
-            if not getNewMap:
-                self.fairsharePolicy = fairsharePolicy
-                return
-            else:
-                return fairsharePolicy
-        except Exception:
-            errtype, errvalue = sys.exc_info()[:2]
-            _logger.error(f"getFairsharePolicy : {errtype} {errvalue}")
-            # roll back
-            self._rollback()
-            if not getNewMap:
-                return
-            else:
-                return {}
-
-    # get cloud list
-    def getCloudList(self):
-        comment = " /* DBProxy.getCloudList */"
-        _logger.debug("getCloudList start")
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
         try:
-            # set autocommit on
-            self.conn.begin()
-            # select
-            sql = "SELECT name,tier1,tier1SE,relocation,weight,server,status,transtimelo,"
-            sql += "transtimehi,waittime,validation,mcshare,countries,fasttrack,nprestage,"
-            sql += "pilotowners "
-            sql += "FROM ATLAS_PANDAMETA.cloudconfig"
-            self.cur.arraysize = 10000
-            self.cur.execute(sql + comment)
-            resList = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            ret = {}
-            if resList is not None and len(resList) != 0:
-                for res in resList:
-                    # change None to ''
-                    resTmp = []
-                    for tmpItem in res:
-                        if tmpItem is None:
-                            tmpItem = ""
-                        resTmp.append(tmpItem)
-                    (
-                        name,
-                        tier1,
-                        tier1SE,
-                        relocation,
-                        weight,
-                        server,
-                        status,
-                        transtimelo,
-                        transtimehi,
-                        waittime,
-                        validation,
-                        mcshare,
-                        countries,
-                        fasttrack,
-                        nprestage,
-                        pilotowners,
-                    ) = resTmp
-                    # instantiate CloudSpec
-                    tmpC = CloudSpec.CloudSpec()
-                    tmpC.name = name
-                    tmpC.tier1 = tier1
-                    tmpC.tier1SE = re.sub(" ", "", tier1SE).split(",")
-                    tmpC.relocation = relocation
-                    tmpC.weight = weight
-                    tmpC.server = server
-                    tmpC.status = status
-                    tmpC.transtimelo = transtimelo
-                    tmpC.transtimehi = transtimehi
-                    tmpC.waittime = waittime
-                    tmpC.validation = validation
-                    tmpC.mcshare = mcshare
-                    tmpC.countries = countries
-                    tmpC.fasttrack = fasttrack
-                    tmpC.nprestage = nprestage
-                    tmpC.pilotowners = pilotowners
-                    # append
-                    ret[name] = tmpC
-            _logger.debug("getCloudList done")
-            return ret
+            with self.conn:
+                sql = (
+                    f"SELECT /* use_json_type */ DISTINCT sj.data.cloud AS cloud "
+                    f"FROM {panda_config.schemaPANDA}.schedconfig_json sj "
+                    f"UNION "
+                    f"SELECT 'WORLD' AS cloud "
+                    f"FROM dual "
+                    f"ORDER BY cloud"
+                )
+                self.cur.arraysize = 100
+                self.cur.execute(sql + comment)
+                results = self.cur.fetchall()
+                clouds = [result[0] for result in results]
+
+            tmp_log.debug("done")
+            return clouds
         except Exception:
             type, value, traceBack = sys.exc_info()
-            _logger.error(f"getCloudList : {type} {value}")
-            # roll back
+            tmp_log.error(f"failed with: {type} {value}")
+            self._rollback()
+            return []
+
+    def get_cloud_details(self):
+        """
+        This is a temporary function, while we see how we can remove the leftovers
+        """
+        comment = " /* DBProxy.get_cloud_details */"
+        method_name = comment.split(" ")[-2].split(".")[-1]
+
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        try:
+            with self.conn:
+                sql = f"SELECT name, tier1, tier1se " f"FROM {panda_config.schemaMETA}.cloudconfig "
+                self.cur.arraysize = 100
+                self.cur.execute(sql + comment)
+                results = self.cur.fetchall()
+                cloud_map = {}
+                for result in results:
+                    name, tier1, tier1_se = result
+                    cloud_map[name] = {"tier1": tier1, "tier1SE": re.sub(" ", "", tier1_se).split(",")}
+
+            tmp_log.debug("done")
+            return cloud_map
+        except Exception:
+            type, value, traceBack = sys.exc_info()
+            tmp_log.error(f"failed with: {type} {value}")
             self._rollback()
             return {}
 

@@ -4,14 +4,10 @@ add data to dataset
 """
 
 import datetime
-import os
 import re
 import sys
 import time
-
-# import fcntl
 import traceback
-import uuid
 import xml.dom.minidom
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
