@@ -20489,7 +20489,7 @@ class DBProxy:
                 jtid_bindings = ",".join(f":jtid{i}" for i in range(len(good_taskid_set)))
                 locked_taskid_set = shard_taskid_set - good_taskid_set
                 if locked_taskid_set:
-                    tmp_log.debug(f"skip locked tasks: {','.join(list(locked_taskid_set))}")
+                    tmp_log.debug(f"skip locked tasks: {','.join([str(i) for i in locked_taskid_set])}")
 
                 # update the task
                 sql_task = f"""
@@ -20498,7 +20498,7 @@ class DBProxy:
                        """
 
                 self.cur.execute(sql_task + comment, var_map)
-                tmp_log.debug(f"task sql executed: {sql_task}")
+                tmp_log.debug(f"""set tasks {",".join([str(i) for i in good_taskid_set])} to gshare={gshare}""")
 
                 var_map[":pending"] = "pending"
                 var_map[":defined"] = "defined"
@@ -20525,8 +20525,6 @@ class DBProxy:
                         sql_jobs.format(table, jtid_bindings, jobstatus) + comment,
                         var_map,
                     )
-
-                tmp_log.debug("job sql executed")
 
             # commit
             if not self._commit():
