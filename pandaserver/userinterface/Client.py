@@ -1593,13 +1593,7 @@ def setDebugMode(pandaID, modeOn):
 
 
 # retry task
-def retryTask(
-    jediTaskID,
-    verbose=False,
-    noChildRetry=False,
-    discardEvents=False,
-    disable_staging_mode=False,
-):
+def retryTask(jediTaskID, verbose=False, noChildRetry=False, discardEvents=False, disable_staging_mode=False, keep_gshare_priority=False):
     """Retry task
 
     args:
@@ -1607,6 +1601,7 @@ def retryTask(
         noChildRetry: True not to retry child tasks
         discardEvents: discard events
         disable_staging_mode: disable staging mode
+        keep_gshare_priority: keep current gshare and priority
     returns:
         status code
               0: communication succeeded to the panda server
@@ -1635,6 +1630,8 @@ def retryTask(
         data["discardEvents"] = True
     if disable_staging_mode:
         data["disable_staging_mode"] = True
+    if keep_gshare_priority:
+        data["keep_gshare_priority"] = True
     status, output = curl.post(url, data)
     try:
         return status, pickle_loads(output)

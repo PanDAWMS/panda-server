@@ -692,6 +692,7 @@ class UserIF:
         noChildRetry,
         discardEvents,
         disable_staging_mode,
+        keep_gshare_priority,
     ):
         # retry with new params
         if newParams is not None:
@@ -719,20 +720,16 @@ class UserIF:
                 errType, errValue = sys.exc_info()[:2]
                 ret = 1, f"server error with {errType}:{errValue}"
         else:
-            if noChildRetry:
-                comQualifier = "sole"
-            else:
-                comQualifier = None
-            if discardEvents:
-                if comQualifier is None:
-                    comQualifier = "discard"
-                else:
-                    comQualifier += " discard"
-            if disable_staging_mode:
-                if comQualifier is None:
-                    comQualifier = "staged"
-                else:
-                    comQualifier += " staged"
+            com_qualifier = ""
+            for com_key, com_param in [
+                ("sole", noChildRetry),
+                ("discard", discardEvents),
+                ("staged", disable_staging_mode),
+                ("keep", keep_gshare_priority),
+            ]:
+                if com_param:
+                    com_qualifier += f"{com_key} "
+            com_qualifier = com_qualifier.strip()
             # normal retry
             ret = self.taskBuffer.sendCommandTaskPanda(
                 jediTaskID,
@@ -740,7 +737,7 @@ class UserIF:
                 prodRole,
                 "retry",
                 properErrorCode=properErrorCode,
-                comQualifier=comQualifier,
+                comQualifier=com_qualifier,
             )
         if properErrorCode is True and ret[0] == 5:
             # retry failed analysis jobs
@@ -1756,6 +1753,7 @@ def retryTask(
     noChildRetry=None,
     discardEvents=None,
     disable_staging_mode=None,
+    keep_gshare_priority=None,
 ):
     if properErrorCode == "True":
         properErrorCode = True
@@ -1773,6 +1771,10 @@ def retryTask(
         disable_staging_mode = True
     else:
         disable_staging_mode = False
+    if keep_gshare_priority == "True":
+        keep_gshare_priority = True
+    else:
+        keep_gshare_priority = False
     # check security
     if not isSecure(req):
         if properErrorCode:
@@ -1802,6 +1804,7 @@ def retryTask(
         noChildRetry,
         discardEvents,
         disable_staging_mode,
+        keep_gshare_priority,
     )
     return WrappedPickle.dumps(ret)
 
