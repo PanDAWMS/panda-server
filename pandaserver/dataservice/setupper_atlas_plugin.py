@@ -830,23 +830,23 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 else:
                     dst_ddm_id = dst_site_spec.ddm_input[scope_dst_input]
 
+                tmp_logger.debug(f"src_ddm_id: {src_ddm_id} dst_ddm_id : {dst_ddm_id}")
+
                 # check if missing at Nucleus
                 missing_at_nucleus = False
                 if job.prodSourceLabel in ["managed", "test"]:
                     for tmp_lfn in self.disp_file_list[job.dispatchDBlock]["lfns"]:
                         tmp_cloud = job.getCloud()
-                        if tmp_cloud not in self.missing_files_in_nucleus:
-                            break
-                        if tmp_lfn in self.missing_files_in_nucleus[tmp_cloud] or tmp_lfn.split(":")[-1] in self.missing_files_in_nucleus[tmp_cloud]:
-                            missing_at_nucleus = True
-                            break
+                        if tmp_cloud in self.missing_files_in_nucleus:
+                            if tmp_lfn in self.missing_files_in_nucleus[tmp_cloud] or tmp_lfn.split(":")[-1] in self.missing_files_in_nucleus[tmp_cloud]:
+                                missing_at_nucleus = True
+                                break
                     tmp_logger.debug(f"{job.dispatchDBlock} missing at Nucleus : {missing_at_nucleus}")
 
                 # look for replica
                 ddm_id = src_ddm_id
                 ddm_id_list = []
                 # register replica
-                is_ok = False
                 if ddm_id != dst_ddm_id or missing_at_nucleus:
                     # make list
                     if job.dispatchDBlock in self.replica_map:
@@ -864,110 +864,102 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     # use default location if empty
                     if not ddm_id_list:
                         ddm_id_list = [ddm_id]
+
+                opt_source = {}
+                ddm_id = dst_ddm_id
+                # prestaging
+                if src_ddm_id == dst_ddm_id and not missing_at_nucleus:
+                    # prestage to associated endpoints
+                    if job.prodSourceLabel in ["user", "panda"]:
+                        tmp_site_spec = self.site_mapper.getSite(job.computingSite)
+                        (
+                            scope_tmp_site_input,
+                            scope_tmp_site_output,
+                        ) = select_scope(tmp_site_spec, job.prodSourceLabel, job.job_label)
+                        # use DATADISK if possible
+                        changed = False
+                        if "ATLASDATADISK" in tmp_site_spec.setokens_input[scope_tmp_site_input]:
+                            tmp_ddm_id = tmp_site_spec.setokens_input[scope_tmp_site_input]["ATLASDATADISK"]
+                            if tmp_ddm_id in tmp_site_spec.ddm_endpoints_input[scope_tmp_site_input].getLocalEndPoints():
+                                tmp_logger.debug(f"use {tmp_ddm_id} instead of {ddm_id} for tape prestaging")
+                                ddm_id = tmp_ddm_id
+                                changed = True
+                        # use default input endpoint
+                        if not changed:
+                            ddm_id = tmp_site_spec.ddm_endpoints_input[scope_tmp_site_input].getDefaultRead()
+                            tmp_logger.debug(f"use default_read {ddm_id} for tape prestaging")
+                    tmp_logger.debug(f"use {ddm_id} for tape prestaging")
                     # register dataset locations
                     is_ok = True
                 else:
-                    # register locations later for prestaging
                     is_ok = True
-                if not is_ok:
-                    disp_error[disp] = "Setupper._subscribeDispatchDB() could not register location"
+                    # set sources to handle Satellites in another cloud and to transfer dis datasets being split in multiple sites
+                    if not missing_at_nucleus:
+                        for tmp_ddm_id in ddm_id_list:
+                            opt_source[tmp_ddm_id] = {"policy": 0}
+                    # Nucleus used as Satellite
+                    if (
+                        job.getCloud() != self.site_mapper.getSite(tmp_dst_id).cloud
+                        and (job.prodSourceLabel not in ["user", "panda"])
+                        and self.site_mapper.getSite(tmp_dst_id).cloud in ["US"]
+                    ):
+                        tmp_dst_site_spec = self.site_mapper.getSite(tmp_dst_id)
+                        scope_input, _ = select_scope(tmp_dst_site_spec, job.prodSourceLabel, job.job_label)
+                    elif job.prodSourceLabel in ["user", "panda"]:
+                        # use DATADISK
+                        tmp_site_spec = self.site_mapper.getSite(job.computingSite)
+                        (
+                            scope_tmp_site_input,
+                            scope_tmp_site_output,
+                        ) = select_scope(tmp_site_spec, job.prodSourceLabel, job.job_label)
+                        if "ATLASDATADISK" in tmp_site_spec.setokens_input[scope_tmp_site_input]:
+                            tmp_ddm_id = tmp_site_spec.setokens_input[scope_tmp_site_input]["ATLASDATADISK"]
+                            if tmp_ddm_id in tmp_site_spec.ddm_endpoints_input[scope_tmp_site_input].getLocalEndPoints():
+                                tmp_logger.debug(f"use {tmp_ddm_id} instead of {ddm_id} for analysis input staging")
+                                ddm_id = tmp_ddm_id
+                # set share and activity
+                if job.prodSourceLabel in ["user", "panda"]:
+                    opt_activity = "Analysis Input"
+                    opt_owner = None
                 else:
-                    is_ok = False
-                    opt_source = {}
-                    ddm_id = dst_ddm_id
-                    # prestaging
-                    if src_ddm_id == dst_ddm_id and not missing_at_nucleus:
-                        # prestage to associated endpoints
-                        if job.prodSourceLabel in ["user", "panda"]:
-                            tmp_site_spec = self.site_mapper.getSite(job.computingSite)
-                            (
-                                scope_tmp_site_input,
-                                scope_tmp_site_output,
-                            ) = select_scope(tmp_site_spec, job.prodSourceLabel, job.job_label)
-                            # use DATADISK if possible
-                            changed = False
-                            if "ATLASDATADISK" in tmp_site_spec.setokens_input[scope_tmp_site_input]:
-                                tmp_ddm_id = tmp_site_spec.setokens_input[scope_tmp_site_input]["ATLASDATADISK"]
-                                if tmp_ddm_id in tmp_site_spec.ddm_endpoints_input[scope_tmp_site_input].getLocalEndPoints():
-                                    tmp_logger.debug(f"use {tmp_ddm_id} instead of {ddm_id} for tape prestaging")
-                                    ddm_id = tmp_ddm_id
-                                    changed = True
-                            # use default input endpoint
-                            if not changed:
-                                ddm_id = tmp_site_spec.ddm_endpoints_input[scope_tmp_site_input].getDefaultRead()
-                                tmp_logger.debug(f"use default_read {ddm_id} for tape prestaging")
-                        tmp_logger.debug(f"use {ddm_id} for tape prestaging")
-                        # register dataset locations
-                        is_ok = True
+                    opt_owner = None
+                    if job.processingType == "urgent" or job.currentPriority > 1000:
+                        opt_activity = "Express"
                     else:
-                        is_ok = True
-                        # set sources to handle Satellites in another cloud and to transfer dis datasets being split in multiple sites
-                        if not missing_at_nucleus:
-                            for tmp_ddm_id in ddm_id_list:
-                                opt_source[tmp_ddm_id] = {"policy": 0}
-                        # Nucleus used as Satellite
-                        if (
-                            job.getCloud() != self.site_mapper.getSite(tmp_dst_id).cloud
-                            and (job.prodSourceLabel not in ["user", "panda"])
-                            and self.site_mapper.getSite(tmp_dst_id).cloud in ["US"]
-                        ):
-                            tmp_dst_site_spec = self.site_mapper.getSite(tmp_dst_id)
-                            scope_input, _ = select_scope(tmp_dst_site_spec, job.prodSourceLabel, job.job_label)
-                        elif job.prodSourceLabel in ["user", "panda"]:
-                            # use DATADISK
-                            tmp_site_spec = self.site_mapper.getSite(job.computingSite)
-                            (
-                                scope_tmp_site_input,
-                                scope_tmp_site_output,
-                            ) = select_scope(tmp_site_spec, job.prodSourceLabel, job.job_label)
-                            if "ATLASDATADISK" in tmp_site_spec.setokens_input[scope_tmp_site_input]:
-                                tmp_ddm_id = tmp_site_spec.setokens_input[scope_tmp_site_input]["ATLASDATADISK"]
-                                if tmp_ddm_id in tmp_site_spec.ddm_endpoints_input[scope_tmp_site_input].getLocalEndPoints():
-                                    tmp_logger.debug(f"use {tmp_ddm_id} instead of {ddm_id} for analysis input staging")
-                                    ddm_id = tmp_ddm_id
-                    # set share and activity
-                    if job.prodSourceLabel in ["user", "panda"]:
-                        opt_activity = "Analysis Input"
-                        opt_owner = None
+                        opt_activity = "Production Input"
+                # taskID
+                if job.jediTaskID not in ["NULL", 0]:
+                    opt_comment = f"task_id:{job.jediTaskID}"
+                else:
+                    opt_comment = None
+                if not is_ok:
+                    disp_error[disp] = "Setupper._subscribeDispatchDB() could not register location for prestage"
+                else:
+                    # register subscription
+                    tmp_logger.debug(
+                        f"registerDatasetSubscription {job.dispatchDBlock, ddm_id} {{'activity': {opt_activity}, 'lifetime': 7, 'dn': {opt_owner}, 'comment': {opt_comment}}}"
+                    )
+                    for _ in range(3):
+                        try:
+                            status = rucioAPI.register_dataset_subscription(
+                                job.dispatchDBlock,
+                                [ddm_id],
+                                activity=opt_activity,
+                                lifetime=7,
+                                distinguished_name=opt_owner,
+                                comment=opt_comment,
+                            )
+                            out = "OK"
+                            break
+                        except Exception as error:
+                            status = False
+                            out = f"registerDatasetSubscription failed with {str(error)} {traceback.format_exc()}"
+                            time.sleep(10)
+                    if not status:
+                        tmp_logger.error(out)
+                        disp_error[disp] = "Setupper._subscribeDispatchDB() could not register subscription"
                     else:
-                        opt_owner = None
-                        if job.processingType == "urgent" or job.currentPriority > 1000:
-                            opt_activity = "Express"
-                        else:
-                            opt_activity = "Production Input"
-                    # taskID
-                    if job.jediTaskID not in ["NULL", 0]:
-                        opt_comment = f"task_id:{job.jediTaskID}"
-                    else:
-                        opt_comment = None
-                    if not is_ok:
-                        disp_error[disp] = "Setupper._subscribeDispatchDB() could not register location for prestage"
-                    else:
-                        # register subscription
-                        tmp_logger.debug(
-                            f"registerDatasetSubscription {job.dispatchDBlock, ddm_id} {{'activity': {opt_activity}, 'lifetime': 7, 'dn': {opt_owner}, 'comment': {opt_comment}}}"
-                        )
-                        for _ in range(3):
-                            try:
-                                status = rucioAPI.register_dataset_subscription(
-                                    job.dispatchDBlock,
-                                    [ddm_id],
-                                    activity=opt_activity,
-                                    lifetime=7,
-                                    distinguished_name=opt_owner,
-                                    comment=opt_comment,
-                                )
-                                out = "OK"
-                                break
-                            except Exception as error:
-                                status = False
-                                out = f"registerDatasetSubscription failed with {str(error)} {traceback.format_exc()}"
-                                time.sleep(10)
-                        if not status:
-                            tmp_logger.error(out)
-                            disp_error[disp] = "Setupper._subscribeDispatchDB() could not register subscription"
-                        else:
-                            tmp_logger.debug(out)
+                        tmp_logger.debug(out)
             # failed jobs
             if disp_error[disp] != "":
                 if job.jobStatus != "failed":
@@ -1036,6 +1028,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 # append job for downstream process
                 jobs_processed.append(job)
                 continue
+
             # ignore no prodDBlock jobs or container dataset
             if job.prodDBlock == "NULL":
                 # append job to processed list
@@ -1296,6 +1289,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         self.update_failed_jobs(jobs_failed)
         # remove waiting/failed jobs
         self.jobs = jobs_processed
+
+        tmp_logger.debug("done")
 
         # delete huge variables
         del lfn_map
