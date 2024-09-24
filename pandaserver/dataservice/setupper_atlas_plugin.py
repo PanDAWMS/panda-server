@@ -843,29 +843,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                 break
                     tmp_logger.debug(f"{job.dispatchDBlock} missing at Nucleus : {missing_at_nucleus}")
 
-                # look for replica
-                ddm_id = src_ddm_id
-                ddm_id_list = []
-                # register replica
-                if ddm_id != dst_ddm_id or missing_at_nucleus:
-                    # make list
-                    if job.dispatchDBlock in self.replica_map:
-                        for tmp_dataset in self.replica_map[job.dispatchDBlock]:
-                            tmp_rep_map = self.replica_map[job.dispatchDBlock][tmp_dataset]
-                        # consider cloudconfig.tier1se
-                        tmp_cloud_ses = DataServiceUtils.get_endpoints_at_nucleus(tmp_rep_map, self.site_mapper, job.getCloud())
-                        use_cloud_ses = []
-                        for tmp_cloud_se in tmp_cloud_ses:
-                            if tmp_cloud_se not in ddm_id_list:
-                                use_cloud_ses.append(tmp_cloud_se)
-                        if use_cloud_ses:
-                            ddm_id_list += use_cloud_ses
-                            tmp_logger.debug(f"use additional endpoints {str(use_cloud_ses)} from cloudconfig")
-                    # use default location if empty
-                    if not ddm_id_list:
-                        ddm_id_list = [ddm_id]
-
-                opt_source = {}
                 ddm_id = dst_ddm_id
                 # prestaging
                 if src_ddm_id == dst_ddm_id and not missing_at_nucleus:
@@ -893,10 +870,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     is_ok = True
                 else:
                     is_ok = True
-                    # set sources to handle Satellites in another cloud and to transfer dis datasets being split in multiple sites
-                    if not missing_at_nucleus:
-                        for tmp_ddm_id in ddm_id_list:
-                            opt_source[tmp_ddm_id] = {"policy": 0}
                     # Nucleus used as Satellite
                     if (
                         job.getCloud() != self.site_mapper.getSite(tmp_dst_id).cloud
