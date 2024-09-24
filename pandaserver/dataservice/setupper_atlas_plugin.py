@@ -1013,7 +1013,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             tmp_src_site = self.site_mapper.getNucleus(job.nucleus)
             src_ddm_id = None  # will be the case for jobs without nucleus, e.g. analysis
             if tmp_src_site is not None:
-                src_ddm_id = tmp_src_site.get_default_output()
+                src_ddm_id = tmp_src_site.get_default_endpoint_out()
             tmp_logger.debug(f"new implementation would choose src_ddm_id {src_ddm_id} for pandaid {job.PandaID} {job.prodSourceLabel}")
 
             tmp_src_id = self.site_mapper.getCloud(job.getCloud())["source"]
