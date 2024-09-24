@@ -991,7 +991,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         # collect input LFNs
         input_lfns = self.collect_input_lfns()
 
-        # loop over all jobs
         for job in self.jobs:
             # check if sitename is known
             if job.computingSite != "NULL" and job.computingSite not in self.site_mapper.siteSpecList:
@@ -1009,6 +1008,14 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 continue
 
             # check if Nucleus
+
+            # potential implementation using NucleusSpec
+            tmp_src_site = self.site_mapper.getNucleus(job.nucleus)
+            src_ddm_id = None  # will be the case for jobs without nucleus, e.g. analysis
+            if tmp_src_site is not None:
+                src_ddm_id = tmp_src_site.get_default_output()
+            tmp_logger.debug(f"new implementation would choose src_ddm_id {src_ddm_id} for pandaid {job.PandaID} {job.prodSourceLabel}")
+
             tmp_src_id = self.site_mapper.getCloud(job.getCloud())["source"]
             src_site_spec = self.site_mapper.getSite(tmp_src_id)
             _, src_scope_output = select_scope(src_site_spec, job.prodSourceLabel, job.job_label)
@@ -1023,6 +1030,8 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 job.ddmErrorDiag = err_msg
                 jobs_failed.append(job)
                 continue
+
+            tmp_logger.debug(f"old implementation would choose src_ddm_id {src_ddm_id} for pandaid {job.PandaID} {job.prodSourceLabel}")
 
             dst_site_spec = self.site_mapper.getSite(job.computingSite)
             dst_scope_input, _ = select_scope(dst_site_spec, job.prodSourceLabel, job.job_label)
