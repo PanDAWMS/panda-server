@@ -69,8 +69,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         self.missing_dataset_list = {}
         # lfn ds map
         self.lfn_dataset_map = {}
-        # missing files at nucleus sites
-        self.missing_files_in_nucleus = {}
         # source label
         self.prod_source_label = None
         self.job_label = None
@@ -801,7 +799,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
 
         disp_error = {}
         failed_jobs = []
-        ddm_user = "NULL"
+
         for job in self.jobs:
             # ignore failed jobs
             if job.jobStatus in ["failed", "cancelled"] or job.isCancelled():
@@ -815,124 +813,70 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             if disp not in disp_error:
                 disp_error[disp] = ""
 
+                site_spec = self.site_mapper.getSite(job.computingSite)
+
                 # source
-                tmp_src_id = job.computingSite
-                src_site = self.site_mapper.getSite(tmp_src_id)
-                _, scope_src_site_output = select_scope(src_site, job.prodSourceLabel, job.job_label)
-                src_ddm_id = src_site.ddm_output[scope_src_site_output]
+                _, scope_src_site_output = select_scope(site_spec, job.prodSourceLabel, job.job_label)
+                src_ddm_id = site_spec.ddm_output[scope_src_site_output]
 
                 # destination
-                tmp_dst_id = job.computingSite
-                dst_site_spec = self.site_mapper.getSite(tmp_dst_id)
-                scope_dst_input, _ = select_scope(dst_site_spec, job.prodSourceLabel, job.job_label)
-                if dst_site_spec.ddm_endpoints_input[scope_dst_input].isAssociated(src_ddm_id):
+                scope_dst_input, _ = select_scope(site_spec, job.prodSourceLabel, job.job_label)
+                if site_spec.ddm_endpoints_input[scope_dst_input].isAssociated(src_ddm_id):
                     dst_ddm_id = src_ddm_id
                 else:
                     dst_ddm_id = dst_site_spec.ddm_input[scope_dst_input]
 
-                tmp_logger.debug(f"src_ddm_id: {src_ddm_id} dst_ddm_id : {dst_ddm_id}")
+                # Get the ATLASDATADISK DDM endpoint in site, it will have preference for pre-staging
+                try:
+                    dst_datadisk_id = dst_site_spec.setokens_input[scope_dst_input]["ATLASDATADISK"]
+                except KeyError:
+                    dst_datadisk_id = None
 
-                # check if missing at Nucleus
-                missing_at_nucleus = False
-                if job.prodSourceLabel in ["managed", "test"]:
-                    for tmp_lfn in self.disp_file_list[job.dispatchDBlock]["lfns"]:
-                        tmp_cloud = job.getCloud()
-                        if tmp_cloud in self.missing_files_in_nucleus:
-                            if tmp_lfn in self.missing_files_in_nucleus[tmp_cloud] or tmp_lfn.split(":")[-1] in self.missing_files_in_nucleus[tmp_cloud]:
-                                missing_at_nucleus = True
-                                break
-                    tmp_logger.debug(f"{job.dispatchDBlock} missing at Nucleus : {missing_at_nucleus}")
-
-                ddm_id = dst_ddm_id
-                # prestaging
-                if src_ddm_id == dst_ddm_id and not missing_at_nucleus:
-                    # prestage to associated endpoints
-                    if job.prodSourceLabel in ["user", "panda"]:
-                        tmp_site_spec = self.site_mapper.getSite(job.computingSite)
-                        (
-                            scope_tmp_site_input,
-                            scope_tmp_site_output,
-                        ) = select_scope(tmp_site_spec, job.prodSourceLabel, job.job_label)
-                        # use DATADISK if possible
-                        changed = False
-                        if "ATLASDATADISK" in tmp_site_spec.setokens_input[scope_tmp_site_input]:
-                            tmp_ddm_id = tmp_site_spec.setokens_input[scope_tmp_site_input]["ATLASDATADISK"]
-                            if tmp_ddm_id in tmp_site_spec.ddm_endpoints_input[scope_tmp_site_input].getLocalEndPoints():
-                                tmp_logger.debug(f"use {tmp_ddm_id} instead of {ddm_id} for tape prestaging")
-                                ddm_id = tmp_ddm_id
-                                changed = True
-                        # use default input endpoint
-                        if not changed:
-                            ddm_id = tmp_site_spec.ddm_endpoints_input[scope_tmp_site_input].getDefaultRead()
-                            tmp_logger.debug(f"use default_read {ddm_id} for tape prestaging")
-                    tmp_logger.debug(f"use {ddm_id} for tape prestaging")
-                    # register dataset locations
-                    is_ok = True
+                if dst_datadisk_id and dst_ddm_id != dst_datadisk_id:
+                    ddm_id = dst_datadisk_id
                 else:
-                    is_ok = True
-                    # Nucleus used as Satellite
-                    if (
-                        job.getCloud() != self.site_mapper.getSite(tmp_dst_id).cloud
-                        and (job.prodSourceLabel not in ["user", "panda"])
-                        and self.site_mapper.getSite(tmp_dst_id).cloud in ["US"]
-                    ):
-                        tmp_dst_site_spec = self.site_mapper.getSite(tmp_dst_id)
-                        scope_input, _ = select_scope(tmp_dst_site_spec, job.prodSourceLabel, job.job_label)
-                    elif job.prodSourceLabel in ["user", "panda"]:
-                        # use DATADISK
-                        tmp_site_spec = self.site_mapper.getSite(job.computingSite)
-                        (
-                            scope_tmp_site_input,
-                            scope_tmp_site_output,
-                        ) = select_scope(tmp_site_spec, job.prodSourceLabel, job.job_label)
-                        if "ATLASDATADISK" in tmp_site_spec.setokens_input[scope_tmp_site_input]:
-                            tmp_ddm_id = tmp_site_spec.setokens_input[scope_tmp_site_input]["ATLASDATADISK"]
-                            if tmp_ddm_id in tmp_site_spec.ddm_endpoints_input[scope_tmp_site_input].getLocalEndPoints():
-                                tmp_logger.debug(f"use {tmp_ddm_id} instead of {ddm_id} for analysis input staging")
-                                ddm_id = tmp_ddm_id
+                    ddm_id = dst_ddm_id
+                tmp_logger.debug(f"use {ddm_id} for pre-staging")
+
                 # set share and activity
+                opt_activity = "Production Input"
                 if job.prodSourceLabel in ["user", "panda"]:
                     opt_activity = "Analysis Input"
-                    opt_owner = None
-                else:
-                    opt_owner = None
-                    if job.processingType == "urgent" or job.currentPriority > 1000:
-                        opt_activity = "Express"
-                    else:
-                        opt_activity = "Production Input"
+                elif job.processingType == "urgent" or job.currentPriority > 1000:
+                    opt_activity = "Express"
+
                 # taskID
+                opt_comment = None
                 if job.jediTaskID not in ["NULL", 0]:
                     opt_comment = f"task_id:{job.jediTaskID}"
+
+                opt_owner = None
+
+                tmp_logger.debug(
+                    f"registerDatasetSubscription {job.dispatchDBlock, ddm_id} "
+                    f"{{'activity': {opt_activity}, 'lifetime': 7, 'dn': {opt_owner}, 'comment': {opt_comment}}}"
+                )
+                for _ in range(3):
+                    try:
+                        status = rucioAPI.register_dataset_subscription(
+                            job.dispatchDBlock,
+                            [ddm_id],
+                            activity=opt_activity,
+                            lifetime=7,
+                            distinguished_name=opt_owner,
+                            comment=opt_comment,
+                        )
+                        out = "OK"
+                        break
+                    except Exception as error:
+                        status = False
+                        out = f"registerDatasetSubscription failed with {str(error)} {traceback.format_exc()}"
+                        time.sleep(10)
+                if not status:
+                    tmp_logger.error(out)
+                    disp_error[disp] = "Setupper._subscribeDispatchDB() could not register subscription"
                 else:
-                    opt_comment = None
-                if not is_ok:
-                    disp_error[disp] = "Setupper._subscribeDispatchDB() could not register location for prestage"
-                else:
-                    # register subscription
-                    tmp_logger.debug(
-                        f"registerDatasetSubscription {job.dispatchDBlock, ddm_id} {{'activity': {opt_activity}, 'lifetime': 7, 'dn': {opt_owner}, 'comment': {opt_comment}}}"
-                    )
-                    for _ in range(3):
-                        try:
-                            status = rucioAPI.register_dataset_subscription(
-                                job.dispatchDBlock,
-                                [ddm_id],
-                                activity=opt_activity,
-                                lifetime=7,
-                                distinguished_name=opt_owner,
-                                comment=opt_comment,
-                            )
-                            out = "OK"
-                            break
-                        except Exception as error:
-                            status = False
-                            out = f"registerDatasetSubscription failed with {str(error)} {traceback.format_exc()}"
-                            time.sleep(10)
-                    if not status:
-                        tmp_logger.error(out)
-                        disp_error[disp] = "Setupper._subscribeDispatchDB() could not register subscription"
-                    else:
-                        tmp_logger.debug(out)
+                    tmp_logger.debug(out)
             # failed jobs
             if disp_error[disp] != "":
                 if job.jobStatus != "failed":
@@ -1007,58 +951,13 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 jobs_processed.append(job)
                 continue
 
-            # check if Nucleus
-
-            # potential implementation using NucleusSpec
-            tmp_src_site = self.site_mapper.getNucleus(job.nucleus)
-            src_ddm_id = None  # will be the case for jobs without nucleus, e.g. analysis
-            if tmp_src_site is not None:
-                src_ddm_id = tmp_src_site.get_default_endpoint_out()
-            tmp_logger.debug(f"new implementation would choose src_ddm_id {src_ddm_id} for pandaid {job.PandaID} {job.prodSourceLabel}")
-
-            tmp_src_id = self.site_mapper.getCloud(job.getCloud())["source"]
-            src_site_spec = self.site_mapper.getSite(tmp_src_id)
-            _, src_scope_output = select_scope(src_site_spec, job.prodSourceLabel, job.job_label)
-            # could happen if wrong configuration or downtime
-            if src_scope_output in src_site_spec.ddm_output:
-                src_ddm_id = src_site_spec.ddm_output[src_scope_output]
-            else:
-                err_msg = f"Source site {tmp_src_id} has no {src_scope_output} endpoint (ddm_output {src_site_spec.ddm_output})"
-                tmp_logger.error(f"< jediTaskID={job.taskID} PandaID={job.PandaID} > {err_msg}")
-                job.jobStatus = "failed"
-                job.ddmErrorCode = ErrorCode.EC_RSE
-                job.ddmErrorDiag = err_msg
-                jobs_failed.append(job)
-                continue
-
-            tmp_logger.debug(f"old implementation would choose src_ddm_id {src_ddm_id} for pandaid {job.PandaID} {job.prodSourceLabel}")
-
-            dst_site_spec = self.site_mapper.getSite(job.computingSite)
-            dst_scope_input, _ = select_scope(dst_site_spec, job.prodSourceLabel, job.job_label)
-            # could happen if wrong configuration or downtime
-            if dst_scope_input in dst_site_spec.ddm_input:
-                dst_ddm_id = dst_site_spec.ddm_input[dst_scope_input]
-            else:
-                err_msg = f"computingsite {job.computingSite} has no {dst_scope_input} endpoint (ddm_input {dst_site_spec.ddm_input})"
-                tmp_logger.error(f"< jediTaskID={job.taskID} PandaID={job.PandaID} > {err_msg}")
-                job.jobStatus = "failed"
-                job.ddmErrorCode = ErrorCode.EC_RSE
-                job.ddmErrorDiag = err_msg
-                jobs_failed.append(job)
-                continue
-
-            # collect datasets and missing files
+            # collect datasets
             datasets = []
             for file in job.Files:
                 # make a list of input datasets
                 if file.type == "input" and file.dispatchDBlock == "NULL" and (file.GUID == "NULL" or job.prodSourceLabel in ["managed", "test", "ptest"]):
                     if file.dataset not in datasets:
                         datasets.append(file.dataset)
-
-                # make a map of LFNs that are missing per cloud/nucleus
-                if src_ddm_id == dst_ddm_id and file.type == "input" and job.prodSourceLabel in ["managed", "test", "ptest"] and file.status != "ready":
-                    cloud = job.getCloud()
-                    self.missing_files_in_nucleus.setdefault(cloud, set()).add(file.lfn)
 
             # get file information for the LFNs
             for dataset in datasets:
