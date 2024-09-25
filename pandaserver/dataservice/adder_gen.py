@@ -620,7 +620,7 @@ class AdderGen:
                     full_lfn_map[lfn] = full_lfn
         except Exception:
             exc_type, value, _ = sys.exc_info()
-            self.logger.eror("Issue with parsing JSON")
+            self.logger.error("Issue with parsing JSON")
             self.logger.error(f": {exc_type} {value}")
             # set failed anyway
             self.job.jobStatus = "failed"
@@ -654,7 +654,7 @@ class AdderGen:
                         pass
             n_events_from = "json"
         except Exception:
-            self.logger.eror("Issue with parsing JSON for nEvents")
+            self.logger.error("Issue with parsing JSON for nEvents")
             pass
 
         # use nEvents and GUIDs reported by the pilot if no job report
