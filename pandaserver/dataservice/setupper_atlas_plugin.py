@@ -312,20 +312,16 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         if tmp_lfn not in file_list[job.dispatchDBlock]["lfns"]:
                             file_list[job.dispatchDBlock]["lfns"].append(tmp_lfn)
                             file_list[job.dispatchDBlock]["guids"].append(file.GUID)
-                            if file.fsize in ["NULL", 0]:
-                                file_list[job.dispatchDBlock]["fsizes"].append(None)
-                            else:
-                                file_list[job.dispatchDBlock]["fsizes"].append(int(file.fsize))
+                            file_list[job.dispatchDBlock]["fsizes"].append(None if file.fsize in ["NULL", 0] else int(file.fsize))
+                            file_list[job.dispatchDBlock]["chksums"].append(None if file.checksum in ["NULL", ""] else file.checksum)
+
                             if file.md5sum in ["NULL", ""]:
                                 file_list[job.dispatchDBlock]["md5sums"].append(None)
                             elif file.md5sum.startswith("md5:"):
                                 file_list[job.dispatchDBlock]["md5sums"].append(file.md5sum)
                             else:
                                 file_list[job.dispatchDBlock]["md5sums"].append(f"md5:{file.md5sum}")
-                            if file.checksum in ["NULL", ""]:
-                                file_list[job.dispatchDBlock]["chksums"].append(None)
-                            else:
-                                file_list[job.dispatchDBlock]["chksums"].append(file.checksum)
+
                         # get replica locations
                         self.replica_map.setdefault(job.dispatchDBlock, {})
                         if file.dataset not in self.all_replica_map:
