@@ -16,3 +16,9 @@ class WrappedPostgresConn(object):
     def ping(self):
         if self.orig_conn.closed:
             raise RuntimeError("connection closed")
+
+    def __enter__(self):
+        self.orig_conn.__enter__()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.orig_conn.__exit__(exc_type, exc_val, exc_tb)
