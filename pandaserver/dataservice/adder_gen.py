@@ -1,5 +1,5 @@
 """
-add data to dataset
+General Adder plugin. Add data to dataset
 
 """
 
@@ -7,6 +7,7 @@ import datetime
 import re
 import sys
 import time
+
 import traceback
 import xml.dom.minidom
 
@@ -19,113 +20,132 @@ from pandaserver.config import panda_config
 from pandaserver.dataservice import closer
 from pandaserver.taskbuffer import EventServiceUtils, JobUtils, retryModule
 
-_logger = PandaLogger().getLogger("Adder")
+_logger = PandaLogger().getLogger("adder")
 
 panda_config.setupPlugin()
 
 
-class AdderGen(object):
+class AdderGen:
+    """
+    General Adder plugin.
+    """
     # constructor
     def __init__(
         self,
         taskBuffer,
-        jobID,
-        jobStatus,
-        attemptNr,
-        ignoreTmpError=True,
+        job_id,
+        job_status,
+        attempt_nr,
+        ignore_tmp_error=True,
         siteMapper=None,
         pid=None,
         prelock_pid=None,
         lock_offset=10,
         lock_pool=None,
-    ):
+    ) -> None:
+        """
+        Initialize the AdderGen.
+
+        :param job: The job object.
+        :param params: Additional parameters.
+        """
         self.job = None
-        self.jobID = jobID
-        self.jobStatus = jobStatus
+        self.job_id = job_id
+        self.job_status = job_status
         self.taskBuffer = taskBuffer
-        self.ignoreTmpError = ignoreTmpError
+        self.ignore_tmp_error = ignore_tmp_error
         self.lock_offset = lock_offset
         self.siteMapper = siteMapper
-        self.datasetMap = {}
-        self.extraInfo = {
+        self.dataset_map = {}
+        self.extra_info = {
             "surl": {},
             "nevents": {},
             "lbnr": {},
             "endpoint": {},
             "guid": {},
         }
-        self.attemptNr = attemptNr
+        self.attempt_nr = attempt_nr
         self.pid = pid
         self.prelock_pid = prelock_pid
         self.data = None
         self.lock_pool = lock_pool
         # logger
-        self.logger = LogWrapper(_logger, str(self.jobID))
+        self.logger = LogWrapper(_logger, str(self.job_id))
 
     # dump file report
-    def dumpFileReport(self, fileCatalog, attemptNr):
+    def dump_file_report(self, file_catalog, attempt_nr):
+        """
+        Dump the file report.
+
+        :param file_catalog: The file catalog.
+        :param attempt_nr: The attempt number.
+        """
         self.logger.debug("dump file report")
-        # dump Catalog into file
-        # if attemptNr is None:
-        #     xmlFile = '%s/%s_%s_%s' % (panda_config.logdir,self.jobID,self.jobStatus,
-        #                                str(uuid.uuid4()))
-        # else:
-        #     xmlFile = '%s/%s_%s_%s_%s' % (panda_config.logdir,self.jobID,self.jobStatus,
-        #                                   str(uuid.uuid4()),attemptNr)
-        # file = open(xmlFile,'w')
-        # file.write(fileCatalog)
-        # file.close()
-        # dump Catalog into job output report table
-        attempt_nr = 0 if attemptNr is None else attemptNr
+
+        attempt_nr = 0 if attempt_nr is None else attempt_nr
         if self.job is None:
-            self.job = self.taskBuffer.peekJobs([self.jobID], fromDefined=False, fromWaiting=False, forAnal=True)[0]
+            self.job = self.taskBuffer.peekJobs([self.job_id], fromDefined=False, fromWaiting=False, forAnal=True)[0]
         if self.job:
             self.taskBuffer.insertJobOutputReport(
-                panda_id=self.jobID,
+                panda_id=self.job_id,
                 prod_source_label=self.job.prodSourceLabel,
-                job_status=self.jobStatus,
+                job_status=self.job_status,
                 attempt_nr=attempt_nr,
-                data=fileCatalog,
+                data=file_catalog,
             )
 
     # get plugin class
-    def getPluginClass(self, tmpVO, tmpGroup):
-        # instantiate concrete plugin
-        adderPluginClass = panda_config.getPlugin("adder_plugins", tmpVO, tmpGroup)
-        if adderPluginClass is None:
-            # use ATLAS plugin by default
-            from pandaserver.dataservice.AdderAtlasPlugin import AdderAtlasPlugin
+    def get_plugin_class(self, tmp_vo, tmp_group):
+        """
+        Get the plugin class for the given VO and group.
 
-            adderPluginClass = AdderAtlasPlugin
-        self.logger.debug(f"plugin name {adderPluginClass.__name__}")
-        return adderPluginClass
+        This method attempts to retrieve a specific plugin class based on the provided
+        VO (Virtual Organization) and group. If no specific plugin is found, it defaults
+        to using the ATLAS plugin.
+
+        :param tmp_vo: The Virtual Organization identifier.
+        :param tmp_group: The group identifier.
+        :return: The plugin class.
+        """
+        # instantiate concrete plugin
+        adder_plugin_class = panda_config.getPlugin("adder_plugins", tmp_vo, tmp_group)
+        if adder_plugin_class is None:
+            # use ATLAS plugin by default
+            from pandaserver.dataservice.adder_atlas_plugin import AdderAtlasPlugin
+
+            adder_plugin_class = AdderAtlasPlugin
+        self.logger.debug(f"plugin name {adder_plugin_class.__name__}")
+        return adder_plugin_class
 
     # main
     def run(self):
+        """
+        Run the AdderGen plugin.
+        """
         try:
             start_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-            self.logger.debug(f"new start: {self.jobStatus} attemptNr={self.attemptNr}")
+            self.logger.debug(f"new start: {self.job_status} attemptNr={self.attempt_nr}")
 
             # got lock, get the report
-            report_dict = self.taskBuffer.getJobOutputReport(panda_id=self.jobID, attempt_nr=self.attemptNr)
+            report_dict = self.taskBuffer.getJobOutputReport(panda_id=self.job_id, attempt_nr=self.attempt_nr)
             self.data = report_dict.get("data")
 
             # query job
-            self.job = self.taskBuffer.peekJobs([self.jobID], fromDefined=False, fromWaiting=False, forAnal=True)[0]
+            self.job = self.taskBuffer.peekJobs([self.job_id], fromDefined=False, fromWaiting=False, forAnal=True)[0]
             # check if job has finished
             if self.job is None:
                 self.logger.debug(": job not found in DB")
             elif self.job.jobStatus in ["finished", "failed", "unknown", "merging"]:
                 self.logger.error(f": invalid state -> {self.job.jobStatus}")
-            elif self.attemptNr is not None and self.job.attemptNr != self.attemptNr:
-                self.logger.error(f"wrong attemptNr -> job={self.job.attemptNr} <> {self.attemptNr}")
-            # elif self.attemptNr is not None and self.job.jobStatus == 'transferring':
+            elif self.attempt_nr is not None and self.job.attemptNr != self.attempt_nr:
+                self.logger.error(f"wrong attemptNr -> job={self.job.attemptNr} <> {self.attempt_nr}")
+            # elif self.attempt_nr is not None and self.job.jobStatus == 'transferring':
             #     errMsg = 'XML with attemptNr for {0}'.format(self.job.jobStatus)
             #     self.logger.error(errMsg)
-            elif self.jobStatus == EventServiceUtils.esRegStatus:
+            elif self.job_status == EventServiceUtils.esRegStatus:
                 # instantiate concrete plugin
-                adderPluginClass = self.getPluginClass(self.job.VO, self.job.cloud)
-                adderPlugin = adderPluginClass(
+                adder_plugin_class = self.get_plugin_class(self.job.VO, self.job.cloud)
+                adder_plugin = adder_plugin_class(
                     self.job,
                     taskBuffer=self.taskBuffer,
                     siteMapper=self.siteMapper,
@@ -133,105 +153,105 @@ class AdderGen(object):
                 )
                 # execute
                 self.logger.debug("plugin is ready for ES file registration")
-                adderPlugin.registerEventServiceFiles()
+                adder_plugin.register_event_service_files()
             else:
                 # check file status in JEDI
                 if not self.job.isCancelled() and self.job.taskBufferErrorCode not in [pandaserver.taskbuffer.ErrorCode.EC_PilotRetried]:
-                    fileCheckInJEDI = self.taskBuffer.checkInputFileStatusInJEDI(self.job)
-                    self.logger.debug(f"check file status in JEDI : {fileCheckInJEDI}")
-                    if fileCheckInJEDI is None:
+                    file_check_in_jedi = self.taskBuffer.checkInputFileStatusInJEDI(self.job)
+                    self.logger.debug(f"check file status in JEDI : {file_check_in_jedi}")
+                    if file_check_in_jedi is None:
                         raise RuntimeError("failed to check file status in JEDI")
-                    if fileCheckInJEDI is False:
+                    if file_check_in_jedi is False:
                         # set job status to failed since some file status is wrong in JEDI
-                        self.jobStatus = "failed"
+                        self.job_status = "failed"
                         self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
-                        errStr = "inconsistent file status between Panda and JEDI. "
-                        errStr += "failed to avoid duplicated processing caused by synchronization failure"
-                        self.job.ddmErrorDiag = errStr
-                        self.logger.debug(f"set jobStatus={self.jobStatus} since input is inconsistent between Panda and JEDI")
+                        err_str = "inconsistent file status between Panda and JEDI. "
+                        err_str += "failed to avoid duplicated processing caused by synchronization failure"
+                        self.job.ddmErrorDiag = err_str
+                        self.logger.debug(f"set jobStatus={self.job_status} since input is inconsistent between Panda and JEDI")
                     elif self.job.jobSubStatus in ["pilot_closed"]:
                         # terminated by the pilot
                         self.logger.debug("going to closed since terminated by the pilot")
-                        retClosed = self.taskBuffer.killJobs([self.jobID], "pilot", "60", True)
-                        if retClosed[0] is True:
+                        ret_closed = self.taskBuffer.killJobs([self.job_id], "pilot", "60", True)
+                        if ret_closed[0] is True:
                             self.logger.debug("end")
                             # remove Catalog
-                            self.taskBuffer.deleteJobOutputReport(panda_id=self.jobID, attempt_nr=self.attemptNr)
+                            self.taskBuffer.deleteJobOutputReport(panda_id=self.job_id, attempt_nr=self.attempt_nr)
                             return
                     # check for cloned jobs
-                    if EventServiceUtils.isJobCloningJob(self.job) and self.jobStatus == "finished":
+                    if EventServiceUtils.isJobCloningJob(self.job) and self.job_status == "finished":
                         # get semaphore for storeonce
                         if EventServiceUtils.getJobCloningType(self.job) == "storeonce":
-                            self.taskBuffer.getEventRanges(self.job.PandaID, self.job.jobsetID, self.jediTaskID, 1, False, False, None)
+                            self.taskBuffer.getEventRanges(self.job.PandaID, self.job.jobsetID, self.job.jediTaskID, 1, False, False, None)
                         # check semaphore
-                        checkJC = self.taskBuffer.checkClonedJob(self.job)
-                        if checkJC is None:
+                        check_jc = self.taskBuffer.checkClonedJob(self.job)
+                        if check_jc is None:
                             raise RuntimeError("failed to check the cloned job")
                         # failed to lock semaphore
-                        if checkJC["lock"] is False:
-                            self.jobStatus = "failed"
+                        if check_jc["lock"] is False:
+                            self.job_status = "failed"
                             self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
                             self.job.ddmErrorDiag = "failed to lock semaphore for job cloning"
-                            self.logger.debug(f"set jobStatus={self.jobStatus} since did not get semaphore for job cloning")
+                            self.logger.debug(f"set jobStatus={self.job_status} since did not get semaphore for job cloning")
                 # use failed for cancelled/closed jobs
                 if self.job.isCancelled():
-                    self.jobStatus = "failed"
+                    self.job_status = "failed"
                     # reset error codes to skip retrial module
                     self.job.pilotErrorCode = 0
                     self.job.exeErrorCode = 0
                     self.job.ddmErrorCode = 0
                 # keep old status
-                oldJobStatus = self.job.jobStatus
+                old_job_status = self.job.jobStatus
                 # set job status
                 if self.job.jobStatus not in ["transferring"]:
-                    self.job.jobStatus = self.jobStatus
-                addResult = None
-                adderPlugin = None
+                    self.job.jobStatus = self.job_status
+                add_result = None
+                adder_plugin = None
                 # parse XML
-                parseResult = self.parseXML()
-                if parseResult < 2:
+                parse_result = self.parse_xml()
+                if parse_result < 2:
                     # interaction with DDM
                     try:
                         # instantiate concrete plugin
-                        adderPluginClass = self.getPluginClass(self.job.VO, self.job.cloud)
-                        adderPlugin = adderPluginClass(
+                        adder_plugin_class = self.get_plugin_class(self.job.VO, self.job.cloud)
+                        adder_plugin = adder_plugin_class(
                             self.job,
                             taskBuffer=self.taskBuffer,
                             siteMapper=self.siteMapper,
-                            extraInfo=self.extraInfo,
+                            extra_info=self.extra_info,
                             logger=self.logger,
                         )
                         # execute
                         self.logger.debug("plugin is ready")
-                        adderPlugin.execute()
-                        addResult = adderPlugin.result
-                        self.logger.debug(f"plugin done with {addResult.statusCode}")
+                        adder_plugin.execute()
+                        add_result = adder_plugin.result
+                        self.logger.debug(f"plugin done with {add_result.status_code}")
                     except Exception:
-                        errtype, errvalue = sys.exc_info()[:2]
-                        self.logger.error(f"failed to execute AdderPlugin for VO={self.job.VO} with {errtype}:{errvalue}")
+                        err_type, err_value = sys.exc_info()[:2]
+                        self.logger.error(f"failed to execute AdderPlugin for VO={self.job.VO} with {err_type}:{err_value}")
                         self.logger.error(f"failed to execute AdderPlugin for VO={self.job.VO} with {traceback.format_exc()}")
-                        addResult = None
+                        add_result = None
                         self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
                         self.job.ddmErrorDiag = "AdderPlugin failure"
 
                     # ignore temporary errors
-                    if self.ignoreTmpError and addResult is not None and addResult.isTemporary():
+                    if self.ignore_tmp_error and add_result is not None and add_result.is_temporary():
                         self.logger.debug(f": ignore {self.job.ddmErrorDiag} ")
                         self.logger.debug("escape")
                         # unlock job output report
                         self.taskBuffer.unlockJobOutputReport(
-                            panda_id=self.jobID,
-                            attempt_nr=self.attemptNr,
+                            panda_id=self.job_id,
+                            attempt_nr=self.attempt_nr,
                             pid=self.pid,
                             lock_offset=self.lock_offset,
                         )
                         return
                     # failed
-                    if addResult is None or not addResult.isSucceeded():
+                    if add_result is None or not add_result.is_succeeded():
                         self.job.jobStatus = "failed"
                 # set file status for failed jobs or failed transferring jobs
-                self.logger.debug(f"status after plugin call :job.jobStatus={self.job.jobStatus} jobStatus={self.jobStatus}")
-                if self.job.jobStatus == "failed" or self.jobStatus == "failed":
+                self.logger.debug(f"status after plugin call :job.jobStatus={self.job.jobStatus} jobStatus={self.job_status}")
+                if self.job.jobStatus == "failed" or self.job_status == "failed":
                     # First of all: check if job failed and in this case take first actions according to error table
                     source, error_code, error_diag = None, None, None
                     errors = []
@@ -298,7 +318,7 @@ class AdderGen(object):
                     self.job.jobStatus = "failed"
                     for file in self.job.Files:
                         if file.type in ["output", "log"]:
-                            if addResult is not None and file.lfn in addResult.mergingFiles:
+                            if add_result is not None and file.lfn in add_result.merging_files:
                                 file.status = "merging"
                             else:
                                 file.status = "failed"
@@ -307,18 +327,18 @@ class AdderGen(object):
                     self.job.jobDispatcherErrorCode = 0
                     self.job.jobDispatcherErrorDiag = "NULL"
                     # set status
-                    if addResult is not None and addResult.mergingFiles != []:
+                    if add_result is not None and add_result.merging_files != []:
                         # set status for merging:
                         for file in self.job.Files:
-                            if file.lfn in addResult.mergingFiles:
+                            if file.lfn in add_result.merging_files:
                                 file.status = "merging"
                         self.job.jobStatus = "merging"
                         # propagate transition to prodDB
                         self.job.stateChangeTime = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-                    elif addResult is not None and addResult.transferringFiles != []:
+                    elif add_result is not None and add_result.transferring_files != []:
                         # set status for transferring
                         for file in self.job.Files:
-                            if file.lfn in addResult.transferringFiles:
+                            if file.lfn in add_result.transferring_files:
                                 file.status = "transferring"
                         self.job.jobStatus = "transferring"
                         self.job.jobSubStatus = None
@@ -332,22 +352,21 @@ class AdderGen(object):
                 # output size and # of outputs
                 self.job.nOutputDataFiles = 0
                 self.job.outputFileBytes = 0
-                for tmpFile in self.job.Files:
-                    if tmpFile.type == "output":
+                for tmp_file in self.job.Files:
+                    if tmp_file.type == "output":
                         self.job.nOutputDataFiles += 1
                         try:
-                            self.job.outputFileBytes += tmpFile.fsize
+                            self.job.outputFileBytes += tmp_file.fsize
                         except Exception:
                             pass
                 # protection
-                maxOutputFileBytes = 99999999999
-                if self.job.outputFileBytes > maxOutputFileBytes:
-                    self.job.outputFileBytes = maxOutputFileBytes
+                max_output_file_bytes = 99999999999
+                self.job.outputFileBytes = min(self.job.outputFileBytes, max_output_file_bytes)
                 # set cancelled state
                 if self.job.commandToPilot == "tobekilled" and self.job.jobStatus == "failed":
                     self.job.jobStatus = "cancelled"
                 # update job
-                if oldJobStatus in ["cancelled", "closed"]:
+                if old_job_status in ["cancelled", "closed"]:
                     pass
                 else:
                     db_lock = None
@@ -359,25 +378,25 @@ class AdderGen(object):
                         else:
                             self.logger.debug(f"couldn't get DB lock for jediTaskID={self.job.jediTaskID}")
                     self.logger.debug("updating DB")
-                    retU = self.taskBuffer.updateJobs(
+                    update_result = self.taskBuffer.updateJobs(
                         [self.job],
                         False,
-                        oldJobStatusList=[oldJobStatus],
-                        extraInfo=self.extraInfo,
+                        oldJobStatusList=[old_job_status],
+                        extraInfo=self.extra_info,
                         async_dataset_update=True,
                     )
-                    self.logger.debug(f"retU: {retU}")
+                    self.logger.debug(f"retU: {update_result}")
                     if db_lock:
                         self.logger.debug(f"release DB lock for jediTaskID={self.job.jediTaskID}")
                         db_lock.release()
                         self.lock_pool.release(self.job.jediTaskID)
                     # failed
-                    if not retU[0]:
+                    if not update_result[0]:
                         self.logger.error(f"failed to update DB for pandaid={self.job.PandaID}")
                         # unlock job output report
                         self.taskBuffer.unlockJobOutputReport(
-                            panda_id=self.jobID,
-                            attempt_nr=self.attemptNr,
+                            panda_id=self.job_id,
+                            attempt_nr=self.attempt_nr,
                             pid=self.pid,
                             lock_offset=self.lock_offset,
                         )
@@ -421,8 +440,8 @@ class AdderGen(object):
 
                     # setup for closer
                     if not (EventServiceUtils.isEventServiceJob(self.job) and self.job.isCancelled()):
-                        destDBList = []
-                        guidList = []
+                        destination_dispatch_block_list = []
+                        guid_list = []
                         for file in self.job.Files:
                             # ignore inputs
                             if file.type == "input":
@@ -431,8 +450,8 @@ class AdderGen(object):
                             if file.destinationDBlock in ["", None, "NULL"]:
                                 continue
                             # start closer for output/log datasets
-                            if file.destinationDBlock not in destDBList:
-                                destDBList.append(file.destinationDBlock)
+                            if file.destinationDBlock not in destination_dispatch_block_list:
+                                destination_dispatch_block_list.append(file.destinationDBlock)
                             # collect GUIDs
                             if (
                                 self.job.prodSourceLabel == "panda"
@@ -448,10 +467,10 @@ class AdderGen(object):
                                 )
                             ) and file.type == "output":
                                 # extract base LFN since LFN was changed to full LFN for CMS
-                                baseLFN = file.lfn.split("/")[-1]
-                                guidList.append(
+                                base_lfn = file.lfn.split("/")[-1]
+                                guid_list.append(
                                     {
-                                        "lfn": baseLFN,
+                                        "lfn": base_lfn,
                                         "guid": file.GUID,
                                         "type": file.type,
                                         "checksum": file.checksum,
@@ -460,74 +479,80 @@ class AdderGen(object):
                                         "scope": file.scope,
                                     }
                                 )
-                        if guidList != []:
-                            retG = self.taskBuffer.setGUIDs(guidList)
-                        if destDBList != []:
+                        if guid_list:
+                            self.taskBuffer.setGUIDs(guid_list)
+                        if destination_dispatch_block_list:
                             # start Closer
-                            if adderPlugin is not None and hasattr(adderPlugin, "datasetMap") and adderPlugin.datasetMap != {}:
-                                cThr = closer.Closer(
+                            if adder_plugin is not None and hasattr(adder_plugin, "dataset_map") and adder_plugin.dataset_map != {}:
+                                closer_thread = closer.Closer(
                                     self.taskBuffer,
-                                    destDBList,
+                                    destination_dispatch_block_list,
                                     self.job,
-                                    dataset_map=adderPlugin.datasetMap,
+                                    dataset_map=adder_plugin.dataset_map,
                                 )
                             else:
-                                cThr = closer.Closer(self.taskBuffer, destDBList, self.job)
+                                closer_thread = closer.Closer(self.taskBuffer, destination_dispatch_block_list, self.job)
                             self.logger.debug("start Closer")
-                            # cThr.start()
-                            # cThr.join()
-                            cThr.run()
-                            del cThr
+                            closer_thread.run()
+                            del closer_thread
                             self.logger.debug("end Closer")
-                        # run closer for assocaiate parallel jobs
+                        # run closer for associate parallel jobs
                         if EventServiceUtils.isJobCloningJob(self.job):
-                            assDBlockMap = self.taskBuffer.getDestDBlocksWithSingleConsumer(self.job.jediTaskID, self.job.PandaID, destDBList)
-                            for assJobID in assDBlockMap:
-                                assDBlocks = assDBlockMap[assJobID]
-                                assJob = self.taskBuffer.peekJobs(
-                                    [assJobID],
+                            associate_dispatch_block_map = self.taskBuffer.getDestDBlocksWithSingleConsumer(self.job.jediTaskID, self.job.PandaID, destination_dispatch_block_list)
+                            for associate_job_id in associate_dispatch_block_map:
+                                associate_dispatch_blocks = associate_dispatch_block_map[associate_job_id]
+                                associate_job = self.taskBuffer.peekJobs(
+                                    [associate_job_id],
                                     fromDefined=False,
                                     fromArchived=False,
                                     fromWaiting=False,
                                     forAnal=True,
                                 )[0]
                                 if self.job is None:
-                                    self.logger.debug(f": associated job PandaID={assJobID} not found in DB")
+                                    self.logger.debug(f": associated job PandaID={associate_job_id} not found in DB")
                                 else:
-                                    cThr = closer.Closer(self.taskBuffer, assDBlocks, assJob)
-                                    self.logger.debug(f"start Closer for PandaID={assJobID}")
-                                    # cThr.start()
-                                    # cThr.join()
-                                    cThr.run()
-                                    del cThr
-                                    self.logger.debug(f"end Closer for PandaID={assJobID}")
+                                    closer_thread = closer.Closer(self.taskBuffer, associate_dispatch_blocks, associate_job)
+                                    self.logger.debug(f"start Closer for PandaID={associate_job_id}")
+                                    closer_thread.run()
+                                    del closer_thread
+                                    self.logger.debug(f"end Closer for PandaID={associate_job_id}")
             duration = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
             self.logger.debug("end: took %s.%03d sec in total" % (duration.seconds, duration.microseconds / 1000))
-            # try:
-            #     # remove Catalog
-            #     os.remove(self.xmlFile)
-            # except Exception:
-            #     pass
+
             # remove Catalog
-            self.taskBuffer.deleteJobOutputReport(panda_id=self.jobID, attempt_nr=self.attemptNr)
+            self.taskBuffer.deleteJobOutputReport(panda_id=self.job_id, attempt_nr=self.attempt_nr)
             del self.data
             del report_dict
         except Exception as e:
-            errStr = f": {str(e)} {traceback.format_exc()}"
-            self.logger.error(errStr)
+            err_str = f": {str(e)} {traceback.format_exc()}"
+            self.logger.error(err_str)
             duration = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
             self.logger.error("except: took %s.%03d sec in total" % (duration.seconds, duration.microseconds / 1000))
             # unlock job output report
             self.taskBuffer.unlockJobOutputReport(
-                panda_id=self.jobID,
-                attempt_nr=self.attemptNr,
+                panda_id=self.job_id,
+                attempt_nr=self.attempt_nr,
                 pid=self.pid,
                 lock_offset=self.lock_offset,
             )
 
     # parse XML
     # 0: succeeded, 1: harmless error to exit, 2: fatal error, 3: event service
-    def parseXML(self):
+    def parse_xml(self):
+        """
+        Parse the XML data associated with the job to extract file information.
+
+        This method processes the XML data to retrieve Logical File Names (LFNs),
+        Globally Unique Identifiers (GUIDs), file sizes, checksums, and other metadata.
+        It updates the job's file information and ensures consistency between the XML
+        data and the job's file records.
+
+        :return: An integer indicating the result of the parsing process.
+                 0 - succeeded
+                 1 - harmless error to exit
+                 2 - fatal error
+                 3 - event service
+        """
         # get LFN and GUID
         # self.logger.debug('XML filename : %s' % self.xmlFile)
         # no outputs
@@ -537,10 +562,10 @@ class AdderGen(object):
             self.logger.debug("parseXML end")
             return 0
         # get input files
-        inputLFNs = []
+        input_lfns = []
         for file in self.job.Files:
             if file.type == "input":
-                inputLFNs.append(file.lfn)
+                input_lfns.append(file.lfn)
         # parse XML
         lfns = []
         guids = []
@@ -548,9 +573,9 @@ class AdderGen(object):
         md5sums = []
         chksums = []
         surls = []
-        fullLfnMap = {}
-        nEventsMap = {}
-        guidMap = dict()
+        full_lfn_map = {}
+        n_events_map = {}
+        guid_map = {}
         try:
             # root  = xml.dom.minidom.parse(self.xmlFile)
             root = xml.dom.minidom.parseString(self.data)
@@ -560,15 +585,15 @@ class AdderGen(object):
                 guid = str(file.getAttribute("ID"))
                 # get PFN and LFN nodes
                 logical = file.getElementsByTagName("logical")[0]
-                lfnNode = logical.getElementsByTagName("lfn")[0]
+                lfn_node = logical.getElementsByTagName("lfn")[0]
                 # convert UTF8 to Raw
-                lfn = str(lfnNode.getAttribute("name"))
+                lfn = str(lfn_node.getAttribute("name"))
                 # get metadata
                 fsize = None
                 md5sum = None
                 adler32 = None
                 surl = None
-                fullLFN = None
+                full_lfn = None
                 for meta in file.getElementsByTagName("metadata"):
                     # get fsize
                     name = str(meta.getAttribute("att_name"))
@@ -584,16 +609,14 @@ class AdderGen(object):
                     elif name == "surl":
                         surl = str(meta.getAttribute("att_value"))
                     elif name == "full_lfn":
-                        fullLFN = str(meta.getAttribute("att_value"))
+                        full_lfn = str(meta.getAttribute("att_value"))
                 # endpoints
-                self.extraInfo["endpoint"][lfn] = []
-                for epNode in file.getElementsByTagName("endpoint"):
-                    self.extraInfo["endpoint"][lfn].append(str(epNode.firstChild.data))
+                self.extra_info["endpoint"][lfn] = []
+                for endpoint_node in file.getElementsByTagName("endpoint"):
+                    self.extra_info["endpoint"][lfn].append(str(endpoint_node.firstChild.data))
                 # error check
-                if (lfn not in inputLFNs) and (fsize is None or (md5sum is None and adler32 is None)):
-                    if EventServiceUtils.isEventServiceMerge(self.job):
-                        continue
-                    else:
+                if (lfn not in input_lfns) and (fsize is None or (md5sum is None and adler32 is None)):
+                    if not EventServiceUtils.isEventServiceMerge(self.job):
                         raise RuntimeError("fsize/md5sum/adler32/surl=None")
                 # append
                 lfns.append(lfn)
@@ -606,8 +629,8 @@ class AdderGen(object):
                     chksums.append(f"ad:{adler32}")
                 else:
                     chksums.append(f"md5:{md5sum}")
-                if fullLFN is not None:
-                    fullLfnMap[lfn] = fullLFN
+                if full_lfn is not None:
+                    full_lfn_map[lfn] = full_lfn
             self.logger.debug("XML was used")
         except Exception:
             # parse json
@@ -615,38 +638,36 @@ class AdderGen(object):
                 import json
 
                 # with open(self.xmlFile) as tmpF:
-                jsonDict = json.loads(self.data)
-                for lfn in jsonDict:
-                    fileData = jsonDict[lfn]
+                json_dict = json.loads(self.data)
+                for lfn in json_dict:
+                    file_data = json_dict[lfn]
                     lfn = str(lfn)
                     fsize = None
                     md5sum = None
                     adler32 = None
                     surl = None
-                    fullLFN = None
-                    guid = str(fileData["guid"])
-                    if "fsize" in fileData:
-                        fsize = int(fileData["fsize"])
-                    if "md5sum" in fileData:
-                        md5sum = str(fileData["md5sum"])
+                    full_lfn = None
+                    guid = str(file_data["guid"])
+                    if "fsize" in file_data:
+                        fsize = int(file_data["fsize"])
+                    if "md5sum" in file_data:
+                        md5sum = str(file_data["md5sum"])
                         # check
                         if re.search("^[a-fA-F0-9]{32}$", md5sum) is None:
                             md5sum = None
-                    if "adler32" in fileData:
-                        adler32 = str(fileData["adler32"])
-                    if "surl" in fileData:
-                        surl = str(fileData["surl"])
-                    if "full_lfn" in fileData:
-                        fullLFN = str(fileData["full_lfn"])
+                    if "adler32" in file_data:
+                        adler32 = str(file_data["adler32"])
+                    if "surl" in file_data:
+                        surl = str(file_data["surl"])
+                    if "full_lfn" in file_data:
+                        full_lfn = str(file_data["full_lfn"])
                     # endpoints
-                    self.extraInfo["endpoint"][lfn] = []
-                    if "endpoint" in fileData:
-                        self.extraInfo["endpoint"][lfn] = fileData["endpoint"]
+                    self.extra_info["endpoint"][lfn] = []
+                    if "endpoint" in file_data:
+                        self.extra_info["endpoint"][lfn] = file_data["endpoint"]
                     # error check
-                    if (lfn not in inputLFNs) and (fsize is None or (md5sum is None and adler32 is None)):
-                        if EventServiceUtils.isEventServiceMerge(self.job):
-                            continue
-                        else:
+                    if (lfn not in input_lfns) and (fsize is None or (md5sum is None and adler32 is None)):
+                        if not EventServiceUtils.isEventServiceMerge(self.job):
                             raise RuntimeError("fsize/md5sum/adler32/surl=None")
                     # append
                     lfns.append(lfn)
@@ -659,12 +680,12 @@ class AdderGen(object):
                         chksums.append(f"ad:{adler32}")
                     else:
                         chksums.append(f"md5:{md5sum}")
-                    if fullLFN is not None:
-                        fullLfnMap[lfn] = fullLFN
+                    if full_lfn is not None:
+                        full_lfn_map[lfn] = full_lfn
                 self.logger.debug("JSON was used")
             except Exception:
-                type, value, traceBack = sys.exc_info()
-                self.logger.error(f": {type} {value}")
+                exc_type, value, _ = sys.exc_info()
+                self.logger.error(f": {exc_type} {value}")
                 # set failed anyway
                 self.job.jobStatus = "failed"
                 # XML error happens when pilot got killed due to wall-time limit or failures in wrapper
@@ -678,7 +699,7 @@ class AdderGen(object):
                 return 2
 
         # parse metadata to get nEvents
-        nEventsFrom = None
+        n_events_from = None
         try:
             root = xml.dom.minidom.parseString(self.job.metadata)
             files = root.getElementsByTagName("File")
@@ -687,20 +708,20 @@ class AdderGen(object):
                 guid = str(file.getAttribute("ID"))
                 # get PFN and LFN nodes
                 logical = file.getElementsByTagName("logical")[0]
-                lfnNode = logical.getElementsByTagName("lfn")[0]
+                lfn_node = logical.getElementsByTagName("lfn")[0]
                 # convert UTF8 to Raw
-                lfn = str(lfnNode.getAttribute("name"))
-                guidMap[lfn] = guid
+                lfn = str(lfn_node.getAttribute("name"))
+                guid_map[lfn] = guid
                 # get metadata
-                nevents = None
+                n_events = None
                 for meta in file.getElementsByTagName("metadata"):
                     # get fsize
                     name = str(meta.getAttribute("att_name"))
                     if name == "events":
-                        nevents = int(meta.getAttribute("att_value"))
-                        nEventsMap[lfn] = nevents
+                        n_events = int(meta.getAttribute("att_value"))
+                        n_events_map[lfn] = n_events
                         break
-            nEventsFrom = "xml"
+            n_events_from = "xml"
             self.logger.debug("XML was used to parse metadata")
         except Exception:
             pass
@@ -708,42 +729,42 @@ class AdderGen(object):
         try:
             import json
 
-            jsonDict = json.loads(self.job.metadata)
-            for jsonFileItem in jsonDict["files"]["output"]:
-                for jsonSubFileItem in jsonFileItem["subFiles"]:
-                    lfn = str(jsonSubFileItem["name"])
+            json_dict = json.loads(self.job.metadata)
+            for json_file_item in json_dict["files"]["output"]:
+                for json_sub_file_item in json_file_item["subFiles"]:
+                    lfn = str(json_sub_file_item["name"])
                     try:
-                        nevents = int(jsonSubFileItem["nentries"])
-                        nEventsMap[lfn] = nevents
+                        n_events = int(json_sub_file_item["nentries"])
+                        n_events_map[lfn] = n_events
                     except Exception:
                         pass
                     try:
-                        guid = str(jsonSubFileItem["file_guid"])
-                        guidMap[lfn] = guid
+                        guid = str(json_sub_file_item["file_guid"])
+                        guid_map[lfn] = guid
                     except Exception:
                         pass
-            nEventsFrom = "json"
+            n_events_from = "json"
             self.logger.debug("JSON was used to parse metadata")
         except Exception:
             pass
         # use nEvents and GUIDs reported by the pilot if no job report
-        if self.job.metadata == "NULL" and self.jobStatus == "finished" and self.job.nEvents > 0 and self.job.prodSourceLabel in ["managed"]:
+        if self.job.metadata == "NULL" and self.job_status == "finished" and self.job.nEvents > 0 and self.job.prodSourceLabel in ["managed"]:
             for file in self.job.Files:
                 if file.type == "output":
-                    nEventsMap[file.lfn] = self.job.nEvents
+                    n_events_map[file.lfn] = self.job.nEvents
             for lfn, guid in zip(lfns, guids):
-                guidMap[lfn] = guid
-            nEventsFrom = "pilot"
-        self.logger.debug(f"nEventsMap={str(nEventsMap)}")
-        self.logger.debug(f"nEventsFrom={str(nEventsFrom)}")
-        self.logger.debug(f"guidMap={str(guidMap)}")
+                guid_map[lfn] = guid
+            n_events_from = "pilot"
+        self.logger.debug(f"nEventsMap={str(n_events_map)}")
+        self.logger.debug(f"nEventsFrom={str(n_events_from)}")
+        self.logger.debug(f"guidMap={str(guid_map)}")
         self.logger.debug(f"self.job.jobStatus={self.job.jobStatus} in parseXML")
         self.logger.debug(f"isES={EventServiceUtils.isEventServiceJob(self.job)} isJumbo={EventServiceUtils.isJumboJob(self.job)}")
         # get lumi block number
-        lumiBlockNr = self.job.getLumiBlockNr()
+        lumi_block_nr = self.job.getLumiBlockNr()
         # copy files for variable number of outputs
-        tmpStat = self.copyFilesForVariableNumOutputs(lfns)
-        if not tmpStat:
+        tmp_stat = self.copy_files_for_variable_num_outputs(lfns)
+        if not tmp_stat:
             err_msg = "failed to copy files for variable number of outputs"
             self.logger.error(err_msg)
             self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
@@ -752,9 +773,9 @@ class AdderGen(object):
             return 2
         # check files
         lfns_set = set(lfns)
-        fileList = []
+        file_list = []
         for file in self.job.Files:
-            fileList.append(file.lfn)
+            file_list.append(file.lfn)
             if file.type == "input":
                 if file.lfn in lfns_set:
                     if self.job.prodSourceLabel in ["user", "panda"] or self.job.is_on_site_merging():
@@ -765,9 +786,9 @@ class AdderGen(object):
                         # failed by pilot
                         file.status = "failed"
                         self.logger.debug(f"failed input : {file.lfn}")
-            elif file.type == "output" or file.type == "log":
+            elif file.type in {"output", "log"}:
                 # add only log file for failed jobs
-                if self.jobStatus == "failed" and file.type != "log":
+                if self.job_status == "failed" and file.type != "log":
                     file.status = "failed"
                     continue
                 # set failed if it is missing in XML
@@ -797,29 +818,29 @@ class AdderGen(object):
                     # status
                     file.status = "ready"
                     # change to full LFN
-                    if file.lfn in fullLfnMap:
-                        file.lfn = fullLfnMap[file.lfn]
+                    if file.lfn in full_lfn_map:
+                        file.lfn = full_lfn_map[file.lfn]
                     # add SURL to extraInfo
-                    self.extraInfo["surl"][file.lfn] = surl
+                    self.extra_info["surl"][file.lfn] = surl
                     # add nevents
-                    if file.lfn in nEventsMap:
-                        self.extraInfo["nevents"][file.lfn] = nEventsMap[file.lfn]
+                    if file.lfn in n_events_map:
+                        self.extra_info["nevents"][file.lfn] = n_events_map[file.lfn]
                 except Exception:
                     # status
                     file.status = "failed"
-                    type, value, traceBack = sys.exc_info()
-                    self.logger.error(f": {type} {value}")
+                    exc_type, value, _ = sys.exc_info()
+                    self.logger.error(f": {exc_type} {value}")
                 # set lumi block number
-                if lumiBlockNr is not None and file.status != "failed":
-                    self.extraInfo["lbnr"][file.lfn] = lumiBlockNr
-        self.extraInfo["guid"] = guidMap
+                if lumi_block_nr is not None and file.status != "failed":
+                    self.extra_info["lbnr"][file.lfn] = lumi_block_nr
+        self.extra_info["guid"] = guid_map
         # check consistency between XML and filesTable
         for lfn in lfns:
-            if lfn not in fileList:
+            if lfn not in file_list:
                 self.logger.error(f"{lfn} is not found in filesTable")
                 self.job.jobStatus = "failed"
-                for tmpFile in self.job.Files:
-                    tmpFile.status = "failed"
+                for tmp_file in self.job.Files:
+                    tmp_file.status = "failed"
                 self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
                 self.job.ddmErrorDiag = f"pilot produced {lfn} inconsistently with jobdef"
                 return 2
@@ -828,33 +849,45 @@ class AdderGen(object):
         return 0
 
     # copy files for variable number of outputs
-    def copyFilesForVariableNumOutputs(self, lfns):
+    def copy_files_for_variable_num_outputs(self, lfns):
+        """
+        Copy files for variable number of outputs.
+
+        This method handles the copying of file records when there is a variable number of output files.
+        It identifies new Logical File Names (LFNs) that correspond to the original output files and
+        updates the job information accordingly.
+
+        :param lfns: List of new Logical File Names (LFNs).
+        :return: True if the operation is successful, False otherwise.
+        """
         # get original output files
-        origOutputs = {}
-        for tmpFile in self.job.Files:
-            if tmpFile.type in ["output", "log"]:
-                origOutputs[tmpFile.lfn] = tmpFile
-        # look for unkown files
+        original_output_files = {}
+        for tmp_file in self.job.Files:
+            if tmp_file.type in ["output", "log"]:
+                original_output_files[tmp_file.lfn] = tmp_file
+        # look for unknown files
         orig_to_new_map = {}
-        for newLFN in lfns:
-            if newLFN not in origOutputs:
+        for new_lfn in lfns:
+            if new_lfn not in original_output_files:
                 # look for corresponding original output
-                for origLFN in origOutputs:
-                    tmpPatt = r"^{0}\.*_\d+$".format(origLFN)
-                    regPatt = re.sub(r"^[^|]+\|", "", origLFN)
-                    if re.search(tmpPatt, newLFN) or (origLFN.startswith("regex|") and re.search(regPatt, newLFN)):
-                        self.logger.debug(f"use new LFN {newLFN} for {origLFN}")
+                for original_lfn in original_output_files:
+                    # match LFNs that have a similar base name but may have additional suffixes
+                    tmp_patt = r"^{0}\.*_\d+$".format(original_lfn)
+                    # removing any prefix up to and including the first pipe character (|) from the original LFN
+                    reg_patt = re.sub(r"^[^|]+\|", "", original_lfn)
+                    if re.search(tmp_patt, new_lfn) or (original_lfn.startswith("regex|") and re.search(reg_patt, new_lfn)):
+                        self.logger.debug(f"use new LFN {new_lfn} for {original_lfn}")
                         # collect new filenames
-                        orig_to_new_map.setdefault(origLFN, [])
-                        orig_to_new_map[origLFN].append(newLFN)
+                        orig_to_new_map.setdefault(original_lfn, [])
+                        orig_to_new_map[original_lfn].append(new_lfn)
                         break
         # copy file records
-        for origLFN in orig_to_new_map:
-            tmpStat = self.taskBuffer.copy_file_records(orig_to_new_map[origLFN], origOutputs[origLFN])
-            if not tmpStat:
+        for original_lfn, new_lfn in orig_to_new_map.items():
+            tmp_stat = self.taskBuffer.copy_file_records(new_lfn, original_output_files[original_lfn])
+            if not tmp_stat:
                 return False
         # refresh job info
         if orig_to_new_map:
-            self.job = self.taskBuffer.peekJobs([self.jobID], fromDefined=False, fromWaiting=False, forAnal=True)[0]
+            self.job = self.taskBuffer.peekJobs([self.job_id], fromDefined=False, fromWaiting=False, forAnal=True)[0]
         # return
         return True
