@@ -9,7 +9,7 @@ import sys
 import time
 
 import traceback
-import xml.dom.minidom
+import json
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -139,9 +139,6 @@ class AdderGen:
                 self.logger.error(f": invalid state -> {self.job.jobStatus}")
             elif self.attempt_nr is not None and self.job.attemptNr != self.attempt_nr:
                 self.logger.error(f"wrong attemptNr -> job={self.job.attemptNr} <> {self.attempt_nr}")
-            # elif self.attempt_nr is not None and self.job.jobStatus == 'transferring':
-            #     errMsg = 'XML with attemptNr for {0}'.format(self.job.jobStatus)
-            #     self.logger.error(errMsg)
             elif self.job_status == EventServiceUtils.esRegStatus:
                 # instantiate concrete plugin
                 adder_plugin_class = self.get_plugin_class(self.job.VO, self.job.cloud)
@@ -207,8 +204,8 @@ class AdderGen:
                     self.job.jobStatus = self.job_status
                 add_result = None
                 adder_plugin = None
-                # parse XML
-                parse_result = self.parse_xml()
+                # parse JSON
+                parse_result = self.parse_json()
                 if parse_result < 2:
                     # interaction with DDM
                     try:
@@ -536,15 +533,15 @@ class AdderGen:
                 lock_offset=self.lock_offset,
             )
 
-    # parse XML
+    # parse JSON
     # 0: succeeded, 1: harmless error to exit, 2: fatal error, 3: event service
-    def parse_xml(self):
+    def parse_json(self):
         """
-        Parse the XML data associated with the job to extract file information.
+        Parse the JSON data associated with the job to extract file information.
 
-        This method processes the XML data to retrieve Logical File Names (LFNs),
+        This method processes the JSON data to retrieve Logical File Names (LFNs),
         Globally Unique Identifiers (GUIDs), file sizes, checksums, and other metadata.
-        It updates the job's file information and ensures consistency between the XML
+        It updates the job's file information and ensures consistency between the JSON
         data and the job's file records.
 
         :return: An integer indicating the result of the parsing process.
@@ -554,19 +551,18 @@ class AdderGen:
                  3 - event service
         """
         # get LFN and GUID
-        # self.logger.debug('XML filename : %s' % self.xmlFile)
-        # no outputs
         log_out = [f for f in self.job.Files if f.type in ["log", "output"]]
+
+        # no outputs
         if not log_out:
             self.logger.debug("has no outputs")
-            self.logger.debug("parseXML end")
+            self.logger.debug("parse_json end")
             return 0
+
         # get input files
-        input_lfns = []
-        for file in self.job.Files:
-            if file.type == "input":
-                input_lfns.append(file.lfn)
-        # parse XML
+        input_lfns = [file.lfn for file in self.job.Files if file.type == "input"]
+
+        # parse JSON
         lfns = []
         guids = []
         fsizes = []
@@ -576,44 +572,35 @@ class AdderGen:
         full_lfn_map = {}
         n_events_map = {}
         guid_map = {}
+
         try:
-            # root  = xml.dom.minidom.parse(self.xmlFile)
-            root = xml.dom.minidom.parseString(self.data)
-            files = root.getElementsByTagName("File")
-            for file in files:
-                # get GUID
-                guid = str(file.getAttribute("ID"))
-                # get PFN and LFN nodes
-                logical = file.getElementsByTagName("logical")[0]
-                lfn_node = logical.getElementsByTagName("lfn")[0]
-                # convert UTF8 to Raw
-                lfn = str(lfn_node.getAttribute("name"))
-                # get metadata
+            json_dict = json.loads(self.data)
+            for lfn in json_dict:
+                file_data = json_dict[lfn]
+                lfn = str(lfn)
                 fsize = None
                 md5sum = None
                 adler32 = None
                 surl = None
                 full_lfn = None
-                for meta in file.getElementsByTagName("metadata"):
-                    # get fsize
-                    name = str(meta.getAttribute("att_name"))
-                    if name == "fsize":
-                        fsize = int(meta.getAttribute("att_value"))
-                    elif name == "md5sum":
-                        md5sum = str(meta.getAttribute("att_value"))
-                        # check
-                        if re.search("^[a-fA-F0-9]{32}$", md5sum) is None:
-                            md5sum = None
-                    elif name == "adler32":
-                        adler32 = str(meta.getAttribute("att_value"))
-                    elif name == "surl":
-                        surl = str(meta.getAttribute("att_value"))
-                    elif name == "full_lfn":
-                        full_lfn = str(meta.getAttribute("att_value"))
+                guid = str(file_data["guid"])
+                if "fsize" in file_data:
+                    fsize = int(file_data["fsize"])
+                if "md5sum" in file_data:
+                    md5sum = str(file_data["md5sum"])
+                    # check
+                    if re.search("^[a-fA-F0-9]{32}$", md5sum) is None:
+                        md5sum = None
+                if "adler32" in file_data:
+                    adler32 = str(file_data["adler32"])
+                if "surl" in file_data:
+                    surl = str(file_data["surl"])
+                if "full_lfn" in file_data:
+                    full_lfn = str(file_data["full_lfn"])
                 # endpoints
                 self.extra_info["endpoint"][lfn] = []
-                for endpoint_node in file.getElementsByTagName("endpoint"):
-                    self.extra_info["endpoint"][lfn].append(str(endpoint_node.firstChild.data))
+                if "endpoint" in file_data:
+                    self.extra_info["endpoint"][lfn] = file_data["endpoint"]
                 # error check
                 if (lfn not in input_lfns) and (fsize is None or (md5sum is None and adler32 is None)):
                     if not EventServiceUtils.isEventServiceMerge(self.job):
@@ -631,104 +618,25 @@ class AdderGen:
                     chksums.append(f"md5:{md5sum}")
                 if full_lfn is not None:
                     full_lfn_map[lfn] = full_lfn
-            self.logger.debug("XML was used")
         except Exception:
-            # parse json
-            try:
-                import json
-
-                # with open(self.xmlFile) as tmpF:
-                json_dict = json.loads(self.data)
-                for lfn in json_dict:
-                    file_data = json_dict[lfn]
-                    lfn = str(lfn)
-                    fsize = None
-                    md5sum = None
-                    adler32 = None
-                    surl = None
-                    full_lfn = None
-                    guid = str(file_data["guid"])
-                    if "fsize" in file_data:
-                        fsize = int(file_data["fsize"])
-                    if "md5sum" in file_data:
-                        md5sum = str(file_data["md5sum"])
-                        # check
-                        if re.search("^[a-fA-F0-9]{32}$", md5sum) is None:
-                            md5sum = None
-                    if "adler32" in file_data:
-                        adler32 = str(file_data["adler32"])
-                    if "surl" in file_data:
-                        surl = str(file_data["surl"])
-                    if "full_lfn" in file_data:
-                        full_lfn = str(file_data["full_lfn"])
-                    # endpoints
-                    self.extra_info["endpoint"][lfn] = []
-                    if "endpoint" in file_data:
-                        self.extra_info["endpoint"][lfn] = file_data["endpoint"]
-                    # error check
-                    if (lfn not in input_lfns) and (fsize is None or (md5sum is None and adler32 is None)):
-                        if not EventServiceUtils.isEventServiceMerge(self.job):
-                            raise RuntimeError("fsize/md5sum/adler32/surl=None")
-                    # append
-                    lfns.append(lfn)
-                    guids.append(guid)
-                    fsizes.append(fsize)
-                    md5sums.append(md5sum)
-                    surls.append(surl)
-                    if adler32 is not None:
-                        # use adler32 if available
-                        chksums.append(f"ad:{adler32}")
-                    else:
-                        chksums.append(f"md5:{md5sum}")
-                    if full_lfn is not None:
-                        full_lfn_map[lfn] = full_lfn
-                self.logger.debug("JSON was used")
-            except Exception:
-                exc_type, value, _ = sys.exc_info()
-                self.logger.error(f": {exc_type} {value}")
-                # set failed anyway
-                self.job.jobStatus = "failed"
-                # XML error happens when pilot got killed due to wall-time limit or failures in wrapper
-                if (
-                    (self.job.pilotErrorCode in [0, "0", "NULL"])
-                    and (self.job.taskBufferErrorCode not in [pandaserver.taskbuffer.ErrorCode.EC_WorkerDone])
-                    and (self.job.transExitCode in [0, "0", "NULL"])
-                ):
-                    self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
-                    self.job.ddmErrorDiag = "Could not get GUID/LFN/MD5/FSIZE/SURL from pilot XML"
-                return 2
+            exc_type, value, _ = sys.exc_info()
+            self.logger.error(f": {exc_type} {value}")
+            # set failed anyway
+            self.job.jobStatus = "failed"
+            # JSON error happens when pilot got killed due to wall-time limit or failures in wrapper
+            if (
+                (self.job.pilotErrorCode in [0, "0", "NULL"])
+                and (self.job.taskBufferErrorCode not in [pandaserver.taskbuffer.ErrorCode.EC_WorkerDone])
+                and (self.job.transExitCode in [0, "0", "NULL"])
+            ):
+                self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
+                self.job.ddmErrorDiag = "Could not get GUID/LFN/MD5/FSIZE/SURL from pilot JSON"
+            return 2
 
         # parse metadata to get nEvents
         n_events_from = None
-        try:
-            root = xml.dom.minidom.parseString(self.job.metadata)
-            files = root.getElementsByTagName("File")
-            for file in files:
-                # get GUID
-                guid = str(file.getAttribute("ID"))
-                # get PFN and LFN nodes
-                logical = file.getElementsByTagName("logical")[0]
-                lfn_node = logical.getElementsByTagName("lfn")[0]
-                # convert UTF8 to Raw
-                lfn = str(lfn_node.getAttribute("name"))
-                guid_map[lfn] = guid
-                # get metadata
-                n_events = None
-                for meta in file.getElementsByTagName("metadata"):
-                    # get fsize
-                    name = str(meta.getAttribute("att_name"))
-                    if name == "events":
-                        n_events = int(meta.getAttribute("att_value"))
-                        n_events_map[lfn] = n_events
-                        break
-            n_events_from = "xml"
-            self.logger.debug("XML was used to parse metadata")
-        except Exception:
-            pass
         # parse json
         try:
-            import json
-
             json_dict = json.loads(self.job.metadata)
             for json_file_item in json_dict["files"]["output"]:
                 for json_sub_file_item in json_file_item["subFiles"]:
@@ -744,9 +652,9 @@ class AdderGen:
                     except Exception:
                         pass
             n_events_from = "json"
-            self.logger.debug("JSON was used to parse metadata")
         except Exception:
             pass
+
         # use nEvents and GUIDs reported by the pilot if no job report
         if self.job.metadata == "NULL" and self.job_status == "finished" and self.job.nEvents > 0 and self.job.prodSourceLabel in ["managed"]:
             for file in self.job.Files:
@@ -755,13 +663,16 @@ class AdderGen:
             for lfn, guid in zip(lfns, guids):
                 guid_map[lfn] = guid
             n_events_from = "pilot"
+
         self.logger.debug(f"nEventsMap={str(n_events_map)}")
         self.logger.debug(f"nEventsFrom={str(n_events_from)}")
         self.logger.debug(f"guidMap={str(guid_map)}")
-        self.logger.debug(f"self.job.jobStatus={self.job.jobStatus} in parseXML")
+        self.logger.debug(f"self.job.jobStatus={self.job.jobStatus} in parse_json")
         self.logger.debug(f"isES={EventServiceUtils.isEventServiceJob(self.job)} isJumbo={EventServiceUtils.isJumboJob(self.job)}")
+
         # get lumi block number
         lumi_block_nr = self.job.getLumiBlockNr()
+
         # copy files for variable number of outputs
         tmp_stat = self.copy_files_for_variable_num_outputs(lfns)
         if not tmp_stat:
@@ -771,6 +682,7 @@ class AdderGen:
             self.job.ddmErrorDiag = err_msg
             self.job.jobStatus = "failed"
             return 2
+
         # check files
         lfns_set = set(lfns)
         file_list = []
@@ -791,7 +703,7 @@ class AdderGen:
                 if self.job_status == "failed" and file.type != "log":
                     file.status = "failed"
                     continue
-                # set failed if it is missing in XML
+                # set failed if it is missing in JSON
                 if file.lfn not in lfns_set:
                     if (self.job.jobStatus == "finished" and EventServiceUtils.isEventServiceJob(self.job)) or EventServiceUtils.isJumboJob(self.job):
                         # unset file status for ES jobs
@@ -804,9 +716,10 @@ class AdderGen:
                         file.status = "failed"
                         self.job.jobStatus = "failed"
                         self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
-                        self.job.ddmErrorDiag = f"expected output {file.lfn} is missing in pilot XML"
+                        self.job.ddmErrorDiag = f"expected output {file.lfn} is missing in pilot JSON"
                         self.logger.error(self.job.ddmErrorDiag)
                     continue
+
                 # look for GUID with LFN
                 try:
                     i = lfns.index(file.lfn)
@@ -830,11 +743,14 @@ class AdderGen:
                     file.status = "failed"
                     exc_type, value, _ = sys.exc_info()
                     self.logger.error(f": {exc_type} {value}")
+
                 # set lumi block number
                 if lumi_block_nr is not None and file.status != "failed":
                     self.extra_info["lbnr"][file.lfn] = lumi_block_nr
+
         self.extra_info["guid"] = guid_map
-        # check consistency between XML and filesTable
+
+        # check consistency between JSON and filesTable
         for lfn in lfns:
             if lfn not in file_list:
                 self.logger.error(f"{lfn} is not found in filesTable")
@@ -845,7 +761,7 @@ class AdderGen:
                 self.job.ddmErrorDiag = f"pilot produced {lfn} inconsistently with jobdef"
                 return 2
         # return
-        self.logger.debug("parseXML end")
+        self.logger.debug("parse_json end")
         return 0
 
     # copy files for variable number of outputs
