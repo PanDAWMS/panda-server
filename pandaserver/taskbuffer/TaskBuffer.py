@@ -8,14 +8,11 @@ import traceback
 from threading import Lock
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
-
-# logger
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice.closer import Closer
-from pandaserver.dataservice.ProcessLimiter import ProcessLimiter
 from pandaserver.dataservice.setupper import Setupper
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import ErrorCode, EventServiceUtils, JobUtils, ProcessGroups
@@ -34,8 +31,7 @@ class TaskBuffer:
     def __init__(self):
         self.proxyPool = None
         self.lock = Lock()
-        self.processLimiter = None
-        self.nDBConection = None
+        self.nDBConnection = None
 
         # save the requester for monitoring/logging purposes
         self.start_time = time.time()
@@ -47,17 +43,13 @@ class TaskBuffer:
     def init(self, dbname, dbpass, nDBConnection=10, useTimeout=False, requester=None):
         # acquire lock
         self.lock.acquire()
-        self.nDBConection = nDBConnection
+        self.nDBConnection = nDBConnection
 
         # create Proxy Pool
         if self.proxyPool is None:
             _logger.info(f"creating DBProxyPool with n_connections={nDBConnection} on behalf of {requester}")
             self.start_time = time.time()
             self.proxyPool = DBProxyPool(dbname, dbpass, nDBConnection, useTimeout)
-
-        # create process limiter
-        if self.processLimiter is None:
-            self.processLimiter = ProcessLimiter()
 
         # release lock
         self.lock.release()
@@ -75,7 +67,7 @@ class TaskBuffer:
 
     # get number of database connections
     def get_num_connections(self):
-        return self.nDBConection
+        return self.nDBConnection
 
     # check production role
     def checkProdRole(self, fqans):
