@@ -1,24 +1,6 @@
 import re
-import sys
-
-from OpenSSL import crypto
 
 from pandaserver.taskbuffer import JobUtils
-
-
-# get prefix for DQ2
-def getDQ2Prefix(dq2SiteID):
-    try:
-        # prefix of DQ2 ID
-        tmpDQ2IDPrefix = re.sub("_[A-Z,0-9]+DISK$", "", dq2SiteID)
-        # remove whitespace
-        tmpDQ2IDPrefix = tmpDQ2IDPrefix.strip()
-        # patchfor MWT2
-        if tmpDQ2IDPrefix == "MWT2_UC":
-            tmpDQ2IDPrefix = "MWT2"
-        return tmpDQ2IDPrefix
-    except Exception:
-        return ""
 
 
 # check if the file is cached
@@ -29,40 +11,44 @@ def isCachedFile(datasetName, siteSpec):
     # look for DBR
     if not datasetName.startswith("ddo"):
         return False
-    # look for three digits
+    # look for the letter 'v' followed by 6 digits
     if re.search("v\d{6}$", datasetName) is None:
         return False
     return True
 
 
-# check if the dataset is a DB release
-def isDBR(datasetName):
-    if datasetName.startswith("ddo"):
-        return True
-    return False
-
-
 # check invalid characters in dataset name
-def checkInvalidCharacters(datasetName):
-    if re.match("^[A-Za-z0-9][A-Za-z0-9\.\-\_/]{1,255}$", datasetName) is not None:
+def checkInvalidCharacters(dataset_name):
+    """
+    Checks the validity of a dataset name.
+    - The dataset name starts with an alphanumeric character ([A-Za-z0-9]).
+    - The rest of the dataset name can contain alphanumeric characters, dots(.), hyphens(-),
+      underscores(_), or slashes( /), and its length is between 1 and 255 characters({1, 255}).
+    :param dataset_name: The name of the dataset.
+    :return: True if the dataset name is valid, False otherwise.
+    """
+    if re.match("^[A-Za-z0-9][A-Za-z0-9\.\-\_/]{1,255}$", dataset_name) is not None:
         return True
     return False
 
 
 # get dataset type
 def getDatasetType(dataset):
-    datasetType = None
+    dataset_type = None
     try:
-        datasetType = dataset.split(".")[4]
+        # the code attempts to access the fifth element, splitting by dots
+        # For example:
+        # mc23_13p6TeV:mc23_13p6TeV.801169.Py8EG_A14NNPDF23LO_jj_JZ4.merge.EVNT.e8514_e8528_tid38750682_00 would return EVNT
+        # mc23_13p6TeV.801169.Py8EG_A14NNPDF23LO_jj_JZ4.simul.HITS.e8514_e8528_a934_tid41381346_00 would return HITS
+        dataset_type = dataset.split(".")[4]
     except Exception:
         pass
-    return datasetType
+    return dataset_type
 
 
 # get sites which share DDM endpoint
 def getSitesShareDDM(siteMapper, siteName, prodSourceLabel, job_label, output_share=False):
-    # output_share: False to get sites which use the output RSE as input, True to get sites which use
-    #               the input RSEs as output
+    # output_share: False to get sites which use the output RSE as input, True to get sites which use the input RSEs as output
 
     # nonexistent site
     if not siteMapper.checkSite(siteName):
@@ -132,20 +118,15 @@ def getDistributedDestination(destinationDBlockToken, ignore_empty=True):
     return None
 
 
-# extract importand error string
-def extractImportantError(out):
-    retStr = ""
+def extractImportantError(message):
+    # extract important error string
     try:
-        strList = ["InvalidRSEExpression", "Details:"]
-        for line in out.split("\n"):
-            for tmpStr in strList:
-                if tmpStr in line:
-                    retStr += line
-                    retStr += " "
-        retStr = retStr[:-1]
+        # list of strings to search for
+        str_list = ["InvalidRSEExpression", "Details:"]
+        return_string = " ".join(line for line in message.split("\n") if any(tmp_string in line for tmp_string in str_list))
     except Exception:
-        pass
-    return retStr
+        return_string = ""
+    return return_string
 
 
 # get activity for output
@@ -177,9 +158,24 @@ def select_scope(site_spec, prodsourcelabel, job_label):
     return scope_input, scope_output
 
 
+def isDBR(dataset_name):
+    """
+    Check if the dataset is a DB release. A DB release dataset name starts with 'ddo'.
+
+    Args:
+        dataset_name (str): The name of the dataset.
+
+    Returns:
+        bool: True if the dataset name starts with 'ddo', False otherwise.
+    """
+    if dataset_name.startswith("ddo"):
+        return True
+    return False
+
+
 def is_top_level_dataset(dataset_name: str) -> bool:
     """
-    Check if top dataset
+    Check if top dataset. Top datasets do not finish with '_sub' followed by one or more digits.
 
     Args:
         dataset_name (str): Dataset name.
