@@ -850,32 +850,29 @@ del JobDispatcher
 # get FQANs
 def _getFQAN(req):
     fqans = []
-    for tmpKey in req.subprocess_env:
-        tmpVal = req.subprocess_env[tmpKey]
-        # compact credentials
-        if tmpKey.startswith("GRST_CRED_"):
-            # VOMS attribute
-            if tmpVal.startswith("VOMS"):
-                # FQAN
-                fqan = tmpVal.split()[-1]
-                # append
-                fqans.append(fqan)
+    for tmp_key in req.subprocess_env:
+        tmp_value = req.subprocess_env[tmp_key]
+        # Scan VOMS attributes
+        # compact style
+        if tmp_key.startswith("GRST_CRED_") and tmp_value.startswith("VOMS"):
+            fqan = tmp_value.split()[-1]
+            fqans.append(fqan)
+
         # old style
-        elif tmpKey.startswith("GRST_CONN_"):
-            tmpItems = tmpVal.split(":")
-            # FQAN
-            if len(tmpItems) == 2 and tmpItems[0] == "fqan":
-                fqans.append(tmpItems[-1])
-    # return
+        elif tmp_key.startswith("GRST_CONN_"):
+            tmp_items = tmp_value.split(":")
+            if len(tmp_items) == 2 and tmp_items[0] == "fqan":
+                fqans.append(tmp_items[-1])
+
     return fqans
 
 
 # check role
 def _checkRole(fqans, dn, withVomsPatch=True):
-    prodManager = False
+    production_manager = False
     try:
         # VOMS attributes of production and pilot roles
-        prodAttrs = [
+        production_attributes = [
             "/atlas/usatlas/Role=production",
             "/atlas/usatlas/Role=pilot",
             "/atlas/Role=production",
@@ -886,37 +883,30 @@ def _checkRole(fqans, dn, withVomsPatch=True):
             "/Engage/LBNE/Role=pilot",
         ]
         if withVomsPatch:
-            # FIXEME once http://savannah.cern.ch/bugs/?47136 is solved
-            prodAttrs += ["/atlas/"]
-            prodAttrs += ["/osg/", "/cms/", "/ams/"]
-            prodAttrs += ["/Engage/LBNE/"]
+            # FIXME once http://savannah.cern.ch/bugs/?47136 is solved
+            production_attributes += ["/atlas/", "/osg/", "/cms/", "/ams/", "/Engage/LBNE/"]
 
         for fqan in fqans:
             # check atlas/usatlas production role
-            for rolePat in prodAttrs:
-                if fqan.startswith(rolePat):
-                    prodManager = True
-                    break
-                if re.search(rolePat, fqan):
-                    prodManager = True
-                    break
-            # escape
-            if prodManager:
+            if any(fqan.startswith(role_pattern) or re.search(role_pattern, fqan) for role_pattern in production_attributes):
+                production_manager = True
                 break
 
-        # check DN with pilotOwners
-        if (not prodManager) and (dn not in [None]):
+            # escape
+            if production_manager:
+                break
+
+        # check DN with pilot owners
+        if not production_manager and dn not in [None]:
             for owner in set(panda_config.production_dns).union(panda_config.pilot_owners):
-                if not owner:
-                    continue
-                # check
-                if re.search(owner, dn) is not None:
-                    prodManager = True
+                if owner and re.search(owner, dn) is not None:
+                    production_manager = True
                     break
+
     except Exception:
         pass
-    # return
-    return prodManager
+
+    return production_manager
 
 
 # get DN
@@ -931,12 +921,12 @@ def _getDN(req):
 
 
 # check token
-def _checkToken(token, jdCore):
+def _checkToken(token, job_dispatcher):
     # not check None until all pilots use tokens
     if token is None:
         return True
     # get map
-    tokenDN = jdCore.getDnTokenMap()
+    tokenDN = job_dispatcher.getDnTokenMap()
     # return
     return token in tokenDN
 
