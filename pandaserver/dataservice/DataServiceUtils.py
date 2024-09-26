@@ -35,40 +35,6 @@ def isCachedFile(datasetName, siteSpec):
     return True
 
 
-# get the list of sites where dataset is available
-def get_endpoints_at_nucleus(tmpRepMap, siteMapper, cloudName):
-    """
-    Retrieves a list of DDM endpoints at the nucleus for a given cloud.
-
-    Returns:
-        list: A list of DDM endpoints that are part of the nucleus for the specified cloud. This list includes
-              only those endpoints that have replicas of the datasets in `tmpRepMap`.
-    """
-    retList = []
-    # get cloud SEs
-    tmpCloud = siteMapper.getCloud(cloudName)
-    cloudSEs = tmpCloud["tier1SE"]
-    # check Nucleus endpoints
-    for tmpSePat in cloudSEs:
-        # ignore empty
-        if tmpSePat == "":
-            continue
-        # make regexp pattern
-        if "*" in tmpSePat:
-            tmpSePat = tmpSePat.replace("*", ".*")
-        tmpSePat = "^" + tmpSePat + "$"
-        # loop over all sites
-        for tmpSE in tmpRepMap:
-            # check match
-            if re.search(tmpSePat, tmpSE) is None:
-                continue
-            # append
-            if tmpSE not in retList:
-                retList.append(tmpSE)
-    # return
-    return retList
-
-
 # check if the dataset is a DB release
 def isDBR(datasetName):
     if datasetName.startswith("ddo"):
