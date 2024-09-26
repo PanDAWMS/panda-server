@@ -343,26 +343,31 @@ class JobDispatcher:
         stdout="",
         acceptJson=False,
     ):
-        # pilot log
+        tmp_logger = LogWrapper(_logger, f"updateJob {jobID}")
+
+        # store the pilot log
         if pilotLog != "":
-            _logger.debug("saving pilot log")
+            tmp_logger.debug("saving pilot log")
             try:
                 self.taskBuffer.storePilotLog(int(jobID), pilotLog)
-                _logger.debug("saving pilot log DONE")
+                tmp_logger.debug("saving pilot log DONE")
             except Exception:
-                _logger.debug("saving pilot log FAILED")
+                tmp_logger.debug("saving pilot log FAILED")
+
         # add metadata
         if metadata != "":
             ret = self.taskBuffer.addMetadata([jobID], [metadata], [jobStatus])
             if len(ret) > 0 and not ret[0]:
-                _logger.debug(f"updateJob : {jobID} failed to add metadata")
+                tmp_logger.debug(f"failed to add metadata")
                 # return succeed
                 response = Protocol.Response(Protocol.SC_Success)
                 return response.encode(acceptJson)
+
         # add stdout
         if stdout != "":
             self.taskBuffer.addStdOut(jobID, stdout)
-        # update
+
+        # update the job
         tmpStatus = jobStatus
         updateStateChange = False
         if jobStatus == "failed" or jobStatus == "finished":
@@ -379,6 +384,7 @@ class JobDispatcher:
         else:
             tmpWrapper = _TimedMethod(self.taskBuffer.updateJobStatus, timeout)
         tmpWrapper.run(jobID, tmpStatus, param, updateStateChange, attemptNr)
+
         # make response
         if tmpWrapper.result == Protocol.TimeOutToken:
             # timeout
@@ -400,15 +406,16 @@ class JobDispatcher:
                         response.appendNode("pilotSecrets", secrets)
                 else:
                     response.appendNode("command", "NULL")
+
                 # add output to dataset
                 if result not in ["badattemptnr", "alreadydone"] and (jobStatus == "failed" or jobStatus == "finished"):
                     adder_gen = AdderGen(self.taskBuffer, jobID, jobStatus, attemptNr)
                     adder_gen.dump_file_report(xml, attemptNr)
                     del adder_gen
             else:
-                # failed
                 response = Protocol.Response(Protocol.SC_Failed)
-        _logger.debug(f"updateJob : {jobID} ret -> {response.encode(acceptJson)}")
+
+        tmp_logger.debug(f"ret -> {response.encode(acceptJson)}")
         return response.encode(acceptJson)
 
     # get job status
