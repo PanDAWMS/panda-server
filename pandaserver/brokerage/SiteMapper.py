@@ -48,17 +48,11 @@ class SiteMapper:
 
             # create dictionary with clouds
             clouds = taskBuffer.get_cloud_list()
-            cloud_details = taskBuffer.get_cloud_details()
             for tmp_name in clouds:
                 if tmp_name == WORLD_CLOUD:
-                    self.worldCloudSpec = {"sites": [], "source": None, "dest": None, "tier1SE": []}
+                    self.worldCloudSpec = {"sites": []}
                 else:
-                    self.cloudSpec[tmp_name] = {
-                        "sites": [],
-                        "source": cloud_details[tmp_name]["tier1"],
-                        "dest": cloud_details[tmp_name]["tier1"],
-                        "tier1SE": cloud_details[tmp_name]["tier1SE"],
-                    }
+                    self.cloudSpec[tmp_name] = {"sites": []}
 
             # read DB to produce parameters in site info dynamically
             for site_name_tmp, site_spec_tmp in site_spec_dictionary.items():
