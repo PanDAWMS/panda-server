@@ -878,7 +878,7 @@ def _getFQAN(req):
 
 
 # check role
-def _checkRole(fqans, dn, jdCore, withVomsPatch=True, site="", hostname=""):
+def _checkRole(fqans, dn, jdCore, withVomsPatch=True, site=""):
     prodManager = False
     try:
         # VOMS attributes of production and pilot roles
@@ -1002,7 +1002,7 @@ def getJob(
         # don't use /atlas to prevent normal proxy getting credname
         prodManager = _checkRole(fqans, realDN, jobDispatcher, False, site=siteName)
     else:
-        prodManager = _checkRole(fqans, realDN, jobDispatcher, site=siteName, hostname=req.get_remote_host())
+        prodManager = _checkRole(fqans, realDN, jobDispatcher, site=siteName)
     # check token
     validToken = _checkToken(token, jobDispatcher)
     # set DN for non-production user
@@ -1154,7 +1154,7 @@ def updateJob(
     # get FQANs
     fqans = _getFQAN(req)
     # check production role
-    prodManager = _checkRole(fqans, realDN, jobDispatcher, site=siteName, hostname=req.get_remote_host())
+    prodManager = _checkRole(fqans, realDN, jobDispatcher, site=siteName)
     # check token
     validToken = _checkToken(token, jobDispatcher)
     # accept json
