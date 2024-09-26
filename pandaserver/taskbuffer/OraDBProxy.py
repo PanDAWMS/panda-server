@@ -13675,7 +13675,6 @@ class DBProxy:
             tmpLog.debug(f"total {len(eventDictList)} events")
             zipRowIdMap = {}
             nEventsMap = dict()
-            cpuConsumptionTimeMap = dict()
             iEvents = 0
             maxEvents = 100000
             iSkipped = 0

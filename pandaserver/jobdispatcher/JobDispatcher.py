@@ -1145,75 +1145,19 @@ def updateJob(
     acceptJson = req.acceptJson()
 
     _logger.debug(
-        "updateJob({jobId},{state},{transExitCode},{pilotErrorCode},{pilotErrorDiag},{node},{workdir},"
-        "cpuConsumptionTime={cpuConsumptionTime},{cpuConsumptionUnit},{cpu_architecture_level},{remainingSpace},"
-        "{schedulerID},{pilotID},{siteName},{messageLevel},{nEvents},{nInputFiles},{cpuConversionFactor},"
-        "{exeErrorCode},{exeErrorDiag},{pilotTiming},{computingElement},{startTime},{endTime},{batchID},"
-        "attemptNr:{attemptNr},jobSubStatus:{jobSubStatus},core:{coreCount},DN:{realDN},role:{prodManager},"
-        "token:{token},val:{validToken},FQAN:{fqans},maxRSS={maxRSS},maxVMEM={maxVMEM},maxSWAP={maxSWAP},"
-        "maxPSS={maxPSS},avgRSS={avgRSS},avgVMEM={avgVMEM},avgSWAP={avgSWAP},avgPSS={avgPSS},"
-        "totRCHAR={totRCHAR},totWCHAR={totWCHAR},totRBYTES={totRBYTES},totWBYTES={totWBYTES},rateRCHAR={rateRCHAR},"
-        "rateWCHAR={rateWCHAR},rateRBYTES={rateRBYTES},rateWBYTES={rateWBYTES},meanCoreCount={meanCoreCount},"
-        "corruptedFiles={corruptedFiles}\n==XML==\n{xml}\n==LOG==\n{pilotLog}\n==Meta==\n{metaData}\n"
-        "==Metrics==\n{jobMetrics}\n==stdout==\n{stdout})".format(
-            jobId=jobId,
-            state=state,
-            transExitCode=transExitCode,
-            pilotErrorCode=pilotErrorCode,
-            pilotErrorDiag=pilotErrorDiag,
-            node=node,
-            workdir=workdir,
-            cpuConsumptionTime=cpuConsumptionTime,
-            cpuConsumptionUnit=cpuConsumptionUnit,
-            remainingSpace=remainingSpace,
-            schedulerID=schedulerID,
-            pilotID=pilotID,
-            siteName=siteName,
-            messageLevel=messageLevel,
-            nEvents=nEvents,
-            nInputFiles=nInputFiles,
-            cpuConversionFactor=cpuConversionFactor,
-            exeErrorCode=exeErrorCode,
-            exeErrorDiag=exeErrorDiag,
-            pilotTiming=pilotTiming,
-            computingElement=computingElement,
-            startTime=startTime,
-            endTime=endTime,
-            batchID=batchID,
-            attemptNr=attemptNr,
-            jobSubStatus=jobSubStatus,
-            coreCount=coreCount,
-            realDN=realDN,
-            prodManager=prodManager,
-            token=token,
-            validToken=validToken,
-            fqans=str(fqans),
-            maxRSS=maxRSS,
-            maxVMEM=maxVMEM,
-            maxSWAP=maxSWAP,
-            maxPSS=maxPSS,
-            avgRSS=avgRSS,
-            avgVMEM=avgVMEM,
-            avgSWAP=avgSWAP,
-            avgPSS=avgPSS,
-            totRCHAR=totRCHAR,
-            totWCHAR=totWCHAR,
-            totRBYTES=totRBYTES,
-            totWBYTES=totWBYTES,
-            rateRCHAR=rateRCHAR,
-            rateWCHAR=rateWCHAR,
-            rateRBYTES=rateRBYTES,
-            rateWBYTES=rateWBYTES,
-            meanCoreCount=meanCoreCount,
-            corruptedFiles=corruptedFiles,
-            cpu_architecture_level=cpu_architecture_level,
-            xml=xml,
-            pilotLog=pilotLog[:1024],
-            metaData=metaData[:1024],
-            jobMetrics=jobMetrics,
-            stdout=stdout,
-        )
+        f"updateJob({jobId},{state},{transExitCode},{pilotErrorCode},{pilotErrorDiag},{node},{workdir},"
+        f"cpuConsumptionTime={cpuConsumptionTime},{cpuConsumptionUnit},{cpu_architecture_level},{remainingSpace},"
+        f"{schedulerID},{pilotID},{siteName},{messageLevel},{nEvents},{nInputFiles},{cpuConversionFactor},"
+        f"{exeErrorCode},{exeErrorDiag},{pilotTiming},{computingElement},{startTime},{endTime},{batchID},"
+        f"attemptNr:{attemptNr},jobSubStatus:{jobSubStatus},core:{coreCount},DN:{realDN},role:{prodManager},"
+        f"token:{token},val:{validToken},FQAN:{fqans},maxRSS={maxRSS},maxVMEM={maxVMEM},maxSWAP={maxSWAP},"
+        f"maxPSS={maxPSS},avgRSS={avgRSS},avgVMEM={avgVMEM},avgSWAP={avgSWAP},avgPSS={avgPSS},"
+        f"totRCHAR={totRCHAR},totWCHAR={totWCHAR},totRBYTES={totRBYTES},totWBYTES={totWBYTES},rateRCHAR={rateRCHAR},"
+        f"rateWCHAR={rateWCHAR},rateRBYTES={rateRBYTES},rateWBYTES={rateWBYTES},meanCoreCount={meanCoreCount},"
+        f"corruptedFiles={corruptedFiles}\n==XML==\n{xml}\n==LOG==\n{pilotLog[:1024]}\n==Meta==\n{metaData[:1024]}\n"
+        f"==Metrics==\n{jobMetrics}\n==stdout==\n{stdout})"
     )
+
     _pilotReqLogger.debug(f"method=updateJob,site={siteName},node={node},type=None")
     # invalid role
     if not prodManager:
@@ -1223,13 +1167,16 @@ def updateJob(
         else:
             tmpMsg = None
         return Protocol.Response(Protocol.SC_Role, tmpMsg).encode(acceptJson)
+
     # invalid token
     if not validToken:
         _logger.warning(f"updateJob({jobId}) : invalid token")
         return Protocol.Response(Protocol.SC_Invalid).encode(acceptJson)
+
     # aborting message
     if jobId == "NULL":
         return Protocol.Response(Protocol.SC_Success).encode(acceptJson)
+
     # check status
     if state not in [
         "running",
@@ -1241,6 +1188,7 @@ def updateJob(
     ]:
         _logger.warning(f"invalid state={state} for updateJob")
         return Protocol.Response(Protocol.SC_Success).encode(acceptJson)
+
     # create parameter map
     param = {}
     if cpuConsumptionTime not in [None, ""]:
@@ -1285,9 +1233,6 @@ def updateJob(
         param["cpuConversion"] = cpuConversionFactor
     if pilotTiming is not None:
         param["pilotTiming"] = pilotTiming
-    # disable pilot CE reporting. We will fill it from harvester table
-    # if computingElement is not None:
-    #    param['computingElement']=computingElement
     if nEvents is not None:
         param["nEvents"] = nEvents
     if nInputFiles is not None:
@@ -1383,30 +1328,34 @@ def updateJob(
 
 # bulk update jobs
 def updateJobsInBulk(req, jobList, harvester_id=None):
-    retList = []
-    retVal = False
-    _logger.debug(f"updateJobsInBulk {harvester_id} start")
-    tStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    ret_list = []
+    ret_val = False
+    prefix = f"updateJobsInBulk {harvester_id}"
+    tmp_logger = LogWrapper(_logger, prefix)
+    tmp_logger.debug("start")
+    t_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+
     try:
-        jobList = json.loads(jobList)
-        for jobDict in jobList:
-            jobId = jobDict["jobId"]
-            del jobDict["jobId"]
-            state = jobDict["state"]
-            del jobDict["state"]
-            if "metaData" in jobDict:
-                jobDict["metaData"] = str(jobDict["metaData"])
-            tmpRet = updateJob(req, jobId, state, **jobDict)
-            retList.append(tmpRet)
-        retVal = True
+        job_list = json.loads(jobList)
+        for job_dict in job_list:
+            job_id = job_dict["jobId"]
+            del job_dict["jobId"]
+            state = job_dict["state"]
+            del job_dict["state"]
+            if "metaData" in job_dict:
+                job_dict["metaData"] = str(job_dict["metaData"])
+            tmp_ret = updateJob(req, job_id, state, **job_dict)
+            ret_list.append(tmp_ret)
+        ret_val = True
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        tmpMsg = f"updateJobsInBulk {harvester_id} failed with {errtype.__name__} {errvalue}"
-        retList = tmpMsg
-        _logger.error(tmpMsg + "\n" + traceback.format_exc())
-    tDelta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - tStart
-    _logger.debug("updateJobsInBulk %s took %s.%03d sec" % (harvester_id, tDelta.seconds, tDelta.microseconds / 1000))
-    return json.dumps((retVal, retList))
+        err_type, err_value = sys.exc_info()[:2]
+        tmp_msg = f"failed with {err_type.__name__} {err_value}"
+        ret_list = f"{prefix} {tmp_msg}"
+        tmp_logger.error(f"{tmp_msg}\n{traceback.format_exc()}")
+
+    t_delta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - t_start
+    tmp_logger.debug(f"took {t_delta.seconds}.{t_delta.microseconds // 1000:03d} sec")
+    return json.dumps((ret_val, ret_list))
 
 
 # get job status
@@ -1431,6 +1380,21 @@ def getEventRanges(
     scattered=None,
     segment_id=None,
 ):
+    """
+    Check the permissions and eetrieve a list of event ranges for a given PandaID.
+
+    Args:
+        req: The request object containing the environment variables.
+        pandaID (str): The ID of the Panda job.
+        jobsetID (str): The ID of the job set.
+        taskID (str, optional): The ID of the task. Defaults to None.
+        nRanges (int, optional): The number of event ranges to retrieve. Defaults to 10.
+        timeout (int, optional): The timeout value. Defaults to 60.
+        scattered (str, optional): Whether the event ranges are scattered. Defaults to None.
+        segment_id (int, optional): The segment ID. Defaults to None.
+    Returns:
+        dict: The response from the job dispatcher.
+    """
     tmp_log = LogWrapper(_logger, f"getEventRanges(PandaID={pandaID} jobsetID={jobsetID} taskID={taskID},nRanges={nRanges},segment={segment_id})")
     tmp_log.debug("start")
 
@@ -1459,7 +1423,6 @@ def getEventRanges(
     )
 
 
-# update an event range
 def updateEventRange(
     req,
     eventRangeID,
@@ -1470,6 +1433,22 @@ def updateEventRange(
     timeout=60,
     pandaID=None,
 ):
+    """
+    Check the permissions and update the status of a specific event range.
+
+    Args:
+        req: The request object containing the environment variables.
+        eventRangeID (str): The ID of the event range to update.
+        eventStatus (str): The new status of the event range.
+        coreCount (int, optional): The number of cores used. Defaults to None.
+        cpuConsumptionTime (float, optional): The CPU consumption time. Defaults to None.
+        objstoreID (int, optional): The object store ID. Defaults to None.
+        timeout (int, optional): The timeout value. Defaults to 60.
+        pandaID (str, optional): The PandaID. Defaults to None.
+
+    Returns:
+        dict: The response from the job dispatcher.
+    """
     tmp_log = LogWrapper(
         _logger, f"updateEventRange({eventRangeID} status={eventStatus} coreCount={coreCount} cpuConsumptionTime={cpuConsumptionTime} osID={objstoreID})"
     )
@@ -1490,9 +1469,20 @@ def updateEventRange(
     )
 
 
-# update an event ranges
-def updateEventRanges(req, eventRanges, timeout=120, version=0, pandaID=None):
-    tmp_log = LogWrapper(_logger, f"updateEventRanges({eventRanges})")
+def updateEventRanges(req, event_ranges, timeout=120, version=0, pandaID=None):
+    """
+    This function checks the permissions, converts the version to an integer, and updates the event ranges.
+
+    Args:
+        req: The request object containing the environment variables.
+        event_ranges (str): A JSON string containing the list of event ranges to update.
+        timeout (int, optional): The timeout value. Defaults to 120.
+        version (int, optional): The version of the event ranges. Defaults to 0.
+        pandaID (str, optional): The PandaID. Defaults to None.
+    Returns:
+        dict: The response from the job dispatcher.
+    """
+    tmp_log = LogWrapper(_logger, f"updateEventRanges({event_ranges})")
     tmp_log.debug("start")
 
     tmp_stat, tmp_out = checkPilotPermission(req)
@@ -1505,7 +1495,7 @@ def updateEventRanges(req, eventRanges, timeout=120, version=0, pandaID=None):
     except Exception:
         version = 0
 
-    return jobDispatcher.updateEventRanges(eventRanges, int(timeout), req.acceptJson(), version)
+    return jobDispatcher.updateEventRanges(event_ranges, int(timeout), req.acceptJson(), version)
 
 
 def checkEventsAvailability(req, panda_id, jobset_id, task_id, timeout=60):
@@ -1543,16 +1533,12 @@ def genPilotToken(req, scheduler_id, host=None):
     Returns:
         str: The generated pilot token or an error message.
     """
-    # get DN
-    real_dn = _getDN(req)
-    if real_dn is None:
-        return "ERROR: failed to retrieve DN"
 
-    # get FQANs and check production role
-    fqans = _getFQAN(req)
-    prod_manager = _checkRole(fqans, real_dn, False)
-    if not prod_manager:
-        return "ERROR: production or pilot role is required"
+    # check permissions
+    tmp_stat, tmp_out = checkPilotPermission(req)
+    if not tmp_stat:
+        _logger.error(f"{tmp_str} failed with {tmp_out}")
+        return tmp_out
 
     # hostname
     if host is None:
@@ -1649,14 +1635,26 @@ def checkPilotPermission(req):
     return True, None
 
 
-# get DNs authorized for S3
 def getDNsForS3(req):
+    """
+    # get DNs authorized for S3
+    :param req:
+    :return:
+    """
     return jobDispatcher.getDNsForS3()
 
 
 def getCommands(req, harvester_id, n_commands, timeout=30):
     """
-    Get n commands for a particular harvester instance
+    This function checks the permissions and retrieves the commands for a specified harvester instance.
+
+    Args:
+        req: The request object containing the environment variables.
+        harvester_id (str): The ID of the harvester instance.
+        n_commands (int): The number of commands to retrieve.
+        timeout (int, optional): The timeout value. Defaults to 30.
+    Returns:
+        dict: The response from the job dispatcher.
     """
     tmp_str = "getCommands"
 
@@ -1672,7 +1670,14 @@ def getCommands(req, harvester_id, n_commands, timeout=30):
 
 def ackCommands(req, command_ids, timeout=30):
     """
-    Ack the commands in the list of IDs
+    This function checks the permissions, parses the command IDs from JSON, and acknowledges the list of commands.
+
+    Args:
+        req: The request object containing the environment variables.
+        command_ids (str): A JSON string containing the list of command IDs to acknowledge.
+        timeout (int, optional): The timeout value. Defaults to 30.
+    Returns:
+        dict: The response from the job dispatcher.
     """
     tmp_str = "ackCommands"
 
@@ -1683,13 +1688,20 @@ def ackCommands(req, command_ids, timeout=30):
 
     command_ids = json.loads(command_ids)
     accept_json = req.acceptJson()
+
     # retrieve the commands
     return jobDispatcher.ackCommands(command_ids, timeout, accept_json)
 
 
 def getResourceTypes(req, timeout=30):
     """
-    Get resource types (MCORE, SCORE, etc.)
+    This function retrieves the resource types (MCORE, SCORE, etc.) and their definitions.
+
+    Args:
+        req: The request object containing the environment variables.
+        timeout (int, optional): The timeout value. Defaults to 30.
+    Returns:
+        dict: The resource types and their definitions.
     """
     tmp_str = "getResourceTypes"
 
@@ -1699,12 +1711,29 @@ def getResourceTypes(req, timeout=30):
         _logger.error(f"{tmp_str} failed with {tmp_out}")
 
     accept_json = req.acceptJson()
-    # retrieve the commands
+
+    # retrieve the resource types
     return jobDispatcher.getResourceTypes(timeout, accept_json)
 
 
-# update the status of a worker according to the pilot
 def updateWorkerPilotStatus(req, site, workerID, harvesterID, status, timeout=60, node_id=None):
+    """
+    Update the status of a worker according to the pilot.
+
+    This function validates the pilot permissions and the state passed by the pilot, then updates the worker status.
+
+    Args:
+        req: The request object containing the environment variables.
+        site (str): The site name.
+        workerID (str): The worker ID.
+        harvesterID (str): The harvester ID.
+        status (str): The status of the worker. Must be either 'started' or 'finished'.
+        timeout (int, optional): The timeout value. Defaults to 60.
+        node_id (str, optional): The node ID. Defaults to None.
+
+    Returns:
+        str: The result of the status update or an error message.
+    """
     tmp_log = LogWrapper(
         _logger,
         f"updateWorkerPilotStatus workerID={workerID} harvesterID={harvesterID} status={status} nodeID={node_id} PID={os.getpid()}",
