@@ -241,27 +241,6 @@ class TaskBuffer:
                 # get site spec
                 tmpSiteSpec = siteMapper.getSite(jobs[0].computingSite)
 
-                # get priority offset
-                if hasattr(tmpSiteSpec, "priorityoffset") and (tmpSiteSpec.priorityoffset not in ["", None]):
-                    # loop over all groups
-                    for tmpGP in tmpSiteSpec.priorityoffset.split(","):
-                        if tmpGP == "":
-                            continue
-                        # get group and offset
-                        tmpGroup = tmpGP.split(":")[0]
-                        try:
-                            tmpOffset = int(tmpGP.split(":")[-1])
-                        except Exception:
-                            tmpOffset = 0
-                        # loop over all FQANs
-                        for tmpFQAN in fqans:
-                            tmpLog.debug(tmpFQAN)
-                            if re.search(f"^{tmpGroup}/", tmpFQAN) is not None or re.search(f"{tmpGroup}$", tmpFQAN) is not None:
-                                # use the largest offset
-                                if tmpOffset > priorityOffset:
-                                    priorityOffset = tmpOffset
-                                break
-
                 # extract country group
                 for tmpFQAN in fqans:
                     match = re.search("^/atlas/([^/]+)/", tmpFQAN)
