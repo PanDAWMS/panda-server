@@ -23564,7 +23564,9 @@ class DBProxy:
             return None
 
         try:
-            pq_data_des = json.loads(pq_data[0][0])
+            pq_data_des = pq_data[0][0]
+            if not isinstance(pq_data_des, dict):
+                pq_data_des = json.loads(pq_data_des)
         except Exception:
             tmp_log.error("Could not find queue configuration")
             return None
