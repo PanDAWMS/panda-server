@@ -108,6 +108,7 @@ if "token_audience" not in tmpSelf.__dict__:
 if "token_issuers" not in tmpSelf.__dict__:
     tmpSelf.__dict__["token_issuers"] = ""
 tmpSelf.__dict__["production_dns"] = [x for x in tmpSelf.__dict__.get("production_dns", "").split(",") if x]
+tmpSelf.__dict__["pilot_owners"] = [x for x in tmpSelf.__dict__.get("pilot_owners", "").split(",") if x]
 tmpSelf.__dict__["auth_policies"] = {}
 tmpSelf.__dict__["auth_vo_dict"] = {}
 try:

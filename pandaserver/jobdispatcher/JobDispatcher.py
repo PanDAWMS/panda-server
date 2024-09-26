@@ -62,8 +62,6 @@ class JobDispatcher:
         self.lastUpdated = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         # how frequently update DN/token map
         self.timeInterval = datetime.timedelta(seconds=180)
-        # pilot owners
-        self.pilotOwners = None
         # special dispatcher parameters
         self.specialDispatchParams = None
         # site mapper cache
@@ -91,9 +89,6 @@ class JobDispatcher:
         # update DN/token map
         if self.tokenDN is None:
             self.tokenDN = self.taskBuffer.getListSchedUsers()
-        # get pilot owners
-        if self.pilotOwners is None:
-            self.pilotOwners = self.taskBuffer.getPilotOwners()
         # special dispatcher parameters
         if self.specialDispatchParams is None:
             self.specialDispatchParams = CoreUtils.CachedObject("dispatcher_params", 60 * 10, self.get_special_dispatch_params, _logger)
@@ -878,7 +873,7 @@ def _getFQAN(req):
 
 
 # check role
-def _checkRole(fqans, dn, jdCore, withVomsPatch=True, site=""):
+def _checkRole(fqans, dn, withVomsPatch=True):
     prodManager = False
     try:
         # VOMS attributes of production and pilot roles
@@ -897,6 +892,7 @@ def _checkRole(fqans, dn, jdCore, withVomsPatch=True, site=""):
             prodAttrs += ["/atlas/"]
             prodAttrs += ["/osg/", "/cms/", "/ams/"]
             prodAttrs += ["/Engage/LBNE/"]
+
         for fqan in fqans:
             # check atlas/usatlas production role
             for rolePat in prodAttrs:
@@ -912,11 +908,7 @@ def _checkRole(fqans, dn, jdCore, withVomsPatch=True, site=""):
 
         # check DN with pilotOwners
         if (not prodManager) and (dn not in [None]):
-            if site in jdCore.pilotOwners:
-                tmpPilotOwners = jdCore.pilotOwners[None].union(jdCore.pilotOwners[site])
-            else:
-                tmpPilotOwners = jdCore.pilotOwners[None]
-            for owner in set(panda_config.production_dns).union(tmpPilotOwners):
+            for owner in set(panda_config.production_dns).union(panda_config.pilot_owners):
                 if not owner:
                     continue
                 # check
@@ -994,9 +986,9 @@ def getJob(
     # check production role
     if getProxyKey == "True":
         # don't use /atlas to prevent normal proxy getting credname
-        prodManager = _checkRole(fqans, realDN, jobDispatcher, False, site=siteName)
+        prodManager = _checkRole(fqans, realDN, False)
     else:
-        prodManager = _checkRole(fqans, realDN, jobDispatcher, site=siteName)
+        prodManager = _checkRole(fqans, realDN)
     # check token
     validToken = _checkToken(token, jobDispatcher)
     # set DN for non-production user
@@ -1148,7 +1140,7 @@ def updateJob(
     # get FQANs
     fqans = _getFQAN(req)
     # check production role
-    prodManager = _checkRole(fqans, realDN, jobDispatcher, site=siteName)
+    prodManager = _checkRole(fqans, realDN)
     # check token
     validToken = _checkToken(token, jobDispatcher)
     # accept json
@@ -1543,7 +1535,7 @@ def genPilotToken(req, schedulerid, host=None):
     # get FQANs
     fqans = _getFQAN(req)
     # check production role
-    prodManager = _checkRole(fqans, realDN, jobDispatcher, False)
+    prodManager = _checkRole(fqans, realDN, False)
     if not prodManager:
         return "ERROR : production or pilot role is required"
     if realDN is None:
@@ -1592,7 +1584,7 @@ def checkPilotPermission(req, site=""):
     # get FQANs
     fqans = _getFQAN(req)
     # check production role
-    prodManager = _checkRole(fqans, realDN, jobDispatcher, True, site)
+    prodManager = _checkRole(fqans, realDN, True)
     if not prodManager:
         return False, "production or pilot role is required"
     if realDN is None:

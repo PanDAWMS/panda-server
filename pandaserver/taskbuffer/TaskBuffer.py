@@ -2206,17 +2206,6 @@ class TaskBuffer:
         # return
         return ret
 
-    # get pilot owners
-    def getPilotOwners(self):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get pilot owners
-        ret = proxy.getPilotOwners()
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
     # get special dipatcher parameters
     def get_special_dispatch_params(self):
         # get DBproxy

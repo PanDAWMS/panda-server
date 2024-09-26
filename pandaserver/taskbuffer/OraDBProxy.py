@@ -9970,48 +9970,6 @@ class DBProxy:
             _logger.error(f"checkSitesWithRelease : {type} {value}")
             return []
 
-    # get pilot owners
-    def getPilotOwners(self):
-        comment = " /* DBProxy.getPilotOwners */"
-        _logger.debug("getPilotOwners")
-        try:
-            ret = {None: set()}
-            # set autocommit on
-            self.conn.begin()
-            # select
-            sql = "SELECT pilotowners FROM ATLAS_PANDAMETA.cloudconfig "
-            self.cur.arraysize = 10000
-            self.cur.execute(sql + comment)
-            resList = self.cur.fetchall()
-            for (tmpItem,) in resList:
-                if tmpItem is not None:
-                    for tmpOwner in tmpItem.split("|"):
-                        if tmpOwner != "":
-                            ret[None].add(tmpOwner)
-
-            sql = "SELECT /* use_json_type */ scj.data.siteid, scj.data.dn FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.data.dn IS NOT NULL "
-            self.cur.execute(sql + comment)
-            resList = self.cur.fetchall()
-            for tmpSiteID, tmpItem in resList:
-                if tmpItem is not None:
-                    tmpItem = tmpItem.strip()
-                    for tmpOwner in tmpItem.split("|"):
-                        if tmpOwner not in ["", "None"]:
-                            if tmpSiteID not in ret:
-                                ret[tmpSiteID] = set()
-                            ret[tmpSiteID].add(tmpOwner)
-            _logger.debug(f"getPilotOwners -> {str(ret)}")
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            return ret
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getPilotOwners : {type} {value}")
-            return ret
-
     # get special dispatcher parameters
     def get_special_dispatch_params(self):
         """
