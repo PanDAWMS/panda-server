@@ -203,12 +203,12 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             tmp_logger.debug("start")
             self.memory_check()
             # subscribe sites dispatchDBlocks. this must be the last method
-            tmp_logger.debug("subscribe_dispatch_data_block")
+            tmp_logger.debug("running subscribe_dispatch_data_block")
             self.subscribe_dispatch_data_block()
 
             # dynamic data placement for analysis jobs
             self.memory_check()
-            tmp_logger.debug("dynamic_data_placement")
+            tmp_logger.debug("running dynamic_data_placement")
             self.dynamic_data_placement()
             self.memory_check()
             tmp_logger.debug("end")
