@@ -909,13 +909,7 @@ def _checkRole(fqans, dn, jdCore, withVomsPatch=True, site=""):
             # escape
             if prodManager:
                 break
-        # service proxy for CERNVM
-        if site in ["CERNVM"]:
-            serviceSubjects = ["/DC=ch/DC=cern/OU=computers/CN=pilot/copilot.cern.ch"]
-            for tmpSub in serviceSubjects:
-                if dn.startswith(tmpSub):
-                    prodManager = True
-                    break
+
         # check DN with pilotOwners
         if (not prodManager) and (dn not in [None]):
             if site in jdCore.pilotOwners:
