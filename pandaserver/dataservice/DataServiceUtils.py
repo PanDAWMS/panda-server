@@ -110,23 +110,6 @@ def getSitesShareDDM(site_mapper, site_name, prod_source_label, job_label, outpu
     return ret_sites
 
 
-def getDestinationSE(destination_dblock_token):
-    """
-    Check if the destination is specified and extract it.
-
-    Args:
-        destination_dblock_token (str): The destination data block token.
-    Returns:
-        str: The extracted destination if specified, otherwise None.
-    """
-    if destination_dblock_token is not None:
-        for tmp_token in destination_dblock_token.split(","):
-            tmp_match = re.search(r"^dst:([^/]*)(/.*)*$", tmp_token)
-            if tmp_match is not None:
-                return tmp_match.group(1)
-    return None
-
-
 def checkJobDestinationSE(tmp_job):
     """
     Check if the job has a destination storage element in a file specification.
@@ -143,9 +126,26 @@ def checkJobDestinationSE(tmp_job):
     return None
 
 
+def getDestinationSE(destination_dblock_token):
+    """
+    Check if the destination is specified (e.g. dst:CERN-PROD_DATADISK) and extract it.
+
+    Args:
+        destination_dblock_token (str): The destination data block token.
+    Returns:
+        str: The extracted destination if specified, otherwise None.
+    """
+    if destination_dblock_token is not None:
+        for tmp_token in destination_dblock_token.split(","):
+            tmp_match = re.search(r"^dst:([^/]*)(/.*)*$", tmp_token)
+            if tmp_match is not None:
+                return tmp_match.group(1)
+    return None
+
+
 def getDistributedDestination(destination_dblock_token, ignore_empty=True):
     """
-    Check if the destination is distributed and extract it.
+    Check if the destination is distributed (e.g. ddd:CERN-PROD_DATADISK) and extract it.
 
     Args:
         destination_dblock_token (str): The destination data block token.
