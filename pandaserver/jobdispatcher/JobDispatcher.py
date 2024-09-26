@@ -1131,17 +1131,14 @@ def updateJob(
     meanCoreCount=None,
     cpu_architecture_level=None,
 ):
-    tmpLog = LogWrapper(_logger, f"updateJob PandaID={jobId} PID={os.getpid()}")
-    tmpLog.debug("start")
-    # get DN
+    tmp_log = LogWrapper(_logger, f"updateJob PandaID={jobId} PID={os.getpid()}")
+    tmp_log.debug("start")
+
+    # get DN, FQANs and roles
     realDN = _getDN(req)
-    # get FQANs
     fqans = _getFQAN(req)
-    # check production role
     prodManager = _checkRole(fqans, realDN)
-    # check token
     validToken = _checkToken(token, jobDispatcher)
-    # accept json
     acceptJson = req.acceptJson()
 
     _logger.debug(
@@ -1159,18 +1156,18 @@ def updateJob(
     )
 
     _pilotReqLogger.debug(f"method=updateJob,site={siteName},node={node},type=None")
+
     # invalid role
     if not prodManager:
-        _logger.warning(f"updateJob({jobId}) : invalid role")
+        tmp_log.warning(f"invalid role")
+        tmpMsg = None
         if acceptJson:
             tmpMsg = "no production/pilot role in VOMS FQANs or non pilot owner"
-        else:
-            tmpMsg = None
         return Protocol.Response(Protocol.SC_Role, tmpMsg).encode(acceptJson)
 
     # invalid token
     if not validToken:
-        _logger.warning(f"updateJob({jobId}) : invalid token")
+        tmp_log.warning(f"invalid token")
         return Protocol.Response(Protocol.SC_Invalid).encode(acceptJson)
 
     # aborting message
@@ -1186,7 +1183,7 @@ def updateJob(
         "starting",
         "transferring",
     ]:
-        _logger.warning(f"invalid state={state} for updateJob")
+        tmp_log.warning(f"invalid state={state} for updateJob")
         return Protocol.Response(Protocol.SC_Success).encode(acceptJson)
 
     # create parameter map
@@ -1199,7 +1196,7 @@ def updateJob(
         try:
             param["cpu_architecture_level"] = cpu_architecture_level[:20]
         except Exception:
-            _logger.error(f"invalid cpu_architecture_level={cpu_architecture_level} for updateJob")
+            tmp_log.error(f"invalid cpu_architecture_level={cpu_architecture_level} for updateJob")
             pass
     if node is not None:
         param["modificationHost"] = node[:128]
@@ -1310,7 +1307,7 @@ def updateJob(
     if corruptedFiles is not None:
         param["corruptedFiles"] = corruptedFiles
     # invoke JD
-    tmpLog.debug("executing")
+    tmp_log.debug("executing")
     return jobDispatcher.updateJob(
         int(jobId),
         state,
