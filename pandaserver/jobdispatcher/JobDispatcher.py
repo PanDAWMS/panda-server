@@ -878,7 +878,7 @@ def _getFQAN(req):
 
 
 # check role
-def _checkRole(fqans, dn, jdCore, withVomsPatch=True, site="", hostname=""):
+def _checkRole(fqans, dn, job_dispatcher, withVomsPatch=True, site="", hostname=""):
     prodManager = False
     try:
         # VOMS attributes of production and pilot roles
@@ -918,10 +918,10 @@ def _checkRole(fqans, dn, jdCore, withVomsPatch=True, site="", hostname=""):
                     break
         # check DN with pilotOwners
         if (not prodManager) and (dn not in [None]):
-            if site in jdCore.pilotOwners:
-                tmpPilotOwners = jdCore.pilotOwners[None].union(jdCore.pilotOwners[site])
+            if site in job_dispatcher.pilotOwners:
+                tmpPilotOwners = job_dispatcher.pilotOwners[None].union(job_dispatcher.pilotOwners[site])
             else:
-                tmpPilotOwners = jdCore.pilotOwners[None]
+                tmpPilotOwners = job_dispatcher.pilotOwners[None]
             for owner in set(panda_config.production_dns).union(tmpPilotOwners):
                 if not owner:
                     continue
