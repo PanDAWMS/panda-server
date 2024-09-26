@@ -255,7 +255,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         else:
                             break
                     if new_out is None:
-                        prod_error[job.prodDBlock] = f"Setupper._setupSource() could not get VUID of prodDBlock with {err_msg}"
+                        prod_error[job.prodDBlock] = f"setupper.setup_source() could not get VUID of prodDBlock with {err_msg}"
                         tmp_logger.error(prod_error[job.prodDBlock])
                     else:
                         tmp_logger.debug(new_out)
@@ -274,7 +274,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         except Exception:
                             error_type, error_value = sys.exc_info()[:2]
                             tmp_logger.error(f"{error_type} {error_value}")
-                            prod_error[job.prodDBlock] = "Setupper._setupSource() could not decode VUID of prodDBlock"
+                            prod_error[job.prodDBlock] = "setupper.setup_source() could not decode VUID of prodDBlock"
                 # error
                 if prod_error[job.prodDBlock] != "":
                     if job.jobStatus != "failed":
@@ -382,7 +382,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     0,
                 ]:
                     metadata["task_id"] = str(ds_task_map[dispatch_data_block])
-                tmp_logger.debug(f"registerDataset {dispatch_data_block} {str(metadata)}")
+                tmp_logger.debug(f"register_dataset {dispatch_data_block} {str(metadata)}")
                 max_attempt = 3
                 is_ok = False
                 err_str = ""
@@ -403,13 +403,13 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     except Exception:
                         error_type, error_value = sys.exc_info()[:2]
                         err_str = f"{error_type}:{error_value}"
-                        tmp_logger.error(f"registerDataset : failed with {err_str}")
+                        tmp_logger.error(f"register_dataset : failed with {err_str}")
                         if attempt + 1 == max_attempt:
                             break
                         self.logger.debug(f"sleep {attempt}/{max_attempt}")
                         time.sleep(10)
                 if not is_ok:
-                    disp_error[dispatch_data_block] = "Setupper._setupSource() could not register dispatch_data_block with {0}".format(err_str.split("\n")[-1])
+                    disp_error[dispatch_data_block] = "setupper.setup_source() could not register dispatch_data_block with {0}".format(err_str.split("\n")[-1])
                     continue
                 tmp_logger.debug(out)
                 new_out = out
@@ -427,7 +427,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         time.sleep(10)
                 if not status:
                     tmp_logger.error(out)
-                    disp_error[dispatch_data_block] = f"Setupper._setupSource() could not freeze dispatch_data_block with {out}"
+                    disp_error[dispatch_data_block] = f"setupper.setup_source() could not freeze dispatch_data_block with {out}"
                     continue
             else:
                 # use PandaDDM
@@ -455,7 +455,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             except Exception:
                 error_type, error_value = sys.exc_info()[:2]
                 dispatch_data_block.error(f"{error_type} {error_value}")
-                disp_error[dispatch_data_block] = "Setupper._setupSource() could not decode VUID dispatch_data_block"
+                disp_error[dispatch_data_block] = "setupper.setup_source() could not decode VUID dispatch_data_block"
         # insert datasets to DB
         self.task_buffer.insertDatasets(prod_list + disp_list)
         # job status
@@ -528,7 +528,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         # get serial number
                         serial_number, fresh_flag = self.task_buffer.getSerialNumber(file.destinationDBlock, defined_fresh_flag)
                         if serial_number == -1:
-                            dest_error[dest] = f"Setupper._setupDestination() could not get serial num for {file.destinationDBlock}"
+                            dest_error[dest] = f"setupper.setup_destination() could not get serial num for {file.destinationDBlock}"
                             break
                         if file.destinationDBlock not in sn_gotten_ds:
                             sn_gotten_ds.append(file.destinationDBlock)
@@ -626,7 +626,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                     tmp_metadata = {"hidden": True, "purge_replicas": 0}
 
                                 # register dataset
-                                tmp_logger.debug(f"registerNewDataset {name} metadata={tmp_metadata}")
+                                tmp_logger.debug(f"register_dataset {name} metadata={tmp_metadata}")
                                 is_ok = False
                                 for _ in range(3):
                                     try:
@@ -641,10 +641,10 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                         break
                                     except Exception:
                                         error_type, error_value = sys.exc_info()[:2]
-                                        tmp_logger.error(f"registerDataset : failed with {error_type}:{error_value}")
+                                        tmp_logger.error(f"register_dataset : failed with {error_type}:{error_value}")
                                         time.sleep(10)
                                 if not is_ok:
-                                    tmp_msg = f"Setupper._setupDestination() could not register : {name}"
+                                    tmp_msg = f"setupper.setup_destination() could not register : {name}"
                                     dest_error[dest] = tmp_msg
                                     tmp_logger.error(tmp_msg)
                                     break
@@ -683,7 +683,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                     for ddm_id in ddm_id_list:
                                         activity = DataServiceUtils.getActivityForOut(job.prodSourceLabel)
                                         tmp_logger.debug(
-                                            f"registerDatasetLocation {name} {ddm_id} lifetime={rep_life_time} activity={activity} grouping={grouping}"
+                                            f"register_dataset_location {name} {ddm_id} lifetime={rep_life_time} activity={activity} grouping={grouping}"
                                         )
                                         status = False
                                         # invalid location
@@ -705,7 +705,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                                             except Exception:
                                                 error_type, error_value = sys.exc_info()[:2]
                                                 out = f"{error_type}:{error_value}"
-                                                tmp_logger.error(f"registerDatasetLocation : failed with {out}")
+                                                tmp_logger.error(f"register_dataset_location : failed with {out}")
                                                 time.sleep(10)
                                         # failed
                                         if not status:
@@ -748,7 +748,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             # set status
                             error_type, error_value = sys.exc_info()[:2]
                             tmp_logger.error(f"{error_type} {error_value}")
-                            dest_error[dest] = f"Setupper._setupDestination() could not get VUID : {name}"
+                            dest_error[dest] = f"setupper.setup_destination() could not get VUID : {name}"
                 # set new destDBlock
                 if dest in newname_list:
                     file.destinationDBlock = newname_list[dest]
@@ -835,44 +835,46 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                 tmp_logger.debug(f"use {ddm_id} for pre-staging")
 
                 # set share and activity
-                opt_activity = "Production Input"
+                option_activity = "Production Input"
                 if job.prodSourceLabel in ["user", "panda"]:
-                    opt_activity = "Analysis Input"
+                    option_activity = "Analysis Input"
                 elif job.processingType == "urgent" or job.currentPriority > 1000:
-                    opt_activity = "Express"
+                    option_activity = "Express"
 
                 # taskID
-                opt_comment = None
+                option_comment = None
                 if job.jediTaskID not in ["NULL", 0]:
-                    opt_comment = f"task_id:{job.jediTaskID}"
+                    option_comment = f"task_id:{job.jediTaskID}"
 
-                opt_owner = None
+                option_owner = None
 
                 tmp_logger.debug(
-                    f"registerDatasetSubscription {job.dispatchDBlock, ddm_id} "
-                    f"{{'activity': {opt_activity}, 'lifetime': 7, 'dn': {opt_owner}, 'comment': {opt_comment}}}"
+                    f"register_dataset_subscription {job.dispatchDBlock, ddm_id} "
+                    f"{{'activity': {option_activity}, 'lifetime': 7, 'dn': {option_owner}, 'comment': {option_comment}}}"
                 )
                 for _ in range(3):
                     try:
                         status = rucioAPI.register_dataset_subscription(
                             job.dispatchDBlock,
                             [ddm_id],
-                            activity=opt_activity,
+                            activity=option_activity,
                             lifetime=7,
-                            distinguished_name=opt_owner,
-                            comment=opt_comment,
+                            distinguished_name=option_owner,
+                            comment=option_comment,
                         )
-                        out = "OK"
+                        out = "register_dataset_subscription finished correctly"
                         break
                     except Exception as error:
                         status = False
-                        out = f"registerDatasetSubscription failed with {str(error)} {traceback.format_exc()}"
+                        out = f"register_dataset_subscription failed with {str(error)} {traceback.format_exc()}"
                         time.sleep(10)
+
                 if not status:
                     tmp_logger.error(out)
-                    disp_error[disp] = "Setupper._subscribeDispatchDB() could not register subscription"
+                    disp_error[disp] = "setupper.subscribe_dispatch_data_block() could not register subscription"
                 else:
                     tmp_logger.debug(out)
+
             # failed jobs
             if disp_error[disp] != "":
                 if job.jobStatus != "failed":
