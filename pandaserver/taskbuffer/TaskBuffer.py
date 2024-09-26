@@ -224,8 +224,7 @@ class TaskBuffer:
                 proxy = self.proxyPool.getProxy()
                 # get JobID and status
                 userJobID, userJobsetID, userStatus = proxy.getUserParameter(user, jobs[0].jobDefinitionID, jobs[0].jobsetID)
-                # get site access
-                userSiteAccess = proxy.checkSiteAccess(jobs[0].computingSite, user)
+
                 # check quota for express jobs
                 if "express" in jobs[0].specialHandling:
                     expressQuota = proxy.getExpressJobs(user)
@@ -262,11 +261,6 @@ class TaskBuffer:
                                 if tmpOffset > priorityOffset:
                                     priorityOffset = tmpOffset
                                 break
-
-                # set priority offset
-                if userStatus:
-                    if "poffset" in userSiteAccess and userSiteAccess["poffset"] > priorityOffset:
-                        priorityOffset = userSiteAccess["poffset"]
 
                 # extract country group
                 for tmpFQAN in fqans:
@@ -313,10 +307,6 @@ class TaskBuffer:
                 # check workingGroup
                 if jobs[0].workingGroup not in ["", None, "NULL"]:
                     userDefinedWG = True
-                    if userSiteAccess != {}:
-                        if userSiteAccess["status"] == "approved" and jobs[0].workingGroup in userSiteAccess["workingGroups"]:
-                            # valid workingGroup
-                            validWorkingGroup = True
                     # check with FQANs
                     if jobs[0].workingGroup in userWorkingGroupList:
                         validWorkingGroup = True
@@ -2309,39 +2299,6 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # register proxy key
         ret = proxy.register_token_key(client_name, lifetime)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-    # add account to siteaccess
-    def addSiteAccess(self, siteID, dn):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # add account to siteaccess
-        ret = proxy.addSiteAccess(siteID, dn)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-    # list site access
-    def listSiteAccess(self, siteid, dn, longFormat=False):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # list site access
-        ret = proxy.listSiteAccess(siteid, dn, longFormat)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-    # update site access
-    def updateSiteAccess(self, method, siteid, requesterDN, userName, attrValue):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # update site access
-        ret = proxy.updateSiteAccess(method, siteid, requesterDN, userName, attrValue)
         # release proxy
         self.proxyPool.putProxy(proxy)
         # return
