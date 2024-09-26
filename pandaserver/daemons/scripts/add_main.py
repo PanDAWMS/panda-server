@@ -10,7 +10,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread, WeightedLists
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
-from pandaserver.dataservice.AdderGen import AdderGen
+from pandaserver.dataservice.adder_gen import AdderGen
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 from pandaserver.taskbuffer.TaskBufferInterface import TaskBufferInterface
 
@@ -119,7 +119,7 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
                         panda_id,
                         job_status,
                         attempt_nr,
-                        ignoreTmpError=ignoreTmpError,
+                        ignore_tmp_error=ignoreTmpError,
                         siteMapper=aSiteMapper,
                         pid=uniq_pid,
                         prelock_pid=uniq_pid,
