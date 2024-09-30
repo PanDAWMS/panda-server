@@ -1,6 +1,7 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs", "requests"]
 build-backend = "hatchling.build"
+
 
 [project]
 name = "panda-server"
@@ -33,7 +34,8 @@ dependencies = [
     'snakemake==7.30.1',
     'numpy',
     'scipy',
-    'werkzeug'
+    'werkzeug',
+    'requests',
 ]
 requires-python = ">=3.8"
 
