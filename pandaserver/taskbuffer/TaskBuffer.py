@@ -2168,18 +2168,7 @@ class TaskBuffer:
         # return
         return ret
 
-    # get cloud details
-    def get_cloud_details(self):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get cloud details
-        ret = proxy.get_cloud_details()
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # return
-        return ret
-
-    # get special dipatcher parameters
+    # get special dispatcher parameters
     def get_special_dispatch_params(self):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
@@ -2212,7 +2201,7 @@ class TaskBuffer:
         # return
         return ret
 
-    # get ban users
+    # get banned users
     def get_ban_users(self):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
