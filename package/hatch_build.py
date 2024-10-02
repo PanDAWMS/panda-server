@@ -5,13 +5,62 @@ import grp
 import os
 import pwd
 import re
+import requests
 import stat
+import subprocess
 import sys
 import sysconfig
 
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
-#from package.mm_communication import get_repo_info, mm_communication_script
+
+
+def get_repo_info() -> object:
+    # Get the current remote URL of the repository
+    repo_url = subprocess.check_output(['git', 'config', '--get', 'remote.origin.url']).strip().decode()
+
+    # Get the repo and branch name
+    match = re.match(r'https://github.com/(.*).git@(.*)', repo_url)
+
+    if match:
+        repo_name = match.group(1)
+        branch_name = match.group(2)
+    else:
+        repo_name = repo_url.rstrip('.git')
+        branch_name = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).strip().decode()
+
+    # Commit hash
+    commit_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip().decode()
+
+    return repo_name, branch_name, commit_hash
+
+def mm_notification():
+
+    repo_name, branch_name, commit_hash = get_repo_info()
+
+    #Get Server Name
+    server_name = socket.gethostname()
+
+    # TODO: decide on the best path for the hook URL
+    file_path = os.path.expanduser('~/mm_webhook_url.txt')
+    with open(file_path, 'r') as file:
+        mm_webhook_url = file.read().strip()
+        if not mm_webhook_url:
+            return
+
+    mm_message = {
+        "text": f"⚙️**Install Information.** **Package:** {repo_name}. ***Server Name:** {server_name}. **Commit:** {commit_hash}. **Branch:** {branch_name}"
+    }
+    headers = {'Content-Type': 'application/json'}
+    try:
+        response = requests.post(mm_webhook_url, data=json.dumps(mm_message), headers=headers)
+        if response.status_code == 200:
+            print("Message sent successfully to Mattermost")
+        else:
+            print(f"Failed to send message: {response.status_code}, {response.text}")
+    except requests.exceptions.RequestException as e:
+        print(f"An error occurred: {e}")
+
 
 class CustomBuildHook(BuildHookInterface):
     def initialize(self, version, build_data):
@@ -90,7 +139,6 @@ class CustomBuildHook(BuildHookInterface):
                     os.chmod(out_f, tmp_st.st_mode | stat.S_IEXEC | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
     def finalize(self, version, build_data, artifact_path):
-
         # post install
         uid = pwd.getpwnam(self.params["panda_user"]).pw_uid
         gid = grp.getgrnam(self.params["panda_group"]).gr_gid
@@ -110,5 +158,4 @@ class CustomBuildHook(BuildHookInterface):
                 pass
 
         # update the mattermost chat-ops channel
-        # repo_name, branch_name, commit_hash = get_repo_info()
-        # mm_communication_script(repo_name, branch_name, commit_hash)
+        mm_notification()
