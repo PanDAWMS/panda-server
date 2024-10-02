@@ -59,7 +59,7 @@ directory = "dist"
 
 [tool.hatch.build.targets.wheel]
 exclude = ["*.template"]
-packages = ["pandaserver"]
+packages = ["pandaserver", "package"]
 
 [tool.hatch.build.targets.wheel.shared-data]
 "templates" = "etc/panda"
@@ -73,9 +73,6 @@ path = "package/hatch_build.py"
 path2 = "package/mm_communication.py"
 
 [tool.hatch.build.targets.sdist]
-include = [
-  "package/*.py"
-]
 exclude = [
     ".github",
     ".idea",
