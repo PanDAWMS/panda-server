@@ -15,7 +15,6 @@ def get_repo_info() -> object:
         repo_name = match.group(1)
         branch_name = match.group(2)
     else:
-
         repo_name = repo_url.rstrip('.git')
         branch_name = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).strip().decode()
 
