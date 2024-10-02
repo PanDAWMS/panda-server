@@ -73,6 +73,9 @@ path = "package/hatch_build.py"
 path2 = "package/mm_communication.py"
 
 [tool.hatch.build.targets.sdist]
+include = [
+  "package/*.py"
+]
 exclude = [
     ".github",
     ".idea",
