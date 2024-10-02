@@ -11,6 +11,7 @@ import sysconfig
 
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 from package.mm_communication import get_repo_info, mm_communication_script
 
 class CustomBuildHook(BuildHookInterface):
