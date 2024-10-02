@@ -2,6 +2,7 @@ import distutils
 import getpass
 import glob
 import grp
+import json
 import os
 import pwd
 import re
