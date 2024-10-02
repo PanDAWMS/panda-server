@@ -6,6 +6,7 @@ import os
 import pwd
 import re
 import requests
+import socket
 import stat
 import subprocess
 import sys
