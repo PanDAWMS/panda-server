@@ -45,7 +45,8 @@ def mm_communication_script(repo_name, branch_name, commit_hash):
     server_name = socket.gethostname()
 
     # TODO: decide on the best path for the hook URL
-    with open("~/mm_webhook_url.txt", 'r') as file:
+    file_path = os.path.expanduser('~/mm_webhook_url.txt')
+    with open(file_path, 'r') as file:
         mm_webhook_url = file.read().strip()
         if not mm_webhook_url:
             return
