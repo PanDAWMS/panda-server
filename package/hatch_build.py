@@ -11,7 +11,7 @@ import sysconfig
 
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
-from package.mm_communication import get_repo_info, mm_communication_script
+from .mm_communication import get_repo_info, mm_communication_script
 
 class CustomBuildHook(BuildHookInterface):
     def initialize(self, version, build_data):
