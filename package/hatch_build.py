@@ -38,6 +38,7 @@ def get_repo_info() -> object:
 
 def mm_notification():
 
+    # Get repository information
     repo_name, branch_name, commit_hash = get_repo_info()
 
     #Get Server Name
@@ -51,7 +52,7 @@ def mm_notification():
             return
 
     mm_message = {
-        "text": f"⚙️**Install Information.** **Package:** \"{repo_name[:7]}\u200B{repo_name[7:]}\". **Server Name:** {server_name}. **Branch:** {branch_name}. **Commit:** {commit_hash}."
+        "text": f"⚙️**Install Information.** **Server Name:** {server_name}. **Package:** \"{repo_name[:7]}\u200B{repo_name[7:]}\". **Branch:** {branch_name}. **Commit:** {commit_hash}."
     }
     headers = {'Content-Type': 'application/json'}
     try:
