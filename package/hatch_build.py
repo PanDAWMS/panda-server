@@ -11,7 +11,7 @@ import sysconfig
 
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
-from .mm_communication import get_repo_info, mm_communication_script
+from mm_communication import get_repo_info, mm_communication_script
 
 class CustomBuildHook(BuildHookInterface):
     def initialize(self, version, build_data):
@@ -90,8 +90,6 @@ class CustomBuildHook(BuildHookInterface):
                     os.chmod(out_f, tmp_st.st_mode | stat.S_IEXEC | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
     def finalize(self, version, build_data, artifact_path):
-        repo_name, branch_name, commit_hash = get_repo_info()
-        mm_communication_script(repo_name, branch_name, commit_hash)
 
         # post install
         uid = pwd.getpwnam(self.params["panda_user"]).pw_uid
@@ -110,3 +108,7 @@ class CustomBuildHook(BuildHookInterface):
                 os.symlink(os.path.join(self.params["virtual_env"], "etc/panda/panda_server.sysconfig"), target)
             except Exception:
                 pass
+
+        # update the mattermost chat-ops channel
+        repo_name, branch_name, commit_hash = get_repo_info()
+        mm_communication_script(repo_name, branch_name, commit_hash)

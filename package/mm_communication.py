@@ -29,8 +29,12 @@ def mm_communication_script(repo_name, branch_name, commit_hash):
     #Get Server Name
     server_name = socket.gethostname()
 
-    # Webhook --> remember to remove before submitting to get
-    mm_webhook_url = ""
+    # TODO: decide on the best path for the hook URL
+    with open("~/mm_webhook_url.txt", 'r') as file:
+        mm_webhook_url = file.read().strip()
+        if not mm_webhook_url:
+            return
+
     mm_message = {
         "text": f"Install Information:\n - Server Name: {server_name} \n - Commit: {commit_hash}\n - Branch: {branch_name}\n - Package: {repo_name} \n "
     }
