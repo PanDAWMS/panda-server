@@ -1,5 +1,5 @@
 """
-ddm specification
+ddm endpoint specification object
 
 """
 
@@ -15,72 +15,130 @@ class DdmSpec(object):
         self.default_write = None
         self.tape = set()
 
-    # add endpoint
-    def add(self, relation, endpointDict):
+    def add(self, relation, endpoint_dictionary):
+        """
+        Add an endpoint to the DDM specification.
+
+        This method adds an endpoint to the DDM specification by copying all properties
+        about the DDM endpoint and relation. It also updates local endpoints, default
+        read/write endpoints, and tape endpoints.
+
+        Args:
+            relation (dict): A dictionary containing the relation properties.
+            endpoint_dictionary (dict): A dictionary containing the endpoint properties.
+        """
         name = relation["ddm_endpoint_name"]
 
-        # protection against inconsistent dict
-        if name not in endpointDict:
+        # Protection against inconsistent dict
+        if name not in endpoint_dictionary:
             return
 
-        # all endpoints, copy all properties about ddm endpoint and relation
+        # All endpoints, copy all properties about DDM endpoint and relation
         self.all[name] = {}
-        for key in endpointDict[name]:
-            value = endpointDict[name][key]
+        for key in endpoint_dictionary[name]:
+            value = endpoint_dictionary[name][key]
             self.all[name][key] = value
         for key in relation:
             value = relation[key]
             self.all[name][key] = value
 
-        # local endpoints
+        # Local endpoints
         if relation["is_local"] != "N":
             self.local.add(name)
-        # defaults
+
+        # Default read and write
         if relation["default_read"] == "Y":
             self.default_read = name
         if relation["default_write"] == "Y":
             self.default_write = name
-        # tape
+
+        # Tape
         if relation["is_tape"] == "Y":
             self.tape.add(name)
 
-    # get all endpoints
     def getAllEndPoints(self):
+        """
+        Get all DDM endpoints. This method returns a list of all DDM endpoints.
+
+        Returns:
+            list: A list of all DDM endpoints.
+        """
         return list(self.all)
 
-    # get endpoint
-    def getEndPoint(self, endpointName):
-        if endpointName in self.all:
-            return self.all[endpointName]
+    def getEndPoint(self, endpoint_name):
+        """
+        Get a specific DDM endpoint.
+
+        This method returns the properties of a specific DDM endpoint.
+
+        Args:
+            endpoint_name (str): The name of the DDM endpoint.
+        Returns:
+            dict or None: A dictionary containing the properties of the DDM endpoint, or None if not found.
+        """
+        if endpoint_name in self.all:
+            return self.all[endpoint_name]
         return None
 
-    # get local endpoints
     def getLocalEndPoints(self):
-        tmpRet = sorted(self.local)
-        return tmpRet
+        """
+        This method returns a sorted list of local DDM endpoints.
 
-    # get default write endpoint
+        Returns:
+            list: A sorted list of local DDM endpoints.
+        """
+        sorted_endpoints = sorted(self.local)
+        return sorted_endpoints
+
     def getDefaultWrite(self):
+        """
+        This method returns the default write DDM endpoint.
+
+        Returns:
+            str or None: The default write DDM endpoint, or None if not set.
+        """
         return self.default_write
 
-    # get default read endpoint
     def getDefaultRead(self):
+        """
+        This method returns the default read DDM endpoint.
+
+        Returns:
+            str or None: The default write DDM endpoint, or None if not set.
+        """
         return self.default_read
 
-    # get tape endpoints
     def getTapeEndPoints(self):
+        """
+        This method returns a tuple of tape DDM endpoints.
+
+        Returns:
+            tuple: A tuple of tape DDM endpoints.
+        """
         return tuple(self.tape)
 
-    # check association
-    def isAssociated(self, endpointName):
-        return endpointName in self.all
+    def isAssociated(self, endpoint_name):
+        """
+        This method checks if a given endpoint name is associated with any DDM endpoint.
 
-    # check local
-    def isLocal(self, endpointName):
-        return endpointName in self.local
+        Args:
+            endpoint_name (str): The name of the DDM endpoint.
 
-    # get DDM endpoint associated with a pattern
+        Returns:
+            bool: True if the endpoint is associated, False otherwise.
+        """
+        return endpoint_name in self.all
+
     def getAssociatedEndpoint(self, patt, mode="output"):
+        """
+        This method returns the DDM endpoint associated with a given pattern and of the lowest order.
+
+        Args:
+            patt (str): The pattern to match.
+            mode (str): The mode, either "input" or "output". Default is "output".
+        Returns:
+            dict or None: A dictionary containing the properties of the associated DDM endpoint, or None if not found.
+        """
         patt = patt.split("/")[-1]
         if patt in self.all:
             return self.all[patt]
@@ -104,15 +162,22 @@ class DdmSpec(object):
                 order = tmp_order
 
             # check type
-            pattwoVO = re.sub("ATLAS", "", patt)
-            if self.all[tmp_ddm_endpoint_name]["type"] == pattwoVO:
+            pattern_without_vo = re.sub("ATLAS", "", patt)
+            if self.all[tmp_ddm_endpoint_name]["type"] == pattern_without_vo:
                 endpoint = self.all[tmp_ddm_endpoint_name]
                 order = tmp_order
 
         return endpoint
 
-    # get mapping between tokens and endpoint names
     def getTokenMap(self, mode):
+        """
+        This method returns a mapping between space tokens and endpoint names based on the mode.
+
+        Args:
+            mode (str): The mode, either "input" or "output".
+        Returns:
+            dict: A dictionary mapping tokens to endpoint names.
+        """
         ret_map = {}
         orders = {}
         for tmp_ddm_endpoint_name in self.all:

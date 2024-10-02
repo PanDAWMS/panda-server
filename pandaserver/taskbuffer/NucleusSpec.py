@@ -50,32 +50,31 @@ class NucleusSpec(object):
         return endpoint in self.all_ddm_endpoints_in
 
     # get associated DDM endpoint
-    def getEndpoint(self, endPoint):
+    def getEndpoint(self, endpoint):
         try:
-            if endPoint in self.allDdmEndPoints:
-                return self.allDdmEndPoints[endPoint]
-            return self.all_ddm_endpoints_in[endPoint]
+            if endpoint in self.allDdmEndPoints:
+                return self.allDdmEndPoints[endpoint]
+            return self.all_ddm_endpoints_in[endpoint]
         except Exception:
-            None
+            return None
 
-    # get associated DDM endpoint
-    def getAssociatedEndpoint(self, patt):
-        patt = patt.split("/")[-1]
-        if patt.startswith("dst:"):
-            patt = patt.split(":")[-1]
-        if patt in self.allDdmEndPoints:
-            return self.allDdmEndPoints[patt]
-        for endPointName in self.allDdmEndPoints:
-            # ignore TEST or SPECIAL
-            # if self.allDdmEndPoints[endPointName]['type'] in ['TEST','SPECIAL']:
-            #    continue
-            # check name
-            if re.search(patt, endPointName) is not None:
-                return self.allDdmEndPoints[endPointName]
-            # check type
-            pattwoVO = re.sub("ATLAS", "", patt)
-            if self.allDdmEndPoints[endPointName]["type"] == pattwoVO:
-                return self.allDdmEndPoints[endPointName]
+    def getAssociatedEndpoint(self, pattern):
+        pattern = pattern.split("/")[-1]
+        if pattern.startswith("dst:"):
+            pattern = pattern.split(":")[-1]
+
+        if pattern in self.allDdmEndPoints:
+            return self.allDdmEndPoints[pattern]
+
+        for endpoint_name in self.allDdmEndPoints:
+            if re.search(pattern, endpoint_name) is not None:
+                return self.allDdmEndPoints[endpoint_name]
+
+            pattern_without_vo = re.sub("ATLAS", "", pattern)
+
+            if self.allDdmEndPoints[endpoint_name]["type"] == pattern_without_vo:
+                return self.allDdmEndPoints[endpoint_name]
+
         return None
 
     # get one panda site
