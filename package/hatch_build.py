@@ -51,7 +51,7 @@ def mm_notification():
             return
 
     mm_message = {
-        "text": f"⚙️**Install Information.** **Package:** <{repo_name}>. **Server Name:** {server_name}. **Branch:** {branch_name}. **Commit:** {commit_hash}."
+        "text": f"⚙️**Install Information.** **Package:** \"{repo_name}\". **Server Name:** {server_name}. **Branch:** {branch_name}. **Commit:** {commit_hash}."
     }
     headers = {'Content-Type': 'application/json'}
     try:
