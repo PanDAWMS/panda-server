@@ -11,7 +11,7 @@ import sysconfig
 
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
-from package.mm_communication import get_repo_info, mm_communication_script
+#from package.mm_communication import get_repo_info, mm_communication_script
 
 class CustomBuildHook(BuildHookInterface):
     def initialize(self, version, build_data):
@@ -110,5 +110,5 @@ class CustomBuildHook(BuildHookInterface):
                 pass
 
         # update the mattermost chat-ops channel
-        repo_name, branch_name, commit_hash = get_repo_info()
-        mm_communication_script(repo_name, branch_name, commit_hash)
+        # repo_name, branch_name, commit_hash = get_repo_info()
+        # mm_communication_script(repo_name, branch_name, commit_hash)
