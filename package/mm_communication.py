@@ -3,6 +3,10 @@ import requests
 import json
 import socket
 import subprocess
+import os
+
+from hatchling.builders.hooks.plugin.interface import BuildHookInterface
+from package.mm_communication import get_repo_info, mm_communication_script
 
 def get_repo_info() -> object:
     # Get the current remote URL of the repository
@@ -47,3 +51,11 @@ def mm_communication_script(repo_name, branch_name, commit_hash):
             print(f"Failed to send message: {response.status_code}, {response.text}")
     except requests.exceptions.RequestException as e:
         print(f"An error occurred: {e}")
+
+class CustomBuildHook(BuildHookInterface):
+    def initialize(self, version, build_data):
+        # update the mattermost chat-ops channel
+        repo_name, branch_name, commit_hash = get_repo_info()
+        mm_communication_script(repo_name, branch_name, commit_hash)
+
+
