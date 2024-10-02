@@ -38,6 +38,7 @@ def get_repo_info() -> object:
 
 def mm_notification():
 
+    # Get repository information
     repo_name, branch_name, commit_hash = get_repo_info()
 
     #Get Server Name
