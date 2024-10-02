@@ -68,8 +68,8 @@ packages = ["pandaserver"]
 "templates/systemd" = "etc/systemd/system"
 "templates/sysconfig" = "etc/panda"
 
-[tool.hatch.envs.default]
-paths = ["./package"]
+[tool.hatch.envs.default.env-vars]
+PYTHONPATH = "package"
 
 [tool.hatch.build.targets.wheel.hooks.custom]
 path = "package/hatch_build.py"
