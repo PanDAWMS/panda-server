@@ -50,8 +50,10 @@ def mm_notification():
         if not mm_webhook_url:
             return
 
+    # On the repository name we enter an empty space to prevent the URLs to preview on Mattermost
+    # We shorten the commit hash to the first seven characters, as they are usually enough to identify a commit
     mm_message = {
-        "text": f":panda_face:**Install Information.** **Server Name:** `{server_name}`. **Package:** {repo_name[:7]}\u200B{repo_name[7:]}. **Branch:** `{branch_name}`. **Commit:** `{commit_hash}`."
+        "text": f":panda_face:**Install Information.** **Server Name:** `{server_name}`. **Package:** {repo_name[:7]}\u200B{repo_name[7:]}. **Branch:** `{branch_name}`. **Commit:** `{commit_hash[:7]}`."
     }
     headers = {"Content-Type": "application/json"}
     try:
