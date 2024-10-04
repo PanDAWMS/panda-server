@@ -53,7 +53,7 @@ def mm_notification():
     # On the repository name we enter an empty space to prevent the URLs to preview on Mattermost
     # We shorten the commit hash to the first seven characters, as they are usually enough to identify a commit
     mm_message = {
-        "text": f":panda_face:**Install Information.** **Server Name:** `{server_name}`.",
+        "text": f":panda_face:**Package upgrade on:** `{server_name}`.",
         "props": {"card": f"**Package:** {repo_name}\n\n**Branch:** `{branch_name}`\n\n**Commit:** `{commit_hash[:7]}`."},
     }
     headers = {"Content-Type": "application/json"}
