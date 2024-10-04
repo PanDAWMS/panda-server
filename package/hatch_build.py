@@ -56,11 +56,11 @@ def mm_notification():
         "text": f":panda_face:**Package upgrade on:** `{server_name}`.",
         "props": {
             "card": f"""
-                    |--------------|-----------|
-                    | **Package**  | {repo_name} |
-                    | **Branch**   | `{branch_name}` |
-                    | **Commit**   | `{commit_hash}` |
-                    """
+|--------------|-----------|
+| **Package**  | {repo_name} |
+| **Branch**   | `{branch_name}` |
+| **Commit**   | `{commit_hash}` |
+"""
         },
     }
     headers = {"Content-Type": "application/json"}
