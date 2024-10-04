@@ -54,7 +54,7 @@ def mm_notification():
     # We shorten the commit hash to the first seven characters, as they are usually enough to identify a commit
     mm_message = {
         "text": f":panda_face:**Install Information.** **Server Name:** `{server_name}`. **Branch:** `{branch_name}`.",
-        "props": {"card": f"**Package:** {repo_name}\n**Commit:** `{commit_hash[:7]}`."},
+        "props": {"card": f"**Package:** {repo_name} \n **Commit:** `{commit_hash[:7]}`."},
     }
     headers = {"Content-Type": "application/json"}
     try:
