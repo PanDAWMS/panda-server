@@ -1147,7 +1147,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     if tmp_input_file_project is not None:
                         tmp_job.inputFileProject = tmp_input_file_project
                 # protection
-                max_input_file_bytes = 99999999999
+                max_input_file_bytes = 10**16 - 1  # 15 digit precision in database column
                 tmp_job.inputFileBytes = min(tmp_job.inputFileBytes, max_input_file_bytes)
                 # set background-able flag
                 tmp_job.setBackgroundableFlag()
