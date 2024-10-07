@@ -64,12 +64,6 @@ class UserIF:
         try:
             good_labels = True
             for tmpJob in jobs:
-                # prevent internal jobs from being submitted from outside
-                if tmpJob.prodSourceLabel in pandaserver.taskbuffer.ProcessGroups.internalSourceLabels:
-                    good_labels = False
-                    good_labels_message = f"submitJobs {user} wrong prodSourceLabel={tmpJob.prodSourceLabel}"
-                    break
-
                 # check production role
                 if tmpJob.prodSourceLabel in ["managed"] and not prodRole:
                     good_labels = False
