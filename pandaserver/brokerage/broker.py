@@ -11,7 +11,6 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.dataservice.DataServiceUtils import select_scope
-from pandaserver.taskbuffer import ProcessGroups
 
 _log = PandaLogger().getLogger("broker")
 
@@ -111,7 +110,6 @@ def schedule(jobs, siteMapper):
         iJob = 0
         nFile = 20
         fileList = []
-        scopeList = []
         okFiles = {}
         prioInterval = 50
         totalNumInputs = 0
@@ -130,17 +128,12 @@ def schedule(jobs, siteMapper):
         prevDirectAcc = None
         prevCoreCount = None
         prevIsJEDI = None
-        prevDDM = None
-        prevBrokerageSiteList = None
         prevWorkingGroup = None
         prevMaxCpuCount = None
         prevPriority = None
 
         indexJob = 0
         prestageSites = []
-
-        # get statistics
-        newJobStatWithPrio = {}
 
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs = sorted(jobs, key=functools.cmp_to_key(_comparison_function))
@@ -160,22 +153,16 @@ def schedule(jobs, siteMapper):
         # loop over all jobs + terminator(None)
         for job in jobs + [None]:
             indexJob += 1
-            # ignore failed jobs
-            if job is None:
-                pass
-            elif job.jobStatus == "failed":
-                continue
 
-            # list of sites for special brokerage
-            specialBrokerageSiteList = []
-            if job is not None and job.computingSite != "NULL" and job.prodSourceLabel in ("test", "managed") and specialBrokerageSiteList == []:
-                specialBrokerageSiteList = [job.computingSite]
+            # ignore failed jobs
+            if job and job.jobStatus == "failed":
+                continue
 
             overwriteSite = False
 
             # check JEDI
             isJEDI = False
-            if job is not None and job.lockedby == "jedi":
+            if job and job.lockedby == "jedi":
                 isJEDI = True
 
             # new bunch or terminator
@@ -197,111 +184,32 @@ def schedule(jobs, siteMapper):
                 or prevWorkingGroup != job.workingGroup
                 or prevProType != job.processingType
                 or (prevMaxCpuCount != job.maxCpuCount and not isJEDI)
-                or prevBrokerageSiteList != specialBrokerageSiteList
                 or prevIsJEDI != isJEDI
-                or prevDDM != job.getDdmBackEnd()
             ):
                 if indexJob > 1:
-                    tmp_logger.debug("new bunch")
-                    tmp_logger.debug(f"  iJob           {iJob}")
-                    tmp_logger.debug(f"  cloud          {previousCloud}")
-                    tmp_logger.debug(f"  rel            {prevRelease}")
-                    tmp_logger.debug(f"  sourceLabel    {prevSourceLabel}")
-                    tmp_logger.debug(f"  cmtConfig      {prevCmtConfig}")
-                    tmp_logger.debug(f"  memory         {prevMemory}")
-                    tmp_logger.debug(f"  priority       {prevPriority}")
-                    tmp_logger.debug(f"  prodDBlock     {prodDBlock}")
-                    tmp_logger.debug(f"  computingSite  {computingSite}")
-                    tmp_logger.debug(f"  processingType {prevProType}")
-                    tmp_logger.debug(f"  workingGroup   {prevWorkingGroup}")
-                    tmp_logger.debug(f"  coreCount      {prevCoreCount}")
-                    tmp_logger.debug(f"  maxCpuCount    {prevMaxCpuCount}")
-                    tmp_logger.debug(f"  transferType   {prevDirectAcc}")
-                    tmp_logger.debug(f"  DDM            {prevDDM}")
-
-                # load balancing
-                minSites = {}
-                nMinSites = 2
-                if prevBrokerageSiteList:
-                    # special brokerage
-                    scanSiteList = prevBrokerageSiteList
-                elif siteMapper.checkCloud(previousCloud):
-                    # use cloud sites
-                    scanSiteList = siteMapper.getCloud(previousCloud)["sites"]
+                    tmp_logger.debug(
+                        f"new bunch\n"
+                        f"  iJob           {iJob}\n"
+                        f"  cloud          {previousCloud}\n"
+                        f"  rel            {prevRelease}\n"
+                        f"  sourceLabel    {prevSourceLabel}\n"
+                        f"  cmtConfig      {prevCmtConfig}\n"
+                        f"  memory         {prevMemory}\n"
+                        f"  priority       {prevPriority}\n"
+                        f"  prodDBlock     {prodDBlock}\n"
+                        f"  computingSite  {computingSite}\n"
+                        f"  processingType {prevProType}\n"
+                        f"  workingGroup   {prevWorkingGroup}\n"
+                        f"  coreCount      {prevCoreCount}\n"
+                        f"  maxCpuCount    {prevMaxCpuCount}\n"
+                        f"  transferType   {prevDirectAcc}\n"
+                    )
 
                 # the number/size of inputs per job
                 nFilesPerJob = float(totalNumInputs) / float(iJob)
                 inputSizePerJob = float(totalInputSize) / float(iJob)
 
-                # loop over all sites
-                for site in scanSiteList:
-                    tmp_logger.debug(f"calculate weight for site:{site}")
-                    # _allSites may contain NULL after sort()
-                    if site == "NULL":
-                        continue
-                    if prevIsJEDI:
-                        winv = 1
-
-                    # found at least one candidate
-                    tmp_logger.debug(f"Site:{site} 1/Weight:{winv}")
-
-                    # choose largest nMinSites weights
-                    minSites[site] = winv
-                    if len(minSites) > nMinSites:
-                        maxSite = site
-                        maxWinv = winv
-                        for tmpSite in minSites:
-                            tmpWinv = minSites[tmpSite]
-                            if tmpWinv > maxWinv:
-                                maxSite = tmpSite
-                                maxWinv = tmpWinv
-                        # delete max one
-                        del minSites[maxSite]
-
-                    # remove too different weights
-                    if len(minSites) >= 2:
-                        # look for minimum
-                        minSite = list(minSites)[0]
-                        minWinv = minSites[minSite]
-                        for tmpSite in minSites:
-                            tmpWinv = minSites[tmpSite]
-                            if tmpWinv < minWinv:
-                                minWinv = tmpWinv
-                        # look for too different weights
-                        difference = 2
-                        removeSites = []
-                        for tmpSite in minSites:
-                            tmpWinv = minSites[tmpSite]
-                            if tmpWinv > minWinv * difference:
-                                removeSites.append(tmpSite)
-                        # remove
-                        for tmpSite in removeSites:
-                            del minSites[tmpSite]
-                # set default
-                if len(minSites) == 0:
-                    # cloud's list
-                    if siteMapper.checkCloud(previousCloud):
-                        minSites[scanSiteList[0]] = 0
-                    else:
-                        minSites[panda_config.def_sitename] = 0
-
-                # use only one site for prod_test to skip LFC scan
-                if prevProType in skipBrokerageProTypes:
-                    if len(minSites) > 1:
-                        minSites = {list(minSites)[0]: 0}
-
-                # choose site
-                tmp_logger.debug(f"Min Sites:{minSites}")
-                if len(fileList) == 0 or prevIsJEDI is True:
-                    # choose min 1/weight
-                    minSite = list(minSites)[0]
-                    minWinv = minSites[minSite]
-                    for tmpSite in minSites:
-                        tmpWinv = minSites[tmpSite]
-                        if tmpWinv < minWinv:
-                            minSite = tmpSite
-                            minWinv = tmpWinv
-                    chosen_panda_queue = siteMapper.getSite(minSite)
+                chosen_panda_queue = siteMapper.getSite(job.computingSite)
 
                 # set job spec
                 tmp_logger.debug(f"indexJob      : {indexJob}")
@@ -313,30 +221,18 @@ def schedule(jobs, siteMapper):
                     tmp_logger.debug(f"PandaID:{tmpJob.PandaID} -> site:{tmpJob.computingSite}")
 
                     # set ready if files are already there
-                    if prevIsJEDI is False:
+                    if not prevIsJEDI:
                         _set_files_to_ready(tmpJob, okFiles, siteMapper, tmp_logger)
-                    # update statistics
-                    tmpProGroup = ProcessGroups.getProcessGroup(tmpJob.processingType)
-                    if tmpJob.processingType in skipBrokerageProTypes:
-                        # use original processingType since prod_test is in the test category and thus is interfered by validations
-                        tmpProGroup = tmpJob.processingType
-
-                    # update statistics by taking priorities into account
-                    if prevSourceLabel in ["managed", "test"]:
-                        newJobStatWithPrio.setdefault(prevPriority, {})
-                        newJobStatWithPrio[prevPriority].setdefault(tmpJob.getCloud(), {})
-                        newJobStatWithPrio[prevPriority][tmpJob.getCloud()].setdefault(tmpJob.computingSite, {})
-                        newJobStatWithPrio[prevPriority][tmpJob.getCloud()][tmpJob.computingSite].setdefault(tmpProGroup, 0)
-                        newJobStatWithPrio[prevPriority][tmpJob.getCloud()][tmpJob.computingSite][tmpProGroup] += 1
 
                 # terminate
-                if job is None:
+                if not job:
                     break
+
                 # reset iJob
                 iJob = 0
+
                 # reset file list
                 fileList = []
-                scopeList = []
                 okFiles = {}
                 totalNumInputs = 0
                 totalInputSize = 0
@@ -346,20 +242,22 @@ def schedule(jobs, siteMapper):
                     try:
                         tmpDataType = job.prodDBlock.split(".")[-2]
                     except Exception:
-                        # default
-                        tmpDataType = "GEN"
+                        tmpDataType = "GEN"  # set a default value
+
+                    # avoid too long name
                     if len(tmpDataType) > 20:
-                        # avoid too long name
                         tmpDataType = "GEN"
+
                     transferType = "transfer"
                     if job.useInputPrestaging():
                         transferType = "prestaging"
                     dispatchDBlock = f"panda.{job.taskID}.{time.strftime('%m.%d')}.{tmpDataType}.{transferType}.{str(uuid.uuid4())}_dis{job.PandaID}"
                     tmp_logger.debug(f"New dispatchDBlock: {dispatchDBlock}")
                 prodDBlock = job.prodDBlock
-                # already define computingSite
+
+                # already defined computingSite
                 if job.computingSite != "NULL":
-                    # instantiate KnownSite
+                    # instantiate the known computing site
                     chosen_panda_queue = siteMapper.getSite(job.computingSite)
 
                     # if site doesn't exist, use the default site
@@ -390,10 +288,8 @@ def schedule(jobs, siteMapper):
             prevDirectAcc = job.transferType
             prevCoreCount = job.coreCount
             prevMaxCpuCount = job.maxCpuCount
-            prevBrokerageSiteList = specialBrokerageSiteList
             prevWorkingGroup = job.workingGroup
             prevIsJEDI = isJEDI
-            prevDDM = job.getDdmBackEnd()
 
             # truncate prio to avoid too many lookups
             if job.currentPriority not in [None, "NULL"]:
@@ -441,7 +337,6 @@ def schedule(jobs, siteMapper):
                     file.status = "pending"
                     if file.lfn not in fileList:
                         fileList.append(file.lfn)
-                        scopeList.append(file.scope)
                         try:
                             # get total number/size of inputs except DBRelease
                             # tgz inputs for evgen may be negligible
