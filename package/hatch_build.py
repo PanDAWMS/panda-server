@@ -15,6 +15,8 @@ import sysconfig
 import requests
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
+PACKAGE_EMOJI = ":panda_face:"
+
 
 def get_user():
     # Run the 'klist' command and capture its output
@@ -70,7 +72,7 @@ def mm_notification():
     # On the repository name we enter an empty space to prevent the URLs to preview on Mattermost
     # We shorten the commit hash to the first seven characters, as they are usually enough to identify a commit
     mm_message = {
-        "text": f":panda_face:**Package upgrade on:** `{server_name}` by `{user}`.",
+        "text": f"{PACKAGE_EMOJI}**Package upgrade on:** `{server_name}` by `{user}`.",
         "props": {
             "card": f"""
 | **Property** | **Value** |
