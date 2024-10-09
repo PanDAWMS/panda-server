@@ -8,7 +8,6 @@ import uuid
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
-from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils
 from pandaserver.dataservice.DataServiceUtils import select_scope
 
@@ -289,10 +288,6 @@ def schedule(jobs, siteMapper):
             # assign site
             if chosen_panda_queue != "TOBEDONE":
                 job.computingSite = chosen_panda_queue.sitename
-                if job.computingElement == "NULL":
-                    if job.prodSourceLabel == "ddm":
-                        # use nickname for ddm jobs
-                        job.computingElement = chosen_panda_queue.nickname
 
                 tmp_logger.debug(f"PandaID:{job.PandaID} -> preset site:{chosen_panda_queue.sitename}")
                 # update statistics
