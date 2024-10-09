@@ -66,6 +66,7 @@ if panda_config.backend == "oracle":
 
 elif panda_config.backend == "postgres":
     import psycopg2 as psycopg
+    import psycopg2.errorcodes as psycopg_errorcodes
 
     from . import WrappedPostgresConn
 
@@ -11764,25 +11765,33 @@ class DBProxy:
 
     # rollback
     def _rollback(self, useOtherError=False):
-        retVal = True
+        return_value = True
         # rollback
+        err_code = None
         _logger.debug("rollback")
         try:
             self.conn.rollback()
-        except Exception:
+        except Exception as e:
             _logger.error("rollback error")
-            retVal = False
+            # get error code from
+            if self.backend == "postgres":
+                try:
+                    err_code = e.pgcode
+                except Exception:
+                    pass
+            return_value = False
         # reconnect if needed
         try:
             # get ORA ErrorCode
-            errType, errValue = sys.exc_info()[:2]
-            oraErrCode = str(errValue).split()[0]
-            oraErrCode = oraErrCode[:-1]
-            errMsg = f"rollback EC:{oraErrCode} {errValue}"
-            _logger.debug(errMsg)
+            err_type, err_value = sys.exc_info()[:2]
+            if err_code is None:
+                err_code = str(err_value).split()[0]
+                err_code = err_code[:-1]
+            err_msg = f"rollback EC:{err_code} {err_value}"
+            _logger.debug(err_msg)
             # error codes for connection error
             if self.backend == "oracle":
-                error_Codes = [
+                error_list_for_reconnect = [
                     "ORA-01012",
                     "ORA-01033",
                     "ORA-01034",
@@ -11795,9 +11804,17 @@ class DBProxy:
                     "ORA-03135",
                     "ORA-25402",
                 ]
-                # other errors are apperantly given when connection lost contact
+                # other errors are apparently given when connection lost contact
                 if useOtherError:
-                    error_Codes += ["ORA-01861", "ORA-01008"]
+                    error_list_for_reconnect += ["ORA-01861", "ORA-01008"]
+            elif self.backend == "postgres":
+                error_list_for_reconnect = [
+                    psycopg_errorcodes.CONNECTION_EXCEPTION,
+                    psycopg_errorcodes.SQLSERVER_REJECTED_ESTABLISHMENT_OF_SQLCONNECTION,
+                    psycopg_errorcodes.CONNECTION_DOES_NOT_EXIST,
+                    psycopg_errorcodes.SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION,
+                    psycopg_errorcodes.CONNECTION_FAILURE,
+                ]
             else:
                 # mysql error codes for connection error
                 from MySQLdb.constants.CR import (
@@ -11813,7 +11830,7 @@ class DBProxy:
                     SERVER_SHUTDOWN,
                 )
 
-                error_Codes = [
+                error_list_for_reconnect = [
                     ACCESS_DENIED_ERROR,
                     DBACCESS_DENIED_ERROR,
                     SERVER_SHUTDOWN,
@@ -11822,17 +11839,17 @@ class DBProxy:
                     LOCALHOST_CONNECTION,
                     SERVER_LOST,
                 ]
-                # other errors are apperantly given when connection lost contact
+                # other errors are apparently given when connection lost contact
                 if useOtherError:
-                    error_Codes += [ILLEGAL_VALUE_FOR_TYPE]
-            if oraErrCode in error_Codes:
+                    error_list_for_reconnect += [ILLEGAL_VALUE_FOR_TYPE]
+            if err_code in error_list_for_reconnect:
                 # reconnect
-                retFlag = self.connect(reconnect=True)
-                _logger.debug(f"rollback reconnected {retFlag}")
+                reconnect_stat = self.connect(reconnect=True)
+                _logger.debug(f"rollback reconnected {reconnect_stat}")
         except Exception:
             pass
         # return
-        return retVal
+        return return_value
 
     # dump error message
     def dumpErrorMessage(self, tmpLog, methodName):
@@ -22957,7 +22974,9 @@ class DBProxy:
             return None
 
         try:
-            pq_data_des = json.loads(pq_data[0][0])
+            pq_data_des = pq_data[0][0]
+            if not isinstance(pq_data_des, dict):
+                pq_data_des = json.loads(pq_data_des)
         except Exception:
             tmp_log.error("Could not find queue configuration")
             return None
