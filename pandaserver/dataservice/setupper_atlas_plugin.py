@@ -342,96 +342,91 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             # ignore empty dataset
             if len(block_data["lfns"]) == 0:
                 continue
-            # use Rucio
-            if job.prodSourceLabel != "ddm":
-                # register dispatch dataset
-                self.disp_file_list[dispatch_data_block] = file_list[dispatch_data_block]
-                if not use_zip_to_pin_map[dispatch_data_block]:
-                    dis_files = file_list[dispatch_data_block]
-                else:
-                    dids = file_list[dispatch_data_block]["lfns"]
-                    tmp_zip_stat, tmp_zip_out = rucioAPI.get_zip_files(dids, None)
-                    if not tmp_zip_stat:
-                        tmp_logger.debug(f"failed to get zip files : {tmp_zip_out}")
-                        tmp_zip_out = {}
-                    dis_files = {"lfns": [], "guids": [], "fsizes": [], "chksums": []}
-                    for tmp_lfn, tmp_guid, tmp_file_size, tmp_checksum in zip(
-                        file_list[dispatch_data_block]["lfns"],
-                        file_list[dispatch_data_block]["guids"],
-                        file_list[dispatch_data_block]["fsizes"],
-                        file_list[dispatch_data_block]["chksums"],
-                    ):
-                        if tmp_lfn in tmp_zip_out:
-                            tmp_zip_file_name = f"{tmp_zip_out[tmp_lfn]['scope']}:{tmp_zip_out[tmp_lfn]['name']}"
-                            if tmp_zip_file_name not in dis_files["lfns"]:
-                                dis_files["lfns"].append(tmp_zip_file_name)
-                                dis_files["guids"].append(tmp_zip_out[tmp_lfn]["guid"])
-                                dis_files["fsizes"].append(tmp_zip_out[tmp_lfn]["bytes"])
-                                dis_files["chksums"].append(tmp_zip_out[tmp_lfn]["adler32"])
-                        else:
-                            dis_files["lfns"].append(tmp_lfn)
-                            dis_files["guids"].append(tmp_guid)
-                            dis_files["fsizes"].append(tmp_file_size)
-                            dis_files["chksums"].append(tmp_checksum)
 
-                metadata = {"hidden": True, "purge_replicas": 0}
-                if dispatch_data_block in ds_task_map and ds_task_map[dispatch_data_block] not in [
-                    "NULL",
-                    0,
-                ]:
-                    metadata["task_id"] = str(ds_task_map[dispatch_data_block])
-                tmp_logger.debug(f"register_dataset {dispatch_data_block} {str(metadata)}")
-                max_attempt = 3
-                is_ok = False
-                err_str = ""
-                for attempt in range(max_attempt):
-                    try:
-                        out = rucioAPI.register_dataset(
-                            dispatch_data_block,
-                            dis_files["lfns"],
-                            dis_files["guids"],
-                            dis_files["fsizes"],
-                            dis_files["chksums"],
-                            lifetime=7,
-                            scope="panda",
-                            metadata=metadata,
-                        )
-                        is_ok = True
-                        break
-                    except Exception:
-                        error_type, error_value = sys.exc_info()[:2]
-                        err_str = f"{error_type}:{error_value}"
-                        tmp_logger.error(f"register_dataset : failed with {err_str}")
-                        if attempt + 1 == max_attempt:
-                            break
-                        self.logger.debug(f"sleep {attempt}/{max_attempt}")
-                        time.sleep(10)
-                if not is_ok:
-                    disp_error[dispatch_data_block] = "setupper.setup_source() could not register dispatch_data_block with {0}".format(err_str.split("\n")[-1])
-                    continue
-                tmp_logger.debug(out)
-                new_out = out
-                # freezeDataset dispatch dataset
-                tmp_logger.debug(f"closeDataset {dispatch_data_block}")
-                for attempt in range(max_attempt):
-                    status = False
-                    try:
-                        rucioAPI.close_dataset(dispatch_data_block)
-                        status = True
-                        break
-                    except Exception:
-                        error_type, error_value = sys.exc_info()[:2]
-                        out = f"failed to close : {error_type} {error_value}"
-                        time.sleep(10)
-                if not status:
-                    tmp_logger.error(out)
-                    disp_error[dispatch_data_block] = f"setupper.setup_source() could not freeze dispatch_data_block with {out}"
-                    continue
+            # register dispatch dataset
+            self.disp_file_list[dispatch_data_block] = file_list[dispatch_data_block]
+            if not use_zip_to_pin_map[dispatch_data_block]:
+                dis_files = file_list[dispatch_data_block]
             else:
-                # use PandaDDM
-                self.disp_file_list[dispatch_data_block] = file_list[dispatch_data_block]
-                # create a fake vuid
-                new_out = {"vuid": str(uuid.uuid4())}
+                dids = file_list[dispatch_data_block]["lfns"]
+                tmp_zip_stat, tmp_zip_out = rucioAPI.get_zip_files(dids, None)
+                if not tmp_zip_stat:
+                    tmp_logger.debug(f"failed to get zip files : {tmp_zip_out}")
+                    tmp_zip_out = {}
+                dis_files = {"lfns": [], "guids": [], "fsizes": [], "chksums": []}
+                for tmp_lfn, tmp_guid, tmp_file_size, tmp_checksum in zip(
+                    file_list[dispatch_data_block]["lfns"],
+                    file_list[dispatch_data_block]["guids"],
+                    file_list[dispatch_data_block]["fsizes"],
+                    file_list[dispatch_data_block]["chksums"],
+                ):
+                    if tmp_lfn in tmp_zip_out:
+                        tmp_zip_file_name = f"{tmp_zip_out[tmp_lfn]['scope']}:{tmp_zip_out[tmp_lfn]['name']}"
+                        if tmp_zip_file_name not in dis_files["lfns"]:
+                            dis_files["lfns"].append(tmp_zip_file_name)
+                            dis_files["guids"].append(tmp_zip_out[tmp_lfn]["guid"])
+                            dis_files["fsizes"].append(tmp_zip_out[tmp_lfn]["bytes"])
+                            dis_files["chksums"].append(tmp_zip_out[tmp_lfn]["adler32"])
+                    else:
+                        dis_files["lfns"].append(tmp_lfn)
+                        dis_files["guids"].append(tmp_guid)
+                        dis_files["fsizes"].append(tmp_file_size)
+                        dis_files["chksums"].append(tmp_checksum)
+
+            metadata = {"hidden": True, "purge_replicas": 0}
+            if dispatch_data_block in ds_task_map and ds_task_map[dispatch_data_block] not in [
+                "NULL",
+                0,
+            ]:
+                metadata["task_id"] = str(ds_task_map[dispatch_data_block])
+            tmp_logger.debug(f"register_dataset {dispatch_data_block} {str(metadata)}")
+            max_attempt = 3
+            is_ok = False
+            err_str = ""
+            for attempt in range(max_attempt):
+                try:
+                    out = rucioAPI.register_dataset(
+                        dispatch_data_block,
+                        dis_files["lfns"],
+                        dis_files["guids"],
+                        dis_files["fsizes"],
+                        dis_files["chksums"],
+                        lifetime=7,
+                        scope="panda",
+                        metadata=metadata,
+                    )
+                    is_ok = True
+                    break
+                except Exception:
+                    error_type, error_value = sys.exc_info()[:2]
+                    err_str = f"{error_type}:{error_value}"
+                    tmp_logger.error(f"register_dataset : failed with {err_str}")
+                    if attempt + 1 == max_attempt:
+                        break
+                    self.logger.debug(f"sleep {attempt}/{max_attempt}")
+                    time.sleep(10)
+            if not is_ok:
+                disp_error[dispatch_data_block] = "setupper.setup_source() could not register dispatch_data_block with {0}".format(err_str.split("\n")[-1])
+                continue
+            tmp_logger.debug(out)
+            new_out = out
+            # freezeDataset dispatch dataset
+            tmp_logger.debug(f"closeDataset {dispatch_data_block}")
+            for attempt in range(max_attempt):
+                status = False
+                try:
+                    rucioAPI.close_dataset(dispatch_data_block)
+                    status = True
+                    break
+                except Exception:
+                    error_type, error_value = sys.exc_info()[:2]
+                    out = f"failed to close : {error_type} {error_value}"
+                    time.sleep(10)
+            if not status:
+                tmp_logger.error(out)
+                disp_error[dispatch_data_block] = f"setupper.setup_source() could not freeze dispatch_data_block with {out}"
+                continue
+
             # get VUID
             try:
                 vuid = new_out["vuid"]
@@ -548,7 +543,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             # for original dataset
                             computing_site = file.destinationSE
                         new_vuid = None
-                        if (job.prodSourceLabel != "ddm") and (job.destinationSE != "local"):
+                        if job.destinationSE != "local":
                             # get src and dest DDM conversion is needed for unknown sites
                             if job.prodSourceLabel == "user" and computing_site not in self.site_mapper.siteSpecList:
                                 # DDM ID was set by using --destSE for analysis job to transfer output
@@ -1147,7 +1142,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                     if tmp_input_file_project is not None:
                         tmp_job.inputFileProject = tmp_input_file_project
                 # protection
-                max_input_file_bytes = 99999999999
+                max_input_file_bytes = 10**16 - 1  # 15 digit precision in database column
                 tmp_job.inputFileBytes = min(tmp_job.inputFileBytes, max_input_file_bytes)
                 # set background-able flag
                 tmp_job.setBackgroundableFlag()

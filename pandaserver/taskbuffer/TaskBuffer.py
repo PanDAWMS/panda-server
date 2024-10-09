@@ -191,8 +191,8 @@ class TaskBuffer:
             useDebugMode = False
             siteMapper = SiteMapper(self)
 
-            # check ban user except internally generated jobs
-            if len(jobs) > 0 and not jobs[0].prodSourceLabel in ProcessGroups.internalSourceLabels:
+            # check ban user
+            if len(jobs) > 0:
                 # get DB proxy
                 proxy = self.proxyPool.getProxy()
                 # check user status

@@ -66,6 +66,7 @@ if panda_config.backend == "oracle":
 
 elif panda_config.backend == "postgres":
     import psycopg2 as psycopg
+    import psycopg2.errorcodes as psycopg_errorcodes
 
     from . import WrappedPostgresConn
 
@@ -1600,147 +1601,6 @@ class DBProxy:
                         if useCommit and inTransaction:
                             if not self._commit():
                                 raise RuntimeError("Commit error")
-                elif job.prodSourceLabel == "ddm" and job.jobStatus == "failed" and job.transferType == "dis":
-                    if useCommit:
-                        self.conn.begin()
-                    # get corresponding jobs for production movers
-                    vuid = ""
-                    # extract vuid
-                    match = re.search("--callBack (\S+)", job.jobParameters)
-                    if match is not None:
-                        try:
-                            callbackUrl = urllib.unquote(match.group(1))
-                            callbackUrl = re.sub("[&\?]", " ", callbackUrl)
-                            # look for vuid=
-                            for item in callbackUrl.split():
-                                if item.startswith("vuid="):
-                                    vuid = item.split("=")[-1]
-                                    break
-                        except Exception:
-                            pass
-                        if vuid == "":
-                            tmpLog.error(f"cannot extract vuid from {job.jobParameters}")
-                        else:
-                            # get name
-                            varMap = {}
-                            varMap[":vuid"] = vuid
-                            varMap[":type"] = "dispatch"
-                            self.cur.arraysize = 10
-                            self.cur.execute(
-                                "SELECT name FROM ATLAS_PANDA.Datasets WHERE vuid=:vuid AND type=:type " + comment,
-                                varMap,
-                            )
-                            res = self.cur.fetchall()
-                            if len(res) != 0:
-                                disName = res[0][0]
-                                # check lost files
-                                varMap = {}
-                                varMap[":status"] = "lost"
-                                varMap[":dispatchDBlock"] = disName
-                                sqlLost = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ distinct PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE status=:status AND dispatchDBlock=:dispatchDBlock"
-                                self.cur.execute(sqlLost + comment, varMap)
-                                resLost = self.cur.fetchall()
-                                # fail jobs with lost files
-                                sqlDJS = f"SELECT {JobSpec.columnNames()} "
-                                sqlDJS += "FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
-                                sqlDJD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
-                                sqlDJI = f"INSERT INTO ATLAS_PANDA.jobsArchived4 ({JobSpec.columnNames()}) "
-                                sqlDJI += JobSpec.bindValuesExpression()
-                                sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-                                sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-                                sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-                                lostJobIDs = []
-                                for (tmpID,) in resLost:
-                                    tmpLog.debug(f"fail due to lost files : {tmpID}")
-                                    varMap = {}
-                                    varMap[":PandaID"] = tmpID
-                                    self.cur.arraysize = 10
-                                    self.cur.execute(sqlDJS + comment, varMap)
-                                    resJob = self.cur.fetchall()
-                                    if len(resJob) == 0:
-                                        continue
-                                    # instantiate JobSpec
-                                    dJob = JobSpec()
-                                    dJob.pack(resJob[0])
-                                    # delete
-                                    varMap = {}
-                                    varMap[":PandaID"] = tmpID
-                                    self.cur.execute(sqlDJD + comment, varMap)
-                                    retD = self.cur.rowcount
-                                    if retD == 0:
-                                        continue
-                                    # error code
-                                    dJob.jobStatus = "failed"
-                                    dJob.endTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-                                    dJob.ddmErrorCode = 101
-                                    dJob.ddmErrorDiag = "lost file in SE"
-                                    dJob.modificationTime = dJob.endTime
-                                    dJob.stateChangeTime = dJob.endTime
-                                    # insert
-                                    self.cur.execute(sqlDJI + comment, dJob.valuesMap())
-                                    # update files,metadata,parametes
-                                    varMap = {}
-                                    varMap[":PandaID"] = tmpID
-                                    varMap[":modificationTime"] = dJob.modificationTime
-                                    self.cur.execute(sqlFMod + comment, varMap)
-                                    self.cur.execute(sqlMMod + comment, varMap)
-                                    self.cur.execute(sqlPMod + comment, varMap)
-                                    # append
-                                    lostJobIDs.append(tmpID)
-                                    # collect to record state change
-                                    updatedJobList.append(dJob)
-                                # get PandaIDs
-                                varMap = {}
-                                varMap[":jobStatus"] = "assigned"
-                                varMap[":dispatchDBlock"] = disName
-                                self.cur.execute(
-                                    "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE dispatchDBlock=:dispatchDBlock AND jobStatus=:jobStatus " + comment,
-                                    varMap,
-                                )
-                                resDDM = self.cur.fetchall()
-                                for (tmpID,) in resDDM:
-                                    if tmpID not in lostJobIDs:
-                                        ddmIDs.append(tmpID)
-                                # get offset
-                                ddmAttempt = job.attemptNr
-                                tmpLog.debug(f"get PandaID for reassign : {str(ddmIDs)} ddmAttempt={ddmAttempt}")
-                    if useCommit:
-                        if not self._commit():
-                            raise RuntimeError("Commit error")
-                elif (
-                    job.prodSourceLabel == "ddm"
-                    and job.jobStatus == "failed"
-                    and job.transferType == "ddm"
-                    and job.attemptNr < 2
-                    and job.commandToPilot != "tobekilled"
-                ):
-                    # instantiate new mover to retry subscription
-                    newJob = JobSpec()
-                    newJob.jobDefinitionID = job.jobDefinitionID
-                    newJob.jobName = job.jobName
-                    newJob.attemptNr = job.attemptNr + 1
-                    newJob.transformation = job.transformation
-                    newJob.destinationDBlock = job.destinationDBlock
-                    newJob.destinationSE = job.destinationSE
-                    newJob.currentPriority = job.currentPriority
-                    newJob.prodSourceLabel = job.prodSourceLabel
-                    newJob.prodUserID = job.prodUserID
-                    newJob.computingSite = job.computingSite
-                    newJob.transferType = job.transferType
-                    newJob.sourceSite = job.sourceSite
-                    newJob.destinationSite = job.destinationSite
-                    newJob.jobParameters = job.jobParameters
-                    if job.Files != []:
-                        file = job.Files[0]
-                        fileOL = FileSpec()
-                        # add attempt nr
-                        fileOL.lfn = re.sub("\.\d+$", "", file.lfn)
-                        fileOL.lfn = "%s.%d" % (fileOL.lfn, job.attemptNr)
-                        fileOL.destinationDBlock = file.destinationDBlock
-                        fileOL.destinationSE = file.destinationSE
-                        fileOL.dataset = file.dataset
-                        fileOL.type = file.type
-                        newJob.addFile(fileOL)
 
                 # main job
                 if useCommit:
@@ -3205,7 +3065,6 @@ class DBProxy:
                         and (not job.computingSite.startswith("ANALY_LONG_"))
                         and job.attemptNr < 2
                     )
-                    or (job.prodSourceLabel == "ddm" and job.cloud == "CA" and job.attemptNr <= 10)
                     or failedInActive
                     or usePilotRetry
                 ) and job.commandToPilot != "tobekilled":
@@ -11906,25 +11765,33 @@ class DBProxy:
 
     # rollback
     def _rollback(self, useOtherError=False):
-        retVal = True
+        return_value = True
         # rollback
+        err_code = None
         _logger.debug("rollback")
         try:
             self.conn.rollback()
-        except Exception:
+        except Exception as e:
             _logger.error("rollback error")
-            retVal = False
+            # get error code from
+            if self.backend == "postgres":
+                try:
+                    err_code = e.pgcode
+                except Exception:
+                    pass
+            return_value = False
         # reconnect if needed
         try:
             # get ORA ErrorCode
-            errType, errValue = sys.exc_info()[:2]
-            oraErrCode = str(errValue).split()[0]
-            oraErrCode = oraErrCode[:-1]
-            errMsg = f"rollback EC:{oraErrCode} {errValue}"
-            _logger.debug(errMsg)
+            err_type, err_value = sys.exc_info()[:2]
+            if err_code is None:
+                err_code = str(err_value).split()[0]
+                err_code = err_code[:-1]
+            err_msg = f"rollback EC:{err_code} {err_value}"
+            _logger.debug(err_msg)
             # error codes for connection error
             if self.backend == "oracle":
-                error_Codes = [
+                error_list_for_reconnect = [
                     "ORA-01012",
                     "ORA-01033",
                     "ORA-01034",
@@ -11937,9 +11804,17 @@ class DBProxy:
                     "ORA-03135",
                     "ORA-25402",
                 ]
-                # other errors are apperantly given when connection lost contact
+                # other errors are apparently given when connection lost contact
                 if useOtherError:
-                    error_Codes += ["ORA-01861", "ORA-01008"]
+                    error_list_for_reconnect += ["ORA-01861", "ORA-01008"]
+            elif self.backend == "postgres":
+                error_list_for_reconnect = [
+                    psycopg_errorcodes.CONNECTION_EXCEPTION,
+                    psycopg_errorcodes.SQLSERVER_REJECTED_ESTABLISHMENT_OF_SQLCONNECTION,
+                    psycopg_errorcodes.CONNECTION_DOES_NOT_EXIST,
+                    psycopg_errorcodes.SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION,
+                    psycopg_errorcodes.CONNECTION_FAILURE,
+                ]
             else:
                 # mysql error codes for connection error
                 from MySQLdb.constants.CR import (
@@ -11955,7 +11830,7 @@ class DBProxy:
                     SERVER_SHUTDOWN,
                 )
 
-                error_Codes = [
+                error_list_for_reconnect = [
                     ACCESS_DENIED_ERROR,
                     DBACCESS_DENIED_ERROR,
                     SERVER_SHUTDOWN,
@@ -11964,17 +11839,17 @@ class DBProxy:
                     LOCALHOST_CONNECTION,
                     SERVER_LOST,
                 ]
-                # other errors are apperantly given when connection lost contact
+                # other errors are apparently given when connection lost contact
                 if useOtherError:
-                    error_Codes += [ILLEGAL_VALUE_FOR_TYPE]
-            if oraErrCode in error_Codes:
+                    error_list_for_reconnect += [ILLEGAL_VALUE_FOR_TYPE]
+            if err_code in error_list_for_reconnect:
                 # reconnect
-                retFlag = self.connect(reconnect=True)
-                _logger.debug(f"rollback reconnected {retFlag}")
+                reconnect_stat = self.connect(reconnect=True)
+                _logger.debug(f"rollback reconnected {reconnect_stat}")
         except Exception:
             pass
         # return
-        return retVal
+        return return_value
 
     # dump error message
     def dumpErrorMessage(self, tmpLog, methodName):
@@ -23099,7 +22974,9 @@ class DBProxy:
             return None
 
         try:
-            pq_data_des = json.loads(pq_data[0][0])
+            pq_data_des = pq_data[0][0]
+            if not isinstance(pq_data_des, dict):
+                pq_data_des = json.loads(pq_data_des)
         except Exception:
             tmp_log.error("Could not find queue configuration")
             return None

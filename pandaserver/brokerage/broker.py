@@ -295,6 +295,10 @@ def schedule(jobs, siteMapper):
                         job.computingElement = chosen_panda_queue.nickname
 
                 tmp_logger.debug(f"PandaID:{job.PandaID} -> preset site:{chosen_panda_queue.sitename}")
+                # update statistics
+                jobStatistics.setdefault(job.computingSite, {"assigned": 0, "activated": 0, "running": 0})
+                jobStatistics[job.computingSite]["assigned"] += 1
+                tmpLog.debug(f"PandaID:{job.PandaID} -> preset site:{chosen_panda_queue.sitename}")
                 # set cloud
                 if job.cloud in ["NULL", None, ""]:
                     job.cloud = chosen_panda_queue.cloud
