@@ -333,14 +333,14 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     if job_output_report_list is not None:
         for panda_id, job_status, attempt_nr, time_stamp in job_output_report_list:
             xmlIDs.add(int(panda_id))
-    sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime)) AND (prodSourceLabel=:prodSourceLabel1 OR prodSourceLabel=:prodSourceLabel2 OR prodSourceLabel=:prodSourceLabel3) AND stateChangeTime != modificationTime"
+    sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime)) AND (prodSourceLabel=:prodSourceLabel1 OR prodSourceLabel=:prodSourceLabel2) AND stateChangeTime != modificationTime"
     varMap = {}
     varMap[":modificationTime"] = timeLimit
     varMap[":endTime"] = timeLimit
     varMap[":jobStatus"] = "holding"
     varMap[":prodSourceLabel1"] = "panda"
     varMap[":prodSourceLabel2"] = "user"
-    varMap[":prodSourceLabel3"] = "ddm"
+
     status, res = taskBuffer.querySQLS(sql, varMap)
     if res is None:
         _logger.debug(f"# of Holding Anal/DDM Watcher : {res}")
@@ -1262,24 +1262,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 time.sleep(1)
             iJob += nJob
             time.sleep(10)
-
-    # kill too long waiting ddm jobs
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=5)
-    varMap = {}
-    varMap[":prodSourceLabel"] = "ddm"
-    varMap[":creationTime"] = timeLimit
-    status, res = taskBuffer.querySQLS(
-        "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE prodSourceLabel=:prodSourceLabel AND creationTime<:creationTime",
-        varMap,
-    )
-    jobs = []
-    if res is not None:
-        for (id,) in res:
-            jobs.append(id)
-    # kill
-    if len(jobs):
-        Client.killJobs(jobs, 2)
-        _logger.debug(f"killJobs for DDM ({str(jobs)})")
 
     # kill too long throttled jobs
     timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=7)

@@ -43,11 +43,9 @@ class _TimedMethod:
 
     # run
     def run(self, *var):
-        # _logger.debug(self.method.__name__ + ' ' + str(var))
         thr = threading.Thread(target=self, args=var)
-        # run thread
         thr.start()
-        thr.join()  # self.timeout)
+        thr.join()
 
 
 # job dispatcher
@@ -62,8 +60,6 @@ class JobDispatcher:
         self.lastUpdated = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         # how frequently update DN/token map
         self.timeInterval = datetime.timedelta(seconds=180)
-        # pilot owners
-        self.pilotOwners = None
         # special dispatcher parameters
         self.specialDispatchParams = None
         # site mapper cache
@@ -91,9 +87,6 @@ class JobDispatcher:
         # update DN/token map
         if self.tokenDN is None:
             self.tokenDN = self.taskBuffer.getListSchedUsers()
-        # get pilot owners
-        if self.pilotOwners is None:
-            self.pilotOwners = self.taskBuffer.getPilotOwners()
         # special dispatcher parameters
         if self.specialDispatchParams is None:
             self.specialDispatchParams = CoreUtils.CachedObject("dispatcher_params", 60 * 10, self.get_special_dispatch_params, _logger)
@@ -350,26 +343,31 @@ class JobDispatcher:
         stdout="",
         acceptJson=False,
     ):
-        # pilot log
+        tmp_logger = LogWrapper(_logger, f"updateJob {jobID}")
+
+        # store the pilot log
         if pilotLog != "":
-            _logger.debug("saving pilot log")
+            tmp_logger.debug("saving pilot log")
             try:
                 self.taskBuffer.storePilotLog(int(jobID), pilotLog)
-                _logger.debug("saving pilot log DONE")
+                tmp_logger.debug("saving pilot log DONE")
             except Exception:
-                _logger.debug("saving pilot log FAILED")
+                tmp_logger.debug("saving pilot log FAILED")
+
         # add metadata
         if metadata != "":
             ret = self.taskBuffer.addMetadata([jobID], [metadata], [jobStatus])
             if len(ret) > 0 and not ret[0]:
-                _logger.debug(f"updateJob : {jobID} failed to add metadata")
+                tmp_logger.debug(f"failed to add metadata")
                 # return succeed
                 response = Protocol.Response(Protocol.SC_Success)
                 return response.encode(acceptJson)
+
         # add stdout
         if stdout != "":
             self.taskBuffer.addStdOut(jobID, stdout)
-        # update
+
+        # update the job
         tmpStatus = jobStatus
         updateStateChange = False
         if jobStatus == "failed" or jobStatus == "finished":
@@ -386,6 +384,7 @@ class JobDispatcher:
         else:
             tmpWrapper = _TimedMethod(self.taskBuffer.updateJobStatus, timeout)
         tmpWrapper.run(jobID, tmpStatus, param, updateStateChange, attemptNr)
+
         # make response
         if tmpWrapper.result == Protocol.TimeOutToken:
             # timeout
@@ -407,15 +406,16 @@ class JobDispatcher:
                         response.appendNode("pilotSecrets", secrets)
                 else:
                     response.appendNode("command", "NULL")
+
                 # add output to dataset
                 if result not in ["badattemptnr", "alreadydone"] and (jobStatus == "failed" or jobStatus == "finished"):
                     adder_gen = AdderGen(self.taskBuffer, jobID, jobStatus, attemptNr)
                     adder_gen.dump_file_report(xml, attemptNr)
                     del adder_gen
             else:
-                # failed
                 response = Protocol.Response(Protocol.SC_Failed)
-        _logger.debug(f"updateJob : {jobID} ret -> {response.encode(acceptJson)}")
+
+        tmp_logger.debug(f"ret -> {response.encode(acceptJson)}")
         return response.encode(acceptJson)
 
     # get job status
@@ -857,32 +857,29 @@ del JobDispatcher
 # get FQANs
 def _getFQAN(req):
     fqans = []
-    for tmpKey in req.subprocess_env:
-        tmpVal = req.subprocess_env[tmpKey]
-        # compact credentials
-        if tmpKey.startswith("GRST_CRED_"):
-            # VOMS attribute
-            if tmpVal.startswith("VOMS"):
-                # FQAN
-                fqan = tmpVal.split()[-1]
-                # append
-                fqans.append(fqan)
+    for tmp_key in req.subprocess_env:
+        tmp_value = req.subprocess_env[tmp_key]
+        # Scan VOMS attributes
+        # compact style
+        if tmp_key.startswith("GRST_CRED_") and tmp_value.startswith("VOMS"):
+            fqan = tmp_value.split()[-1]
+            fqans.append(fqan)
+
         # old style
-        elif tmpKey.startswith("GRST_CONN_"):
-            tmpItems = tmpVal.split(":")
-            # FQAN
-            if len(tmpItems) == 2 and tmpItems[0] == "fqan":
-                fqans.append(tmpItems[-1])
-    # return
+        elif tmp_key.startswith("GRST_CONN_"):
+            tmp_items = tmp_value.split(":")
+            if len(tmp_items) == 2 and tmp_items[0] == "fqan":
+                fqans.append(tmp_items[-1])
+
     return fqans
 
 
 # check role
-def _checkRole(fqans, dn, job_dispatcher, withVomsPatch=True, site="", hostname=""):
-    prodManager = False
+def _checkRole(fqans, dn, withVomsPatch=True):
+    production_manager = False
     try:
         # VOMS attributes of production and pilot roles
-        prodAttrs = [
+        production_attributes = [
             "/atlas/usatlas/Role=production",
             "/atlas/usatlas/Role=pilot",
             "/atlas/Role=production",
@@ -893,46 +890,30 @@ def _checkRole(fqans, dn, job_dispatcher, withVomsPatch=True, site="", hostname=
             "/Engage/LBNE/Role=pilot",
         ]
         if withVomsPatch:
-            # FIXEME once http://savannah.cern.ch/bugs/?47136 is solved
-            prodAttrs += ["/atlas/"]
-            prodAttrs += ["/osg/", "/cms/", "/ams/"]
-            prodAttrs += ["/Engage/LBNE/"]
+            # FIXME once http://savannah.cern.ch/bugs/?47136 is solved
+            production_attributes += ["/atlas/", "/osg/", "/cms/", "/ams/", "/Engage/LBNE/"]
+
         for fqan in fqans:
             # check atlas/usatlas production role
-            for rolePat in prodAttrs:
-                if fqan.startswith(rolePat):
-                    prodManager = True
-                    break
-                if re.search(rolePat, fqan):
-                    prodManager = True
-                    break
-            # escape
-            if prodManager:
+            if any(fqan.startswith(role_pattern) or re.search(role_pattern, fqan) for role_pattern in production_attributes):
+                production_manager = True
                 break
-        # service proxy for CERNVM
-        if site in ["CERNVM"]:
-            serviceSubjects = ["/DC=ch/DC=cern/OU=computers/CN=pilot/copilot.cern.ch"]
-            for tmpSub in serviceSubjects:
-                if dn.startswith(tmpSub):
-                    prodManager = True
+
+            # escape
+            if production_manager:
+                break
+
+        # check DN with pilot owners
+        if not production_manager and dn not in [None]:
+            for owner in set(panda_config.production_dns).union(panda_config.pilot_owners):
+                if owner and re.search(owner, dn) is not None:
+                    production_manager = True
                     break
-        # check DN with pilotOwners
-        if (not prodManager) and (dn not in [None]):
-            if site in job_dispatcher.pilotOwners:
-                tmpPilotOwners = job_dispatcher.pilotOwners[None].union(job_dispatcher.pilotOwners[site])
-            else:
-                tmpPilotOwners = job_dispatcher.pilotOwners[None]
-            for owner in set(panda_config.production_dns).union(tmpPilotOwners):
-                if not owner:
-                    continue
-                # check
-                if re.search(owner, dn) is not None:
-                    prodManager = True
-                    break
+
     except Exception:
         pass
-    # return
-    return prodManager
+
+    return production_manager
 
 
 # get DN
@@ -947,12 +928,12 @@ def _getDN(req):
 
 
 # check token
-def _checkToken(token, jdCore):
+def _checkToken(token, job_dispatcher):
     # not check None until all pilots use tokens
     if token is None:
         return True
     # get map
-    tokenDN = jdCore.getDnTokenMap()
+    tokenDN = job_dispatcher.getDnTokenMap()
     # return
     return token in tokenDN
 
@@ -1000,9 +981,9 @@ def getJob(
     # check production role
     if getProxyKey == "True":
         # don't use /atlas to prevent normal proxy getting credname
-        prodManager = _checkRole(fqans, realDN, jobDispatcher, False, site=siteName)
+        prodManager = _checkRole(fqans, realDN, False)
     else:
-        prodManager = _checkRole(fqans, realDN, jobDispatcher, site=siteName, hostname=req.get_remote_host())
+        prodManager = _checkRole(fqans, realDN)
     # check token
     validToken = _checkToken(token, jobDispatcher)
     # set DN for non-production user
@@ -1147,105 +1128,49 @@ def updateJob(
     meanCoreCount=None,
     cpu_architecture_level=None,
 ):
-    tmpLog = LogWrapper(_logger, f"updateJob PandaID={jobId} PID={os.getpid()}")
-    tmpLog.debug("start")
-    # get DN
+    tmp_log = LogWrapper(_logger, f"updateJob PandaID={jobId} PID={os.getpid()}")
+    tmp_log.debug("start")
+
+    # get DN, FQANs and roles
     realDN = _getDN(req)
-    # get FQANs
     fqans = _getFQAN(req)
-    # check production role
-    prodManager = _checkRole(fqans, realDN, jobDispatcher, site=siteName, hostname=req.get_remote_host())
-    # check token
+    prodManager = _checkRole(fqans, realDN)
     validToken = _checkToken(token, jobDispatcher)
-    # accept json
     acceptJson = req.acceptJson()
 
     _logger.debug(
-        "updateJob({jobId},{state},{transExitCode},{pilotErrorCode},{pilotErrorDiag},{node},{workdir},"
-        "cpuConsumptionTime={cpuConsumptionTime},{cpuConsumptionUnit},{cpu_architecture_level},{remainingSpace},"
-        "{schedulerID},{pilotID},{siteName},{messageLevel},{nEvents},{nInputFiles},{cpuConversionFactor},"
-        "{exeErrorCode},{exeErrorDiag},{pilotTiming},{computingElement},{startTime},{endTime},{batchID},"
-        "attemptNr:{attemptNr},jobSubStatus:{jobSubStatus},core:{coreCount},DN:{realDN},role:{prodManager},"
-        "token:{token},val:{validToken},FQAN:{fqans},maxRSS={maxRSS},maxVMEM={maxVMEM},maxSWAP={maxSWAP},"
-        "maxPSS={maxPSS},avgRSS={avgRSS},avgVMEM={avgVMEM},avgSWAP={avgSWAP},avgPSS={avgPSS},"
-        "totRCHAR={totRCHAR},totWCHAR={totWCHAR},totRBYTES={totRBYTES},totWBYTES={totWBYTES},rateRCHAR={rateRCHAR},"
-        "rateWCHAR={rateWCHAR},rateRBYTES={rateRBYTES},rateWBYTES={rateWBYTES},meanCoreCount={meanCoreCount},"
-        "corruptedFiles={corruptedFiles}\n==XML==\n{xml}\n==LOG==\n{pilotLog}\n==Meta==\n{metaData}\n"
-        "==Metrics==\n{jobMetrics}\n==stdout==\n{stdout})".format(
-            jobId=jobId,
-            state=state,
-            transExitCode=transExitCode,
-            pilotErrorCode=pilotErrorCode,
-            pilotErrorDiag=pilotErrorDiag,
-            node=node,
-            workdir=workdir,
-            cpuConsumptionTime=cpuConsumptionTime,
-            cpuConsumptionUnit=cpuConsumptionUnit,
-            remainingSpace=remainingSpace,
-            schedulerID=schedulerID,
-            pilotID=pilotID,
-            siteName=siteName,
-            messageLevel=messageLevel,
-            nEvents=nEvents,
-            nInputFiles=nInputFiles,
-            cpuConversionFactor=cpuConversionFactor,
-            exeErrorCode=exeErrorCode,
-            exeErrorDiag=exeErrorDiag,
-            pilotTiming=pilotTiming,
-            computingElement=computingElement,
-            startTime=startTime,
-            endTime=endTime,
-            batchID=batchID,
-            attemptNr=attemptNr,
-            jobSubStatus=jobSubStatus,
-            coreCount=coreCount,
-            realDN=realDN,
-            prodManager=prodManager,
-            token=token,
-            validToken=validToken,
-            fqans=str(fqans),
-            maxRSS=maxRSS,
-            maxVMEM=maxVMEM,
-            maxSWAP=maxSWAP,
-            maxPSS=maxPSS,
-            avgRSS=avgRSS,
-            avgVMEM=avgVMEM,
-            avgSWAP=avgSWAP,
-            avgPSS=avgPSS,
-            totRCHAR=totRCHAR,
-            totWCHAR=totWCHAR,
-            totRBYTES=totRBYTES,
-            totWBYTES=totWBYTES,
-            rateRCHAR=rateRCHAR,
-            rateWCHAR=rateWCHAR,
-            rateRBYTES=rateRBYTES,
-            rateWBYTES=rateWBYTES,
-            meanCoreCount=meanCoreCount,
-            corruptedFiles=corruptedFiles,
-            cpu_architecture_level=cpu_architecture_level,
-            xml=xml,
-            pilotLog=pilotLog[:1024],
-            metaData=metaData[:1024],
-            jobMetrics=jobMetrics,
-            stdout=stdout,
-        )
+        f"updateJob({jobId},{state},{transExitCode},{pilotErrorCode},{pilotErrorDiag},{node},{workdir},"
+        f"cpuConsumptionTime={cpuConsumptionTime},{cpuConsumptionUnit},{cpu_architecture_level},{remainingSpace},"
+        f"{schedulerID},{pilotID},{siteName},{messageLevel},{nEvents},{nInputFiles},{cpuConversionFactor},"
+        f"{exeErrorCode},{exeErrorDiag},{pilotTiming},{computingElement},{startTime},{endTime},{batchID},"
+        f"attemptNr:{attemptNr},jobSubStatus:{jobSubStatus},core:{coreCount},DN:{realDN},role:{prodManager},"
+        f"token:{token},val:{validToken},FQAN:{fqans},maxRSS={maxRSS},maxVMEM={maxVMEM},maxSWAP={maxSWAP},"
+        f"maxPSS={maxPSS},avgRSS={avgRSS},avgVMEM={avgVMEM},avgSWAP={avgSWAP},avgPSS={avgPSS},"
+        f"totRCHAR={totRCHAR},totWCHAR={totWCHAR},totRBYTES={totRBYTES},totWBYTES={totWBYTES},rateRCHAR={rateRCHAR},"
+        f"rateWCHAR={rateWCHAR},rateRBYTES={rateRBYTES},rateWBYTES={rateWBYTES},meanCoreCount={meanCoreCount},"
+        f"corruptedFiles={corruptedFiles}\n==XML==\n{xml}\n==LOG==\n{pilotLog[:1024]}\n==Meta==\n{metaData[:1024]}\n"
+        f"==Metrics==\n{jobMetrics}\n==stdout==\n{stdout})"
     )
+
     _pilotReqLogger.debug(f"method=updateJob,site={siteName},node={node},type=None")
+
     # invalid role
     if not prodManager:
-        _logger.warning(f"updateJob({jobId}) : invalid role")
+        tmp_log.warning(f"invalid role")
+        tmpMsg = None
         if acceptJson:
             tmpMsg = "no production/pilot role in VOMS FQANs or non pilot owner"
-        else:
-            tmpMsg = None
         return Protocol.Response(Protocol.SC_Role, tmpMsg).encode(acceptJson)
+
     # invalid token
     if not validToken:
-        _logger.warning(f"updateJob({jobId}) : invalid token")
+        tmp_log.warning(f"invalid token")
         return Protocol.Response(Protocol.SC_Invalid).encode(acceptJson)
+
     # aborting message
     if jobId == "NULL":
         return Protocol.Response(Protocol.SC_Success).encode(acceptJson)
+
     # check status
     if state not in [
         "running",
@@ -1255,8 +1180,9 @@ def updateJob(
         "starting",
         "transferring",
     ]:
-        _logger.warning(f"invalid state={state} for updateJob")
+        tmp_log.warning(f"invalid state={state} for updateJob")
         return Protocol.Response(Protocol.SC_Success).encode(acceptJson)
+
     # create parameter map
     param = {}
     if cpuConsumptionTime not in [None, ""]:
@@ -1267,7 +1193,7 @@ def updateJob(
         try:
             param["cpu_architecture_level"] = cpu_architecture_level[:20]
         except Exception:
-            _logger.error(f"invalid cpu_architecture_level={cpu_architecture_level} for updateJob")
+            tmp_log.error(f"invalid cpu_architecture_level={cpu_architecture_level} for updateJob")
             pass
     if node is not None:
         param["modificationHost"] = node[:128]
@@ -1301,9 +1227,6 @@ def updateJob(
         param["cpuConversion"] = cpuConversionFactor
     if pilotTiming is not None:
         param["pilotTiming"] = pilotTiming
-    # disable pilot CE reporting. We will fill it from harvester table
-    # if computingElement is not None:
-    #    param['computingElement']=computingElement
     if nEvents is not None:
         param["nEvents"] = nEvents
     if nInputFiles is not None:
@@ -1381,7 +1304,7 @@ def updateJob(
     if corruptedFiles is not None:
         param["corruptedFiles"] = corruptedFiles
     # invoke JD
-    tmpLog.debug("executing")
+    tmp_log.debug("executing")
     return jobDispatcher.updateJob(
         int(jobId),
         state,
@@ -1399,30 +1322,34 @@ def updateJob(
 
 # bulk update jobs
 def updateJobsInBulk(req, jobList, harvester_id=None):
-    retList = []
-    retVal = False
-    _logger.debug(f"updateJobsInBulk {harvester_id} start")
-    tStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    ret_list = []
+    ret_val = False
+    prefix = f"updateJobsInBulk {harvester_id}"
+    tmp_logger = LogWrapper(_logger, prefix)
+    tmp_logger.debug("start")
+    t_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+
     try:
-        jobList = json.loads(jobList)
-        for jobDict in jobList:
-            jobId = jobDict["jobId"]
-            del jobDict["jobId"]
-            state = jobDict["state"]
-            del jobDict["state"]
-            if "metaData" in jobDict:
-                jobDict["metaData"] = str(jobDict["metaData"])
-            tmpRet = updateJob(req, jobId, state, **jobDict)
-            retList.append(tmpRet)
-        retVal = True
+        job_list = json.loads(jobList)
+        for job_dict in job_list:
+            job_id = job_dict["jobId"]
+            del job_dict["jobId"]
+            state = job_dict["state"]
+            del job_dict["state"]
+            if "metaData" in job_dict:
+                job_dict["metaData"] = str(job_dict["metaData"])
+            tmp_ret = updateJob(req, job_id, state, **job_dict)
+            ret_list.append(tmp_ret)
+        ret_val = True
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        tmpMsg = f"updateJobsInBulk {harvester_id} failed with {errtype.__name__} {errvalue}"
-        retList = tmpMsg
-        _logger.error(tmpMsg + "\n" + traceback.format_exc())
-    tDelta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - tStart
-    _logger.debug("updateJobsInBulk %s took %s.%03d sec" % (harvester_id, tDelta.seconds, tDelta.microseconds / 1000))
-    return json.dumps((retVal, retList))
+        err_type, err_value = sys.exc_info()[:2]
+        tmp_msg = f"failed with {err_type.__name__} {err_value}"
+        ret_list = f"{prefix} {tmp_msg}"
+        tmp_logger.error(f"{tmp_msg}\n{traceback.format_exc()}")
+
+    t_delta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - t_start
+    tmp_logger.debug(f"took {t_delta.seconds}.{t_delta.microseconds // 1000:03d} sec")
+    return json.dumps((ret_val, ret_list))
 
 
 # get job status
@@ -1447,24 +1374,37 @@ def getEventRanges(
     scattered=None,
     segment_id=None,
 ):
-    tmpStr = f"getEventRanges(PandaID={pandaID} jobsetID={jobsetID} taskID={taskID},nRanges={nRanges},segment={segment_id})"
-    _logger.debug(tmpStr + " start")
-    # get site
-    tmpMap = jobDispatcher.getActiveJobAttributes(pandaID, ["computingSite"])
-    if tmpMap is None:
-        site = ""
-    else:
-        site = tmpMap["computingSite"]
-    tmpStat, tmpOut = checkPilotPermission(req, site)
-    if not tmpStat:
-        _logger.error(tmpStr + "failed with " + tmpOut)
-        return tmpOut
+    """
+    Check the permissions and eetrieve a list of event ranges for a given PandaID.
+
+    Args:
+        req: The request object containing the environment variables.
+        pandaID (str): The ID of the Panda job.
+        jobsetID (str): The ID of the job set.
+        taskID (str, optional): The ID of the task. Defaults to None.
+        nRanges (int, optional): The number of event ranges to retrieve. Defaults to 10.
+        timeout (int, optional): The timeout value. Defaults to 60.
+        scattered (str, optional): Whether the event ranges are scattered. Defaults to None.
+        segment_id (int, optional): The segment ID. Defaults to None.
+    Returns:
+        dict: The response from the job dispatcher.
+    """
+    tmp_log = LogWrapper(_logger, f"getEventRanges(PandaID={pandaID} jobsetID={jobsetID} taskID={taskID},nRanges={nRanges},segment={segment_id})")
+    tmp_log.debug("start")
+
+    tmp_stat, tmp_out = checkPilotPermission(req)
+    if not tmp_stat:
+        tmp_log.error(f"failed with {tmp_out}")
+        return tmp_out
+
     if scattered == "True":
         scattered = True
     else:
         scattered = False
+
     if segment_id is not None:
         segment_id = int(segment_id)
+
     return jobDispatcher.getEventRanges(
         pandaID,
         jobsetID,
@@ -1477,7 +1417,6 @@ def getEventRanges(
     )
 
 
-# update an event range
 def updateEventRange(
     req,
     eventRangeID,
@@ -1488,18 +1427,32 @@ def updateEventRange(
     timeout=60,
     pandaID=None,
 ):
-    tmpStr = f"updateEventRange({eventRangeID} status={eventStatus} coreCount={coreCount} cpuConsumptionTime={cpuConsumptionTime} osID={objstoreID})"
-    _logger.debug(tmpStr + " start")
-    # get site
-    site = ""
-    if pandaID is not None:
-        tmpMap = jobDispatcher.getActiveJobAttributes(pandaID, ["computingSite"])
-        if tmpMap is not None:
-            site = tmpMap["computingSite"]
-    tmpStat, tmpOut = checkPilotPermission(req, site)
-    if not tmpStat:
-        _logger.error(tmpStr + "failed with " + tmpOut)
-        return tmpOut
+    """
+    Check the permissions and update the status of a specific event range.
+
+    Args:
+        req: The request object containing the environment variables.
+        eventRangeID (str): The ID of the event range to update.
+        eventStatus (str): The new status of the event range.
+        coreCount (int, optional): The number of cores used. Defaults to None.
+        cpuConsumptionTime (float, optional): The CPU consumption time. Defaults to None.
+        objstoreID (int, optional): The object store ID. Defaults to None.
+        timeout (int, optional): The timeout value. Defaults to 60.
+        pandaID (str, optional): The PandaID. Defaults to None.
+
+    Returns:
+        dict: The response from the job dispatcher.
+    """
+    tmp_log = LogWrapper(
+        _logger, f"updateEventRange({eventRangeID} status={eventStatus} coreCount={coreCount} cpuConsumptionTime={cpuConsumptionTime} osID={objstoreID})"
+    )
+    tmp_log.debug("start")
+
+    tmp_stat, tmp_out = checkPilotPermission(req)
+    if not tmp_stat:
+        tmp_log.error(f"failed with {tmp_out}")
+        return tmp_out
+
     return jobDispatcher.updateEventRange(
         eventRangeID,
         eventStatus,
@@ -1510,110 +1463,192 @@ def updateEventRange(
     )
 
 
-# update an event ranges
-def updateEventRanges(req, eventRanges, timeout=120, version=0, pandaID=None):
-    tmpStr = f"updateEventRanges({eventRanges})"
-    _logger.debug(tmpStr + " start")
-    # get site
-    site = ""
-    if pandaID is not None:
-        tmpMap = jobDispatcher.getActiveJobAttributes(pandaID, ["computingSite"])
-        if tmpMap is not None:
-            site = tmpMap["computingSite"]
-    tmpStat, tmpOut = checkPilotPermission(req, site)
-    if not tmpStat:
-        _logger.error(tmpStr + "failed with " + tmpOut)
-        return tmpOut
+def updateEventRanges(req, event_ranges, timeout=120, version=0, pandaID=None):
+    """
+    This function checks the permissions, converts the version to an integer, and updates the event ranges.
+
+    Args:
+        req: The request object containing the environment variables.
+        event_ranges (str): A JSON string containing the list of event ranges to update.
+        timeout (int, optional): The timeout value. Defaults to 120.
+        version (int, optional): The version of the event ranges. Defaults to 0.
+        pandaID (str, optional): The PandaID. Defaults to None.
+    Returns:
+        dict: The response from the job dispatcher.
+    """
+    tmp_log = LogWrapper(_logger, f"updateEventRanges({event_ranges})")
+    tmp_log.debug("start")
+
+    tmp_stat, tmp_out = checkPilotPermission(req)
+    if not tmp_stat:
+        tmp_log.error(f"failed with {tmp_out}")
+        return tmp_out
+
     try:
         version = int(version)
     except Exception:
         version = 0
-    return jobDispatcher.updateEventRanges(eventRanges, int(timeout), req.acceptJson(), version)
+
+    return jobDispatcher.updateEventRanges(event_ranges, int(timeout), req.acceptJson(), version)
 
 
-# check event availability
-def checkEventsAvailability(req, pandaID, jobsetID, taskID, timeout=60):
-    tmpStr = f"checkEventsAvailability(pandaID={pandaID} jobsetID={jobsetID} taskID={taskID})"
-    _logger.debug(tmpStr + " start")
-    tmpStat, tmpOut = checkPilotPermission(req)
-    if not tmpStat:
-        _logger.error(tmpStr + "failed with " + tmpOut)
-        # return tmpOut
-    return jobDispatcher.checkEventsAvailability(pandaID, jobsetID, taskID, timeout)
+def checkEventsAvailability(req, panda_id, jobset_id, task_id, timeout=60):
+    """
+    This function checks the availability of events for a given PandaID, jobsetID, and taskID.
+
+    Args:
+        req: The request object containing the environment variables.
+        panda_id (str): The PandaID.
+        jobset_id (str): The jobsetID.
+        task_id (str): The taskID.
+        timeout (int, optional): The timeout value. Defaults to 60.
+    Returns:
+        bool: The availability status of the events.
+    """
+    tmp_log = LogWrapper(_logger, f"check_events_availability(panda_id={panda_id} jobset_id={jobset_id} task_id={task_id})")
+    tmp_log.debug("start")
+    tmp_stat, tmp_out = checkPilotPermission(req)
+    if not tmp_stat:
+        tmp_log.error(f"failed with {tmp_out}")
+
+    return jobDispatcher.checkEventsAvailability(panda_id, jobset_id, task_id, timeout)
 
 
 # generate pilot token
-def genPilotToken(req, schedulerid, host=None):
-    # get DN
-    realDN = _getDN(req)
-    # get FQANs
-    fqans = _getFQAN(req)
-    # check production role
-    prodManager = _checkRole(fqans, realDN, jobDispatcher, False)
-    if not prodManager:
-        return "ERROR : production or pilot role is required"
-    if realDN is None:
-        return "ERROR : failed to retrive DN"
+def genPilotToken(req, scheduler_id, host=None):
+    """
+    This function retrieves the distinguished name (DN) and FQANs from the request, checks the production role,
+    and generates a pilot token.
+
+    Args:
+        req: The request object containing the environment variables.
+        scheduler_id (str): The scheduler ID.
+        host (str, optional): The host name. Defaults to None.
+    Returns:
+        str: The generated pilot token or an error message.
+    """
+
+    # check permissions
+    tmp_stat, tmp_out = checkPilotPermission(req)
+    if not tmp_stat:
+        _logger.error(f"{tmp_str} failed with {tmp_out}")
+        return tmp_out
+
     # hostname
     if host is None:
         host = req.get_remote_host()
-    # return
-    return jobDispatcher.genPilotToken(host, realDN, schedulerid)
+
+    return jobDispatcher.genPilotToken(host, real_dn, scheduler_id)
 
 
-# get key pair
-def getKeyPair(req, publicKeyName, privateKeyName):
-    # get DN
-    realDN = _getDN(req)
-    return jobDispatcher.getKeyPair(realDN, publicKeyName, privateKeyName, req.acceptJson())
+def getKeyPair(req, public_key_name, private_key_name):
+    """
+    This function retrieves the distinguished name (DN) from the request and uses it to get a key pair.
+
+    Args:
+        req: The request object containing the environment variables.
+        public_key_name (str): The name of the public key.
+        private_key_name (str): The name of the private key.
+
+    Returns:
+        dict: The key pair for the user.
+    """
+    real_dn = _getDN(req)
+    return jobDispatcher.getKeyPair(real_dn, public_key_name, private_key_name, req.acceptJson())
 
 
-# get proxy
 def getProxy(req, role=None, dn=None):
-    # get DN
-    realDN = _getDN(req)
+    """
+    Get proxy for a user with a role.
+
+    Args:
+        req: The request object containing the environment variables.
+        role (str, optional): The role of the user. Defaults to None.
+        dn (str, optional): The distinguished name of the user. Defaults to None.
+    Returns:
+        dict: The proxy for the user.
+    """
+    real_dn = _getDN(req)
     if role == "":
         role = None
-    return jobDispatcher.get_proxy(realDN, role, dn, False, None)
+    return jobDispatcher.get_proxy(real_dn, role, dn, False, None)
 
 
-# get access token
 def get_access_token(req, client_name, token_key=None):
+    """
+    This function retrieves the distinguished name (DN) from the request and uses it to get an access token for the specified client.
+
+    Args:
+        req: The request object containing the environment variables.
+        client_name (str): The name of the client requesting the access token.
+        token_key (str, optional): The key to get the token from the token cache. Defaults to None.
+    Returns:
+        dict: The access token for the client.
+    """
     # get DN
     real_dn = _getDN(req)
     return jobDispatcher.get_proxy(real_dn, None, client_name, True, token_key)
 
 
-# get a token key
 def get_token_key(req, client_name):
+    """
+    This function retrieves the distinguished name (DN) from the request and uses it to get a token key for the specified client.
+
+    Args:
+        req: The request object containing the environment variables.
+        client_name (str): The name of the client requesting the token key.
+    Returns:
+        str: The token key for the client.
+    """
     # get DN
-    realDN = _getDN(req)
-    return jobDispatcher.get_token_key(realDN, client_name, req.acceptJson())
+    real_dn = _getDN(req)
+    return jobDispatcher.get_token_key(real_dn, client_name, req.acceptJson())
 
 
-# check pilot permission
-def checkPilotPermission(req, site=""):
+def checkPilotPermission(req):
+    """
+    This function retrieves the distinguished name (DN) and Fully Qualified Attribute Names (FQANs) from the request,
+    checks if the user has a production role, and verifies the DN.
+
+    Args:
+        req: The request object containing the environment variables.
+    Returns:
+        tuple: A tuple containing a boolean indicating success and a message.
+    """
     # get DN
-    realDN = _getDN(req)
-    # get FQANs
+    real_dn = _getDN(req)
+    if real_dn is None:
+        return False, "failed to retrieve DN"
+
+    # get FQANs and check production role
     fqans = _getFQAN(req)
-    # check production role
-    prodManager = _checkRole(fqans, realDN, jobDispatcher, True, site)
-    if not prodManager:
+    prod_manager = _checkRole(fqans, real_dn, True)
+    if not prod_manager:
         return False, "production or pilot role is required"
-    if realDN is None:
-        return False, "failed to retrive DN"
+
     return True, None
 
 
-# get DNs authorized for S3
 def getDNsForS3(req):
+    """
+    # get DNs authorized for S3
+    :param req:
+    :return:
+    """
     return jobDispatcher.getDNsForS3()
 
 
 def getCommands(req, harvester_id, n_commands, timeout=30):
     """
-    Get n commands for a particular harvester instance
+    This function checks the permissions and retrieves the commands for a specified harvester instance.
+
+    Args:
+        req: The request object containing the environment variables.
+        harvester_id (str): The ID of the harvester instance.
+        n_commands (int): The number of commands to retrieve.
+        timeout (int, optional): The timeout value. Defaults to 30.
+    Returns:
+        dict: The response from the job dispatcher.
     """
     tmp_str = "getCommands"
 
@@ -1629,7 +1664,14 @@ def getCommands(req, harvester_id, n_commands, timeout=30):
 
 def ackCommands(req, command_ids, timeout=30):
     """
-    Ack the commands in the list of IDs
+    This function checks the permissions, parses the command IDs from JSON, and acknowledges the list of commands.
+
+    Args:
+        req: The request object containing the environment variables.
+        command_ids (str): A JSON string containing the list of command IDs to acknowledge.
+        timeout (int, optional): The timeout value. Defaults to 30.
+    Returns:
+        dict: The response from the job dispatcher.
     """
     tmp_str = "ackCommands"
 
@@ -1640,13 +1682,20 @@ def ackCommands(req, command_ids, timeout=30):
 
     command_ids = json.loads(command_ids)
     accept_json = req.acceptJson()
+
     # retrieve the commands
     return jobDispatcher.ackCommands(command_ids, timeout, accept_json)
 
 
 def getResourceTypes(req, timeout=30):
     """
-    Get resource types (MCORE, SCORE, etc.)
+    This function retrieves the resource types (MCORE, SCORE, etc.) and their definitions.
+
+    Args:
+        req: The request object containing the environment variables.
+        timeout (int, optional): The timeout value. Defaults to 30.
+    Returns:
+        dict: The resource types and their definitions.
     """
     tmp_str = "getResourceTypes"
 
@@ -1656,12 +1705,29 @@ def getResourceTypes(req, timeout=30):
         _logger.error(f"{tmp_str} failed with {tmp_out}")
 
     accept_json = req.acceptJson()
-    # retrieve the commands
+
+    # retrieve the resource types
     return jobDispatcher.getResourceTypes(timeout, accept_json)
 
 
-# update the status of a worker according to the pilot
 def updateWorkerPilotStatus(req, site, workerID, harvesterID, status, timeout=60, node_id=None):
+    """
+    Update the status of a worker according to the pilot.
+
+    This function validates the pilot permissions and the state passed by the pilot, then updates the worker status.
+
+    Args:
+        req: The request object containing the environment variables.
+        site (str): The site name.
+        workerID (str): The worker ID.
+        harvesterID (str): The harvester ID.
+        status (str): The status of the worker. Must be either 'started' or 'finished'.
+        timeout (int, optional): The timeout value. Defaults to 60.
+        node_id (str, optional): The node ID. Defaults to None.
+
+    Returns:
+        str: The result of the status update or an error message.
+    """
     tmp_log = LogWrapper(
         _logger,
         f"updateWorkerPilotStatus workerID={workerID} harvesterID={harvesterID} status={status} nodeID={node_id} PID={os.getpid()}",
@@ -1669,7 +1735,7 @@ def updateWorkerPilotStatus(req, site, workerID, harvesterID, status, timeout=60
     tmp_log.debug("start")
 
     # validate the pilot permissions
-    tmp_stat, tmp_out = checkPilotPermission(req, site)
+    tmp_stat, tmp_out = checkPilotPermission(req)
     if not tmp_stat:
         tmp_log.error(f"failed with {tmp_out}")
         return tmp_out

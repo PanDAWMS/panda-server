@@ -38,6 +38,7 @@ class AdderAtlasPlugin(AdderPluginBase):
     Plugin class for adding data to datasets in ATLAS.
     Inherits from AdderPluginBase.
     """
+
     # constructor
     def __init__(self, job, **params):
         """
@@ -55,7 +56,6 @@ class AdderAtlasPlugin(AdderPluginBase):
         self.go_to_transferring = False
         self.log_transferring = False
         self.subscription_map = {}
-        self.panda_ddm = False
         self.go_to_merging = False
 
     # main
@@ -75,9 +75,6 @@ class AdderAtlasPlugin(AdderPluginBase):
             if self.job.jobStatus == "transferring":
                 self.add_to_top_only = True
                 self.logger.debug("adder for transferring")
-            # use PandaDDM for ddm jobs
-            if self.job.prodSourceLabel == "ddm":
-                self.panda_ddm = True
             # check if the job goes to merging
             if self.job.produceUnMerge():
                 self.go_to_merging = True
@@ -93,8 +90,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                 _, scope_dst_site_spec_output = select_scope(dst_site_spec, self.job.prodSourceLabel, self.job.job_label)
                 tmp_dst_ddm = dst_site_spec.ddm_output[scope_dst_site_spec_output]
                 # protection against disappearance of dest from schedconfig
-                if self.job.destinationSE not in ["NULL", None] and not self.siteMapper.checkSite(
-                        self.job.destinationSE) and self.job.destinationSE != "local":
+                if self.job.destinationSE not in ["NULL", None] and not self.siteMapper.checkSite(self.job.destinationSE) and self.job.destinationSE != "local":
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                     self.job.ddmErrorDiag = f"destinationSE {self.job.destinationSE} is unknown in schedconfig"
                     self.logger.error(f"{self.job.ddmErrorDiag}")
@@ -192,7 +188,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             int: 0 if successful, 1 if there was an error.
         """
         # return if non-DQ2
-        if self.panda_ddm or self.job.destinationSE == "local":
+        if self.job.destinationSE == "local":
             return 0
         # get the computingsite spec and scope
         src_site_spec = self.siteMapper.getSite(self.job.computingSite)
@@ -243,7 +239,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         for file in self.job.Files:
             # gc
             gc.collect()
-            if file.type in {'output', 'log'}:
+            if file.type in {"output", "log"}:
                 # prepare the site spec and scope for the destinationSE site
                 destination_se_site_spec = self.siteMapper.getSite(file.destinationSE)
                 _, scope_dst_se_site_spec_output = select_scope(destination_se_site_spec, self.job.prodSourceLabel, self.job.job_label)
@@ -666,10 +662,10 @@ class AdderAtlasPlugin(AdderPluginBase):
                 out = f"{err_type} : {err_value}"
                 out += traceback.format_exc()
                 is_fatal = (
-                        "value too large for column" in out
-                        or "unique constraint (ATLAS_RUCIO.DIDS_GUID_IDX) violate" in out
-                        or "unique constraint (ATLAS_RUCIO.DIDS_PK) violated" in out
-                        or "unique constraint (ATLAS_RUCIO.ARCH_CONTENTS_PK) violated" in out
+                    "value too large for column" in out
+                    or "unique constraint (ATLAS_RUCIO.DIDS_GUID_IDX) violate" in out
+                    or "unique constraint (ATLAS_RUCIO.DIDS_PK) violated" in out
+                    or "unique constraint (ATLAS_RUCIO.ARCH_CONTENTS_PK) violated" in out
                 )
                 is_failed = True
             reg_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - reg_start

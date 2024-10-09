@@ -64,12 +64,6 @@ class UserIF:
         try:
             good_labels = True
             for tmpJob in jobs:
-                # prevent internal jobs from being submitted from outside
-                if tmpJob.prodSourceLabel in pandaserver.taskbuffer.ProcessGroups.internalSourceLabels:
-                    good_labels = False
-                    good_labels_message = f"submitJobs {user} wrong prodSourceLabel={tmpJob.prodSourceLabel}"
-                    break
-
                 # check production role
                 if tmpJob.prodSourceLabel in ["managed"] and not prodRole:
                     good_labels = False
@@ -609,27 +603,6 @@ class UserIF:
         _logger.debug("getFullJobStatus end")
         # serialize
         return WrappedPickle.dumps(ret)
-
-    # add account to siteaccess
-    def addSiteAccess(self, siteID, dn):
-        # add
-        ret = self.taskBuffer.addSiteAccess(siteID, dn)
-        # serialize
-        return WrappedPickle.dumps(ret)
-
-    # list site access
-    def listSiteAccess(self, siteID, dn, longFormat=False):
-        # list
-        ret = self.taskBuffer.listSiteAccess(siteID, dn, longFormat)
-        # serialize
-        return WrappedPickle.dumps(ret)
-
-    # update site access
-    def updateSiteAccess(self, method, siteid, requesterDN, userName, attrValue):
-        # list
-        ret = self.taskBuffer.updateSiteAccess(method, siteid, requesterDN, userName, attrValue)
-        # serialize
-        return str(ret)
 
     # insert task params
     def insertTaskParams(self, taskParams, user, prodRole, fqans, properErrorCode, parent_tid):
@@ -1623,52 +1596,6 @@ def getNUserJobs(req, siteName):
         return "Failed : VOMS authorization failure. production or pilot role required"
     # execute
     return userIF.getNUserJobs(siteName)
-
-
-# add account to siteaccess
-def addSiteAccess(req, siteID):
-    # check security
-    if not isSecure(req):
-        return "False"
-    # get DN
-    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
-        return "False"
-    dn = req.subprocess_env["SSL_CLIENT_S_DN"]
-    return userIF.addSiteAccess(siteID, dn)
-
-
-# list site access
-def listSiteAccess(req, siteID=None, longFormat=False):
-    # check security
-    if not isSecure(req):
-        return "False"
-    # get DN
-    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
-        return "False"
-    # set DN if siteID is none
-    dn = None
-    if siteID is None:
-        dn = req.subprocess_env["SSL_CLIENT_S_DN"]
-    # convert longFormat option
-    if longFormat == "True":
-        longFormat = True
-    else:
-        longFormat = False
-    return userIF.listSiteAccess(siteID, dn, longFormat)
-
-
-# update site access
-def updateSiteAccess(req, method, siteid, userName, attrValue=""):
-    # check security
-    if not isSecure(req):
-        return "non HTTPS"
-    # get DN
-    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
-        return "invalid DN"
-    # set requester's DN
-    requesterDN = req.subprocess_env["SSL_CLIENT_S_DN"]
-    # update
-    return userIF.updateSiteAccess(method, siteid, requesterDN, userName, attrValue)
 
 
 # insert task params

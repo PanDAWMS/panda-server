@@ -1,6 +1,7 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs", "requests"]
 build-backend = "hatchling.build"
+
 
 [project]
 name = "panda-server"
@@ -33,7 +34,8 @@ dependencies = [
     'snakemake==7.30.1',
     'numpy',
     'scipy',
-    'werkzeug'
+    'werkzeug',
+    'requests',
 ]
 requires-python = ">=3.8"
 
@@ -57,7 +59,7 @@ directory = "dist"
 
 [tool.hatch.build.targets.wheel]
 exclude = ["*.template"]
-packages = ["pandaserver"]
+packages = ["pandaserver", "package"]
 
 [tool.hatch.build.targets.wheel.shared-data]
 "templates" = "etc/panda"
