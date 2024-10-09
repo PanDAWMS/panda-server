@@ -121,8 +121,8 @@ class AdderGen:
         """
         Get the job output report.
         """
-        report_dict = self.taskBuffer.getJobOutputReport(panda_id=self.job_id, attempt_nr=self.attempt_nr)
-        self.data = report_dict.get("data")
+        self.report_dict = self.taskBuffer.getJobOutputReport(panda_id=self.job_id, attempt_nr=self.attempt_nr)
+        self.data = self.report_dict.get("data")
 
     def register_event_service_files(self) -> None:
         """
@@ -199,13 +199,13 @@ class AdderGen:
             )
             self.logger.debug("plugin is ready")
             adder_plugin.execute()
-            add_result = adder_plugin.result
-            self.logger.debug(f"plugin done with {add_result.status_code}")
+            self.add_result = adder_plugin.result
+            self.logger.debug(f"plugin done with {self.add_result.status_code}")
         except Exception:
             err_type, err_value = sys.exc_info()[:2]
             self.logger.error(f"failed to execute AdderPlugin for VO={self.job.VO} with {err_type}:{err_value}")
             self.logger.error(f"failed to execute AdderPlugin for VO={self.job.VO} with {traceback.format_exc()}")
-            add_result = None
+            self.add_result = None
             self.job.ddmErrorCode = pandaserver.dataservice.ErrorCode.EC_Adder
             self.job.ddmErrorDiag = "AdderPlugin failure"
 
@@ -220,18 +220,18 @@ class AdderGen:
             self.job.jobDispatcherErrorCode = 0
             self.job.jobDispatcherErrorDiag = "NULL"
             # set status
-            if add_result is not None and add_result.merging_files != []:
+            if self.add_result is not None and self.add_result.merging_files != []:
                 # set status for merging:
                 for file in self.job.Files:
-                    if file.lfn in add_result.merging_files:
+                    if file.lfn in self.add_result.merging_files:
                         file.status = "merging"
                 self.job.jobStatus = "merging"
                 # propagate transition to prodDB
                 self.job.stateChangeTime = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-            elif add_result is not None and add_result.transferring_files != []:
+            elif self.add_result is not None and self.add_result.transferring_files != []:
                 # set status for transferring
                 for file in self.job.Files:
-                    if file.lfn in add_result.transferring_files:
+                    if file.lfn in self.add_result.transferring_files:
                         file.status = "transferring"
                 self.job.jobStatus = "transferring"
                 self.job.jobSubStatus = None
@@ -309,7 +309,7 @@ class AdderGen:
         self.job.jobStatus = "failed"
         for file in self.job.Files:
             if file.type in ["output", "log"]:
-                if add_result is not None and file.lfn in add_result.merging_files:
+                if self.add_result is not None and file.lfn in self.add_result.merging_files:
                     file.status = "merging"
                 else:
                     file.status = "failed"
@@ -344,7 +344,7 @@ class AdderGen:
             # set job status
             if self.job.jobStatus not in ["transferring"]:
                 self.job.jobStatus = self.job_status
-            add_result = None
+            self.add_result = None
             adder_plugin = None
 
             # parse JSON
@@ -354,7 +354,7 @@ class AdderGen:
                 self.execute_plugin()
 
                 # ignore temporary errors
-                if self.ignore_tmp_error and add_result is not None and add_result.is_temporary():
+                if self.ignore_tmp_error and self.add_result is not None and self.add_result.is_temporary():
                     self.logger.debug(f": ignore {self.job.ddmErrorDiag} ")
                     self.logger.debug("escape")
                     # unlock job output report
@@ -366,7 +366,7 @@ class AdderGen:
                     )
                     return
                 # failed
-                if add_result is None or not add_result.is_succeeded():
+                if self.add_result is None or not self.add_result.is_succeeded():
                     self.job.jobStatus = "failed"
 
             # set file status for failed jobs or failed transferring jobs
@@ -571,7 +571,7 @@ class AdderGen:
             self.taskBuffer.deleteJobOutputReport(panda_id=self.job_id, attempt_nr=self.attempt_nr)
 
             del self.data
-            del report_dict
+            del self.report_dict
         except Exception as e:
             err_str = f": {str(e)} {traceback.format_exc()}"
             self.logger.error(err_str)
