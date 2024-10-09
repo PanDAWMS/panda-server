@@ -4,12 +4,11 @@ General Adder plugin. Add data to dataset
 """
 
 import datetime
+import json
 import re
 import sys
 import time
-
 import traceback
-import json
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -29,6 +28,7 @@ class AdderGen:
     """
     General Adder plugin.
     """
+
     # constructor
     def __init__(
         self,
@@ -652,7 +652,7 @@ class AdderGen:
                 # endpoints
                 self.extra_info["endpoint"][lfn] = []
                 if "endpoint" in file_data:
-                    self.extra_info["endpoint"][lfn] = file_data["endpoint"]
+                    self.extra_info["endpoint"][lfn] = [file_data["endpoint"]]
                 # error check
                 if (lfn not in input_lfns) and (fsize is None or (md5sum is None and adler32 is None)):
                     if not EventServiceUtils.isEventServiceMerge(self.job):

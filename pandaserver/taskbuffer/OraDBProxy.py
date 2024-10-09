@@ -66,6 +66,7 @@ if panda_config.backend == "oracle":
 
 elif panda_config.backend == "postgres":
     import psycopg2 as psycopg
+    import psycopg2.errorcodes as psycopg_errorcodes
 
     from . import WrappedPostgresConn
 
@@ -1600,147 +1601,6 @@ class DBProxy:
                         if useCommit and inTransaction:
                             if not self._commit():
                                 raise RuntimeError("Commit error")
-                elif job.prodSourceLabel == "ddm" and job.jobStatus == "failed" and job.transferType == "dis":
-                    if useCommit:
-                        self.conn.begin()
-                    # get corresponding jobs for production movers
-                    vuid = ""
-                    # extract vuid
-                    match = re.search("--callBack (\S+)", job.jobParameters)
-                    if match is not None:
-                        try:
-                            callbackUrl = urllib.unquote(match.group(1))
-                            callbackUrl = re.sub("[&\?]", " ", callbackUrl)
-                            # look for vuid=
-                            for item in callbackUrl.split():
-                                if item.startswith("vuid="):
-                                    vuid = item.split("=")[-1]
-                                    break
-                        except Exception:
-                            pass
-                        if vuid == "":
-                            tmpLog.error(f"cannot extract vuid from {job.jobParameters}")
-                        else:
-                            # get name
-                            varMap = {}
-                            varMap[":vuid"] = vuid
-                            varMap[":type"] = "dispatch"
-                            self.cur.arraysize = 10
-                            self.cur.execute(
-                                "SELECT name FROM ATLAS_PANDA.Datasets WHERE vuid=:vuid AND type=:type " + comment,
-                                varMap,
-                            )
-                            res = self.cur.fetchall()
-                            if len(res) != 0:
-                                disName = res[0][0]
-                                # check lost files
-                                varMap = {}
-                                varMap[":status"] = "lost"
-                                varMap[":dispatchDBlock"] = disName
-                                sqlLost = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ distinct PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE status=:status AND dispatchDBlock=:dispatchDBlock"
-                                self.cur.execute(sqlLost + comment, varMap)
-                                resLost = self.cur.fetchall()
-                                # fail jobs with lost files
-                                sqlDJS = f"SELECT {JobSpec.columnNames()} "
-                                sqlDJS += "FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
-                                sqlDJD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
-                                sqlDJI = f"INSERT INTO ATLAS_PANDA.jobsArchived4 ({JobSpec.columnNames()}) "
-                                sqlDJI += JobSpec.bindValuesExpression()
-                                sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-                                sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-                                sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-                                lostJobIDs = []
-                                for (tmpID,) in resLost:
-                                    tmpLog.debug(f"fail due to lost files : {tmpID}")
-                                    varMap = {}
-                                    varMap[":PandaID"] = tmpID
-                                    self.cur.arraysize = 10
-                                    self.cur.execute(sqlDJS + comment, varMap)
-                                    resJob = self.cur.fetchall()
-                                    if len(resJob) == 0:
-                                        continue
-                                    # instantiate JobSpec
-                                    dJob = JobSpec()
-                                    dJob.pack(resJob[0])
-                                    # delete
-                                    varMap = {}
-                                    varMap[":PandaID"] = tmpID
-                                    self.cur.execute(sqlDJD + comment, varMap)
-                                    retD = self.cur.rowcount
-                                    if retD == 0:
-                                        continue
-                                    # error code
-                                    dJob.jobStatus = "failed"
-                                    dJob.endTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-                                    dJob.ddmErrorCode = 101
-                                    dJob.ddmErrorDiag = "lost file in SE"
-                                    dJob.modificationTime = dJob.endTime
-                                    dJob.stateChangeTime = dJob.endTime
-                                    # insert
-                                    self.cur.execute(sqlDJI + comment, dJob.valuesMap())
-                                    # update files,metadata,parametes
-                                    varMap = {}
-                                    varMap[":PandaID"] = tmpID
-                                    varMap[":modificationTime"] = dJob.modificationTime
-                                    self.cur.execute(sqlFMod + comment, varMap)
-                                    self.cur.execute(sqlMMod + comment, varMap)
-                                    self.cur.execute(sqlPMod + comment, varMap)
-                                    # append
-                                    lostJobIDs.append(tmpID)
-                                    # collect to record state change
-                                    updatedJobList.append(dJob)
-                                # get PandaIDs
-                                varMap = {}
-                                varMap[":jobStatus"] = "assigned"
-                                varMap[":dispatchDBlock"] = disName
-                                self.cur.execute(
-                                    "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE dispatchDBlock=:dispatchDBlock AND jobStatus=:jobStatus " + comment,
-                                    varMap,
-                                )
-                                resDDM = self.cur.fetchall()
-                                for (tmpID,) in resDDM:
-                                    if tmpID not in lostJobIDs:
-                                        ddmIDs.append(tmpID)
-                                # get offset
-                                ddmAttempt = job.attemptNr
-                                tmpLog.debug(f"get PandaID for reassign : {str(ddmIDs)} ddmAttempt={ddmAttempt}")
-                    if useCommit:
-                        if not self._commit():
-                            raise RuntimeError("Commit error")
-                elif (
-                    job.prodSourceLabel == "ddm"
-                    and job.jobStatus == "failed"
-                    and job.transferType == "ddm"
-                    and job.attemptNr < 2
-                    and job.commandToPilot != "tobekilled"
-                ):
-                    # instantiate new mover to retry subscription
-                    newJob = JobSpec()
-                    newJob.jobDefinitionID = job.jobDefinitionID
-                    newJob.jobName = job.jobName
-                    newJob.attemptNr = job.attemptNr + 1
-                    newJob.transformation = job.transformation
-                    newJob.destinationDBlock = job.destinationDBlock
-                    newJob.destinationSE = job.destinationSE
-                    newJob.currentPriority = job.currentPriority
-                    newJob.prodSourceLabel = job.prodSourceLabel
-                    newJob.prodUserID = job.prodUserID
-                    newJob.computingSite = job.computingSite
-                    newJob.transferType = job.transferType
-                    newJob.sourceSite = job.sourceSite
-                    newJob.destinationSite = job.destinationSite
-                    newJob.jobParameters = job.jobParameters
-                    if job.Files != []:
-                        file = job.Files[0]
-                        fileOL = FileSpec()
-                        # add attempt nr
-                        fileOL.lfn = re.sub("\.\d+$", "", file.lfn)
-                        fileOL.lfn = "%s.%d" % (fileOL.lfn, job.attemptNr)
-                        fileOL.destinationDBlock = file.destinationDBlock
-                        fileOL.destinationSE = file.destinationSE
-                        fileOL.dataset = file.dataset
-                        fileOL.type = file.type
-                        newJob.addFile(fileOL)
 
                 # main job
                 if useCommit:
@@ -3205,7 +3065,6 @@ class DBProxy:
                         and (not job.computingSite.startswith("ANALY_LONG_"))
                         and job.attemptNr < 2
                     )
-                    or (job.prodSourceLabel == "ddm" and job.cloud == "CA" and job.attemptNr <= 10)
                     or failedInActive
                     or usePilotRetry
                 ) and job.commandToPilot != "tobekilled":
@@ -9457,7 +9316,6 @@ class DBProxy:
                         ret.maxDiskio = queue_data.get("maxdiskio")
                         ret.pandasite_state = "ACTIVE"
                         ret.fairsharePolicy = queue_data.get("fairsharepolicy")
-                        ret.priorityoffset = queue_data.get("priorityoffset")
                         ret.defaulttoken = queue_data.get("defaulttoken")
 
                         ret.direct_access_lan = queue_data.get("direct_access_lan") is True
@@ -9824,194 +9682,6 @@ class DBProxy:
             tmp_log.error(f"failed with: {type} {value}")
             self._rollback()
             return []
-
-    def get_cloud_details(self):
-        """
-        This is a temporary function, while we see how we can remove the leftovers
-        """
-        comment = " /* DBProxy.get_cloud_details */"
-        method_name = comment.split(" ")[-2].split(".")[-1]
-
-        tmp_log = LogWrapper(_logger, method_name)
-        tmp_log.debug("start")
-        try:
-            with self.conn:
-                sql = f"SELECT name, tier1, tier1se " f"FROM {panda_config.schemaMETA}.cloudconfig "
-                self.cur.arraysize = 100
-                self.cur.execute(sql + comment)
-                results = self.cur.fetchall()
-                cloud_map = {}
-                for result in results:
-                    name, tier1, tier1_se = result
-                    cloud_map[name] = {"tier1": tier1, "tier1SE": re.sub(" ", "", tier1_se).split(",")}
-
-            tmp_log.debug("done")
-            return cloud_map
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            tmp_log.error(f"failed with: {type} {value}")
-            self._rollback()
-            return {}
-
-    # check sites with release/cache
-    def checkSitesWithRelease(
-        self,
-        sites,
-        releases,
-        caches,
-        cmtConfig=None,
-        onlyCmtConfig=False,
-        cmtConfigPattern=False,
-    ):
-        comment = " /* DBProxy.checkSitesWithRelease */"
-        try:
-            relStr = releases
-            if releases is not None:
-                relStr = releases.replace("\n", " ")
-            caStr = caches
-            if caches is not None:
-                caStr = caches.replace("\n", " ")
-            _logger.debug(f"checkSitesWithRelease({sites},{relStr},{caStr},{cmtConfig},{cmtConfigPattern})")
-            # select
-            sql = "SELECT distinct siteid FROM ATLAS_PANDAMETA.InstalledSW WHERE "
-            loopKey2 = None
-            loopValues2 = []
-            if caches not in ["", "NULL", None]:
-                loopKey = ":cache"
-                loopValues = caches.split("\n")
-                sql += "cache=:cache "
-                if releases not in ["", "NULL", None]:
-                    loopKey2 = ":release"
-                    loopValues2 = releases.split("\n")
-                    sql += "AND `release`=:release "
-            elif releases not in ["", "NULL", None]:
-                loopKey = ":release"
-                loopValues = releases.split("\n")
-                sql += "`release`=:release AND cache='None' "
-            elif onlyCmtConfig:
-                loopKey = None
-                loopValues = [None]
-            else:
-                # don't check
-                return sites
-            checkCMT = False
-            if cmtConfig not in ["", "NULL", None]:
-                if onlyCmtConfig:
-                    if not cmtConfigPattern:
-                        sql += "cmtConfig=:cmtConfig "
-                    else:
-                        sql += "cmtConfig LIKE :cmtConfig "
-                else:
-                    sql += "AND cmtConfig=:cmtConfig "
-                checkCMT = True
-            sql += "AND siteid IN ("
-            # start transaction
-            self.conn.begin()
-            self.cur.arraysize = 1000
-            # loop over all releases/caches
-            for loopIdx, loopVal in enumerate(loopValues):
-                sqlSite = sql
-                varMap = {}
-                if loopKey is not None:
-                    # remove Atlas-
-                    loopVal = re.sub("^Atlas-", "", loopVal)
-                    varMap[loopKey] = loopVal
-                    if loopKey2 is not None:
-                        loopVal2 = loopValues2[loopIdx]
-                        loopVal2 = re.sub("^Atlas-", "", loopVal2)
-                        varMap[loopKey2] = loopVal2
-                if checkCMT:
-                    varMap[":cmtConfig"] = cmtConfig
-                tmpRetSites = []
-                # loop over sites
-                nSites = 10
-                iSite = 0
-                for siteIndex, site in enumerate(sites):
-                    iSite += 1
-                    tmpSiteKey = f":siteid{iSite}"
-                    varMap[tmpSiteKey] = site
-                    sqlSite += f"{tmpSiteKey},"
-                    if iSite == nSites or (siteIndex + 1) == len(sites):
-                        iSite = 0
-                        # close bracket in SQL
-                        sqlSite = sqlSite[:-1]
-                        sqlSite += ")"
-                        # execute
-                        _logger.debug(sqlSite + comment + str(varMap))
-                        self.cur.execute(sqlSite + comment, varMap)
-                        resList = self.cur.fetchall()
-                        # collect candidates
-                        if len(resList) > 0:
-                            for (tmpSite,) in resList:
-                                # append
-                                tmpRetSites.append(tmpSite)
-                        # reset
-                        sqlSite = sql
-                        varMap = {}
-                        if loopKey is not None:
-                            varMap[loopKey] = loopVal
-                            if loopKey2 is not None:
-                                varMap[loopKey2] = loopVal2
-                        if checkCMT:
-                            varMap[":cmtConfig"] = cmtConfig
-                # set
-                sites = tmpRetSites
-                # escape
-                if sites == []:
-                    break
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            _logger.debug(f"checkSitesWithRelease -> {sites}")
-            return sites
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"checkSitesWithRelease : {type} {value}")
-            return []
-
-    # get pilot owners
-    def getPilotOwners(self):
-        comment = " /* DBProxy.getPilotOwners */"
-        _logger.debug("getPilotOwners")
-        try:
-            ret = {None: set()}
-            # set autocommit on
-            self.conn.begin()
-            # select
-            sql = "SELECT pilotowners FROM ATLAS_PANDAMETA.cloudconfig "
-            self.cur.arraysize = 10000
-            self.cur.execute(sql + comment)
-            resList = self.cur.fetchall()
-            for (tmpItem,) in resList:
-                if tmpItem is not None:
-                    for tmpOwner in tmpItem.split("|"):
-                        if tmpOwner != "":
-                            ret[None].add(tmpOwner)
-
-            sql = "SELECT /* use_json_type */ scj.data.siteid, scj.data.dn FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.data.dn IS NOT NULL "
-            self.cur.execute(sql + comment)
-            resList = self.cur.fetchall()
-            for tmpSiteID, tmpItem in resList:
-                if tmpItem is not None:
-                    tmpItem = tmpItem.strip()
-                    for tmpOwner in tmpItem.split("|"):
-                        if tmpOwner not in ["", "None"]:
-                            if tmpSiteID not in ret:
-                                ret[tmpSiteID] = set()
-                            ret[tmpSiteID].add(tmpOwner)
-            _logger.debug(f"getPilotOwners -> {str(ret)}")
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            return ret
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getPilotOwners : {type} {value}")
-            return ret
 
     # get special dispatcher parameters
     def get_special_dispatch_params(self):
@@ -10589,264 +10259,6 @@ class DBProxy:
             # dump error
             self.dumpErrorMessage(_logger, method_name)
             return False
-
-    # check site access
-    def checkSiteAccess(self, siteid, longDN):
-        comment = " /* DBProxy.checkSiteAccess */"
-        _logger.debug(f"checkSiteAccess {siteid}:{longDN}")
-        try:
-            # use compact DN
-            dn = self.cleanUserID(longDN)
-            # construct SQL
-            sql = "SELECT poffset,rights,status,workingGroups FROM ATLAS_PANDAMETA.siteaccess WHERE dn=:dn AND pandasite=:pandasite"
-            varMap = {}
-            varMap[":dn"] = dn
-            varMap[":pandasite"] = siteid
-            # set autocommit on
-            self.conn.begin()
-            # select
-            self.cur.execute(sql + comment, varMap)
-            self.cur.arraysize = 10
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # return
-            retMap = {}
-            if res is not None and len(res) != 0:
-                poffset, rights, status, workingGroups = res[0]
-                retMap["poffset"] = poffset
-                retMap["rights"] = rights
-                retMap["status"] = status
-                if workingGroups in ["", None]:
-                    workingGroups = []
-                else:
-                    workingGroups = workingGroups.split(",")
-                retMap["workingGroups"] = workingGroups
-            _logger.debug(retMap)
-            return retMap
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"checkSiteAccess : {type} {value}")
-            # roll back
-            self._rollback()
-            return {}
-
-    # add account to siteaccess
-    def addSiteAccess(self, siteID, longDN):
-        comment = " /* DBProxy.addSiteAccess */"
-        _logger.debug(f"addSiteAccess : {siteID} {longDN}")
-        try:
-            # use compact DN
-            dn = self.cleanUserID(longDN)
-            # set autocommit on
-            self.conn.begin()
-            # select
-            sql = "SELECT status FROM ATLAS_PANDAMETA.siteaccess WHERE dn=:dn AND pandasite=:pandasite"
-            varMap = {}
-            varMap[":dn"] = dn
-            varMap[":pandasite"] = siteID
-            self.cur.execute(sql + comment, varMap)
-            self.cur.arraysize = 10
-            res = self.cur.fetchone()
-            if res is not None:
-                _logger.debug(f"account already exists with status={res[0]}")
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                return res[0]
-            # add
-            sql = "INSERT INTO ATLAS_PANDAMETA.siteaccess (id,dn,pandasite,status,created) VALUES (ATLAS_PANDAMETA.SITEACCESS_ID_SEQ.nextval,:dn,:pandasite,:status,CURRENT_DATE)"
-
-            varMap = {}
-            varMap[":dn"] = dn
-            varMap[":pandasite"] = siteID
-            varMap[":status"] = "requested"
-            self.cur.execute(sql + comment, varMap)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            _logger.debug("account was added")
-            return 0
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"addSiteAccess : {type} {value}")
-            # return None
-            return -1
-
-    # list site access
-    def listSiteAccess(self, siteid=None, dn=None, longFormat=False):
-        comment = " /* DBProxy.listSiteAccess */"
-        _logger.debug(f"listSiteAccess {siteid}:{dn}")
-        try:
-            if siteid is None and dn is None:
-                return []
-            longAttributes = "status,poffset,rights,workingGroups,created"
-            # set autocommit on
-            self.conn.begin()
-            # construct SQL
-            if siteid is not None:
-                varMap = {":pandasite": siteid}
-                if not longFormat:
-                    sql = "SELECT dn,status FROM ATLAS_PANDAMETA.siteaccess WHERE pandasite=:pandasite ORDER BY dn"
-                else:
-                    sql = f"SELECT dn,{longAttributes} FROM ATLAS_PANDAMETA.siteaccess "
-                    sql += "WHERE pandasite=:pandasite ORDER BY dn"
-            else:
-                shortDN = self.cleanUserID(dn)
-                varMap = {":dn": shortDN}
-                if not longFormat:
-                    sql = "SELECT pandasite,status FROM ATLAS_PANDAMETA.siteaccess WHERE dn=:dn ORDER BY pandasite"
-                else:
-                    sql = f"SELECT pandasite,{longAttributes} FROM ATLAS_PANDAMETA.siteaccess "
-                    sql += "WHERE dn=:dn ORDER BY pandasite"
-            # select
-            self.cur.execute(sql + comment, varMap)
-            self.cur.arraysize = 1000
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # return
-            ret = []
-            if res is not None and len(res) != 0:
-                for tmpRes in res:
-                    if not longFormat:
-                        ret.append(tmpRes)
-                    else:
-                        # create map for long format
-                        tmpRetMap = {}
-                        # use first value as a primary key
-                        tmpRetMap["primKey"] = tmpRes[0]
-                        idxVal = 1
-                        for tmpKey in longAttributes.split(","):
-                            tmpRetMap[tmpKey] = tmpRes[idxVal]
-                            idxVal += 1
-                        ret.append(tmpRetMap)
-            _logger.debug(ret)
-            return ret
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"listSiteAccess : {type} {value}")
-            return []
-
-    # update site access
-    def updateSiteAccess(self, method, siteid, requesterDN, userName, attrValue):
-        comment = " /* DBProxy.updateSiteAccess */"
-        _logger.debug(f"updateSiteAccess {method}:{siteid}:{requesterDN}:{userName}:{attrValue}")
-        try:
-            # set autocommit on
-            self.conn.begin()
-            # check existence
-            varMap = {}
-            varMap[":pandasite"] = siteid
-            varMap[":dn"] = userName
-            sql = "SELECT count(*) FROM ATLAS_PANDAMETA.siteaccess WHERE pandasite=:pandasite AND dn=:dn"
-            self.cur.execute(sql + comment, varMap)
-            self.cur.arraysize = 10
-            res = self.cur.fetchall()
-            if res is None or res[0][0] == 0:
-                _logger.error(f"updateSiteAccess : No request for {varMap}")
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # return
-                return f"No request for {siteid}:{userName}"
-            # get cloud
-            varMap = {":pandasite": siteid}
-            sql = "SELECT /* use_json_type */ scj.data.cloud, scj.data.dn FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:pandasite AND rownum<=1"
-            self.cur.execute(sql + comment, varMap)
-            res = self.cur.fetchall()
-            if res is None or len(res) == 0:
-                _logger.error(f"updateSiteAccess : No cloud in schedconfig for {siteid}")
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # return
-                return f"No cloud in schedconfig for {siteid}"
-            cloud = res[0][0]
-            siteContact = res[0][1]
-            # get cloud responsible
-            varMap = {":cloud": cloud}
-            sql = "SELECT dn FROM ATLAS_PANDAMETA.cloudconfig WHERE name=:cloud"
-            self.cur.execute(sql + comment, varMap)
-            res = self.cur.fetchall()
-            if res is None or len(res) == 0:
-                _logger.error(f"updateSiteAccess : No contact in cloudconfig for {cloud}")
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # return
-                return f"No contact in cloudconfig for {cloud}"
-            contactNames = res[0][0]
-            if contactNames in [None, ""]:
-                contactNames = []
-            else:
-                contactNames = contactNames.split(",")
-            # get site responsible
-            if siteContact not in [None, ""]:
-                contactNames += siteContact.split(",")
-            # check privilege
-            if self.cleanUserID(requesterDN) not in contactNames:
-                _logger.error(f"updateSiteAccess : {requesterDN} is not one of contacts {str(contactNames)}")
-                # return
-                return "Insufficient privilege"
-            # update
-            varMap = {}
-            varMap[":pandasite"] = siteid
-            varMap[":dn"] = userName
-            if method in ["approve", "reject"]:
-                # update status
-                sql = "UPDATE ATLAS_PANDAMETA.siteaccess SET status=:newStatus WHERE pandasite=:pandasite AND dn=:dn"
-                if method == "approve":
-                    varMap[":newStatus"] = "tobeapproved"
-                else:
-                    varMap[":newStatus"] = "toberejected"
-            elif method == "delete":
-                # delete
-                sql = "DELETE FROM ATLAS_PANDAMETA.siteaccess WHERE pandasite=:pandasite AND dn=:dn"
-            elif method == "set":
-                # check value
-                if re.search("^[a-z,A-Z]+:[a-z,A-Z,0-9,\,_\-]+$", attrValue) is None:
-                    errStr = f"Invalid argument for set : {attrValue}. Must be key:value"
-                    _logger.error(f"updateSiteAccess : {errStr}")
-                    # retrun
-                    return errStr
-                # decompose to key and value
-                tmpKey = attrValue.split(":")[0].lower()
-                tmpVal = attrValue.split(":")[-1]
-                # check key
-                changeableKeys = ["poffset", "workinggroups", "rights"]
-                if tmpKey not in changeableKeys:
-                    errStr = f"{tmpKey} cannot be set. Only {str(changeableKeys)} are allowed"
-                    _logger.error(f"updateSiteAccess : {errStr}")
-                    # retrun
-                    return errStr
-                # set value map
-                varMap[f":{tmpKey}"] = tmpVal
-                sql = f"UPDATE ATLAS_PANDAMETA.siteaccess SET {tmpKey}=:{tmpKey} WHERE pandasite=:pandasite AND dn=:dn"
-            else:
-                _logger.error(f"updateSiteAccess : Unknown method '{method}'")
-                # return
-                return f"Unknown method '{method}'"
-            # execute
-            _logger.debug(sql + comment + str(varMap))
-            self.cur.execute(sql + comment, varMap)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            _logger.debug("updateSiteAccess : completed")
-            return True
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"updateSiteAccess : {type} {value}")
-            return f"DB error {type} {value}"
 
     # get list of archived tables
     def getArchiveTables(self):
@@ -12353,25 +11765,33 @@ class DBProxy:
 
     # rollback
     def _rollback(self, useOtherError=False):
-        retVal = True
+        return_value = True
         # rollback
+        err_code = None
         _logger.debug("rollback")
         try:
             self.conn.rollback()
-        except Exception:
+        except Exception as e:
             _logger.error("rollback error")
-            retVal = False
+            # get error code from
+            if self.backend == "postgres":
+                try:
+                    err_code = e.pgcode
+                except Exception:
+                    pass
+            return_value = False
         # reconnect if needed
         try:
             # get ORA ErrorCode
-            errType, errValue = sys.exc_info()[:2]
-            oraErrCode = str(errValue).split()[0]
-            oraErrCode = oraErrCode[:-1]
-            errMsg = f"rollback EC:{oraErrCode} {errValue}"
-            _logger.debug(errMsg)
+            err_type, err_value = sys.exc_info()[:2]
+            if err_code is None:
+                err_code = str(err_value).split()[0]
+                err_code = err_code[:-1]
+            err_msg = f"rollback EC:{err_code} {err_value}"
+            _logger.debug(err_msg)
             # error codes for connection error
             if self.backend == "oracle":
-                error_Codes = [
+                error_list_for_reconnect = [
                     "ORA-01012",
                     "ORA-01033",
                     "ORA-01034",
@@ -12384,9 +11804,17 @@ class DBProxy:
                     "ORA-03135",
                     "ORA-25402",
                 ]
-                # other errors are apperantly given when connection lost contact
+                # other errors are apparently given when connection lost contact
                 if useOtherError:
-                    error_Codes += ["ORA-01861", "ORA-01008"]
+                    error_list_for_reconnect += ["ORA-01861", "ORA-01008"]
+            elif self.backend == "postgres":
+                error_list_for_reconnect = [
+                    psycopg_errorcodes.CONNECTION_EXCEPTION,
+                    psycopg_errorcodes.SQLSERVER_REJECTED_ESTABLISHMENT_OF_SQLCONNECTION,
+                    psycopg_errorcodes.CONNECTION_DOES_NOT_EXIST,
+                    psycopg_errorcodes.SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION,
+                    psycopg_errorcodes.CONNECTION_FAILURE,
+                ]
             else:
                 # mysql error codes for connection error
                 from MySQLdb.constants.CR import (
@@ -12402,7 +11830,7 @@ class DBProxy:
                     SERVER_SHUTDOWN,
                 )
 
-                error_Codes = [
+                error_list_for_reconnect = [
                     ACCESS_DENIED_ERROR,
                     DBACCESS_DENIED_ERROR,
                     SERVER_SHUTDOWN,
@@ -12411,17 +11839,17 @@ class DBProxy:
                     LOCALHOST_CONNECTION,
                     SERVER_LOST,
                 ]
-                # other errors are apperantly given when connection lost contact
+                # other errors are apparently given when connection lost contact
                 if useOtherError:
-                    error_Codes += [ILLEGAL_VALUE_FOR_TYPE]
-            if oraErrCode in error_Codes:
+                    error_list_for_reconnect += [ILLEGAL_VALUE_FOR_TYPE]
+            if err_code in error_list_for_reconnect:
                 # reconnect
-                retFlag = self.connect(reconnect=True)
-                _logger.debug(f"rollback reconnected {retFlag}")
+                reconnect_stat = self.connect(reconnect=True)
+                _logger.debug(f"rollback reconnected {reconnect_stat}")
         except Exception:
             pass
         # return
-        return retVal
+        return return_value
 
     # dump error message
     def dumpErrorMessage(self, tmpLog, methodName):
@@ -13976,7 +13404,6 @@ class DBProxy:
             tmpLog.debug(f"total {len(eventDictList)} events")
             zipRowIdMap = {}
             nEventsMap = dict()
-            cpuConsumptionTimeMap = dict()
             iEvents = 0
             maxEvents = 100000
             iSkipped = 0
@@ -20489,7 +19916,7 @@ class DBProxy:
                 jtid_bindings = ",".join(f":jtid{i}" for i in range(len(good_taskid_set)))
                 locked_taskid_set = shard_taskid_set - good_taskid_set
                 if locked_taskid_set:
-                    tmp_log.debug(f"skip locked tasks: {','.join(list(locked_taskid_set))}")
+                    tmp_log.debug(f"skip locked tasks: {','.join([str(i) for i in locked_taskid_set])}")
 
                 # update the task
                 sql_task = f"""
@@ -20498,7 +19925,7 @@ class DBProxy:
                        """
 
                 self.cur.execute(sql_task + comment, var_map)
-                tmp_log.debug(f"task sql executed: {sql_task}")
+                tmp_log.debug(f"""set tasks {",".join([str(i) for i in good_taskid_set])} to gshare={gshare}""")
 
                 var_map[":pending"] = "pending"
                 var_map[":defined"] = "defined"
@@ -20525,8 +19952,6 @@ class DBProxy:
                         sql_jobs.format(table, jtid_bindings, jobstatus) + comment,
                         var_map,
                     )
-
-                tmp_log.debug("job sql executed")
 
             # commit
             if not self._commit():
@@ -23549,7 +22974,9 @@ class DBProxy:
             return None
 
         try:
-            pq_data_des = json.loads(pq_data[0][0])
+            pq_data_des = pq_data[0][0]
+            if not isinstance(pq_data_des, dict):
+                pq_data_des = json.loads(pq_data_des)
         except Exception:
             tmp_log.error("Could not find queue configuration")
             return None
