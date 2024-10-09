@@ -766,8 +766,9 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
                                     continue
 
                             if nRunJobsPerGroup is None:
-                                tmpLog.debug(f"   {site} assigned:{nAssJobs} activated:{nActJobs} running:{jobStatistics[site]['running']} "
-                                             f"nPilotsGet:{nPilotsGet} nPilotsUpdate:{nPilotsUpdate}"
+                                tmpLog.debug(
+                                    f"   {site} assigned:{nAssJobs} activated:{nActJobs} running:{jobStatistics[site]['running']} "
+                                    f"nPilotsGet:{nPilotsGet} nPilotsUpdate:{nPilotsUpdate}"
                                 )
                             else:
                                 tmpLog.debug(
@@ -1026,11 +1027,6 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
             # assign site
             if chosen_panda_queue != "TOBEDONE":
                 job.computingSite = chosen_panda_queue.sitename
-                if job.computingElement == "NULL":
-                    if job.prodSourceLabel == "ddm":
-                        # use nickname for ddm jobs
-                        job.computingElement = chosen_panda_queue.nickname
-
                 # update statistics
                 jobStatistics.setdefault(job.computingSite, {"assigned": 0, "activated": 0, "running": 0})
                 jobStatistics[job.computingSite]["assigned"] += 1

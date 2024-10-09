@@ -81,7 +81,6 @@ from pandaserver.userinterface import Client
 # pylint: disable=W0611
 from pandaserver.userinterface.UserIF import (
     addHarvesterDialogs,
-    addSiteAccess,
     avalancheTask,
     changeJobPriorities,
     changeTaskAttributePanda,
@@ -140,7 +139,6 @@ from pandaserver.userinterface.UserIF import (
     killJobs,
     killTask,
     killUnfinishedJobs,
-    listSiteAccess,
     listTasksInShare,
     pauseTask,
     queryJobInfoPerCloud,
@@ -167,7 +165,6 @@ from pandaserver.userinterface.UserIF import (
     sweepPQ,
     updateProdDBUpdateTimes,
     updateServiceMetrics,
-    updateSiteAccess,
     updateWorkers,
     userIF,
 )

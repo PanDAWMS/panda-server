@@ -15,9 +15,6 @@ processGroups = [
 
 # ('evgensimul',   ['evgen','simul']),
 
-# source labels used for panda internal purpose
-internalSourceLabels = ["ddm"]
-
 # maximum number of debug jobs per user
 maxDebugJobs = 3
 

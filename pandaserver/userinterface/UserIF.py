@@ -64,12 +64,6 @@ class UserIF:
         try:
             good_labels = True
             for tmpJob in jobs:
-                # prevent internal jobs from being submitted from outside
-                if tmpJob.prodSourceLabel in pandaserver.taskbuffer.ProcessGroups.internalSourceLabels:
-                    good_labels = False
-                    good_labels_message = f"submitJobs {user} wrong prodSourceLabel={tmpJob.prodSourceLabel}"
-                    break
-
                 # check production role
                 if tmpJob.prodSourceLabel in ["managed"] and not prodRole:
                     good_labels = False
@@ -610,27 +604,6 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
-    # add account to siteaccess
-    def addSiteAccess(self, siteID, dn):
-        # add
-        ret = self.taskBuffer.addSiteAccess(siteID, dn)
-        # serialize
-        return WrappedPickle.dumps(ret)
-
-    # list site access
-    def listSiteAccess(self, siteID, dn, longFormat=False):
-        # list
-        ret = self.taskBuffer.listSiteAccess(siteID, dn, longFormat)
-        # serialize
-        return WrappedPickle.dumps(ret)
-
-    # update site access
-    def updateSiteAccess(self, method, siteid, requesterDN, userName, attrValue):
-        # list
-        ret = self.taskBuffer.updateSiteAccess(method, siteid, requesterDN, userName, attrValue)
-        # serialize
-        return str(ret)
-
     # insert task params
     def insertTaskParams(self, taskParams, user, prodRole, fqans, properErrorCode, parent_tid):
         # register
@@ -692,6 +665,7 @@ class UserIF:
         noChildRetry,
         discardEvents,
         disable_staging_mode,
+        keep_gshare_priority,
     ):
         # retry with new params
         if newParams is not None:
@@ -719,20 +693,16 @@ class UserIF:
                 errType, errValue = sys.exc_info()[:2]
                 ret = 1, f"server error with {errType}:{errValue}"
         else:
-            if noChildRetry:
-                comQualifier = "sole"
-            else:
-                comQualifier = None
-            if discardEvents:
-                if comQualifier is None:
-                    comQualifier = "discard"
-                else:
-                    comQualifier += " discard"
-            if disable_staging_mode:
-                if comQualifier is None:
-                    comQualifier = "staged"
-                else:
-                    comQualifier += " staged"
+            com_qualifier = ""
+            for com_key, com_param in [
+                ("sole", noChildRetry),
+                ("discard", discardEvents),
+                ("staged", disable_staging_mode),
+                ("keep", keep_gshare_priority),
+            ]:
+                if com_param:
+                    com_qualifier += f"{com_key} "
+            com_qualifier = com_qualifier.strip()
             # normal retry
             ret = self.taskBuffer.sendCommandTaskPanda(
                 jediTaskID,
@@ -740,7 +710,7 @@ class UserIF:
                 prodRole,
                 "retry",
                 properErrorCode=properErrorCode,
-                comQualifier=comQualifier,
+                comQualifier=com_qualifier,
             )
         if properErrorCode is True and ret[0] == 5:
             # retry failed analysis jobs
@@ -1628,52 +1598,6 @@ def getNUserJobs(req, siteName):
     return userIF.getNUserJobs(siteName)
 
 
-# add account to siteaccess
-def addSiteAccess(req, siteID):
-    # check security
-    if not isSecure(req):
-        return "False"
-    # get DN
-    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
-        return "False"
-    dn = req.subprocess_env["SSL_CLIENT_S_DN"]
-    return userIF.addSiteAccess(siteID, dn)
-
-
-# list site access
-def listSiteAccess(req, siteID=None, longFormat=False):
-    # check security
-    if not isSecure(req):
-        return "False"
-    # get DN
-    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
-        return "False"
-    # set DN if siteID is none
-    dn = None
-    if siteID is None:
-        dn = req.subprocess_env["SSL_CLIENT_S_DN"]
-    # convert longFormat option
-    if longFormat == "True":
-        longFormat = True
-    else:
-        longFormat = False
-    return userIF.listSiteAccess(siteID, dn, longFormat)
-
-
-# update site access
-def updateSiteAccess(req, method, siteid, userName, attrValue=""):
-    # check security
-    if not isSecure(req):
-        return "non HTTPS"
-    # get DN
-    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
-        return "invalid DN"
-    # set requester's DN
-    requesterDN = req.subprocess_env["SSL_CLIENT_S_DN"]
-    # update
-    return userIF.updateSiteAccess(method, siteid, requesterDN, userName, attrValue)
-
-
 # insert task params
 def insertTaskParams(req, taskParams=None, properErrorCode=None, parent_tid=None):
     tmpLog = LogWrapper(_logger, f"insertTaskParams-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
@@ -1756,6 +1680,7 @@ def retryTask(
     noChildRetry=None,
     discardEvents=None,
     disable_staging_mode=None,
+    keep_gshare_priority=None,
 ):
     if properErrorCode == "True":
         properErrorCode = True
@@ -1773,6 +1698,10 @@ def retryTask(
         disable_staging_mode = True
     else:
         disable_staging_mode = False
+    if keep_gshare_priority == "True":
+        keep_gshare_priority = True
+    else:
+        keep_gshare_priority = False
     # check security
     if not isSecure(req):
         if properErrorCode:
@@ -1802,6 +1731,7 @@ def retryTask(
         noChildRetry,
         discardEvents,
         disable_staging_mode,
+        keep_gshare_priority,
     )
     return WrappedPickle.dumps(ret)
 
