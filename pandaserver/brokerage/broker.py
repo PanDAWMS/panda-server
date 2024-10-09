@@ -20,6 +20,28 @@ _allSites = []
 # processingType to skip brokerage
 skipBrokerageProTypes = ["prod_test"]
 
+DEFAULT_DATA_TYPE = "GEN"
+
+
+def _generate_dispatch_block_name(job):
+    # get the data type
+    try:
+        tmp_data_type = job.prodDBlock.split(".")[-2]
+    except Exception:
+        tmp_data_type = DEFAULT_DATA_TYPE  # set a default value
+
+    # avoid long names over 20 characters
+    if len(tmp_data_type) > 20:
+        tmp_data_type = DEFAULT_DATA_TYPE
+
+    transfer_type = "transfer"
+    if job.useInputPrestaging():
+        transfer_type = "prestaging"
+
+    dispatch_block_name = f"panda.{job.taskID}.{time.strftime('%m.%d')}.{tmp_data_type}.{transfer_type}.{str(uuid.uuid4())}_dis{job.PandaID}"
+
+    return dispatch_block_name
+
 
 # comparison function for sort
 def _comparison_function(job_a, job_b):
@@ -118,22 +140,21 @@ def schedule(jobs, siteMapper):
         prodDBlock = None
         computingSite = None
         dispatchDBlock = None
-        previousCloud = None
-        prevRelease = None
-        prevMemory = None
-        prevCmtConfig = None
-        prevProType = None
-        prevSourceLabel = None
-        prevDiskCount = None
-        prevDirectAcc = None
-        prevCoreCount = None
-        prevIsJEDI = None
-        prevWorkingGroup = None
-        prevMaxCpuCount = None
-        prevPriority = None
+        previous_cloud = None
+        previous_release = None
+        previous_memory = None
+        previous_cmt_config = None
+        previous_processing_type = None
+        previous_prod_source_label = None
+        previous_disk_count = None
+        previous_transfer_type = None
+        previous_core_count = None
+        prev_created_by_jedi = None
+        previous_working_group = None
+        previous_cpu_count = None
+        previous_priority = None
 
         indexJob = 0
-        prestageSites = []
 
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs = sorted(jobs, key=functools.cmp_to_key(_comparison_function))
@@ -158,12 +179,12 @@ def schedule(jobs, siteMapper):
             if job and job.jobStatus == "failed":
                 continue
 
-            overwriteSite = False
+            overwrite_site = False
 
             # check JEDI
-            isJEDI = False
+            created_by_jedi = False
             if job and job.lockedby == "jedi":
-                isJEDI = True
+                created_by_jedi = True
 
             # new bunch or terminator
             if (
@@ -173,36 +194,36 @@ def schedule(jobs, siteMapper):
                 or prodDBlock != job.prodDBlock
                 or job.computingSite != computingSite
                 or iJob > nJob
-                or previousCloud != job.getCloud()
-                or prevRelease != job.AtlasRelease
-                or prevCmtConfig != job.cmtConfig
-                or (prevProType in skipBrokerageProTypes and iJob > 0)
-                or prevDirectAcc != job.transferType
-                or (prevMemory != job.minRamCount and not isJEDI)
-                or (prevDiskCount != job.maxDiskCount and not isJEDI)
-                or prevCoreCount != job.coreCount
-                or prevWorkingGroup != job.workingGroup
-                or prevProType != job.processingType
-                or (prevMaxCpuCount != job.maxCpuCount and not isJEDI)
-                or prevIsJEDI != isJEDI
+                or previous_cloud != job.getCloud()
+                or previous_release != job.AtlasRelease
+                or previous_cmt_config != job.cmtConfig
+                or (previous_processing_type in skipBrokerageProTypes and iJob > 0)
+                or previous_transfer_type != job.transferType
+                or (previous_memory != job.minRamCount and not created_by_jedi)
+                or (previous_disk_count != job.maxDiskCount and not created_by_jedi)
+                or previous_core_count != job.coreCount
+                or previous_working_group != job.workingGroup
+                or previous_processing_type != job.processingType
+                or (previous_cpu_count != job.maxCpuCount and not created_by_jedi)
+                or prev_created_by_jedi != created_by_jedi
             ):
                 if indexJob > 1:
                     tmp_logger.debug(
                         f"new bunch\n"
                         f"  iJob           {iJob}\n"
-                        f"  cloud          {previousCloud}\n"
-                        f"  rel            {prevRelease}\n"
-                        f"  sourceLabel    {prevSourceLabel}\n"
-                        f"  cmtConfig      {prevCmtConfig}\n"
-                        f"  memory         {prevMemory}\n"
-                        f"  priority       {prevPriority}\n"
+                        f"  cloud          {previous_cloud}\n"
+                        f"  rel            {previous_release}\n"
+                        f"  sourceLabel    {previous_prod_source_label}\n"
+                        f"  cmtConfig      {previous_cmt_config}\n"
+                        f"  memory         {previous_memory}\n"
+                        f"  priority       {previous_priority}\n"
                         f"  prodDBlock     {prodDBlock}\n"
                         f"  computingSite  {computingSite}\n"
-                        f"  processingType {prevProType}\n"
-                        f"  workingGroup   {prevWorkingGroup}\n"
-                        f"  coreCount      {prevCoreCount}\n"
-                        f"  maxCpuCount    {prevMaxCpuCount}\n"
-                        f"  transferType   {prevDirectAcc}\n"
+                        f"  processingType {previous_processing_type}\n"
+                        f"  workingGroup   {previous_working_group}\n"
+                        f"  coreCount      {previous_core_count}\n"
+                        f"  maxCpuCount    {previous_cpu_count}\n"
+                        f"  transferType   {previous_transfer_type}\n"
                     )
 
                 # the number/size of inputs per job
@@ -221,7 +242,7 @@ def schedule(jobs, siteMapper):
                     tmp_logger.debug(f"PandaID:{tmpJob.PandaID} -> site:{tmpJob.computingSite}")
 
                     # set ready if files are already there
-                    if not prevIsJEDI:
+                    if not prev_created_by_jedi:
                         _set_files_to_ready(tmpJob, okFiles, siteMapper, tmp_logger)
 
                 # terminate
@@ -236,64 +257,35 @@ def schedule(jobs, siteMapper):
                 okFiles = {}
                 totalNumInputs = 0
                 totalInputSize = 0
+
                 # create new dispDBlock
                 if job.prodDBlock != "NULL":
-                    # get datatype
-                    try:
-                        tmpDataType = job.prodDBlock.split(".")[-2]
-                    except Exception:
-                        tmpDataType = "GEN"  # set a default value
-
-                    # avoid too long name
-                    if len(tmpDataType) > 20:
-                        tmpDataType = "GEN"
-
-                    transferType = "transfer"
-                    if job.useInputPrestaging():
-                        transferType = "prestaging"
-                    dispatchDBlock = f"panda.{job.taskID}.{time.strftime('%m.%d')}.{tmpDataType}.{transferType}.{str(uuid.uuid4())}_dis{job.PandaID}"
+                    dispatchDBlock = _generate_dispatch_block_name(job)
                     tmp_logger.debug(f"New dispatchDBlock: {dispatchDBlock}")
+
                 prodDBlock = job.prodDBlock
 
-                # already defined computingSite
-                if job.computingSite != "NULL":
-                    # instantiate the known computing site
-                    chosen_panda_queue = siteMapper.getSite(job.computingSite)
-
-                    # if site doesn't exist, use the default site
-                    if job.homepackage.startswith("AnalysisTransforms"):
-                        if chosen_panda_queue.sitename == panda_config.def_sitename:
-                            chosen_panda_queue = siteMapper.getSite(panda_config.def_queue)
-                            overwriteSite = True
-                else:
-                    # default for Analysis jobs
-                    if job.homepackage.startswith("AnalysisTransforms"):
-                        chosen_panda_queue = siteMapper.getSite(panda_config.def_queue)
-                        overwriteSite = True
-                    else:
-                        # set chosen_panda_queue
-                        chosen_panda_queue = "TOBEDONE"
             # increment iJob
             iJob += 1
 
             # reserve computingSite and cloud
             computingSite = job.computingSite
-            previousCloud = job.getCloud()
-            prevRelease = job.AtlasRelease
-            prevMemory = job.minRamCount
-            prevCmtConfig = job.cmtConfig
-            prevProType = job.processingType
-            prevSourceLabel = job.prodSourceLabel
-            prevDiskCount = job.maxDiskCount
-            prevDirectAcc = job.transferType
-            prevCoreCount = job.coreCount
-            prevMaxCpuCount = job.maxCpuCount
-            prevWorkingGroup = job.workingGroup
-            prevIsJEDI = isJEDI
+            previous_cloud = job.getCloud()
+            previous_release = job.AtlasRelease
+            previous_memory = job.minRamCount
+            previous_cmt_config = job.cmtConfig
+            previous_processing_type = job.processingType
+            previous_prod_source_label = job.prodSourceLabel
+            previous_disk_count = job.maxDiskCount
+            previous_transfer_type = job.transferType
+            previous_core_count = job.coreCount
+            previous_cpu_count = job.maxCpuCount
+            previous_working_group = job.workingGroup
+            prev_created_by_jedi = created_by_jedi
 
             # truncate prio to avoid too many lookups
             if job.currentPriority not in [None, "NULL"]:
-                prevPriority = (job.currentPriority / prioInterval) * prioInterval
+                previous_priority = (job.currentPriority / prioInterval) * prioInterval
             # assign site
             if chosen_panda_queue != "TOBEDONE":
                 job.computingSite = chosen_panda_queue.sitename
@@ -316,7 +308,7 @@ def schedule(jobs, siteMapper):
                         destSE = DataServiceUtils.checkJobDestinationSE(job)
                     job.destinationSE = destSE
 
-            if overwriteSite:
+            if overwrite_site:
                 # overwrite SE for analysis jobs which set non-existing sites
                 destSE = job.computingSite
                 job.destinationSE = destSE
@@ -324,12 +316,8 @@ def schedule(jobs, siteMapper):
             # set dispatchDBlock and destinationSE
             first = True
             for file in job.Files:
-                # dispatchDBlock. Set dispDB for pre-staging jobs too
-                if (
-                    file.type == "input"
-                    and file.dispatchDBlock == "NULL"
-                    and ((file.status not in ["ready", "missing", "cached"]) or job.computingSite in prestageSites)
-                ):
+                # Set dispatch block for pre-staging jobs too
+                if file.type == "input" and file.dispatchDBlock == "NULL" and (file.status not in ["ready", "missing", "cached"]):
                     if first:
                         first = False
                         job.dispatchDBlock = dispatchDBlock
@@ -350,7 +338,7 @@ def schedule(jobs, siteMapper):
                 if file.type in ["output", "log"] and destSE:
                     if job.prodSourceLabel == "user" and job.computingSite == file.destinationSE:
                         pass
-                    elif job.prodSourceLabel == "user" and prevIsJEDI is True and file.destinationSE not in ["", "NULL"]:
+                    elif job.prodSourceLabel == "user" and prev_created_by_jedi is True and file.destinationSE not in ["", "NULL"]:
                         pass
                     elif destSE == "local":
                         pass
