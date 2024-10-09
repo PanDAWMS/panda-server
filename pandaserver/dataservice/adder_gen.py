@@ -4,12 +4,11 @@ General Adder plugin. Add data to dataset
 """
 
 import datetime
+import json
 import re
 import sys
 import time
-
 import traceback
-import json
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -29,6 +28,7 @@ class AdderGen:
     """
     General Adder plugin.
     """
+
     # constructor
     def __init__(
         self,
@@ -495,7 +495,9 @@ class AdderGen:
                             self.logger.debug("end Closer")
                         # run closer for associate parallel jobs
                         if EventServiceUtils.isJobCloningJob(self.job):
-                            associate_dispatch_block_map = self.taskBuffer.getDestDBlocksWithSingleConsumer(self.job.jediTaskID, self.job.PandaID, destination_dispatch_block_list)
+                            associate_dispatch_block_map = self.taskBuffer.getDestDBlocksWithSingleConsumer(
+                                self.job.jediTaskID, self.job.PandaID, destination_dispatch_block_list
+                            )
                             for associate_job_id in associate_dispatch_block_map:
                                 associate_dispatch_blocks = associate_dispatch_block_map[associate_job_id]
                                 associate_job = self.taskBuffer.peekJobs(
@@ -600,7 +602,7 @@ class AdderGen:
                 # endpoints
                 self.extra_info["endpoint"][lfn] = []
                 if "endpoint" in file_data:
-                    self.extra_info["endpoint"][lfn] = file_data["endpoint"]
+                    self.extra_info["endpoint"][lfn] = [file_data["endpoint"]]
                 # error check
                 if (lfn not in input_lfns) and (fsize is None or (md5sum is None and adler32 is None)):
                     if not EventServiceUtils.isEventServiceMerge(self.job):
