@@ -46,24 +46,6 @@ def _compFunc(job_a, job_b):
         return 0
 
 
-# release checker
-def _checkRelease(job_releases, site_releases):
-    # Check for all on/off
-    if "True" in site_releases:
-        return True
-    if "False" in site_releases:
-        return False
-
-    # Loop over all releases
-    for release in job_releases.split("\n"):
-        release_version = re.sub(r"^Atlas-", "", release)
-        # Release not available
-        if release_version not in site_releases:
-            return False
-
-    return True
-
-
 # get list of files which already exist at the site
 def _getOkFiles(
     v_ce,
@@ -167,92 +149,6 @@ def _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog):
     # unset disp dataset
     if allOK:
         tmpJob.dispatchDBlock = "NULL"
-
-
-# Check if the number/size of inputs is too large
-def _isTooMuchInput(n_files_per_job, input_size_per_job):
-    if n_files_per_job > 5 or input_size_per_job > 500 * 1024 * 1024:
-        return True
-    return False
-
-
-# send analysis brokerage info to logger with HTTP
-def sendMsgToLoggerHTTP(msgList, job):
-    try:
-        # logging
-        iMsg = 0
-        # message type
-        msgType = "analy_brokerage"
-        # make header
-        if job.jobsetID not in [None, "NULL"]:
-            msgHead = f"dn='{job.prodUserName}' : jobset={job.jobsetID} jobdef={job.jobDefinitionID}"
-        else:
-            msgHead = f"dn='{job.prodUserName}' : jobdef={job.jobDefinitionID}"
-        for msgBody in msgList:
-            # make message
-            message = msgHead + " : " + msgBody
-            # dump locally
-            _log.debug(message)
-
-            # get logger
-            _pandaLogger = PandaLogger()
-            _pandaLogger.lock()
-            _pandaLogger.setParams({"Type": msgType})
-            logger = _pandaLogger.getHttpLogger(panda_config.loggername)
-            # add message
-            logger.info(message)
-            # release HTTP handler
-            _pandaLogger.release()
-            # sleep
-            iMsg += 1
-            if iMsg % 5 == 0:
-                time.sleep(1)
-    except Exception:
-        errType, errValue = sys.exc_info()[:2]
-        _log.error(f"sendMsgToLoggerHTTP : {errType} {errValue}")
-
-
-# get Satellite candidates when files are missing at Satellite
-def get_satellite_candidate_list(tmp_job, satellites_files_map):
-    # no job or cloud information
-    if not tmp_job or tmp_job.getCloud() not in satellites_files_map:
-        return []
-
-    # loop over all files
-    tmp_t2_candidates = None
-    for tmp_file in tmp_job.Files:
-        if tmp_file.type == "input" and tmp_file.status == "missing":
-            # no dataset info
-            if tmp_file.dataset not in satellites_files_map[tmp_job.getCloud()]:
-                return []
-            # initial candidates
-            if tmp_t2_candidates is None:
-                tmp_t2_candidates = satellites_files_map[tmp_job.getCloud()][tmp_file.dataset]["sites"]
-
-            # check all candidates
-            new_t2_candidates = []
-            for tmp_t2_candidate in tmp_t2_candidates:
-                # site doesn't have the dataset
-                if tmp_t2_candidate not in satellites_files_map[tmp_job.getCloud()][tmp_file.dataset]["sites"]:
-                    continue
-
-                # site has the file
-                if tmp_file.lfn in satellites_files_map[tmp_job.getCloud()][tmp_file.dataset]["sites"][tmp_t2_candidate]:
-                    if tmp_t2_candidate not in new_t2_candidates:
-                        new_t2_candidates.append(tmp_t2_candidate)
-
-            # set new candidates
-            tmp_t2_candidates = new_t2_candidates
-            if not tmp_t2_candidates:
-                break
-
-    # return [] if no missing files
-    if tmp_t2_candidates is None:
-        return []
-
-    # return
-    tmp_t2_candidates.sort()
-    return tmp_t2_candidates
 
 
 # make compact dialog message
@@ -766,8 +662,9 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
                                     continue
 
                             if nRunJobsPerGroup is None:
-                                tmpLog.debug(f"   {site} assigned:{nAssJobs} activated:{nActJobs} running:{jobStatistics[site]['running']} "
-                                             f"nPilotsGet:{nPilotsGet} nPilotsUpdate:{nPilotsUpdate}"
+                                tmpLog.debug(
+                                    f"   {site} assigned:{nAssJobs} activated:{nActJobs} running:{jobStatistics[site]['running']} "
+                                    f"nPilotsGet:{nPilotsGet} nPilotsUpdate:{nPilotsUpdate}"
                                 )
                             else:
                                 tmpLog.debug(
@@ -1094,38 +991,6 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
                 if file.type == "log":
                     # generate GUID
                     file.GUID = str(uuid.uuid4())
-        # send log messages
-        try:
-            for message in loggerMessages:
-                # get logger
-                _pandaLogger = PandaLogger()
-                _pandaLogger.lock()
-                _pandaLogger.setParams({"Type": "brokerage"})
-                logger = _pandaLogger.getHttpLogger(panda_config.loggername)
-                # add message
-                logger.warning(message)
-                # release HTTP handler
-                _pandaLogger.release()
-                time.sleep(1)
-        except Exception:
-            pass
-        # send analysis brokerage info when jobs are submitted
-        if len(jobs) > 0 and jobs[0] is not None:
-            # for analysis job. FIXME once ganga is updated to send analy brokerage info
-            if jobs[0].prodSourceLabel in ["user", "panda"] and jobs[0].processingType in ["pathena", "prun"]:
-                # send countryGroup
-                tmpMsgList = []
-                tmpNumJobs = len(jobs)
-                if jobs[0].prodSourceLabel == "panda":
-                    tmpNumJobs -= 1
-                tmpMsg = f"nJobs={tmpNumJobs} "
-                if jobs[0].countryGroup in ["NULL", "", None]:
-                    tmpMsg += "countryGroup=None"
-                else:
-                    tmpMsg += f"countryGroup={jobs[0].countryGroup}"
-                tmpMsgList.append(tmpMsg)
-                # send log
-                sendMsgToLoggerHTTP(tmpMsgList, jobs[0])
 
         # finished
         tmpLog.debug(f"N lookup for prio : {len(jobStatBrokerCloudsWithPrio)}")
