@@ -114,6 +114,12 @@ def decode_token(serialized_token, env, tmp_log):
                 if role:
                     subprocess_env[f"GRST_CRED_AUTH_TOKEN_{i}"] = f"VOMS /{vo}/Role={role}"
                     i += 1
+            else:
+                # protection against cached decisions that miss x509-related variables due to token+x509 access
+                subprocess_env["SSL_CLIENT_S_DN"] = env["SSL_CLIENT_S_DN"]
+                for key in env:
+                    if key.startswith("GRST_CRED_") or key.startswith("GRST_CONN_"):
+                        subprocess_env[key] = env[key]
 
     except Exception as e:
         message_str = f"Corrupted token. {str(e)}"
