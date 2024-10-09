@@ -25,6 +25,7 @@ def get_user():
         if "Default principal" in line:
             # Split the line by spaces and get the last element (field)
             default_principal = line.split()[-1]
+            default_principal = default_principal.split("@")[0]
             return default_principal
 
     return ""
