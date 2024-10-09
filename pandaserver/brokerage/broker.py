@@ -20,6 +20,8 @@ _allSites = []
 skipBrokerageProTypes = ["prod_test"]
 
 DEFAULT_DATA_TYPE = "GEN"
+BULK_SIZE = 20
+PRIORITY_INTERVAL = 50
 
 
 def _generate_dispatch_block_name(job):
@@ -115,7 +117,7 @@ def _set_files_to_ready(tmp_job, ok_files, site_mapper, tmp_logger):
         tmp_job.dispatchDBlock = "NULL"
 
 
-def schedule(jobs, siteMapper):
+def schedule(jobs, site_mapper):
     timestamp = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat("/")
     tmp_logger = LogWrapper(_log, f"start_ts={timestamp}")
 
@@ -127,52 +129,28 @@ def schedule(jobs, siteMapper):
             tmp_logger.debug("finished : no jobs")
             return
 
-        nJob = 20
-        iJob = 0
-        nFile = 20
-        fileList = []
-        okFiles = {}
-        prioInterval = 50
-        totalNumInputs = 0
-        totalInputSize = 0
+        i_job = 0
+        file_list = []
+        files_ok = {}
         chosen_panda_queue = None
-        prodDBlock = None
-        computingSite = None
-        dispatchDBlock = None
+        computing_site = None
+        production_data_block = None
+        dispatch_data_block = None
         previous_cloud = None
-        previous_release = None
-        previous_memory = None
-        previous_cmt_config = None
-        previous_processing_type = None
         previous_prod_source_label = None
-        previous_disk_count = None
         previous_transfer_type = None
-        previous_core_count = None
         prev_created_by_jedi = None
         previous_working_group = None
-        previous_cpu_count = None
         previous_priority = None
 
-        indexJob = 0
+        index_job = 0
 
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs = sorted(jobs, key=functools.cmp_to_key(_comparison_function))
 
-        # get all input files for bulk LFC lookup
-        allLFNs = []
-        allGUIDs = []
-        allScopes = []
-        for tmpJob in jobs:
-            if tmpJob.prodSourceLabel in ("test", "managed") or tmpJob.prodUserName in ["gangarbt"]:
-                for tmpFile in tmpJob.Files:
-                    if tmpFile.type == "input" and tmpFile.lfn not in allLFNs:
-                        allLFNs.append(tmpFile.lfn)
-                        allGUIDs.append(tmpFile.GUID)
-                        allScopes.append(tmpFile.scope)
-
         # loop over all jobs + terminator(None)
         for job in jobs + [None]:
-            indexJob += 1
+            index_job += 1
 
             # ignore failed jobs
             if job and job.jobStatus == "failed":
@@ -180,7 +158,7 @@ def schedule(jobs, siteMapper):
 
             overwrite_site = False
 
-            # check JEDI
+            # check if the job was created by JEDI
             created_by_jedi = False
             if job and job.lockedby == "jedi":
                 created_by_jedi = True
@@ -188,129 +166,98 @@ def schedule(jobs, siteMapper):
             # new bunch or terminator
             if (
                 job is None
-                or len(fileList) >= nFile
-                or (dispatchDBlock is None and job.homepackage.startswith("AnalysisTransforms"))
-                or prodDBlock != job.prodDBlock
-                or job.computingSite != computingSite
-                or iJob > nJob
+                or len(file_list) >= BULK_SIZE
+                or (dispatch_data_block is None and job.homepackage.startswith("AnalysisTransforms"))
+                or production_data_block != job.prodDBlock
+                or job.computingSite != computing_site
+                or i_job > BULK_SIZE
                 or previous_cloud != job.getCloud()
-                or previous_release != job.AtlasRelease
-                or previous_cmt_config != job.cmtConfig
-                or (previous_processing_type in skipBrokerageProTypes and iJob > 0)
                 or previous_transfer_type != job.transferType
-                or (previous_memory != job.minRamCount and not created_by_jedi)
-                or (previous_disk_count != job.maxDiskCount and not created_by_jedi)
-                or previous_core_count != job.coreCount
                 or previous_working_group != job.workingGroup
-                or previous_processing_type != job.processingType
-                or (previous_cpu_count != job.maxCpuCount and not created_by_jedi)
                 or prev_created_by_jedi != created_by_jedi
             ):
-                if indexJob > 1:
+                if index_job > 1:
                     tmp_logger.debug(
                         f"new bunch\n"
-                        f"  iJob           {iJob}\n"
+                        f"  i_job          {i_job}\n"
                         f"  cloud          {previous_cloud}\n"
-                        f"  rel            {previous_release}\n"
                         f"  sourceLabel    {previous_prod_source_label}\n"
-                        f"  cmtConfig      {previous_cmt_config}\n"
-                        f"  memory         {previous_memory}\n"
                         f"  priority       {previous_priority}\n"
-                        f"  prodDBlock     {prodDBlock}\n"
-                        f"  computingSite  {computingSite}\n"
+                        f"  prodDBlock     {production_data_block}\n"
+                        f"  computingSite  {computing_site}\n"
                         f"  processingType {previous_processing_type}\n"
                         f"  workingGroup   {previous_working_group}\n"
-                        f"  coreCount      {previous_core_count}\n"
-                        f"  maxCpuCount    {previous_cpu_count}\n"
                         f"  transferType   {previous_transfer_type}\n"
                     )
 
-                # the number/size of inputs per job
-                nFilesPerJob = float(totalNumInputs) / float(iJob)
-                inputSizePerJob = float(totalInputSize) / float(iJob)
-
-                chosen_panda_queue = siteMapper.getSite(job.computingSite)
+                chosen_panda_queue = site_mapper.getSite(job.computingSite)
 
                 # set job spec
-                tmp_logger.debug(f"indexJob      : {indexJob}")
-                tmp_logger.debug(f"nInputs/Job   : {nFilesPerJob}")
-                tmp_logger.debug(f"inputSize/Job : {inputSizePerJob}")
-                for tmpJob in jobs[indexJob - iJob - 1 : indexJob - 1]:
+                tmp_logger.debug(f"index_job     : {index_job}")
+                for tmpJob in jobs[index_job - i_job - 1 : index_job - 1]:
                     # set computingSite
                     tmpJob.computingSite = chosen_panda_queue.sitename
                     tmp_logger.debug(f"PandaID:{tmpJob.PandaID} -> site:{tmpJob.computingSite}")
 
                     # set ready if files are already there
                     if not prev_created_by_jedi:
-                        _set_files_to_ready(tmpJob, okFiles, siteMapper, tmp_logger)
+                        _set_files_to_ready(tmpJob, files_ok, site_mapper, tmp_logger)
 
                 # terminate
                 if not job:
                     break
 
-                # reset iJob
-                iJob = 0
+                # reset i_job
+                i_job = 0
 
                 # reset file list
-                fileList = []
-                okFiles = {}
-                totalNumInputs = 0
-                totalInputSize = 0
+                file_list = []
+                files_ok = {}
 
                 # create new dispDBlock
                 if job.prodDBlock != "NULL":
-                    dispatchDBlock = _generate_dispatch_block_name(job)
-                    tmp_logger.debug(f"New dispatchDBlock: {dispatchDBlock}")
+                    dispatch_data_block = _generate_dispatch_block_name(job)
+                    tmp_logger.debug(f"New dispatch_data_block: {dispatch_data_block}")
 
-                prodDBlock = job.prodDBlock
+                production_data_block = job.prodDBlock
 
-            # increment iJob
-            iJob += 1
+            # increment i_job
+            i_job += 1
 
-            # reserve computingSite and cloud
-            computingSite = job.computingSite
+            # reserve computing site and cloud
+            computing_site = job.computingSite
             previous_cloud = job.getCloud()
-            previous_release = job.AtlasRelease
-            previous_memory = job.minRamCount
-            previous_cmt_config = job.cmtConfig
-            previous_processing_type = job.processingType
             previous_prod_source_label = job.prodSourceLabel
-            previous_disk_count = job.maxDiskCount
             previous_transfer_type = job.transferType
-            previous_core_count = job.coreCount
-            previous_cpu_count = job.maxCpuCount
             previous_working_group = job.workingGroup
             prev_created_by_jedi = created_by_jedi
 
             # truncate prio to avoid too many lookups
             if job.currentPriority not in [None, "NULL"]:
-                previous_priority = (job.currentPriority / prioInterval) * prioInterval
+                previous_priority = (job.currentPriority / PRIORITY_INTERVAL) * PRIORITY_INTERVAL
             # assign site
             if chosen_panda_queue != "TOBEDONE":
                 job.computingSite = chosen_panda_queue.sitename
 
                 tmp_logger.debug(f"PandaID:{job.PandaID} -> preset site:{chosen_panda_queue.sitename}")
-                # update statistics
-                jobStatistics.setdefault(job.computingSite, {"assigned": 0, "activated": 0, "running": 0})
-                jobStatistics[job.computingSite]["assigned"] += 1
-                tmpLog.debug(f"PandaID:{job.PandaID} -> preset site:{chosen_panda_queue.sitename}")
+
                 # set cloud
                 if job.cloud in ["NULL", None, ""]:
                     job.cloud = chosen_panda_queue.cloud
 
             # set destinationSE
-            destSE = job.destinationSE
-            if siteMapper.checkCloud(job.getCloud()):
+            destination_se = job.destinationSE
+            if site_mapper.checkCloud(job.getCloud()):
                 # use cloud dest for non-existing sites
-                if job.prodSourceLabel != "user" and job.destinationSE not in siteMapper.siteSpecList and job.destinationSE != "local":
+                if job.prodSourceLabel != "user" and job.destinationSE not in site_mapper.siteSpecList and job.destinationSE != "local":
                     if DataServiceUtils.checkJobDestinationSE(job) is not None:
-                        destSE = DataServiceUtils.checkJobDestinationSE(job)
-                    job.destinationSE = destSE
+                        destination_se = DataServiceUtils.checkJobDestinationSE(job)
+                    job.destinationSE = destination_se
 
             if overwrite_site:
                 # overwrite SE for analysis jobs which set non-existing sites
-                destSE = job.computingSite
-                job.destinationSE = destSE
+                destination_se = job.computingSite
+                job.destinationSE = destination_se
 
             # set dispatchDBlock and destinationSE
             first = True
@@ -319,36 +266,27 @@ def schedule(jobs, siteMapper):
                 if file.type == "input" and file.dispatchDBlock == "NULL" and (file.status not in ["ready", "missing", "cached"]):
                     if first:
                         first = False
-                        job.dispatchDBlock = dispatchDBlock
-                    file.dispatchDBlock = dispatchDBlock
+                        job.dispatchDBlock = dispatch_data_block
+                    file.dispatchDBlock = dispatch_data_block
                     file.status = "pending"
-                    if file.lfn not in fileList:
-                        fileList.append(file.lfn)
-                        try:
-                            # get total number/size of inputs except DBRelease
-                            # tgz inputs for evgen may be negligible
-                            if re.search("\.tar\.gz", file.lfn) is None:
-                                totalNumInputs += 1
-                                totalInputSize += file.fsize
-                        except Exception:
-                            pass
+                    if file.lfn not in file_list:
+                        file_list.append(file.lfn)
 
-                # destinationSE
-                if file.type in ["output", "log"] and destSE:
+                # set the file destinationSE
+                if file.type in ["output", "log"] and destination_se:
                     if job.prodSourceLabel == "user" and job.computingSite == file.destinationSE:
                         pass
                     elif job.prodSourceLabel == "user" and prev_created_by_jedi is True and file.destinationSE not in ["", "NULL"]:
                         pass
-                    elif destSE == "local":
+                    elif destination_se == "local":
                         pass
                     elif DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) is not None:
                         pass
                     else:
-                        file.destinationSE = destSE
+                        file.destinationSE = destination_se
 
                 # pre-assign GUID to log
                 if file.type == "log":
-                    # generate GUID
                     file.GUID = str(uuid.uuid4())
 
         tmp_logger.debug("finished")
