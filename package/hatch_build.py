@@ -43,7 +43,6 @@ def mm_notification():
     # Get Server Name
     server_name = socket.gethostname()
 
-    # TODO: decide on the best path for the hook URL
     file_path = os.path.expanduser("~/mm_webhook_url.txt")
     with open(file_path, "r") as file:
         mm_webhook_url = file.read().strip()
@@ -59,8 +58,8 @@ def mm_notification():
 | **Property** | **Value** |
 |--------------|-----------|
 | **Package**  | {repo_name} |
-| **Branch**   | `{branch_name}` |
-| **Commit**   | `{commit_hash}` |
+| **Branch**   | [`{branch_name}`]({repo_name}/tree/{branch_name}) |
+| **Commit**   |  [`{commit_hash}`]({repo_name}/commit/{commit_hash}) |
 """
         },
     }
