@@ -151,14 +151,14 @@ class AdderGen:
         :return: The plugin class.
         """
         # instantiate concrete plugin
-        self.adder_plugin_class = panda_config.getPlugin("adder_plugins", tmp_vo, tmp_group)
-        if self.adder_plugin_class is None:
+        adder_plugin_class = panda_config.getPlugin("adder_plugins", tmp_vo, tmp_group)
+        if adder_plugin_class is None:
             # use ATLAS plugin by default
             from pandaserver.dataservice.adder_atlas_plugin import AdderAtlasPlugin
 
-            self.adder_plugin_class = AdderAtlasPlugin
+            adder_plugin_class = AdderAtlasPlugin
         self.logger.debug(f"plugin name {self.adder_plugin_class.__name__}")
-        return self.adder_plugin_class
+        return adder_plugin_class
 
     def get_report(self) -> None:
         """
@@ -172,15 +172,15 @@ class AdderGen:
         Register Event Service (ES) files.
         """
         # instantiate concrete plugin
-        self.adder_plugin_class = self.get_plugin_class(self.job.VO, self.job.cloud)
-        self.adder_plugin = self.adder_plugin_class(
+        adder_plugin_class = self.get_plugin_class(self.job.VO, self.job.cloud)
+        adder_plugin = adder_plugin_class(
             self.job,
             taskBuffer=self.taskBuffer,
             siteMapper=self.siteMapper,
             logger=self.logger,
         )
         self.logger.debug("plugin is ready for ES file registration")
-        self.adder_plugin.register_event_service_files()
+        adder_plugin.register_event_service_files()
 
     def check_file_status_in_jedi(self) -> None:
         """
@@ -233,8 +233,8 @@ class AdderGen:
         # interaction with DDM
         try:
             # instantiate concrete plugin
-            self.adder_plugin_class = self.get_plugin_class(self.job.VO, self.job.cloud)
-            self.adder_plugin = self.adder_plugin_class(
+            adder_plugin_class = self.get_plugin_class(self.job.VO, self.job.cloud)
+            adder_plugin = adder_plugin_class(
                 self.job,
                 taskBuffer=self.taskBuffer,
                 siteMapper=self.siteMapper,
@@ -242,8 +242,8 @@ class AdderGen:
             )
             self.logger.debug("plugin is ready")
             self.adder_plugin.execute()
-            self.add_result = self.adder_plugin.result
-            self.logger.debug(f"plugin done with {self.add_result.status_code}")
+            add_result = adder_plugin.result
+            self.logger.debug(f"plugin done with {add_result.status_code}")
         except Exception:
             err_type, err_value = sys.exc_info()[:2]
             self.logger.error(f"failed to execute AdderPlugin for VO={self.job.VO} with {err_type}:{err_value}")
