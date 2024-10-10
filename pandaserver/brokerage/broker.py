@@ -181,7 +181,6 @@ def schedule(jobs, site_mapper):
                         f"  priority       {previous_priority}\n"
                         f"  prodDBlock     {production_data_block}\n"
                         f"  computingSite  {computing_site}\n"
-                        f"  processingType {previous_processing_type}\n"
                         f"  workingGroup   {previous_working_group}\n"
                         f"  transferType   {previous_transfer_type}\n"
                     )
