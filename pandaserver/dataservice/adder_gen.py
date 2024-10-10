@@ -319,9 +319,9 @@ class AdderGen:
         Check the job status and log appropriate messages.
         """
         if self.job is None:
-            self.logger.debug(": job not found in DB")
+            self.logger.debug("job not found in DB")
         elif self.job.jobStatus in ["finished", "failed", "unknown", "merging"]:
-            self.logger.error(f": invalid state -> {self.job.jobStatus}")
+            self.logger.error(f"invalid state -> {self.job.jobStatus}")
         elif self.attempt_nr is not None and self.job.attemptNr != self.attempt_nr:
             self.logger.error(f"wrong attemptNr -> job={self.job.attemptNr} <> {self.attempt_nr}")
         elif self.job_status == EventServiceUtils.esRegStatus:
@@ -355,7 +355,7 @@ class AdderGen:
 
                 # ignore temporary errors
                 if self.ignore_tmp_error and self.add_result is not None and self.add_result.is_temporary():
-                    self.logger.debug(f": ignore {self.job.ddmErrorDiag} ")
+                    self.logger.debug(f"ignore {self.job.ddmErrorDiag} ")
                     self.logger.debug("escape")
                     # unlock job output report
                     self.taskBuffer.unlockJobOutputReport(
@@ -537,7 +537,7 @@ class AdderGen:
                                 forAnal=True,
                             )[0]
                             if self.job is None:
-                                self.logger.debug(f": associated job PandaID={associate_job_id} not found in DB")
+                                self.logger.debug(f"associated job PandaID={associate_job_id} not found in DB")
                             else:
                                 closer_thread = closer.Closer(self.taskBuffer, associate_dispatch_blocks, associate_job)
                                 self.logger.debug(f"start Closer for PandaID={associate_job_id}")
@@ -573,7 +573,7 @@ class AdderGen:
             del self.data
             del self.report_dict
         except Exception as e:
-            err_str = f": {str(e)} {traceback.format_exc()}"
+            err_str = f"{str(e)} {traceback.format_exc()}"
             self.logger.error(err_str)
             duration = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
             self.logger.error("except: took %s.%03d sec in total" % (duration.seconds, duration.microseconds / 1000))
@@ -673,7 +673,7 @@ class AdderGen:
         except Exception:
             exc_type, value, _ = sys.exc_info()
             self.logger.warning("Issue with parsing JSON")
-            self.logger.error(f": {exc_type} {value}")
+            self.logger.error(f"{exc_type} {value}")
             # set failed anyway
             self.job.jobStatus = "failed"
             # JSON error happens when pilot got killed due to wall-time limit or failures in wrapper
@@ -796,7 +796,7 @@ class AdderGen:
                     # status
                     file.status = "failed"
                     exc_type, value, _ = sys.exc_info()
-                    self.logger.error(f": {exc_type} {value}")
+                    self.logger.error(f"{exc_type} {value}")
 
                 # set lumi block number
                 if lumi_block_nr is not None and file.status != "failed":
