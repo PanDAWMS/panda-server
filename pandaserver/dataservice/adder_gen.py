@@ -231,7 +231,7 @@ class AdderGen:
         Execute the Adder plugin.
         """
         # interaction with DDM
-        try:.
+        try:
             # instantiate concrete plugin
             self.adder_plugin_class = self.get_plugin_class(self.job.VO, self.job.cloud)
             self.adder_plugin = self.adder_plugin_class(
