@@ -347,9 +347,10 @@ class AdderGen:
             self.add_result = None
             adder_plugin = None
 
-            # parse JSON
-            parse_result = self.parse_json()
+            # parse Job Output Report JSON
+            parse_result = self.parse_job_output_report()
 
+            # If the parse_result is less than 2, it means that the parsing either succeeded or encountered a harmless error
             if parse_result < 2:
                 self.execute_plugin()
 
@@ -587,7 +588,7 @@ class AdderGen:
 
     # parse JSON
     # 0: succeeded, 1: harmless error to exit, 2: fatal error, 3: event service
-    def parse_json(self):
+    def parse_job_output_report(self):
         """
         Parse the JSON data associated with the job to extract file information.
 
@@ -608,7 +609,7 @@ class AdderGen:
         # no outputs
         if not log_out:
             self.logger.debug("has no outputs")
-            self.logger.debug("parse_json end")
+            self.logger.debug("parse_job_output_report end")
             return 0
 
         # get input files
@@ -721,7 +722,7 @@ class AdderGen:
         self.logger.debug(f"nEventsMap={str(n_events_map)}")
         self.logger.debug(f"nEventsFrom={str(n_events_from)}")
         self.logger.debug(f"guidMap={str(guid_map)}")
-        self.logger.debug(f"self.job.jobStatus={self.job.jobStatus} in parse_json")
+        self.logger.debug(f"self.job.jobStatus={self.job.jobStatus} in parse_job_output_report")
         self.logger.debug(f"isES={EventServiceUtils.isEventServiceJob(self.job)} isJumbo={EventServiceUtils.isJumboJob(self.job)}")
 
         # get lumi block number
@@ -815,7 +816,7 @@ class AdderGen:
                 self.job.ddmErrorDiag = f"pilot produced {lfn} inconsistently with jobdef"
                 return 2
         # return
-        self.logger.debug("parse_json end")
+        self.logger.debug("parse_job_output_report end")
         return 0
 
     # copy files for variable number of outputs
