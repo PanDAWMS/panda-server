@@ -57,13 +57,6 @@ class AdderAtlasPlugin(AdderPluginBase):
         self.log_transferring = False
         self.subscription_map = {}
         self.go_to_merging = False
-        self.extra_info = {
-            "surl": {},
-            "nevents": {},
-            "lbnr": {},
-            "endpoint": {},
-            "guid": {},
-        }
 
     # main
     def execute(self):
