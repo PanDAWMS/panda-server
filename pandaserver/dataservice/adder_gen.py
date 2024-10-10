@@ -444,14 +444,6 @@ class AdderGen:
         if old_job_status in ["cancelled", "closed"]:
             pass
         else:
-            db_lock = None
-            if panda_config.add_serialized and self.job.jediTaskID not in [0, None, "NULL"] and self.lock_pool:
-                db_lock = self.lock_pool.get(self.job.jediTaskID)
-                if db_lock:
-                    db_lock.acquire()
-                    self.logger.debug(f"got DB lock for jediTaskID={self.job.jediTaskID}")
-                else:
-                    self.logger.debug(f"couldn't get DB lock for jediTaskID={self.job.jediTaskID}")
             self.logger.debug("updating DB")
             update_result = self.taskBuffer.updateJobs(
                 [self.job],
@@ -461,10 +453,7 @@ class AdderGen:
                 async_dataset_update=True,
             )
             self.logger.debug(f"retU: {update_result}")
-            if db_lock:
-                self.logger.debug(f"release DB lock for jediTaskID={self.job.jediTaskID}")
-                db_lock.release()
-                self.lock_pool.release(self.job.jediTaskID)
+
             # failed
             if not update_result[0]:
                 self.logger.error(f"failed to update DB for pandaid={self.job.PandaID}")
