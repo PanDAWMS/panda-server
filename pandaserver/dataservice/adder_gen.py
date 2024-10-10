@@ -238,6 +238,7 @@ class AdderGen:
                 self.job,
                 taskBuffer=self.taskBuffer,
                 siteMapper=self.siteMapper,
+                extra_info=self.extra_info,
                 logger=self.logger,
             )
             self.logger.debug("plugin is ready")
