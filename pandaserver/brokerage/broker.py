@@ -1,6 +1,5 @@
 import datetime
 import functools
-import re
 import time
 import traceback
 import uuid
@@ -15,9 +14,6 @@ _log = PandaLogger().getLogger("broker")
 
 # all known sites
 _allSites = []
-
-# processingType to skip brokerage
-skipBrokerageProTypes = ["prod_test"]
 
 DEFAULT_DATA_TYPE = "GEN"
 BULK_SIZE = 20
