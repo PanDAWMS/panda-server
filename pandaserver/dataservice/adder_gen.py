@@ -69,8 +69,50 @@ class AdderGen:
         self.prelock_pid = prelock_pid
         self.data = None
         self.lock_pool = lock_pool
+        self.report_dict = None
+        self.adder_plugin = None
+        self.add_result = None
         # logger
         self.logger = LogWrapper(_logger, str(self.job_id))
+
+    # main
+    def run(self):
+        """
+        Run the AdderGen plugin.
+        """
+        try:
+            start_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            self.logger.debug(f"new start: {self.job_status} attemptNr={self.attempt_nr}")
+
+            # got lock, get the report
+            self.get_report()
+
+            # query job
+            self.job = self.taskBuffer.peekJobs([self.job_id], fromDefined=False, fromWaiting=False, forAnal=True)[0]
+
+            # check if job has finished
+            self.check_job_status()
+
+            duration = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
+            self.logger.debug("end: took %s.%03d sec in total" % (duration.seconds, duration.microseconds / 1000))
+
+            # remove Catalog
+            self.taskBuffer.deleteJobOutputReport(panda_id=self.job_id, attempt_nr=self.attempt_nr)
+
+            del self.data
+            del self.report_dict
+        except Exception as e:
+            err_str = f"{str(e)} {traceback.format_exc()}"
+            self.logger.error(err_str)
+            duration = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
+            self.logger.error("except: took %s.%03d sec in total" % (duration.seconds, duration.microseconds / 1000))
+            # unlock job output report
+            self.taskBuffer.unlockJobOutputReport(
+                panda_id=self.job_id,
+                attempt_nr=self.attempt_nr,
+                pid=self.pid,
+                lock_offset=self.lock_offset,
+            )
 
     # dump file report
     def dump_file_report(self, file_catalog, attempt_nr):
@@ -130,14 +172,14 @@ class AdderGen:
         """
         # instantiate concrete plugin
         adder_plugin_class = self.get_plugin_class(self.job.VO, self.job.cloud)
-        adder_plugin = adder_plugin_class(
+        self.adder_plugin = adder_plugin_class(
             self.job,
             taskBuffer=self.taskBuffer,
             siteMapper=self.siteMapper,
             logger=self.logger,
         )
         self.logger.debug("plugin is ready for ES file registration")
-        adder_plugin.register_event_service_files()
+        self.adder_plugin.register_event_service_files()
 
     def check_file_status_in_jedi(self) -> None:
         """
@@ -191,15 +233,15 @@ class AdderGen:
         try:
             # instantiate concrete plugin
             adder_plugin_class = self.get_plugin_class(self.job.VO, self.job.cloud)
-            adder_plugin = adder_plugin_class(
+            self.adder_plugin = adder_plugin_class(
                 self.job,
                 taskBuffer=self.taskBuffer,
                 siteMapper=self.siteMapper,
                 logger=self.logger,
             )
             self.logger.debug("plugin is ready")
-            adder_plugin.execute()
-            self.add_result = adder_plugin.result
+            self.adder_plugin.execute()
+            self.add_result = self.adder_plugin.result
             self.logger.debug(f"plugin done with {self.add_result.status_code}")
         except Exception:
             err_type, err_value = sys.exc_info()[:2]
@@ -345,7 +387,7 @@ class AdderGen:
             if self.job.jobStatus not in ["transferring"]:
                 self.job.jobStatus = self.job_status
             self.add_result = None
-            adder_plugin = None
+            self.adder_plugin = None
 
             # parse Job Output Report JSON
             parse_result = self.parse_job_output_report()
@@ -467,24 +509,30 @@ class AdderGen:
                 except Exception as e:
                     self.logger.error(f"apply_retrial_rules 2 excepted and needs to be investigated ({e}): {traceback.format_exc()}")
 
-                # setup for closer
-                if not (EventServiceUtils.isEventServiceJob(self.job) and self.job.isCancelled()):
-                    destination_dispatch_block_list = []
-                    guid_list = []
-                    for file in self.job.Files:
-                        # ignore inputs
-                        if file.type == "input":
-                            continue
-                        # skip pseudo datasets
-                        if file.destinationDBlock in ["", None, "NULL"]:
-                            continue
-                        # start closer for output/log datasets
-                        if file.destinationDBlock not in destination_dispatch_block_list:
-                            destination_dispatch_block_list.append(file.destinationDBlock)
-                        # collect GUIDs
-                        if (
-                            self.job.prodSourceLabel == "panda"
-                            or (
+                self.setup_closer()
+
+    def setup_closer(self) -> None:
+        """
+        Setup closer for the job.
+        """
+    # setup for closer
+        if not (EventServiceUtils.isEventServiceJob(self.job) and self.job.isCancelled()):
+            destination_dispatch_block_list = []
+            guid_list = []
+            for file in self.job.Files:
+                # ignore inputs
+                if file.type == "input":
+                    continue
+                # skip pseudo datasets
+                if file.destinationDBlock in ["", None, "NULL"]:
+                    continue
+                # start closer for output/log datasets
+                if file.destinationDBlock not in destination_dispatch_block_list:
+                    destination_dispatch_block_list.append(file.destinationDBlock)
+                # collect GUIDs
+                if (
+                        self.job.prodSourceLabel == "panda"
+                        or (
                                 self.job.prodSourceLabel in ["rucio_test"] + JobUtils.list_ptest_prod_sources
                                 and self.job.processingType
                                 in [
@@ -493,98 +541,60 @@ class AdderGen:
                                     "gangarobot-rctest",
                                     "hammercloud",
                                 ]
-                            )
-                        ) and file.type == "output":
-                            # extract base LFN since LFN was changed to full LFN for CMS
-                            base_lfn = file.lfn.split("/")[-1]
-                            guid_list.append(
-                                {
-                                    "lfn": base_lfn,
-                                    "guid": file.GUID,
-                                    "type": file.type,
-                                    "checksum": file.checksum,
-                                    "md5sum": file.md5sum,
-                                    "fsize": file.fsize,
-                                    "scope": file.scope,
-                                }
-                            )
-                    if guid_list:
-                        self.taskBuffer.setGUIDs(guid_list)
-                    if destination_dispatch_block_list:
-                        # start Closer
-                        if adder_plugin is not None and hasattr(adder_plugin, "dataset_map") and adder_plugin.dataset_map != {}:
-                            closer_thread = closer.Closer(
-                                self.taskBuffer,
-                                destination_dispatch_block_list,
-                                self.job,
-                                dataset_map=adder_plugin.dataset_map,
-                            )
-                        else:
-                            closer_thread = closer.Closer(self.taskBuffer, destination_dispatch_block_list, self.job)
-                        self.logger.debug("start Closer")
+                        )
+                ) and file.type == "output":
+                    # extract base LFN since LFN was changed to full LFN for CMS
+                    base_lfn = file.lfn.split("/")[-1]
+                    guid_list.append(
+                        {
+                            "lfn": base_lfn,
+                            "guid": file.GUID,
+                            "type": file.type,
+                            "checksum": file.checksum,
+                            "md5sum": file.md5sum,
+                            "fsize": file.fsize,
+                            "scope": file.scope,
+                        }
+                    )
+            if guid_list:
+                self.taskBuffer.setGUIDs(guid_list)
+            if destination_dispatch_block_list:
+                # start Closer
+                if self.adder_plugin is not None and hasattr(self.adder_plugin, "dataset_map") and self.adder_plugin.dataset_map != {}:
+                    closer_thread = closer.Closer(
+                        self.taskBuffer,
+                        destination_dispatch_block_list,
+                        self.job,
+                        dataset_map=self.adder_plugin.dataset_map,
+                    )
+                else:
+                    closer_thread = closer.Closer(self.taskBuffer, destination_dispatch_block_list, self.job)
+                self.logger.debug("start Closer")
+                closer_thread.run()
+                del closer_thread
+                self.logger.debug("end Closer")
+            # run closer for associate parallel jobs
+            if EventServiceUtils.isJobCloningJob(self.job):
+                associate_dispatch_block_map = self.taskBuffer.getDestDBlocksWithSingleConsumer(self.job.jediTaskID,
+                                                                                                self.job.PandaID,
+                                                                                                destination_dispatch_block_list)
+                for associate_job_id in associate_dispatch_block_map:
+                    associate_dispatch_blocks = associate_dispatch_block_map[associate_job_id]
+                    associate_job = self.taskBuffer.peekJobs(
+                        [associate_job_id],
+                        fromDefined=False,
+                        fromArchived=False,
+                        fromWaiting=False,
+                        forAnal=True,
+                    )[0]
+                    if self.job is None:
+                        self.logger.debug(f"associated job PandaID={associate_job_id} not found in DB")
+                    else:
+                        closer_thread = closer.Closer(self.taskBuffer, associate_dispatch_blocks, associate_job)
+                        self.logger.debug(f"start Closer for PandaID={associate_job_id}")
                         closer_thread.run()
                         del closer_thread
-                        self.logger.debug("end Closer")
-                    # run closer for associate parallel jobs
-                    if EventServiceUtils.isJobCloningJob(self.job):
-                        associate_dispatch_block_map = self.taskBuffer.getDestDBlocksWithSingleConsumer(self.job.jediTaskID, self.job.PandaID, destination_dispatch_block_list)
-                        for associate_job_id in associate_dispatch_block_map:
-                            associate_dispatch_blocks = associate_dispatch_block_map[associate_job_id]
-                            associate_job = self.taskBuffer.peekJobs(
-                                [associate_job_id],
-                                fromDefined=False,
-                                fromArchived=False,
-                                fromWaiting=False,
-                                forAnal=True,
-                            )[0]
-                            if self.job is None:
-                                self.logger.debug(f"associated job PandaID={associate_job_id} not found in DB")
-                            else:
-                                closer_thread = closer.Closer(self.taskBuffer, associate_dispatch_blocks, associate_job)
-                                self.logger.debug(f"start Closer for PandaID={associate_job_id}")
-                                closer_thread.run()
-                                del closer_thread
-                                self.logger.debug(f"end Closer for PandaID={associate_job_id}")
-
-
-    # main
-    def run(self):
-        """
-        Run the AdderGen plugin.
-        """
-        try:
-            start_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-            self.logger.debug(f"new start: {self.job_status} attemptNr={self.attempt_nr}")
-
-            # got lock, get the report
-            self.get_report()
-
-            # query job
-            self.job = self.taskBuffer.peekJobs([self.job_id], fromDefined=False, fromWaiting=False, forAnal=True)[0]
-
-            # check if job has finished
-            self.check_job_status()
-
-            duration = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
-            self.logger.debug("end: took %s.%03d sec in total" % (duration.seconds, duration.microseconds / 1000))
-
-            # remove Catalog
-            self.taskBuffer.deleteJobOutputReport(panda_id=self.job_id, attempt_nr=self.attempt_nr)
-
-            del self.data
-            del self.report_dict
-        except Exception as e:
-            err_str = f"{str(e)} {traceback.format_exc()}"
-            self.logger.error(err_str)
-            duration = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
-            self.logger.error("except: took %s.%03d sec in total" % (duration.seconds, duration.microseconds / 1000))
-            # unlock job output report
-            self.taskBuffer.unlockJobOutputReport(
-                panda_id=self.job_id,
-                attempt_nr=self.attempt_nr,
-                pid=self.pid,
-                lock_offset=self.lock_offset,
-            )
+                        self.logger.debug(f"end Closer for PandaID={associate_job_id}")
 
     # parse JSON
     # 0: succeeded, 1: harmless error to exit, 2: fatal error, 3: event service
