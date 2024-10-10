@@ -363,13 +363,13 @@ class AdderGen:
         if self.job is None:
             self.logger.debug("job not found in DB")
             return
-        elif self.job.jobStatus in ["finished", "failed", "unknown", "merging"]:
+        if self.job.jobStatus in ["finished", "failed", "unknown", "merging"]:
             self.logger.error(f"invalid state -> {self.job.jobStatus}")
             return
-        elif self.attempt_nr is not None and self.job.attemptNr != self.attempt_nr:
+        if self.attempt_nr is not None and self.job.attemptNr != self.attempt_nr:
             self.logger.error(f"wrong attemptNr -> job={self.job.attemptNr} <> {self.attempt_nr}")
             return
-        elif self.job_status == EventServiceUtils.esRegStatus:
+        if self.job_status == EventServiceUtils.esRegStatus:
             self.register_event_service_files()
             return
 
