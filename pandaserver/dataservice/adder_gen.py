@@ -72,6 +72,7 @@ class AdderGen:
         self.report_dict = None
         self.adder_plugin = None
         self.add_result = None
+        self.adder_plugin_class = None
         # logger
         self.logger = LogWrapper(_logger, str(self.job_id))
 
@@ -150,14 +151,14 @@ class AdderGen:
         :return: The plugin class.
         """
         # instantiate concrete plugin
-        adder_plugin_class = panda_config.getPlugin("adder_plugins", tmp_vo, tmp_group)
-        if adder_plugin_class is None:
+        self.adder_plugin_class = panda_config.getPlugin("adder_plugins", tmp_vo, tmp_group)
+        if self.adder_plugin_class is None:
             # use ATLAS plugin by default
             from pandaserver.dataservice.adder_atlas_plugin import AdderAtlasPlugin
 
-            adder_plugin_class = AdderAtlasPlugin
-        self.logger.debug(f"plugin name {adder_plugin_class.__name__}")
-        return adder_plugin_class
+            self.adder_plugin_class = AdderAtlasPlugin
+        self.logger.debug(f"plugin name {self.adder_plugin_class.__name__}")
+        return self.adder_plugin_class
 
     def get_report(self) -> None:
         """
@@ -171,8 +172,8 @@ class AdderGen:
         Register Event Service (ES) files.
         """
         # instantiate concrete plugin
-        adder_plugin_class = self.get_plugin_class(self.job.VO, self.job.cloud)
-        self.adder_plugin = adder_plugin_class(
+        self.adder_plugin_class = self.get_plugin_class(self.job.VO, self.job.cloud)
+        self.adder_plugin = self.adder_plugin_class(
             self.job,
             taskBuffer=self.taskBuffer,
             siteMapper=self.siteMapper,
@@ -232,8 +233,8 @@ class AdderGen:
         # interaction with DDM
         try:
             # instantiate concrete plugin
-            adder_plugin_class = self.get_plugin_class(self.job.VO, self.job.cloud)
-            self.adder_plugin = adder_plugin_class(
+            self.adder_plugin_class = self.get_plugin_class(self.job.VO, self.job.cloud)
+            self.adder_plugin = self.adder_plugin_class(
                 self.job,
                 taskBuffer=self.taskBuffer,
                 siteMapper=self.siteMapper,
