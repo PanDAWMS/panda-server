@@ -362,154 +362,158 @@ class AdderGen:
         """
         if self.job is None:
             self.logger.debug("job not found in DB")
+            return
         elif self.job.jobStatus in ["finished", "failed", "unknown", "merging"]:
             self.logger.error(f"invalid state -> {self.job.jobStatus}")
+            return
         elif self.attempt_nr is not None and self.job.attemptNr != self.attempt_nr:
             self.logger.error(f"wrong attemptNr -> job={self.job.attemptNr} <> {self.attempt_nr}")
+            return
         elif self.job_status == EventServiceUtils.esRegStatus:
             self.register_event_service_files()
-        else:
-            # check file status in JEDI
-            self.check_file_status_in_jedi()
+            return
 
-            # use failed for cancelled/closed jobs
-            if self.job.isCancelled():
-                self.job_status = "failed"
-                # reset error codes to skip retrial module
-                self.job.pilotErrorCode = 0
-                self.job.exeErrorCode = 0
-                self.job.ddmErrorCode = 0
+        # check file status in JEDI
+        self.check_file_status_in_jedi()
 
-            # keep old status
-            old_job_status = self.job.jobStatus
+        # use failed for cancelled/closed jobs
+        if self.job.isCancelled():
+            self.job_status = "failed"
+            # reset error codes to skip retrial module
+            self.job.pilotErrorCode = 0
+            self.job.exeErrorCode = 0
+            self.job.ddmErrorCode = 0
 
-            # set job status
-            if self.job.jobStatus not in ["transferring"]:
-                self.job.jobStatus = self.job_status
-            self.add_result = None
-            self.adder_plugin = None
+        # keep old status
+        old_job_status = self.job.jobStatus
 
-            # parse Job Output Report JSON
-            parse_result = self.parse_job_output_report()
+        # set job status
+        if self.job.jobStatus not in ["transferring"]:
+            self.job.jobStatus = self.job_status
+        self.add_result = None
+        self.adder_plugin = None
 
-            # If the parse_result is less than 2, it means that the parsing either succeeded or encountered a harmless error
-            if parse_result < 2:
-                self.execute_plugin()
+        # parse Job Output Report JSON
+        parse_result = self.parse_job_output_report()
 
-                # ignore temporary errors
-                if self.ignore_tmp_error and self.add_result is not None and self.add_result.is_temporary():
-                    self.logger.debug(f"ignore {self.job.ddmErrorDiag} ")
-                    self.logger.debug("escape")
-                    # unlock job output report
-                    self.taskBuffer.unlockJobOutputReport(
-                        panda_id=self.job_id,
-                        attempt_nr=self.attempt_nr,
-                        pid=self.pid,
-                        lock_offset=self.lock_offset,
-                    )
-                    return
-                # failed
-                if self.add_result is None or not self.add_result.is_succeeded():
-                    self.job.jobStatus = "failed"
+        # If the parse_result is less than 2, it means that the parsing either succeeded or encountered a harmless error
+        if parse_result < 2:
+            self.execute_plugin()
 
-            # set file status for failed jobs or failed transferring jobs
-            self.logger.debug(f"status after plugin call :job.jobStatus={self.job.jobStatus} jobStatus={self.job_status}")
-
-            self.finalize_job_status()
-
-            # endtime
-            if self.job.endTime == "NULL":
-                self.job.endTime = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-            # output size and # of outputs
-            self.job.nOutputDataFiles = 0
-            self.job.outputFileBytes = 0
-            for tmp_file in self.job.Files:
-                if tmp_file.type == "output":
-                    self.job.nOutputDataFiles += 1
-                    try:
-                        self.job.outputFileBytes += tmp_file.fsize
-                    except Exception:
-                        pass
-            # protection
-            max_output_file_bytes = 99999999999
-            self.job.outputFileBytes = min(self.job.outputFileBytes, max_output_file_bytes)
-            # set cancelled state
-            if self.job.commandToPilot == "tobekilled" and self.job.jobStatus == "failed":
-                self.job.jobStatus = "cancelled"
-            # update job
-            if old_job_status in ["cancelled", "closed"]:
-                pass
-            else:
-                db_lock = None
-                if panda_config.add_serialized and self.job.jediTaskID not in [0, None, "NULL"] and self.lock_pool:
-                    db_lock = self.lock_pool.get(self.job.jediTaskID)
-                    if db_lock:
-                        db_lock.acquire()
-                        self.logger.debug(f"got DB lock for jediTaskID={self.job.jediTaskID}")
-                    else:
-                        self.logger.debug(f"couldn't get DB lock for jediTaskID={self.job.jediTaskID}")
-                self.logger.debug("updating DB")
-                update_result = self.taskBuffer.updateJobs(
-                    [self.job],
-                    False,
-                    oldJobStatusList=[old_job_status],
-                    extraInfo=self.extra_info,
-                    async_dataset_update=True,
+            # ignore temporary errors
+            if self.ignore_tmp_error and self.add_result is not None and self.add_result.is_temporary():
+                self.logger.debug(f"ignore {self.job.ddmErrorDiag} ")
+                self.logger.debug("escape")
+                # unlock job output report
+                self.taskBuffer.unlockJobOutputReport(
+                    panda_id=self.job_id,
+                    attempt_nr=self.attempt_nr,
+                    pid=self.pid,
+                    lock_offset=self.lock_offset,
                 )
-                self.logger.debug(f"retU: {update_result}")
-                if db_lock:
-                    self.logger.debug(f"release DB lock for jediTaskID={self.job.jediTaskID}")
-                    db_lock.release()
-                    self.lock_pool.release(self.job.jediTaskID)
-                # failed
-                if not update_result[0]:
-                    self.logger.error(f"failed to update DB for pandaid={self.job.PandaID}")
-                    # unlock job output report
-                    self.taskBuffer.unlockJobOutputReport(
-                        panda_id=self.job_id,
-                        attempt_nr=self.attempt_nr,
-                        pid=self.pid,
-                        lock_offset=self.lock_offset,
-                    )
-                    return
+                return
+            # failed
+            if self.add_result is None or not self.add_result.is_succeeded():
+                self.job.jobStatus = "failed"
 
+        # set file status for failed jobs or failed transferring jobs
+        self.logger.debug(f"status after plugin call :job.jobStatus={self.job.jobStatus} jobStatus={self.job_status}")
+
+        self.finalize_job_status()
+
+        # endtime
+        if self.job.endTime == "NULL":
+            self.job.endTime = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+        # output size and # of outputs
+        self.job.nOutputDataFiles = 0
+        self.job.outputFileBytes = 0
+        for tmp_file in self.job.Files:
+            if tmp_file.type == "output":
+                self.job.nOutputDataFiles += 1
                 try:
-                    # updateJobs was successful and it failed a job with taskBufferErrorCode
-                    self.logger.debug("AdderGen.run will peek the job")
-                    job_tmp = self.taskBuffer.peekJobs(
-                        [self.job.PandaID],
-                        fromDefined=False,
-                        fromArchived=True,
-                        fromWaiting=False,
-                    )[0]
-                    self.logger.debug(
-                        f"status {job_tmp.jobStatus}, taskBufferErrorCode {job_tmp.taskBufferErrorCode}, taskBufferErrorDiag {job_tmp.taskBufferErrorDiag}"
-                    )
-                    if job_tmp.jobStatus == "failed" and job_tmp.taskBufferErrorCode:
-                        source = "taskBufferErrorCode"
-                        error_code = job_tmp.taskBufferErrorCode
-                        error_diag = job_tmp.taskBufferErrorDiag
-                        errors = [
-                            {
-                                "source": source,
-                                "error_code": error_code,
-                                "error_diag": error_diag,
-                            }
-                        ]
-                        self.logger.debug("AdderGen.run 2 will call apply_retrial_rules")
-                        retryModule.apply_retrial_rules(
-                            self.taskBuffer,
-                            job_tmp.PandaID,
-                            errors,
-                            job_tmp.attemptNr,
-                        )
-                        self.logger.debug("apply_retrial_rules 2 is back")
-                except IndexError:
+                    self.job.outputFileBytes += tmp_file.fsize
+                except Exception:
                     pass
-                except Exception as e:
-                    self.logger.error(f"apply_retrial_rules 2 excepted and needs to be investigated ({e}): {traceback.format_exc()}")
+        # protection
+        max_output_file_bytes = 99999999999
+        self.job.outputFileBytes = min(self.job.outputFileBytes, max_output_file_bytes)
+        # set cancelled state
+        if self.job.commandToPilot == "tobekilled" and self.job.jobStatus == "failed":
+            self.job.jobStatus = "cancelled"
+        # update job
+        if old_job_status in ["cancelled", "closed"]:
+            pass
+        else:
+            db_lock = None
+            if panda_config.add_serialized and self.job.jediTaskID not in [0, None, "NULL"] and self.lock_pool:
+                db_lock = self.lock_pool.get(self.job.jediTaskID)
+                if db_lock:
+                    db_lock.acquire()
+                    self.logger.debug(f"got DB lock for jediTaskID={self.job.jediTaskID}")
+                else:
+                    self.logger.debug(f"couldn't get DB lock for jediTaskID={self.job.jediTaskID}")
+            self.logger.debug("updating DB")
+            update_result = self.taskBuffer.updateJobs(
+                [self.job],
+                False,
+                oldJobStatusList=[old_job_status],
+                extraInfo=self.extra_info,
+                async_dataset_update=True,
+            )
+            self.logger.debug(f"retU: {update_result}")
+            if db_lock:
+                self.logger.debug(f"release DB lock for jediTaskID={self.job.jediTaskID}")
+                db_lock.release()
+                self.lock_pool.release(self.job.jediTaskID)
+            # failed
+            if not update_result[0]:
+                self.logger.error(f"failed to update DB for pandaid={self.job.PandaID}")
+                # unlock job output report
+                self.taskBuffer.unlockJobOutputReport(
+                    panda_id=self.job_id,
+                    attempt_nr=self.attempt_nr,
+                    pid=self.pid,
+                    lock_offset=self.lock_offset,
+                )
+                return
 
-                self.setup_closer()
+            try:
+                # updateJobs was successful and it failed a job with taskBufferErrorCode
+                self.logger.debug("AdderGen.run will peek the job")
+                job_tmp = self.taskBuffer.peekJobs(
+                    [self.job.PandaID],
+                    fromDefined=False,
+                    fromArchived=True,
+                    fromWaiting=False,
+                )[0]
+                self.logger.debug(
+                    f"status {job_tmp.jobStatus}, taskBufferErrorCode {job_tmp.taskBufferErrorCode}, taskBufferErrorDiag {job_tmp.taskBufferErrorDiag}"
+                )
+                if job_tmp.jobStatus == "failed" and job_tmp.taskBufferErrorCode:
+                    source = "taskBufferErrorCode"
+                    error_code = job_tmp.taskBufferErrorCode
+                    error_diag = job_tmp.taskBufferErrorDiag
+                    errors = [
+                        {
+                            "source": source,
+                            "error_code": error_code,
+                            "error_diag": error_diag,
+                        }
+                    ]
+                    self.logger.debug("AdderGen.run 2 will call apply_retrial_rules")
+                    retryModule.apply_retrial_rules(
+                        self.taskBuffer,
+                        job_tmp.PandaID,
+                        errors,
+                        job_tmp.attemptNr,
+                    )
+                    self.logger.debug("apply_retrial_rules 2 is back")
+            except IndexError:
+                pass
+            except Exception as e:
+                self.logger.error(f"apply_retrial_rules 2 excepted and needs to be investigated ({e}): {traceback.format_exc()}")
+
+            self.setup_closer()
 
     def setup_closer(self) -> None:
         """
