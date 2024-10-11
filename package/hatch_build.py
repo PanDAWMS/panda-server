@@ -55,7 +55,7 @@ def get_repo_info() -> object:
 
 def mm_notification():
     # Environment variable to check if we should silence the notification
-    if os.environ.get("SILENCE_MM"):
+    if os.environ.get("DISABLE_MM"):
         return
 
     # Get user that is running the upgrade
