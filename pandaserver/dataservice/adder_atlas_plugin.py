@@ -230,7 +230,8 @@ class AdderAtlasPlugin(AdderPluginBase):
         sub_map = {}
         dataset_destination_map = {}
         dist_datsets = set()
-        os_ds_file_map = {}
+        map_for_alt_stage_out = {}
+        alt_staged_files = set()
         zip_files = {}
         cont_zip_map = {}
         sub_to_ds_map = {}
@@ -406,15 +407,11 @@ class AdderAtlasPlugin(AdderPluginBase):
                             if pilot_end_point in dataset_destination_map[file_destination_dispatch_block]:
                                 has_normal_url = True
                             else:
-                                # uploaded to S3
-                                if pilot_end_point not in os_ds_file_map:
-                                    os_ds_file_map[pilot_end_point] = {}
-                                os_file_destination_dispatch_block = file.dataset
-                                if os_file_destination_dispatch_block not in os_ds_file_map[pilot_end_point]:
-                                    os_ds_file_map[pilot_end_point][os_file_destination_dispatch_block] = []
-                                copied_file_attrs = copy.copy(file_attrs)
-                                del copied_file_attrs["surl"]
-                                os_ds_file_map[pilot_end_point][os_file_destination_dispatch_block].append(copied_file_attrs)
+                                # alternative stage-out
+                                alt_staged_files.add(file.lfn)
+                                map_for_alt_stage_out.setdefault(pilot_end_point, {})
+                                map_for_alt_stage_out[pilot_end_point].setdefault(file_destination_dispatch_block, [])
+                                map_for_alt_stage_out[pilot_end_point][file_destination_dispatch_block].append(file_attrs)
                     if has_normal_url:
                         # add file to be added to dataset
                         id_map[file_destination_dispatch_block].append(file_attrs)
@@ -591,10 +588,11 @@ class AdderAtlasPlugin(AdderPluginBase):
                 if not self.go_to_transferring and not self.log_transferring and destination_dispatch_block in id_map:
                     del id_map[destination_dispatch_block]
         # print idMap
-        self.logger.debug(f"idMap = {id_map}")
-        self.logger.debug(f"subMap = {sub_map}")
-        self.logger.debug(f"dsDestMap = {dataset_destination_map}")
-        self.logger.debug(f"extra_info = {str(self.extra_info)}")
+        self.logger.debug(f"dataset to files map = {id_map}")
+        self.logger.debug(f"transfer rules = {sub_map}")
+        self.logger.debug(f"dataset to destination map = {dataset_destination_map}")
+        self.logger.debug(f"extra info = {str(self.extra_info)}")
+        self.logger.debug(f"""alternatively staged files = {",".join(list(alt_staged_files)) if alt_staged_files else "NA"}""")
         # check consistency of destinationDBlock
         has_sub = False
         for destination_dispatch_block in id_map:
@@ -622,7 +620,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         if not self.use_central_lfc():
             dest_id_map = {None: id_map}
         else:
-            dest_id_map = self.decompose_id_map(id_map, dataset_destination_map, os_ds_file_map, sub_to_ds_map)
+            dest_id_map = self.decompose_id_map(id_map, dataset_destination_map, map_for_alt_stage_out, sub_to_ds_map, alt_staged_files)
         # add files
         max_attempt = 3
         for attempt_number in range(max_attempt):
@@ -631,7 +629,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             reg_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             try:
                 if not self.use_central_lfc():
-                    reg_msg_str = f"File registraion for {reg_num_files} files "
+                    reg_msg_str = f"File registration for {reg_num_files} files "
                 else:
                     reg_msg_str = f"File registration with backend={self.ddm_backend} for {reg_num_files} files "
                 if len(zip_files) > 0:
@@ -696,7 +694,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         # release some memory
         del dest_id_map
         del dataset_destination_map
-        del os_ds_file_map
+        del map_for_alt_stage_out
         del zip_files
         del cont_zip_map
         gc.collect()
@@ -935,15 +933,16 @@ class AdderAtlasPlugin(AdderPluginBase):
         return False
 
     # decompose idMap
-    def decompose_id_map(self, id_map, dataset_destination_map, os_dataset_file_map, sub_to_dataset_map):
+    def decompose_id_map(self, id_map, dataset_destination_map, map_for_alt_stage_out, sub_to_dataset_map, alt_staged_files):
         """
         Decompose the idMap into a structure suitable for file registration.
 
         Args:
             id_map (dict): A dictionary mapping dataset names to file attributes.
             dataset_destination_map (dict): A dictionary mapping dataset names to destination sites.
-            os_dataset_file_map (dict): A dictionary mapping destination sites to file attributes.
+            map_for_alt_stage_out (dict): A dictionary mapping alternative destination sites to file attributes.
             sub_to_dataset_map (dict): A dictionary mapping sub-dataset names to top-level dataset names.
+            alt_staged_files (set): A set of files uploaded with alternative stage-out.
 
         Returns:
             dict: A decomposed idMap suitable for file registration.
@@ -955,14 +954,17 @@ class AdderAtlasPlugin(AdderPluginBase):
                 dataset_destination_map[tmp_top_dataset] = dataset_destination_map[tmp_dataset]
         destination_id_map = {}
         for tmp_dataset in id_map:
-            tmp_files = id_map[tmp_dataset]
+            # exclude files uploaded with alternative stage-out
+            tmp_files = [f for f in id_map[tmp_dataset] if f["lfn"] not in alt_staged_files]
+            if not tmp_files:
+                continue
             for tmp_dest in dataset_destination_map[tmp_dataset]:
                 if tmp_dest not in destination_id_map:
                     destination_id_map[tmp_dest] = {}
                 destination_id_map[tmp_dest][tmp_dataset] = tmp_files
-        # add OS stuff
-        for tmp_dest in os_dataset_file_map:
-            tmp_id_map = os_dataset_file_map[tmp_dest]
+        # add alternative stage-out info
+        for tmp_dest in map_for_alt_stage_out:
+            tmp_id_map = map_for_alt_stage_out[tmp_dest]
             for tmp_dataset in tmp_id_map:
                 tmp_files = tmp_id_map[tmp_dataset]
                 if tmp_dest not in destination_id_map:
