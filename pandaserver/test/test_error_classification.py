@@ -29,7 +29,7 @@ else:
 # load the error classification rules from the database
 sql = "SELECT error_source, error_code, error_diag, error_class FROM ATLASPANDA.ERROR_CLASSIFICATION"
 var_map = {}  # no variables in this query, but the API requires a dictionary
-status, results = taskBuffer.querySQLS(sql)
+status, results = taskBuffer.querySQLS(sql, var_map)
 if not results:
     print("There are no error classification rules in the database or the query failed")
 else:
