@@ -44,20 +44,20 @@ def _compFunc(job_a, job_b):
 
 
 # get list of files which already exist at the site
-def _getOkFiles(
+def _get_ok_files(
     v_ce,
     v_files,
-    allLFNs,
-    allOkFilesMap,
-    prodsourcelabel,
+    all_lfns,
+    all_ok_files_map,
+    prod_source_label,
     job_label,
     tmp_log,
-    allScopeList=None,
+    all_scope_list=None,
 ):
-    if not allLFNs:
+    if not all_lfns:
         return {}
 
-    scope_association_input, _ = select_scope(v_ce, prodsourcelabel, job_label)
+    scope_association_input, _ = select_scope(v_ce, prod_source_label, job_label)
     rucio_sites = list(v_ce.setokens_input[scope_association_input].values())
     try:
         rucio_sites.remove("")
@@ -67,39 +67,36 @@ def _getOkFiles(
     if not rucio_sites:
         rucio_site = v_ce.ddm_input[scope_association_input]
     else:
-        rucio_site = ""
-        for tmpID in rucio_sites:
-            rucio_site += f"{tmpID},"
-        rucio_site = rucio_site[:-1]
+        rucio_site = ",".join(rucio_sites)
 
     # set LFC and SE name
     rucio_url = "rucio://atlas-rucio.cern.ch:/grid/atlas"
-    tmpSE = v_ce.ddm_endpoints_input[scope_association_input].getAllEndPoints()
-    tmp_log.debug(f"getOkFiles for {v_ce.sitename} with rucio_site:{rucio_site}, rucio_url:{rucio_url}, SE:{str(tmpSE)}")
-    anyID = "any"
+    tmp_se = v_ce.ddm_endpoints_input[scope_association_input].getAllEndpoints()
+    tmp_log.debug(f"get_ok_files for {v_ce.sitename} with rucio_site:{rucio_site}, " f"rucio_url:{rucio_url}, SE:{str(tmp_se)}")
+    any_id = "any"
 
     # use bulk lookup
     # get all replicas
-    if rucio_url not in allOkFilesMap:
-        allOkFilesMap[rucio_url] = {}
-        tmpStat, tmpAvaFiles = rucioAPI.list_file_replicas(allScopeList, allLFNs, tmpSE)
-        if not tmpStat:
-            tmp_log.debug("getOkFile failed to get file replicas")
-            tmpAvaFiles = {}
-        allOkFilesMap[rucio_url][anyID] = tmpAvaFiles
+    if rucio_url not in all_ok_files_map:
+        all_ok_files_map[rucio_url] = {}
+        tmp_stat, tmp_ava_files = rucioAPI.list_file_replicas(all_scope_list, all_lfns, tmp_se)
+        if not tmp_stat:
+            tmp_log.debug("get_ok_file failed to get file replicas")
+            tmp_ava_files = {}
+        all_ok_files_map[rucio_url][any_id] = tmp_ava_files
 
     # get files for each rucio_site
-    if rucio_site not in allOkFilesMap[rucio_url]:
-        allOkFilesMap[rucio_url][rucio_site] = allOkFilesMap[rucio_url][anyID]
+    if rucio_site not in all_ok_files_map[rucio_url]:
+        all_ok_files_map[rucio_url][rucio_site] = all_ok_files_map[rucio_url][any_id]
 
     # make return map
-    retMap = {}
-    for tmpLFN in v_files:
-        if tmpLFN in allOkFilesMap[rucio_url][rucio_site]:
-            retMap[tmpLFN] = allOkFilesMap[rucio_url][rucio_site][tmpLFN]
-    tmp_log.debug("getOkFiles done")
+    ret_map = {}
+    for tmp_lfn in v_files:
+        if tmp_lfn in all_ok_files_map[rucio_url][rucio_site]:
+            ret_map[tmp_lfn] = all_ok_files_map[rucio_url][rucio_site][tmp_lfn]
+    tmp_log.debug("get_ok_files done")
 
-    return retMap
+    return ret_map
 
 
 # set 'ready' if files are already there
@@ -281,7 +278,7 @@ def schedule(jobs, siteMapper):
                         # get site spec
                         tmp_chosen_panda_queue = siteMapper.getSite(computingSite)
                         # get files
-                        okFiles = _getOkFiles(
+                        okFiles = _get_ok_files(
                             tmp_chosen_panda_queue,
                             fileList,
                             allLFNs,
