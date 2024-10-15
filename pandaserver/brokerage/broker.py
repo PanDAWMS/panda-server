@@ -151,13 +151,6 @@ def _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog):
         tmpJob.dispatchDBlock = "NULL"
 
 
-# Check if the number/size of inputs is too large
-def _isTooMuchInput(n_files_per_job, input_size_per_job):
-    if n_files_per_job > 5 or input_size_per_job > 500 * 1024 * 1024:
-        return True
-    return False
-
-
 # get Satellite candidates when files are missing at Satellite
 def get_satellite_candidate_list(tmp_job, satellites_files_map):
     # no job or cloud information
