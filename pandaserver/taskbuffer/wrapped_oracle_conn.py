@@ -1,5 +1,5 @@
-# wrapper for Postgres Connection
-class WrappedPostgresConn(object):
+# wrapper for Oracle Connection
+class WrappedOracleConn(object):
     def __init__(self, conn):
         self.orig_conn = conn
 
@@ -10,15 +10,9 @@ class WrappedPostgresConn(object):
             pass
         return object.__getattribute__(self, item)
 
-    def begin(self):
-        pass
-
-    def ping(self):
-        if self.orig_conn.closed:
-            raise RuntimeError("connection closed")
-
+    # override context manager protocol not to close connection
     def __enter__(self):
         return self.orig_conn.__enter__()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.orig_conn.__exit__(exc_type, exc_val, exc_tb)
+        self.orig_conn.commit()
