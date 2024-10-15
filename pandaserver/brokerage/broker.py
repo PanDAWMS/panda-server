@@ -190,9 +190,6 @@ def schedule(jobs, siteMapper):
         indexJob = 0
         prestageSites = []
 
-        # get statistics
-        newJobStatWithPrio = {}
-
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs = sorted(jobs, key=functools.cmp_to_key(_compFunc))
 
@@ -351,19 +348,7 @@ def schedule(jobs, siteMapper):
                         # set ready if files are already there
                         if prevIsJEDI is False:
                             _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog)
-                        # update statistics
-                        tmpProGroup = ProcessGroups.getProcessGroup(tmpJob.processingType)
-                        if tmpJob.processingType in skipBrokerageProTypes:
-                            # use original processingType since prod_test is in the test category and thus is interfered by validations
-                            tmpProGroup = tmpJob.processingType
 
-                        # update statistics by taking priorities into account
-                        if prevSourceLabel in ["managed", "test"]:
-                            newJobStatWithPrio.setdefault(prevPriority, {})
-                            newJobStatWithPrio[prevPriority].setdefault(tmpJob.getCloud(), {})
-                            newJobStatWithPrio[prevPriority][tmpJob.getCloud()].setdefault(tmpJob.computingSite, {})
-                            newJobStatWithPrio[prevPriority][tmpJob.getCloud()][tmpJob.computingSite].setdefault(tmpProGroup, 0)
-                            newJobStatWithPrio[prevPriority][tmpJob.getCloud()][tmpJob.computingSite][tmpProGroup] += 1
                 # terminate
                 if job is None:
                     break
