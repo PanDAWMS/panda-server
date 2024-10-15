@@ -201,12 +201,6 @@ def schedule(jobs, taskBuffer, siteMapper):
         # get statistics
         newJobStatWithPrio = {}
         jobStatBrokerCloudsWithPrio = {}
-        if len(jobs) > 0 and (jobs[0].processingType.startswith("gangarobot") or jobs[0].processingType.startswith("hammercloud") or onlyJEDI):
-            # disable redundant counting for HC
-            jobStatBroker = {}
-
-        else:
-            jobStatBroker = {}
 
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs = sorted(jobs, key=functools.cmp_to_key(_compFunc))
@@ -373,9 +367,6 @@ def schedule(jobs, taskBuffer, siteMapper):
                             # use original processingType since prod_test is in the test category and thus is interfered by validations
                             tmpProGroup = tmpJob.processingType
 
-                        jobStatBroker.setdefault(tmpJob.computingSite, {})
-                        jobStatBroker[tmpJob.computingSite].setdefault(tmpProGroup, {"assigned": 0, "activated": 0, "running": 0})
-                        jobStatBroker[tmpJob.computingSite][tmpProGroup]["assigned"] += 1
                         # update statistics by taking priorities into account
                         if prevSourceLabel in ["managed", "test"]:
                             newJobStatWithPrio.setdefault(prevPriority, {})
