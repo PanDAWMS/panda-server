@@ -36,6 +36,11 @@ class TaskBuffer:
         # save the requester for monitoring/logging purposes
         self.start_time = time.time()
 
+        # site mapper
+        self.site_mapper = None
+        # update time for site mapper
+        self.last_update_site_mapper = None
+
     def __repr__(self):
         return "TaskBuffer"
 
@@ -68,6 +73,16 @@ class TaskBuffer:
     # get number of database connections
     def get_num_connections(self):
         return self.nDBConnection
+
+    # get SiteMapper
+    def get_site_mapper(self):
+        time_now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        if self.last_update_site_mapper is None or datetime.datetime.now(datetime.timezone.utc).replace(
+            tzinfo=None
+        ) - self.last_update_site_mapper > datetime.timedelta(minutes=10):
+            self.site_mapper = SiteMapper(self)
+            self.last_update_site_mapper = time_now
+        return self.site_mapper
 
     # check production role
     def checkProdRole(self, fqans):
@@ -175,10 +190,11 @@ class TaskBuffer:
         getEsJobsetMap=False,
         unprocessedMap=None,
         bulk_job_insert=False,
+        trust_user=False,
     ):
         try:
-            tmpLog = LogWrapper(_logger, f"storeJobs <{CoreUtils.clean_user_id(user)}>")
-            tmpLog.debug(f"start nJobs={len(jobs)}")
+            tmpLog = LogWrapper(_logger, f"storeJobs <{CoreUtils.clean_user_id(user)} nJobs={len(jobs)}>")
+            tmpLog.debug(f"start toPending={toPending}")
             # check quota for priority calculation
             weight = 0.0
             userJobID = -1
@@ -189,10 +205,10 @@ class TaskBuffer:
             useExpress = False
             nExpressJobs = 0
             useDebugMode = False
-            siteMapper = SiteMapper(self)
+            siteMapper = self.get_site_mapper()
 
             # check ban user
-            if len(jobs) > 0:
+            if not trust_user and len(jobs) > 0:
                 # get DB proxy
                 proxy = self.proxyPool.getProxy()
                 # check user status
@@ -206,6 +222,7 @@ class TaskBuffer:
                         return [], None, unprocessedMap
                     return []
 
+            tmpLog.debug(f"checked ban user")
             # set parameters for user jobs
             if (
                 len(jobs) > 0
@@ -230,9 +247,6 @@ class TaskBuffer:
                 # release proxy
                 self.proxyPool.putProxy(proxy)
 
-                # get site spec
-                tmpSiteSpec = siteMapper.getSite(jobs[0].computingSite)
-
                 # extract country group
                 for tmpFQAN in fqans:
                     match = re.search("^/atlas/([^/]+)/", tmpFQAN)
@@ -246,6 +260,7 @@ class TaskBuffer:
                         if tmpCountry in ["usatlas"]:
                             userCountry = "us"
                             break
+            tmpLog.debug(f"set user job parameters")
 
             # return if DN is blocked
             if not userStatus:
@@ -294,23 +309,28 @@ class TaskBuffer:
                     prio_reduction,
                 ) = self.getPrioParameters(jobs, user, fqans, userDefinedWG, validWorkingGroup)
                 tmpLog.debug(f"workingGroup={jobs[0].workingGroup} serNum={serNum} weight={weight} pOffset={priorityOffset} reduction={prio_reduction}")
+            tmpLog.debug(f"got prio parameters")
             # get DB proxy
             proxy = self.proxyPool.getProxy()
+            tmpLog.debug(f"got proxy")
             # get group job serial number
             groupJobSerialNum = 0
             if len(jobs) > 0 and (jobs[0].prodSourceLabel in JobUtils.analy_sources) and (not jobs[0].processingType in ["merge", "unmerge"]):
                 for tmpFile in jobs[-1].Files:
                     if tmpFile.type in ["output", "log"] and "$GROUPJOBSN" in tmpFile.lfn:
+                        tmpLog.debug(f"getting group job serial number")
                         tmpSnRet = proxy.getSerialNumberForGroupJob(user)
                         if tmpSnRet["status"]:
                             groupJobSerialNum = tmpSnRet["sn"]
                         break
+            tmpLog.debug(f"got group job serial number")
             # get total number of files
             totalNumFiles = 0
             for job in jobs:
                 totalNumFiles += len(job.Files)
             # bulk fetch PandaIDs
             new_panda_ids = proxy.bulk_fetch_panda_ids(len(jobs))
+            tmpLog.debug(f"got PandaIDs")
             # bulk fetch fileIDs
             fileIDPool = []
             if totalNumFiles > 0:

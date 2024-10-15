@@ -17,7 +17,6 @@ import socket
 import sys
 import time
 import traceback
-import urllib
 import uuid
 import warnings
 
@@ -60,6 +59,8 @@ except ImportError:
 
 if panda_config.backend == "oracle":
     import oracledb
+
+    from . import wrapped_oracle_conn
 
     oracledb.init_oracle_client()
     varNUMBER = oracledb.NUMBER
@@ -201,13 +202,15 @@ class DBProxy:
         # connect
         try:
             if self.backend == "oracle":
-                self.conn = oracledb.connect(dsn=self.dbhost, user=self.dbuser, password=self.dbpasswd)
+                conn = oracledb.connect(dsn=self.dbhost, user=self.dbuser, password=self.dbpasswd)
 
                 def OutputTypeHandler(cursor, name, defaultType, size, precision, scale):
                     if defaultType == oracledb.CLOB:
                         return cursor.var(oracledb.LONG_STRING, arraysize=cursor.arraysize)
 
-                self.conn.outputtypehandler = OutputTypeHandler
+                conn.outputtypehandler = OutputTypeHandler
+                self.conn = wrapped_oracle_conn.WrappedOracleConn(conn)
+
             elif self.backend == "postgres":
                 dsn = {"dbname": self.dbname, "user": self.dbuser, "keepalives_idle": 30, "keepalives_interval": 30, "keepalives": 1}
                 if self.dbpasswd:
