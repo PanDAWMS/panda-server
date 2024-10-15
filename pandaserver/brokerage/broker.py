@@ -203,11 +203,9 @@ def schedule(jobs, taskBuffer, siteMapper):
         jobStatBrokerCloudsWithPrio = {}
         if len(jobs) > 0 and (jobs[0].processingType.startswith("gangarobot") or jobs[0].processingType.startswith("hammercloud") or onlyJEDI):
             # disable redundant counting for HC
-            jobStatistics = {}
             jobStatBroker = {}
 
         else:
-            jobStatistics = taskBuffer.getJobStatistics(forAnal=False)
             jobStatBroker = {}
 
         # sort jobs by siteID. Some jobs may already define computingSite
@@ -374,13 +372,9 @@ def schedule(jobs, taskBuffer, siteMapper):
                         if tmpJob.processingType in skipBrokerageProTypes:
                             # use original processingType since prod_test is in the test category and thus is interfered by validations
                             tmpProGroup = tmpJob.processingType
-                        jobStatistics.setdefault(
-                            tmpJob.computingSite,
-                            {"assigned": 0, "activated": 0, "running": 0},
-                        )
+
                         jobStatBroker.setdefault(tmpJob.computingSite, {})
                         jobStatBroker[tmpJob.computingSite].setdefault(tmpProGroup, {"assigned": 0, "activated": 0, "running": 0})
-                        jobStatistics[tmpJob.computingSite]["assigned"] += 1
                         jobStatBroker[tmpJob.computingSite][tmpProGroup]["assigned"] += 1
                         # update statistics by taking priorities into account
                         if prevSourceLabel in ["managed", "test"]:
@@ -459,9 +453,6 @@ def schedule(jobs, taskBuffer, siteMapper):
             # assign site
             if chosen_panda_queue != "TOBEDONE":
                 job.computingSite = chosen_panda_queue.sitename
-                # update statistics
-                jobStatistics.setdefault(job.computingSite, {"assigned": 0, "activated": 0, "running": 0})
-                jobStatistics[job.computingSite]["assigned"] += 1
                 tmpLog.debug(f"PandaID:{job.PandaID} -> preset site:{chosen_panda_queue.sitename}")
                 # set cloud
                 if job.cloud in ["NULL", None, ""]:
