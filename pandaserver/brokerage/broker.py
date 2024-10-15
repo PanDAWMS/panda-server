@@ -149,13 +149,11 @@ def _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog):
         tmpJob.dispatchDBlock = "NULL"
 
 
-def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
+def schedule(jobs, taskBuffer, siteMapper):
     timestamp = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat("/")
     tmpLog = LogWrapper(_log, f"start_ts={timestamp}")
 
     try:
-        tmpLog.debug(f"start replicaMap : {str(replicaMap)}")
-
         # no jobs
         if len(jobs) == 0:
             tmpLog.debug("finished : no jobs")

@@ -61,8 +61,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
         self.replica_map = {}
         # all replica locations
         self.all_replica_map = {}
-        # replica map for special brokerage
-        self.replica_map_for_broker = {}
         # available files at satellite sites
         self.available_lfns_in_satellites = {}
         # list of missing datasets
@@ -102,7 +100,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             # invoke brokerage
             tmp_logger.debug("running broker.schedule")
             self.memory_check()
-            pandaserver.brokerage.broker.schedule(self.jobs, self.task_buffer, self.site_mapper, replicaMap=self.replica_map_for_broker)
+            pandaserver.brokerage.broker.schedule(self.jobs, self.task_buffer, self.site_mapper)
 
             # remove waiting jobs
             self.remove_waiting_jobs()
@@ -1017,9 +1015,6 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             tmp_logger.error(out)
                         else:
                             replica_map[dataset] = out
-                            # append except DBRelease dataset
-                            if not dataset.startswith("ddo"):
-                                self.replica_map_for_broker[dataset] = out
 
             # mark job with a missing dataset as failed and update files as missing
             is_failed = False
