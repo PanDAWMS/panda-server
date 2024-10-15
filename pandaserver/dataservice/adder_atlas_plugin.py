@@ -4,7 +4,6 @@ Inherits from AdderPluginBase.
 
 """
 
-import copy
 import datetime
 import gc
 import re
@@ -190,32 +189,30 @@ class AdderAtlasPlugin(AdderPluginBase):
         # return if non-DQ2
         if self.job.destinationSE == "local":
             return 0
-        # get the computingsite spec and scope
+
+        # Get the computingsite spec and scope
         src_site_spec = self.siteMapper.getSite(self.job.computingSite)
         _, scope_src_site_spec_output = select_scope(src_site_spec, self.job.prodSourceLabel, self.job.job_label)
-        # zip file map
+
+        # Get the zip file map
         zip_file_map = self.job.getZipFileMap()
-        # get campaign
+
+        # Get campaign and nEvents input
         campaign = None
         n_events_input = {}
         if self.job.jediTaskID not in [0, None, "NULL"]:
             tmp_ret = self.taskBuffer.getTaskAttributesPanda(self.job.jediTaskID, ["campaign"])
-            if "campaign" in tmp_ret:
-                campaign = tmp_ret["campaign"]
+            campaign = tmp_ret.get("campaign")
             for file_spec in self.job.Files:
                 if file_spec.type == "input":
                     tmp_dict = self.taskBuffer.getJediFileAttributes(
-                        file_spec.PandaID,
-                        file_spec.jediTaskID,
-                        file_spec.datasetID,
-                        file_spec.fileID,
-                        ["nEvents"],
+                        file_spec.PandaID, file_spec.jediTaskID, file_spec.datasetID, file_spec.fileID, ["nEvents"]
                     )
                     if "nEvents" in tmp_dict:
                         n_events_input[file_spec.lfn] = tmp_dict["nEvents"]
-        # add nEvents info for zip files
-        for tmp_zip_file_name in zip_file_map:
-            tmp_zip_contents = zip_file_map[tmp_zip_file_name]
+
+        # Add nEvents info for zip files
+        for tmp_zip_file_name, tmp_zip_contents in zip_file_map.items():
             if tmp_zip_file_name not in self.extra_info["nevents"]:
                 for tmp_zip_content in tmp_zip_contents:
                     for tmp_lfn in list(n_events_input):
@@ -224,6 +221,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                         if re.search("^" + tmp_zip_content + "$", tmp_lfn) is not None and tmp_lfn in n_events_input and n_events_input[tmp_lfn] is not None:
                             self.extra_info["nevents"].setdefault(tmp_zip_file_name, 0)
                             self.extra_info["nevents"][tmp_zip_file_name] += n_events_input[tmp_lfn]
+
         # check files
         id_map = {}
         # fileList = []
@@ -237,314 +235,311 @@ class AdderAtlasPlugin(AdderPluginBase):
         sub_to_ds_map = {}
         ds_id_to_ds_map = self.taskBuffer.getOutputDatasetsJEDI(self.job.PandaID)
         self.logger.debug(f"dsInJEDI={str(ds_id_to_ds_map)}")
+
         for file in self.job.Files:
             # gc
             gc.collect()
-            if file.type in {"output", "log"}:
-                # prepare the site spec and scope for the destinationSE site
-                destination_se_site_spec = self.siteMapper.getSite(file.destinationSE)
-                _, scope_dst_se_site_spec_output = select_scope(destination_se_site_spec, self.job.prodSourceLabel, self.job.job_label)
+            if file.type not in {"output", "log"}:
+                continue
 
-                # added to map
-                if file.datasetID in ds_id_to_ds_map:
-                    sub_to_ds_map[file.destinationDBlock] = ds_id_to_ds_map[file.datasetID]
-                else:
-                    sub_to_ds_map[file.destinationDBlock] = file.dataset
-                # append to fileList
-                # commented since unused elsewhere
-                # fileList.append(file.lfn)
-                # add only log file for failed jobs
-                if self.job_status == "failed" and file.type != "log":
-                    continue
-                # add only log file for successful ES jobs
-                if (
-                    self.job.jobStatus == "finished"
-                    and EventServiceUtils.isEventServiceJob(self.job)
-                    and not EventServiceUtils.isJobCloningJob(self.job)
-                    and file.type != "log"
-                ):
-                    continue
-                # add only log for jumbo jobs
-                if EventServiceUtils.isJumboJob(self.job) and file.type != "log":
-                    continue
-                # skip no output or failed
-                if file.status in ["nooutput", "failed"]:
-                    continue
-                # check if zip file
-                if file.lfn in zip_file_map:
-                    is_zip_file = True
-                    if file.lfn not in zip_files and not self.add_to_top_only:
-                        zip_files[file.lfn] = {}
-                else:
-                    is_zip_file = False
-                # check if zip content
-                zip_file_name = None
-                if not is_zip_file and not self.add_to_top_only:
-                    for tmp_zip_file_name in zip_file_map:
-                        tmp_zip_contents = zip_file_map[tmp_zip_file_name]
-                        for tmp_zip_content in tmp_zip_contents:
-                            if re.search("^" + tmp_zip_content + "$", file.lfn) is not None:
-                                zip_file_name = tmp_zip_file_name
-                                break
-                        if zip_file_name is not None:
-                            break
-                    if zip_file_name is not None:
-                        if zip_file_name not in zip_files:
-                            zip_files[zip_file_name] = {}
-                        cont_zip_map[file.lfn] = zip_file_name
-                try:
-                    # check nevents
-                    if file.type == "output" and not is_zip_file and not self.add_to_top_only and self.job.prodSourceLabel in ["managed"]:
-                        if file.lfn not in self.extra_info["nevents"]:
-                            to_skip = False
-                            # exclude some formats
-                            for patt in ["TXT", "NTUP", "HIST"]:
-                                if file.lfn.startswith(patt):
-                                    to_skip = True
-                            if not to_skip:
-                                err_msg = f"nevents is missing in jobReport for {file.lfn}"
-                                self.logger.warning(err_msg)
-                                self.job.ddmErrorCode = ErrorCode.EC_MissingNumEvents
-                                raise ValueError(err_msg)
-                        if file.lfn not in self.extra_info["guid"] or file.GUID != self.extra_info["guid"][file.lfn]:
-                            self.logger.debug(f"extra_info = {str(self.extra_info)}")
-                            err_msg = f"GUID is inconsistent between jobReport and pilot report for {file.lfn}"
+            # prepare the site spec and scope for the destinationSE site
+            destination_se_site_spec = self.siteMapper.getSite(file.destinationSE)
+            _, scope_dst_se_site_spec_output = select_scope(destination_se_site_spec, self.job.prodSourceLabel, self.job.job_label)
+
+            # added to map
+            sub_to_ds_map[file.destinationDBlock] = ds_id_to_ds_map.get(file.datasetID, file.dataset)
+
+            # add only log file for failed jobs
+            if self.job_status == "failed" and file.type != "log":
+                continue
+            # add only log file for successful ES jobs
+            if (
+                self.job.jobStatus == "finished"
+                and EventServiceUtils.isEventServiceJob(self.job)
+                and not EventServiceUtils.isJobCloningJob(self.job)
+                and file.type != "log"
+            ):
+                continue
+            # add only log for jumbo jobs
+            if EventServiceUtils.isJumboJob(self.job) and file.type != "log":
+                continue
+            # skip no output or failed
+            if file.status in ["nooutput", "failed"]:
+                continue
+
+            # check if zip file
+            is_zip_file = file.lfn in zip_file_map
+            if is_zip_file and file.lfn not in zip_files and not self.add_to_top_only:
+                zip_files[file.lfn] = {}
+
+            # check if zip content
+            zip_file_name = None
+            if not is_zip_file and not self.add_to_top_only:
+                for tmp_zip_file_name, tmp_zip_contents in zip_file_map.items():
+                    if any(re.search(f"^{tmp_zip_content}$", file.lfn) for tmp_zip_content in tmp_zip_contents):
+                        zip_file_name = tmp_zip_file_name
+                        break
+                if zip_file_name:
+                    zip_files.setdefault(zip_file_name, {})
+                    cont_zip_map[file.lfn] = zip_file_name
+            try:
+                # check nevents
+                if file.type == "output" and not is_zip_file and not self.add_to_top_only and self.job.prodSourceLabel == "managed":
+                    if file.lfn not in self.extra_info["nevents"]:
+                        to_skip = False
+                        # exclude some formats
+                        for patt in ["TXT", "NTUP", "HIST"]:
+                            if file.lfn.startswith(patt):
+                                to_skip = True
+                        if not to_skip:
+                            err_msg = f"nevents is missing in jobReport for {file.lfn}"
                             self.logger.warning(err_msg)
-                            self.job.ddmErrorCode = ErrorCode.EC_InconsistentGUID
+                            self.job.ddmErrorCode = ErrorCode.EC_MissingNumEvents
                             raise ValueError(err_msg)
-                    # fsize
-                    fsize = None
-                    if file.fsize not in ["NULL", "", 0]:
-                        try:
-                            fsize = int(file.fsize)
-                        except Exception:
-                            error_type, error_value, _ = sys.exc_info()
-                            self.logger.error(f"{self.job_id} : {error_type} {error_value}")
-                    # use top-level dataset name for alternative stage-out
-                    if file.lfn not in self.job.altStgOutFileList():
-                        file_destination_dispatch_block = file.destinationDBlock
-                    else:
-                        file_destination_dispatch_block = file.dataset
-                    # append to map
-                    if file_destination_dispatch_block not in id_map:
-                        id_map[file_destination_dispatch_block] = []
-                    file_attrs = {
-                        "guid": file.GUID,
-                        "lfn": file.lfn,
-                        "size": fsize,
-                        "checksum": file.checksum,
-                        "ds": file_destination_dispatch_block,
-                    }
-                    # add SURLs if LFC registration is required
-                    if self.use_central_lfc():
-                        file_attrs["surl"] = self.extra_info["surl"][file.lfn]
-                        if file_attrs["surl"] is None:
-                            del file_attrs["surl"]
-                        # get destination
-                        if file_destination_dispatch_block not in dataset_destination_map:
-                            if file.lfn in self.job.altStgOutFileList():
-                                # alternative stage-out
-                                if DataServiceUtils.getDestinationSE(file.destinationDBlockToken) is not None:
-                                    # RSE is specified
-                                    tmp_dest_list = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
-                                else:
-                                    if file.destinationDBlockToken in destination_se_site_spec.setokens_output[scope_dst_se_site_spec_output]:
-                                        # get endpoint for token
-                                        tmp_dest_list = [destination_se_site_spec.setokens_output[scope_dst_se_site_spec_output][file.destinationDBlockToken]]
-                                    else:
-                                        # use defalt endpoint
-                                        tmp_dest_list = [destination_se_site_spec.ddm_output[scope_dst_se_site_spec_output]]
-                            elif file.destinationDBlockToken in ["", None, "NULL"]:
-                                # use default endpoint
-                                tmp_dest_list = [src_site_spec.ddm_output[scope_src_site_spec_output]]
-                            elif (
-                                DataServiceUtils.getDestinationSE(file.destinationDBlockToken) is not None
-                                and src_site_spec.ddm_output[scope_src_site_spec_output] == destination_se_site_spec.ddm_output[scope_dst_se_site_spec_output]
-                            ):
-                                tmp_dest_list = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
-                                # RSE is specified
-                            elif DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) is not None:
-                                tmp_dest_list = [DataServiceUtils.getDistributedDestination(file.destinationDBlockToken)]
-                                dist_datasets.add(file_destination_dispatch_block)
-                                # RSE is specified for distributed datasets
-                            elif (
-                                src_site_spec.cloud != self.job.cloud
-                                and (not src_site_spec.ddm_output[scope_src_site_spec_output].endswith("PRODDISK"))
-                                and (self.job.prodSourceLabel not in ["user", "panda"])
-                            ):
-                                # T1 used as T2
-                                tmp_dest_list = [src_site_spec.ddm_output[scope_src_site_spec_output]]
-                            else:
-                                tmp_dest_list = []
-                                tmp_se_tokens = src_site_spec.setokens_output[scope_src_site_spec_output]
-                                for tmp_dest_token in file.destinationDBlockToken.split(","):
-                                    if tmp_dest_token in tmp_se_tokens:
-                                        tmp_dest = tmp_se_tokens[tmp_dest_token]
-                                    else:
-                                        tmp_dest = src_site_spec.ddm_output[scope_src_site_spec_output]
-                                    if tmp_dest not in tmp_dest_list:
-                                        tmp_dest_list.append(tmp_dest)
-                            # add
-                            dataset_destination_map[file_destination_dispatch_block] = tmp_dest_list
-                    # extra meta data
-                    if self.ddm_backend == "rucio":
-                        if file.lfn in self.extra_info["lbnr"]:
-                            file_attrs["lumiblocknr"] = self.extra_info["lbnr"][file.lfn]
-                        if file.lfn in self.extra_info["nevents"]:
-                            file_attrs["events"] = self.extra_info["nevents"][file.lfn]
-                        elif self.extra_info["nevents"] != {}:
-                            file_attrs["events"] = None
-                        # if file.jediTaskID not in [0,None,'NULL']:
-                        #    fileAttrs['task_id'] = file.jediTaskID
-                        file_attrs["panda_id"] = file.PandaID
-                        if campaign not in ["", None]:
-                            file_attrs["campaign"] = campaign
-                    # extract OS files
-                    has_normal_url = True
-                    if file.lfn in self.extra_info["endpoint"] and self.extra_info["endpoint"][file.lfn] != []:
-                        for pilot_end_point in self.extra_info["endpoint"][file.lfn]:
-                            # pilot uploaded to endpoint consistently with original job definition
-                            if pilot_end_point in dataset_destination_map[file_destination_dispatch_block]:
-                                has_normal_url = True
-                            else:
-                                # alternative stage-out
-                                alt_staged_files.add(file.lfn)
-                                map_for_alt_stage_out.setdefault(pilot_end_point, {})
-                                map_for_alt_stage_out[pilot_end_point].setdefault(file_destination_dispatch_block, [])
-                                map_for_alt_stage_out[pilot_end_point][file_destination_dispatch_block].append(file_attrs)
-                    if has_normal_url:
-                        # add file to be added to dataset
-                        id_map[file_destination_dispatch_block].append(file_attrs)
-                        # add file to be added to zip
-                        if not is_zip_file and zip_file_name is not None:
-                            if "files" not in zip_files[zip_file_name]:
-                                zip_files[zip_file_name]["files"] = []
-                            zip_files[zip_file_name]["files"].append(file_attrs)
-                        if is_zip_file and not self.add_to_top_only:
-                            # copy file attribute for zip file registration
-                            for tmp_file_attr_name, tmp_file_attr_val in file_attrs.items():
-                                zip_files[file.lfn][tmp_file_attr_name] = tmp_file_attr_val
-                            zip_files[file.lfn]["scope"] = file.scope
-                            zip_files[file.lfn]["rse"] = dataset_destination_map[file_destination_dispatch_block]
-                    # for subscription
-                    if (
-                        self.job.prodSourceLabel in ["managed", "test", "software", "user", "rucio_test"] + JobUtils.list_ptest_prod_sources
-                        and re.search("_sub\d+$", file_destination_dispatch_block) is not None
-                        and (not self.add_to_top_only)
-                        and self.job.destinationSE != "local"
-                    ):
-                        if self.siteMapper is None:
-                            self.logger.error("SiteMapper is None")
+                    if file.lfn not in self.extra_info["guid"] or file.GUID != self.extra_info["guid"][file.lfn]:
+                        self.logger.debug(f"extra_info = {str(self.extra_info)}")
+                        err_msg = f"GUID is inconsistent between jobReport and pilot report for {file.lfn}"
+                        self.logger.warning(err_msg)
+                        self.job.ddmErrorCode = ErrorCode.EC_InconsistentGUID
+                        raise ValueError(err_msg)
+
+                # fsize
+                fsize = None
+                if file.fsize not in ["NULL", "", 0]:
+                    try:
+                        fsize = int(file.fsize)
+                    except Exception:
+                        error_type, error_value, _ = sys.exc_info()
+                        self.logger.error(f"{self.job_id} : {error_type} {error_value}")
+                # use top-level dataset name for alternative stage-out
+                if file.lfn not in self.job.altStgOutFileList():
+                    file_destination_dispatch_block = file.destinationDBlock
+                else:
+                    file_destination_dispatch_block = file.dataset
+                # append to map
+                if file_destination_dispatch_block not in id_map:
+                    id_map[file_destination_dispatch_block] = []
+                file_attrs = {
+                    "guid": file.GUID,
+                    "lfn": file.lfn,
+                    "size": fsize,
+                    "checksum": file.checksum,
+                    "ds": file_destination_dispatch_block,
+                }
+                # add SURLs if LFC registration is required
+                if self.use_central_lfc():
+                    file_attrs["surl"] = self.extra_info["surl"][file.lfn]
+                    if file_attrs["surl"] is None:
+                        del file_attrs["surl"]
+
+                    # get destination
+                    if file_destination_dispatch_block not in dataset_destination_map:
+                        if file.lfn in self.job.altStgOutFileList():
+                            # alternative stage-out
+                            tmp_dest_list = [DataServiceUtils.getDestinationSE(
+                                file.destinationDBlockToken)] if DataServiceUtils.getDestinationSE(
+                                file.destinationDBlockToken) else \
+                                [destination_se_site_spec.setokens_output[scope_dst_se_site_spec_output].get(
+                                    file.destinationDBlockToken,
+                                    destination_se_site_spec.ddm_output[scope_dst_se_site_spec_output])]
+                        elif file.destinationDBlockToken in ["", None, "NULL"]:
+                            # use default endpoint
+                            tmp_dest_list = [src_site_spec.ddm_output[scope_src_site_spec_output]]
+                        elif (
+                            DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
+                            and src_site_spec.ddm_output[scope_src_site_spec_output] == destination_se_site_spec.ddm_output[scope_dst_se_site_spec_output]
+                        ):
+                            tmp_dest_list = [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
+                            # RSE is specified
+                        elif DataServiceUtils.getDistributedDestination(file.destinationDBlockToken):
+                            tmp_dest_list = [DataServiceUtils.getDistributedDestination(file.destinationDBlockToken)]
+                            dist_datasets.add(file_destination_dispatch_block)
+                            # RSE is specified for distributed datasets
+                        elif (
+                            src_site_spec.cloud != self.job.cloud
+                            and (not src_site_spec.ddm_output[scope_src_site_spec_output].endswith("PRODDISK"))
+                            and (self.job.prodSourceLabel not in ["user", "panda"])
+                        ):
+                            # T1 used as T2
+                            tmp_dest_list = [src_site_spec.ddm_output[scope_src_site_spec_output]]
                         else:
-                            # get dataset spec
-                            if file_destination_dispatch_block not in self.dataset_map:
-                                tmp_dataset = self.taskBuffer.queryDatasetWithMap({"name": file_destination_dispatch_block})
-                                self.dataset_map[file_destination_dispatch_block] = tmp_dataset
-                            # check if valid dataset
-                            if self.dataset_map[file_destination_dispatch_block] is None:
-                                self.logger.error(f": cannot find {file_destination_dispatch_block} in DB")
-                            else:
-                                if self.dataset_map[file_destination_dispatch_block].status not in ["defined"]:
-                                    # not a fresh dataset
-                                    self.logger.debug(
-                                        f": subscription was already made for {self.dataset_map[file_destination_dispatch_block].status}:{file_destination_dispatch_block}"
-                                    )
+                            tmp_dest_list = []
+                            tmp_se_tokens = src_site_spec.setokens_output[scope_src_site_spec_output]
+                            for tmp_dest_token in file.destinationDBlockToken.split(","):
+                                if tmp_dest_token in tmp_se_tokens:
+                                    tmp_dest = tmp_se_tokens[tmp_dest_token]
                                 else:
-                                    # get DDM IDs
-                                    tmp_src_ddm = src_site_spec.ddm_output[scope_src_site_spec_output]
-                                    if self.job.prodSourceLabel == "user" and file.destinationSE not in self.siteMapper.siteSpecList:
-                                        # DDM ID was set by using --destSE for analysis job to transfer output
-                                        tmp_dst_ddm = file.destinationSE
+                                    tmp_dest = src_site_spec.ddm_output[scope_src_site_spec_output]
+                                if tmp_dest not in tmp_dest_list:
+                                    tmp_dest_list.append(tmp_dest)
+                        # add
+                        dataset_destination_map[file_destination_dispatch_block] = tmp_dest_list
+
+                # extra meta data
+                if self.ddm_backend == "rucio":
+                    if file.lfn in self.extra_info["lbnr"]:
+                        file_attrs["lumiblocknr"] = self.extra_info["lbnr"][file.lfn]
+                    if file.lfn in self.extra_info["nevents"]:
+                        file_attrs["events"] = self.extra_info["nevents"][file.lfn]
+                    elif self.extra_info["nevents"] != {}:
+                        file_attrs["events"] = None
+                    # if file.jediTaskID not in [0,None,'NULL']:
+                    #    fileAttrs['task_id'] = file.jediTaskID
+                    file_attrs["panda_id"] = file.PandaID
+                    if campaign not in ["", None]:
+                        file_attrs["campaign"] = campaign
+
+                # extract OS files
+                has_normal_url = True
+                if file.lfn in self.extra_info["endpoint"] and self.extra_info["endpoint"][file.lfn] != []:
+                    for pilot_end_point in self.extra_info["endpoint"][file.lfn]:
+                        # pilot uploaded to endpoint consistently with original job definition
+                        if pilot_end_point in dataset_destination_map[file_destination_dispatch_block]:
+                            has_normal_url = True
+                        else:
+                            # alternative stage-out
+                            alt_staged_files.add(file.lfn)
+                            map_for_alt_stage_out.setdefault(pilot_end_point, {})
+                            map_for_alt_stage_out[pilot_end_point].setdefault(file_destination_dispatch_block, [])
+                            map_for_alt_stage_out[pilot_end_point][file_destination_dispatch_block].append(file_attrs)
+
+                if has_normal_url:
+                    # add file to be added to dataset
+                    id_map[file_destination_dispatch_block].append(file_attrs)
+                    # add file to be added to zip
+                    if not is_zip_file and zip_file_name:
+                        if "files" not in zip_files[zip_file_name]:
+                            zip_files[zip_file_name]["files"] = []
+                        zip_files[zip_file_name]["files"].append(file_attrs)
+                    if is_zip_file and not self.add_to_top_only:
+                        # copy file attribute for zip file registration
+                        for tmp_file_attr_name, tmp_file_attr_val in file_attrs.items():
+                            zip_files[file.lfn][tmp_file_attr_name] = tmp_file_attr_val
+                        zip_files[file.lfn]["scope"] = file.scope
+                        zip_files[file.lfn]["rse"] = dataset_destination_map[file_destination_dispatch_block]
+
+                # for subscription
+                if (
+                    self.job.prodSourceLabel in ["managed", "test", "software", "user", "rucio_test"] + JobUtils.list_ptest_prod_sources
+                    and re.search("_sub\d+$", file_destination_dispatch_block)
+                    and (not self.add_to_top_only)
+                    and self.job.destinationSE != "local"
+                ):
+                    if not self.siteMapper:
+                        self.logger.error("SiteMapper is None")
+                    else:
+                        # get dataset spec
+                        if file_destination_dispatch_block not in self.dataset_map:
+                            tmp_dataset = self.taskBuffer.queryDatasetWithMap({"name": file_destination_dispatch_block})
+                            self.dataset_map[file_destination_dispatch_block] = tmp_dataset
+                        # check if valid dataset
+                        if self.dataset_map[file_destination_dispatch_block] is None:
+                            self.logger.error(f": cannot find {file_destination_dispatch_block} in DB")
+                        else:
+                            if self.dataset_map[file_destination_dispatch_block].status not in ["defined"]:
+                                # not a fresh dataset
+                                self.logger.debug(
+                                    f": subscription was already made for {self.dataset_map[file_destination_dispatch_block].status}:{file_destination_dispatch_block}"
+                                )
+                            else:
+                                # get DDM IDs
+                                tmp_src_ddm = src_site_spec.ddm_output[scope_src_site_spec_output]
+                                if self.job.prodSourceLabel == "user" and file.destinationSE not in self.siteMapper.siteSpecList:
+                                    # DDM ID was set by using --destSE for analysis job to transfer output
+                                    tmp_dst_ddm = file.destinationSE
+                                else:
+                                    if DataServiceUtils.getDestinationSE(file.destinationDBlockToken):
+                                        tmp_dst_ddm = DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
                                     else:
-                                        if DataServiceUtils.getDestinationSE(file.destinationDBlockToken) is not None:
-                                            tmp_dst_ddm = DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
+                                        tmp_dst_ddm = destination_se_site_spec.ddm_output[scope_dst_se_site_spec_output]
+                                # if src != dest or multi-token
+                                if (tmp_src_ddm != tmp_dst_ddm) or (tmp_src_ddm == tmp_dst_ddm and file.destinationDBlockToken.count(",") != 0):
+                                    opt_sub = {
+                                        "DATASET_COMPLETE_EVENT": [
+                                            f"http://{panda_config.pserverhosthttp}:{panda_config.pserverporthttp}/server/panda/datasetCompleted"
+                                        ]
+                                    }
+                                    # append
+                                    if file_destination_dispatch_block not in sub_map:
+                                        sub_map[file_destination_dispatch_block] = []
+                                        # sources
+                                        opt_source = {}
+                                        # set sources
+                                        if file.destinationDBlockToken in [
+                                            "NULL",
+                                            "",
+                                        ]:
+                                            # use default DDM ID as source
+                                            opt_source[tmp_src_ddm] = {"policy": 0}
                                         else:
-                                            tmp_dst_ddm = destination_se_site_spec.ddm_output[scope_dst_se_site_spec_output]
-                                    # if src != dest or multi-token
-                                    if (tmp_src_ddm != tmp_dst_ddm) or (tmp_src_ddm == tmp_dst_ddm and file.destinationDBlockToken.count(",") != 0):
-                                        opt_sub = {
-                                            "DATASET_COMPLETE_EVENT": [
-                                                f"http://{panda_config.pserverhosthttp}:{panda_config.pserverporthttp}/server/panda/datasetCompleted"
-                                            ]
-                                        }
-                                        # append
-                                        if file_destination_dispatch_block not in sub_map:
-                                            sub_map[file_destination_dispatch_block] = []
-                                            # sources
-                                            opt_source = {}
-                                            # set sources
-                                            if file.destinationDBlockToken in [
-                                                "NULL",
-                                                "",
-                                            ]:
-                                                # use default DDM ID as source
-                                                opt_source[tmp_src_ddm] = {"policy": 0}
-                                            else:
-                                                # convert token to DDM ID
-                                                ddm_id = tmp_src_ddm
-                                                # use the first token's location as source for T1D1
-                                                tmp_src_token = file.destinationDBlockToken.split(",")[0]
-                                                if tmp_src_token in src_site_spec.setokens_output[scope_src_site_spec_output]:
-                                                    ddm_id = src_site_spec.setokens_output[scope_src_site_spec_output][tmp_src_token]
+                                            # convert token to DDM ID
+                                            ddm_id = tmp_src_ddm
+                                            # use the first token's location as source for T1D1
+                                            tmp_src_token = file.destinationDBlockToken.split(",")[0]
+                                            if tmp_src_token in src_site_spec.setokens_output[scope_src_site_spec_output]:
+                                                ddm_id = src_site_spec.setokens_output[scope_src_site_spec_output][tmp_src_token]
+                                            opt_source[ddm_id] = {"policy": 0}
+                                        # T1 used as T2
+                                        if (
+                                            src_site_spec.cloud != self.job.cloud
+                                            and (not tmp_src_ddm.endswith("PRODDISK"))
+                                            and (self.job.prodSourceLabel not in ["user", "panda"])
+                                        ):
+                                            # register both DATADISK and PRODDISK as source locations
+                                            if "ATLASPRODDISK" in src_site_spec.setokens_output[scope_src_site_spec_output]:
+                                                ddm_id = src_site_spec.setokens_output[scope_src_site_spec_output]["ATLASPRODDISK"]
                                                 opt_source[ddm_id] = {"policy": 0}
-                                            # T1 used as T2
-                                            if (
-                                                src_site_spec.cloud != self.job.cloud
-                                                and (not tmp_src_ddm.endswith("PRODDISK"))
-                                                and (self.job.prodSourceLabel not in ["user", "panda"])
-                                            ):
-                                                # register both DATADISK and PRODDISK as source locations
-                                                if "ATLASPRODDISK" in src_site_spec.setokens_output[scope_src_site_spec_output]:
-                                                    ddm_id = src_site_spec.setokens_output[scope_src_site_spec_output]["ATLASPRODDISK"]
-                                                    opt_source[ddm_id] = {"policy": 0}
-                                                if tmp_src_ddm not in opt_source:
-                                                    opt_source[tmp_src_ddm] = {"policy": 0}
-                                            # use another location when token is set
-                                            if file.destinationDBlockToken not in [
-                                                "NULL",
-                                                "",
-                                            ]:
-                                                tmp_ddm_id_list = []
-                                                tmp_dst_tokens = file.destinationDBlockToken.split(",")
-                                                # remove the first one because it is already used as a location
-                                                if tmp_src_ddm == tmp_dst_ddm:
-                                                    tmp_dst_tokens = tmp_dst_tokens[1:]
-                                                # loop over all tokens
-                                                for idx_token, tmp_dst_token in enumerate(tmp_dst_tokens):
-                                                    ddm_id = tmp_dst_ddm
-                                                    if tmp_dst_token in destination_se_site_spec.setokens_output[scope_dst_se_site_spec_output]:
-                                                        ddm_id = destination_se_site_spec.setokens_output[scope_dst_se_site_spec_output][tmp_dst_token]
-                                                    # keep the fist destination for multi-hop
-                                                    if idx_token == 0:
-                                                        first_destination_ddm = ddm_id
-                                                    else:
-                                                        # use the fist destination as source for T1D1
-                                                        opt_source = {}
-                                                        opt_source[first_destination_ddm] = {"policy": 0}
-                                                    # remove looping subscription
-                                                    if ddm_id == tmp_src_ddm:
-                                                        continue
-                                                    # avoid duplication
-                                                    if ddm_id not in tmp_ddm_id_list:
-                                                        sub_map[file_destination_dispatch_block].append((ddm_id, opt_sub, opt_source))
-                                            else:
-                                                # use default DDM
-                                                for ddm_id in tmp_dst_ddm.split(","):
+                                            if tmp_src_ddm not in opt_source:
+                                                opt_source[tmp_src_ddm] = {"policy": 0}
+                                        # use another location when token is set
+                                        if file.destinationDBlockToken not in [
+                                            "NULL",
+                                            "",
+                                        ]:
+                                            tmp_ddm_id_list = []
+                                            tmp_dst_tokens = file.destinationDBlockToken.split(",")
+                                            # remove the first one because it is already used as a location
+                                            if tmp_src_ddm == tmp_dst_ddm:
+                                                tmp_dst_tokens = tmp_dst_tokens[1:]
+                                            # loop over all tokens
+                                            for idx_token, tmp_dst_token in enumerate(tmp_dst_tokens):
+                                                ddm_id = tmp_dst_ddm
+                                                if tmp_dst_token in destination_se_site_spec.setokens_output[scope_dst_se_site_spec_output]:
+                                                    ddm_id = destination_se_site_spec.setokens_output[scope_dst_se_site_spec_output][tmp_dst_token]
+                                                # keep the fist destination for multi-hop
+                                                if idx_token == 0:
+                                                    first_destination_ddm = ddm_id
+                                                else:
+                                                    # use the fist destination as source for T1D1
+                                                    opt_source = {}
+                                                    opt_source[first_destination_ddm] = {"policy": 0}
+                                                # remove looping subscription
+                                                if ddm_id == tmp_src_ddm:
+                                                    continue
+                                                # avoid duplication
+                                                if ddm_id not in tmp_ddm_id_list:
                                                     sub_map[file_destination_dispatch_block].append((ddm_id, opt_sub, opt_source))
-                except Exception as e:
-                    err_str = str(e)
-                    self.logger.error(err_str + " " + traceback.format_exc())
-                    self.result.set_fatal()
-                    self.job.ddmErrorDiag = "failed before adding files : " + err_str
-                    return 1
+                                        else:
+                                            # use default DDM
+                                            for ddm_id in tmp_dst_ddm.split(","):
+                                                sub_map[file_destination_dispatch_block].append((ddm_id, opt_sub, opt_source))
+            except Exception as e:
+                err_str = str(e)
+                self.logger.error(err_str + " " + traceback.format_exc())
+                self.result.set_fatal()
+                self.job.ddmErrorDiag = "failed before adding files : " + err_str
+                return 1
+
         # release some memory
         del ds_id_to_ds_map
         gc.collect()
+
         # zipping input files
         if len(zip_file_map) > 0 and not self.add_to_top_only:
             for file_spec in self.job.Files:
                 if file_spec.type != "input":
                     continue
+
                 zip_file_name = None
                 for tmp_zip_file_name in zip_file_map:
                     tmp_zip_contents = zip_file_map[tmp_zip_file_name]
@@ -552,9 +547,9 @@ class AdderAtlasPlugin(AdderPluginBase):
                         if re.search("^" + tmp_zip_content + "$", file_spec.lfn) is not None:
                             zip_file_name = tmp_zip_file_name
                             break
-                    if zip_file_name is not None:
+                    if zip_file_name:
                         break
-                if zip_file_name is not None:
+                if zip_file_name:
                     if zip_file_name not in zip_files:
                         continue
                     if "files" not in zip_files[zip_file_name]:
@@ -567,37 +562,39 @@ class AdderAtlasPlugin(AdderPluginBase):
                         "ds": file_spec.dataset,
                     }
                     zip_files[zip_file_name]["files"].append(file_attrs)
+
         # cleanup submap
-        for tmp_key in list(sub_map):
-            if sub_map[tmp_key] == []:
-                del sub_map[tmp_key]
+        sub_map = {k: v for k, v in sub_map.items() if v}
+
         # add data to original dataset
         for destination_dispatch_block in list(id_map):
             orig_dispatch_block = None
             match = re.search("^(.+)_sub\d+$", destination_dispatch_block)
-            if match is not None:
+            if match:
                 # add files to top-level datasets
                 orig_dispatch_block = sub_to_ds_map[destination_dispatch_block]
                 if (not self.go_to_transferring) or (not self.add_to_top_only and destination_dispatch_block in dist_datasets):
                     id_map[orig_dispatch_block] = id_map[destination_dispatch_block]
             # add files to top-level datasets only
-            if self.add_to_top_only or self.go_to_merging or (destination_dispatch_block in dist_datasets and orig_dispatch_block is not None):
+            if self.add_to_top_only or self.go_to_merging or (destination_dispatch_block in dist_datasets and orig_dispatch_block):
                 del id_map[destination_dispatch_block]
             # skip sub unless getting transferred
-            if orig_dispatch_block is not None:
+            if orig_dispatch_block:
                 if not self.go_to_transferring and not self.log_transferring and destination_dispatch_block in id_map:
                     del id_map[destination_dispatch_block]
+
         # print idMap
         self.logger.debug(f"dataset to files map = {id_map}")
         self.logger.debug(f"transfer rules = {sub_map}")
         self.logger.debug(f"dataset to destination map = {dataset_destination_map}")
         self.logger.debug(f"extra info = {str(self.extra_info)}")
         self.logger.debug(f"""alternatively staged files = {",".join(list(alt_staged_files)) if alt_staged_files else "NA"}""")
+
         # check consistency of destinationDBlock
         has_sub = False
         for destination_dispatch_block in id_map:
             match = re.search("^(.+)_sub\d+$", destination_dispatch_block)
-            if match is not None:
+            if match:
                 has_sub = True
                 break
         if id_map and self.go_to_transferring and not has_sub:
@@ -606,21 +603,19 @@ class AdderAtlasPlugin(AdderPluginBase):
             self.result.set_fatal()
             self.job.ddmErrorDiag = "failed before adding files : " + err_str
             return 1
+
         # add data
         self.logger.debug("addFiles start")
         # count the number of files
-        reg_num_files = 0
-        reg_file_list = []
-        for _, tmp_reg_list in id_map.items():
-            for tmp_reg_item in tmp_reg_list:
-                if tmp_reg_item["lfn"] not in reg_file_list:
-                    reg_num_files += 1
-                    reg_file_list.append(tmp_reg_item["lfn"])
+        reg_file_list = {tmp_reg_item["lfn"] for tmp_reg_list in id_map.values() for tmp_reg_item in tmp_reg_list}
+        reg_num_files = len(reg_file_list)
+
         # decompose idMap
         if not self.use_central_lfc():
             dest_id_map = {None: id_map}
         else:
             dest_id_map = self.decompose_id_map(id_map, dataset_destination_map, map_for_alt_stage_out, sub_to_ds_map, alt_staged_files)
+
         # add files
         max_attempt = 3
         for attempt_number in range(max_attempt):
@@ -691,6 +686,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             else:
                 self.logger.debug(f"{str(out)}")
                 break
+
         # release some memory
         del dest_id_map
         del dataset_destination_map
@@ -698,11 +694,13 @@ class AdderAtlasPlugin(AdderPluginBase):
         del zip_files
         del cont_zip_map
         gc.collect()
+
         # register dataset subscription
         if self.job.processingType == "urgent" or self.job.currentPriority > 1000:
             sub_activity = "Express"
         else:
             sub_activity = "Production Output"
+
         if self.job.prodSourceLabel not in ["user"]:
             for tmp_name, tmp_val in sub_map.items():
                 for ddm_id, opt_sub, opt_source in tmp_val:
@@ -806,10 +804,13 @@ class AdderAtlasPlugin(AdderPluginBase):
                                     self.result.set_temporary()
                                 return 1
                             self.logger.debug(f"{str(out)}")
+
                     # set dataset status
                     self.dataset_map[tmp_name].status = "running"
+
             # keep subscriptions
             self.subscription_map = sub_map
+
             # collect list of transfring jobs
             for tmp_file in self.job.Files:
                 if tmp_file.type in ["log", "output"]:
@@ -831,6 +832,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                         if tmp_file.lfn in self.job.altStgOutFileList():
                             continue
                         self.result.transferring_files.append(tmp_file.lfn)
+
         elif "--mergeOutput" not in self.job.jobParameters:
             # send request to DaTRI unless files will be merged
             tmp_top_datasets = {}
@@ -900,12 +902,14 @@ class AdderAtlasPlugin(AdderPluginBase):
                     self.logger.error(tmp_msg)
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                     self.job.ddmErrorDiag = f"Rucio failed with {err_type} {err_value}"
+
         # collect list of merging files
         if self.go_to_merging and self.job_status not in ["failed", "cancelled", "closed"]:
             for tmp_file_list in id_map.values():
                 for tmp_file in tmp_file_list:
                     if tmp_file["lfn"] not in self.result.merging_files:
                         self.result.merging_files.append(tmp_file["lfn"])
+
         # register ES files
         if (EventServiceUtils.isEventServiceJob(self.job) or EventServiceUtils.isJumboJob(self.job)) and not EventServiceUtils.isJobCloningJob(self.job):
             if self.job.registerEsFiles():
@@ -916,6 +920,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                     self.logger.error(f"failed to register ES files with {err_type}:{err_value}")
                     self.result.set_temporary()
                     return 1
+
         # properly finished
         self.logger.debug("addFiles end")
         return 0
@@ -952,6 +957,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             tmp_top_dataset = sub_to_dataset_map[tmp_dataset]
             if tmp_top_dataset != tmp_dataset:
                 dataset_destination_map[tmp_top_dataset] = dataset_destination_map[tmp_dataset]
+
         destination_id_map = {}
         for tmp_dataset in id_map:
             # exclude files uploaded with alternative stage-out
@@ -962,6 +968,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                 if tmp_dest not in destination_id_map:
                     destination_id_map[tmp_dest] = {}
                 destination_id_map[tmp_dest][tmp_dataset] = tmp_files
+
         # add alternative stage-out info
         for tmp_dest in map_for_alt_stage_out:
             tmp_id_map = map_for_alt_stage_out[tmp_dest]
@@ -1044,6 +1051,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                     if event_service_dataset not in id_map[endpoint_name]:
                         id_map[endpoint_name][event_service_dataset] = []
                     id_map[endpoint_name][event_service_dataset].append(file_data)
+
             # add files to dataset
             if id_map:
                 self.logger.debug(f"adding ES files {str(id_map)}")
