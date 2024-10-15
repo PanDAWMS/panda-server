@@ -151,49 +151,6 @@ def _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog):
         tmpJob.dispatchDBlock = "NULL"
 
 
-# get Satellite candidates when files are missing at Satellite
-def get_satellite_candidate_list(tmp_job, satellites_files_map):
-    # no job or cloud information
-    if not tmp_job or tmp_job.getCloud() not in satellites_files_map:
-        return []
-
-    # loop over all files
-    tmp_t2_candidates = None
-    for tmp_file in tmp_job.Files:
-        if tmp_file.type == "input" and tmp_file.status == "missing":
-            # no dataset info
-            if tmp_file.dataset not in satellites_files_map[tmp_job.getCloud()]:
-                return []
-            # initial candidates
-            if tmp_t2_candidates is None:
-                tmp_t2_candidates = satellites_files_map[tmp_job.getCloud()][tmp_file.dataset]["sites"]
-
-            # check all candidates
-            new_t2_candidates = []
-            for tmp_t2_candidate in tmp_t2_candidates:
-                # site doesn't have the dataset
-                if tmp_t2_candidate not in satellites_files_map[tmp_job.getCloud()][tmp_file.dataset]["sites"]:
-                    continue
-
-                # site has the file
-                if tmp_file.lfn in satellites_files_map[tmp_job.getCloud()][tmp_file.dataset]["sites"][tmp_t2_candidate]:
-                    if tmp_t2_candidate not in new_t2_candidates:
-                        new_t2_candidates.append(tmp_t2_candidate)
-
-            # set new candidates
-            tmp_t2_candidates = new_t2_candidates
-            if not tmp_t2_candidates:
-                break
-
-    # return [] if no missing files
-    if tmp_t2_candidates is None:
-        return []
-
-    # return
-    tmp_t2_candidates.sort()
-    return tmp_t2_candidates
-
-
 # make compact dialog message
 def makeCompactDiagMessage(header, results):
     # Limit for compact format
