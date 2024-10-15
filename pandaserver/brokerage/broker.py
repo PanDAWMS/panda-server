@@ -200,12 +200,10 @@ def schedule(jobs, taskBuffer, siteMapper):
 
         # get statistics
         newJobStatWithPrio = {}
-        jobStatBrokerCloudsWithPrio = {}
 
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs = sorted(jobs, key=functools.cmp_to_key(_compFunc))
 
-        loggerMessages = []
         # get all input files for bulk LFC lookup
         allLFNs = []
         allGUIDs = []
@@ -504,24 +502,7 @@ def schedule(jobs, taskBuffer, siteMapper):
                 if file.type == "log":
                     # generate GUID
                     file.GUID = str(uuid.uuid4())
-        # send log messages
-        try:
-            for message in loggerMessages:
-                # get logger
-                _pandaLogger = PandaLogger()
-                _pandaLogger.lock()
-                _pandaLogger.setParams({"Type": "brokerage"})
-                logger = _pandaLogger.getHttpLogger(panda_config.loggername)
-                # add message
-                logger.warning(message)
-                # release HTTP handler
-                _pandaLogger.release()
-                time.sleep(1)
-        except Exception:
-            pass
 
-        # finished
-        tmpLog.debug(f"N lookup for prio : {len(jobStatBrokerCloudsWithPrio)}")
         tmpLog.debug("finished")
 
     except Exception as e:
