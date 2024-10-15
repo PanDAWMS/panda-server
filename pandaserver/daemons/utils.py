@@ -161,7 +161,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
                 no_msg_duration = now_ts - last_msg_ts
                 last_no_msg_warn_duration = now_ts - last_no_msg_warn_ts
                 if no_msg_duration >= no_msg_warn_interval and last_no_msg_warn_duration >= no_msg_warn_interval:
-                    tmp_log.warning(f"no message gotten for {no_msg_duration:.3f} sec")
+                    tmp_log.warning(f"no message gotten (qid={id(msg_queue)}) for {no_msg_duration:.3f} sec")
                     last_no_msg_warn_ts = now_ts
                 # timeout to get from queue, check whether to keep going
                 if now_ts > expiry_ts:
@@ -378,7 +378,7 @@ class DaemonMaster(object):
         self._worker_lock = threading.Lock()
         self._status_lock = threading.Lock()
         # make message queue
-        self.msg_queue = multiprocessing.Queue()
+        self._reset_msg_queue()
         # process pool
         self.proc_pool = []
         # worker pool
@@ -398,6 +398,10 @@ class DaemonMaster(object):
         self.lock_pool = LockPool()
         # spawn workers
         self._spawn_workers(self.n_workers)
+
+    def _reset_msg_queue(self):
+        self.msg_queue = multiprocessing.Queue()
+        self.logger.info(f"reset message queue (qid={id(self.msg_queue)})")
 
     # make common taskBuffer interface for daemon workers
     def _make_tbif(self):
@@ -561,6 +565,8 @@ class DaemonMaster(object):
                         self._remove_worker(worker)
                         self.dem_run_map[worker.dem_name]["msg_ongoing"] = False
                         self.dem_run_map[worker.dem_name]["dem_running"] = False
+        # counter for super delayed daemons
+        n_super_delayed_dems = 0
         # send message to workers
         for dem_name, attrs in self.dem_config.items():
             with self._status_lock:
@@ -579,15 +585,20 @@ class DaemonMaster(object):
                         run_delay = now_ts - (last_run_start_ts + run_period)
                         warn_since_ago = now_ts - last_warn_ts
                         if last_run_start_ts > 0 and run_delay > max(300, run_period // 2) and warn_since_ago > 900:
-                            # make warning if delay too much
+                            # make warning if super delayed
                             self.logger.warning(f"{dem_name} delayed to run for {run_delay} sec ")
                             dem_run_attrs["last_warn_ts"] = now_ts
+                            n_super_delayed_dems += 1
                     else:
                         # old message processed, send new message
                         self.msg_queue.put(dem_name)
-                        self.logger.debug(f"scheduled to run {dem_name}")
+                        self.logger.debug(f"scheduled to run {dem_name} ; qsize={self.msg_queue.qsize()}")
                         dem_run_attrs["msg_ongoing"] = True
                         # dem_run_attrs['last_run_start_ts'] = now_ts
+        # call revive if too many daemons are delayed too much (probably the queue is stuck)
+        if n_super_delayed_dems >= min(4, int(len(self.dem_config) * 0.667)):
+            self.logger.warning(f"found {n_super_delayed_dems} daemons delayed too much; start to revive")
+            self.revive()
         # spawn new workers if there are less than n_workers
         now_n_workers = len(self.worker_pool)
         if now_n_workers < self.n_workers:
@@ -609,11 +620,35 @@ class DaemonMaster(object):
         self.to_stop_scheduler = True
         # send stop command to workers
         self._stop_proc()
+        # wait a bit
+        time.sleep(1)
+        # close message queue
+        self.msg_queue.close()
         # stop taskBuffer interface
         if self.use_tbif:
             self.tbif.stop()
         # wait a bit
-        time.sleep(2.5)
+        time.sleep(2)
+
+    # revive: kill all workers, reset a new message queue, and spawn new workers with new queue
+    def revive(self):
+        self.logger.info("daemon master reviving")
+        # send stop command to workers
+        self._stop_proc()
+        # wait a bit
+        time.sleep(3)
+        # kill and remove workers
+        for worker in list(self.worker_pool):
+            worker.kill()
+            self._remove_worker(worker)
+        # close message queue
+        self.msg_queue.close()
+        # reset message queue
+        self._reset_msg_queue()
+        # spawn new workers with new queues
+        self._spawn_workers(self.n_workers, auto_start=True)
+        # done
+        self.logger.info("daemon master revived")
 
     # run
     def run(self):
@@ -621,15 +656,17 @@ class DaemonMaster(object):
         master_pid = os.getpid()
         self.logger.info(f"daemon master started ; master_pid={master_pid}")
         # start daemon workers
-        for worker in self.worker_pool:
-            worker.start()
-            self.logger.debug(f"launched worker_pid={worker.pid}")
+        with self._worker_lock:
+            for worker in self.worker_pool:
+                worker.start()
+                self.logger.debug(f"launched worker_pid={worker.pid}")
         self.logger.debug("daemon master launched all worker processes")
         # initialize old worker pid set
         worker_pid_list_old = []
         # loop of scheduler
         while not self.to_stop_scheduler:
-            worker_pid_list = [worker.pid for worker in self.worker_pool]
+            with self._worker_lock:
+                worker_pid_list = [worker.pid for worker in self.worker_pool]
             if worker_pid_list != worker_pid_list_old:
                 # log when worker pid list changes
                 self.logger.debug(f"master_pid: {master_pid} ; worker_pids: {str(worker_pid_list)} ")
