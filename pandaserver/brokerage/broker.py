@@ -51,7 +51,7 @@ def _getOkFiles(
     allOkFilesMap,
     prodsourcelabel,
     job_label,
-    tmpLog,
+    tmp_log,
     allScopeList=None,
 ):
     if not allLFNs:
@@ -75,7 +75,7 @@ def _getOkFiles(
     # set LFC and SE name
     rucio_url = "rucio://atlas-rucio.cern.ch:/grid/atlas"
     tmpSE = v_ce.ddm_endpoints_input[scope_association_input].getAllEndPoints()
-    tmpLog.debug(f"getOkFiles for {v_ce.sitename} with rucio_site:{rucio_site}, rucio_url:{rucio_url}, SE:{str(tmpSE)}")
+    tmp_log.debug(f"getOkFiles for {v_ce.sitename} with rucio_site:{rucio_site}, rucio_url:{rucio_url}, SE:{str(tmpSE)}")
     anyID = "any"
 
     # use bulk lookup
@@ -84,7 +84,7 @@ def _getOkFiles(
         allOkFilesMap[rucio_url] = {}
         tmpStat, tmpAvaFiles = rucioAPI.list_file_replicas(allScopeList, allLFNs, tmpSE)
         if not tmpStat:
-            tmpLog.debug("getOkFile failed to get file replicas")
+            tmp_log.debug("getOkFile failed to get file replicas")
             tmpAvaFiles = {}
         allOkFilesMap[rucio_url][anyID] = tmpAvaFiles
 
@@ -97,14 +97,14 @@ def _getOkFiles(
     for tmpLFN in v_files:
         if tmpLFN in allOkFilesMap[rucio_url][rucio_site]:
             retMap[tmpLFN] = allOkFilesMap[rucio_url][rucio_site][tmpLFN]
-    tmpLog.debug("getOkFiles done")
+    tmp_log.debug("getOkFiles done")
 
     return retMap
 
 
 # set 'ready' if files are already there
-def _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog):
-    tmpLog.debug(str(okFiles))
+def _setReadyToFiles(tmpJob, okFiles, siteMapper, tmp_log):
+    tmp_log.debug(str(okFiles))
     allOK = True
     tmpSiteSpec = siteMapper.getSite(tmpJob.computingSite)
     scope_association_site_input, _ = select_scope(tmpSiteSpec, tmpJob.prodSourceLabel, tmpJob.job_label)
@@ -147,12 +147,12 @@ def _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog):
 
 def schedule(jobs, siteMapper):
     timestamp = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat("/")
-    tmpLog = LogWrapper(_log, f"start_ts={timestamp}")
+    tmp_log = LogWrapper(_log, f"start_ts={timestamp}")
 
     try:
         # no jobs
         if len(jobs) == 0:
-            tmpLog.debug("finished : no jobs")
+            tmp_log.debug("finished : no jobs")
             return
 
         allOkFilesMap = {}
@@ -217,14 +217,14 @@ def schedule(jobs, siteMapper):
             specialBrokerageSiteList = []
 
             # manually set site
-            if job is not None and job.computingSite != "NULL" and job.prodSourceLabel in ("test", "managed") and specialBrokerageSiteList == []:
+            if job and job.computingSite != "NULL" and job.prodSourceLabel in ("test", "managed") and specialBrokerageSiteList == []:
                 specialBrokerageSiteList = [job.computingSite]
 
             overwriteSite = False
 
             # check JEDI
             isJEDI = False
-            if job is not None and job.lockedby == "jedi":
+            if job and job.lockedby == "jedi":
                 isJEDI = True
 
             # new bunch or terminator
@@ -251,22 +251,22 @@ def schedule(jobs, siteMapper):
                 or prevDDM != job.getDdmBackEnd()
             ):
                 if indexJob > 1:
-                    tmpLog.debug("new bunch")
-                    tmpLog.debug(f"  iJob           {iJob}")
-                    tmpLog.debug(f"  cloud          {previousCloud}")
-                    tmpLog.debug(f"  rel            {prevRelease}")
-                    tmpLog.debug(f"  sourceLabel    {prevSourceLabel}")
-                    tmpLog.debug(f"  cmtConfig      {prevCmtConfig}")
-                    tmpLog.debug(f"  memory         {prevMemory}")
-                    tmpLog.debug(f"  priority       {prevPriority}")
-                    tmpLog.debug(f"  prodDBlock     {prodDBlock}")
-                    tmpLog.debug(f"  computingSite  {computingSite}")
-                    tmpLog.debug(f"  processingType {prevProType}")
-                    tmpLog.debug(f"  workingGroup   {prevWorkingGroup}")
-                    tmpLog.debug(f"  coreCount      {prevCoreCount}")
-                    tmpLog.debug(f"  maxCpuCount    {prevMaxCpuCount}")
-                    tmpLog.debug(f"  transferType   {prevDirectAcc}")
-                    tmpLog.debug(f"  DDM            {prevDDM}")
+                    tmp_log.debug("new bunch")
+                    tmp_log.debug(f"  iJob           {iJob}")
+                    tmp_log.debug(f"  cloud          {previousCloud}")
+                    tmp_log.debug(f"  rel            {prevRelease}")
+                    tmp_log.debug(f"  sourceLabel    {prevSourceLabel}")
+                    tmp_log.debug(f"  cmtConfig      {prevCmtConfig}")
+                    tmp_log.debug(f"  memory         {prevMemory}")
+                    tmp_log.debug(f"  priority       {prevPriority}")
+                    tmp_log.debug(f"  prodDBlock     {prodDBlock}")
+                    tmp_log.debug(f"  computingSite  {computingSite}")
+                    tmp_log.debug(f"  processingType {prevProType}")
+                    tmp_log.debug(f"  workingGroup   {prevWorkingGroup}")
+                    tmp_log.debug(f"  coreCount      {prevCoreCount}")
+                    tmp_log.debug(f"  maxCpuCount    {prevMaxCpuCount}")
+                    tmp_log.debug(f"  transferType   {prevDirectAcc}")
+                    tmp_log.debug(f"  DDM            {prevDDM}")
 
                 # determine site
                 if (iJob == 0 or chosen_panda_queue != "TOBEDONE") and prevBrokerageSiteList in [None, []]:
@@ -288,16 +288,16 @@ def schedule(jobs, siteMapper):
                             allOkFilesMap,
                             jobsInBunch[0].prodSourceLabel,
                             jobsInBunch[0].job_label,
-                            tmpLog,
+                            tmp_log,
                             allScopes,
                         )
 
                         nOkFiles = len(okFiles)
-                        tmpLog.debug(f"site:{computingSite} - nFiles:{nOkFiles}/{len(fileList)} {str(fileList)} {str(okFiles)}")
+                        tmp_log.debug(f"site:{computingSite} - nFiles:{nOkFiles}/{len(fileList)} {str(fileList)} {str(okFiles)}")
                         # loop over all jobs
                         for tmpJob in jobsInBunch:
                             # set 'ready' if files are already there
-                            _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog)
+                            _setReadyToFiles(tmpJob, okFiles, siteMapper, tmp_log)
                 else:
                     # load balancing
                     minSites = {}
@@ -309,44 +309,39 @@ def schedule(jobs, siteMapper):
                             # use cloud sites
                             scanSiteList = siteMapper.getCloud(previousCloud)["sites"]
 
-                    # the number/size of inputs per job
-                    nFilesPerJob = float(totalNumInputs) / float(iJob)
-                    inputSizePerJob = float(totalInputSize) / float(iJob)
-
                     # loop over all sites
                     for site in scanSiteList:
-                        tmpLog.debug(f"calculate weight for site:{site}")
+                        tmp_log.debug(f"calculate weight for site:{site}")
                         # _allSites may contain NULL after sort()
                         if site == "NULL":
-                            tmpLog.debug("site is NULL")
+                            tmp_log.debug("site is NULL")
                             continue
 
                         winv = 1
 
-                        tmpLog.debug(f"Site:{site} 1/Weight:{winv}")
+                        tmp_log.debug(f"Site:{site} 1/Weight:{winv}")
 
                         # choose largest nMinSites weights
                         minSites[site] = winv
 
                     # choose site
-                    tmpLog.debug(f"Min Sites:{minSites}")
+                    tmp_log.debug(f"Min Sites:{minSites}")
                     if len(fileList) == 0 or prevIsJEDI is True:
                         # choose min 1/weight
                         minSite = list(minSites)[0]
                         chosenCE = siteMapper.getSite(minSite)
 
                     # set job spec
-                    tmpLog.debug(f"indexJob      : {indexJob}")
-                    tmpLog.debug(f"nInputs/Job   : {nFilesPerJob}")
-                    tmpLog.debug(f"inputSize/Job : {inputSizePerJob}")
+                    tmp_log.debug(f"indexJob      : {indexJob}")
+
                     for tmpJob in jobs[indexJob - iJob - 1 : indexJob - 1]:
                         # set computingSite
                         tmpJob.computingSite = chosenCE.sitename
-                        tmpLog.debug(f"PandaID:{tmpJob.PandaID} -> site:{tmpJob.computingSite}")
+                        tmp_log.debug(f"PandaID:{tmpJob.PandaID} -> site:{tmpJob.computingSite}")
 
                         # set ready if files are already there
                         if prevIsJEDI is False:
-                            _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog)
+                            _setReadyToFiles(tmpJob, okFiles, siteMapper, tmp_log)
 
                 # terminate
                 if job is None:
@@ -374,7 +369,7 @@ def schedule(jobs, siteMapper):
                     if job.useInputPrestaging():
                         transferType = "prestaging"
                     dispatchDBlock = f"panda.{job.taskID}.{time.strftime('%m.%d')}.{tmpDataType}.{transferType}.{str(uuid.uuid4())}_dis{job.PandaID}"
-                    tmpLog.debug(f"New dispatchDBlock: {dispatchDBlock}")
+                    tmp_log.debug(f"New dispatchDBlock: {dispatchDBlock}")
                 prodDBlock = job.prodDBlock
                 # already define computingSite
                 if job.computingSite != "NULL":
@@ -418,7 +413,7 @@ def schedule(jobs, siteMapper):
             # assign site
             if chosen_panda_queue != "TOBEDONE":
                 job.computingSite = chosen_panda_queue.sitename
-                tmpLog.debug(f"PandaID:{job.PandaID} -> preset site:{chosen_panda_queue.sitename}")
+                tmp_log.debug(f"PandaID:{job.PandaID} -> preset site:{chosen_panda_queue.sitename}")
                 # set cloud
                 if job.cloud in ["NULL", None, ""]:
                     job.cloud = chosen_panda_queue.cloud
@@ -428,7 +423,7 @@ def schedule(jobs, siteMapper):
             if siteMapper.checkCloud(job.getCloud()):
                 # use cloud dest for non-existing sites
                 if job.prodSourceLabel != "user" and job.destinationSE not in siteMapper.siteSpecList and job.destinationSE != "local":
-                    if DataServiceUtils.checkJobDestinationSE(job) is not None:
+                    if DataServiceUtils.checkJobDestinationSE(job):
                         destSE = DataServiceUtils.checkJobDestinationSE(job)
                     job.destinationSE = destSE
 
@@ -471,7 +466,7 @@ def schedule(jobs, siteMapper):
                         pass
                     elif destSE == "local":
                         pass
-                    elif DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) is not None:
+                    elif DataServiceUtils.getDistributedDestination(file.destinationDBlockToken):
                         pass
                     else:
                         file.destinationSE = destSE
@@ -481,7 +476,7 @@ def schedule(jobs, siteMapper):
                     # generate GUID
                     file.GUID = str(uuid.uuid4())
 
-        tmpLog.debug("finished")
+        tmp_log.debug("finished")
 
     except Exception as e:
-        tmpLog.error(f"schedule : {str(e)} {traceback.format_exc()}")
+        tmp_log.error(f"schedule : {str(e)} {traceback.format_exc()}")
