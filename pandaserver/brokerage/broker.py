@@ -188,13 +188,10 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
         prevIsJEDI = None
         prevDDM = None
         prevBrokerageSiteList = None
-        prevManualPreset = None
         prevWorkingGroup = None
         prevMaxCpuCount = None
-        prevBrokerageNote = None
         prevPriority = None
 
-        nWNmap = {}
         indexJob = 0
 
         prestageSites = []
@@ -242,15 +239,11 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
 
             # list of sites for special brokerage
             specialBrokerageSiteList = []
-            # note for brokerage
-            brokerageNote = ""
 
             # manually set site
-            manualPreset = False
             if job is not None and job.computingSite != "NULL" and job.prodSourceLabel in ("test", "managed") and specialBrokerageSiteList == []:
                 specialBrokerageSiteList = [job.computingSite]
-                manualPreset = True
-                brokerageNote = "presetSite"
+
             overwriteSite = False
 
             # check JEDI
@@ -298,21 +291,7 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
                     tmpLog.debug(f"  maxCpuCount    {prevMaxCpuCount}")
                     tmpLog.debug(f"  transferType   {prevDirectAcc}")
                     tmpLog.debug(f"  DDM            {prevDDM}")
-                # brokerage decisions
-                resultsForAnal = {
-                    "rel": [],
-                    "pilot": [],
-                    "disk": [],
-                    "status": [],
-                    "weight": [],
-                    "memory": [],
-                    "share": [],
-                    "transferring": [],
-                    "cpucore": [],
-                    "reliability": [],
-                    "maxtime": [],
-                    "scratch": [],
-                }
+
                 # determine site
                 if (iJob == 0 or chosen_panda_queue != "TOBEDONE") and prevBrokerageSiteList in [None, []]:
                     # file scan for pre-assigned jobs
@@ -346,7 +325,6 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
                 else:
                     # load balancing
                     minSites = {}
-                    nMinSites = 2
                     if prevBrokerageSiteList != []:
                         # special brokerage
                         scanSiteList = prevBrokerageSiteList
@@ -379,7 +357,6 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
                     if len(fileList) == 0 or prevIsJEDI is True:
                         # choose min 1/weight
                         minSite = list(minSites)[0]
-                        minWinv = minSites[minSite]
                         chosenCE = siteMapper.getSite(minSite)
 
                     # set job spec
@@ -475,9 +452,7 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
             prevCoreCount = job.coreCount
             prevMaxCpuCount = job.maxCpuCount
             prevBrokerageSiteList = specialBrokerageSiteList
-            prevManualPreset = manualPreset
             prevWorkingGroup = job.workingGroup
-            prevBrokerageNote = brokerageNote
             prevIsJEDI = isJEDI
             prevDDM = job.getDdmBackEnd()
             # truncate prio to avoid too many lookups
