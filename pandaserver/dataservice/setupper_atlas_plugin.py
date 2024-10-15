@@ -100,7 +100,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
             # invoke brokerage
             tmp_logger.debug("running broker.schedule")
             self.memory_check()
-            pandaserver.brokerage.broker.schedule(self.jobs, self.task_buffer, self.site_mapper)
+            pandaserver.brokerage.broker.schedule(self.jobs, self.site_mapper)
 
             # remove waiting jobs
             self.remove_waiting_jobs()

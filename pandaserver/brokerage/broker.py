@@ -52,9 +52,12 @@ def _getOkFiles(
     allOkFilesMap,
     prodsourcelabel,
     job_label,
-    tmpLog=None,
+    tmpLog,
     allScopeList=None,
 ):
+    if not allLFNs:
+        return {}
+
     scope_association_input, _ = select_scope(v_ce, prodsourcelabel, job_label)
     rucio_sites = list(v_ce.setokens_input[scope_association_input].values())
     try:
@@ -73,37 +76,31 @@ def _getOkFiles(
     # set LFC and SE name
     rucio_url = "rucio://atlas-rucio.cern.ch:/grid/atlas"
     tmpSE = v_ce.ddm_endpoints_input[scope_association_input].getAllEndPoints()
-    if tmpLog is not None:
-        tmpLog.debug(f"getOkFiles for {v_ce.sitename} with rucio_site:{rucio_site}, rucio_url:{rucio_url}, SE:{str(tmpSE)}")
+    tmpLog.debug(f"getOkFiles for {v_ce.sitename} with rucio_site:{rucio_site}, rucio_url:{rucio_url}, SE:{str(tmpSE)}")
     anyID = "any"
 
     # use bulk lookup
-    if allLFNs != []:
-        # get all replicas
-        if rucio_url not in allOkFilesMap:
-            allOkFilesMap[rucio_url] = {}
-            tmpStat, tmpAvaFiles = rucioAPI.list_file_replicas(allScopeList, allLFNs, tmpSE)
-            if not tmpStat and tmpLog is not None:
-                tmpLog.debug("getOkFile failed to get file replicas")
-                tmpAvaFiles = {}
-            allOkFilesMap[rucio_url][anyID] = tmpAvaFiles
+    # get all replicas
+    if rucio_url not in allOkFilesMap:
+        allOkFilesMap[rucio_url] = {}
+        tmpStat, tmpAvaFiles = rucioAPI.list_file_replicas(allScopeList, allLFNs, tmpSE)
+        if not tmpStat:
+            tmpLog.debug("getOkFile failed to get file replicas")
+            tmpAvaFiles = {}
+        allOkFilesMap[rucio_url][anyID] = tmpAvaFiles
 
-        # get files for each rucio_site
-        if rucio_site not in allOkFilesMap[rucio_url]:
-            allOkFilesMap[rucio_url][rucio_site] = allOkFilesMap[rucio_url][anyID]
+    # get files for each rucio_site
+    if rucio_site not in allOkFilesMap[rucio_url]:
+        allOkFilesMap[rucio_url][rucio_site] = allOkFilesMap[rucio_url][anyID]
 
-        # make return map
-        retMap = {}
-        for tmpLFN in v_files:
-            if tmpLFN in allOkFilesMap[rucio_url][rucio_site]:
-                retMap[tmpLFN] = allOkFilesMap[rucio_url][rucio_site][tmpLFN]
-        tmpLog.debug("getOkFiles done")
+    # make return map
+    retMap = {}
+    for tmpLFN in v_files:
+        if tmpLFN in allOkFilesMap[rucio_url][rucio_site]:
+            retMap[tmpLFN] = allOkFilesMap[rucio_url][rucio_site][tmpLFN]
+    tmpLog.debug("getOkFiles done")
 
-        return retMap
-    else:
-        # old style
-        tmpLog.debug("getOkFiles old")
-        return {}
+    return retMap
 
 
 # set 'ready' if files are already there
@@ -149,7 +146,7 @@ def _setReadyToFiles(tmpJob, okFiles, siteMapper, tmpLog):
         tmpJob.dispatchDBlock = "NULL"
 
 
-def schedule(jobs, taskBuffer, siteMapper):
+def schedule(jobs, siteMapper):
     timestamp = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat("/")
     tmpLog = LogWrapper(_log, f"start_ts={timestamp}")
 
@@ -191,12 +188,7 @@ def schedule(jobs, taskBuffer, siteMapper):
         prevPriority = None
 
         indexJob = 0
-
         prestageSites = []
-
-        # JEDI sets lockedby='jedi' to all jobs. The only jobs in ATLAS that bypass JEDI are coming from hammercloud and they are setting the computingSite
-        # check if all jobs come from JEDI
-        onlyJEDI = all(tmpJob.lockedby == "jedi" for tmpJob in jobs)
 
         # get statistics
         newJobStatWithPrio = {}
@@ -464,7 +456,7 @@ def schedule(jobs, taskBuffer, siteMapper):
             # set dispatchDBlock and destinationSE
             first = True
             for file in job.Files:
-                # dispatchDBlock. Set dispDB for prestaging jobs too
+                # dispatchDBlock. Set dispDB for pre-stating jobs too
                 if (
                     file.type == "input"
                     and file.dispatchDBlock == "NULL"
@@ -486,6 +478,7 @@ def schedule(jobs, taskBuffer, siteMapper):
                                 totalInputSize += file.fsize
                         except Exception:
                             pass
+
                 # destinationSE
                 if file.type in ["output", "log"] and destSE != "":
                     if job.prodSourceLabel == "user" and job.computingSite == file.destinationSE:
@@ -498,6 +491,7 @@ def schedule(jobs, taskBuffer, siteMapper):
                         pass
                     else:
                         file.destinationSE = destSE
+
                 # pre-assign GUID to log
                 if file.type == "log":
                     # generate GUID
