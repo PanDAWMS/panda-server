@@ -176,42 +176,6 @@ def _isTooMuchInput(n_files_per_job, input_size_per_job):
     return False
 
 
-# send analysis brokerage info to logger with HTTP
-def sendMsgToLoggerHTTP(msgList, job):
-    try:
-        # logging
-        iMsg = 0
-        # message type
-        msgType = "analy_brokerage"
-        # make header
-        if job.jobsetID not in [None, "NULL"]:
-            msgHead = f"dn='{job.prodUserName}' : jobset={job.jobsetID} jobdef={job.jobDefinitionID}"
-        else:
-            msgHead = f"dn='{job.prodUserName}' : jobdef={job.jobDefinitionID}"
-        for msgBody in msgList:
-            # make message
-            message = msgHead + " : " + msgBody
-            # dump locally
-            _log.debug(message)
-
-            # get logger
-            _pandaLogger = PandaLogger()
-            _pandaLogger.lock()
-            _pandaLogger.setParams({"Type": msgType})
-            logger = _pandaLogger.getHttpLogger(panda_config.loggername)
-            # add message
-            logger.info(message)
-            # release HTTP handler
-            _pandaLogger.release()
-            # sleep
-            iMsg += 1
-            if iMsg % 5 == 0:
-                time.sleep(1)
-    except Exception:
-        errType, errValue = sys.exc_info()[:2]
-        _log.error(f"sendMsgToLoggerHTTP : {errType} {errValue}")
-
-
 # get Satellite candidates when files are missing at Satellite
 def get_satellite_candidate_list(tmp_job, satellites_files_map):
     # no job or cloud information
@@ -1105,23 +1069,6 @@ def schedule(jobs, taskBuffer, siteMapper, replicaMap={}):
                 time.sleep(1)
         except Exception:
             pass
-        # send analysis brokerage info when jobs are submitted
-        if len(jobs) > 0 and jobs[0] is not None:
-            # for analysis job. FIXME once ganga is updated to send analy brokerage info
-            if jobs[0].prodSourceLabel in ["user", "panda"] and jobs[0].processingType in ["pathena", "prun"]:
-                # send countryGroup
-                tmpMsgList = []
-                tmpNumJobs = len(jobs)
-                if jobs[0].prodSourceLabel == "panda":
-                    tmpNumJobs -= 1
-                tmpMsg = f"nJobs={tmpNumJobs} "
-                if jobs[0].countryGroup in ["NULL", "", None]:
-                    tmpMsg += "countryGroup=None"
-                else:
-                    tmpMsg += f"countryGroup={jobs[0].countryGroup}"
-                tmpMsgList.append(tmpMsg)
-                # send log
-                sendMsgToLoggerHTTP(tmpMsgList, jobs[0])
 
         # finished
         tmpLog.debug(f"N lookup for prio : {len(jobStatBrokerCloudsWithPrio)}")
