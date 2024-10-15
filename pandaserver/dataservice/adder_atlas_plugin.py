@@ -229,7 +229,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         # fileList = []
         sub_map = {}
         dataset_destination_map = {}
-        dist_datsets = set()
+        dist_datasets = set()
         map_for_alt_stage_out = {}
         alt_staged_files = set()
         zip_files = {}
@@ -365,7 +365,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                                 # RSE is specified
                             elif DataServiceUtils.getDistributedDestination(file.destinationDBlockToken) is not None:
                                 tmp_dest_list = [DataServiceUtils.getDistributedDestination(file.destinationDBlockToken)]
-                                dist_datsets.add(file_destination_dispatch_block)
+                                dist_datasets.add(file_destination_dispatch_block)
                                 # RSE is specified for distributed datasets
                             elif (
                                 src_site_spec.cloud != self.job.cloud
@@ -578,10 +578,10 @@ class AdderAtlasPlugin(AdderPluginBase):
             if match is not None:
                 # add files to top-level datasets
                 orig_dispatch_block = sub_to_ds_map[destination_dispatch_block]
-                if (not self.go_to_transferring) or (not self.add_to_top_only and destination_dispatch_block in dist_datsets):
+                if (not self.go_to_transferring) or (not self.add_to_top_only and destination_dispatch_block in dist_datasets):
                     id_map[orig_dispatch_block] = id_map[destination_dispatch_block]
             # add files to top-level datasets only
-            if self.add_to_top_only or self.go_to_merging or (destination_dispatch_block in dist_datsets and orig_dispatch_block is not None):
+            if self.add_to_top_only or self.go_to_merging or (destination_dispatch_block in dist_datasets and orig_dispatch_block is not None):
                 del id_map[destination_dispatch_block]
             # skip sub unless getting transferred
             if orig_dispatch_block is not None:
@@ -822,7 +822,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                         ):
                             continue
                         # skip distributed datasets
-                        if tmp_file.destinationDBlock in dist_datsets:
+                        if tmp_file.destinationDBlock in dist_datasets:
                             continue
                         # skip no output
                         if tmp_file.status == "nooutput":
