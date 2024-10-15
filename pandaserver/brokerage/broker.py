@@ -46,24 +46,6 @@ def _compFunc(job_a, job_b):
         return 0
 
 
-# release checker
-def _checkRelease(job_releases, site_releases):
-    # Check for all on/off
-    if "True" in site_releases:
-        return True
-    if "False" in site_releases:
-        return False
-
-    # Loop over all releases
-    for release in job_releases.split("\n"):
-        release_version = re.sub(r"^Atlas-", "", release)
-        # Release not available
-        if release_version not in site_releases:
-            return False
-
-    return True
-
-
 # get list of files which already exist at the site
 def _getOkFiles(
     v_ce,
