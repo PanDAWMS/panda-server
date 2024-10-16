@@ -75,10 +75,9 @@ def schedule(jobs, siteMapper):
         # loop over all jobs + terminator(None)
         for job in jobs + [None]:
             indexJob += 1
+
             # ignore failed jobs
-            if job is None:
-                pass
-            elif job.jobStatus == "failed":
+            if job and job.jobStatus == "failed":
                 continue
 
             # list of sites for special brokerage
