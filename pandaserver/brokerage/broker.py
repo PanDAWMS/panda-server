@@ -96,8 +96,6 @@ def schedule(jobs, siteMapper):
             tmp_log.debug("finished : no jobs")
             return
 
-        allOkFilesMap = {}
-
         nJob = 20
         iJob = 0
         nFile = 20
@@ -105,8 +103,6 @@ def schedule(jobs, siteMapper):
         scopeList = []
         okFiles = {}
         prioInterval = 50
-        totalNumInputs = 0
-        totalInputSize = 0
         chosen_panda_queue = None
         prodDBlock = None
         computingSite = None
@@ -261,8 +257,6 @@ def schedule(jobs, siteMapper):
                 fileList = []
                 scopeList = []
                 okFiles = {}
-                totalNumInputs = 0
-                totalInputSize = 0
                 # create new dispDBlock
                 if job.prodDBlock != "NULL":
                     # get datatype
@@ -354,14 +348,6 @@ def schedule(jobs, siteMapper):
                     if file.lfn not in fileList:
                         fileList.append(file.lfn)
                         scopeList.append(file.scope)
-                        try:
-                            # get total number/size of inputs except DBRelease
-                            # tgz inputs for evgen may be negligible
-                            if not re.search("\.tar\.gz", file.lfn):
-                                totalNumInputs += 1
-                                totalInputSize += file.fsize
-                        except Exception:
-                            pass
 
                 # destinationSE
                 if file.type in ["output", "log"] and destSE != "":
