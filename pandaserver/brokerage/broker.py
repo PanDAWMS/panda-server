@@ -1,4 +1,5 @@
 import datetime
+import functools
 import time
 import traceback
 import uuid
@@ -11,6 +12,33 @@ from pandaserver.dataservice import DataServiceUtils
 
 _log = PandaLogger().getLogger("broker")
 
+# all known sites
+_allSites = []
+
+# processingType to skip brokerage
+skipBrokerageProTypes = ["prod_test"]
+
+
+# comparison function for sort
+def _compFunc(job_a, job_b):
+    # This comparison helps in sorting the jobs based on the order of their computing sites in the _allSites list.
+    # append site if not in list
+    if job_a.computingSite not in _allSites:
+        _allSites.append(job_a.computingSite)
+    if job_b.computingSite not in _allSites:
+        _allSites.append(job_b.computingSite)
+
+    # compare site indices
+    index_a = _allSites.index(job_a.computingSite)
+    index_b = _allSites.index(job_b.computingSite)
+
+    if index_a > index_b:
+        return 1
+    elif index_a < index_b:
+        return -1
+    else:
+        return 0
+
 
 def schedule(jobs, siteMapper):
     timestamp = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat("/")
@@ -18,21 +46,45 @@ def schedule(jobs, siteMapper):
 
     try:
         # no jobs
-        if not jobs:
+        if len(jobs) == 0:
             tmp_log.debug("finished : no jobs")
             return
 
+        max_jobs = 20
+        max_files = 20
+
+        iJob = 0
+        fileList = []
         chosen_panda_queue = None
+        prodDBlock = None
+        computingSite = None
         dispatchDBlock = None
+        previousCloud = None
+        prevProType = None
+        prevSourceLabel = None
+        prevDirectAcc = None
+        prevIsJEDI = None
+        prevBrokerageSiteList = None
+
+        indexJob = 0
+
+        # sort jobs by siteID. Some jobs may already define computingSite
+        jobs = sorted(jobs, key=functools.cmp_to_key(_compFunc))
 
         # loop over all jobs + terminator(None)
-        for job in jobs:
-            if job:
-                tmp_log.debug(f"processing job {job.PandaID} with computing site {job.computingSite}")
+        for job in jobs + [None]:
+            indexJob += 1
 
             # ignore failed jobs
             if job and job.jobStatus == "failed":
                 continue
+
+            # list of sites for special brokerage
+            specialBrokerageSiteList = []
+
+            # manually set site
+            if job and job.computingSite != "NULL" and job.prodSourceLabel in ("test", "managed") and specialBrokerageSiteList == []:
+                specialBrokerageSiteList = [job.computingSite]
 
             overwriteSite = False
 
@@ -41,6 +93,79 @@ def schedule(jobs, siteMapper):
             if job and job.lockedby == "jedi":
                 isJEDI = True
 
+            # new bunch or terminator
+            if (
+                job is None
+                or len(fileList) >= max_files
+                or (dispatchDBlock is None and job.homepackage.startswith("AnalysisTransforms"))
+                or prodDBlock != job.prodDBlock
+                or job.computingSite != computingSite
+                or iJob > max_jobs
+                or previousCloud != job.getCloud()
+                or (prevProType in skipBrokerageProTypes and iJob > 0)
+                or prevDirectAcc != job.transferType
+                or prevProType != job.processingType
+                or prevBrokerageSiteList != specialBrokerageSiteList
+                or prevIsJEDI != isJEDI
+            ):
+                if indexJob > 1:
+                    tmp_log.debug("new bunch")
+                    tmp_log.debug(f"  iJob           {iJob}")
+                    tmp_log.debug(f"  cloud          {previousCloud}")
+                    tmp_log.debug(f"  sourceLabel    {prevSourceLabel}")
+                    tmp_log.debug(f"  prodDBlock     {prodDBlock}")
+                    tmp_log.debug(f"  computingSite  {computingSite}")
+                    tmp_log.debug(f"  processingType {prevProType}")
+                    tmp_log.debug(f"  transferType   {prevDirectAcc}")
+
+                if (iJob != 0 and chosen_panda_queue == "TOBEDONE") or prevBrokerageSiteList not in [None, []]:
+                    # load balancing
+                    minSites = {}
+                    if prevBrokerageSiteList:
+                        # special brokerage
+                        scanSiteList = prevBrokerageSiteList
+                    else:
+                        if siteMapper.checkCloud(previousCloud):
+                            # use cloud sites
+                            scanSiteList = siteMapper.getCloud(previousCloud)["sites"]
+
+                    # loop over all sites
+                    for site in scanSiteList:
+                        tmp_log.debug(f"calculate weight for site:{site}")
+                        # _allSites may contain NULL after sort()
+                        if site == "NULL":
+                            tmp_log.debug("site is NULL")
+                            continue
+
+                        winv = 1
+
+                        tmp_log.debug(f"Site:{site} 1/Weight:{winv}")
+
+                        # choose largest nMinSites weights
+                        minSites[site] = winv
+
+                    # choose site
+                    tmp_log.debug(f"Min Sites:{minSites}")
+                    if len(fileList) == 0 or prevIsJEDI is True:
+                        # choose min 1/weight
+                        minSite = list(minSites)[0]
+                        chosen_panda_queue = siteMapper.getSite(minSite)
+
+                    # set job spec
+                    tmp_log.debug(f"indexJob      : {indexJob}")
+
+                    for tmpJob in jobs[indexJob - iJob - 1 : indexJob - 1]:
+                        # set computingSite
+                        tmpJob.computingSite = chosen_panda_queue.sitename
+                        tmp_log.debug(f"PandaID:{tmpJob.PandaID} -> site:{tmpJob.computingSite}")
+
+                # terminate
+                if job is None:
+                    break
+                # reset iJob
+                iJob = 0
+                # reset file list
+                fileList = []
                 # create new dispDBlock
                 if job.prodDBlock != "NULL":
                     # get datatype
@@ -57,7 +182,7 @@ def schedule(jobs, siteMapper):
                         transferType = "prestaging"
                     dispatchDBlock = f"panda.{job.taskID}.{time.strftime('%m.%d')}.{tmpDataType}.{transferType}.{str(uuid.uuid4())}_dis{job.PandaID}"
                     tmp_log.debug(f"New dispatchDBlock: {dispatchDBlock}")
-
+                prodDBlock = job.prodDBlock
                 # already define computingSite
                 if job.computingSite != "NULL":
                     # instantiate KnownSite
@@ -76,6 +201,16 @@ def schedule(jobs, siteMapper):
                     else:
                         # set chosen_panda_queue
                         chosen_panda_queue = "TOBEDONE"
+            # increment iJob
+            iJob += 1
+            # reserve computingSite and cloud
+            computingSite = job.computingSite
+            previousCloud = job.getCloud()
+            prevProType = job.processingType
+            prevSourceLabel = job.prodSourceLabel
+            prevDirectAcc = job.transferType
+            prevBrokerageSiteList = specialBrokerageSiteList
+            prevIsJEDI = isJEDI
 
             # assign site
             if chosen_panda_queue != "TOBEDONE":
@@ -109,12 +244,14 @@ def schedule(jobs, siteMapper):
                         job.dispatchDBlock = dispatchDBlock
                     file.dispatchDBlock = dispatchDBlock
                     file.status = "pending"
+                    if file.lfn not in fileList:
+                        fileList.append(file.lfn)
 
                 # destinationSE
                 if file.type in ["output", "log"] and destSE != "":
                     if job.prodSourceLabel == "user" and job.computingSite == file.destinationSE:
                         pass
-                    elif job.prodSourceLabel == "user" and isJEDI is True and file.destinationSE not in ["", "NULL"]:
+                    elif job.prodSourceLabel == "user" and prevIsJEDI is True and file.destinationSE not in ["", "NULL"]:
                         pass
                     elif destSE == "local":
                         pass
