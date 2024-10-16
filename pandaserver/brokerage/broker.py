@@ -50,11 +50,11 @@ def schedule(jobs, siteMapper):
             tmp_log.debug("finished : no jobs")
             return
 
-        nJob = 20
+        max_jobs = 20
+        max_files = 20
+
         iJob = 0
-        nFile = 20
         fileList = []
-        prioInterval = 50
         chosen_panda_queue = None
         prodDBlock = None
         computingSite = None
@@ -65,7 +65,6 @@ def schedule(jobs, siteMapper):
         prevDirectAcc = None
         prevIsJEDI = None
         prevBrokerageSiteList = None
-        prevPriority = None
 
         indexJob = 0
 
@@ -97,11 +96,11 @@ def schedule(jobs, siteMapper):
             # new bunch or terminator
             if (
                 job is None
-                or len(fileList) >= nFile
+                or len(fileList) >= max_files
                 or (dispatchDBlock is None and job.homepackage.startswith("AnalysisTransforms"))
                 or prodDBlock != job.prodDBlock
                 or job.computingSite != computingSite
-                or iJob > nJob
+                or iJob > max_jobs
                 or previousCloud != job.getCloud()
                 or (prevProType in skipBrokerageProTypes and iJob > 0)
                 or prevDirectAcc != job.transferType
@@ -114,7 +113,6 @@ def schedule(jobs, siteMapper):
                     tmp_log.debug(f"  iJob           {iJob}")
                     tmp_log.debug(f"  cloud          {previousCloud}")
                     tmp_log.debug(f"  sourceLabel    {prevSourceLabel}")
-                    tmp_log.debug(f"  priority       {prevPriority}")
                     tmp_log.debug(f"  prodDBlock     {prodDBlock}")
                     tmp_log.debug(f"  computingSite  {computingSite}")
                     tmp_log.debug(f"  processingType {prevProType}")
@@ -214,9 +212,6 @@ def schedule(jobs, siteMapper):
             prevBrokerageSiteList = specialBrokerageSiteList
             prevIsJEDI = isJEDI
 
-            # truncate prio to avoid too many lookups
-            if job.currentPriority not in [None, "NULL"]:
-                prevPriority = (job.currentPriority / prioInterval) * prioInterval
             # assign site
             if chosen_panda_queue != "TOBEDONE":
                 job.computingSite = chosen_panda_queue.sitename
