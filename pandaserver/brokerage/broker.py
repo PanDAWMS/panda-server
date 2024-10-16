@@ -1,4 +1,5 @@
 import datetime
+import functools
 import time
 import traceback
 import uuid
@@ -53,7 +54,6 @@ def schedule(jobs, siteMapper):
         iJob = 0
         nFile = 20
         fileList = []
-        scopeList = []
         prioInterval = 50
         chosen_panda_queue = None
         prodDBlock = None
@@ -76,6 +76,9 @@ def schedule(jobs, siteMapper):
         prevPriority = None
 
         indexJob = 0
+
+        # sort jobs by siteID. Some jobs may already define computingSite
+        jobs = sorted(jobs, key=functools.cmp_to_key(_compFunc))
 
         # loop over all jobs + terminator(None)
         for job in jobs + [None]:
@@ -172,14 +175,14 @@ def schedule(jobs, siteMapper):
                     if len(fileList) == 0 or prevIsJEDI is True:
                         # choose min 1/weight
                         minSite = list(minSites)[0]
-                        chosenCE = siteMapper.getSite(minSite)
+                        chosen_panda_queue = siteMapper.getSite(minSite)
 
                     # set job spec
                     tmp_log.debug(f"indexJob      : {indexJob}")
 
                     for tmpJob in jobs[indexJob - iJob - 1 : indexJob - 1]:
                         # set computingSite
-                        tmpJob.computingSite = chosenCE.sitename
+                        tmpJob.computingSite = chosen_panda_queue.sitename
                         tmp_log.debug(f"PandaID:{tmpJob.PandaID} -> site:{tmpJob.computingSite}")
 
                 # terminate
@@ -189,7 +192,6 @@ def schedule(jobs, siteMapper):
                 iJob = 0
                 # reset file list
                 fileList = []
-                scopeList = []
                 # create new dispDBlock
                 if job.prodDBlock != "NULL":
                     # get datatype
@@ -280,7 +282,6 @@ def schedule(jobs, siteMapper):
                     file.status = "pending"
                     if file.lfn not in fileList:
                         fileList.append(file.lfn)
-                        scopeList.append(file.scope)
 
                 # destinationSE
                 if file.type in ["output", "log"] and destSE != "":
