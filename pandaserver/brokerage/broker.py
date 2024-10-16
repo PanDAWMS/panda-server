@@ -100,46 +100,46 @@ def _get_ok_files(
 
 
 # set 'ready' if files are already there
-def _setReadyToFiles(tmpJob, okFiles, siteMapper, tmp_log):
-    tmp_log.debug(str(okFiles))
-    allOK = True
-    tmpSiteSpec = siteMapper.getSite(tmpJob.computingSite)
-    scope_association_site_input, _ = select_scope(tmpSiteSpec, tmpJob.prodSourceLabel, tmpJob.job_label)
-    tmpTapeEndPoints = tmpSiteSpec.ddm_endpoints_input[scope_association_site_input].getTapeEndPoints()
+def _set_ready_to_files(tmp_job, ok_files, site_mapper, tmp_log):
+    tmp_log.debug(str(ok_files))
+    all_ok = True
+    tmp_site_spec = site_mapper.getSite(tmp_job.computingSite)
+    scope_association_site_input, _ = select_scope(tmp_site_spec, tmp_job.prodSourceLabel, tmp_job.job_label)
+    tmp_tape_endpoints = tmp_site_spec.ddm_endpoints_input[scope_association_site_input].getTapeEndPoints()
 
-    for tmpFile in tmpJob.Files:
-        if tmpFile.type == "input":
-            if tmpFile.status == "ready":
-                tmpFile.dispatchDBlock = "NULL"
-            elif DataServiceUtils.isCachedFile(tmpFile.dataset, tmpSiteSpec):
+    for tmp_file in tmp_job.Files:
+        if tmp_file.type == "input":
+            if tmp_file.status == "ready":
+                tmp_file.dispatchDBlock = "NULL"
+            elif DataServiceUtils.isCachedFile(tmp_file.dataset, tmp_site_spec):
                 # cached file
-                tmpFile.status = "cached"
-                tmpFile.dispatchDBlock = "NULL"
-            # use DDM prestage only for on-tape files
-            elif len(tmpTapeEndPoints) > 0 and tmpFile.lfn in okFiles:
-                tapeOnly = True
-                tapeCopy = False
-                for tmpSE in okFiles[tmpFile.lfn]:
-                    if tmpSE not in tmpTapeEndPoints:
-                        tapeOnly = False
+                tmp_file.status = "cached"
+                tmp_file.dispatchDBlock = "NULL"
+            # use DDM pre-stage only for on-tape files
+            elif len(tmp_tape_endpoints) > 0 and tmp_file.lfn in ok_files:
+                tape_only = True
+                tape_copy = False
+                for tmp_se in ok_files[tmp_file.lfn]:
+                    if tmp_se not in tmp_tape_endpoints:
+                        tape_only = False
                     else:
                         # there is a tape copy
-                        tapeCopy = True
+                        tape_copy = True
 
-                # trigger prestage when disk copy doesn't exist or token is TAPE
-                if tapeOnly or (tapeCopy and tmpFile.dispatchDBlockToken in ["ATLASDATATAPE", "ATLASMCTAPE"]):
-                    allOK = False
+                # trigger pre-stage when disk copy doesn't exist or token is TAPE
+                if tape_only or (tape_copy and tmp_file.dispatchDBlockToken in ["ATLASDATATAPE", "ATLASMCTAPE"]):
+                    all_ok = False
                 else:
                     # set ready
-                    tmpFile.status = "ready"
-                    tmpFile.dispatchDBlock = "NULL"
+                    tmp_file.status = "ready"
+                    tmp_file.dispatchDBlock = "NULL"
             else:
                 # set ready if the file exists and the site doesn't use prestage
-                tmpFile.status = "ready"
-                tmpFile.dispatchDBlock = "NULL"
+                tmp_file.status = "ready"
+                tmp_file.dispatchDBlock = "NULL"
     # unset disp dataset
-    if allOK:
-        tmpJob.dispatchDBlock = "NULL"
+    if all_ok:
+        tmp_job.dispatchDBlock = "NULL"
 
 
 def schedule(jobs, siteMapper):
@@ -294,7 +294,7 @@ def schedule(jobs, siteMapper):
                         # loop over all jobs
                         for tmpJob in jobsInBunch:
                             # set 'ready' if files are already there
-                            _setReadyToFiles(tmpJob, okFiles, siteMapper, tmp_log)
+                            _set_ready_to_files(tmpJob, okFiles, siteMapper, tmp_log)
                 else:
                     # load balancing
                     minSites = {}
@@ -338,7 +338,7 @@ def schedule(jobs, siteMapper):
 
                         # set ready if files are already there
                         if prevIsJEDI is False:
-                            _setReadyToFiles(tmpJob, okFiles, siteMapper, tmp_log)
+                            _set_ready_to_files(tmpJob, okFiles, siteMapper, tmp_log)
 
                 # terminate
                 if job is None:
@@ -432,7 +432,7 @@ def schedule(jobs, siteMapper):
             # set dispatchDBlock and destinationSE
             first = True
             for file in job.Files:
-                # dispatchDBlock. Set dispDB for pre-stating jobs too
+                # Set dispatch data block for pre-stating jobs too
                 if (
                     file.type == "input"
                     and file.dispatchDBlock == "NULL"
@@ -449,7 +449,7 @@ def schedule(jobs, siteMapper):
                         try:
                             # get total number/size of inputs except DBRelease
                             # tgz inputs for evgen may be negligible
-                            if re.search("\.tar\.gz", file.lfn) is None:
+                            if not re.search("\.tar\.gz", file.lfn):
                                 totalNumInputs += 1
                                 totalInputSize += file.fsize
                         except Exception:
