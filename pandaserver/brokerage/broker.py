@@ -184,7 +184,6 @@ def schedule(jobs, siteMapper):
         prevPriority = None
 
         indexJob = 0
-        prestageSites = []
 
         # sort jobs by siteID. Some jobs may already define computingSite
         jobs = sorted(jobs, key=functools.cmp_to_key(_compFunc))
@@ -272,7 +271,6 @@ def schedule(jobs, siteMapper):
                     if (
                         jobsInBunch != []
                         and fileList != []
-                        and (computingSite not in prestageSites)
                         and (jobsInBunch[0].prodSourceLabel in ["managed", "software"] or re.search("test", jobsInBunch[0].prodSourceLabel) is not None)
                     ):
                         # get site spec
@@ -433,11 +431,7 @@ def schedule(jobs, siteMapper):
             first = True
             for file in job.Files:
                 # Set dispatch data block for pre-stating jobs too
-                if (
-                    file.type == "input"
-                    and file.dispatchDBlock == "NULL"
-                    and ((file.status not in ["ready", "missing", "cached"]) or job.computingSite in prestageSites)
-                ):
+                if file.type == "input" and file.dispatchDBlock == "NULL" and file.status not in ["ready", "missing", "cached"]:
                     if first:
                         first = False
                         job.dispatchDBlock = dispatchDBlock
