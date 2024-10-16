@@ -10,8 +10,6 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.config import panda_config
 from pandaserver.dataservice import DataServiceUtils
-from pandaserver.dataservice.DataServiceUtils import select_scope
-from pandaserver.dataservice.ddm import rucioAPI
 
 _log = PandaLogger().getLogger("broker")
 
@@ -43,49 +41,6 @@ def _compFunc(job_a, job_b):
         return 0
 
 
-# set 'ready' if files are already there
-def _set_ready_to_files(tmp_job, ok_files, site_mapper, tmp_log):
-    tmp_log.debug(f"_set_ready_to_files to {ok_files}")
-    all_ok = True
-    tmp_site_spec = site_mapper.getSite(tmp_job.computingSite)
-    scope_association_site_input, _ = select_scope(tmp_site_spec, tmp_job.prodSourceLabel, tmp_job.job_label)
-    tmp_tape_endpoints = tmp_site_spec.ddm_endpoints_input[scope_association_site_input].getTapeEndPoints()
-
-    for tmp_file in tmp_job.Files:
-        if tmp_file.type == "input":
-            if tmp_file.status == "ready":
-                tmp_file.dispatchDBlock = "NULL"
-            elif DataServiceUtils.isCachedFile(tmp_file.dataset, tmp_site_spec):
-                # cached file
-                tmp_file.status = "cached"
-                tmp_file.dispatchDBlock = "NULL"
-            # use DDM pre-stage only for on-tape files
-            elif len(tmp_tape_endpoints) > 0 and tmp_file.lfn in ok_files:
-                tape_only = True
-                tape_copy = False
-                for tmp_se in ok_files[tmp_file.lfn]:
-                    if tmp_se not in tmp_tape_endpoints:
-                        tape_only = False
-                    else:
-                        # there is a tape copy
-                        tape_copy = True
-
-                # trigger pre-stage when disk copy doesn't exist or token is TAPE
-                if tape_only or (tape_copy and tmp_file.dispatchDBlockToken in ["ATLASDATATAPE", "ATLASMCTAPE"]):
-                    all_ok = False
-                else:
-                    # set ready
-                    tmp_file.status = "ready"
-                    tmp_file.dispatchDBlock = "NULL"
-            else:
-                # set ready if the file exists and the site doesn't use prestage
-                tmp_file.status = "ready"
-                tmp_file.dispatchDBlock = "NULL"
-    # unset disp dataset
-    if all_ok:
-        tmp_job.dispatchDBlock = "NULL"
-
-
 def schedule(jobs, siteMapper):
     timestamp = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat("/")
     tmp_log = LogWrapper(_log, f"start_ts={timestamp}")
@@ -101,7 +56,6 @@ def schedule(jobs, siteMapper):
         nFile = 20
         fileList = []
         scopeList = []
-        okFiles = {}
         prioInterval = 50
         chosen_panda_queue = None
         prodDBlock = None
@@ -124,18 +78,6 @@ def schedule(jobs, siteMapper):
         prevPriority = None
 
         indexJob = 0
-
-        # get all input files for bulk LFC lookup
-        allLFNs = []
-        allGUIDs = []
-        allScopes = []
-        for tmpJob in jobs:
-            if tmpJob.prodSourceLabel in ("test", "managed") or tmpJob.prodUserName in ["gangarbt"]:
-                for tmpFile in tmpJob.Files:
-                    if tmpFile.type == "input" and tmpFile.lfn not in allLFNs:
-                        allLFNs.append(tmpFile.lfn)
-                        allGUIDs.append(tmpFile.GUID)
-                        allScopes.append(tmpFile.scope)
 
         # loop over all jobs + terminator(None)
         for job in jobs + [None]:
@@ -242,10 +184,6 @@ def schedule(jobs, siteMapper):
                         tmpJob.computingSite = chosenCE.sitename
                         tmp_log.debug(f"PandaID:{tmpJob.PandaID} -> site:{tmpJob.computingSite}")
 
-                        # set ready if files are already there
-                        if prevIsJEDI is False:
-                            _set_ready_to_files(tmpJob, okFiles, siteMapper, tmp_log)
-
                 # terminate
                 if job is None:
                     break
@@ -254,7 +192,6 @@ def schedule(jobs, siteMapper):
                 # reset file list
                 fileList = []
                 scopeList = []
-                okFiles = {}
                 # create new dispDBlock
                 if job.prodDBlock != "NULL":
                     # get datatype
