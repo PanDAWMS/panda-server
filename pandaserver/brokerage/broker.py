@@ -43,65 +43,9 @@ def _compFunc(job_a, job_b):
         return 0
 
 
-# get list of files which already exist at the site
-def _get_ok_files(
-    v_ce,
-    v_files,
-    all_lfns,
-    all_ok_files_map,
-    prod_source_label,
-    job_label,
-    tmp_log,
-    all_scope_list=None,
-):
-    if not all_lfns:
-        return {}
-
-    scope_association_input, _ = select_scope(v_ce, prod_source_label, job_label)
-    rucio_sites = list(v_ce.setokens_input[scope_association_input].values())
-    try:
-        rucio_sites.remove("")
-    except Exception:
-        pass
-    rucio_sites.sort()
-    if not rucio_sites:
-        rucio_site = v_ce.ddm_input[scope_association_input]
-    else:
-        rucio_site = ",".join(rucio_sites)
-
-    # set LFC and SE name
-    rucio_url = "rucio://atlas-rucio.cern.ch:/grid/atlas"
-    tmp_se = v_ce.ddm_endpoints_input[scope_association_input].getAllEndpoints()
-    tmp_log.debug(f"get_ok_files for {v_ce.sitename} with rucio_site:{rucio_site}, " f"rucio_url:{rucio_url}, SE:{str(tmp_se)}")
-    any_id = "any"
-
-    # use bulk lookup
-    # get all replicas
-    if rucio_url not in all_ok_files_map:
-        all_ok_files_map[rucio_url] = {}
-        tmp_stat, tmp_ava_files = rucioAPI.list_file_replicas(all_scope_list, all_lfns, tmp_se)
-        if not tmp_stat:
-            tmp_log.debug("get_ok_file failed to get file replicas")
-            tmp_ava_files = {}
-        all_ok_files_map[rucio_url][any_id] = tmp_ava_files
-
-    # get files for each rucio_site
-    if rucio_site not in all_ok_files_map[rucio_url]:
-        all_ok_files_map[rucio_url][rucio_site] = all_ok_files_map[rucio_url][any_id]
-
-    # make return map
-    ret_map = {}
-    for tmp_lfn in v_files:
-        if tmp_lfn in all_ok_files_map[rucio_url][rucio_site]:
-            ret_map[tmp_lfn] = all_ok_files_map[rucio_url][rucio_site][tmp_lfn]
-    tmp_log.debug("get_ok_files done")
-
-    return ret_map
-
-
 # set 'ready' if files are already there
 def _set_ready_to_files(tmp_job, ok_files, site_mapper, tmp_log):
-    tmp_log.debug(str(ok_files))
+    tmp_log.debug(f"_set_ready_to_files to {ok_files}")
     all_ok = True
     tmp_site_spec = site_mapper.getSite(tmp_job.computingSite)
     scope_association_site_input, _ = select_scope(tmp_site_spec, tmp_job.prodSourceLabel, tmp_job.job_label)
@@ -185,8 +129,7 @@ def schedule(jobs, siteMapper):
 
         indexJob = 0
 
-        # sort jobs by siteID. Some jobs may already define computingSite
-        jobs = sorted(jobs, key=functools.cmp_to_key(_compFunc))
+        job_dict = classify_jobs(jobs)
 
         # get all input files for bulk LFC lookup
         allLFNs = []
@@ -264,39 +207,10 @@ def schedule(jobs, siteMapper):
                     tmp_log.debug(f"  transferType   {prevDirectAcc}")
                     tmp_log.debug(f"  DDM            {prevDDM}")
 
-                # determine site
-                if (iJob == 0 or chosen_panda_queue != "TOBEDONE") and prevBrokerageSiteList in [None, []]:
-                    # file scan for pre-assigned jobs
-                    jobsInBunch = jobs[indexJob - iJob - 1 : indexJob - 1]
-                    if (
-                        jobsInBunch != []
-                        and fileList != []
-                        and (jobsInBunch[0].prodSourceLabel in ["managed", "software"] or re.search("test", jobsInBunch[0].prodSourceLabel) is not None)
-                    ):
-                        # get site spec
-                        tmp_chosen_panda_queue = siteMapper.getSite(computingSite)
-                        # get files
-                        okFiles = _get_ok_files(
-                            tmp_chosen_panda_queue,
-                            fileList,
-                            allLFNs,
-                            allOkFilesMap,
-                            jobsInBunch[0].prodSourceLabel,
-                            jobsInBunch[0].job_label,
-                            tmp_log,
-                            allScopes,
-                        )
-
-                        nOkFiles = len(okFiles)
-                        tmp_log.debug(f"site:{computingSite} - nFiles:{nOkFiles}/{len(fileList)} {str(fileList)} {str(okFiles)}")
-                        # loop over all jobs
-                        for tmpJob in jobsInBunch:
-                            # set 'ready' if files are already there
-                            _set_ready_to_files(tmpJob, okFiles, siteMapper, tmp_log)
-                else:
+                if (iJob != 0 and chosen_panda_queue == "TOBEDONE") or prevBrokerageSiteList not in [None, []]:
                     # load balancing
                     minSites = {}
-                    if prevBrokerageSiteList != []:
+                    if prevBrokerageSiteList:
                         # special brokerage
                         scanSiteList = prevBrokerageSiteList
                     else:
