@@ -60,19 +60,11 @@ def schedule(jobs, siteMapper):
         computingSite = None
         dispatchDBlock = None
         previousCloud = None
-        prevRelease = None
-        prevMemory = None
-        prevCmtConfig = None
         prevProType = None
         prevSourceLabel = None
-        prevDiskCount = None
         prevDirectAcc = None
-        prevCoreCount = None
         prevIsJEDI = None
-        prevDDM = None
         prevBrokerageSiteList = None
-        prevWorkingGroup = None
-        prevMaxCpuCount = None
         prevPriority = None
 
         indexJob = 0
@@ -112,37 +104,22 @@ def schedule(jobs, siteMapper):
                 or job.computingSite != computingSite
                 or iJob > nJob
                 or previousCloud != job.getCloud()
-                or prevRelease != job.AtlasRelease
-                or prevCmtConfig != job.cmtConfig
                 or (prevProType in skipBrokerageProTypes and iJob > 0)
                 or prevDirectAcc != job.transferType
-                or (prevMemory != job.minRamCount and not isJEDI)
-                or (prevDiskCount != job.maxDiskCount and not isJEDI)
-                or prevCoreCount != job.coreCount
-                or prevWorkingGroup != job.workingGroup
                 or prevProType != job.processingType
-                or (prevMaxCpuCount != job.maxCpuCount and not isJEDI)
                 or prevBrokerageSiteList != specialBrokerageSiteList
                 or prevIsJEDI != isJEDI
-                or prevDDM != job.getDdmBackEnd()
             ):
                 if indexJob > 1:
                     tmp_log.debug("new bunch")
                     tmp_log.debug(f"  iJob           {iJob}")
                     tmp_log.debug(f"  cloud          {previousCloud}")
-                    tmp_log.debug(f"  rel            {prevRelease}")
                     tmp_log.debug(f"  sourceLabel    {prevSourceLabel}")
-                    tmp_log.debug(f"  cmtConfig      {prevCmtConfig}")
-                    tmp_log.debug(f"  memory         {prevMemory}")
                     tmp_log.debug(f"  priority       {prevPriority}")
                     tmp_log.debug(f"  prodDBlock     {prodDBlock}")
                     tmp_log.debug(f"  computingSite  {computingSite}")
                     tmp_log.debug(f"  processingType {prevProType}")
-                    tmp_log.debug(f"  workingGroup   {prevWorkingGroup}")
-                    tmp_log.debug(f"  coreCount      {prevCoreCount}")
-                    tmp_log.debug(f"  maxCpuCount    {prevMaxCpuCount}")
                     tmp_log.debug(f"  transferType   {prevDirectAcc}")
-                    tmp_log.debug(f"  DDM            {prevDDM}")
 
                 if (iJob != 0 and chosen_panda_queue == "TOBEDONE") or prevBrokerageSiteList not in [None, []]:
                     # load balancing
@@ -232,19 +209,12 @@ def schedule(jobs, siteMapper):
             # reserve computingSite and cloud
             computingSite = job.computingSite
             previousCloud = job.getCloud()
-            prevRelease = job.AtlasRelease
-            prevMemory = job.minRamCount
-            prevCmtConfig = job.cmtConfig
             prevProType = job.processingType
             prevSourceLabel = job.prodSourceLabel
-            prevDiskCount = job.maxDiskCount
             prevDirectAcc = job.transferType
-            prevCoreCount = job.coreCount
-            prevMaxCpuCount = job.maxCpuCount
             prevBrokerageSiteList = specialBrokerageSiteList
-            prevWorkingGroup = job.workingGroup
             prevIsJEDI = isJEDI
-            prevDDM = job.getDdmBackEnd()
+
             # truncate prio to avoid too many lookups
             if job.currentPriority not in [None, "NULL"]:
                 prevPriority = (job.currentPriority / prioInterval) * prioInterval
