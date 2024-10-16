@@ -224,7 +224,6 @@ class AdderAtlasPlugin(AdderPluginBase):
 
         # check files
         id_map = {}
-        # fileList = []
         sub_map = {}
         dataset_destination_map = {}
         dist_datasets = set()
@@ -357,7 +356,6 @@ class AdderAtlasPlugin(AdderPluginBase):
                             # RSE is specified for distributed datasets
                         elif (
                             src_site_spec.cloud != self.job.cloud
-                            and (not src_site_spec.ddm_output[scope_src_site_spec_output].endswith("PRODDISK"))
                             and (self.job.prodSourceLabel not in ["user", "panda"])
                         ):
                             # T1 used as T2
@@ -420,8 +418,7 @@ class AdderAtlasPlugin(AdderPluginBase):
 
                 # for subscription
                 if (
-                    self.job.prodSourceLabel in ["managed", "test", "software", "user", "rucio_test"] + JobUtils.list_ptest_prod_sources
-                    and re.search("_sub\d+$", file_destination_dispatch_block)
+                    re.search("_sub\d+$", file_destination_dispatch_block)
                     and (not self.add_to_top_only)
                     and self.job.destinationSE != "local"
                 ):
@@ -482,13 +479,8 @@ class AdderAtlasPlugin(AdderPluginBase):
                                         # T1 used as T2
                                         if (
                                             src_site_spec.cloud != self.job.cloud
-                                            and (not tmp_src_ddm.endswith("PRODDISK"))
                                             and (self.job.prodSourceLabel not in ["user", "panda"])
                                         ):
-                                            # register both DATADISK and PRODDISK as source locations
-                                            if "ATLASPRODDISK" in src_site_spec.setokens_output[scope_src_site_spec_output]:
-                                                ddm_id = src_site_spec.setokens_output[scope_src_site_spec_output]["ATLASPRODDISK"]
-                                                opt_source[ddm_id] = {"policy": 0}
                                             if tmp_src_ddm not in opt_source:
                                                 opt_source[tmp_src_ddm] = {"policy": 0}
                                         # use another location when token is set
