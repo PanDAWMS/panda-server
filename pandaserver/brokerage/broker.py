@@ -1,6 +1,4 @@
 import datetime
-import functools
-import re
 import time
 import traceback
 import uuid
