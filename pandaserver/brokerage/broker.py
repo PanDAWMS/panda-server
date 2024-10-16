@@ -125,8 +125,6 @@ def schedule(jobs, siteMapper):
 
         indexJob = 0
 
-        job_dict = classify_jobs(jobs)
-
         # get all input files for bulk LFC lookup
         allLFNs = []
         allGUIDs = []
