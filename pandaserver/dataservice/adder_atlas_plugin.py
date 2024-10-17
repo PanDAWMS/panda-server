@@ -410,8 +410,14 @@ class AdderAtlasPlugin(AdderPluginBase):
                                 # alternative stage-out
                                 alt_staged_files.add(file.lfn)
                                 map_for_alt_stage_out.setdefault(pilot_end_point, {})
-                                map_for_alt_stage_out[pilot_end_point].setdefault(file_destination_dispatch_block, [])
-                                map_for_alt_stage_out[pilot_end_point][file_destination_dispatch_block].append(file_attrs)
+                                if file_destination_dispatch_block in dist_datasets:
+                                    # add files to top-level distributed datasets without triggering aggregation
+                                    tmp_destination_dispatch_block = sub_to_ds_map[file_destination_dispatch_block]
+                                else:
+                                    # add files to dispatch blocks for aggregation to the destination
+                                    tmp_destination_dispatch_block = file_destination_dispatch_block
+                                map_for_alt_stage_out[pilot_end_point].setdefault(tmp_destination_dispatch_block, [])
+                                map_for_alt_stage_out[pilot_end_point][tmp_destination_dispatch_block].append(file_attrs)
                     if has_normal_url:
                         # add file to be added to dataset
                         id_map[file_destination_dispatch_block].append(file_attrs)
