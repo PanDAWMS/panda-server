@@ -509,8 +509,10 @@ class TaskBuffer:
                     # keep parameters for late bulk execution
                     params_for_bulk_insert.append(
                         [
-                            [job, user, serNum, weight, priorityOffset, userVO, groupJobSerialNum, toPending, origEsJob, eventServiceInfo],
+                            [job, user, serNum, weight, priorityOffset, userVO, groupJobSerialNum, toPending],
                             {
+                                "origEsJob": origEsJob,
+                                "eventServiceInfo": eventServiceInfo,
                                 "oldPandaIDs": jobOldPandaIDs,
                                 "relationType": relationType,
                                 "fileIDPool": fileIDPool,
