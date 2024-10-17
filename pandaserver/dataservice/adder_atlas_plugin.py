@@ -65,11 +65,6 @@ class AdderAtlasPlugin(AdderPluginBase):
         """
         try:
             self.logger.debug(f"start plugin : {self.job_status}")
-            # backend
-            self.ddm_backend = self.job.getDdmBackEnd()
-            if self.ddm_backend is None:
-                self.ddm_backend = "rucio"
-            self.logger.debug(f"ddm backend = {self.ddm_backend}")
             # add files only to top-level datasets for transferring jobs
             if self.job.jobStatus == "transferring":
                 self.add_to_top_only = True
@@ -374,18 +369,17 @@ class AdderAtlasPlugin(AdderPluginBase):
                         dataset_destination_map[file_destination_dispatch_block] = tmp_dest_list
 
                 # extra meta data
-                if self.ddm_backend == "rucio":
-                    if file.lfn in self.extra_info["lbnr"]:
-                        file_attrs["lumiblocknr"] = self.extra_info["lbnr"][file.lfn]
-                    if file.lfn in self.extra_info["nevents"]:
-                        file_attrs["events"] = self.extra_info["nevents"][file.lfn]
-                    elif self.extra_info["nevents"] != {}:
-                        file_attrs["events"] = None
-                    # if file.jediTaskID not in [0,None,'NULL']:
-                    #    fileAttrs['task_id'] = file.jediTaskID
-                    file_attrs["panda_id"] = file.PandaID
-                    if campaign not in ["", None]:
-                        file_attrs["campaign"] = campaign
+                if file.lfn in self.extra_info["lbnr"]:
+                    file_attrs["lumiblocknr"] = self.extra_info["lbnr"][file.lfn]
+                if file.lfn in self.extra_info["nevents"]:
+                    file_attrs["events"] = self.extra_info["nevents"][file.lfn]
+                elif self.extra_info["nevents"] != {}:
+                    file_attrs["events"] = None
+                # if file.jediTaskID not in [0,None,'NULL']:
+                #    fileAttrs['task_id'] = file.jediTaskID
+                file_attrs["panda_id"] = file.PandaID
+                if campaign not in ["", None]:
+                    file_attrs["campaign"] = campaign
 
                 # extract OS files
                 has_normal_url = True
@@ -618,7 +612,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                 if not self.use_central_lfc():
                     reg_msg_str = f"File registration for {reg_num_files} files "
                 else:
-                    reg_msg_str = f"File registration with backend={self.ddm_backend} for {reg_num_files} files "
+                    reg_msg_str = f"File registration with rucio for {reg_num_files} files "
                 if len(zip_files) > 0:
                     self.logger.debug(f"registerZipFiles {str(zip_files)}")
                     rucioAPI.register_zip_files(zip_files)
