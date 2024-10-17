@@ -609,7 +609,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         reg_num_files = len(reg_file_list)
 
         # decompose idMap
-        if not self.add_to_top_only:
+        if self.add_to_top_only:
             dest_id_map = {None: id_map}
         else:
             dest_id_map = self.decompose_id_map(id_map, dataset_destination_map, map_for_alt_stage_out, sub_to_ds_map, alt_staged_files)
