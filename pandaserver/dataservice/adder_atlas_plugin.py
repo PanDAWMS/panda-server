@@ -11,6 +11,8 @@ import sys
 import time
 import traceback
 
+from typing import Dict, List
+
 from rucio.common.exception import (
     DataIdentifierNotFound,
     FileConsistencyMismatch,
@@ -615,12 +617,129 @@ class AdderAtlasPlugin(AdderPluginBase):
         del cont_zip_map
         gc.collect()
 
-        # register dataset subscription
         if self.job.processingType == "urgent" or self.job.currentPriority > 1000:
             sub_activity = "Express"
         else:
             sub_activity = "Production Output"
 
+        # register dataset subscription
+        self.process_subscriptions(sub_map, sub_to_ds_map, dist_datasets, sub_activity)
+
+        # collect list of merging files
+        if self.go_to_merging and self.job_status not in ["failed", "cancelled", "closed"]:
+            for tmp_file_list in id_map.values():
+                for tmp_file in tmp_file_list:
+                    if tmp_file["lfn"] not in self.result.merging_files:
+                        self.result.merging_files.append(tmp_file["lfn"])
+
+        # register ES files
+        if (EventServiceUtils.isEventServiceJob(self.job) or EventServiceUtils.isJumboJob(self.job)) and not EventServiceUtils.isJobCloningJob(self.job):
+            if self.job.registerEsFiles():
+                try:
+                    self.register_event_service_files()
+                except Exception:
+                    err_type, err_value = sys.exc_info()[:2]
+                    self.logger.error(f"failed to register ES files with {err_type}:{err_value}")
+                    self.result.set_temporary()
+                    return 1
+
+        # properly finished
+        self.logger.debug("addFiles end")
+        return 0
+
+    def register_files(self, reg_num_files: int, zip_files: list, dest_id_map: dict, cont_zip_map: dict) -> int | None:
+        """
+        Register files with Rucio.
+
+        :param reg_num_files: Number of files to register.
+        :param zip_files: List of zip files to register.
+        :param dest_id_map: Destination ID map.
+        :param cont_zip_map: Container zip map.
+        :return: 1 if registration fails, None otherwise.
+        """
+        max_attempt = 3
+        for attempt_number in range(max_attempt):
+            is_fatal = False
+            is_failed = False
+            reg_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            try:
+                if self.add_to_top_only:
+                    reg_msg_str = f"File registration for {reg_num_files} files "
+                else:
+                    reg_msg_str = f"File registration with rucio for {reg_num_files} files "
+                if len(zip_files) > 0:
+                    self.logger.debug(f"registerZipFiles {str(zip_files)}")
+                    rucioAPI.register_zip_files(zip_files)
+                self.logger.debug(f"registerFilesInDatasets {str(dest_id_map)} zip={str(cont_zip_map)}")
+                out = rucioAPI.register_files_in_dataset(dest_id_map, cont_zip_map)
+            except (
+                    DataIdentifierNotFound,
+                    FileConsistencyMismatch,
+                    UnsupportedOperation,
+                    InvalidPath,
+                    InvalidObject,
+                    RSENotFound,
+                    RSEProtocolNotSupported,
+                    InvalidRSEExpression,
+                    KeyError,
+            ):
+                # fatal errors
+                err_type, err_value = sys.exc_info()[:2]
+                out = f"{err_type} : {err_value}"
+                out += traceback.format_exc()
+                is_fatal = True
+                is_failed = True
+            except Exception:
+                # unknown errors
+                err_type, err_value = sys.exc_info()[:2]
+                out = f"{err_type} : {err_value}"
+                out += traceback.format_exc()
+                is_fatal = (
+                        "value too large for column" in out
+                        or "unique constraint (ATLAS_RUCIO.DIDS_GUID_IDX) violate" in out
+                        or "unique constraint (ATLAS_RUCIO.DIDS_PK) violated" in out
+                        or "unique constraint (ATLAS_RUCIO.ARCH_CONTENTS_PK) violated" in out
+                )
+                is_failed = True
+            reg_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - reg_start
+            self.logger.debug(reg_msg_str + "took %s.%03d sec" % (reg_time.seconds, reg_time.microseconds / 1000))
+            # failed
+            if is_failed or is_fatal:
+                self.logger.error(f"{out}")
+                if (attempt_number + 1) == max_attempt or is_fatal:
+                    self.job.ddmErrorCode = ErrorCode.EC_Adder
+                    # extract important error string
+                    extracted_err_str = DataServiceUtils.extractImportantError(out)
+                    err_msg = "Could not add files to DDM: "
+                    if extracted_err_str == "":
+                        self.job.ddmErrorDiag = err_msg + out.split("\n")[-1]
+                    else:
+                        self.job.ddmErrorDiag = err_msg + extracted_err_str
+                    if is_fatal:
+                        self.result.set_fatal()
+                    else:
+                        self.result.set_temporary()
+                    return 1
+                self.logger.error(f"Try:{attempt_number}")
+                # sleep
+                time.sleep(10)
+            else:
+                self.logger.debug(f"{str(out)}")
+                break
+
+    def process_subscriptions(self,sub_map: Dict[str, str], sub_to_ds_map: Dict[str, List[str]], dist_datasets: List[str], sub_activity: str) -> None:
+        """
+        Process the subscriptions for the job.
+
+        This method handles the processing of subscriptions, including keeping subscriptions,
+        collecting transferring jobs, and sending requests to DaTRI.
+
+        :param sub_map: A dictionary mapping subscription names to their values.
+        :param sub_to_ds_map: A dictionary mapping subscriptions to datasets.
+        :param dist_datasets: A list of distributed datasets.
+        :param sub_activity: The subscription activity type.
+        :return: None
+        """
         if self.job.prodSourceLabel not in ["user"]:
             for tmp_name, tmp_val in sub_map.items():
                 for ddm_id, opt_sub, opt_source in tmp_val:
@@ -737,9 +856,10 @@ class AdderAtlasPlugin(AdderPluginBase):
                     if self.go_to_transferring or (self.log_transferring and tmp_file.type == "log"):
                         # don't go to transferring for successful ES jobs
                         if (
-                            self.job.jobStatus == "finished"
-                            and (EventServiceUtils.isEventServiceJob(self.job) and EventServiceUtils.isJumboJob(self.job))
-                            and not EventServiceUtils.isJobCloningJob(self.job)
+                                self.job.jobStatus == "finished"
+                                and (EventServiceUtils.isEventServiceJob(self.job) and EventServiceUtils.isJumboJob(
+                            self.job))
+                                and not EventServiceUtils.isJobCloningJob(self.job)
                         ):
                             continue
                         # skip distributed datasets
@@ -806,7 +926,9 @@ class AdderAtlasPlugin(AdderPluginBase):
                     for tmp_name in sub_map:
                         self.dataset_map[tmp_name].status = "running"
                     # send warning
-                    tmp_st = self.taskBuffer.update_problematic_resource_info(self.job.prodUserName, self.job.jediTaskID, user_endpoints[0], "dest")
+                    tmp_st = self.taskBuffer.update_problematic_resource_info(self.job.prodUserName,
+                                                                              self.job.jediTaskID, user_endpoints[0],
+                                                                              "dest")
                     if not tmp_st:
                         self.logger.debug("skip to send warning since already done")
                     else:
@@ -822,109 +944,6 @@ class AdderAtlasPlugin(AdderPluginBase):
                     self.logger.error(tmp_msg)
                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                     self.job.ddmErrorDiag = f"Rucio failed with {err_type} {err_value}"
-
-        # collect list of merging files
-        if self.go_to_merging and self.job_status not in ["failed", "cancelled", "closed"]:
-            for tmp_file_list in id_map.values():
-                for tmp_file in tmp_file_list:
-                    if tmp_file["lfn"] not in self.result.merging_files:
-                        self.result.merging_files.append(tmp_file["lfn"])
-
-        # register ES files
-        if (EventServiceUtils.isEventServiceJob(self.job) or EventServiceUtils.isJumboJob(self.job)) and not EventServiceUtils.isJobCloningJob(self.job):
-            if self.job.registerEsFiles():
-                try:
-                    self.register_event_service_files()
-                except Exception:
-                    err_type, err_value = sys.exc_info()[:2]
-                    self.logger.error(f"failed to register ES files with {err_type}:{err_value}")
-                    self.result.set_temporary()
-                    return 1
-
-        # properly finished
-        self.logger.debug("addFiles end")
-        return 0
-
-    def register_files(self, reg_num_files: int, zip_files: list, dest_id_map: dict, cont_zip_map: dict) -> int | None:
-        """
-        Register files with Rucio.
-
-        :param reg_num_files: Number of files to register.
-        :param zip_files: List of zip files to register.
-        :param dest_id_map: Destination ID map.
-        :param cont_zip_map: Container zip map.
-        :return: 1 if registration fails, None otherwise.
-        """
-        max_attempt = 3
-        for attempt_number in range(max_attempt):
-            is_fatal = False
-            is_failed = False
-            reg_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-            try:
-                if self.add_to_top_only:
-                    reg_msg_str = f"File registration for {reg_num_files} files "
-                else:
-                    reg_msg_str = f"File registration with rucio for {reg_num_files} files "
-                if len(zip_files) > 0:
-                    self.logger.debug(f"registerZipFiles {str(zip_files)}")
-                    rucioAPI.register_zip_files(zip_files)
-                self.logger.debug(f"registerFilesInDatasets {str(dest_id_map)} zip={str(cont_zip_map)}")
-                out = rucioAPI.register_files_in_dataset(dest_id_map, cont_zip_map)
-            except (
-                    DataIdentifierNotFound,
-                    FileConsistencyMismatch,
-                    UnsupportedOperation,
-                    InvalidPath,
-                    InvalidObject,
-                    RSENotFound,
-                    RSEProtocolNotSupported,
-                    InvalidRSEExpression,
-                    KeyError,
-            ):
-                # fatal errors
-                err_type, err_value = sys.exc_info()[:2]
-                out = f"{err_type} : {err_value}"
-                out += traceback.format_exc()
-                is_fatal = True
-                is_failed = True
-            except Exception:
-                # unknown errors
-                err_type, err_value = sys.exc_info()[:2]
-                out = f"{err_type} : {err_value}"
-                out += traceback.format_exc()
-                is_fatal = (
-                        "value too large for column" in out
-                        or "unique constraint (ATLAS_RUCIO.DIDS_GUID_IDX) violate" in out
-                        or "unique constraint (ATLAS_RUCIO.DIDS_PK) violated" in out
-                        or "unique constraint (ATLAS_RUCIO.ARCH_CONTENTS_PK) violated" in out
-                )
-                is_failed = True
-            reg_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - reg_start
-            self.logger.debug(reg_msg_str + "took %s.%03d sec" % (reg_time.seconds, reg_time.microseconds / 1000))
-            # failed
-            if is_failed or is_fatal:
-                self.logger.error(f"{out}")
-                if (attempt_number + 1) == max_attempt or is_fatal:
-                    self.job.ddmErrorCode = ErrorCode.EC_Adder
-                    # extract important error string
-                    extracted_err_str = DataServiceUtils.extractImportantError(out)
-                    err_msg = "Could not add files to DDM: "
-                    if extracted_err_str == "":
-                        self.job.ddmErrorDiag = err_msg + out.split("\n")[-1]
-                    else:
-                        self.job.ddmErrorDiag = err_msg + extracted_err_str
-                    if is_fatal:
-                        self.result.set_fatal()
-                    else:
-                        self.result.set_temporary()
-                    return 1
-                self.logger.error(f"Try:{attempt_number}")
-                # sleep
-                time.sleep(10)
-            else:
-                self.logger.debug(f"{str(out)}")
-                break
-
 
     # decompose idMap
     def decompose_id_map(self, id_map, dataset_destination_map, map_for_alt_stage_out, sub_to_dataset_map, alt_staged_files):
