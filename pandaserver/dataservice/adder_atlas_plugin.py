@@ -197,6 +197,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         # Get campaign and nEvents input
         campaign = None
         n_events_input = {}
+
         if self.job.jediTaskID not in [0, None, "NULL"]:
             tmp_ret = self.taskBuffer.getTaskAttributesPanda(self.job.jediTaskID, ["campaign"])
             campaign = tmp_ret.get("campaign")
@@ -264,20 +265,29 @@ class AdderAtlasPlugin(AdderPluginBase):
                 continue
 
             # check if zip file
-            is_zip_file = file.lfn in zip_file_map
-            if is_zip_file and file.lfn not in zip_files and not self.add_to_top_only:
-                zip_files[file.lfn] = {}
+            if file.lfn in zip_file_map:
+                is_zip_file = True
+                if file.lfn not in zip_files and not self.add_to_top_only:
+                    zip_files[file.lfn] = {}
+            else:
+                is_zip_file = False
 
             # check if zip content
             zip_file_name = None
             if not is_zip_file and not self.add_to_top_only:
-                for tmp_zip_file_name, tmp_zip_contents in zip_file_map.items():
-                    if any(re.search(f"^{tmp_zip_content}$", file.lfn) for tmp_zip_content in tmp_zip_contents):
-                        zip_file_name = tmp_zip_file_name
+                for tmp_zip_file_name in zip_file_map:
+                    tmp_zip_contents = zip_file_map[tmp_zip_file_name]
+                    for tmp_zip_content in tmp_zip_contents:
+                        if re.search("^" + tmp_zip_content + "$", file.lfn) is not None:
+                            zip_file_name = tmp_zip_file_name
+                            break
+                    if zip_file_name is not None:
                         break
-                if zip_file_name:
-                    zip_files.setdefault(zip_file_name, {})
+                if zip_file_name is not None:
+                    if zip_file_name not in zip_files:
+                        zip_files[zip_file_name] = {}
                     cont_zip_map[file.lfn] = zip_file_name
+
             try:
                 # check nevents
                 if file.type == "output" and not is_zip_file and not self.add_to_top_only and self.job.prodSourceLabel == "managed":
@@ -727,7 +737,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                 self.logger.debug(f"{str(out)}")
                 break
 
-    def process_subscriptions(self,sub_map: Dict[str, str], sub_to_ds_map: Dict[str, List[str]], dist_datasets: List[str], sub_activity: str) -> None:
+    def process_subscriptions(self,sub_map: Dict[str, str], sub_to_ds_map: Dict[str, List[str]], dist_datasets: List[str], sub_activity: str):
         """
         Process the subscriptions for the job.
 
@@ -738,7 +748,6 @@ class AdderAtlasPlugin(AdderPluginBase):
         :param sub_to_ds_map: A dictionary mapping subscriptions to datasets.
         :param dist_datasets: A list of distributed datasets.
         :param sub_activity: The subscription activity type.
-        :return: None
         """
         if self.job.prodSourceLabel not in ["user"]:
             for tmp_name, tmp_val in sub_map.items():
