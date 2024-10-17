@@ -321,7 +321,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                     "ds": file_destination_dispatch_block,
                 }
                 # add SURLs if LFC registration is required
-                if self.use_central_lfc():
+                if not self.add_to_top_only:
                     file_attrs["surl"] = self.extra_info["surl"][file.lfn]
                     if file_attrs["surl"] is None:
                         del file_attrs["surl"]
@@ -381,7 +381,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                 if campaign not in ["", None]:
                     file_attrs["campaign"] = campaign
 
-                # extract OS files
+                # For files uploaded to alternative RSEs
                 has_normal_url = True
                 if file.lfn in self.extra_info["endpoint"] and self.extra_info["endpoint"][file.lfn] != []:
                     for pilot_end_point in self.extra_info["endpoint"][file.lfn]:
@@ -597,7 +597,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         reg_num_files = len(reg_file_list)
 
         # decompose idMap
-        if not self.use_central_lfc():
+        if not self.add_to_top_only:
             dest_id_map = {None: id_map}
         else:
             dest_id_map = self.decompose_id_map(id_map, dataset_destination_map, map_for_alt_stage_out, sub_to_ds_map, alt_staged_files)
@@ -609,7 +609,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             is_failed = False
             reg_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             try:
-                if not self.use_central_lfc():
+                if self.add_to_top_only:
                     reg_msg_str = f"File registration for {reg_num_files} files "
                 else:
                     reg_msg_str = f"File registration with rucio for {reg_num_files} files "
@@ -910,18 +910,6 @@ class AdderAtlasPlugin(AdderPluginBase):
         # properly finished
         self.logger.debug("addFiles end")
         return 0
-
-    # use central LFC
-    def use_central_lfc(self):
-        """
-        Determine whether to use the central LFC (Logical File Catalog).
-
-        Returns:
-            bool: True if central LFC should be used, False otherwise.
-        """
-        if not self.add_to_top_only:
-            return True
-        return False
 
     # decompose idMap
     def decompose_id_map(self, id_map, dataset_destination_map, map_for_alt_stage_out, sub_to_dataset_map, alt_staged_files):
