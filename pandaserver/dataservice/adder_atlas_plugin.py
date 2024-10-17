@@ -58,7 +58,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         self.go_to_merging = False
 
     # main
-    def execute(self):
+    def execute(self) -> None:
         """
         Main execution method for the plugin.
         Handles the logic for adding files to datasets based on job status and other conditions.
@@ -603,75 +603,9 @@ class AdderAtlasPlugin(AdderPluginBase):
             dest_id_map = self.decompose_id_map(id_map, dataset_destination_map, map_for_alt_stage_out, sub_to_ds_map, alt_staged_files)
 
         # add files
-        max_attempt = 3
-        for attempt_number in range(max_attempt):
-            is_fatal = False
-            is_failed = False
-            reg_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-            try:
-                if self.add_to_top_only:
-                    reg_msg_str = f"File registration for {reg_num_files} files "
-                else:
-                    reg_msg_str = f"File registration with rucio for {reg_num_files} files "
-                if len(zip_files) > 0:
-                    self.logger.debug(f"registerZipFiles {str(zip_files)}")
-                    rucioAPI.register_zip_files(zip_files)
-                self.logger.debug(f"registerFilesInDatasets {str(dest_id_map)} zip={str(cont_zip_map)}")
-                out = rucioAPI.register_files_in_dataset(dest_id_map, cont_zip_map)
-            except (
-                DataIdentifierNotFound,
-                FileConsistencyMismatch,
-                UnsupportedOperation,
-                InvalidPath,
-                InvalidObject,
-                RSENotFound,
-                RSEProtocolNotSupported,
-                InvalidRSEExpression,
-                KeyError,
-            ):
-                # fatal errors
-                err_type, err_value = sys.exc_info()[:2]
-                out = f"{err_type} : {err_value}"
-                out += traceback.format_exc()
-                is_fatal = True
-                is_failed = True
-            except Exception:
-                # unknown errors
-                err_type, err_value = sys.exc_info()[:2]
-                out = f"{err_type} : {err_value}"
-                out += traceback.format_exc()
-                is_fatal = (
-                    "value too large for column" in out
-                    or "unique constraint (ATLAS_RUCIO.DIDS_GUID_IDX) violate" in out
-                    or "unique constraint (ATLAS_RUCIO.DIDS_PK) violated" in out
-                    or "unique constraint (ATLAS_RUCIO.ARCH_CONTENTS_PK) violated" in out
-                )
-                is_failed = True
-            reg_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - reg_start
-            self.logger.debug(reg_msg_str + "took %s.%03d sec" % (reg_time.seconds, reg_time.microseconds / 1000))
-            # failed
-            if is_failed or is_fatal:
-                self.logger.error(f"{out}")
-                if (attempt_number + 1) == max_attempt or is_fatal:
-                    self.job.ddmErrorCode = ErrorCode.EC_Adder
-                    # extract important error string
-                    extracted_err_str = DataServiceUtils.extractImportantError(out)
-                    err_msg = "Could not add files to DDM: "
-                    if extracted_err_str == "":
-                        self.job.ddmErrorDiag = err_msg + out.split("\n")[-1]
-                    else:
-                        self.job.ddmErrorDiag = err_msg + extracted_err_str
-                    if is_fatal:
-                        self.result.set_fatal()
-                    else:
-                        self.result.set_temporary()
-                    return 1
-                self.logger.error(f"Try:{attempt_number}")
-                # sleep
-                time.sleep(10)
-            else:
-                self.logger.debug(f"{str(out)}")
-                break
+        result = self.register_files(reg_num_files, zip_files, dest_id_map, cont_zip_map)
+        if result == 1:
+            return 1
 
         # release some memory
         del dest_id_map
@@ -797,7 +731,7 @@ class AdderAtlasPlugin(AdderPluginBase):
             # keep subscriptions
             self.subscription_map = sub_map
 
-            # collect list of transfring jobs
+            # collect list of transferring jobs
             for tmp_file in self.job.Files:
                 if tmp_file.type in ["log", "output"]:
                     if self.go_to_transferring or (self.log_transferring and tmp_file.type == "log"):
@@ -911,6 +845,87 @@ class AdderAtlasPlugin(AdderPluginBase):
         self.logger.debug("addFiles end")
         return 0
 
+    def register_files(self, reg_num_files: int, zip_files: list, dest_id_map: dict, cont_zip_map: dict) -> int | None:
+        """
+        Register files with Rucio.
+
+        :param reg_num_files: Number of files to register.
+        :param zip_files: List of zip files to register.
+        :param dest_id_map: Destination ID map.
+        :param cont_zip_map: Container zip map.
+        :return: 1 if registration fails, None otherwise.
+        """
+        max_attempt = 3
+        for attempt_number in range(max_attempt):
+            is_fatal = False
+            is_failed = False
+            reg_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            try:
+                if self.add_to_top_only:
+                    reg_msg_str = f"File registration for {reg_num_files} files "
+                else:
+                    reg_msg_str = f"File registration with rucio for {reg_num_files} files "
+                if len(zip_files) > 0:
+                    self.logger.debug(f"registerZipFiles {str(zip_files)}")
+                    rucioAPI.register_zip_files(zip_files)
+                self.logger.debug(f"registerFilesInDatasets {str(dest_id_map)} zip={str(cont_zip_map)}")
+                out = rucioAPI.register_files_in_dataset(dest_id_map, cont_zip_map)
+            except (
+                    DataIdentifierNotFound,
+                    FileConsistencyMismatch,
+                    UnsupportedOperation,
+                    InvalidPath,
+                    InvalidObject,
+                    RSENotFound,
+                    RSEProtocolNotSupported,
+                    InvalidRSEExpression,
+                    KeyError,
+            ):
+                # fatal errors
+                err_type, err_value = sys.exc_info()[:2]
+                out = f"{err_type} : {err_value}"
+                out += traceback.format_exc()
+                is_fatal = True
+                is_failed = True
+            except Exception:
+                # unknown errors
+                err_type, err_value = sys.exc_info()[:2]
+                out = f"{err_type} : {err_value}"
+                out += traceback.format_exc()
+                is_fatal = (
+                        "value too large for column" in out
+                        or "unique constraint (ATLAS_RUCIO.DIDS_GUID_IDX) violate" in out
+                        or "unique constraint (ATLAS_RUCIO.DIDS_PK) violated" in out
+                        or "unique constraint (ATLAS_RUCIO.ARCH_CONTENTS_PK) violated" in out
+                )
+                is_failed = True
+            reg_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - reg_start
+            self.logger.debug(reg_msg_str + "took %s.%03d sec" % (reg_time.seconds, reg_time.microseconds / 1000))
+            # failed
+            if is_failed or is_fatal:
+                self.logger.error(f"{out}")
+                if (attempt_number + 1) == max_attempt or is_fatal:
+                    self.job.ddmErrorCode = ErrorCode.EC_Adder
+                    # extract important error string
+                    extracted_err_str = DataServiceUtils.extractImportantError(out)
+                    err_msg = "Could not add files to DDM: "
+                    if extracted_err_str == "":
+                        self.job.ddmErrorDiag = err_msg + out.split("\n")[-1]
+                    else:
+                        self.job.ddmErrorDiag = err_msg + extracted_err_str
+                    if is_fatal:
+                        self.result.set_fatal()
+                    else:
+                        self.result.set_temporary()
+                    return 1
+                self.logger.error(f"Try:{attempt_number}")
+                # sleep
+                time.sleep(10)
+            else:
+                self.logger.debug(f"{str(out)}")
+                break
+
+
     # decompose idMap
     def decompose_id_map(self, id_map, dataset_destination_map, map_for_alt_stage_out, sub_to_dataset_map, alt_staged_files):
         """
@@ -977,7 +992,7 @@ class AdderAtlasPlugin(AdderPluginBase):
         return ret_val
 
     # register ES files
-    def register_event_service_files(self):
+    def register_event_service_files(self) -> None:
         """
         Register Event Service (ES) files with Rucio.
 
