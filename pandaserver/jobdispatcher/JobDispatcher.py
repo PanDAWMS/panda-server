@@ -593,7 +593,8 @@ class JobDispatcher:
         # failed
         if retVal is None:
             return "ERROR : failed to generate token"
-        return "SUCCEEDED : " + retVal
+
+        return f"SUCCEEDED : {retVal}"
 
     # get key pair
     def getKeyPair(self, realDN, publicKeyName, privateKeyName, acceptJson):
@@ -1528,10 +1529,15 @@ def genPilotToken(req, scheduler_id, host=None):
         str: The generated pilot token or an error message.
     """
 
+    # get DN
+    real_dn = _getDN(req)
+    if real_dn is None:
+        return "ERROR : failed to retrieve DN"
+
     # check permissions
     tmp_stat, tmp_out = checkPilotPermission(req)
     if not tmp_stat:
-        _logger.error(f"{tmp_str} failed with {tmp_out}")
+        _logger.error(f"genPilotToken failed with {tmp_out}")
         return tmp_out
 
     # hostname
