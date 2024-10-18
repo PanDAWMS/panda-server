@@ -593,7 +593,8 @@ class JobDispatcher:
         # failed
         if retVal is None:
             return "ERROR : failed to generate token"
-        return "SUCCEEDED : " + retVal
+
+        return f"SUCCEEDED : {retVal}"
 
     # get key pair
     def getKeyPair(self, realDN, publicKeyName, privateKeyName, acceptJson):
@@ -1463,20 +1464,20 @@ def updateEventRange(
     )
 
 
-def updateEventRanges(req, event_ranges, timeout=120, version=0, pandaID=None):
+def updateEventRanges(req, eventRanges, timeout=120, version=0, pandaID=None):
     """
     This function checks the permissions, converts the version to an integer, and updates the event ranges.
 
     Args:
         req: The request object containing the environment variables.
-        event_ranges (str): A JSON string containing the list of event ranges to update.
+        eventRanges (str): A JSON string containing the list of event ranges to update.
         timeout (int, optional): The timeout value. Defaults to 120.
         version (int, optional): The version of the event ranges. Defaults to 0.
         pandaID (str, optional): The PandaID. Defaults to None.
     Returns:
         dict: The response from the job dispatcher.
     """
-    tmp_log = LogWrapper(_logger, f"updateEventRanges({event_ranges})")
+    tmp_log = LogWrapper(_logger, f"updateEventRanges({eventRanges})")
     tmp_log.debug("start")
 
     tmp_stat, tmp_out = checkPilotPermission(req)
@@ -1489,7 +1490,7 @@ def updateEventRanges(req, event_ranges, timeout=120, version=0, pandaID=None):
     except Exception:
         version = 0
 
-    return jobDispatcher.updateEventRanges(event_ranges, int(timeout), req.acceptJson(), version)
+    return jobDispatcher.updateEventRanges(eventRanges, int(timeout), req.acceptJson(), version)
 
 
 def checkEventsAvailability(req, panda_id, jobset_id, task_id, timeout=60):
@@ -1528,10 +1529,15 @@ def genPilotToken(req, scheduler_id, host=None):
         str: The generated pilot token or an error message.
     """
 
+    # get DN
+    real_dn = _getDN(req)
+    if real_dn is None:
+        return "ERROR : failed to retrieve DN"
+
     # check permissions
     tmp_stat, tmp_out = checkPilotPermission(req)
     if not tmp_stat:
-        _logger.error(f"{tmp_str} failed with {tmp_out}")
+        _logger.error(f"genPilotToken failed with {tmp_out}")
         return tmp_out
 
     # hostname
