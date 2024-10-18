@@ -284,9 +284,8 @@ class DBProxy:
             now = datetime.datetime.now()
             key = args + (kwd_mark,) + tuple(sorted(kwargs.items()))
             if key not in memo or memo[key]["timestamp"] < now - datetime.timedelta(hours=1):
-                memo[key] = {}
-                memo[key]["value"] = f(self, *args, **kwargs)
-                memo[key]["timestamp"] = now
+                tmp_data = {"value": f(self, *args, **kwargs), "timestamp": now}
+                memo[key] = tmp_data
             return memo[key]["value"]
 
         return helper
