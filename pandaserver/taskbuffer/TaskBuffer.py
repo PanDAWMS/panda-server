@@ -2255,28 +2255,6 @@ class TaskBuffer:
 
         return ret
 
-    # generate pilot token
-    def genPilotToken(self, schedulerhost, scheduleruser, schedulerid):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.genPilotToken(schedulerhost, scheduleruser, schedulerid)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
-    # get list of scheduler users
-    def getListSchedUsers(self):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.getListSchedUsers()
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
     # query an SQL return Status
     def querySQLS(self, sql, varMap, arraySize=1000):
         # get DBproxy

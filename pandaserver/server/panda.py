@@ -30,7 +30,6 @@ from pandaserver.jobdispatcher.JobDispatcher import (
     ackCommands,
     checkEventsAvailability,
     checkJobStatus,
-    genPilotToken,
     get_access_token,
     get_events_status,
     get_max_worker_id,

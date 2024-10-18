@@ -54,8 +54,6 @@ class JobDispatcher:
     def __init__(self):
         # taskbuffer
         self.taskBuffer = None
-        # DN/token map
-        self.tokenDN = None
         # datetime of last updated
         self.lastUpdated = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         # how frequently update DN/token map
@@ -84,9 +82,6 @@ class JobDispatcher:
         # set TB
         if self.taskBuffer is None:
             self.taskBuffer = taskBuffer
-        # update DN/token map
-        if self.tokenDN is None:
-            self.tokenDN = self.taskBuffer.getListSchedUsers()
         # special dispatcher parameters
         if self.specialDispatchParams is None:
             self.specialDispatchParams = CoreUtils.CachedObject("dispatcher_params", 60 * 10, self.get_special_dispatch_params, _logger)
@@ -570,31 +565,6 @@ class JobDispatcher:
         _logger.debug(f"checkEventsAvailability : {pandaID} ret -> {response.encode(True)}")
         return response.encode(True)
 
-    # get DN/token map
-    def getDnTokenMap(self):
-        # get current datetime
-        current = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-        # lock
-        self.lock.acquire()
-        # update DN map if old
-        if current - self.lastUpdated > self.timeInterval:
-            # get new map
-            self.tokenDN = self.taskBuffer.getListSchedUsers()
-            # reset
-            self.lastUpdated = current
-        # release
-        self.lock.release()
-        # return
-        return self.tokenDN
-
-    # generate pilot token
-    def genPilotToken(self, schedulerhost, scheduleruser, schedulerid):
-        retVal = self.taskBuffer.genPilotToken(schedulerhost, scheduleruser, schedulerid)
-        # failed
-        if retVal is None:
-            return "ERROR : failed to generate token"
-        return "SUCCEEDED : " + retVal
-
     # get key pair
     def getKeyPair(self, realDN, publicKeyName, privateKeyName, acceptJson):
         tmpMsg = f"getKeyPair {publicKeyName}/{privateKeyName} json={acceptJson}: "
@@ -927,17 +897,6 @@ def _getDN(req):
     return realDN
 
 
-# check token
-def _checkToken(token, job_dispatcher):
-    # not check None until all pilots use tokens
-    if token is None:
-        return True
-    # get map
-    tokenDN = job_dispatcher.getDnTokenMap()
-    # return
-    return token in tokenDN
-
-
 """
 web service interface
 
@@ -984,8 +943,6 @@ def getJob(
         prodManager = _checkRole(fqans, realDN, False)
     else:
         prodManager = _checkRole(fqans, realDN)
-    # check token
-    validToken = _checkToken(token, jobDispatcher)
     # set DN for non-production user
     if not prodManager:
         prodUserID = realDN
@@ -1019,7 +976,7 @@ def getJob(
         f"{siteName},nJobs={nJobs},cpu={cpu},mem={mem},disk={diskSpace},source_label={prodSourceLabel},"
         f"node={node},ce={computingElement},rel={AtlasRelease},user={prodUserID},proxy={getProxyKey},"
         f"c_group={countryGroup},w_group={workingGroup},{allowOtherCountry},taskID={taskID},DN={realDN},"
-        f"role={prodManager},token={token},val={validToken},FQAN={str(fqans)},json={req.acceptJson()},"
+        f"role={prodManager},FQAN={str(fqans)},json={req.acceptJson()},"
         f"bg={background},rt={resourceType},harvester_id={harvester_id},worker_id={worker_id},"
         f"schedulerID={schedulerID},jobType={jobType},viaTopic={viaTopic}"
     )
@@ -1040,11 +997,7 @@ def getJob(
         else:
             tmpMsg = None
         return Protocol.Response(Protocol.SC_Role, tmpMsg).encode(req.acceptJson())
-    # invalid token
-    if not validToken:
-        tmpLog.warning("invalid token")
-        return Protocol.Response(Protocol.SC_Invalid).encode(req.acceptJson())
-    # invoke JD
+    # invoke job dispatcher
     return jobDispatcher.getJob(
         siteName,
         prodSourceLabel,
@@ -1135,7 +1088,6 @@ def updateJob(
     realDN = _getDN(req)
     fqans = _getFQAN(req)
     prodManager = _checkRole(fqans, realDN)
-    validToken = _checkToken(token, jobDispatcher)
     acceptJson = req.acceptJson()
 
     _logger.debug(
@@ -1144,7 +1096,7 @@ def updateJob(
         f"{schedulerID},{pilotID},{siteName},{messageLevel},{nEvents},{nInputFiles},{cpuConversionFactor},"
         f"{exeErrorCode},{exeErrorDiag},{pilotTiming},{computingElement},{startTime},{endTime},{batchID},"
         f"attemptNr:{attemptNr},jobSubStatus:{jobSubStatus},core:{coreCount},DN:{realDN},role:{prodManager},"
-        f"token:{token},val:{validToken},FQAN:{fqans},maxRSS={maxRSS},maxVMEM={maxVMEM},maxSWAP={maxSWAP},"
+        f"FQAN:{fqans},maxRSS={maxRSS},maxVMEM={maxVMEM},maxSWAP={maxSWAP},"
         f"maxPSS={maxPSS},avgRSS={avgRSS},avgVMEM={avgVMEM},avgSWAP={avgSWAP},avgPSS={avgPSS},"
         f"totRCHAR={totRCHAR},totWCHAR={totWCHAR},totRBYTES={totRBYTES},totWBYTES={totWBYTES},rateRCHAR={rateRCHAR},"
         f"rateWCHAR={rateWCHAR},rateRBYTES={rateRBYTES},rateWBYTES={rateWBYTES},meanCoreCount={meanCoreCount},"
@@ -1161,11 +1113,6 @@ def updateJob(
         if acceptJson:
             tmpMsg = "no production/pilot role in VOMS FQANs or non pilot owner"
         return Protocol.Response(Protocol.SC_Role, tmpMsg).encode(acceptJson)
-
-    # invalid token
-    if not validToken:
-        tmp_log.warning(f"invalid token")
-        return Protocol.Response(Protocol.SC_Invalid).encode(acceptJson)
 
     # aborting message
     if jobId == "NULL":
@@ -1512,33 +1459,6 @@ def checkEventsAvailability(req, panda_id, jobset_id, task_id, timeout=60):
         tmp_log.error(f"failed with {tmp_out}")
 
     return jobDispatcher.checkEventsAvailability(panda_id, jobset_id, task_id, timeout)
-
-
-# generate pilot token
-def genPilotToken(req, scheduler_id, host=None):
-    """
-    This function retrieves the distinguished name (DN) and FQANs from the request, checks the production role,
-    and generates a pilot token.
-
-    Args:
-        req: The request object containing the environment variables.
-        scheduler_id (str): The scheduler ID.
-        host (str, optional): The host name. Defaults to None.
-    Returns:
-        str: The generated pilot token or an error message.
-    """
-
-    # check permissions
-    tmp_stat, tmp_out = checkPilotPermission(req)
-    if not tmp_stat:
-        _logger.error(f"{tmp_str} failed with {tmp_out}")
-        return tmp_out
-
-    # hostname
-    if host is None:
-        host = req.get_remote_host()
-
-    return jobDispatcher.genPilotToken(host, real_dn, scheduler_id)
 
 
 def getKeyPair(req, public_key_name, private_key_name):
