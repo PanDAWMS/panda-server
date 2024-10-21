@@ -1439,42 +1439,42 @@ def updateEventRanges(req, eventRanges, timeout=120, version=0, pandaID=None):
     return jobDispatcher.updateEventRanges(eventRanges, int(timeout), req.acceptJson(), version)
 
 
-def checkEventsAvailability(req, panda_id, jobset_id, task_id, timeout=60):
+def checkEventsAvailability(req, pandaID, jobsetID, taskID, timeout=60):
     """
     This function checks the availability of events for a given PandaID, jobsetID, and taskID.
 
     Args:
         req: The request object containing the environment variables.
-        panda_id (str): The PandaID.
+        pandaID (str): The PandaID.
         jobset_id (str): The jobsetID.
         task_id (str): The taskID.
         timeout (int, optional): The timeout value. Defaults to 60.
     Returns:
         bool: The availability status of the events.
     """
-    tmp_log = LogWrapper(_logger, f"check_events_availability(panda_id={panda_id} jobset_id={jobset_id} task_id={task_id})")
+    tmp_log = LogWrapper(_logger, f"check_events_availability(panda_id={pandaID} jobset_id={jobsetID} task_id={taskID})")
     tmp_log.debug("start")
     tmp_stat, tmp_out = checkPilotPermission(req)
     if not tmp_stat:
         tmp_log.error(f"failed with {tmp_out}")
 
-    return jobDispatcher.checkEventsAvailability(panda_id, jobset_id, task_id, timeout)
+    return jobDispatcher.checkEventsAvailability(pandaID, jobsetID, taskID, timeout)
 
 
-def getKeyPair(req, public_key_name, private_key_name):
+def getKeyPair(req, publicKeyName, privateKeyName):
     """
     This function retrieves the distinguished name (DN) from the request and uses it to get a key pair.
 
     Args:
         req: The request object containing the environment variables.
-        public_key_name (str): The name of the public key.
-        private_key_name (str): The name of the private key.
+        publicKeyName (str): The name of the public key.
+        privateKeyName (str): The name of the private key.
 
     Returns:
         dict: The key pair for the user.
     """
     real_dn = _getDN(req)
-    return jobDispatcher.getKeyPair(real_dn, public_key_name, private_key_name, req.acceptJson())
+    return jobDispatcher.getKeyPair(real_dn, publicKeyName, privateKeyName, req.acceptJson())
 
 
 def getProxy(req, role=None, dn=None):
