@@ -322,14 +322,10 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
                         if active:
                             task_buffer.setNoRetry(jobID, job.jediTaskID, job.Files)
                         # Log to pandamon and logfile
-                        message = "action=setNoRetry for PandaID={0} jediTaskID={1} ( ErrorSource={2} ErrorCode={3} ErrorDiag: {4}. Error/action active={5} error_id={6} )".format(
-                            jobID,
-                            job.jediTaskID,
-                            error_source,
-                            error_code,
-                            error_diag_rule,
-                            active,
-                            error_id,
+                        message = (
+                            f"action=setNoRetry for PandaID={jobID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} "
+                            f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
+                            f"Error/action active={active} error_id={error_id} )"
                         )
                         acted_on_job = True
                         _logger.info(message)
@@ -344,15 +340,10 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
                                     int(parameters["maxAttempt"]),
                                 )
                             # Log to pandamon and logfile
-                            message = "action=setMaxAttempt for PandaID={0} jediTaskID={1} maxAttempt={2} ( ErrorSource={3} ErrorCode={4} ErrorDiag: {5}. Error/action active={6} error_id={7} )".format(
-                                jobID,
-                                job.jediTaskID,
-                                int(parameters["maxAttempt"]),
-                                error_source,
-                                error_code,
-                                error_diag_rule,
-                                active,
-                                error_id,
+                            message = (
+                                f"action=setMaxAttempt for PandaID={jobID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} maxAttempt={int(parameters['maxAttempt'])} "
+                                f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
+                                f"Error/action active={active} error_id={error_id} )"
                             )
                             acted_on_job = True
                             _logger.info(message)
@@ -364,14 +355,10 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
                             if active:
                                 task_buffer.increaseRamLimitJobJEDI(job, job.minRamCount, job.jediTaskID)
                             # Log to pandamon and logfile
-                            message = "action=increaseRAMLimit for PandaID={0} jediTaskID={1} ( ErrorSource={2} ErrorCode={3} ErrorDiag: {4}. Error/action active={5} error_id={6} )".format(
-                                jobID,
-                                job.jediTaskID,
-                                error_source,
-                                error_code,
-                                error_diag_rule,
-                                active,
-                                error_id,
+                            message = (
+                                f"action=increaseRAMLimit for PandaID={jobID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} "
+                                f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
+                                f"Error/action active={active} error_id={error_id} )"
                             )
                             acted_on_job = True
                             _logger.info(message)
@@ -384,14 +371,10 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
                             if active:
                                 task_buffer.increaseRamLimitJobJEDI_xtimes(job, job.minRamCount, job.jediTaskID, attemptNr)
                             # Log to pandamon and logfile
-                            message = "action=increaseRAMLimit_xtimes for PandaID={0} jediTaskID={1} ( ErrorSource={2} ErrorCode={3} ErrorDiag: {4}. Error/action active={5} error_id={6} )".format(
-                                jobID,
-                                job.jediTaskID,
-                                error_source,
-                                error_code,
-                                error_diag_rule,
-                                active,
-                                error_id,
+                            message = (
+                                f"action=increaseRAMLimit_xtimes for PandaID={jobID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} "
+                                f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
+                                f"Error/action active={active} error_id={error_id} )"
                             )
                             acted_on_job = True
                             _logger.info(message)
@@ -413,16 +396,11 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
                                 applied = True
 
                             # Log to pandamon and logfile
-                            message = "action=increaseCpuTime requested recalculation of task parameters for PandaID={0} jediTaskID={1} (active={2} ), applied={3}. ( ErrorSource={4} ErrorCode={5} ErrorDiag: {6}. Error/action active={7} error_id={8} )".format(
-                                jobID,
-                                job.jediTaskID,
-                                active,
-                                applied,
-                                error_source,
-                                error_code,
-                                error_diag_rule,
-                                active,
-                                error_id,
+                            message = (
+                                f"action=increaseCpuTime requested recalculation of task parameters for PandaID={jobID} "
+                                f"jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} (active={active} ), applied={applied}. "
+                                f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
+                                f"Error/action active={active} error_id={error_id} )"
                             )
                             acted_on_job = True
                             _logger.info(message)
@@ -438,7 +416,11 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
                                     job.PandaID, job.jediTaskID, job.attemptNr, parameters.get("excluded_rules"), parameters.get("steps")
                                 )
                             # Log to pandamon and logfile
-                            message = f"action=reduceInputPerJob for PandaID={jobID} jediTaskID={job.jediTaskID} applied={applied} ( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_code}. Error/action active={active} error_id={error_id} )"
+                            message = (
+                                f"action=reduceInputPerJob for PandaID={jobID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} applied={applied} "
+                                f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_code}. "
+                                f"Error/action active={active} error_id={error_id} )"
+                            )
                             acted_on_job = True
                             _logger.info(message)
                         except Exception as e:
