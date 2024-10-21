@@ -25,7 +25,6 @@ allowed_methods += [
     "getJob",
     "updateJob",
     "getStatus",
-    "genPilotToken",
     "getEventRanges",
     "updateEventRange",
     "getKeyPair",
