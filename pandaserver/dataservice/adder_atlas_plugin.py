@@ -10,7 +10,6 @@ import re
 import sys
 import time
 import traceback
-
 from typing import Dict, List
 
 from rucio.common.exception import (
@@ -343,12 +342,15 @@ class AdderAtlasPlugin(AdderPluginBase):
                     if file_destination_dispatch_block not in dataset_destination_map:
                         if file.lfn in self.job.altStgOutFileList():
                             # alternative stage-out
-                            tmp_dest_list = [DataServiceUtils.getDestinationSE(
-                                file.destinationDBlockToken)] if DataServiceUtils.getDestinationSE(
-                                file.destinationDBlockToken) else \
-                                [destination_se_site_spec.setokens_output[scope_dst_se_site_spec_output].get(
-                                    file.destinationDBlockToken,
-                                    destination_se_site_spec.ddm_output[scope_dst_se_site_spec_output])]
+                            tmp_dest_list = (
+                                [DataServiceUtils.getDestinationSE(file.destinationDBlockToken)]
+                                if DataServiceUtils.getDestinationSE(file.destinationDBlockToken)
+                                else [
+                                    destination_se_site_spec.setokens_output[scope_dst_se_site_spec_output].get(
+                                        file.destinationDBlockToken, destination_se_site_spec.ddm_output[scope_dst_se_site_spec_output]
+                                    )
+                                ]
+                            )
                         elif file.destinationDBlockToken in ["", None, "NULL"]:
                             # use default endpoint
                             tmp_dest_list = [src_site_spec.ddm_output[scope_src_site_spec_output]]
@@ -362,10 +364,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                             tmp_dest_list = [DataServiceUtils.getDistributedDestination(file.destinationDBlockToken)]
                             dist_datasets.add(file_destination_dispatch_block)
                             # RSE is specified for distributed datasets
-                        elif (
-                            src_site_spec.cloud != self.job.cloud
-                            and (self.job.prodSourceLabel not in ["user", "panda"])
-                        ):
+                        elif src_site_spec.cloud != self.job.cloud and (self.job.prodSourceLabel not in ["user", "panda"]):
                             # T1 used as T2
                             tmp_dest_list = [src_site_spec.ddm_output[scope_src_site_spec_output]]
                         else:
@@ -430,11 +429,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                         zip_files[file.lfn]["rse"] = dataset_destination_map[file_destination_dispatch_block]
 
                 # for subscription
-                if (
-                    re.search("_sub\d+$", file_destination_dispatch_block)
-                    and (not self.add_to_top_only)
-                    and self.job.destinationSE != "local"
-                ):
+                if re.search("_sub\d+$", file_destination_dispatch_block) and (not self.add_to_top_only) and self.job.destinationSE != "local":
                     if not self.siteMapper:
                         self.logger.error("SiteMapper is None")
                     else:
@@ -490,10 +485,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                                                 ddm_id = src_site_spec.setokens_output[scope_src_site_spec_output][tmp_src_token]
                                             opt_source[ddm_id] = {"policy": 0}
                                         # T1 used as T2
-                                        if (
-                                            src_site_spec.cloud != self.job.cloud
-                                            and (self.job.prodSourceLabel not in ["user", "panda"])
-                                        ):
+                                        if src_site_spec.cloud != self.job.cloud and (self.job.prodSourceLabel not in ["user", "panda"]):
                                             if tmp_src_ddm not in opt_source:
                                                 opt_source[tmp_src_ddm] = {"policy": 0}
                                         # use another location when token is set
@@ -690,15 +682,15 @@ class AdderAtlasPlugin(AdderPluginBase):
                 self.logger.debug(f"registerFilesInDatasets {str(dest_id_map)} zip={str(cont_zip_map)}")
                 out = rucioAPI.register_files_in_dataset(dest_id_map, cont_zip_map)
             except (
-                    DataIdentifierNotFound,
-                    FileConsistencyMismatch,
-                    UnsupportedOperation,
-                    InvalidPath,
-                    InvalidObject,
-                    RSENotFound,
-                    RSEProtocolNotSupported,
-                    InvalidRSEExpression,
-                    KeyError,
+                DataIdentifierNotFound,
+                FileConsistencyMismatch,
+                UnsupportedOperation,
+                InvalidPath,
+                InvalidObject,
+                RSENotFound,
+                RSEProtocolNotSupported,
+                InvalidRSEExpression,
+                KeyError,
             ):
                 # fatal errors
                 err_type, err_value = sys.exc_info()[:2]
@@ -712,14 +704,14 @@ class AdderAtlasPlugin(AdderPluginBase):
                 out = f"{err_type} : {err_value}"
                 out += traceback.format_exc()
                 is_fatal = (
-                        "value too large for column" in out
-                        or "unique constraint (ATLAS_RUCIO.DIDS_GUID_IDX) violate" in out
-                        or "unique constraint (ATLAS_RUCIO.DIDS_PK) violated" in out
-                        or "unique constraint (ATLAS_RUCIO.ARCH_CONTENTS_PK) violated" in out
+                    "value too large for column" in out
+                    or "unique constraint (ATLAS_RUCIO.DIDS_GUID_IDX) violate" in out
+                    or "unique constraint (ATLAS_RUCIO.DIDS_PK) violated" in out
+                    or "unique constraint (ATLAS_RUCIO.ARCH_CONTENTS_PK) violated" in out
                 )
                 is_failed = True
             reg_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - reg_start
-            self.logger.debug(reg_msg_str + "took %s.%03d sec" % (reg_time.seconds, reg_time.microseconds / 1000))
+            self.logger.debug(f"{reg_msg_str} took {reg_time.seconds}.{reg_time.microseconds // 1000:03d} sec")
             # failed
             if is_failed or is_fatal:
                 self.logger.error(f"{out}")
@@ -744,7 +736,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                 self.logger.debug(f"{str(out)}")
                 break
 
-    def process_subscriptions(self,sub_map: Dict[str, str], sub_to_ds_map: Dict[str, List[str]], dist_datasets: List[str], sub_activity: str):
+    def process_subscriptions(self, sub_map: Dict[str, str], sub_to_ds_map: Dict[str, List[str]], dist_datasets: List[str], sub_activity: str):
         """
         Process the subscriptions for the job.
 
@@ -763,15 +755,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                         # make subscription for prod jobs
                         rep_life_time = 14
                         self.logger.debug(
-                            "%s %s %s"
-                            % (
-                                "registerDatasetSubscription",
-                                (tmp_name, ddm_id),
-                                {
-                                    "activity": sub_activity,
-                                    "replica_lifetime": rep_life_time,
-                                },
-                            )
+                            f"registerDatasetSubscription {tmp_name} {ddm_id} {{'activity': {sub_activity}, 'replica_lifetime': {rep_life_time}}}"
                         )
                         for _ in range(3):
                             is_failed = False
@@ -817,17 +801,9 @@ class AdderAtlasPlugin(AdderPluginBase):
                         tmp_dataset_name_location = sub_to_ds_map[tmp_name]
                         rep_life_time = 14
                         for tmp_location_name in opt_source:
-                            self.logger.debug(
-                                "%s %s %s %s"
-                                % (
-                                    "registerDatasetLocation",
-                                    tmp_dataset_name_location,
-                                    tmp_location_name,
-                                    {"lifetime": "14 days"},
-                                )
-                            )
+                            self.logger.debug(f"registerDatasetLocation {tmp_dataset_name_location} {tmp_location_name} {{'lifetime': '14 days'}}")
+
                             for _ in range(3):
-                                out = "OK"
                                 is_failed = False
                                 try:
                                     rucioAPI.register_dataset_location(
@@ -853,7 +829,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                                     self.job.ddmErrorDiag = f"location registration failure with {out}"
                                     self.result.set_fatal()
                                 else:
-                                    # temoprary errors
+                                    # temporary errors
                                     self.job.ddmErrorCode = ErrorCode.EC_Adder
                                     self.job.ddmErrorDiag = f"could not register location : {tmp_dataset_name_location}"
                                     self.result.set_temporary()
@@ -872,10 +848,9 @@ class AdderAtlasPlugin(AdderPluginBase):
                     if self.go_to_transferring or (self.log_transferring and tmp_file.type == "log"):
                         # don't go to transferring for successful ES jobs
                         if (
-                                self.job.jobStatus == "finished"
-                                and (EventServiceUtils.isEventServiceJob(self.job) and EventServiceUtils.isJumboJob(
-                            self.job))
-                                and not EventServiceUtils.isJobCloningJob(self.job)
+                            self.job.jobStatus == "finished"
+                            and (EventServiceUtils.isEventServiceJob(self.job) and EventServiceUtils.isJumboJob(self.job))
+                            and not EventServiceUtils.isJobCloningJob(self.job)
                         ):
                             continue
                         # skip distributed datasets
@@ -942,9 +917,7 @@ class AdderAtlasPlugin(AdderPluginBase):
                     for tmp_name in sub_map:
                         self.dataset_map[tmp_name].status = "running"
                     # send warning
-                    tmp_st = self.taskBuffer.update_problematic_resource_info(self.job.prodUserName,
-                                                                              self.job.jediTaskID, user_endpoints[0],
-                                                                              "dest")
+                    tmp_st = self.taskBuffer.update_problematic_resource_info(self.job.prodUserName, self.job.jediTaskID, user_endpoints[0], "dest")
                     if not tmp_st:
                         self.logger.debug("skip to send warning since already done")
                     else:

@@ -5,20 +5,15 @@ client methods
 
 import getpass
 import gzip
+import json
 import os
+import pickle
 import re
 import socket
 import sys
 import tempfile
 import uuid
 from urllib.parse import urlencode
-
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
-
-import json
 
 from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
 

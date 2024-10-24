@@ -13,21 +13,21 @@ from typing import Dict, List, Tuple
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
-from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.dataservice.DataServiceUtils import select_scope
+from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.taskbuffer import JobUtils
 
-# logger
 _logger = PandaLogger().getLogger("dyn_data_distributer")
 
 # files in datasets
 g_files_in_ds_map = {}
 
+
 class DynDataDistributer:
     """
     Find candidate site to distribute input datasets.
     """
-    # constructor
+
     def __init__(self, jobs, siteMapper, simul=False, token=None):
         self.jobs = jobs
         self.site_mapper = siteMapper
@@ -50,8 +50,7 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing the status (bool) and the result (dict or str).
         """
-        tmp_log = LogWrapper(_logger,
-                             f"get_replica_locations-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_log = LogWrapper(_logger, f"get_replica_locations-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
         tmp_log.debug(f"get_replica_locations {input_ds}")
 
         # return for failure
@@ -151,9 +150,7 @@ class DynDataDistributer:
                 rses = tmp_site_spec.ddm_endpoints_input[tmp_scope_input].getLocalEndPoints()
                 for ddm_endpoint in tmp_rep_map:
                     tmp_stat_map = tmp_rep_map[ddm_endpoint]
-                    if ddm_endpoint in rses and tmp_stat_map[0]["total"] == tmp_stat_map[0][
-                        "found"] and ddm_endpoint.endswith(
-                        "DATADISK"):
+                    if ddm_endpoint in rses and tmp_stat_map[0]["total"] == tmp_stat_map[0]["found"] and ddm_endpoint.endswith("DATADISK"):
                         sites_com_ds.append(tmp_site_spec.sitename)
                         break
                 cand_sites.append(tmp_site_spec.sitename)
@@ -205,8 +202,7 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing the status (bool) and the result (dict or str).
         """
-        tmp_log = LogWrapper(_logger,
-                             f"get_list_dataset_replicas-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_log = LogWrapper(_logger, f"get_list_dataset_replicas-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
         tmp_log.debug(f"get_list_dataset_replicas {dataset}")
 
         for attempt in range(max_attempts):
@@ -233,8 +229,9 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing the status (bool) and the result (dict or str).
         """
-        tmp_log = LogWrapper(_logger,
-                             f"get_list_dataset_replicas_in_container-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_log = LogWrapper(
+            _logger, f"get_list_dataset_replicas_in_container-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}"
+        )
 
         tmp_log.debug(f"get_list_dataset_replicas_in_container {container}")
 
@@ -281,8 +278,7 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing the status (bool) and the used datasets list.
         """
-        tmp_log = LogWrapper(_logger,
-                             f"get_used_datasets-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_log = LogWrapper(_logger, f"get_used_datasets-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
         tmp_log.debug(f"get_used_datasets {str(dataset_map)}")
 
         res_for_failure = (False, [])
@@ -341,8 +337,7 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing the status (bool) and the file information (dict or None).
         """
-        tmp_log = LogWrapper(_logger,
-                             f"get_file_from_dataset-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_log = LogWrapper(_logger, f"get_file_from_dataset-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
         tmp_log.debug(f"get_file_from_dataset {dataset_name} {guid}")
 
         res_for_failure = (False, None)
@@ -383,8 +378,9 @@ class DynDataDistributer:
         tmp_log.debug("end")
         return res_for_failure
 
-    def register_dataset_container_with_datasets(self, container_name: str, files: List, replica_map: Dict,
-                                                 n_sites: int = 1, owner: str = None, max_attempts: int = 3) -> Tuple[bool, Dict]:
+    def register_dataset_container_with_datasets(
+        self, container_name: str, files: List, replica_map: Dict, n_sites: int = 1, owner: str = None, max_attempts: int = 3
+    ) -> Tuple[bool, Dict]:
         """
         Register a new dataset container with datasets.
 
@@ -399,8 +395,9 @@ class DynDataDistributer:
         Returns:
             bool: The status of the registration process.
         """
-        tmp_logger = LogWrapper(_logger,
-                             f"register_dataset_container_with_datasets-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_logger = LogWrapper(
+            _logger, f"register_dataset_container_with_datasets-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}"
+        )
         tmp_logger.debug(f"register_dataset_container_with_datasets {container_name}")
 
         # parse DN
@@ -446,7 +443,7 @@ class DynDataDistributer:
                 tmp_dataset_name = container_name[:-1] + "_%04d" % tmp_index
                 tmp_ret = self.register_dataset_with_location(
                     tmp_dataset_name,
-                    tmp_files[tmp_sub_index: tmp_sub_index + n_files_per_dataset],
+                    tmp_files[tmp_sub_index : tmp_sub_index + n_files_per_dataset],
                     tmp_locations,
                     owner=None,
                 )
@@ -484,8 +481,7 @@ class DynDataDistributer:
         tmp_logger.debug("end")
         return True
 
-    def register_dataset_with_location(self, dataset_name: str, files: List, locations: List, owner: str = None,
-                                       max_attempts: int = 3) -> bool:
+    def register_dataset_with_location(self, dataset_name: str, files: List, locations: List, owner: str = None, max_attempts: int = 3) -> bool:
         """
         Register a new dataset with locations.
 
@@ -578,8 +574,7 @@ class DynDataDistributer:
                 return res_for_failure
         return True
 
-    def get_datasets_by_guids(self, out_map: Dict, guids: List[str], dataset_filters: List[str]) -> Tuple[
-        bool, Dict]:
+    def get_datasets_by_guids(self, out_map: Dict, guids: List[str], dataset_filters: List[str]) -> Tuple[bool, Dict]:
         """
         Get datasets by GUIDs.
 
@@ -591,8 +586,7 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing a boolean status and a dictionary.
         """
-        tmp_logger = LogWrapper(_logger,
-                                f"get_datasets_by_guids-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_logger = LogWrapper(_logger, f"get_datasets_by_guids-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
         tmp_logger.debug(f"get_datasets_by_guids {str(guids)}")
 
         ret_map = {}
@@ -606,13 +600,13 @@ class DynDataDistributer:
 
                 for tmp_dataset_name in out_map[guid]:
                     if (
-                            tmp_dataset_name.startswith("panda")
-                            or tmp_dataset_name.startswith("user")
-                            or tmp_dataset_name.startswith("group")
-                            or tmp_dataset_name.startswith("archive")
-                            or re.search("_sub\d+$", tmp_dataset_name) is not None
-                            or re.search("_dis\d+$", tmp_dataset_name) is not None
-                            or re.search("_shadow$", tmp_dataset_name) is not None
+                        tmp_dataset_name.startswith("panda")
+                        or tmp_dataset_name.startswith("user")
+                        or tmp_dataset_name.startswith("group")
+                        or tmp_dataset_name.startswith("archive")
+                        or re.search("_sub\d+$", tmp_dataset_name) is not None
+                        or re.search("_dis\d+$", tmp_dataset_name) is not None
+                        or re.search("_shadow$", tmp_dataset_name) is not None
                     ):
                         continue
 
@@ -642,8 +636,7 @@ class DynDataDistributer:
 
         return True, ret_map
 
-    def list_datasets_by_guids(self, guids: List[str], dataset_filters: List[str], max_attempts: int = 3) -> Tuple[
-        bool, Dict]:
+    def list_datasets_by_guids(self, guids: List[str], dataset_filters: List[str], max_attempts: int = 3) -> Tuple[bool, Dict]:
         """
         List datasets by GUIDs.
 
@@ -655,8 +648,7 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing the status (bool) and the result (dict or str).
         """
-        tmp_logger = LogWrapper(_logger,
-                                f"list_datasets_by_guids-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_logger = LogWrapper(_logger, f"list_datasets_by_guids-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
         tmp_logger.debug(f"list_datasets_by_guids {str(guids)}")
 
         res_for_failure = (False, {})
@@ -696,8 +688,9 @@ class DynDataDistributer:
         tmp_logger.debug("end")
         return True, ret_map
 
-    def convert_evt_run_to_datasets(self, event_run_list: List, dataset_type: str, stream_name: str, dataset_filters: List,
-                                    ami_tag: str, run_evt_guid_map: Dict) -> Tuple[bool, Dict, List]:
+    def convert_evt_run_to_datasets(
+        self, event_run_list: List, dataset_type: str, stream_name: str, dataset_filters: List, ami_tag: str, run_evt_guid_map: Dict
+    ) -> Tuple[bool, Dict, List]:
         """
         Convert event/run list to datasets.
 
@@ -712,8 +705,7 @@ class DynDataDistributer:
         Returns:
             tuple: A tuple containing the status (bool), the result (dict or str), and the list of all files.
         """
-        tmp_logger = LogWrapper(_logger,
-                             f"convert_evt_run_to_datasets-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_logger = LogWrapper(_logger, f"convert_evt_run_to_datasets-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
         tmp_logger.debug(f"convert_evt_run_to_datasets type={dataset_type} stream={stream_name} dsPatt={str(dataset_filters)} amitag={ami_tag}")
 
         # check data type
@@ -734,7 +726,7 @@ class DynDataDistributer:
             n_events_per_loop = 500
             i_events_total = 0
             while i_events_total < len(event_run_list):
-                tmp_event_run_list = event_run_list[i_events_total: i_events_total + n_events_per_loop]
+                tmp_event_run_list = event_run_list[i_events_total : i_events_total + n_events_per_loop]
                 tmp_logger.debug(f"EI lookup for {i_events_total}/{len(event_run_list)}")
                 i_events_total += n_events_per_loop
                 reg_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
