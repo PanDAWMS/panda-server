@@ -186,8 +186,7 @@ class AdderGen:
         """
         Check the file status in JEDI.
         """
-        if not self.job.isCancelled() and self.job.taskBufferErrorCode not in [
-            pandaserver.taskbuffer.ErrorCode.EC_PilotRetried]:
+        if not self.job.isCancelled() and self.job.taskBufferErrorCode not in [pandaserver.taskbuffer.ErrorCode.EC_PilotRetried]:
             file_check_in_jedi = self.taskBuffer.checkInputFileStatusInJEDI(self.job)
             self.logger.debug(f"check file status in JEDI : {file_check_in_jedi}")
             if file_check_in_jedi is None:
@@ -213,8 +212,7 @@ class AdderGen:
             if EventServiceUtils.isJobCloningJob(self.job) and self.job_status == "finished":
                 # get semaphore for storeonce
                 if EventServiceUtils.getJobCloningType(self.job) == "storeonce":
-                    self.taskBuffer.getEventRanges(self.job.PandaID, self.job.jobsetID, self.job.jediTaskID, 1, False,
-                                                   False, None)
+                    self.taskBuffer.getEventRanges(self.job.PandaID, self.job.jobsetID, self.job.jediTaskID, 1, False, False, None)
                 # check semaphore
                 check_jc = self.taskBuffer.checkClonedJob(self.job)
                 if check_jc is None:
@@ -347,8 +345,7 @@ class AdderGen:
                 )
                 self.logger.debug("apply_retrial_rules is back")
             except Exception as e:
-                self.logger.error(
-                    f"apply_retrial_rules excepted and needs to be investigated ({e}): {traceback.format_exc()}")
+                self.logger.error(f"apply_retrial_rules excepted and needs to be investigated ({e}): {traceback.format_exc()}")
 
         self.job.jobStatus = "failed"
         for file in self.job.Files:
@@ -510,7 +507,7 @@ class AdderGen:
         """
         Setup closer for the job.
         """
-    # setup for closer
+        # setup for closer
         if not (EventServiceUtils.isEventServiceJob(self.job) and self.job.isCancelled()):
             destination_dispatch_block_list = []
             guid_list = []
@@ -526,17 +523,17 @@ class AdderGen:
                     destination_dispatch_block_list.append(file.destinationDBlock)
                 # collect GUIDs
                 if (
-                        self.job.prodSourceLabel == "panda"
-                        or (
-                                self.job.prodSourceLabel in ["rucio_test"] + JobUtils.list_ptest_prod_sources
-                                and self.job.processingType
-                                in [
-                                    "pathena",
-                                    "prun",
-                                    "gangarobot-rctest",
-                                    "hammercloud",
-                                ]
-                        )
+                    self.job.prodSourceLabel == "panda"
+                    or (
+                        self.job.prodSourceLabel in ["rucio_test"] + JobUtils.list_ptest_prod_sources
+                        and self.job.processingType
+                        in [
+                            "pathena",
+                            "prun",
+                            "gangarobot-rctest",
+                            "hammercloud",
+                        ]
+                    )
                 ) and file.type == "output":
                     # extract base LFN since LFN was changed to full LFN for CMS
                     base_lfn = file.lfn.split("/")[-1]
@@ -570,9 +567,9 @@ class AdderGen:
                 self.logger.debug("end Closer")
             # run closer for associate parallel jobs
             if EventServiceUtils.isJobCloningJob(self.job):
-                associate_dispatch_block_map = self.taskBuffer.getDestDBlocksWithSingleConsumer(self.job.jediTaskID,
-                                                                                                self.job.PandaID,
-                                                                                                destination_dispatch_block_list)
+                associate_dispatch_block_map = self.taskBuffer.getDestDBlocksWithSingleConsumer(
+                    self.job.jediTaskID, self.job.PandaID, destination_dispatch_block_list
+                )
                 for associate_job_id in associate_dispatch_block_map:
                     associate_dispatch_blocks = associate_dispatch_block_map[associate_job_id]
                     associate_job = self.taskBuffer.peekJobs(
@@ -646,7 +643,7 @@ class AdderGen:
                     fsize = int(file_data["fsize"])
                 if "md5sum" in file_data:
                     md5sum = str(file_data["md5sum"])
-                    # check
+                    # check the md5sum is a 32-character hexadecimal number
                     if re.search("^[a-fA-F0-9]{32}$", md5sum) is None:
                         md5sum = None
                 if "adler32" in file_data:

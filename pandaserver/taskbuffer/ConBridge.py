@@ -4,6 +4,7 @@ This avoids clogged httpd processes due to stalled database accesses.
 """
 
 import os
+import pickle
 import random
 import signal
 import socket
@@ -12,11 +13,6 @@ import threading
 import time
 import traceback
 import types
-
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
