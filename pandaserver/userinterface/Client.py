@@ -1,6 +1,5 @@
 """
 client methods
-
 """
 
 import getpass
