@@ -5828,63 +5828,6 @@ class DBProxy:
             self._rollback()
             return None
 
-    # query job info per cloud
-    def queryJobInfoPerCloud(self, cloud, schedulerID=None):
-        comment = " /* DBProxy.queryJobInfoPerCloud */"
-        _logger.debug(f"queryJobInfoPerCloud : {cloud} {schedulerID}")
-        attrs = ["PandaID", "jobStatus", "jobName"]
-        sql0 = "SELECT "
-        for attr in attrs:
-            sql0 += f"{attr},"
-        sql0 = f"{sql0[:-1]} "
-        sql0 += "FROM %s "
-        sql0 += "WHERE cloud=:cloud "
-        varMap = {}
-        varMap[":cloud"] = cloud
-        if schedulerID is not None:
-            sql0 += "AND schedulerID=:schedulerID "
-            varMap[":schedulerID"] = schedulerID
-        try:
-            ids = []
-            returnList = []
-            # select
-            for table in [
-                "ATLAS_PANDA.jobsActive4",
-                "ATLAS_PANDA.jobsWaiting4",
-                "ATLAS_PANDA.jobsDefined4",
-            ]:
-                # start transaction
-                self.conn.begin()
-                # select
-                sql = sql0 % table
-                self.cur.arraysize = 10000
-                self.cur.execute(sql + comment, varMap)
-                resList = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # loop over all
-                for res in resList:
-                    valMap = {}
-                    # skip if already in the list
-                    PandaID = res[0]
-                    if PandaID in ids:
-                        continue
-                    # convert to map
-                    for idx, attr in enumerate(attrs):
-                        valMap[attr] = res[idx]
-                    # append to list
-                    ids.append(PandaID)
-                    returnList.append(valMap)
-            # return
-            return returnList
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"queryJobInfoPerCloud : {type} {value}")
-            # roll back
-            self._rollback()
-            return None
-
     # get PandaIDs at Site
     def getPandaIDsSite(self, site, status, limit):
         comment = " /* DBProxy.getPandaIDsSite */"
@@ -6699,50 +6642,6 @@ class DBProxy:
             _logger.error(f"getSerialNumberForGroupJob : {errtype} {errvalue}")
             retVal["status"] = False
             return retVal
-
-    # change job priorities
-    def changeJobPriorities(self, newPrioMap):
-        comment = " /* DBProxy.changeJobPriorities */"
-        try:
-            _logger.debug("changeJobPriorities start")
-            sql = "UPDATE %s SET currentPriority=:currentPriority,assignedPriority=:assignedPriority "
-            sql += "WHERE PandaID=:PandaID"
-            # loop over all PandaIDs
-            for pandaID in newPrioMap:
-                newPrio = newPrioMap[pandaID]
-                varMap = {}
-                varMap[":PandaID"] = pandaID
-                varMap[":currentPriority"] = newPrio
-                varMap[":assignedPriority"] = newPrio
-                _logger.debug(f"changeJobPriorities PandaID={pandaID} -> prio={newPrio}")
-                # start transaction
-                self.conn.begin()
-                # try active tables
-                retU = None
-                for tableName in [
-                    "ATLAS_PANDA.jobsActive4",
-                    "ATLAS_PANDA.jobsDefined4",
-                    "ATLAS_PANDA.jobsWaiting4",
-                ]:
-                    # execute
-                    self.cur.execute((sql % tableName) + comment, varMap)
-                    retU = self.cur.rowcount
-                    if retU > 0:
-                        break
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                _logger.debug(f"changeJobPriorities PandaID={pandaID} retU={retU}")
-            # return
-            _logger.debug("changeJobPriorities done")
-            return True, ""
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            errtype, errvalue = sys.exc_info()[:2]
-            _logger.error(f"changeJobPriorities : {errtype} {errvalue}")
-            return False, "database error"
 
     # query files with map
     def queryFilesWithMap(self, map):
@@ -7799,71 +7698,6 @@ class DBProxy:
                 _logger.error(f"getJobStatistics : {type} {value}")
                 return {}
 
-    # get job statistics with label
-    def getJobStatisticsWithLabel(self, siteStr=""):
-        comment = " /* DBProxy.getJobStatisticsWithLabel */"
-        _logger.debug(f"getJobStatisticsWithLabel({siteStr})")
-        sql0 = "SELECT computingSite,prodSourceLabel,jobStatus,COUNT(*) FROM %s "
-        # site
-        tmpSiteMap = {}
-        if siteStr != "":
-            sql0 += "WHERE computingSite IN ("
-            # loop over all sites
-            idxSite = 1
-            for tmpSite in siteStr.split(","):
-                tmpSiteKey = f":site{idxSite}"
-                sql0 += f"{tmpSiteKey},"
-                tmpSiteMap[tmpSiteKey] = tmpSite
-                idxSite += 1
-            sql0 = sql0[:-1] + ") "
-        sql0 += "GROUP BY computingSite,prodSourceLabel,jobStatus "
-        sqlMV = re.sub("COUNT\(\*\)", "SUM(num_of_jobs)", sql0)
-        sqlMV = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sqlMV)
-        tables = ["ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsDefined4"]
-        returnMap = {}
-        try:
-            for table in tables:
-                # start transaction
-                self.conn.begin()
-                # select
-                varMap = {}
-                self.cur.arraysize = 10000
-                if table == "ATLAS_PANDA.jobsActive4":
-                    sqlExeTmp = (sqlMV + comment) % "ATLAS_PANDA.MV_JOBSACTIVE4_STATS"
-                else:
-                    sqlExeTmp = (sql0 + comment) % table
-                self.cur.execute(sqlExeTmp, tmpSiteMap)
-                res = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # create map
-                for computingSite, prodSourceLabel, jobStatus, nCount in res:
-                    # FIXME
-                    # ignore some job status since they break APF
-                    if jobStatus in ["merging"]:
-                        continue
-                    # add site
-                    if computingSite not in returnMap:
-                        returnMap[computingSite] = {}
-                    # add SourceLabel
-                    if prodSourceLabel not in returnMap[computingSite]:
-                        returnMap[computingSite][prodSourceLabel] = {}
-                    # add jobstatus
-                    if jobStatus not in returnMap[computingSite][prodSourceLabel]:
-                        returnMap[computingSite][prodSourceLabel][jobStatus] = 0
-                    # add
-                    returnMap[computingSite][prodSourceLabel][jobStatus] += nCount
-            # return
-            _logger.debug(f"getJobStatisticsWithLabel() : {str(returnMap)}")
-            return returnMap
-        except Exception:
-            # roll back
-            self._rollback()
-            errType, errValue = sys.exc_info()[:2]
-            _logger.error(f"getJobStatisticsWithLabel : {errType} {errValue}")
-            return {}
-
     # get job statistics for brokerage
     def getJobStatisticsBrokerage(self, minPriority=None, maxPriority=None):
         comment = " /* DBProxy.getJobStatisticsBrokerage */"
@@ -8657,57 +8491,6 @@ class DBProxy:
             # error
             type, value, traceBack = sys.exc_info()
             _logger.error(f"getJobStatisticsPerProcessingType : {type} {value}")
-            return {}
-
-    # get the number of waiting jobs per site and user
-    def getJobStatisticsPerUserSite(self):
-        comment = " /* DBProxy.getJobStatisticsPerUserSite */"
-        _logger.debug("getJobStatisticsPerUserSite()")
-        sqlN = "SELECT COUNT(*),prodUserID,computingSite FROM %s "
-        sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus=:jobStatus GROUP BY prodUserID,computingSite"
-        ret = {}
-        try:
-            for table in ("ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsDefined4"):
-                # start transaction
-                self.conn.begin()
-                # select
-                self.cur.arraysize = 100000
-                # select
-                if table == "ATLAS_PANDA.jobsActive4":
-                    jobStatus = "activated"
-                else:
-                    jobStatus = "assigned"
-                varMap = {}
-                varMap[":prodSourceLabel1"] = "user"
-                varMap[":prodSourceLabel2"] = "panda"
-                varMap[":jobStatus"] = jobStatus
-                self.cur.execute((sqlN + comment) % table, varMap)
-                res = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # create map
-                for cnt, prodUserName, computingSite in res:
-                    # add site
-                    if computingSite not in ret:
-                        ret[computingSite] = {}
-                    # add user
-                    if prodUserName not in ret[computingSite]:
-                        ret[computingSite][prodUserName] = {
-                            "assigned": 0,
-                            "activated": 0,
-                        }
-                    # add info
-                    ret[computingSite][prodUserName][jobStatus] = cnt
-            # return
-            _logger.debug(f"getJobStatisticsPerUserSite -> {str(ret)}")
-            return ret
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            errtype, errvalue = sys.exc_info()[:2]
-            _logger.error(f"getJobStatisticsPerUserSite : {errtype} {errvalue}")
             return {}
 
     # get number of activated analysis jobs

@@ -130,24 +130,6 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
-    # change job priorities
-    def changeJobPriorities(self, user, prodRole, newPrioMapStr):
-        # check production role
-        if not prodRole:
-            return False, "production role is required"
-        try:
-            # deserialize map
-            newPrioMap = WrappedPickle.loads(newPrioMapStr)
-            _logger.debug(f"changeJobPriorities {user} : {str(newPrioMap)}")
-            # change
-            ret = self.taskBuffer.changeJobPriorities(newPrioMap)
-        except Exception:
-            errType, errValue = sys.exc_info()[:2]
-            _logger.error(f"changeJobPriorities : {errType} {errValue}")
-            return False, "internal server error"
-        # serialize
-        return ret
-
     # retry failed subjobs in running job
     def retryFailedJobsInActive(self, dn, jobID):
         returnVal = False
@@ -308,20 +290,6 @@ class UserIF:
         # serialize
         return json.dumps(ret)
 
-    # get the number of waiting jobs per site and use
-    def getJobStatisticsPerUserSite(self):
-        # get job statistics
-        ret = self.taskBuffer.getJobStatisticsPerUserSite()
-        # serialize
-        return WrappedPickle.dumps(ret)
-
-    # get job statistics per site with label
-    def getJobStatisticsWithLabel(self, site):
-        # get job statistics
-        ret = self.taskBuffer.getJobStatisticsWithLabel(site)
-        # serialize
-        return WrappedPickle.dumps(ret)
-
     # query PandaIDs
     def queryPandaIDs(self, idsStr):
         # deserialize IDs
@@ -335,13 +303,6 @@ class UserIF:
     def getNUserJobs(self, siteName):
         # get
         ret = self.taskBuffer.getNUserJobs(siteName)
-        # serialize
-        return WrappedPickle.dumps(ret)
-
-    # query job info per cloud
-    def queryJobInfoPerCloud(self, cloud, schedulerID):
-        # query PandaIDs
-        ret = self.taskBuffer.queryJobInfoPerCloud(cloud, schedulerID)
         # serialize
         return WrappedPickle.dumps(ret)
 
@@ -490,24 +451,6 @@ class UserIF:
         siteMapper = SiteMapper(self.taskBuffer)
         # serialize
         return WrappedPickle.dumps(siteMapper.cloudSpec)
-
-    # get nPilots
-    def getNumPilots(self):
-        # get nPilots
-        ret = self.taskBuffer.getCurrentSiteData()
-        numMap = {}
-        for siteID in ret:
-            siteNumMap = ret[siteID]
-            nPilots = 0
-            # nPilots = getJob+updateJob
-            if "getJob" in siteNumMap:
-                nPilots += siteNumMap["getJob"]
-            if "updateJob" in siteNumMap:
-                nPilots += siteNumMap["updateJob"]
-            # append
-            numMap[siteID] = {"nPilots": nPilots}
-        # serialize
-        return WrappedPickle.dumps(numMap)
 
     # get script for offline running
     def getScriptOfflineRunning(self, pandaID, days=None):
@@ -1178,11 +1121,6 @@ def queryPandaIDs(req, ids):
     return userIF.queryPandaIDs(ids)
 
 
-# query job info per cloud
-def queryJobInfoPerCloud(req, cloud, schedulerID=None):
-    return userIF.queryJobInfoPerCloud(cloud, schedulerID)
-
-
 # get PandaIDs at site
 def getPandaIDsSite(req, site, status, limit=500):
     return userIF.getPandaIDsSite(site, status, limit)
@@ -1239,11 +1177,6 @@ def getJobStatisticsForBamboo(req, useMorePG=None):
     return userIF.getJobStatisticsForBamboo(useMorePG)
 
 
-# get the number of waiting jobs per site and user
-def getJobStatisticsPerUserSite(req):
-    return userIF.getJobStatisticsPerUserSite()
-
-
 # get job statistics per site and resource
 def getJobStatisticsPerSiteResource(req, timeWindow=None):
     return userIF.getJobStatisticsPerSiteResource(timeWindow)
@@ -1285,11 +1218,6 @@ def getJobStatisticsPerSite(
         else:
             readArchived = False
     return userIF.getJobStatisticsPerSite(predefined, workingGroup, countryGroup, jobType, minPriority, readArchived)
-
-
-# get job statistics per site with label
-def getJobStatisticsWithLabel(req, site=""):
-    return userIF.getJobStatisticsWithLabel(site)
 
 
 # query last files in datasets
@@ -1372,21 +1300,6 @@ def resubmitJobs(req, ids):
     return userIF.resubmitJobs(ids)
 
 
-# change job priorities
-def changeJobPriorities(req, newPrioMap=None):
-    # check security
-    if not isSecure(req):
-        return WrappedPickle.dumps((False, "secure connection is required"))
-    # get DN
-    user = None
-    if "SSL_CLIENT_S_DN" in req.subprocess_env:
-        user = _getDN(req)
-    # check role
-    prodRole = _hasProdRole(req)
-    ret = userIF.changeJobPriorities(user, prodRole, newPrioMap)
-    return WrappedPickle.dumps(ret)
-
-
 # get list of site spec
 def getSiteSpecs(req, siteType=None):
     if siteType is not None:
@@ -1408,11 +1321,6 @@ def get_ban_users(req):
 # get client version
 def getPandaClientVer(req):
     return userIF.getPandaClientVer()
-
-
-# get nPilots
-def getNumPilots(req):
-    return userIF.getNumPilots()
 
 
 # retry failed subjobs in running job

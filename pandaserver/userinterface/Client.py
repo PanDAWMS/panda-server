@@ -32,32 +32,24 @@ except Exception:
 # exit code
 EC_Failed = 255
 
+# default panda server URLs
+serverURLs = {"default": {"URL": baseURL, "URLSSL": baseURLSSL}}
 
-# panda server URLs
 if "PANDA_URL_MAP" in os.environ:
-    serverURLs = {
-        "default": {"URL": baseURL, "URLSSL": baseURLSSL},
-    }
-    # decode envvar to map
     try:
-        for tmpCompStr in os.environ["PANDA_URL_MAP"].split("|"):
-            tmpKey, tmpURL, tmpURLSSL = tmpCompStr.split(",")
-            # append
+        # Decode environment variable and map to server URLs
+        for entry in os.environ["PANDA_URL_MAP"].split("|"):
+            tmpKey, tmpURL, tmpURLSSL = entry.split(",")
             serverURLs[tmpKey] = {"URL": tmpURL, "URLSSL": tmpURLSSL}
-    except Exception:
+    except ValueError:
+        # Handle cases where split values are missing or malformed
         pass
 else:
-    # default
-    serverURLs = {
-        "default": {"URL": baseURL, "URLSSL": baseURLSSL},
-        "CERN": {
-            "URL": "http://pandaserver.cern.ch:25080/server/panda",
-            "URLSSL": "https://pandaserver.cern.ch:25443/server/panda",
-        },
+    # Add default CERN URLs if PANDA_URL_MAP is not present
+    serverURLs["CERN"] = {
+        "URL": "http://pandaserver.cern.ch:25080/server/panda",
+        "URLSSL": "https://pandaserver.cern.ch:25443/server/panda",
     }
-
-# bamboo
-baseURLBAMBOO = "http://pandabamboo.cern.ch:25070/bamboo/bamboo"
 
 
 # wrapper for pickle with python 3
@@ -74,6 +66,7 @@ def pickle_loads(obj_string):
 
 # get URL
 def _getURL(type, srvID=None):
+    # TODO: do we need the different servers or can we leave Client.py with baseURL+baseURLSSL?
     if srvID in serverURLs:
         urls = serverURLs[srvID]
     else:
@@ -81,8 +74,8 @@ def _getURL(type, srvID=None):
     return urls[type]
 
 
-# get Panda srvIDs
 def getPandas():
+    # TODO: do we need the different servers or can we leave Client.py with baseURL+baseURLSSL?
     srvs = list(serverURLs)
     # remove 'default'
     try:
@@ -116,6 +109,7 @@ def is_https(url):
 
 # curl class
 class _Curl:
+    # TODO: rewrite with pycurl or with requests
     # constructor
     def __init__(self):
         # path to curl
@@ -319,15 +313,17 @@ Client API
 """
 
 
-# use web cache
 def useWebCache():
-    """Switch to use web cache for some read-only requests so that the number
+    """
+    TODO: candidate for deletion
+    Switch to use web cache for some read-only requests so that the number
     of hits to the back-end database is reduced.
 
        args:
        returns:
     """
     global baseURL
+    # 25085 is the port for the frontier squid
     baseURL = re.sub("25080", "25085", baseURL)
     global serverURLs
     for tmpKey in serverURLs:
@@ -335,9 +331,9 @@ def useWebCache():
         tmpVal["URL"] = baseURL
 
 
-# submit jobs
 def submitJobs(jobs, srvID=None, toPending=False):
-    """Submit jobs
+    """
+    Submit jobs
 
     args:
         jobs: the list of JobSpecs
@@ -380,9 +376,9 @@ def submitJobs(jobs, srvID=None, toPending=False):
         return EC_Failed, output + "\n" + errStr
 
 
-# get job status
 def getJobStatus(ids, use_json=False):
-    """Get job status
+    """
+    Get job status
 
     args:
         ids: the list of PandaIDs
@@ -415,9 +411,10 @@ def getJobStatus(ids, use_json=False):
         return EC_Failed, output + "\n" + errStr
 
 
-# get PandaID with jobexeID
 def getPandaIDwithJobExeID(ids):
-    """Get the list of PandaIDs corresponding to a given jobExecutionIDs
+    """
+    TODO: candidate for deletion
+    Get the list of PandaIDs corresponding to a given jobExecutionIDs
 
     args:
         ids: list of jobExecutionIDs
@@ -444,7 +441,6 @@ def getPandaIDwithJobExeID(ids):
         return EC_Failed, output + "\n" + errStr
 
 
-# kill jobs
 def killJobs(
     ids,
     code=None,
@@ -454,7 +450,8 @@ def killJobs(
     keepUnmerged=False,
     jobSubStatus=None,
 ):
-    """Kill jobs. Normal users can kill only their own jobs.
+    """
+    Kill jobs. Normal users can kill only their own jobs.
     People with production VOMS role can kill any jobs.
     Running jobs are killed when next heartbeat comes from the pilot.
     Set code=9 if running jobs need to be killed immediately.
@@ -508,9 +505,9 @@ def killJobs(
         return EC_Failed, output + "\n" + errStr
 
 
-# reassign jobs
 def reassignJobs(ids, forPending=False, firstSubmission=None):
-    """Triggers reassignment of jobs. This is not effective if jobs were preassigned to sites before being submitted.
+    """
+    Triggers reassignment of jobs. This is not effective if jobs were preassigned to sites before being submitted.
 
     args:
         ids: the list of taskIDs
@@ -548,8 +545,12 @@ def reassignJobs(ids, forPending=False, firstSubmission=None):
         return EC_Failed, f"stat={status} err={output} {errStr}"
 
 
-# query PandaIDs (obsolete)
 def queryPandaIDs(ids):
+    """
+    TODO: candidate for deletion
+    query PandaIDs (obsolete)
+    """
+
     # serialize
     strIDs = pickle_dumps(ids)
     # instantiate curl
@@ -567,28 +568,9 @@ def queryPandaIDs(ids):
         return EC_Failed, output + "\n" + errStr
 
 
-# query job info per cloud (obsolete)
-def queryJobInfoPerCloud(cloud, schedulerID=None):
-    # instantiate curl
-    curl = _Curl()
-    # execute
-    url = baseURL + "/queryJobInfoPerCloud"
-    data = {"cloud": cloud}
-    if schedulerID is not None:
-        data["schedulerID"] = schedulerID
-    status, output = curl.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR queryJobInfoPerCloud : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
-
-
-# get job statistics
 def getJobStatistics(sourcetype=None):
-    """Get job statistics
+    """
+    Get job statistics
 
     args:
         sourcetype: type of jobs
@@ -639,9 +621,9 @@ def getJobStatistics(sourcetype=None):
     return 0, ret
 
 
-# get job statistics for Bamboo
 def getJobStatisticsForBamboo(useMorePG=False):
-    """Get job statistics for Bamboo
+    """
+    Get job statistics for Bamboo (used by TRIUMF panglia monitoring)
 
     args:
         useMorePG: set True if fine-grained classification is required
@@ -694,9 +676,10 @@ def getJobStatisticsForBamboo(useMorePG=False):
     return 0, ret
 
 
-# get highest prio jobs
 def getHighestPrioJobStat(perPG=False, useMorePG=False):
-    """Get the number of jobs with the highest priorities in each combination of cloud and processingType
+    """
+    TODO: candidate for deletion
+    Get the number of jobs with the highest priorities in each combination of cloud and processingType
 
     args:
         perPG: set True if grouped by processingGroup instead of processingType
@@ -727,9 +710,10 @@ def getHighestPrioJobStat(perPG=False, useMorePG=False):
         return EC_Failed, output + "\n" + errStr
 
 
-# get jobs updated recently
 def getJobsToBeUpdated(limit=5000, lockedby="", srvID=None):
-    """Get the list of jobs which have been recently updated.
+    """
+    TODO: candidate for deletion
+    Get the list of jobs which have been recently updated.
 
     args:
         limit: the maximum number of jobs
@@ -757,9 +741,10 @@ def getJobsToBeUpdated(limit=5000, lockedby="", srvID=None):
         return EC_Failed, output + "\n" + errStr
 
 
-# update prodDBUpdateTimes
 def updateProdDBUpdateTimes(params, verbose=False, srvID=None):
-    """Update timestamp of jobs when update info is propagated to another database
+    """
+    TODO: candidate for deletion
+    Update timestamp of jobs when update info is propagated to another database
 
     args:
         params: map of PandaID and jobStatus and timestamp
@@ -794,9 +779,10 @@ def updateProdDBUpdateTimes(params, verbose=False, srvID=None):
         return EC_Failed, output + "\n" + errStr
 
 
-# get PandaID at site
 def getPandaIDsSite(site, status, limit=500):
-    """Get the list of jobs in a job status at at a site
+    """
+    TODO: candidate for deletion
+    Get the list of jobs in a job status at at a site
 
     args:
         site: site name
@@ -824,7 +810,6 @@ def getPandaIDsSite(site, status, limit=500):
         return EC_Failed, output + "\n" + errStr
 
 
-# get job statistics per site
 def getJobStatisticsPerSite(
     predefined=False,
     workingGroup="",
@@ -833,7 +818,8 @@ def getJobStatisticsPerSite(
     minPriority=None,
     readArchived=None,
 ):
-    """Get job statistics with job attributes
+    """
+    Get job statistics with job attributes
 
     args:
         predefined: get jobs which are assiggned to sites before being submitted
@@ -897,58 +883,9 @@ def getJobStatisticsPerSite(
     return 0, ret
 
 
-# get job statistics per site with label
-def getJobStatisticsWithLabel(site=""):
-    """Get job statistics per prodSourceLabel
-
-    args:
-        site: commna-separated list of sites. An empty string for all sites.
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        map of the number jobs per job status and prodSourceLabel in each site
-
-    """
-    # instantiate curl
-    curl = _Curl()
-    # execute
-    url = baseURL + "/getJobStatisticsWithLabel"
-    data = {}
-    if site not in ["", None]:
-        data["site"] = site
-    status, output = curl.get(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        print(output)
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getJobStatisticsWithLabel : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
-
-
-# get the number of waiting jobs per site and user (obsolete)
-def getJobStatisticsPerUserSite():
-    # instantiate curl
-    curl = _Curl()
-    # execute
-    url = baseURL + "/getJobStatisticsPerUserSite"
-    data = {}
-    status, output = curl.get(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        print(output)
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getJobStatisticsPerUserSite : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
-
-
-# get job statistics per site and resource
 def getJobStatisticsPerSiteResource(timeWindow=None):
-    """Get job statistics with job attributes
+    """
+    Get job statistics per site and resource. This is used by panglia (TRIUMF monitoring)
 
     args:
        timeWindow: to count number of jobs that finish/failed/cancelled for last N minutes. 12*60 by default
@@ -977,9 +914,9 @@ def getJobStatisticsPerSiteResource(timeWindow=None):
         return EC_Failed, output + "\n" + errStr
 
 
-# get job statistics per site, label, and resource
 def get_job_statistics_per_site_label_resource(time_window=None):
-    """Get job statistics per site, label, and resource
+    """
+    Get job statistics per site, label, and resource
 
     args:
        timeWindow: to count number of jobs that finish/failed/cancelled for last N minutes. 12*60 by default
@@ -1007,9 +944,10 @@ def get_job_statistics_per_site_label_resource(time_window=None):
         return EC_Failed, output + "\n" + errStr
 
 
-# query last files in datasets
 def queryLastFilesInDataset(datasets):
-    """Get names of files which have the largest serial number in each dataset
+    """
+    Get names of files which have the largest serial number in each dataset
+    TODO: candidate for deletion
 
     args:
         datasets: the list of dataset names
@@ -1036,9 +974,9 @@ def queryLastFilesInDataset(datasets):
         return EC_Failed, None
 
 
-# insert sandbox file info
 def insertSandboxFileInfo(userName, fileName, fileSize, checkSum, verbose=False):
-    """Insert infomation of input sandbox
+    """
+    Insert information of input sandbox
 
     args:
         userName: the name of the user
@@ -1068,9 +1006,9 @@ def insertSandboxFileInfo(userName, fileName, fileSize, checkSum, verbose=False)
     return curl.post(url, data)
 
 
-# upload input sandbox file
 def putFile(file):
-    """Upload input sandbox
+    """
+    Upload input sandbox
 
     args:
         file: the file name
@@ -1091,6 +1029,7 @@ def putFile(file):
 
 
 # delete file (obsolete)
+# TODO: is this really obsolete? I think it's used in panda cache
 def deleteFile(file):
     # instantiate curl
     curl = _Curl()
@@ -1103,6 +1042,7 @@ def deleteFile(file):
 
 
 # touch file (obsolete)
+# TODO: is this really obsolete? I think it's used in panda cache
 def touchFile(sourceURL, filename):
     # instantiate curl
     curl = _Curl()
@@ -1114,9 +1054,9 @@ def touchFile(sourceURL, filename):
     return curl.post(url, data)
 
 
-# get site specs
 def getSiteSpecs(siteType=None):
-    """Get list of site specifications
+    """
+    Get list of site specifications
 
     args:
         siteType: type of sites
@@ -1147,9 +1087,10 @@ def getSiteSpecs(siteType=None):
         return EC_Failed, output + "\n" + errStr
 
 
-# get cloud specs
 def getCloudSpecs():
-    """Get list of cloud specifications
+    """
+    TODO: candidate for deletion
+    Get list of cloud specifications
 
     args:
     returns:
@@ -1173,25 +1114,10 @@ def getCloudSpecs():
         return EC_Failed, output + "\n" + errStr
 
 
-# get nPilots (obsolete)
-def getNumPilots():
-    # instantiate curl
-    curl = _Curl()
-    # execute
-    url = baseURL + "/getNumPilots"
-    status, output = curl.get(url, {})
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getNumPilots : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
-
-
-# run brokerage
 def runBrokerage(sites, atlasRelease, cmtConfig=None):
-    """Run brokerage
+    """
+    TODO: candidate for deletion
+    Run brokerage
 
     args:
         sites: the list of candidate sites
@@ -1216,58 +1142,9 @@ def runBrokerage(sites, atlasRelease, cmtConfig=None):
     return curl.get(url, data)
 
 
-# get RW
-def getRW(priority=0):
-    """Get the amount of workload queued in each cloud
-
-    args:
-        priority: workload with higher priorities than this value
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        map of cloud and the amount of workload
-
-    """
-    # instantiate curl
-    curl = _Curl()
-    # execute
-    url = baseURLBAMBOO + "/getRW"
-    # get RWs for high priority tasks
-    data = {"priority": priority}
-    status, output = curl.get(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getRW : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
-
-
-# change job priorities (obsolete)
-def changeJobPriorities(newPrioMap):
-    # serialize
-    newPrioMapStr = pickle_dumps(newPrioMap)
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
-    # execute
-    url = baseURLSSL + "/changeJobPriorities"
-    data = {"newPrioMap": newPrioMapStr}
-    status, output = curl.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR changeJobPriorities : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
-
-
-# insert task params
 def insertTaskParams(taskParams):
-    """Insert task parameters
+    """
+    Insert task parameters
 
     args:
         taskParams: a dictionary of task parameters
@@ -1297,9 +1174,9 @@ def insertTaskParams(taskParams):
         return EC_Failed, output + "\n" + errStr
 
 
-# kill task
 def killTask(jediTaskID, broadcast=False):
-    """Kill a task
+    """
+    Kill a task
 
     args:
         jediTaskID: jediTaskID of the task to be killed
@@ -1335,9 +1212,9 @@ def killTask(jediTaskID, broadcast=False):
         return EC_Failed, output + "\n" + errStr
 
 
-# finish task
 def finishTask(jediTaskID, soft=False, broadcast=False):
-    """Finish a task
+    """
+    Finish a task
 
     args:
         jediTaskID: jediTaskID of the task to be finished
@@ -1379,9 +1256,10 @@ def finishTask(jediTaskID, soft=False, broadcast=False):
         return EC_Failed, output + "\n" + errStr
 
 
-# reassign task to a site
 def reassignTaskToSite(jediTaskID, site, mode=None):
-    """Reassign a task to a site. Existing jobs are killed and new jobs are generated at the site
+    """
+    TODO: candidate for deletion (can't distinguish from other reassignTasks)
+    Reassign a task to a site. Existing jobs are killed and new jobs are generated at the site
 
     args:
         jediTaskID: jediTaskID of the task to be reassigned
@@ -1421,9 +1299,10 @@ def reassignTaskToSite(jediTaskID, site, mode=None):
         return EC_Failed, output + "\n" + errStr
 
 
-# reassign task to a cloud
 def reassignTaskToCloud(jediTaskID, cloud, mode=None):
-    """Reassign a task to a cloud. Existing jobs are killed and new jobs are generated in the cloud
+    """
+    TODO: candidate for deletion (can't distinguish from other reassignTasks)
+    Reassign a task to a cloud. Existing jobs are killed and new jobs are generated in the cloud
 
     args:
         jediTaskID: jediTaskID of the task to be reassigned
@@ -1460,9 +1339,9 @@ def reassignTaskToCloud(jediTaskID, cloud, mode=None):
         return EC_Failed, output + "\n" + errStr
 
 
-# reassign task to a nucleus
 def reassignTaskToNucleus(jediTaskID, nucleus, mode=None):
-    """Reassign a task to a nucleus. Existing jobs are killed and new jobs are generated in the cloud
+    """
+    Reassign a task to a nucleus. Existing jobs are killed and new jobs are generated in the cloud
 
     args:
         jediTaskID: jediTaskID of the task to be reassigned
@@ -1499,9 +1378,9 @@ def reassignTaskToNucleus(jediTaskID, nucleus, mode=None):
         return EC_Failed, output + "\n" + errStr
 
 
-# upload log
 def uploadLog(logStr, logFileName):
-    """Upload sandbox
+    """
+    Upload log
 
     args:
         logStr: log message
@@ -1531,9 +1410,9 @@ def uploadLog(logStr, logFileName):
     return retVal
 
 
-# change task priority
 def changeTaskPriority(jediTaskID, newPriority):
-    """Change task priority
+    """
+    Change the task priority
 
     args:
         jediTaskID: jediTaskID of the task to change the priority
@@ -1563,9 +1442,9 @@ def changeTaskPriority(jediTaskID, newPriority):
         return EC_Failed, output + "\n" + errStr
 
 
-# set debug mode
 def setDebugMode(pandaID, modeOn):
-    """Turn debug mode on/off for a job
+    """
+    Turn debug mode for a job on/off
 
     args:
         pandaID: PandaID of the job
@@ -1586,9 +1465,9 @@ def setDebugMode(pandaID, modeOn):
     return curl.post(url, data)
 
 
-# retry task
 def retryTask(jediTaskID, verbose=False, noChildRetry=False, discardEvents=False, disable_staging_mode=False, keep_gshare_priority=False):
-    """Retry task
+    """
+    Retry a task
 
     args:
         jediTaskID: jediTaskID of the task to retry
@@ -1635,9 +1514,9 @@ def retryTask(jediTaskID, verbose=False, noChildRetry=False, discardEvents=False
         return EC_Failed, output + "\n" + errStr
 
 
-# reload input
 def reloadInput(jediTaskID, verbose=False):
-    """Retry task
+    """
+    Reload the input for a task
 
     args:
         jediTaskID: jediTaskID of the task to retry
@@ -1671,9 +1550,10 @@ def reloadInput(jediTaskID, verbose=False):
         return EC_Failed, output + "\n" + errStr
 
 
-# change task walltime
 def changeTaskWalltime(jediTaskID, wallTime):
-    """Change task priority
+    """
+    TODO: candidate for deletion
+    Change task walltime
 
     args:
         jediTaskID: jediTaskID of the task to change the priority
@@ -1703,9 +1583,10 @@ def changeTaskWalltime(jediTaskID, wallTime):
         return EC_Failed, output + "\n" + errStr
 
 
-# change task cputime
 def changeTaskCputime(jediTaskID, cpuTime):
-    """Change task cpuTime
+    """
+    TODO: candidate for deletion
+    Change task CPU time
 
     args:
         jediTaskID: jediTaskID of the task to change the priority
@@ -1735,9 +1616,10 @@ def changeTaskCputime(jediTaskID, cpuTime):
         return EC_Failed, output + "\n" + errStr
 
 
-# change task RAM count
 def changeTaskRamCount(jediTaskID, ramCount):
-    """Change task priority
+    """
+    TODO: candidate for deletion
+    Change task RAM count
 
     args:
         jediTaskID: jediTaskID of the task to change the priority
@@ -1767,9 +1649,9 @@ def changeTaskRamCount(jediTaskID, ramCount):
         return EC_Failed, output + "\n" + errStr
 
 
-# change task attribute
 def changeTaskAttribute(jediTaskID, attrName, attrValue):
-    """Change task attribute
+    """
+    Change task attribute
 
     args:
         jediTaskID: jediTaskID of the task to change the attribute
@@ -1801,9 +1683,9 @@ def changeTaskAttribute(jediTaskID, attrName, attrValue):
         return EC_Failed, output + "\n" + errStr
 
 
-# change split rule for task
 def changeTaskSplitRule(jediTaskID, ruleName, ruleValue):
-    """Change split rule fo task
+    """
+    Change split rule fo task
 
     args:
         jediTaskID: jediTaskID of the task to change the rule
@@ -1835,9 +1717,9 @@ def changeTaskSplitRule(jediTaskID, ruleName, ruleValue):
         return EC_Failed, output + "\n" + errStr
 
 
-# pause task
 def pauseTask(jediTaskID, verbose=False):
-    """Pause task
+    """
+    Pause task
 
     args:
         jediTaskID: jediTaskID of the task to pause
@@ -1871,9 +1753,9 @@ def pauseTask(jediTaskID, verbose=False):
         return EC_Failed, output + "\n" + errStr
 
 
-# resume task
 def resumeTask(jediTaskID, verbose=False):
-    """Resume task
+    """
+    Resume task
 
     args:
         jediTaskID: jediTaskID of the task to release
@@ -1907,9 +1789,9 @@ def resumeTask(jediTaskID, verbose=False):
         return EC_Failed, output + "\n" + errStr
 
 
-# avalanche task
 def avalancheTask(jediTaskID, verbose=False):
-    """force avalanche for task
+    """
+    Force avalanche for task
 
     args:
         jediTaskID: jediTaskID of the task to avalanche
@@ -1943,9 +1825,9 @@ def avalancheTask(jediTaskID, verbose=False):
         return EC_Failed, output + "\n" + errStr
 
 
-# increase attempt number for unprocessed files
 def increaseAttemptNr(jediTaskID, increase):
-    """Change task priority
+    """
+    Change task priority
 
     args:
         jediTaskID: jediTaskID of the task to increase attempt numbers
@@ -1978,9 +1860,9 @@ def increaseAttemptNr(jediTaskID, increase):
         return EC_Failed, output + "\n" + errStr
 
 
-# kill unfinished jobs
 def killUnfinishedJobs(jediTaskID, code=None, verbose=False, srvID=None, useMailAsID=False):
-    """Kill unfinished jobs in a task. Normal users can kill only their own jobs.
+    """
+    Kill unfinished jobs in a task. Normal users can kill only their own jobs.
     People with production VOMS role can kill any jobs.
     Running jobs are killed when next heartbeat comes from the pilot.
     Set code=9 if running jobs need to be killed immediately.
@@ -2023,9 +1905,10 @@ def killUnfinishedJobs(jediTaskID, code=None, verbose=False, srvID=None, useMail
         return EC_Failed, output + "\n" + errStr
 
 
-# trigger task brokerage
 def triggerTaskBrokerage(jediTaskID):
-    """Trigger task brokerge
+    """
+    TODO: candidate for deletion
+    Trigger task brokerage
 
     args:
         jediTaskID: jediTaskID of the task to change the attribute
@@ -2054,9 +1937,9 @@ def triggerTaskBrokerage(jediTaskID):
         return EC_Failed, output + "\n" + errStr
 
 
-# get PanDA IDs with TaskID
 def getPandaIDsWithTaskID(jediTaskID):
-    """Get PanDA IDs with TaskID
+    """
+    Get PanDA IDs with TaskID
 
     args:
         jediTaskID: jediTaskID of the task to get lit of PanDA IDs
@@ -2081,9 +1964,10 @@ def getPandaIDsWithTaskID(jediTaskID):
         return EC_Failed, output + "\n" + errStr
 
 
-# reactivate task
 def reactivateTask(jediTaskID, keep_attempt_nr=False, trigger_job_generation=False):
-    """Reactivate task
+    """
+    TODO: candidate for deletion
+    Reactivate task
 
     args:
         jediTaskID: jediTaskID of the task to be reactivated
@@ -2118,9 +2002,9 @@ def reactivateTask(jediTaskID, keep_attempt_nr=False, trigger_job_generation=Fal
         return EC_Failed, output + "\n" + errStr
 
 
-# get task status TaskID
 def getTaskStatus(jediTaskID):
-    """Get task status
+    """
+    Get task status for a particular task ID
 
     args:
         jediTaskID: jediTaskID of the task to get lit of PanDA IDs
@@ -2145,9 +2029,10 @@ def getTaskStatus(jediTaskID):
         return EC_Failed, output + "\n" + errStr
 
 
-# reassign specified tasks (and their jobs) to a new share
 def reassignShare(jedi_task_ids, share, reassign_running=False):
     """
+    Reassign specified tasks (and their jobs) to a new share
+
     args:
         jedi_task_ids: task ids to act on
         share: share to be applied to jeditaskids
@@ -2184,9 +2069,11 @@ def reassignShare(jedi_task_ids, share, reassign_running=False):
         return EC_Failed, f"{output}\n{err_str}"
 
 
-# list tasks in a particular share and optionally status
 def listTasksInShare(gshare, status="running"):
     """
+    TODO: Candidate for deletion
+    List tasks in a particular share and optionally status
+
     args:
         gshare: global share
         status: task status, running by default
@@ -2217,9 +2104,9 @@ def listTasksInShare(gshare, status="running"):
         return EC_Failed, f"{output}\n{err_str}"
 
 
-# get taskParamsMap with TaskID
 def getTaskParamsMap(jediTaskID):
-    """Get task status
+    """
+    Fet task parameter map for a certain task ID
 
     args:
         jediTaskID: jediTaskID of the task to get taskParamsMap
@@ -2247,9 +2134,9 @@ def getTaskParamsMap(jediTaskID):
         return EC_Failed, output + "\n" + errStr
 
 
-# set num slots for workload provisioning
 def setNumSlotsForWP(pandaQueueName, numSlots, gshare=None, resourceType=None, validPeriod=None):
-    """Set num slots for workload provisioning
+    """
+    Set num slots for workload provisioning
 
     args:
         pandaQueueName: Panda Queue name
@@ -2292,7 +2179,8 @@ def setNumSlotsForWP(pandaQueueName, numSlots, gshare=None, resourceType=None, v
 
 # enable jumbo jobs
 def enableJumboJobs(jediTaskID, totalJumboJobs=1, nJumboPerSite=1):
-    """Enable jumbo jobs
+    """
+    Enable jumbo jobs for a task
 
     args:
         jediTaskID: jediTaskID of the task
@@ -2329,9 +2217,10 @@ def enableJumboJobs(jediTaskID, totalJumboJobs=1, nJumboPerSite=1):
         return EC_Failed, output + "\n" + errStr
 
 
-# get Global Share status
 def getGShareStatus():
     """
+    TODO: Candidate for deletion
+    Get Global Share status
 
     returns:
         status code
@@ -2360,9 +2249,10 @@ def getGShareStatus():
         return EC_Failed, output + "\n" + err_str
 
 
-# send a harvester command to panda server in order sweep a panda queue
 def sweepPQ(panda_queue, status_list, ce_list, submission_host_list):
     """
+    Send a harvester command to panda server in order sweep a panda queue
+
     args:
         panda_queue: panda queue name
         status_list: list with statuses to sweep, e.g. ['submitted']
@@ -2404,9 +2294,10 @@ def sweepPQ(panda_queue, status_list, ce_list, submission_host_list):
         return EC_Failed, f"{output}\n{err_str}"
 
 
-# send a command to a job
 def send_command_to_job(panda_id, com):
     """
+    Send a command to a job
+
     args:
         panda_id: PandaID of the job
         com: a command string passed to the pilot. max 250 chars
@@ -2435,9 +2326,9 @@ def send_command_to_job(panda_id, com):
         return EC_Failed, f"{output}\n{err_str}"
 
 
-# get ban list
 def get_ban_users(verbose=False):
-    """Get ban user list
+    """
+    Get list of banned users
 
     args:
         verbose: set True to see what's going on
@@ -2465,7 +2356,8 @@ def get_ban_users(verbose=False):
 
 
 def release_task(jedi_task_id, verbose=False):
-    """release task from staging
+    """
+    Release task from staging
 
     args:
         jedi_task_id: jediTaskID of the task to avalanche

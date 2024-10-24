@@ -1568,17 +1568,6 @@ class TaskBuffer:
 
         return pandaIDs
 
-    # query job info per cloud
-    def queryJobInfoPerCloud(self, cloud, schedulerID=None):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # query job info
-        ret = proxy.queryJobInfoPerCloud(cloud, schedulerID)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
     # get PandaIDs to be updated in prodDB
     def getPandaIDsForProdDB(self, limit, lockedby):
         # get DBproxy
@@ -1956,17 +1945,6 @@ class TaskBuffer:
 
         return ret
 
-    # change job priorities
-    def changeJobPriorities(self, newPrioMap):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.changeJobPriorities(newPrioMap)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
     # get destinationDBlockToken for a dataset
     def getDestTokens(self, dsname):
         # get DBproxy
@@ -2017,17 +1995,6 @@ class TaskBuffer:
 
         return ret
 
-    # get job statistics with label
-    def getJobStatisticsWithLabel(self, siteStr=""):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get serial number
-        ret = proxy.getJobStatisticsWithLabel(siteStr)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
     # get job statistics for brokerage
     def getJobStatisticsBrokerage(self, minPrio=None, maxPrio=None):
         # get DBproxy
@@ -2053,17 +2020,6 @@ class TaskBuffer:
         conRet = ProcessGroups.countJobsPerGroupForAnal(ret)
 
         return conRet
-
-    # get the number of waiting jobs per site and user
-    def getJobStatisticsPerUserSite(self):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get stat
-        ret = proxy.getJobStatisticsPerUserSite()
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
 
     # get highest prio jobs
     def getHighestPrioJobStat(self, perPG=False, useMorePG=False):
