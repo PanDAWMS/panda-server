@@ -12,11 +12,9 @@ import socket
 import sys
 import tempfile
 import uuid
-from urllib.parse import urlencode
 
+import requests
 from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
-
-from pandaserver.srvcore.CoreUtils import commands_get_status_output
 
 # configuration
 try:
@@ -142,169 +140,88 @@ class _Curl:
         else:
             self.oidc = False
 
-    # GET method
+    def _prepare_headers(self):
+        """Prepare headers based on authentication and JSON settings."""
+        headers = {}
+        if self.oidc:
+            headers["Authorization"] = f"Bearer {self.idToken}"
+            headers["Origin"] = self.authVO
+        if self.use_json:
+            headers["Accept"] = "application/json"
+        return headers
+
+    def _prepare_ssl(self, use_https):
+        """Prepare SSL configuration based on HTTPS usage and verification settings."""
+        cert = None
+        verify = True
+        if use_https:
+            if not self.sslCert:
+                self.sslCert = _x509()
+            if not self.sslKey:
+                self.sslKey = _x509()
+
+            cert = (self.sslCert, self.sslKey)
+
+            if not self.verifyHost:
+                verify = False
+            elif "X509_CERT_DIR" in os.environ:
+                verify = os.environ["X509_CERT_DIR"]
+            elif os.path.exists("/etc/grid-security/certificates"):
+                verify = "/etc/grid-security/certificates"
+
+        return cert, verify
+
+    def _prepare_url(self, url):
+        """Modify URL with HTTPS check and hostname replacement."""
+        use_https = is_https(url)
+        modified_url = replace_hostname_in_url_randomly(url)
+        return modified_url, use_https
+
     def get(self, url, data):
-        use_https = is_https(url)
-        url = replace_hostname_in_url_randomly(url)
-        # make command
-        com = f"{self.path} --silent --get"
-        if not self.verifyHost:
-            com += " --insecure"
-        elif "X509_CERT_DIR" in os.environ:
-            com += f" --capath {os.environ['X509_CERT_DIR']}"
-        elif os.path.exists("/etc/grid-security/certificates"):
-            com += " --capath /etc/grid-security/certificates"
-        if self.compress:
-            com += " --compressed"
-        if self.oidc:
-            com += f' -H "Authorization: Bearer {self.idToken}"'
-            com += f' -H "Origin: {self.authVO}"'
-        elif use_https:
-            if not self.sslCert:
-                self.sslCert = _x509()
-            com += f" --cert {self.sslCert}"
-            com += f" --cacert {self.sslCert}"
-            if not self.sslKey:
-                self.sslKey = _x509()
-            com += f" --key {self.sslKey}"
-        # timeout
-        com += " -m 600"
-        # json
-        if self.use_json:
-            com += ' -H "Accept: application/json"'
-        # data
-        strData = ""
-        for key in data:
-            strData += f'data="{urlencode({key: data[key]})}"\n'
-        # write data to temporary config file
-        try:
-            tmpName = os.environ["PANDA_TMP"]
-        except Exception:
-            tmpName = "/tmp"
-        tmpName += f"/{getpass.getuser()}_{str(uuid.uuid4())}"
-        tmpFile = open(tmpName, "w")
-        tmpFile.write(strData)
-        tmpFile.close()
-        com += f" --config {tmpName}"
-        com += f" {url}"
-        # execute
-        if self.verbose:
-            print(com)
-            print(strData)
-        ret = commands_get_status_output(com)
-        # remove temporary file
-        os.remove(tmpName)
-        if ret[0] != 0:
-            ret = (ret[0] % 255, ret[1])
-        if self.verbose:
-            print(ret)
-        return ret
+        url, use_https = self._prepare_url(url)
+        headers = self._prepare_headers()
+        cert, verify = self._prepare_ssl(use_https)
 
-    # POST method
+        try:
+            response = requests.get(url, headers=headers, params=data, timeout=600, cert=cert, verify=verify)
+            response.raise_for_status()
+            return 0, response.text
+        except requests.RequestException as e:
+            return 255, str(e)
+
     def post(self, url, data, via_file=False):
-        use_https = is_https(url)
-        url = replace_hostname_in_url_randomly(url)
-        # make command
-        com = f"{self.path} --silent"
-        if not self.verifyHost:
-            com += " --insecure"
-        elif "X509_CERT_DIR" in os.environ:
-            com += f" --capath {os.environ['X509_CERT_DIR']}"
-        elif os.path.exists("/etc/grid-security/certificates"):
-            com += " --capath /etc/grid-security/certificates"
-        if self.compress:
-            com += " --compressed"
-        if self.oidc:
-            com += f' -H "Authorization: Bearer {self.idToken}"'
-            com += f' -H "Origin: {self.authVO}"'
-        elif use_https:
-            if not self.sslCert:
-                self.sslCert = _x509()
-            com += f" --cert {self.sslCert}"
-            com += f" --cacert {self.sslCert}"
-            if not self.sslKey:
-                self.sslKey = _x509()
-            com += f" --key {self.sslKey}"
-        # timeout
-        com += " -m 600"
-        # json
-        if self.use_json:
-            com += ' -H "Accept: application/json"'
-        # data
-        strData = ""
-        for key in data:
-            strData += f'data="{urlencode({key: data[key]})}"\n'
-        # write data to temporary config file
-        try:
-            tmpName = os.environ["PANDA_TMP"]
-        except Exception:
-            tmpName = "/tmp"
-        tmpName += f"/{getpass.getuser()}_{str(uuid.uuid4())}"
-        tmpNameOut = f"{tmpName}.out"
-        tmpFile = open(tmpName, "w")
-        tmpFile.write(strData)
-        tmpFile.close()
-        com += f" --config {tmpName}"
-        if via_file:
-            com += f" -o {tmpNameOut}"
-        com += f" {url}"
-        # execute
-        if self.verbose:
-            print(com)
-            print(strData)
-        s, o = commands_get_status_output(com)
-        if via_file:
-            with open(tmpNameOut, "rb") as f:
-                ret = (s, f.read())
-            os.remove(tmpNameOut)
-        else:
-            ret = (s, o)
-        # remove temporary file
-        os.remove(tmpName)
-        if ret[0] != 0:
-            ret = (ret[0] % 255, ret[1])
-        if self.verbose:
-            print(ret)
-        return ret
+        url, use_https = self._prepare_url(url)
+        headers = self._prepare_headers()
+        cert, verify = self._prepare_ssl(use_https)
 
-    # PUT method
+        try:
+            response = requests.post(url, headers=headers, data=data, timeout=600, cert=cert, verify=verify)
+            response.raise_for_status()
+            if via_file:
+                tmp_name = f"/tmp/{getpass.getuser()}_{str(uuid.uuid4())}.out"
+                with open(tmp_name, "wb") as f:
+                    f.write(response.content)
+                return 0, tmp_name
+            else:
+                return 0, response.text
+        except requests.RequestException as e:
+            return 255, str(e)
+
     def put(self, url, data):
-        use_https = is_https(url)
-        url = replace_hostname_in_url_randomly(url)
-        # make command
-        com = f"{self.path} --silent"
-        if not self.verifyHost:
-            com += " --insecure"
-        elif "X509_CERT_DIR" in os.environ:
-            com += f" --capath {os.environ['X509_CERT_DIR']}"
-        elif os.path.exists("/etc/grid-security/certificates"):
-            com += " --capath /etc/grid-security/certificates"
-        if self.compress:
-            com += " --compressed"
-        if self.oidc:
-            com += f' -H "Authorization: Bearer {self.idToken}"'
-            com += f' -H "Origin: {self.authVO}"'
-        elif use_https:
-            if not self.sslCert:
-                self.sslCert = _x509()
-            com += f" --cert {self.sslCert}"
-            com += f" --cacert {self.sslCert}"
-            if not self.sslKey:
-                self.sslKey = _x509()
-            com += f" --key {self.sslKey}"
-        # emulate PUT
-        for key in data:
-            com += f' -F "{key}=@{data[key]}"'
-        com += f" {url}"
-        # execute
-        if self.verbose:
-            print(com)
-        ret = commands_get_status_output(com)
-        if ret[0] != 0:
-            ret = (ret[0] % 255, ret[1])
-        if self.verbose:
-            print(ret)
-        return ret
+        url, use_https = self._prepare_url(url)
+        headers = self._prepare_headers()
+        cert, verify = self._prepare_ssl(use_https)
+
+        try:
+            files = {key: open(value, "rb") for key, value in data.items()}
+            response = requests.put(url, headers=headers, files=files, timeout=600, cert=cert, verify=verify)
+            response.raise_for_status()
+            return 0, response.text
+        except requests.RequestException as e:
+            return 255, str(e)
+        finally:
+            for file in files.values():
+                file.close()
 
 
 """
