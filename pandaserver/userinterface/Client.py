@@ -2,7 +2,6 @@
 client methods
 """
 
-import getpass
 import gzip
 import json
 import os
@@ -11,7 +10,6 @@ import re
 import socket
 import sys
 import tempfile
-import uuid
 
 import requests
 from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
@@ -189,7 +187,7 @@ class _Curl:
         except requests.RequestException as e:
             return 255, str(e)
 
-    def post(self, url, data, via_file=False):
+    def post(self, url, data):
         url, use_https = self._prepare_url(url)
         headers = self._prepare_headers()
         cert, verify = self._prepare_ssl(use_https)
@@ -197,24 +195,19 @@ class _Curl:
         try:
             response = requests.post(url, headers=headers, data=data, timeout=600, cert=cert, verify=verify)
             response.raise_for_status()
-            if via_file:
-                tmp_name = f"/tmp/{getpass.getuser()}_{str(uuid.uuid4())}.out"
-                with open(tmp_name, "wb") as f:
-                    f.write(response.content)
-                return 0, tmp_name
-            else:
-                return 0, response.text
+            return 0, response.text
         except requests.RequestException as e:
             return 255, str(e)
 
-    def put(self, url, data):
+    def post_files(self, url, data):
         url, use_https = self._prepare_url(url)
         headers = self._prepare_headers()
         cert, verify = self._prepare_ssl(use_https)
 
         try:
             files = {key: open(value, "rb") for key, value in data.items()}
-            response = requests.put(url, headers=headers, files=files, timeout=600, cert=cert, verify=verify)
+            print(f"cert: {cert}, verify: {verify}")
+            response = requests.post(url, headers=headers, files=files, timeout=600, cert=cert, verify=verify)
             response.raise_for_status()
             return 0, response.text
         except requests.RequestException as e:
@@ -293,7 +286,7 @@ def submitJobs(jobs, srvID=None, toPending=False):
         return EC_Failed, output + "\n" + errStr
 
 
-def getJobStatus(ids, use_json=False):
+def getJobStatus(panda_ids):
     """
     Get job status
 
@@ -306,26 +299,23 @@ def getJobStatus(ids, use_json=False):
               255: communication failure
         the list of JobSpecs (or Nones for non-existing PandaIDs)
     """
-    # serialize
-    if use_json:
-        strIDs = json.dumps(ids)
-    else:
-        strIDs = pickle_dumps(ids)
-    # instantiate curl
+    # Serialize the panda IDs
+    str_ids = json.dumps(panda_ids)
+
+    # Instantiate curl
     curl = _Curl()
-    curl.use_json = use_json
-    # execute
-    url = _getURL("URL") + "/getJobStatus"
-    data = {"ids": strIDs}
+    curl.use_json = True
+
+    # Execute
+    url = f"{_getURL('URL')}/getJobStatus"
+    data = {"ids": str_ids}
     status, output = curl.post(url, data)
     try:
-        if use_json:
-            return status, json.loads(output)
-        return status, pickle_loads(output)
+        return status, json.loads(output)
     except Exception as e:
-        errStr = f"ERROR getJobStatus : {str(e)}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        err_str = f"ERROR getJobStatus: {str(e)}"
+        print(err_str)
+        return EC_Failed, output + "\n" + err_str
 
 
 def getPandaIDwithJobExeID(ids):
@@ -942,7 +932,7 @@ def putFile(file):
     # execute
     url = baseURLSSL + "/putFile"
     data = {"file": file}
-    return curl.put(url, data)
+    return curl.post_files(url, data)
 
 
 # delete file (obsolete)
@@ -1322,7 +1312,7 @@ def uploadLog(logStr, logFileName):
     # execute
     url = baseURLSSL + "/uploadLog"
     data = {"file": f"{fh.name};filename={logFileName}"}
-    retVal = curl.put(url, data)
+    retVal = curl.post_files(url, data)
     os.unlink(fh.name)
     return retVal
 
