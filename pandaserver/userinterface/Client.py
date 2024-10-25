@@ -1823,7 +1823,7 @@ def getPandaIDsWithTaskID(jediTaskID):
 
 def reactivateTask(jediTaskID, keep_attempt_nr=False, trigger_job_generation=False):
     """
-    TODO: candidate for deletion
+    TODO: candidate for deletion (?? it's also in panda-client)
     Reactivate task
 
     args:
