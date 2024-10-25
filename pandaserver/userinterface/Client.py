@@ -317,7 +317,7 @@ def getJobStatus(ids, use_json=False):
     # execute
     url = _getURL("URL") + "/getJobStatus"
     data = {"ids": strIDs}
-    status, output = curl.post(url, data, via_file=True)
+    status, output = curl.post(url, data)
     try:
         if use_json:
             return status, json.loads(output)
