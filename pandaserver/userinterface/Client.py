@@ -149,6 +149,7 @@ class HttpClient:
         headers = self._prepare_headers()
         cert, verify = self._prepare_ssl(use_https)
 
+        files = {}
         try:
             files = {key: open(value, "rb") for key, value in data.items()}
             print(f"cert: {cert}, verify: {verify}")
