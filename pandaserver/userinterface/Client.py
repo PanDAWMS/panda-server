@@ -6,7 +6,6 @@ import gzip
 import json
 import os
 import pickle
-import re
 import socket
 import sys
 import tempfile
@@ -14,7 +13,7 @@ import tempfile
 import requests
 from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
 
-# configuration
+# PanDA server configuration
 try:
     baseURL = os.environ["PANDA_URL"]
 except Exception:
@@ -24,28 +23,13 @@ try:
 except Exception:
     baseURLSSL = "https://pandaserver.cern.ch:25443/server/panda"
 
-
 # exit code
 EC_Failed = 255
 
-# default panda server URLs
-serverURLs = {"default": {"URL": baseURL, "URLSSL": baseURLSSL}}
 
-if "PANDA_URL_MAP" in os.environ:
-    try:
-        # Decode environment variable and map to server URLs
-        for entry in os.environ["PANDA_URL_MAP"].split("|"):
-            tmpKey, tmpURL, tmpURLSSL = entry.split(",")
-            serverURLs[tmpKey] = {"URL": tmpURL, "URLSSL": tmpURLSSL}
-    except ValueError:
-        # Handle cases where split values are missing or malformed
-        pass
-else:
-    # Add default CERN URLs if PANDA_URL_MAP is not present
-    serverURLs["CERN"] = {
-        "URL": "http://pandaserver.cern.ch:25080/server/panda",
-        "URLSSL": "https://pandaserver.cern.ch:25443/server/panda",
-    }
+def is_https(url):
+    # check if https is used
+    return url.startswith("https://")
 
 
 def pickle_dumps(obj):
@@ -58,32 +42,6 @@ def pickle_loads(obj_string):
         return pickle.loads(obj_string.encode())
     except Exception:
         return pickle.loads(obj_string)
-
-
-# get URL
-def _getURL(type, srvID=None):
-    # TODO: do we need the different servers or can we leave Client.py with baseURL+baseURLSSL?
-    if srvID in serverURLs:
-        urls = serverURLs[srvID]
-    else:
-        urls = serverURLs["default"]
-    return urls[type]
-
-
-def getPandas():
-    # TODO: do we need the different servers or can we leave Client.py with baseURL+baseURLSSL?
-    srvs = list(serverURLs)
-    # remove 'default'
-    try:
-        srvs.remove("default")
-    except Exception:
-        pass
-    return srvs
-
-
-def is_https(url):
-    # check if https is used
-    return url.startswith("https://")
 
 
 class HttpClient:
@@ -215,31 +173,12 @@ Client API
 """
 
 
-def useWebCache():
-    """
-    TODO: candidate for deletion
-    Switch to use web cache for some read-only requests so that the number
-    of hits to the back-end database is reduced.
-
-       args:
-       returns:
-    """
-    global baseURL
-    # 25085 is the port for the frontier squid
-    baseURL = re.sub("25080", "25085", baseURL)
-    global serverURLs
-    for tmpKey in serverURLs:
-        tmpVal = serverURLs[tmpKey]
-        tmpVal["URL"] = baseURL
-
-
-def submitJobs(jobs, srvID=None, toPending=False):
+def submitJobs(jobs, toPending=False):
     """
     Submit jobs
 
     args:
         jobs: the list of JobSpecs
-        srvID: obsolete
         toPending: set True if jobs need to be pending state for the
                    two-staged submission mechanism
     returns:
@@ -259,8 +198,7 @@ def submitJobs(jobs, srvID=None, toPending=False):
 
     http_client = HttpClient()
 
-    # execute
-    url = _getURL("URLSSL", srvID) + "/submitJobs"
+    url = f"{baseURLSSL}/submitJobs"
     data = {"jobs": strJobs}
     if toPending:
         data["toPending"] = True
@@ -297,7 +235,7 @@ def getJobStatus(panda_ids):
     http_client.use_json = True
 
     # Execute
-    url = f"{_getURL('URL')}/getJobStatus"
+    url = f"{baseURL}/getJobStatus"
     data = {"ids": str_ids}
     status, output = http_client.post(url, data)
     try:
@@ -325,8 +263,7 @@ def getPandaIDwithJobExeID(ids):
     strIDs = pickle_dumps(ids)
 
     http_client = HttpClient()
-    # execute
-    url = _getURL("URL") + "/getPandaIDwithJobExeID"
+    url = f"{baseURL}/getPandaIDwithJobExeID"
     data = {"ids": strIDs}
     status, output = http_client.post(url, data)
     try:
@@ -342,7 +279,6 @@ def killJobs(
     ids,
     code=None,
     verbose=False,
-    srvID=None,
     useMailAsID=False,
     keepUnmerged=False,
     jobSubStatus=None,
@@ -366,7 +302,6 @@ def killJobs(
                  50: kill by JEDI
                  91: kill user jobs with prod role
            verbose: set True to see what's going on
-           srvID: obsolete
            useMailAsID: obsolete
            keepUnmerged: set True not to cancel unmerged jobs when pmerge is killed.
            jobSubStatus: set job sub status if any
@@ -382,7 +317,7 @@ def killJobs(
     http_client = HttpClient()
 
     # execute
-    url = _getURL("URLSSL", srvID) + "/killJobs"
+    url = f"{baseURLSSL}/killJobs"
     data = {"ids": strIDs, "code": code, "useMailAsID": useMailAsID}
     killOpts = ""
     if keepUnmerged:
@@ -423,7 +358,7 @@ def reassignJobs(ids, forPending=False, firstSubmission=None):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/reassignJobs"
+    url = f"{baseURLSSL}/reassignJobs"
     data = {"ids": strIDs}
     if forPending:
         data["forPending"] = True
@@ -450,7 +385,7 @@ def queryPandaIDs(ids):
 
     http_client = HttpClient()
     # execute
-    url = baseURL + "/queryPandaIDs"
+    url = f"{baseURL}/queryPandaIDs"
     data = {"ids": strIDs}
     status, output = http_client.post(url, data)
     try:
@@ -482,36 +417,37 @@ def getJobStatistics(sourcetype=None):
     http_client = HttpClient()
     # execute
     ret = {}
-    for srvID in getPandas():
-        url = _getURL("URL", srvID) + "/getJobStatistics"
-        data = {}
-        if sourcetype is not None:
-            data["sourcetype"] = sourcetype
-        status, output = http_client.get(url, data)
-        try:
-            tmpRet = status, pickle_loads(output)
-            if status != 0:
-                return tmpRet
-        except Exception:
-            print(output)
-            type, value, traceBack = sys.exc_info()
-            errStr = f"ERROR getJobStatistics : {type} {value}"
-            print(errStr)
-            return EC_Failed, output + "\n" + errStr
-        # gather
-        for tmpCloud in tmpRet[1]:
-            tmpVal = tmpRet[1][tmpCloud]
-            if tmpCloud not in ret:
-                # append cloud values
-                ret[tmpCloud] = tmpVal
-            else:
-                # sum statistics
-                for tmpStatus in tmpVal:
-                    tmpCount = tmpVal[tmpStatus]
-                    if tmpStatus in ret[tmpCloud]:
-                        ret[tmpCloud][tmpStatus] += tmpCount
-                    else:
-                        ret[tmpCloud][tmpStatus] = tmpCount
+
+    url = f"{baseURL}/getJobStatistics"
+    data = {}
+    if sourcetype is not None:
+        data["sourcetype"] = sourcetype
+    status, output = http_client.get(url, data)
+    try:
+        tmpRet = status, pickle_loads(output)
+        if status != 0:
+            return tmpRet
+    except Exception:
+        print(output)
+        type, value, traceBack = sys.exc_info()
+        errStr = f"ERROR getJobStatistics : {type} {value}"
+        print(errStr)
+        return EC_Failed, output + "\n" + errStr
+    # gather
+    for tmpCloud in tmpRet[1]:
+        tmpVal = tmpRet[1][tmpCloud]
+        if tmpCloud not in ret:
+            # append cloud values
+            ret[tmpCloud] = tmpVal
+        else:
+            # sum statistics
+            for tmpStatus in tmpVal:
+                tmpCount = tmpVal[tmpStatus]
+                if tmpStatus in ret[tmpCloud]:
+                    ret[tmpCloud][tmpStatus] += tmpCount
+                else:
+                    ret[tmpCloud][tmpStatus] = tmpCount
+
     return 0, ret
 
 
@@ -532,41 +468,40 @@ def getJobStatisticsForBamboo(useMorePG=False):
     http_client = HttpClient()
     # execute
     ret = {}
-    for srvID in getPandas():
-        url = _getURL("URL", srvID) + "/getJobStatisticsForBamboo"
-        data = {}
-        if useMorePG is not False:
-            data["useMorePG"] = useMorePG
-        status, output = http_client.get(url, data)
-        try:
-            tmpRet = status, pickle_loads(output)
-            if status != 0:
-                return tmpRet
-        except Exception:
-            print(output)
-            type, value, traceBack = sys.exc_info()
-            errStr = f"ERROR getJobStatisticsForBamboo : {type} {value}"
-            print(errStr)
-            return EC_Failed, output + "\n" + errStr
-        # gather
-        for tmpCloud in tmpRet[1]:
-            tmpMap = tmpRet[1][tmpCloud]
-            if tmpCloud not in ret:
-                # append cloud values
-                ret[tmpCloud] = tmpMap
-            else:
-                # sum statistics
-                for tmpPType in tmpMap:
-                    tmpVal = tmpMap[tmpPType]
-                    if tmpPType not in ret[tmpCloud]:
-                        ret[tmpCloud][tmpPType] = tmpVal
-                    else:
-                        for tmpStatus in tmpVal:
-                            tmpCount = tmpVal[tmpStatus]
-                            if tmpStatus in ret[tmpCloud][tmpPType]:
-                                ret[tmpCloud][tmpPType][tmpStatus] += tmpCount
-                            else:
-                                ret[tmpCloud][tmpPType][tmpStatus] = tmpCount
+    url = f"{baseURL}/getJobStatisticsForBamboo"
+    data = {}
+    if useMorePG is not False:
+        data["useMorePG"] = useMorePG
+    status, output = http_client.get(url, data)
+    try:
+        tmpRet = status, pickle_loads(output)
+        if status != 0:
+            return tmpRet
+    except Exception:
+        print(output)
+        type, value, traceBack = sys.exc_info()
+        errStr = f"ERROR getJobStatisticsForBamboo : {type} {value}"
+        print(errStr)
+        return EC_Failed, output + "\n" + errStr
+    # gather
+    for tmpCloud in tmpRet[1]:
+        tmpMap = tmpRet[1][tmpCloud]
+        if tmpCloud not in ret:
+            # append cloud values
+            ret[tmpCloud] = tmpMap
+        else:
+            # sum statistics
+            for tmpPType in tmpMap:
+                tmpVal = tmpMap[tmpPType]
+                if tmpPType not in ret[tmpCloud]:
+                    ret[tmpCloud][tmpPType] = tmpVal
+                else:
+                    for tmpStatus in tmpVal:
+                        tmpCount = tmpVal[tmpStatus]
+                        if tmpStatus in ret[tmpCloud][tmpPType]:
+                            ret[tmpCloud][tmpPType][tmpStatus] += tmpCount
+                        else:
+                            ret[tmpCloud][tmpPType][tmpStatus] = tmpCount
     return 0, ret
 
 
@@ -587,9 +522,7 @@ def getHighestPrioJobStat(perPG=False, useMorePG=False):
     """
 
     http_client = HttpClient()
-    # execute
-    ret = {}
-    url = baseURL + "/getHighestPrioJobStat"
+    url = f"{baseURL}/getHighestPrioJobStat"
     data = {"perPG": perPG}
     if useMorePG is not False:
         data["useMorePG"] = useMorePG
@@ -604,7 +537,7 @@ def getHighestPrioJobStat(perPG=False, useMorePG=False):
         return EC_Failed, output + "\n" + errStr
 
 
-def getJobsToBeUpdated(limit=5000, lockedby="", srvID=None):
+def getJobsToBeUpdated(limit=5000, lockedby=""):
     """
     TODO: candidate for deletion
     Get the list of jobs which have been recently updated.
@@ -612,7 +545,6 @@ def getJobsToBeUpdated(limit=5000, lockedby="", srvID=None):
     args:
         limit: the maximum number of jobs
         lockedby: name of the machinery which submitted jobs
-        srvID: obsolete
     returns:
         status code
               0: communication succeeded to the panda server
@@ -623,7 +555,7 @@ def getJobsToBeUpdated(limit=5000, lockedby="", srvID=None):
 
     http_client = HttpClient()
     # execute
-    url = _getURL("URL", srvID) + "/getJobsToBeUpdated"
+    url = f"{baseURL}/getJobsToBeUpdated"
     status, output = http_client.get(url, {"limit": limit, "lockedby": lockedby})
     try:
         return status, pickle_loads(output)
@@ -635,7 +567,7 @@ def getJobsToBeUpdated(limit=5000, lockedby="", srvID=None):
         return EC_Failed, output + "\n" + errStr
 
 
-def updateProdDBUpdateTimes(params, verbose=False, srvID=None):
+def updateProdDBUpdateTimes(params, verbose=False):
     """
     TODO: candidate for deletion
     Update timestamp of jobs when update info is propagated to another database
@@ -643,7 +575,6 @@ def updateProdDBUpdateTimes(params, verbose=False, srvID=None):
     args:
         params: map of PandaID and jobStatus and timestamp
         verbose: set True to see what's going on
-        srvID: obsolete
     returns:
         status code
               0: communication succeeded to the panda server
@@ -659,7 +590,7 @@ def updateProdDBUpdateTimes(params, verbose=False, srvID=None):
     http_client = HttpClient()
 
     # execute
-    url = _getURL("URLSSL", srvID) + "/updateProdDBUpdateTimes"
+    url = f"{baseURLSSL}/updateProdDBUpdateTimes"
     data = {"params": strPar}
     status, output = http_client.post(url, data)
     try:
@@ -690,7 +621,7 @@ def getPandaIDsSite(site, status, limit=500):
 
     http_client = HttpClient()
     # execute
-    url = baseURL + "/getPandaIDsSite"
+    url = f"{baseURL}/getPandaIDsSite"
     status, output = http_client.get(url, {"site": site, "status": status, "limit": limit})
     try:
         return status, pickle_loads(output)
@@ -734,44 +665,43 @@ def getJobStatisticsPerSite(
     http_client = HttpClient()
     # execute
     ret = {}
-    for srvID in getPandas():
-        url = _getURL("URL", srvID) + "/getJobStatisticsPerSite"
-        data = {"predefined": predefined}
-        if workingGroup not in ["", None]:
-            data["workingGroup"] = workingGroup
-        if countryGroup not in ["", None]:
-            data["countryGroup"] = countryGroup
-        if jobType not in ["", None]:
-            data["jobType"] = jobType
-        if minPriority not in ["", None]:
-            data["minPriority"] = minPriority
-        if readArchived not in ["", None]:
-            data["readArchived"] = readArchived
-        status, output = http_client.get(url, data)
-        try:
-            tmpRet = status, pickle_loads(output)
-            if status != 0:
-                return tmpRet
-        except Exception:
-            print(output)
-            type, value, traceBack = sys.exc_info()
-            errStr = f"ERROR getJobStatisticsPerSite : {type} {value}"
-            print(errStr)
-            return EC_Failed, output + "\n" + errStr
-        # gather
-        for tmpSite in tmpRet[1]:
-            tmpVal = tmpRet[1][tmpSite]
-            if tmpSite not in ret:
-                # append site values
-                ret[tmpSite] = tmpVal
-            else:
-                # sum statistics
-                for tmpStatus in tmpVal:
-                    tmpCount = tmpVal[tmpStatus]
-                    if tmpStatus in ret[tmpSite]:
-                        ret[tmpSite][tmpStatus] += tmpCount
-                    else:
-                        ret[tmpSite][tmpStatus] = tmpCount
+    url = f"{baseURL}/getJobStatisticsPerSite"
+    data = {"predefined": predefined}
+    if workingGroup not in ["", None]:
+        data["workingGroup"] = workingGroup
+    if countryGroup not in ["", None]:
+        data["countryGroup"] = countryGroup
+    if jobType not in ["", None]:
+        data["jobType"] = jobType
+    if minPriority not in ["", None]:
+        data["minPriority"] = minPriority
+    if readArchived not in ["", None]:
+        data["readArchived"] = readArchived
+    status, output = http_client.get(url, data)
+    try:
+        tmpRet = status, pickle_loads(output)
+        if status != 0:
+            return tmpRet
+    except Exception:
+        print(output)
+        type, value, traceBack = sys.exc_info()
+        errStr = f"ERROR getJobStatisticsPerSite : {type} {value}"
+        print(errStr)
+        return EC_Failed, output + "\n" + errStr
+    # gather
+    for tmpSite in tmpRet[1]:
+        tmpVal = tmpRet[1][tmpSite]
+        if tmpSite not in ret:
+            # append site values
+            ret[tmpSite] = tmpVal
+        else:
+            # sum statistics
+            for tmpStatus in tmpVal:
+                tmpCount = tmpVal[tmpStatus]
+                if tmpStatus in ret[tmpSite]:
+                    ret[tmpSite][tmpStatus] += tmpCount
+                else:
+                    ret[tmpSite][tmpStatus] = tmpCount
     return 0, ret
 
 
@@ -791,7 +721,7 @@ def getJobStatisticsPerSiteResource(timeWindow=None):
 
     http_client = HttpClient()
     # execute
-    url = baseURL + "/getJobStatisticsPerSiteResource"
+    url = f"{baseURL}/getJobStatisticsPerSiteResource"
     data = {}
     if timeWindow is not None:
         data["timeWindow"] = timeWindow
@@ -822,7 +752,7 @@ def get_job_statistics_per_site_label_resource(time_window=None):
 
     http_client = HttpClient()
     # execute
-    url = baseURL + "/get_job_statistics_per_site_label_resource"
+    url = f"{baseURL}/get_job_statistics_per_site_label_resource"
     data = {}
     if time_window is not None:
         data["time_window"] = time_window
@@ -855,7 +785,7 @@ def queryLastFilesInDataset(datasets):
 
     http_client = HttpClient()
     # execute
-    url = baseURL + "/queryLastFilesInDataset"
+    url = f"{baseURL}/queryLastFilesInDataset"
     data = {"datasets": strDSs}
     status, output = http_client.post(url, data)
     try:
@@ -886,7 +816,7 @@ def insertSandboxFileInfo(userName, fileName, fileSize, checkSum, verbose=False)
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/insertSandboxFileInfo"
+    url = f"{baseURLSSL}/insertSandboxFileInfo"
     data = {
         "userName": userName,
         "fileName": fileName,
@@ -912,7 +842,7 @@ def putFile(file):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/putFile"
+    url = f"{baseURLSSL}/putFile"
     data = {"file": file}
     return http_client.post_files(url, data)
 
@@ -923,18 +853,18 @@ def deleteFile(file):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/deleteFile"
+    url = f"{baseURLSSL}/deleteFile"
     data = {"file": file}
     return http_client.post(url, data)
 
 
 # touch file (obsolete)
 # TODO: is this really obsolete? I think it's used in panda cache
-def touchFile(sourceURL, filename):
+def touchFile(source_url, filename):
     http_client = HttpClient()
 
     # execute
-    url = sourceURL + "/server/panda/touchFile"
+    url = f"{source_url}/server/panda/touchFile"
     data = {"filename": filename}
     return http_client.post(url, data)
 
@@ -958,7 +888,7 @@ def getSiteSpecs(siteType=None):
 
     http_client = HttpClient()
     # execute
-    url = baseURL + "/getSiteSpecs"
+    url = f"{baseURL}/getSiteSpecs"
     data = {}
     if siteType is not None:
         data = {"siteType": siteType}
@@ -988,7 +918,7 @@ def getCloudSpecs():
 
     http_client = HttpClient()
     # execute
-    url = baseURL + "/getCloudSpecs"
+    url = f"{baseURL}/getCloudSpecs"
     status, output = http_client.get(url, {})
     try:
         return status, pickle_loads(output)
@@ -1020,7 +950,7 @@ def runBrokerage(sites, atlasRelease, cmtConfig=None):
 
     http_client = HttpClient()
     # execute
-    url = baseURL + "/runBrokerage"
+    url = f"{baseURL}/runBrokerage"
     data = {"sites": strSites, "atlasRelease": atlasRelease}
     if cmtConfig is not None:
         data["cmtConfig"] = cmtConfig
@@ -1047,7 +977,7 @@ def insertTaskParams(taskParams):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/insertTaskParams"
+    url = f"{baseURLSSL}/insertTaskParams"
     data = {"taskParams": taskParamsStr}
     status, output = http_client.post(url, data)
     try:
@@ -1082,7 +1012,7 @@ def killTask(jediTaskID, broadcast=False):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/killTask"
+    url = f"{baseURLSSL}/killTask"
     data = {"jediTaskID": jediTaskID}
     data["properErrorCode"] = True
     data["broadcast"] = broadcast
@@ -1123,7 +1053,7 @@ def finishTask(jediTaskID, soft=False, broadcast=False):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/finishTask"
+    url = f"{baseURLSSL}/finishTask"
     data = {"jediTaskID": jediTaskID}
     data["properErrorCode"] = True
     data["broadcast"] = broadcast
@@ -1167,7 +1097,7 @@ def reassignTaskToSite(jediTaskID, site, mode=None):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/reassignTask"
+    url = f"{baseURLSSL}/reassignTask"
     data = {"jediTaskID": jediTaskID, "site": site}
     if mode is not None:
         data["mode"] = mode
@@ -1206,7 +1136,7 @@ def reassignTaskToCloud(jediTaskID, cloud, mode=None):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/reassignTask"
+    url = f"{baseURLSSL}/reassignTask"
     data = {"jediTaskID": jediTaskID, "cloud": cloud}
     if mode is not None:
         data["mode"] = mode
@@ -1244,7 +1174,7 @@ def reassignTaskToNucleus(jediTaskID, nucleus, mode=None):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/reassignTask"
+    url = f"{baseURLSSL}/reassignTask"
     data = {"jediTaskID": jediTaskID, "nucleus": nucleus}
     if mode is not None:
         data["mode"] = mode
@@ -1281,7 +1211,7 @@ def uploadLog(logStr, logFileName):
     gfh.write(logStr)
     gfh.close()
     # execute
-    url = baseURLSSL + "/uploadLog"
+    url = f"{baseURLSSL}/uploadLog"
     data = {"file": f"{fh.name};filename={logFileName}"}
     retVal = http_client.post_files(url, data)
     os.unlink(fh.name)
@@ -1308,7 +1238,7 @@ def changeTaskPriority(jediTaskID, newPriority):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/changeTaskPriority"
+    url = f"{baseURLSSL}/changeTaskPriority"
     data = {"jediTaskID": jediTaskID, "newPriority": newPriority}
     status, output = http_client.post(url, data)
     try:
@@ -1336,7 +1266,7 @@ def setDebugMode(pandaID, modeOn):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/setDebugMode"
+    url = f"{baseURLSSL}/setDebugMode"
     data = {"pandaID": pandaID, "modeOn": modeOn}
     return http_client.post(url, data)
 
@@ -1368,7 +1298,7 @@ def retryTask(jediTaskID, verbose=False, noChildRetry=False, discardEvents=False
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/retryTask"
+    url = f"{baseURLSSL}/retryTask"
     data = {"jediTaskID": jediTaskID}
     data["properErrorCode"] = True
     if noChildRetry:
@@ -1411,7 +1341,7 @@ def reloadInput(jediTaskID, verbose=False):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/reloadInput"
+    url = f"{baseURLSSL}/reloadInput"
     data = {"jediTaskID": jediTaskID}
     status, output = http_client.post(url, data)
     try:
@@ -1443,7 +1373,7 @@ def changeTaskWalltime(jediTaskID, wallTime):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/changeTaskAttributePanda"
+    url = f"{baseURLSSL}/changeTaskAttributePanda"
     data = {"jediTaskID": jediTaskID, "attrName": "wallTime", "attrValue": wallTime}
     status, output = http_client.post(url, data)
     try:
@@ -1475,7 +1405,7 @@ def changeTaskCputime(jediTaskID, cpuTime):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/changeTaskAttributePanda"
+    url = f"{baseURLSSL}/changeTaskAttributePanda"
     data = {"jediTaskID": jediTaskID, "attrName": "cpuTime", "attrValue": cpuTime}
     status, output = http_client.post(url, data)
     try:
@@ -1507,7 +1437,7 @@ def changeTaskRamCount(jediTaskID, ramCount):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/changeTaskAttributePanda"
+    url = f"{baseURLSSL}/changeTaskAttributePanda"
     data = {"jediTaskID": jediTaskID, "attrName": "ramCount", "attrValue": ramCount}
     status, output = http_client.post(url, data)
     try:
@@ -1540,7 +1470,7 @@ def changeTaskAttribute(jediTaskID, attrName, attrValue):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/changeTaskAttributePanda"
+    url = f"{baseURLSSL}/changeTaskAttributePanda"
     data = {"jediTaskID": jediTaskID, "attrName": attrName, "attrValue": attrValue}
     status, output = http_client.post(url, data)
     try:
@@ -1573,7 +1503,7 @@ def changeTaskSplitRule(jediTaskID, ruleName, ruleValue):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/changeTaskSplitRulePanda"
+    url = f"{baseURLSSL}/changeTaskSplitRulePanda"
     data = {"jediTaskID": jediTaskID, "attrName": ruleName, "attrValue": ruleValue}
     status, output = http_client.post(url, data)
     try:
@@ -1607,7 +1537,7 @@ def pauseTask(jediTaskID, verbose=False):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/pauseTask"
+    url = f"{baseURLSSL}/pauseTask"
     data = {"jediTaskID": jediTaskID}
     status, output = http_client.post(url, data)
     try:
@@ -1641,7 +1571,7 @@ def resumeTask(jediTaskID, verbose=False):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/resumeTask"
+    url = f"{baseURLSSL}/resumeTask"
     data = {"jediTaskID": jediTaskID}
     status, output = http_client.post(url, data)
     try:
@@ -1675,7 +1605,7 @@ def avalancheTask(jediTaskID, verbose=False):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/avalancheTask"
+    url = f"{baseURLSSL}/avalancheTask"
     data = {"jediTaskID": jediTaskID}
     status, output = http_client.post(url, data)
     try:
@@ -1709,7 +1639,7 @@ def increaseAttemptNr(jediTaskID, increase):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/increaseAttemptNrPanda"
+    url = f"{baseURLSSL}/increaseAttemptNrPanda"
     data = {"jediTaskID": jediTaskID, "increasedNr": increase}
     status, output = http_client.post(url, data)
     try:
@@ -1720,7 +1650,7 @@ def increaseAttemptNr(jediTaskID, increase):
         return EC_Failed, output + "\n" + errStr
 
 
-def killUnfinishedJobs(jediTaskID, code=None, verbose=False, srvID=None, useMailAsID=False):
+def killUnfinishedJobs(jediTaskID, code=None, verbose=False, useMailAsID=False):
     """
     Kill unfinished jobs in a task. Normal users can kill only their own jobs.
     People with production VOMS role can kill any jobs.
@@ -1739,7 +1669,6 @@ def killUnfinishedJobs(jediTaskID, code=None, verbose=False, srvID=None, useMail
                  50: kill by JEDI
                  91: kill user jobs with prod role
            verbose: set True to see what's going on
-           srvID: obsolete
            useMailAsID: obsolete
        returns:
            status code
@@ -1751,7 +1680,7 @@ def killUnfinishedJobs(jediTaskID, code=None, verbose=False, srvID=None, useMail
     http_client = HttpClient()
 
     # execute
-    url = _getURL("URLSSL", srvID) + "/killUnfinishedJobs"
+    url = f"{baseURLSSL}/killUnfinishedJobs"
     data = {"jediTaskID": jediTaskID, "code": code, "useMailAsID": useMailAsID}
     status, output = http_client.post(url, data)
     try:
@@ -1783,7 +1712,7 @@ def triggerTaskBrokerage(jediTaskID):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/changeTaskModTimePanda"
+    url = f"{baseURLSSL}/changeTaskModTimePanda"
     data = {"jediTaskID": jediTaskID, "diffValue": -12}
     status, output = http_client.post(url, data)
     try:
@@ -1843,7 +1772,7 @@ def reactivateTask(jediTaskID, keep_attempt_nr=False, trigger_job_generation=Fal
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/reactivateTask"
+    url = f"{baseURLSSL}/reactivateTask"
     data = {"jediTaskID": jediTaskID}
     if keep_attempt_nr:
         data["keep_attempt_nr"] = True
@@ -1907,7 +1836,7 @@ def reassignShare(jedi_task_ids, share, reassign_running=False):
     jedi_task_ids_pickle = pickle_dumps(jedi_task_ids)
     change_running_pickle = pickle_dumps(reassign_running)
     # execute
-    url = baseURLSSL + "/reassignShare"
+    url = f"{baseURLSSL}/reassignShare"
     data = {
         "jedi_task_ids_pickle": jedi_task_ids_pickle,
         "share": share,
@@ -1944,7 +1873,7 @@ def listTasksInShare(gshare, status="running"):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/listTasksInShare"
+    url = f"{baseURLSSL}/listTasksInShare"
     data = {"gshare": gshare, "status": status}
     status, output = http_client.post(url, data)
 
@@ -2011,7 +1940,7 @@ def setNumSlotsForWP(pandaQueueName, numSlots, gshare=None, resourceType=None, v
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/setNumSlotsForWP"
+    url = f"{baseURLSSL}/setNumSlotsForWP"
     data = {"pandaQueueName": pandaQueueName, "numSlots": numSlots}
     if gshare is not None:
         data["gshare"] = gshare
@@ -2052,7 +1981,7 @@ def enableJumboJobs(jediTaskID, totalJumboJobs=1, nJumboPerSite=1):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/enableJumboJobs"
+    url = f"{baseURLSSL}/enableJumboJobs"
     data = {
         "jediTaskID": jediTaskID,
         "nJumboJobs": totalJumboJobs,
@@ -2087,7 +2016,7 @@ def getGShareStatus():
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/getGShareStatus"
+    url = f"{baseURLSSL}/getGShareStatus"
 
     status, output = http_client.post(url, {})
     try:
@@ -2124,7 +2053,7 @@ def sweepPQ(panda_queue, status_list, ce_list, submission_host_list):
     submission_host_list_json = json.dumps(submission_host_list)
 
     # execute
-    url = baseURLSSL + "/sweepPQ"
+    url = f"{baseURLSSL}/sweepPQ"
     data = {
         "panda_queue": panda_queue_json,
         "status_list": status_list_json,
@@ -2160,7 +2089,7 @@ def send_command_to_job(panda_id, com):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/send_command_to_job"
+    url = f"{baseURLSSL}/send_command_to_job"
     data = {"panda_id": panda_id, "com": com}
     status, output = http_client.post(url, data)
 
@@ -2223,7 +2152,7 @@ def release_task(jedi_task_id, verbose=False):
     http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/release_task"
+    url = f"{baseURLSSL}/release_task"
     data = {"jedi_task_id": jedi_task_id}
     status, output = http_client.post(url, data)
     try:
