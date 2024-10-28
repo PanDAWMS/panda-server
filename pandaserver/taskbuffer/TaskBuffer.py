@@ -2921,17 +2921,6 @@ class TaskBuffer:
 
         return res
 
-    # list tasks in share
-    def listTasksInShare(self, gshare, status):
-        # get DB proxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        res = proxy.listTasksInShare(gshare, status)
-        # release DB proxy
-        self.proxyPool.putProxy(proxy)
-
-        return res
-
     def is_valid_share(self, share_name):
         """
         Checks whether the share is a valid leave share

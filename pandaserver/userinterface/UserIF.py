@@ -620,10 +620,6 @@ class UserIF:
     def getGShareStatus(self):
         return self.taskBuffer.getGShareStatus()
 
-    # list tasks in share
-    def listTasksInShare(self, gshare, status):
-        return self.taskBuffer.listTasksInShare(gshare, status)
-
     # get taskParamsMap
     def getTaskParamsMap(self, jediTaskID):
         # get taskParamsMap
@@ -1879,26 +1875,6 @@ def reassignShare(req, jedi_task_ids_pickle, share, reassign_running):
         return WrappedPickle.dumps((False, "jedi_task_ids must be tuple/list and share must be string"))
 
     ret = userIF.reassignShare(jedi_task_ids, share, reassign_running)
-    return WrappedPickle.dumps(ret)
-
-
-# list tasks in share
-def listTasksInShare(req, gshare, status):
-    # check security
-    if not isSecure(req):
-        return WrappedPickle.dumps((False, "secure connection is required"))
-
-    # check role
-    prod_role = _hasProdRole(req)
-    if not prod_role:
-        return WrappedPickle.dumps((False, "production or pilot role required"))
-
-    _logger.debug(f"listTasksInShare: gshare: {gshare}, status: {status}")
-
-    if not ((isinstance(gshare, str) and isinstance(status, str))):
-        return WrappedPickle.dumps((False, "gshare and status must be of type string"))
-
-    ret = userIF.listTasksInShare(gshare, status)
     return WrappedPickle.dumps(ret)
 
 

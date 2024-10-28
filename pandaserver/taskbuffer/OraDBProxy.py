@@ -19173,39 +19173,6 @@ class DBProxy:
             tmp_log.error(f"reassignShare : {type} {value}")
             return -1, None
 
-    def listTasksInShare(self, gshare, status):
-        """
-        Lists all task ids corresponding to share and in specified status
-        @param gshare: global share
-        @param status: status
-        """
-
-        comment = " /* DBProxy.listTasksInShare */"
-        method_name = comment.split(" ")[-2].split(".")[-1]
-        tmp_log = LogWrapper(_logger, method_name)
-        tmp_log.debug("start")
-
-        try:
-            # Prepare the bindings and var map
-            var_map = {":gshare": gshare, "status": status}
-
-            sql = """
-                  SELECT jeditaskid FROM ATLAS_PANDA.jedi_tasks
-                  WHERE gshare=:gshare AND status=:status
-                  """
-
-            self.cur.execute(sql + comment, var_map)
-            jedi_task_ids = [entry[0] for entry in self.cur.fetchall()]
-
-            tmp_log.debug("done")
-            return 0, jedi_task_ids
-
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"{comment}: {sql} {var_map}")
-            _logger.error(f"{comment}: {type} {value}")
-            return -1, None
-
     def getCommands(self, harvester_id, n_commands):
         """
         Gets n commands in status 'new' for a particular harvester instance and updates their status to 'retrieved'

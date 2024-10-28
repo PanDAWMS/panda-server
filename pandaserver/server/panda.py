@@ -129,7 +129,6 @@ from pandaserver.userinterface.UserIF import (
     killJobs,
     killTask,
     killUnfinishedJobs,
-    listTasksInShare,
     pauseTask,
     reactivateTask,
     reassignJobs,

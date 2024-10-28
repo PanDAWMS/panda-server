@@ -1582,39 +1582,6 @@ def reassignShare(jedi_task_ids, share, reassign_running=False):
         return EC_Failed, f"{output}\n{err_str}"
 
 
-def listTasksInShare(gshare, status="running"):
-    """
-    TODO: Candidate for deletion
-    List tasks in a particular share and optionally status
-
-    args:
-        gshare: global share
-        status: task status, running by default
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        return: a tuple of return code and jedi_task_ids
-              1: logical error
-              0: success
-              None: database error
-    """
-
-    http_client = HttpClient()
-
-    # execute
-    url = f"{baseURLSSL}/listTasksInShare"
-    data = {"gshare": gshare, "status": status}
-    status, output = http_client.post(url, data)
-
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        err_type, err_value = sys.exc_info()[:2]
-        err_str = f"ERROR listTasksInShare : {err_type} {err_value}"
-        return EC_Failed, f"{output}\n{err_str}"
-
-
 def getTaskParamsMap(jediTaskID):
     """
     Fet task parameter map for a certain task ID

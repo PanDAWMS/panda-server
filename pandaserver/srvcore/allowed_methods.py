@@ -93,7 +93,6 @@ allowed_methods += [
     "reactivateTask",
     "getTaskStatus",
     "reassignShare",
-    "listTasksInShare",
     "getTaskParamsMap",
     "updateWorkers",
     "harvesterIsAlive",
