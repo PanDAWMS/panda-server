@@ -1993,20 +1993,6 @@ class TaskBuffer:
 
         return conRet
 
-    # get highest prio jobs
-    def getHighestPrioJobStat(self, perPG=False, useMorePG=False):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get stat
-        if not perPG:
-            ret = proxy.getHighestPrioJobStat()
-        else:
-            ret = proxy.getHighestPrioJobStatPerPG(useMorePG)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
     # get queued analysis jobs at a site
     def getQueuedAnalJobs(self, site, dn):
         # get DBproxy

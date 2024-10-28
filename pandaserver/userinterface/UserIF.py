@@ -208,11 +208,6 @@ class UserIF:
         ret = self.taskBuffer.getJobStatisticsForExtIF(sourcetype)
         return WrappedPickle.dumps(ret)
 
-    # get highest prio jobs
-    def getHighestPrioJobStat(self, perPG=False, useMorePG=False):
-        ret = self.taskBuffer.getHighestPrioJobStat(perPG, useMorePG)
-        return WrappedPickle.dumps(ret)
-
     # get queued analysis jobs at a site
     def getQueuedAnalJobs(self, site, dn):
         ret = self.taskBuffer.getQueuedAnalJobs(site, dn)
@@ -1001,24 +996,6 @@ def updateProdDBUpdateTimes(req, params):
 # get job statistics
 def getJobStatistics(req, sourcetype=None):
     return userIF.getJobStatistics(sourcetype)
-
-
-# get highest prio jobs
-def getHighestPrioJobStat(req, perPG=None, useMorePG=None):
-    if perPG == "True":
-        perPG = True
-    else:
-        perPG = False
-    if useMorePG == "True":
-        useMorePG = pandaserver.taskbuffer.ProcessGroups.extensionLevel_1
-    elif useMorePG in ["False", None]:
-        useMorePG = False
-    else:
-        try:
-            useMorePG = int(useMorePG)
-        except Exception:
-            useMorePG = False
-    return userIF.getHighestPrioJobStat(perPG, useMorePG)
 
 
 # get job statistics for Babmoo

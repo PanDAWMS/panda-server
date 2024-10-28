@@ -100,7 +100,6 @@ from pandaserver.userinterface.UserIF import (
     getFilesInUseForAnal,
     getFullJobStatus,
     getGShareStatus,
-    getHighestPrioJobStat,
     getJediTaskDetails,
     getJediTasksInTimeRange,
     getJobIDsInTimeRange,

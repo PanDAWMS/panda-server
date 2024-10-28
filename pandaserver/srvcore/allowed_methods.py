@@ -67,7 +67,6 @@ allowed_methods += [
     "getPandaClientVer",
     "getSlimmedFileInfoPandaIDs",
     "getQueuedAnalJobs",
-    "getHighestPrioJobStat",
     "getActiveDatasets",
     "getSerialNumberForGroupJob",
     "checkMergeGenerationStatus",

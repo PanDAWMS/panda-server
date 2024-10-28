@@ -448,38 +448,6 @@ def getJobStatisticsForBamboo(useMorePG=False):
     return 0, ret
 
 
-def getHighestPrioJobStat(perPG=False, useMorePG=False):
-    """
-    TODO: candidate for deletion
-    Get the number of jobs with the highest priorities in each combination of cloud and processingType
-
-    args:
-        perPG: set True if grouped by processingGroup instead of processingType
-        useMorePG: set True if fine-grained classification is required
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        map of the number jobs and priorities in each combination of cloud and processingType (or processingGroup)
-
-    """
-
-    http_client = HttpClient()
-    url = f"{baseURL}/getHighestPrioJobStat"
-    data = {"perPG": perPG}
-    if useMorePG is not False:
-        data["useMorePG"] = useMorePG
-    status, output = http_client.get(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        print(output)
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getHighestPrioJobStat : {type} {value}"
-        print(errStr)
-        return EC_Failed, f"{output}\n{errStr}"
-
-
 def getJobsToBeUpdated(limit=5000, lockedby=""):
     """
     TODO: candidate for deletion
