@@ -108,7 +108,6 @@ from pandaserver.userinterface.UserIF import (
     getJobStatisticsPerSite,
     getJobStatisticsPerSiteResource,
     getJobStatus,
-    getJobsToBeUpdated,
     getJumboJobDatasets,
     getLFNsInUseForAnal,
     getPandaClientVer,

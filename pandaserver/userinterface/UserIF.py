@@ -259,11 +259,6 @@ class UserIF:
         ret = self.taskBuffer.getPandaIDsSite(site, status, limit)
         return WrappedPickle.dumps(ret)
 
-    # get PandaIDs to be updated in prodDB
-    def getJobsToBeUpdated(self, limit, lockedby):
-        ret = self.taskBuffer.getPandaIDsForProdDB(limit, lockedby)
-        return WrappedPickle.dumps(ret)
-
     # update prodDBUpdateTimes
     def updateProdDBUpdateTimes(self, paramsStr):
         params = WrappedPickle.loads(paramsStr)
@@ -977,12 +972,6 @@ def checkSandboxFile(req, fileSize, checkSum):
 # get PandaIDs at site
 def getPandaIDsSite(req, site, status, limit=500):
     return userIF.getPandaIDsSite(site, status, limit)
-
-
-# get PandaIDs to be updated in prodDB
-def getJobsToBeUpdated(req, limit=5000, lockedby=""):
-    limit = int(limit)
-    return userIF.getJobsToBeUpdated(limit, lockedby)
 
 
 # update prodDBUpdateTimes

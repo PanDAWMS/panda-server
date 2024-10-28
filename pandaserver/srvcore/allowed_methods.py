@@ -55,7 +55,6 @@ allowed_methods += [
     "resubmitJobs",
     "queryLastFilesInDataset",
     "getPandaIDsSite",
-    "getJobsToBeUpdated",
     "updateProdDBUpdateTimes",
     "getSiteSpecs",
     "getCloudSpecs",

@@ -448,36 +448,6 @@ def getJobStatisticsForBamboo(useMorePG=False):
     return 0, ret
 
 
-def getJobsToBeUpdated(limit=5000, lockedby=""):
-    """
-    TODO: candidate for deletion
-    Get the list of jobs which have been recently updated.
-
-    args:
-        limit: the maximum number of jobs
-        lockedby: name of the machinery which submitted jobs
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        the lit of PandaIDs
-
-    """
-
-    http_client = HttpClient()
-    # execute
-    url = f"{baseURL}/getJobsToBeUpdated"
-    status, output = http_client.get(url, {"limit": limit, "lockedby": lockedby})
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        print(output)
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getJobsToBeUpdated : {type} {value}"
-        print(errStr)
-        return EC_Failed, f"{output}\n{errStr}"
-
-
 def updateProdDBUpdateTimes(params, verbose=False):
     """
     TODO: candidate for deletion
