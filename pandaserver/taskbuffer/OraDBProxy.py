@@ -5838,64 +5838,6 @@ class DBProxy:
             self._rollback()
             return []
 
-    # update prodDBUpdateTime
-    def updateProdDBUpdateTime(self, param):
-        comment = " /* DBProxy.updateProdDBUpdateTime */"
-        _logger.debug(f"updateProdDBUpdateTime {str(param)}")
-        sql0 = "UPDATE %s "
-        sql0 += "SET prodDBUpdateTime=TO_TIMESTAMP(:prodDBUpdateTime,'YYYY-MM-DD HH24:MI:SS') "
-        sql0 += "WHERE PandaID=:PandaID AND jobStatus=:jobStatus AND stateChangeTime=TO_TIMESTAMP(:stateChangeTime,'YYYY-MM-DD HH24:MI:SS') "
-        varMap = {}
-        varMap[":prodDBUpdateTime"] = param["stateChangeTime"]
-        varMap[":PandaID"] = param["PandaID"]
-        varMap[":jobStatus"] = param["jobStatus"]
-        varMap[":stateChangeTime"] = param["stateChangeTime"]
-        try:
-            # convert to string
-            if isinstance(varMap[":prodDBUpdateTime"], datetime.datetime):
-                varMap[":prodDBUpdateTime"] = varMap[":prodDBUpdateTime"].strftime("%Y-%m-%d %H:%M:%S")
-            if isinstance(varMap[":stateChangeTime"], datetime.datetime):
-                varMap[":stateChangeTime"] = varMap[":stateChangeTime"].strftime("%Y-%m-%d %H:%M:%S")
-            # set table
-            if param["jobStatus"] in ["defined", "assigned"]:
-                table = "ATLAS_PANDA.jobsDefined4"
-            elif param["jobStatus"] in ["waiting", "pending"]:
-                table = "ATLAS_PANDA.jobsWaiting4"
-            elif param["jobStatus"] in [
-                "activated",
-                "sent",
-                "starting",
-                "running",
-                "holding",
-                "transferring",
-            ]:
-                table = "ATLAS_PANDA.jobsActive4"
-            elif param["jobStatus"] in ["finished", "failed", "cancelled", "closed"]:
-                table = "ATLAS_PANDA.jobsArchived4"
-            else:
-                _logger.error(f"invalid status {param['jobStatus']}")
-                return False
-            # set transaction
-            self.conn.begin()
-            # update
-            sql = sql0 % table
-            _logger.debug(sql + comment + str(varMap))
-            self.cur.execute(sql + comment, varMap)
-            retU = self.cur.rowcount
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            _logger.debug(f"updateProdDBUpdateTime {param['PandaID']} ret={retU}")
-            if retU == 1:
-                return True
-            return False
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"updateProdDBUpdateTime : {type} {value}")
-            # roll back
-            self._rollback()
-            return False
-
     # add metadata
     def addMetadata(self, pandaID, metadata, newStatus):
         comment = " /* DBProxy.addMetaData */"

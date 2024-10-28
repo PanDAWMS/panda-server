@@ -1540,20 +1540,6 @@ class TaskBuffer:
 
         return True
 
-    # update prodDBUpdateTime
-    def updateProdDBUpdateTimes(self, paramList):
-        retList = []
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # update
-        for param in paramList:
-            ret = proxy.updateProdDBUpdateTime(param)
-            retList.append(ret)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return retList
-
     # get PandaIDs at Site
     def getPandaIDsSite(self, site, status, limit):
         # get DBproxy

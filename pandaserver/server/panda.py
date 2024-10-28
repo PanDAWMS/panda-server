@@ -153,7 +153,6 @@ from pandaserver.userinterface.UserIF import (
     setNumSlotsForWP,
     submitJobs,
     sweepPQ,
-    updateProdDBUpdateTimes,
     updateServiceMetrics,
     updateWorkers,
     userIF,

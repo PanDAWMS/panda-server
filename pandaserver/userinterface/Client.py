@@ -448,41 +448,6 @@ def getJobStatisticsForBamboo(useMorePG=False):
     return 0, ret
 
 
-def updateProdDBUpdateTimes(params, verbose=False):
-    """
-    TODO: candidate for deletion
-    Update timestamp of jobs when update info is propagated to another database
-
-    args:
-        params: map of PandaID and jobStatus and timestamp
-        verbose: set True to see what's going on
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        return code
-              True: request is processed
-              False: not processed
-
-    """
-    # serialize
-    strPar = pickle_dumps(params)
-
-    http_client = HttpClient()
-
-    # execute
-    url = f"{baseURLSSL}/updateProdDBUpdateTimes"
-    data = {"params": strPar}
-    status, output = http_client.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR updateProdDBUpdateTimes : {type} {value}"
-        print(errStr)
-        return EC_Failed, f"{output}\n{errStr}"
-
-
 def getPandaIDsSite(site, status, limit=500):
     """
     TODO: candidate for deletion

@@ -259,12 +259,6 @@ class UserIF:
         ret = self.taskBuffer.getPandaIDsSite(site, status, limit)
         return WrappedPickle.dumps(ret)
 
-    # update prodDBUpdateTimes
-    def updateProdDBUpdateTimes(self, paramsStr):
-        params = WrappedPickle.loads(paramsStr)
-        _ = self.taskBuffer.updateProdDBUpdateTimes(params)
-        return WrappedPickle.dumps(True)
-
     # query last files in datasets
     def queryLastFilesInDataset(self, datasetStr):
         datasets = WrappedPickle.loads(datasetStr)
@@ -972,14 +966,6 @@ def checkSandboxFile(req, fileSize, checkSum):
 # get PandaIDs at site
 def getPandaIDsSite(req, site, status, limit=500):
     return userIF.getPandaIDsSite(site, status, limit)
-
-
-# update prodDBUpdateTimes
-def updateProdDBUpdateTimes(req, params):
-    # check security
-    if not isSecure(req):
-        return False
-    return userIF.updateProdDBUpdateTimes(params)
 
 
 # get job statistics
