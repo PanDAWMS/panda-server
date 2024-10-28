@@ -581,36 +581,6 @@ def get_job_statistics_per_site_label_resource(time_window=None):
         return EC_Failed, f"{output}\n{errStr}"
 
 
-def queryLastFilesInDataset(datasets):
-    """
-    Get names of files which have the largest serial number in each dataset
-    TODO: candidate for deletion
-
-    args:
-        datasets: the list of dataset names
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        map of the dataset name and the file name
-
-    """
-    # serialize
-    strDSs = pickle_dumps(datasets)
-
-    http_client = HttpClient()
-    # execute
-    url = f"{baseURL}/queryLastFilesInDataset"
-    data = {"datasets": strDSs}
-    status, output = http_client.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        print(f"ERROR queryLastFilesInDataset : {type} {value}")
-        return EC_Failed, None
-
-
 def insertSandboxFileInfo(userName, fileName, fileSize, checkSum, verbose=False):
     """
     Insert information of input sandbox

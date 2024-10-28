@@ -53,7 +53,6 @@ allowed_methods += [
     "getJobStatistics",
     "getJobStatisticsPerSite",
     "resubmitJobs",
-    "queryLastFilesInDataset",
     "getSiteSpecs",
     "getCloudSpecs",
     "getJobIDsInTimeRange",

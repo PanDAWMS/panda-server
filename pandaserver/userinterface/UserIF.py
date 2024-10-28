@@ -254,12 +254,6 @@ class UserIF:
         ret = self.taskBuffer.getNUserJobs(siteName)
         return WrappedPickle.dumps(ret)
 
-    # query last files in datasets
-    def queryLastFilesInDataset(self, datasetStr):
-        datasets = WrappedPickle.loads(datasetStr)
-        ret = self.taskBuffer.queryLastFilesInDataset(datasets)
-        return WrappedPickle.dumps(ret)
-
     # get input files currently in used for analysis
     def getFilesInUseForAnal(self, outDataset):
         ret = self.taskBuffer.getFilesInUseForAnal(outDataset)
@@ -1018,11 +1012,6 @@ def getJobStatisticsPerSite(
         else:
             readArchived = False
     return userIF.getJobStatisticsPerSite(predefined, workingGroup, countryGroup, jobType, minPriority, readArchived)
-
-
-# query last files in datasets
-def queryLastFilesInDataset(req, datasets):
-    return userIF.queryLastFilesInDataset(datasets)
 
 
 # get input files currently in used for analysis

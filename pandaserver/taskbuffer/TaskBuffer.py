@@ -1701,17 +1701,6 @@ class TaskBuffer:
 
         return ret
 
-    # query last files in a dataset
-    def queryLastFilesInDataset(self, datasets):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # query files
-        ret = proxy.queryLastFilesInDataset(datasets)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
     # set GUIDs
     def setGUIDs(self, files):
         # get DBproxy
