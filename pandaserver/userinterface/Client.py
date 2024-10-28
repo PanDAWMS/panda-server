@@ -50,24 +50,15 @@ class HttpClient:
         self.compress = True
 
         # SSL cert/key
-        self.sslCert = self._x509()
-        self.sslKey = self._x509()
+        self.ssl_certificate = self._x509()
+        self.ssl_key = self._x509()
 
         self.use_json = False
 
         # OIDC
-        if "PANDA_AUTH" in os.environ and os.environ["PANDA_AUTH"] == "oidc":
-            self.oidc = True
-            if "PANDA_AUTH_VO" in os.environ:
-                self.authVO = os.environ["PANDA_AUTH_VO"]
-            else:
-                self.authVO = None
-            if "PANDA_AUTH_ID_TOKEN" in os.environ:
-                self.idToken = os.environ["PANDA_AUTH_ID_TOKEN"]
-            else:
-                self.idToken = None
-        else:
-            self.oidc = False
+        self.oidc = os.getenv("PANDA_AUTH") == "oidc"
+        self.auth_vo = os.getenv("PANDA_AUTH_VO") if self.oidc else None
+        self.id_token = os.getenv("PANDA_AUTH_ID_TOKEN") if self.oidc else None
 
     def _x509(self):
         # retrieve the X509_USER_PROXY from the environment variables
@@ -96,8 +87,8 @@ class HttpClient:
         headers = {}
 
         if self.oidc:
-            headers["Authorization"] = f"Bearer {self.idToken}"
-            headers["Origin"] = self.authVO
+            headers["Authorization"] = f"Bearer {self.id_token}"
+            headers["Origin"] = self.auth_vo
 
         if self.use_json:
             headers["Accept"] = "application/json"
@@ -109,7 +100,7 @@ class HttpClient:
         cert = None
         verify = True
         if use_https:
-            cert = (self.sslCert, self.sslKey)
+            cert = (self.ssl_certificate, self.ssl_key)
 
             if not self.verifyHost:
                 verify = False
