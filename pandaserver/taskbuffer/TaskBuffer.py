@@ -1540,17 +1540,6 @@ class TaskBuffer:
 
         return True
 
-    # get PandaIDs at Site
-    def getPandaIDsSite(self, site, status, limit):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # query PandaID
-        ids = proxy.getPandaIDsSite(site, status, limit)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ids
-
     # get input files currently in used for analysis
     def getFilesInUseForAnal(self, outDataset):
         # get DBproxy

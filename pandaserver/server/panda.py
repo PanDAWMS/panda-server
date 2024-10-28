@@ -111,7 +111,6 @@ from pandaserver.userinterface.UserIF import (
     getJumboJobDatasets,
     getLFNsInUseForAnal,
     getPandaClientVer,
-    getPandaIDsSite,
     getPandaIDsWithTaskID,
     getPandIDsWithJobID,
     getQueuedAnalJobs,

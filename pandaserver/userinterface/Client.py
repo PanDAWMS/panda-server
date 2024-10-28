@@ -448,37 +448,6 @@ def getJobStatisticsForBamboo(useMorePG=False):
     return 0, ret
 
 
-def getPandaIDsSite(site, status, limit=500):
-    """
-    TODO: candidate for deletion
-    Get the list of jobs in a job status at at a site
-
-    args:
-        site: site name
-        status: job status
-        limit: maximum number of jobs
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        the list of PandaIDs
-
-    """
-
-    http_client = HttpClient()
-    # execute
-    url = f"{baseURL}/getPandaIDsSite"
-    status, output = http_client.get(url, {"site": site, "status": status, "limit": limit})
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        print(output)
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getPandaIDsSite : {type} {value}"
-        print(errStr)
-        return EC_Failed, f"{output}\n{errStr}"
-
-
 def getJobStatisticsPerSite(
     predefined=False,
     workingGroup="",

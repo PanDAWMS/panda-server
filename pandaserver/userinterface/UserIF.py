@@ -254,11 +254,6 @@ class UserIF:
         ret = self.taskBuffer.getNUserJobs(siteName)
         return WrappedPickle.dumps(ret)
 
-    # query PandaIDs at site
-    def getPandaIDsSite(self, site, status, limit):
-        ret = self.taskBuffer.getPandaIDsSite(site, status, limit)
-        return WrappedPickle.dumps(ret)
-
     # query last files in datasets
     def queryLastFilesInDataset(self, datasetStr):
         datasets = WrappedPickle.loads(datasetStr)
@@ -961,11 +956,6 @@ def checkSandboxFile(req, fileSize, checkSum):
     user = _getDN(req)
     # exec
     return userIF.checkSandboxFile(user, fileSize, checkSum)
-
-
-# get PandaIDs at site
-def getPandaIDsSite(req, site, status, limit=500):
-    return userIF.getPandaIDsSite(site, status, limit)
 
 
 # get job statistics

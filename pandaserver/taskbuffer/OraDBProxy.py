@@ -5789,55 +5789,6 @@ class DBProxy:
             self._rollback()
             return None
 
-    # get PandaIDs at Site
-    def getPandaIDsSite(self, site, status, limit):
-        comment = " /* DBProxy.getPandaIDsSite */"
-        _logger.debug(f"getPandaIDsSite : {site} {status} {limit}")
-        try:
-            ids = []
-            # find table
-            if status in ["defined", "assigned"]:
-                table = "ATLAS_PANDA.jobsDefined4"
-            elif status in ["activated", "running", "holding", "transferring"]:
-                table = "ATLAS_PANDA.jobsActive4"
-            elif status in ["waiting"]:
-                table = "ATLAS_PANDA.jobsWaiting4"
-            elif status in ["finished", "failed"]:
-                table = "ATLAS_PANDA.jobsArchived4"
-            else:
-                _logger.error(f"unknown status:{status}")
-                return ids
-            # limit
-            limit = int(limit)
-            # SQL
-            sql = f"SELECT PandaID FROM {table} "
-            sql += "WHERE computingSite=:computingSite AND jobStatus=:jobStatus AND prodSourceLabel=:prodSourceLabel "
-            sql += "AND rownum<=:limit"
-            # start transaction
-            self.conn.begin()
-            # select
-            varMap = {}
-            varMap[":computingSite"] = site
-            varMap[":jobStatus"] = status
-            varMap[":limit"] = limit
-            varMap[":prodSourceLabel"] = "managed"
-            self.cur.arraysize = limit
-            self.cur.execute(sql + comment, varMap)
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # convert to list
-            for (id,) in res:
-                ids.append(id)
-            return ids
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getPandaIDsSite : {type} {value}")
-            # roll back
-            self._rollback()
-            return []
-
     # add metadata
     def addMetadata(self, pandaID, metadata, newStatus):
         comment = " /* DBProxy.addMetaData */"
