@@ -180,12 +180,12 @@ def submitJobs(jobs, toPending=False):
     for job in jobs:
         job.creationHost = hostname
     # serialize
-    strJobs = pickle_dumps(jobs)
+    str_jobs = pickle_dumps(jobs)
 
     http_client = HttpClient()
 
     url = f"{baseURLSSL}/submitJobs"
-    data = {"jobs": strJobs}
+    data = {"jobs": str_jobs}
     if toPending:
         data["toPending"] = True
     status, output = http_client.post(url, data)
@@ -195,10 +195,10 @@ def submitJobs(jobs, toPending=False):
     try:
         return status, pickle_loads(output)
     except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR submitJobs : {type} {value}"
-        print(errStr)
-        return EC_Failed, f"{output}\n{errStr}"
+        err_type, err_value, _ = sys.exc_info()
+        err_str = f"ERROR submitJobs : {err_type} {err_value}"
+        print(err_str)
+        return EC_Failed, f"{output}\n{err_str}"
 
 
 def getJobStatus(panda_ids):
@@ -276,20 +276,20 @@ def killJobs(
     # execute
     url = f"{baseURLSSL}/killJobs"
     data = {"ids": strIDs, "code": code, "useMailAsID": useMailAsID}
-    killOpts = ""
+    kill_options = ""
     if keepUnmerged:
-        killOpts += "keepUnmerged,"
+        kill_options += "keepUnmerged,"
     if jobSubStatus is not None:
-        killOpts += f"jobSubStatus={jobSubStatus},"
-    data["killOpts"] = killOpts[:-1]
+        kill_options += f"jobSubStatus={jobSubStatus},"
+    data["killOpts"] = kill_options[:-1]
     status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR killJobs : {type} {value}"
-        print(errStr)
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR killJobs : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def reassignJobs(ids, forPending=False, firstSubmission=None):
@@ -325,10 +325,10 @@ def reassignJobs(ids, forPending=False, firstSubmission=None):
     try:
         return status, pickle_loads(output)
     except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR reassignJobs : {type} {value}"
-        print(errStr)
-        return EC_Failed, f"stat={status} err={output} {errStr}"
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR reassignJobs : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"stat={status} err={output} {error_str}"
 
 
 def getJobStatistics(sourcetype=None):
@@ -360,16 +360,16 @@ def getJobStatistics(sourcetype=None):
     try:
         tmpRet = status, pickle_loads(output)
         if status != 0:
-            return tmpRet
+            return tmp_return
     except Exception:
         print(output)
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getJobStatistics : {type} {value}"
-        print(errStr)
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR getJobStatistics : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
     # gather
-    for tmpCloud in tmpRet[1]:
-        tmpVal = tmpRet[1][tmpCloud]
+    for tmpCloud in tmp_return[1]:
+        tmpVal = tmp_return[1][tmpCloud]
         if tmpCloud not in ret:
             # append cloud values
             ret[tmpCloud] = tmpVal
@@ -408,18 +408,18 @@ def getJobStatisticsForBamboo(useMorePG=False):
         data["useMorePG"] = useMorePG
     status, output = http_client.get(url, data)
     try:
-        tmpRet = status, pickle_loads(output)
+        tmp_return = status, pickle_loads(output)
         if status != 0:
-            return tmpRet
+            return tmp_return
     except Exception:
         print(output)
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getJobStatisticsForBamboo : {type} {value}"
-        print(errStr)
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR getJobStatisticsForBamboo : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
     # gather
-    for tmpCloud in tmpRet[1]:
-        tmpMap = tmpRet[1][tmpCloud]
+    for tmpCloud in tmp_return[1]:
+        tmpMap = tmp_return[1][tmpCloud]
         if tmpCloud not in ret:
             # append cloud values
             ret[tmpCloud] = tmpMap
@@ -485,29 +485,26 @@ def getJobStatisticsPerSite(
         data["readArchived"] = readArchived
     status, output = http_client.get(url, data)
     try:
-        tmpRet = status, pickle_loads(output)
+        tmp_return = status, pickle_loads(output)
         if status != 0:
-            return tmpRet
+            return tmp_return
     except Exception:
         print(output)
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getJobStatisticsPerSite : {type} {value}"
-        print(errStr)
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR getJobStatisticsPerSite : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
+
     # gather
-    for tmpSite in tmpRet[1]:
-        tmpVal = tmpRet[1][tmpSite]
-        if tmpSite not in ret:
+    for tmp_site, tmp_value in tmp_return[1].items():
+        if tmp_site not in ret:
             # append site values
-            ret[tmpSite] = tmpVal
+            ret[tmp_site] = tmp_value
         else:
             # sum statistics
-            for tmpStatus in tmpVal:
-                tmpCount = tmpVal[tmpStatus]
-                if tmpStatus in ret[tmpSite]:
-                    ret[tmpSite][tmpStatus] += tmpCount
-                else:
-                    ret[tmpSite][tmpStatus] = tmpCount
+            for tmp_status, tmp_count in tmp_value.items():
+                ret[tmp_site][tmp_status] = ret[tmp_site].get(tmp_status, 0) + tmp_count
+
     return 0, ret
 
 
@@ -536,10 +533,10 @@ def getJobStatisticsPerSiteResource(timeWindow=None):
         return status, json.loads(output)
     except Exception:
         print(output)
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getJobStatisticsPerSiteResource : {type} {value}"
-        print(errStr)
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR getJobStatisticsPerSiteResource : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def get_job_statistics_per_site_label_resource(time_window=None):
@@ -567,9 +564,9 @@ def get_job_statistics_per_site_label_resource(time_window=None):
         return status, json.loads(output)
     except Exception as e:
         print(output)
-        errStr = f"ERROR get_job_statistics_per_site_label_resource : {str(e)}"
-        print(errStr)
-        return EC_Failed, f"{output}\n{errStr}"
+        error_str = f"ERROR get_job_statistics_per_site_label_resource : {str(e)}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def insertSandboxFileInfo(userName, fileName, fileSize, checkSum, verbose=False):
@@ -672,10 +669,10 @@ def getSiteSpecs(siteType=None):
     try:
         return status, pickle_loads(output)
     except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getSiteSpecs : {type} {value}"
-        print(errStr)
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR getSiteSpecs : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def insertTaskParams(taskParams):
@@ -704,9 +701,9 @@ def insertTaskParams(taskParams):
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR insertTaskParams : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR insertTaskParams : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def killTask(jediTaskID, broadcast=False):
@@ -741,9 +738,9 @@ def killTask(jediTaskID, broadcast=False):
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR killTask : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR killTask : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def finishTask(jediTaskID, soft=False, broadcast=False):
@@ -784,9 +781,9 @@ def finishTask(jediTaskID, soft=False, broadcast=False):
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR finishTask : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR finishTask : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def reassignTaskToSite(jediTaskID, site, mode=None):
@@ -825,9 +822,9 @@ def reassignTaskToSite(jediTaskID, site, mode=None):
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR reassignTaskToSite : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR reassignTaskToSite : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def reassignTaskToCloud(jediTaskID, cloud, mode=None):
@@ -863,9 +860,9 @@ def reassignTaskToCloud(jediTaskID, cloud, mode=None):
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR reassignTaskToCloud : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR reassignTaskToCloud : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def reassignTaskToNucleus(jediTaskID, nucleus, mode=None):
@@ -901,9 +898,9 @@ def reassignTaskToNucleus(jediTaskID, nucleus, mode=None):
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR reassignTaskToCloud : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR reassignTaskToCloud : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def uploadLog(logStr, logFileName):
@@ -963,9 +960,9 @@ def changeTaskPriority(jediTaskID, newPriority):
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR changeTaskPriority : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR changeTaskPriority : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def setDebugMode(pandaID, modeOn):
@@ -1032,9 +1029,9 @@ def retryTask(jediTaskID, verbose=False, noChildRetry=False, discardEvents=False
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR retryTask : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR retryTask : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def reloadInput(jediTaskID, verbose=False):
@@ -1066,9 +1063,9 @@ def reloadInput(jediTaskID, verbose=False):
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR reloadInput : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR reloadInput : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def changeTaskWalltime(jediTaskID, wallTime):
@@ -1097,9 +1094,9 @@ def changeTaskWalltime(jediTaskID, wallTime):
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR changeTaskWalltime : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR changeTaskWalltime : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def changeTaskCputime(jediTaskID, cpuTime):
@@ -1128,9 +1125,9 @@ def changeTaskCputime(jediTaskID, cpuTime):
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR changeTaskCputime : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR changeTaskCputime : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def changeTaskRamCount(jediTaskID, ramCount):
@@ -1159,9 +1156,9 @@ def changeTaskRamCount(jediTaskID, ramCount):
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR changeTaskRamCount : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR changeTaskRamCount : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def changeTaskAttribute(jediTaskID, attrName, attrValue):
@@ -1192,9 +1189,9 @@ def changeTaskAttribute(jediTaskID, attrName, attrValue):
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR changeTaskAttributePanda : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR changeTaskAttributePanda : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def changeTaskSplitRule(jediTaskID, ruleName, ruleValue):
@@ -1225,9 +1222,9 @@ def changeTaskSplitRule(jediTaskID, ruleName, ruleValue):
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR changeTaskSplitRule : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR changeTaskSplitRule : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def pauseTask(jediTaskID, verbose=False):
@@ -1259,9 +1256,9 @@ def pauseTask(jediTaskID, verbose=False):
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR pauseTask : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR pauseTask : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def resumeTask(jediTaskID, verbose=False):
@@ -1293,9 +1290,9 @@ def resumeTask(jediTaskID, verbose=False):
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR resumeTask : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR resumeTask : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def avalancheTask(jediTaskID, verbose=False):
@@ -1327,9 +1324,9 @@ def avalancheTask(jediTaskID, verbose=False):
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR resumeTask : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR resumeTask : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def increaseAttemptNr(jediTaskID, increase):
@@ -1361,9 +1358,9 @@ def increaseAttemptNr(jediTaskID, increase):
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR increaseAttemptNr : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR increaseAttemptNr : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def killUnfinishedJobs(jediTaskID, code=None, verbose=False, useMailAsID=False):
@@ -1402,10 +1399,10 @@ def killUnfinishedJobs(jediTaskID, code=None, verbose=False, useMailAsID=False):
     try:
         return status, pickle_loads(output)
     except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR killUnfinishedJobs : {type} {value}"
-        print(errStr)
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR killUnfinishedJobs : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def triggerTaskBrokerage(jediTaskID):
@@ -1433,9 +1430,9 @@ def triggerTaskBrokerage(jediTaskID):
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR triggerTaskBrokerage : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR triggerTaskBrokerage : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def getPandaIDsWithTaskID(jediTaskID):
@@ -1459,10 +1456,10 @@ def getPandaIDsWithTaskID(jediTaskID):
     try:
         return status, pickle_loads(output)
     except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getPandaIDsWithTaskID : {type} {value}"
-        print(errStr)
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR getPandaIDsWithTaskID : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def reactivateTask(jediTaskID, keep_attempt_nr=False, trigger_job_generation=False):
@@ -1496,9 +1493,9 @@ def reactivateTask(jediTaskID, keep_attempt_nr=False, trigger_job_generation=Fal
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR reactivateTask : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR reactivateTask : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def getTaskStatus(jediTaskID):
@@ -1522,10 +1519,10 @@ def getTaskStatus(jediTaskID):
     try:
         return status, pickle_loads(output)
     except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getTaskStatus : {type} {value}"
-        print(errStr)
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR getTaskStatus : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def reassignShare(jedi_task_ids, share, reassign_running=False):
@@ -1561,9 +1558,9 @@ def reassignShare(jedi_task_ids, share, reassign_running=False):
     try:
         return status, pickle_loads(output)
     except Exception:
-        err_type, err_value = sys.exc_info()[:2]
-        err_str = f"ERROR reassignShare : {err_type} {err_value}"
-        return EC_Failed, f"{output}\n{err_str}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR reassignShare : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def getTaskParamsMap(jediTaskID):
@@ -1590,10 +1587,10 @@ def getTaskParamsMap(jediTaskID):
     try:
         return status, pickle_loads(output)
     except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getTaskParamsMap : {type} {value}"
-        print(errStr)
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR getTaskParamsMap : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def setNumSlotsForWP(pandaQueueName, numSlots, gshare=None, resourceType=None, validPeriod=None):
@@ -1633,9 +1630,9 @@ def setNumSlotsForWP(pandaQueueName, numSlots, gshare=None, resourceType=None, v
     try:
         return status, json.loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR setNumSlotsForWP : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR setNumSlotsForWP : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 # enable jumbo jobs
@@ -1672,9 +1669,9 @@ def enableJumboJobs(jediTaskID, totalJumboJobs=1, nJumboPerSite=1):
     try:
         return status, json.loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR /enableJumboJobs : {errtype} {errvalue}"
-        return EC_Failed, f"{output}\n{errStr}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR /enableJumboJobs : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def sweepPQ(panda_queue, status_list, ce_list, submission_host_list):
@@ -1715,9 +1712,9 @@ def sweepPQ(panda_queue, status_list, ce_list, submission_host_list):
     try:
         return status, json.loads(output)
     except Exception:
-        err_type, err_value = sys.exc_info()[:2]
-        err_str = f"ERROR sweepPQ : {err_type} {err_value}"
-        return EC_Failed, f"{output}\n{err_str}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR sweepPQ : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def send_command_to_job(panda_id, com):
@@ -1746,8 +1743,8 @@ def send_command_to_job(panda_id, com):
     try:
         return status, json.loads(output)
     except Exception as e:
-        err_str = f"ERROR send_command_to_job : {str(e)}"
-        return EC_Failed, f"{output}\n{err_str}"
+        error_str = f"ERROR send_command_to_job : {str(e)}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 def get_ban_users(verbose=False):
@@ -1808,5 +1805,5 @@ def release_task(jedi_task_id, verbose=False):
     try:
         return status, json.loads(output)
     except Exception as e:
-        err_str = f"ERROR release_task : failed with {str(e)}"
-        return EC_Failed, f"{output}\n{err_str}"
+        error_str = f"ERROR release_task : failed with {str(e)}"
+        return EC_Failed, f"{output}\n{error_str}"
