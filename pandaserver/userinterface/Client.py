@@ -687,34 +687,6 @@ def getSiteSpecs(siteType=None):
         return EC_Failed, f"{output}\n{errStr}"
 
 
-def runBrokerage(sites, atlasRelease, cmtConfig=None):
-    """
-    TODO: candidate for deletion
-    Run brokerage
-
-    args:
-        sites: the list of candidate sites
-        atlasRelease: version number of SW release
-        cmtConfig: cmt config
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              else: communication failure
-        the name of the selected site
-
-    """
-    # serialize
-    strSites = pickle_dumps(sites)
-
-    http_client = HttpClient()
-    # execute
-    url = f"{baseURL}/runBrokerage"
-    data = {"sites": strSites, "atlasRelease": atlasRelease}
-    if cmtConfig is not None:
-        data["cmtConfig"] = cmtConfig
-    return http_client.get(url, data)
-
-
 def insertTaskParams(taskParams):
     """
     Insert task parameters
