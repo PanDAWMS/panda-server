@@ -253,9 +253,9 @@ def killJobs(
                  3: aborted
                  4: expire in waiting
                  7: retry by server
-                 8: rebrokerage
+                 8: re-brokerage
                  9: force kill
-                 10: fast rebrokerage on overloaded PQs
+                 10: fast re-brokerage on overloaded PQs
                  50: kill by JEDI
                  91: kill user jobs with prod role
            verbose: set True to see what's going on
@@ -1168,7 +1168,7 @@ def changeTaskAttribute(jediTaskID, attrName, attrValue):
         status code
               0: communication succeeded to the panda server
               255: communication failure
-        return: a tupple of return code and message
+        return: a tuple of return code and message
               0: unknown task
               1: succeeded
               2: disallowed to update the attribute
@@ -1201,7 +1201,7 @@ def changeTaskSplitRule(jediTaskID, ruleName, ruleValue):
         status code
               0: communication succeeded to the panda server
               255: communication failure
-        return: a tupple of return code and message
+        return: a tuple of return code and message
               0: unknown task
               1: succeeded
               2: disallowed to update the attribute
@@ -1372,7 +1372,7 @@ def killUnfinishedJobs(jediTaskID, code=None, verbose=False, useMailAsID=False):
                  3: aborted
                  4: expire in waiting
                  7: retry by server
-                 8: rebrokerage
+                 8: re-brokerage
                  9: force kill
                  50: kill by JEDI
                  91: kill user jobs with prod role
@@ -1410,7 +1410,7 @@ def triggerTaskBrokerage(jediTaskID):
         status code
               0: communication succeeded to the panda server
               255: communication failure
-        return: a tupple of return code and message
+        return: a tuple of return code and message
               0: unknown task
               1: succeeded
               None: database error
@@ -1469,7 +1469,7 @@ def reactivateTask(jediTaskID, keep_attempt_nr=False, trigger_job_generation=Fal
         status code
               0: communication succeeded to the panda server
               255: communication failure
-        return: a tupple of return code and message
+        return: a tuple of return code and message
               0: unknown task
               1: succeeded
               None: database error
@@ -1560,7 +1560,7 @@ def reassignShare(jedi_task_ids, share, reassign_running=False):
 
 def getTaskParamsMap(jediTaskID):
     """
-    Fet task parameter map for a certain task ID
+    Get task parameter map for a certain task ID
 
     args:
         jediTaskID: jediTaskID of the task to get taskParamsMap
