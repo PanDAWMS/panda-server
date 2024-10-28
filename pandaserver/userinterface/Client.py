@@ -14,14 +14,8 @@ import requests
 from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
 
 # PanDA server configuration
-try:
-    baseURL = os.environ["PANDA_URL"]
-except Exception:
-    baseURL = "http://pandaserver.cern.ch:25080/server/panda"
-try:
-    baseURLSSL = os.environ["PANDA_URL_SSL"]
-except Exception:
-    baseURLSSL = "https://pandaserver.cern.ch:25443/server/panda"
+baseURL = os.environ.get("PANDA_URL", "http://pandaserver.cern.ch:25080/server/panda")
+baseURLSSL = os.environ.get("PANDA_URL_SSL", "https://pandaserver.cern.ch:25443/server/panda")
 
 # exit code
 EC_Failed = 255
