@@ -269,13 +269,13 @@ def killJobs(
            the list of clouds (or Nones if tasks are not yet assigned)
     """
     # serialize
-    strIDs = pickle_dumps(ids)
+    str_panda_ids = pickle_dumps(ids)
 
     http_client = HttpClient()
 
     # execute
     url = f"{baseURLSSL}/killJobs"
-    data = {"ids": strIDs, "code": code, "useMailAsID": useMailAsID}
+    data = {"ids": str_panda_ids, "code": code, "useMailAsID": useMailAsID}
     kill_options = ""
     if keepUnmerged:
         kill_options += "keepUnmerged,"
@@ -310,13 +310,13 @@ def reassignJobs(ids, forPending=False, firstSubmission=None):
 
     """
     # serialize
-    strIDs = pickle_dumps(ids)
+    str_task_ids = pickle_dumps(ids)
 
     http_client = HttpClient()
 
     # execute
     url = f"{baseURLSSL}/reassignJobs"
-    data = {"ids": strIDs}
+    data = {"ids": str_task_ids}
     if forPending:
         data["forPending"] = True
     if firstSubmission is not None:
@@ -451,9 +451,9 @@ def getJobStatisticsPerSite(
     Get job statistics with job attributes
 
     args:
-        predefined: get jobs which are assiggned to sites before being submitted
-        workingGroup: commna-separated list of workingGroups
-        countryGroup: commna-separated list of countryGroups
+        predefined: get jobs which are assigned to sites before being submitted
+        workingGroup: comma-separated list of workingGroups
+        countryGroup: comma-separated list of countryGroups
         jobType: type of jobs
             all: all jobs
             analysis: analysis jobs
@@ -731,9 +731,7 @@ def killTask(jediTaskID, broadcast=False):
 
     # execute
     url = f"{baseURLSSL}/killTask"
-    data = {"jediTaskID": jediTaskID}
-    data["properErrorCode"] = True
-    data["broadcast"] = broadcast
+    data = {"jediTaskID": jediTaskID, "properErrorCode": True, "broadcast": broadcast}
     status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
@@ -772,9 +770,7 @@ def finishTask(jediTaskID, soft=False, broadcast=False):
 
     # execute
     url = f"{baseURLSSL}/finishTask"
-    data = {"jediTaskID": jediTaskID}
-    data["properErrorCode"] = True
-    data["broadcast"] = broadcast
+    data = {"jediTaskID": jediTaskID, "properErrorCode": True, "broadcast": broadcast}
     if soft:
         data["soft"] = True
     status, output = http_client.post(url, data)
@@ -1015,8 +1011,7 @@ def retryTask(jediTaskID, verbose=False, noChildRetry=False, discardEvents=False
 
     # execute
     url = f"{baseURLSSL}/retryTask"
-    data = {"jediTaskID": jediTaskID}
-    data["properErrorCode"] = True
+    data = {"jediTaskID": jediTaskID, "properErrorCode": True}
     if noChildRetry:
         data["noChildRetry"] = True
     if discardEvents:
@@ -1531,7 +1526,7 @@ def reassignShare(jedi_task_ids, share, reassign_running=False):
 
     args:
         jedi_task_ids: task ids to act on
-        share: share to be applied to jeditaskids
+        share: share to be applied to jedi task ids
     returns:
         status code
               0: communication succeeded to the panda server
