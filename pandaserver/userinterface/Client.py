@@ -358,7 +358,7 @@ def getJobStatistics(sourcetype=None):
         data["sourcetype"] = sourcetype
     status, output = http_client.get(url, data)
     try:
-        tmpRet = status, pickle_loads(output)
+        tmp_return = status, pickle_loads(output)
         if status != 0:
             return tmp_return
     except Exception:
