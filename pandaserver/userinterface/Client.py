@@ -687,33 +687,6 @@ def getSiteSpecs(siteType=None):
         return EC_Failed, f"{output}\n{errStr}"
 
 
-def getCloudSpecs():
-    """
-    TODO: candidate for deletion
-    Get list of cloud specifications
-
-    args:
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        map of cloud and attributes
-
-    """
-
-    http_client = HttpClient()
-    # execute
-    url = f"{baseURL}/getCloudSpecs"
-    status, output = http_client.get(url, {})
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getCloudSpecs : {type} {value}"
-        print(errStr)
-        return EC_Failed, f"{output}\n{errStr}"
-
-
 def runBrokerage(sites, atlasRelease, cmtConfig=None):
     """
     TODO: candidate for deletion

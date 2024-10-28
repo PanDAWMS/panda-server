@@ -350,12 +350,6 @@ class UserIF:
                 specList[id] = tmpSpec
         return WrappedPickle.dumps(specList)
 
-    # get list of cloud spec
-    def getCloudSpecs(self):
-        # get cloud list
-        siteMapper = SiteMapper(self.taskBuffer)
-        return WrappedPickle.dumps(siteMapper.cloudSpec)
-
     # get script for offline running
     def getScriptOfflineRunning(self, pandaID, days=None):
         ret = self.taskBuffer.getScriptOfflineRunning(pandaID, days)
@@ -1095,11 +1089,6 @@ def getSiteSpecs(req, siteType=None):
         return userIF.getSiteSpecs(siteType)
     else:
         return userIF.getSiteSpecs()
-
-
-# get list of cloud spec
-def getCloudSpecs(req):
-    return userIF.getCloudSpecs()
 
 
 # get ban users

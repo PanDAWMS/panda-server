@@ -54,7 +54,6 @@ allowed_methods += [
     "getJobStatisticsPerSite",
     "resubmitJobs",
     "getSiteSpecs",
-    "getCloudSpecs",
     "getJobIDsInTimeRange",
     "getPandIDsWithJobID",
     "getFullJobStatus",
