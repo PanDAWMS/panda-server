@@ -800,7 +800,6 @@ def finishTask(jediTaskID, soft=False, broadcast=False):
 
 def reassignTaskToSite(jediTaskID, site, mode=None):
     """
-    TODO: candidate for deletion (can't distinguish from other reassignTasks)
     Reassign a task to a site. Existing jobs are killed and new jobs are generated at the site
 
     args:
@@ -842,7 +841,6 @@ def reassignTaskToSite(jediTaskID, site, mode=None):
 
 def reassignTaskToCloud(jediTaskID, cloud, mode=None):
     """
-    TODO: candidate for deletion (can't distinguish from other reassignTasks)
     Reassign a task to a cloud. Existing jobs are killed and new jobs are generated in the cloud
 
     args:
@@ -1084,7 +1082,6 @@ def reloadInput(jediTaskID, verbose=False):
 
 def changeTaskWalltime(jediTaskID, wallTime):
     """
-    TODO: candidate for deletion
     Change task walltime
 
     args:
@@ -1116,7 +1113,6 @@ def changeTaskWalltime(jediTaskID, wallTime):
 
 def changeTaskCputime(jediTaskID, cpuTime):
     """
-    TODO: candidate for deletion
     Change task CPU time
 
     args:
@@ -1148,7 +1144,6 @@ def changeTaskCputime(jediTaskID, cpuTime):
 
 def changeTaskRamCount(jediTaskID, ramCount):
     """
-    TODO: candidate for deletion
     Change task RAM count
 
     args:
@@ -1424,7 +1419,6 @@ def killUnfinishedJobs(jediTaskID, code=None, verbose=False, useMailAsID=False):
 
 def triggerTaskBrokerage(jediTaskID):
     """
-    TODO: candidate for deletion
     Trigger task brokerage
 
     args:
@@ -1482,7 +1476,6 @@ def getPandaIDsWithTaskID(jediTaskID):
 
 def reactivateTask(jediTaskID, keep_attempt_nr=False, trigger_job_generation=False):
     """
-    TODO: candidate for deletion (?? it's also in panda-client)
     Reactivate task
 
     args:
