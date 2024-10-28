@@ -107,7 +107,6 @@ allowed_methods += [
     "updateServiceMetrics",
     "getUserJobMetadata",
     "getJumboJobDatasets",
-    "getGShareStatus",
     "sweepPQ",
     "get_job_statistics_per_site_label_resource",
     "relay_idds_command",

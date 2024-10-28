@@ -1693,37 +1693,6 @@ def enableJumboJobs(jediTaskID, totalJumboJobs=1, nJumboPerSite=1):
         return EC_Failed, f"{output}\n{errStr}"
 
 
-def getGShareStatus():
-    """
-    TODO: Candidate for deletion
-    Get Global Share status
-
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        tuple of return code and diagnostic message
-              0: succeeded
-              1: server error
-            100: non SSL connection
-            101: missing production role
-            102: type error for some parameters
-    """
-
-    http_client = HttpClient()
-
-    # execute
-    url = f"{baseURLSSL}/getGShareStatus"
-
-    status, output = http_client.post(url, {})
-    try:
-        return status, json.loads(output)
-    except Exception:
-        err_type, err_value = sys.exc_info()[:2]
-        err_str = f"ERROR /getGShareStatus : {err_type} {err_value}"
-        return EC_Failed, f"{output}\n{err_str}"
-
-
 def sweepPQ(panda_queue, status_list, ce_list, submission_host_list):
     """
     Send a harvester command to panda server in order sweep a panda queue

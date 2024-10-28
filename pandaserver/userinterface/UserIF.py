@@ -616,10 +616,6 @@ class UserIF:
     def reassignShare(self, jedi_task_ids, share_dest, reassign_running):
         return self.taskBuffer.reassignShare(jedi_task_ids, share_dest, reassign_running)
 
-    # get global share status overview of the grid
-    def getGShareStatus(self):
-        return self.taskBuffer.getGShareStatus()
-
     # get taskParamsMap
     def getTaskParamsMap(self, jediTaskID):
         # get taskParamsMap
@@ -2062,15 +2058,6 @@ def getJumboJobDatasets(req, n_days, grace_period=0):
     except Exception:
         return WrappedPickle.dumps((False, "wrong grace_period"))
     return userIF.getJumboJobDatasets(n_days, grace_period)
-
-
-# get Global Share overview
-def getGShareStatus(req):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, "SSL is required"))
-    ret = userIF.getGShareStatus()
-    return json.dumps(ret)
 
 
 # send Harvester the command to clean up the workers for a panda queue
