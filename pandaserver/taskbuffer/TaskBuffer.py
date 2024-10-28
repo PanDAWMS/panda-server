@@ -1094,20 +1094,6 @@ class TaskBuffer:
 
         return retJobs
 
-    # get PandaID with jobexeID
-    def getPandaIDwithJobExeID(self, jobexeIDs):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        retJobs = []
-        # peek at job
-        for jobexeID in jobexeIDs:
-            res = proxy.getPandaIDwithJobExeID(jobexeID)
-            retJobs.append(res)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return retJobs
-
     # get PandaIDs with TaskID
     def getPandaIDsWithTaskID(self, jediTaskID):
         # get DBproxy
@@ -1553,20 +1539,6 @@ class TaskBuffer:
         Setupper(self, jobs).start()
 
         return True
-
-    # query PandaIDs
-    def queryPandaIDs(self, jobDefIDs):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        pandaIDs = []
-        # query PandaID
-        for jobDefID in jobDefIDs:
-            id = proxy.queryPandaID(jobDefID)
-            pandaIDs.append(id)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return pandaIDs
 
     # get PandaIDs to be updated in prodDB
     def getPandaIDsForProdDB(self, limit, lockedby):

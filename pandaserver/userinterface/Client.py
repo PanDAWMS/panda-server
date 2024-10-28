@@ -241,35 +241,6 @@ def getJobStatus(panda_ids):
         return EC_Failed, f"{output}\n{err_str}"
 
 
-def getPandaIDwithJobExeID(ids):
-    """
-    TODO: candidate for deletion
-    Get the list of PandaIDs corresponding to a given jobExecutionIDs
-
-    args:
-        ids: list of jobExecutionIDs
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        the list of PandaIDs (or Nones for non-existing IDs)
-    """
-    # serialize
-    strIDs = pickle_dumps(ids)
-
-    http_client = HttpClient()
-    url = f"{baseURL}/getPandaIDwithJobExeID"
-    data = {"ids": strIDs}
-    status, output = http_client.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getPandaIDwithJobExeID : {type} {value}"
-        print(errStr)
-        return EC_Failed, f"{output}\n{errStr}"
-
-
 def killJobs(
     ids,
     code=None,
@@ -367,29 +338,6 @@ def reassignJobs(ids, forPending=False, firstSubmission=None):
         errStr = f"ERROR reassignJobs : {type} {value}"
         print(errStr)
         return EC_Failed, f"stat={status} err={output} {errStr}"
-
-
-def queryPandaIDs(ids):
-    """
-    TODO: candidate for deletion
-    query PandaIDs (obsolete)
-    """
-
-    # serialize
-    strIDs = pickle_dumps(ids)
-
-    http_client = HttpClient()
-    # execute
-    url = f"{baseURL}/queryPandaIDs"
-    data = {"ids": strIDs}
-    status, output = http_client.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR queryPandaIDs : {type} {value}"
-        print(errStr)
-        return EC_Failed, f"{output}\n{errStr}"
 
 
 def getJobStatistics(sourcetype=None):

@@ -190,27 +190,6 @@ class UserIF:
             return JobUtils.dump_jobs_json(ret)
         return WrappedPickle.dumps(ret)
 
-    # get PandaID with jobexeID
-    def getPandaIDwithJobExeID(self, idsStr):
-        try:
-            # deserialize jobspecs
-            ids = WrappedPickle.loads(idsStr)
-            _logger.debug(f"getPandaIDwithJobExeID len   : {len(ids)}")
-            maxIDs = 5500
-            if len(ids) > maxIDs:
-                _logger.error(f"too long ID list more than {maxIDs}")
-                ids = ids[:maxIDs]
-        except Exception:
-            errtype, errvalue = sys.exc_info()[:2]
-            _logger.error(f"getPandaIDwithJobExeID : {errtype} {errvalue}")
-            ids = []
-        _logger.debug(f"getPandaIDwithJobExeID start : {ids}")
-        # peek jobs
-        ret = self.taskBuffer.getPandaIDwithJobExeID(ids)
-        _logger.debug("getPandaIDwithJobExeID end")
-        # serialize
-        return WrappedPickle.dumps(ret)
-
     # get PandaIDs with TaskID
     def getPandaIDsWithTaskID(self, jediTaskID):
         # get PandaIDs
@@ -274,14 +253,6 @@ class UserIF:
     def get_job_statistics_per_site_label_resource(self, time_window):
         ret = self.taskBuffer.get_job_statistics_per_site_label_resource(time_window)
         return json.dumps(ret)
-
-    # query PandaIDs
-    def queryPandaIDs(self, idsStr):
-        # deserialize IDs
-        ids = WrappedPickle.loads(idsStr)
-        # query PandaIDs
-        ret = self.taskBuffer.queryPandaIDs(ids)
-        return WrappedPickle.dumps(ret)
 
     # get number of analysis jobs per user
     def getNUserJobs(self, siteName):
@@ -932,11 +903,6 @@ def getJobStatus(req, ids, no_pickle=None):
     return userIF.getJobStatus(ids, req.acceptJson(), no_pickle)
 
 
-# get PandaID with jobexeID
-def getPandaIDwithJobExeID(req, ids):
-    return userIF.getPandaIDwithJobExeID(ids)
-
-
 # get queued analysis jobs at a site
 def getQueuedAnalJobs(req, site):
     # check security
@@ -1011,11 +977,6 @@ def checkSandboxFile(req, fileSize, checkSum):
     user = _getDN(req)
     # exec
     return userIF.checkSandboxFile(user, fileSize, checkSum)
-
-
-# query PandaIDs
-def queryPandaIDs(req, ids):
-    return userIF.queryPandaIDs(ids)
 
 
 # get PandaIDs at site

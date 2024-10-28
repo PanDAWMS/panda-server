@@ -48,7 +48,6 @@ allowed_methods += [
 allowed_methods += [
     "submitJobs",
     "getJobStatus",
-    "queryPandaIDs",
     "killJobs",
     "reassignJobs",
     "getJobStatistics",
@@ -73,7 +72,6 @@ allowed_methods += [
     "getSerialNumberForGroupJob",
     "checkMergeGenerationStatus",
     "retryFailedJobsInActive",
-    "getPandaIDwithJobExeID",
     "getDisInUseForAnal",
     "getLFNsInUseForAnal",
     "getScriptOfflineRunning",

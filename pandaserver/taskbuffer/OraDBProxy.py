@@ -4768,45 +4768,6 @@ class DBProxy:
                 job.jobStatus = "unknown"
                 return job
 
-    # get PandaID with jobexeID
-    def getPandaIDwithJobExeID(self, jobexeID):
-        comment = " /* DBProxy.getPandaIDwithJobExeID */"
-        _logger.debug(f"getPandaIDwithJobExeID : {jobexeID}")
-        failedRetVal = (None, None, "")
-        # return for wrong jobexeID
-        if jobexeID in ["NULL", "", "None", None]:
-            return failedRetVal
-        # SQL
-        sql = "SELECT PandaID,jobDefinitionID,jobName FROM ATLAS_PANDA.jobsWaiting4 "
-        sql += "WHERE jobExecutionID=:jobexeID AND prodSourceLabel=:prodSourceLabel "
-        sql += "AND jobStatus=:jobStatus "
-        varMap = {}
-        varMap[":jobexeID"] = jobexeID
-        varMap[":jobStatus"] = "pending"
-        varMap[":prodSourceLabel"] = "managed"
-        try:
-            # start transaction
-            self.conn.begin()
-            # select
-            self.cur.arraysize = 10
-            self.cur.execute(sql + comment, varMap)
-            res = self.cur.fetchone()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # not found
-            if res is None:
-                _logger.debug(f"getPandaIDwithJobExeID : jobexeID {jobexeID} not found")
-                return failedRetVal
-            _logger.debug(f"getPandaIDwithJobExeID : {jobexeID} -> {str(res)}")
-            return res
-        except Exception:
-            # roll back
-            self._rollback()
-            errtype, errvalue = sys.exc_info()[:2]
-            _logger.error(f"getPandaIDwithJobExeID : {jobexeID} {errtype} {errvalue}")
-            return failedRetVal
-
     # get PandaIDs with TaskID
     def getPandaIDsWithTaskID(self, jediTaskID):
         comment = " /* DBProxy.getPandaIDsWithTaskID */"
