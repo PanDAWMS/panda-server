@@ -212,7 +212,7 @@ def submitJobs(jobs, toPending=False):
         type, value, traceBack = sys.exc_info()
         errStr = f"ERROR submitJobs : {type} {value}"
         print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def getJobStatus(panda_ids):
@@ -243,7 +243,7 @@ def getJobStatus(panda_ids):
     except Exception as e:
         err_str = f"ERROR getJobStatus: {str(e)}"
         print(err_str)
-        return EC_Failed, output + "\n" + err_str
+        return EC_Failed, f"{output}\n{err_str}"
 
 
 def getPandaIDwithJobExeID(ids):
@@ -272,7 +272,7 @@ def getPandaIDwithJobExeID(ids):
         type, value, traceBack = sys.exc_info()
         errStr = f"ERROR getPandaIDwithJobExeID : {type} {value}"
         print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def killJobs(
@@ -332,7 +332,7 @@ def killJobs(
         type, value, traceBack = sys.exc_info()
         errStr = f"ERROR killJobs : {type} {value}"
         print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def reassignJobs(ids, forPending=False, firstSubmission=None):
@@ -394,7 +394,7 @@ def queryPandaIDs(ids):
         type, value, traceBack = sys.exc_info()
         errStr = f"ERROR queryPandaIDs : {type} {value}"
         print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def getJobStatistics(sourcetype=None):
@@ -432,7 +432,7 @@ def getJobStatistics(sourcetype=None):
         type, value, traceBack = sys.exc_info()
         errStr = f"ERROR getJobStatistics : {type} {value}"
         print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
     # gather
     for tmpCloud in tmpRet[1]:
         tmpVal = tmpRet[1][tmpCloud]
@@ -482,7 +482,7 @@ def getJobStatisticsForBamboo(useMorePG=False):
         type, value, traceBack = sys.exc_info()
         errStr = f"ERROR getJobStatisticsForBamboo : {type} {value}"
         print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
     # gather
     for tmpCloud in tmpRet[1]:
         tmpMap = tmpRet[1][tmpCloud]
@@ -534,7 +534,7 @@ def getHighestPrioJobStat(perPG=False, useMorePG=False):
         type, value, traceBack = sys.exc_info()
         errStr = f"ERROR getHighestPrioJobStat : {type} {value}"
         print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def getJobsToBeUpdated(limit=5000, lockedby=""):
@@ -564,7 +564,7 @@ def getJobsToBeUpdated(limit=5000, lockedby=""):
         type, value, traceBack = sys.exc_info()
         errStr = f"ERROR getJobsToBeUpdated : {type} {value}"
         print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def updateProdDBUpdateTimes(params, verbose=False):
@@ -599,7 +599,7 @@ def updateProdDBUpdateTimes(params, verbose=False):
         type, value, traceBack = sys.exc_info()
         errStr = f"ERROR updateProdDBUpdateTimes : {type} {value}"
         print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def getPandaIDsSite(site, status, limit=500):
@@ -630,7 +630,7 @@ def getPandaIDsSite(site, status, limit=500):
         type, value, traceBack = sys.exc_info()
         errStr = f"ERROR getPandaIDsSite : {type} {value}"
         print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def getJobStatisticsPerSite(
@@ -687,7 +687,7 @@ def getJobStatisticsPerSite(
         type, value, traceBack = sys.exc_info()
         errStr = f"ERROR getJobStatisticsPerSite : {type} {value}"
         print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
     # gather
     for tmpSite in tmpRet[1]:
         tmpVal = tmpRet[1][tmpSite]
@@ -733,7 +733,7 @@ def getJobStatisticsPerSiteResource(timeWindow=None):
         type, value, traceBack = sys.exc_info()
         errStr = f"ERROR getJobStatisticsPerSiteResource : {type} {value}"
         print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def get_job_statistics_per_site_label_resource(time_window=None):
@@ -763,7 +763,7 @@ def get_job_statistics_per_site_label_resource(time_window=None):
         print(output)
         errStr = f"ERROR get_job_statistics_per_site_label_resource : {str(e)}"
         print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def queryLastFilesInDataset(datasets):
@@ -899,7 +899,7 @@ def getSiteSpecs(siteType=None):
         type, value, traceBack = sys.exc_info()
         errStr = f"ERROR getSiteSpecs : {type} {value}"
         print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def getCloudSpecs():
@@ -926,7 +926,7 @@ def getCloudSpecs():
         type, value, traceBack = sys.exc_info()
         errStr = f"ERROR getCloudSpecs : {type} {value}"
         print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def runBrokerage(sites, atlasRelease, cmtConfig=None):
@@ -985,7 +985,7 @@ def insertTaskParams(taskParams):
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR insertTaskParams : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def killTask(jediTaskID, broadcast=False):
@@ -1022,7 +1022,7 @@ def killTask(jediTaskID, broadcast=False):
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR killTask : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def finishTask(jediTaskID, soft=False, broadcast=False):
@@ -1065,7 +1065,7 @@ def finishTask(jediTaskID, soft=False, broadcast=False):
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR finishTask : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def reassignTaskToSite(jediTaskID, site, mode=None):
@@ -1107,7 +1107,7 @@ def reassignTaskToSite(jediTaskID, site, mode=None):
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR reassignTaskToSite : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def reassignTaskToCloud(jediTaskID, cloud, mode=None):
@@ -1146,7 +1146,7 @@ def reassignTaskToCloud(jediTaskID, cloud, mode=None):
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR reassignTaskToCloud : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def reassignTaskToNucleus(jediTaskID, nucleus, mode=None):
@@ -1184,7 +1184,7 @@ def reassignTaskToNucleus(jediTaskID, nucleus, mode=None):
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR reassignTaskToCloud : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def uploadLog(logStr, logFileName):
@@ -1246,7 +1246,7 @@ def changeTaskPriority(jediTaskID, newPriority):
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR changeTaskPriority : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def setDebugMode(pandaID, modeOn):
@@ -1315,7 +1315,7 @@ def retryTask(jediTaskID, verbose=False, noChildRetry=False, discardEvents=False
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR retryTask : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def reloadInput(jediTaskID, verbose=False):
@@ -1349,7 +1349,7 @@ def reloadInput(jediTaskID, verbose=False):
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR reloadInput : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def changeTaskWalltime(jediTaskID, wallTime):
@@ -1381,7 +1381,7 @@ def changeTaskWalltime(jediTaskID, wallTime):
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR changeTaskWalltime : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def changeTaskCputime(jediTaskID, cpuTime):
@@ -1413,7 +1413,7 @@ def changeTaskCputime(jediTaskID, cpuTime):
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR changeTaskCputime : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def changeTaskRamCount(jediTaskID, ramCount):
@@ -1445,7 +1445,7 @@ def changeTaskRamCount(jediTaskID, ramCount):
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR changeTaskRamCount : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def changeTaskAttribute(jediTaskID, attrName, attrValue):
@@ -1478,7 +1478,7 @@ def changeTaskAttribute(jediTaskID, attrName, attrValue):
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR changeTaskAttributePanda : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def changeTaskSplitRule(jediTaskID, ruleName, ruleValue):
@@ -1511,7 +1511,7 @@ def changeTaskSplitRule(jediTaskID, ruleName, ruleValue):
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR changeTaskSplitRule : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def pauseTask(jediTaskID, verbose=False):
@@ -1545,7 +1545,7 @@ def pauseTask(jediTaskID, verbose=False):
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR pauseTask : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def resumeTask(jediTaskID, verbose=False):
@@ -1579,7 +1579,7 @@ def resumeTask(jediTaskID, verbose=False):
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR resumeTask : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def avalancheTask(jediTaskID, verbose=False):
@@ -1613,7 +1613,7 @@ def avalancheTask(jediTaskID, verbose=False):
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR resumeTask : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def increaseAttemptNr(jediTaskID, increase):
@@ -1647,7 +1647,7 @@ def increaseAttemptNr(jediTaskID, increase):
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR increaseAttemptNr : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def killUnfinishedJobs(jediTaskID, code=None, verbose=False, useMailAsID=False):
@@ -1689,7 +1689,7 @@ def killUnfinishedJobs(jediTaskID, code=None, verbose=False, useMailAsID=False):
         type, value, traceBack = sys.exc_info()
         errStr = f"ERROR killUnfinishedJobs : {type} {value}"
         print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def triggerTaskBrokerage(jediTaskID):
@@ -1720,7 +1720,7 @@ def triggerTaskBrokerage(jediTaskID):
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR triggerTaskBrokerage : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def getPandaIDsWithTaskID(jediTaskID):
@@ -1738,7 +1738,7 @@ def getPandaIDsWithTaskID(jediTaskID):
 
     http_client = HttpClient()
     # execute
-    url = baseURL + "/getPandaIDsWithTaskID"
+    url = f"{baseURL}/getPandaIDsWithTaskID"
     data = {"jediTaskID": jediTaskID}
     status, output = http_client.post(url, data)
     try:
@@ -1747,7 +1747,7 @@ def getPandaIDsWithTaskID(jediTaskID):
         type, value, traceBack = sys.exc_info()
         errStr = f"ERROR getPandaIDsWithTaskID : {type} {value}"
         print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def reactivateTask(jediTaskID, keep_attempt_nr=False, trigger_job_generation=False):
@@ -1784,7 +1784,7 @@ def reactivateTask(jediTaskID, keep_attempt_nr=False, trigger_job_generation=Fal
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR reactivateTask : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def getTaskStatus(jediTaskID):
@@ -1802,7 +1802,7 @@ def getTaskStatus(jediTaskID):
 
     http_client = HttpClient()
     # execute
-    url = baseURL + "/getTaskStatus"
+    url = f"{baseURL}/getTaskStatus"
     data = {"jediTaskID": jediTaskID}
     status, output = http_client.post(url, data)
     try:
@@ -1811,7 +1811,7 @@ def getTaskStatus(jediTaskID):
         type, value, traceBack = sys.exc_info()
         errStr = f"ERROR getTaskStatus : {type} {value}"
         print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def reassignShare(jedi_task_ids, share, reassign_running=False):
@@ -1903,7 +1903,7 @@ def getTaskParamsMap(jediTaskID):
 
     http_client = HttpClient()
     # execute
-    url = baseURL + "/getTaskParamsMap"
+    url = f"{baseURL}/getTaskParamsMap"
     data = {"jediTaskID": jediTaskID}
     status, output = http_client.post(url, data)
     try:
@@ -1912,7 +1912,7 @@ def getTaskParamsMap(jediTaskID):
         type, value, traceBack = sys.exc_info()
         errStr = f"ERROR getTaskParamsMap : {type} {value}"
         print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def setNumSlotsForWP(pandaQueueName, numSlots, gshare=None, resourceType=None, validPeriod=None):
@@ -1954,7 +1954,7 @@ def setNumSlotsForWP(pandaQueueName, numSlots, gshare=None, resourceType=None, v
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR setNumSlotsForWP : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 # enable jumbo jobs
@@ -1993,7 +1993,7 @@ def enableJumboJobs(jediTaskID, totalJumboJobs=1, nJumboPerSite=1):
     except Exception:
         errtype, errvalue = sys.exc_info()[:2]
         errStr = f"ERROR /enableJumboJobs : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        return EC_Failed, f"{output}\n{errStr}"
 
 
 def getGShareStatus():
@@ -2024,7 +2024,7 @@ def getGShareStatus():
     except Exception:
         err_type, err_value = sys.exc_info()[:2]
         err_str = f"ERROR /getGShareStatus : {err_type} {err_value}"
-        return EC_Failed, output + "\n" + err_str
+        return EC_Failed, f"{output}\n{err_str}"
 
 
 def sweepPQ(panda_queue, status_list, ce_list, submission_host_list):
@@ -2117,7 +2117,7 @@ def get_ban_users(verbose=False):
     http_client = HttpClient()
 
     # execute
-    url = baseURL + "/get_ban_users"
+    url = f"{baseURL}/get_ban_users"
     output = None
     try:
         status, output = http_client.post(url, {})
@@ -2159,4 +2159,4 @@ def release_task(jedi_task_id, verbose=False):
         return status, json.loads(output)
     except Exception as e:
         err_str = f"ERROR release_task : failed with {str(e)}"
-        return EC_Failed, output + "\n" + err_str
+        return EC_Failed, f"{output}\n{err_str}"
