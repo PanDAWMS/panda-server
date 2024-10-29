@@ -39,11 +39,10 @@ CMD_STOP = "__STOP"
 # epoch datetime
 EPOCH = datetime.datetime.fromtimestamp(0)
 
-
+# requester id for taskbuffer
 requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
 
 
-# kill process tree
 def kill_proc_tree(pid, sig=signal.SIGKILL, include_parent=True, timeout=None, on_terminate=None):
     """
     Kill a process tree (including grandchildren) with signal "sig" and return a (gone, still_alive) tuple.
@@ -63,8 +62,10 @@ def kill_proc_tree(pid, sig=signal.SIGKILL, include_parent=True, timeout=None, o
     return (gone, alive)
 
 
-# worker process loop of daemon
 def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lock_pool=None):
+    """
+    Main loop of daemon worker process
+    """
     # pid of the worker
     my_pid = os.getpid()
     my_full_pid = f"{socket.getfqdn().split('.')[0]}-{os.getpgrp()}-{my_pid}"
@@ -79,6 +80,7 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
 
     for sig in END_SIGNALS:
         signal.signal(sig, got_end_sig)
+
     # dict of all daemons and their script module object
     module_map = {}
     # package of daemon scripts
@@ -271,9 +273,6 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
             # send daemon status back to master
             status_tuple = (dem_name, to_run_daemon, has_run, last_run_start_ts, last_run_end_ts)
             pipe_conn.send(status_tuple)
-            # FIXME: stop and spawn worker in every run for now since some script breaks the worker without exception
-            # tmp_log.info('as script done, stop this worker')
-            # break
         else:
             # got invalid message
             tmp_log.warning(f'got invalid message "{one_msg}", skipped it')
@@ -281,8 +280,11 @@ def daemon_loop(dem_config, msg_queue, pipe_conn, worker_lifetime, tbuf=None, lo
         time.sleep(2**-5)
 
 
-# worker class of daemon process for PanDA server
 class DaemonWorker(object):
+    """
+    Class of worker process of PanDA daemon
+    """
+
     __slots__ = (
         "pid",
         "parent_conn",
@@ -308,17 +310,23 @@ class DaemonWorker(object):
                 lock_pool=lock_pool,
             )
 
-    # make pipe connection pairs for the worker
     def _make_pipe(self):
+        """
+        make pipe connection pairs between master and this worker
+        """
         self.parent_conn, self.child_conn = multiprocessing.Pipe()
 
-    # close pipe connections
     def _close_pipe(self):
+        """
+        close pipe connection pairs between master and this worker
+        """
         self.parent_conn.close()
         self.child_conn.close()
 
-    # make associated process
     def _make_process(self, dem_config, msg_queue, worker_lifetime, tbuf, lock_pool):
+        """
+        make associate process of this worker
+        """
         args = (
             dem_config,
             msg_queue,
@@ -329,39 +337,54 @@ class DaemonWorker(object):
         )
         self.process = multiprocessing.Process(target=daemon_loop, args=args)
 
-    # start worker process
     def start(self):
+        """
+        start the worker process
+        """
         self.unset_dem()
         self.process.start()
         self.pid = self.process.pid
 
-    # whether worker process is alive
     def is_alive(self):
+        """
+        whether the worker process is alive
+        """
         return self.process.is_alive()
 
-    # kill the worker process and all its subprocesses
     def kill(self):
+        """
+        kill the worker process and all its subprocesses
+        """
         self._close_pipe()
         return kill_proc_tree(self.process.pid)
 
-    # whether the worker is running daemon
     def is_running_dem(self):
+        """
+        whether the worker is still running a daemon script
+        """
         return not (self.dem_name is None and self.dem_ts is None)
 
-    # set current running daemon in this worker
     def set_dem(self, dem_name, dem_ts):
+        """
+        set current running daemon in this worker
+        """
         if not self.is_running_dem() or dem_ts >= self.dem_ts:
             self.dem_name = dem_name
             self.dem_ts = dem_ts
 
-    # unset current running daemon in this worker
     def unset_dem(self):
+        """
+        unset current running daemon in this worker
+        """
         self.dem_ts = None
         self.dem_name = None
 
 
-# master class of main daemon process for PanDA server
 class DaemonMaster(object):
+    """
+    Class of master process of PanDA daemon
+    """
+
     # constructor
     def __init__(self, logger, n_workers=1, n_dbconn=1, worker_lifetime=28800, use_tbif=False):
         # logger
@@ -400,11 +423,16 @@ class DaemonMaster(object):
         self._spawn_workers(self.n_workers)
 
     def _reset_msg_queue(self):
+        """
+        reset the message queue for sending commands to workers
+        """
         self.msg_queue = multiprocessing.Queue()
         self.logger.info(f"reset message queue (qid={id(self.msg_queue)})")
 
-    # make common taskBuffer interface for daemon workers
     def _make_tbif(self):
+        """
+        make common taskBuffer interface for daemon workers
+        """
         try:
             # import is always required to have reserveChangedState consistent in *Spec
             from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
@@ -430,8 +458,10 @@ class DaemonMaster(object):
             self.logger.error(f"failed to initialize taskBuffer interface with {e.__class__.__name__}: {e} ; terminated")
             raise e
 
-    # spawn new workers and put into worker pool
     def _spawn_workers(self, n_workers=1, auto_start=False):
+        """
+        spawn new workers and put them into worker pool
+        """
         for j in range(n_workers):
             with self._worker_lock:
                 if self.use_tbif:
@@ -450,13 +480,17 @@ class DaemonMaster(object):
                     worker.start()
                     self.logger.debug(f"launched new worker_pid={worker.pid}")
 
-    # remove a worker from pool
     def _remove_worker(self, worker):
+        """
+        remove a worker from pool
+        """
         with self._worker_lock:
             self.worker_pool.discard(worker)
 
-    # parse daemon config
     def _parse_config(self):
+        """
+        parse configuration of PanDA daemon
+        """
         try:
             config_json = daemon_config.config
             config_dict = json.loads(config_json)
@@ -495,8 +529,10 @@ class DaemonMaster(object):
             tb = traceback.format_exc()
             self.logger.error(f"failed to parse daemon config, {e.__class__.__name__}: {e}\n{tb}\n")
 
-    # make daemon run status map
     def _make_dem_run_map(self):
+        """
+        initialize daemon run status map
+        """
         dem_run_map = {}
         for dem in self.dem_config:
             attrs = {}
@@ -507,8 +543,10 @@ class DaemonMaster(object):
             dem_run_map[dem] = attrs
         self.dem_run_map = dem_run_map
 
-    # kill one (stuck) worker (and new worker will be re-spawned in scheduler cycle)
     def _kill_one_worker(self, worker):
+        """
+        kill one (stuck) worker (and new worker will be re-spawned in scheduler cycle)
+        """
         # kill worker process and remove it from pool
         worker.kill()
         self._remove_worker(worker)
@@ -516,8 +554,10 @@ class DaemonMaster(object):
         self.dem_run_map[worker.dem_name]["msg_ongoing"] = False
         self.dem_run_map[worker.dem_name]["dem_running"] = False
 
-    # one scheduler cycle
     def _scheduler_cycle(self):
+        """
+        main scheduler cycle
+        """
         now_ts = int(time.time())
         # check last run time from pipes
         for worker in list(self.worker_pool):
@@ -613,8 +653,10 @@ class DaemonMaster(object):
         # sleep
         time.sleep(0.5)
 
-    # stop all workers gracefully by sending stop command to them
     def _stop_all_workers(self):
+        """
+        stop all workers gracefully by sending stop command to them
+        """
         # send stop command
         for worker in self.worker_pool:
             worker.parent_conn.send(CMD_STOP)
@@ -624,8 +666,10 @@ class DaemonMaster(object):
             self.dem_run_map[dem_name]["msg_ongoing"] = False
             self.dem_run_map[dem_name]["dem_running"] = False
 
-    # stop master
     def stop(self):
+        """
+        stop the master (and all workers)
+        """
         self.logger.info("daemon master got stop")
         # stop scheduler from sending more message
         self.to_stop_scheduler = True
@@ -641,8 +685,10 @@ class DaemonMaster(object):
         # wait a bit
         time.sleep(2)
 
-    # revive: kill all workers, reset a new message queue, and spawn new workers with new queue
     def revive(self):
+        """
+        revive: kill all workers, reset a new message queue, and spawn new workers with new queue
+        """
         self.logger.info("daemon master reviving")
         # stop all workers gracefully
         self._stop_all_workers()
@@ -661,8 +707,10 @@ class DaemonMaster(object):
         # done
         self.logger.info("daemon master revived")
 
-    # run
     def run(self):
+        """
+        main function to run the master
+        """
         # master pid
         master_pid = os.getpid()
         self.logger.info(f"daemon master started ; master_pid={master_pid}")
