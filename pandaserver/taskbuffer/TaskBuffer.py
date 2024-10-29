@@ -1529,17 +1529,6 @@ class TaskBuffer:
 
         return True
 
-    # get input LFNs currently in use for analysis with shadow dis
-    def getLFNsInUseForAnal(self, inputDisList):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # query dis
-        retList = proxy.getLFNsInUseForAnal(inputDisList)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return retList
-
     # update input files and return corresponding PandaIDs
     def updateInFilesReturnPandaIDs(self, dataset, status, fileLFN=""):
         # get DBproxy

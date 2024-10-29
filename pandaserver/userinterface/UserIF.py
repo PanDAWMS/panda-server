@@ -218,12 +218,6 @@ class UserIF:
         ret = self.taskBuffer.get_job_statistics_per_site_label_resource(time_window)
         return json.dumps(ret)
 
-    # get input LFNs currently in use for analysis with shadow dis
-    def getLFNsInUseForAnal(self, inputDisListStr):
-        inputDisList = WrappedPickle.loads(inputDisListStr)
-        ret = self.taskBuffer.getLFNsInUseForAnal(inputDisList)
-        return WrappedPickle.dumps(ret)
-
     # kill jobs
     def killJobs(self, idsStr, user, host, code, prodManager, useMailAsID, fqans, killOpts=[]):
         # deserialize IDs
@@ -935,11 +929,6 @@ def getJobStatisticsPerSite(
         else:
             readArchived = False
     return userIF.getJobStatisticsPerSite(predefined, workingGroup, countryGroup, jobType, minPriority, readArchived)
-
-
-# get input LFNs currently in use for analysis with shadow dis
-def getLFNsInUseForAnal(req, inputDisList):
-    return userIF.getLFNsInUseForAnal(inputDisList)
 
 
 # kill jobs

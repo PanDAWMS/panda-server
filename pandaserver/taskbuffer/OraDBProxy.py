@@ -6563,64 +6563,6 @@ class DBProxy:
             _logger.error(f"getDatasetWithFile : {lfn} : {errType} {errValue}")
             return {}
 
-    # get input LFNs currently in use for analysis with shadow dis
-    def getLFNsInUseForAnal(self, inputDisList):
-        comment = " /* DBProxy.getLFNsInUseForAnal */"
-        sqlLfn = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ lfn,PandaID FROM ATLAS_PANDA.filesTable4 tab "
-        sqlLfn += "WHERE dispatchDBlock=:dispatchDBlock AND type=:type "
-        sqlLfn += "AND (destinationDBlockToken IS NULL OR destinationDBlockToken<>:noshadow) AND modificationTime<=CURRENT_DATE"
-        inputFilesList = []
-        try:
-            token = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat("/")
-            # loop over all shadow dis datasets
-            pandaIdLfnMap = {}
-            for disDatasetList, activePandaIDs in inputDisList:
-                for disDataset in disDatasetList:
-                    # use new style only
-                    if not disDataset.startswith("user_disp."):
-                        continue
-                    # read LFNs and PandaIDs
-                    if disDataset not in pandaIdLfnMap:
-                        # start transaction
-                        self.conn.begin()
-                        varMap = {}
-                        varMap[":dispatchDBlock"] = disDataset
-                        varMap[":type"] = "input"
-                        varMap[":noshadow"] = "noshadow"
-                        _logger.debug(f"getLFNsInUseForAnal : <{token}> {sqlLfn} {str(varMap)}")
-                        timeStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-                        self.cur.arraysize = 100000
-                        retL = self.cur.execute(sqlLfn + comment, varMap)
-                        resL = self.cur.fetchall()
-                        # commit
-                        timeDelta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - timeStart
-                        _logger.debug(f"getLFNsInUseForAnal : <{token}> {disDataset} time={timeDelta.seconds}sec commit")
-                        if not self._commit():
-                            raise RuntimeError("Commit error")
-                        # make map
-                        pandaIdLfnMap[disDataset] = {}
-                        for lfn, filePandaID in resL:
-                            if filePandaID not in pandaIdLfnMap[disDataset]:
-                                pandaIdLfnMap[disDataset][filePandaID] = []
-                            pandaIdLfnMap[disDataset][filePandaID].append(lfn)
-                        _logger.debug(f"getLFNsInUseForAnal : <{token}> {disDataset} map made with len={len(resL)}")
-                # append
-                for disDataset in disDatasetList:
-                    _logger.debug(f"getLFNsInUseForAnal : <{token}> {disDataset} list making pandaIDs={len(activePandaIDs)} fileLen={len(inputFilesList)}")
-                    for activePandaID in activePandaIDs:
-                        # skip files used by archived failed or cancelled jobs
-                        if activePandaID in pandaIdLfnMap[disDataset]:
-                            inputFilesList += pandaIdLfnMap[disDataset][activePandaID]
-                    _logger.debug(f"getLFNsInUseForAnal : <{token}> {disDataset} done")
-            _logger.debug(f"getLFNsInUseForAnal : <{token}> {len(inputFilesList)}")
-            return inputFilesList
-        except Exception:
-            # roll back
-            self._rollback()
-            errtype, errvalue = sys.exc_info()[:2]
-            _logger.error(f"getLFNsInUseForAnal({str(inputDisList)}) : {errtype} {errvalue}")
-            return None
-
     # update input files and return corresponding PandaIDs
     def updateInFilesReturnPandaIDs(self, dataset, status, fileLFN=""):
         comment = " /* DBProxy.updateInFilesReturnPandaIDs */"
