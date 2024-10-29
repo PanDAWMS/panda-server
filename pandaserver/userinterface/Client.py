@@ -235,7 +235,6 @@ def getJobStatus(panda_ids):
 def killJobs(
     ids,
     code=None,
-    verbose=False,
     useMailAsID=False,
     keepUnmerged=False,
     jobSubStatus=None,
@@ -258,7 +257,6 @@ def killJobs(
                  10: fast re-brokerage on overloaded PQs
                  50: kill by JEDI
                  91: kill user jobs with prod role
-           verbose: set True to see what's going on
            useMailAsID: obsolete
            keepUnmerged: set True not to cancel unmerged jobs when pmerge is killed.
            jobSubStatus: set job sub status if any
@@ -569,7 +567,7 @@ def get_job_statistics_per_site_label_resource(time_window=None):
         return EC_Failed, f"{output}\n{error_str}"
 
 
-def insertSandboxFileInfo(userName, fileName, fileSize, checkSum, verbose=False):
+def insertSandboxFileInfo(userName, fileName, fileSize, checkSum):
     """
     Insert information of input sandbox
 
@@ -578,7 +576,6 @@ def insertSandboxFileInfo(userName, fileName, fileSize, checkSum, verbose=False)
         fileName: the file name
         fileSize: the file size
         fileSize: md5sum of the file
-        verbose: set True to see what's going on
     returns:
         status code
               0: communication succeeded to the panda server
@@ -983,7 +980,7 @@ def setDebugMode(pandaID, modeOn):
     return http_client.post(url, data)
 
 
-def retryTask(jediTaskID, verbose=False, noChildRetry=False, discardEvents=False, disable_staging_mode=False, keep_gshare_priority=False):
+def retryTask(jediTaskID, noChildRetry=False, discardEvents=False, disable_staging_mode=False, keep_gshare_priority=False):
     """
     Retry a task
 
@@ -1029,7 +1026,7 @@ def retryTask(jediTaskID, verbose=False, noChildRetry=False, discardEvents=False
         return EC_Failed, f"{output}\n{error_str}"
 
 
-def reloadInput(jediTaskID, verbose=False):
+def reloadInput(jediTaskID):
     """
     Reload the input for a task
 
@@ -1222,7 +1219,7 @@ def changeTaskSplitRule(jediTaskID, ruleName, ruleValue):
         return EC_Failed, f"{output}\n{error_str}"
 
 
-def pauseTask(jediTaskID, verbose=False):
+def pauseTask(jediTaskID):
     """
     Pause task
 
@@ -1256,7 +1253,7 @@ def pauseTask(jediTaskID, verbose=False):
         return EC_Failed, f"{output}\n{error_str}"
 
 
-def resumeTask(jediTaskID, verbose=False):
+def resumeTask(jediTaskID):
     """
     Resume task
 
@@ -1290,7 +1287,7 @@ def resumeTask(jediTaskID, verbose=False):
         return EC_Failed, f"{output}\n{error_str}"
 
 
-def avalancheTask(jediTaskID, verbose=False):
+def avalancheTask(jediTaskID):
     """
     Force avalanche for task
 
@@ -1358,7 +1355,7 @@ def increaseAttemptNr(jediTaskID, increase):
         return EC_Failed, f"{output}\n{error_str}"
 
 
-def killUnfinishedJobs(jediTaskID, code=None, verbose=False, useMailAsID=False):
+def killUnfinishedJobs(jediTaskID, code=None, useMailAsID=False):
     """
     Kill unfinished jobs in a task. Normal users can kill only their own jobs.
     People with production VOMS role can kill any jobs.
@@ -1376,7 +1373,6 @@ def killUnfinishedJobs(jediTaskID, code=None, verbose=False, useMailAsID=False):
                  9: force kill
                  50: kill by JEDI
                  91: kill user jobs with prod role
-           verbose: set True to see what's going on
            useMailAsID: obsolete
        returns:
            status code
@@ -1742,12 +1738,10 @@ def send_command_to_job(panda_id, com):
         return EC_Failed, f"{output}\n{error_str}"
 
 
-def get_ban_users(verbose=False):
+def get_ban_users():
     """
     Get list of banned users
 
-    args:
-        verbose: set True to see what's going on
     returns:
         status code
               True: communication succeeded to the panda server
@@ -1771,7 +1765,7 @@ def get_ban_users(verbose=False):
         return False, f"broken response: {output}"
 
 
-def release_task(jedi_task_id, verbose=False):
+def release_task(jedi_task_id):
     """
     Release task from staging
 
