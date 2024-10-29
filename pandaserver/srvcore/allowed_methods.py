@@ -58,7 +58,6 @@ allowed_methods += [
     "getPandIDsWithJobID",
     "getFullJobStatus",
     "getJobStatisticsForBamboo",
-    "getFilesInUseForAnal",
     "getPandaClientVer",
     "getSlimmedFileInfoPandaIDs",
     "checkMergeGenerationStatus",

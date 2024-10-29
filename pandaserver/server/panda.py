@@ -95,7 +95,6 @@ from pandaserver.userinterface.UserIF import (
     get_job_statistics_per_site_label_resource,
     get_user_secrets,
     getDisInUseForAnal,
-    getFilesInUseForAnal,
     getFullJobStatus,
     getJediTaskDetails,
     getJediTasksInTimeRange,

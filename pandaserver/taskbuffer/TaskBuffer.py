@@ -1529,18 +1529,6 @@ class TaskBuffer:
 
         return True
 
-    # get input files currently in used for analysis
-    def getFilesInUseForAnal(self, outDataset):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        retList = []
-        # query LFNs
-        retList = proxy.getFilesInUseForAnal(outDataset)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return retList
-
     # get list of dis dataset to get input files in shadow
     def getDisInUseForAnal(self, outDataset):
         # get DBproxy
