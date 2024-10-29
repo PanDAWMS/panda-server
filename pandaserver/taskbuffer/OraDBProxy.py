@@ -6374,45 +6374,6 @@ class DBProxy:
             _logger.error(f"getSerialNumber() : {type} {value}")
             return (-1, False)
 
-    # get serial number for group job
-    def getSerialNumberForGroupJob(self, name):
-        comment = " /* DBProxy.getSerialNumberForGroupJob */"
-        retVal = {"sn": "", "status": False}
-        try:
-            _logger.debug(f"getSerialNumberForGroupJob({name})")
-            # start transaction
-            self.conn.begin()
-            # get serial number
-            if self.backend == "oracle":
-                sql = "SELECT ATLAS_PANDA.GROUP_JOBID_SEQ.nextval FROM dual"
-                self.cur.execute(sql + comment, {})
-                (sn,) = self.cur.fetchone()
-            else:
-                # panda_config.backend == 'mysql'
-                # fake sequence
-                sql = " INSERT INTO ATLAS_PANDA.GROUP_JOBID_SEQ (col) VALUES (NULL) "
-                self.cur.arraysize = 100
-                self.cur.execute(sql + comment, {})
-                sql2 = """ SELECT LAST_INSERT_ID() """
-                self.cur.execute(sql2 + comment, {})
-                (sn,) = self.cur.fetchone()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # return
-            retVal["sn"] = sn
-            retVal["status"] = True
-            _logger.debug(f"getSerialNumberForGroupJob : {name} {str(retVal)}")
-            return retVal
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            errtype, errvalue = sys.exc_info()[:2]
-            _logger.error(f"getSerialNumberForGroupJob : {errtype} {errvalue}")
-            retVal["status"] = False
-            return retVal
-
     # query files with map
     def queryFilesWithMap(self, map):
         comment = " /* DBProxy.queryFilesWithMap */"

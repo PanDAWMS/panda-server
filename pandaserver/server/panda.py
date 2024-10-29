@@ -114,7 +114,6 @@ from pandaserver.userinterface.UserIF import (
     getQueuedAnalJobs,
     getRetryHistory,
     getScriptOfflineRunning,
-    getSerialNumberForGroupJob,
     getSiteSpecs,
     getSlimmedFileInfoPandaIDs,
     getTaskParamsMap,

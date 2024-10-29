@@ -63,7 +63,6 @@ allowed_methods += [
     "getSlimmedFileInfoPandaIDs",
     "getQueuedAnalJobs",
     "getActiveDatasets",
-    "getSerialNumberForGroupJob",
     "checkMergeGenerationStatus",
     "retryFailedJobsInActive",
     "getDisInUseForAnal",

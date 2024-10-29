@@ -123,13 +123,6 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
-    # get serial number for group job
-    def getSerialNumberForGroupJob(self, name):
-        # get
-        ret = self.taskBuffer.getSerialNumberForGroupJob(name)
-        # serialize
-        return WrappedPickle.dumps(ret)
-
     # retry failed subjobs in running job
     def retryFailedJobsInActive(self, dn, jobID):
         try:
@@ -1108,18 +1101,6 @@ def retryFailedJobsInActive(req, jobID):
     except Exception:
         return "ERROR: jobID is not an integer"
     return userIF.retryFailedJobsInActive(dn, jobID)
-
-
-# get serial number for group job
-def getSerialNumberForGroupJob(req):
-    # check SSL
-    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
-        return "ERROR: SSL connection is required"
-    # get DN
-    dn = _getDN(req)
-    if dn == "":
-        return "ERROR: could not get DN"
-    return userIF.getSerialNumberForGroupJob(dn)
 
 
 # get script for offline running

@@ -313,17 +313,6 @@ class TaskBuffer:
             # get DB proxy
             proxy = self.proxyPool.getProxy()
             tmpLog.debug(f"got proxy")
-            # get group job serial number
-            groupJobSerialNum = 0
-            if len(jobs) > 0 and (jobs[0].prodSourceLabel in JobUtils.analy_sources) and (not jobs[0].processingType in ["merge", "unmerge"]):
-                for tmpFile in jobs[-1].Files:
-                    if tmpFile.type in ["output", "log"] and "$GROUPJOBSN" in tmpFile.lfn:
-                        tmpLog.debug(f"getting group job serial number")
-                        tmpSnRet = proxy.getSerialNumberForGroupJob(user)
-                        if tmpSnRet["status"]:
-                            groupJobSerialNum = tmpSnRet["sn"]
-                        break
-            tmpLog.debug(f"got group job serial number")
             # get total number of files
             totalNumFiles = 0
             for job in jobs:
@@ -1805,17 +1794,6 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # get serial number
         ret = proxy.getSerialNumber(datasetname, definedFreshFlag)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
-    # get serial number for group job
-    def getSerialNumberForGroupJob(self, name):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get serial number
-        ret = proxy.getSerialNumberForGroupJob(name)
         # release proxy
         self.proxyPool.putProxy(proxy)
 
