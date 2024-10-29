@@ -315,16 +315,6 @@ class UserIF:
         ret = self.taskBuffer.getJediTaskDetails(jediTaskID, fullFlag, withTaskInfo)
         return WrappedPickle.dumps(ret)
 
-    # get PandaIDs for a JobID
-    def getPandIDsWithJobID(self, dn, jobID, nJobs):
-        ret = self.taskBuffer.getPandIDsWithJobID(dn, jobID, nJobs)
-        return WrappedPickle.dumps(ret)
-
-    # check merge job generation status
-    def checkMergeGenerationStatus(self, dn, jobID):
-        ret = self.taskBuffer.checkMergeGenerationStatus(dn, jobID)
-        return WrappedPickle.dumps(ret)
-
     # get full job status
     def getFullJobStatus(self, idsStr, dn):
         try:
@@ -1023,35 +1013,6 @@ def getJediTaskDetails(req, jediTaskID, fullFlag, withTaskInfo):
     _logger.debug(f"getJediTaskDetails {jediTaskID} {fullFlag} {withTaskInfo}")
     # execute
     return userIF.getJediTaskDetails(jediTaskID, fullFlag, withTaskInfo)
-
-
-# get PandaIDs for a JobID
-def getPandIDsWithJobID(req, jobID, nJobs, dn=None):
-    # check security
-    if not isSecure(req):
-        return False
-    # get DN
-    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
-        return False
-    if dn is None:
-        dn = _getDN(req)
-    _logger.debug(f"getPandIDsWithJobID {dn} JobID={jobID} nJobs={nJobs}")
-    # execute
-    return userIF.getPandIDsWithJobID(dn, jobID, nJobs)
-
-
-# check merge job generation status
-def checkMergeGenerationStatus(req, jobID, dn=None):
-    # check security
-    if not isSecure(req):
-        return False
-    # get DN
-    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
-        return False
-    if dn is None:
-        dn = _getDN(req)
-    _logger.debug(f"checkMergeGenerationStatus {dn} JobID={jobID}")
-    return userIF.checkMergeGenerationStatus(dn, jobID)
 
 
 # get full job status
