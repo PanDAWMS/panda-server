@@ -507,6 +507,15 @@ class DaemonMaster(object):
             dem_run_map[dem] = attrs
         self.dem_run_map = dem_run_map
 
+    # kill one (stuck) worker (and new worker will be re-spawned in scheduler cycle)
+    def _kill_one_worker(self, worker):
+        # kill worker process and remove it from pool
+        worker.kill()
+        self._remove_worker(worker)
+        # reset daemon run status map of the daemon run by the worker
+        self.dem_run_map[worker.dem_name]["msg_ongoing"] = False
+        self.dem_run_map[worker.dem_name]["dem_running"] = False
+
     # one scheduler cycle
     def _scheduler_cycle(self):
         now_ts = int(time.time())
@@ -561,10 +570,7 @@ class DaemonMaster(object):
                                 timeout=run_timeout,
                             )
                         )
-                        worker.kill()
-                        self._remove_worker(worker)
-                        self.dem_run_map[worker.dem_name]["msg_ongoing"] = False
-                        self.dem_run_map[worker.dem_name]["dem_running"] = False
+                        self._kill_one_worker(worker)
         # counter for super delayed daemons
         n_super_delayed_dems = 0
         # send message to workers
@@ -607,19 +613,24 @@ class DaemonMaster(object):
         # sleep
         time.sleep(0.5)
 
-    # send stop command to all worker processes
-    def _stop_proc(self):
+    # stop all workers gracefully by sending stop command to them
+    def _stop_all_workers(self):
+        # send stop command
         for worker in self.worker_pool:
             worker.parent_conn.send(CMD_STOP)
             self.logger.debug(f"sent stop command to worker_pid={worker.pid}")
+        # reset daemon run status map of all daemons
+        for dem_name in self.dem_config:
+            self.dem_run_map[dem_name]["msg_ongoing"] = False
+            self.dem_run_map[dem_name]["dem_running"] = False
 
     # stop master
     def stop(self):
         self.logger.info("daemon master got stop")
         # stop scheduler from sending more message
         self.to_stop_scheduler = True
-        # send stop command to workers
-        self._stop_proc()
+        # stop all workers gracefully
+        self._stop_all_workers()
         # wait a bit
         time.sleep(1)
         # close message queue
@@ -633,8 +644,8 @@ class DaemonMaster(object):
     # revive: kill all workers, reset a new message queue, and spawn new workers with new queue
     def revive(self):
         self.logger.info("daemon master reviving")
-        # send stop command to workers
-        self._stop_proc()
+        # stop all workers gracefully
+        self._stop_all_workers()
         # wait a bit
         time.sleep(3)
         # kill and remove workers
