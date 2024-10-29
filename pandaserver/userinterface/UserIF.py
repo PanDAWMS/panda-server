@@ -218,11 +218,6 @@ class UserIF:
         ret = self.taskBuffer.get_job_statistics_per_site_label_resource(time_window)
         return json.dumps(ret)
 
-    # get number of analysis jobs per user
-    def getNUserJobs(self, siteName):
-        ret = self.taskBuffer.getNUserJobs(siteName)
-        return WrappedPickle.dumps(ret)
-
     # get input files currently in used for analysis
     def getFilesInUseForAnal(self, outDataset):
         ret = self.taskBuffer.getFilesInUseForAnal(outDataset)
@@ -1166,36 +1161,6 @@ def getFullJobStatus(req, ids):
         return False
     dn = _getDN(req)
     return userIF.getFullJobStatus(ids, dn)
-
-
-# get a list of DN/myproxy pass phrase/queued job count at a site
-def getNUserJobs(req, siteName):
-    # check security
-    prodManager = False
-    if not isSecure(req):
-        return "Failed : HTTPS connection is required"
-    # get FQANs
-    fqans = _getFQAN(req)
-    # loop over all FQANs
-    for fqan in fqans:
-        # check production role
-        for rolePat in [
-            "/atlas/usatlas/Role=production",
-            "/atlas/Role=production",
-            "/atlas/usatlas/Role=pilot",
-            "/atlas/Role=pilot",
-        ]:
-            if fqan.startswith(rolePat):
-                prodManager = True
-                break
-        # escape
-        if prodManager:
-            break
-    # only prod managers can use this method
-    if not prodManager:
-        return "Failed : VOMS authorization failure. production or pilot role required"
-    # execute
-    return userIF.getNUserJobs(siteName)
 
 
 # insert task params
