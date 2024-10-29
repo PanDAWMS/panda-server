@@ -218,11 +218,6 @@ class UserIF:
         ret = self.taskBuffer.get_job_statistics_per_site_label_resource(time_window)
         return json.dumps(ret)
 
-    # get list of dis dataset to get input files in shadow
-    def getDisInUseForAnal(self, outDataset):
-        ret = self.taskBuffer.getDisInUseForAnal(outDataset)
-        return WrappedPickle.dumps(ret)
-
     # get input LFNs currently in use for analysis with shadow dis
     def getLFNsInUseForAnal(self, inputDisListStr):
         inputDisList = WrappedPickle.loads(inputDisListStr)
@@ -940,11 +935,6 @@ def getJobStatisticsPerSite(
         else:
             readArchived = False
     return userIF.getJobStatisticsPerSite(predefined, workingGroup, countryGroup, jobType, minPriority, readArchived)
-
-
-# get list of dis dataset to get input files in shadow
-def getDisInUseForAnal(req, outDataset):
-    return userIF.getDisInUseForAnal(outDataset)
 
 
 # get input LFNs currently in use for analysis with shadow dis

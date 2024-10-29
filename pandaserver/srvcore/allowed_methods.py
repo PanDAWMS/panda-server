@@ -61,7 +61,6 @@ allowed_methods += [
     "getPandaClientVer",
     "getSlimmedFileInfoPandaIDs",
     "checkMergeGenerationStatus",
-    "getDisInUseForAnal",
     "getLFNsInUseForAnal",
     "getScriptOfflineRunning",
     "setDebugMode",
