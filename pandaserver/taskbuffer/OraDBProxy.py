@@ -5337,54 +5337,6 @@ class DBProxy:
             # return empty list
             return False, {}
 
-    # get slimmed file info with PandaIDs
-    def getSlimmedFileInfoPandaIDs(self, pandaIDs):
-        comment = " /* DBProxy.getSlimmedFileInfoPandaIDs */"
-        _logger.debug(f"getSlimmedFileInfoPandaIDs : {pandaIDs[0]} len={len(pandaIDs)}")
-        try:
-            sqlL = "SELECT lfn,type,dataset FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID"
-            sqlA = "SELECT /*+ INDEX(tab FILES_ARCH_PANDAID_IDX)*/ lfn,type,dataset FROM ATLAS_PANDAARCH.filesTable_ARCH tab "
-            sqlA += "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-60)"
-            retMap = {"inDS": [], "outDS": []}
-            # start transaction
-            self.conn.begin()
-            # select
-            for pandaID in pandaIDs:
-                # make sql
-                varMap = {}
-                varMap[":PandaID"] = pandaID
-                # select
-                self.cur.arraysize = 10000
-                self.cur.execute(sqlL + comment, varMap)
-                resList = self.cur.fetchall()
-                # try archived if not found in filesTable4
-                if len(resList) == 0:
-                    self.cur.execute(sqlA + comment, varMap)
-                    resList = self.cur.fetchall()
-                # append
-                for tmp_lfn, tmp_type, tmp_dataset in resList:
-                    # skip lib.tgz
-                    if tmp_lfn.endswith(".lib.tgz"):
-                        continue
-                    if tmp_type == "input":
-                        if tmp_dataset not in retMap["inDS"]:
-                            retMap["inDS"].append(tmp_dataset)
-                    elif tmp_type == "output":
-                        if tmp_dataset not in retMap["outDS"]:
-                            retMap["outDS"].append(tmp_dataset)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            _logger.debug(f"getSlimmedFileInfoPandaIDs : {str(retMap)}")
-            return retMap
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getSlimmedFileInfoPandaIDs : {type} {value}")
-            # return empty list
-            return {}
-
     # get JobIDs in a time range
     def getJobIDsInTimeRange(self, dn, timeRange, retJobIDs):
         comment = " /* DBProxy.getJobIDsInTimeRange */"

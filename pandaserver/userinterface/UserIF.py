@@ -305,24 +305,6 @@ class UserIF:
         ret = self.taskBuffer.getPandaClientVer()
         return ret
 
-    # get slimmed file info with PandaIDs
-    def getSlimmedFileInfoPandaIDs(self, pandaIDsStr, dn):
-        try:
-            # deserialize IDs
-            pandaIDs = WrappedPickle.loads(pandaIDsStr)
-            # truncate
-            maxIDs = 5500
-            if len(pandaIDs) > maxIDs:
-                _logger.error(f"getSlimmedFileInfoPandaIDs: too long ID list more than {maxIDs}")
-                pandaIDs = pandaIDs[:maxIDs]
-            # get
-            _logger.debug(f"getSlimmedFileInfoPandaIDs start : {dn} {len(pandaIDs)}")
-            ret = self.taskBuffer.getSlimmedFileInfoPandaIDs(pandaIDs)
-            _logger.debug("getSlimmedFileInfoPandaIDs end")
-        except Exception:
-            ret = {}
-        return WrappedPickle.dumps(ret)
-
     # get JobIDs in a time range
     def getJobIDsInTimeRange(self, dn, timeRange):
         ret = self.taskBuffer.getJobIDsInTimeRange(dn, timeRange)
@@ -1090,18 +1072,6 @@ def checkMergeGenerationStatus(req, jobID, dn=None):
         dn = _getDN(req)
     _logger.debug(f"checkMergeGenerationStatus {dn} JobID={jobID}")
     return userIF.checkMergeGenerationStatus(dn, jobID)
-
-
-# get slimmed file info with PandaIDs
-def getSlimmedFileInfoPandaIDs(req, ids):
-    # check security
-    if not isSecure(req):
-        return False
-    # get DN
-    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
-        return False
-    dn = _getDN(req)
-    return userIF.getSlimmedFileInfoPandaIDs(ids, dn)
 
 
 # get full job status

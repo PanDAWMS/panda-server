@@ -1077,32 +1077,6 @@ class TaskBuffer:
 
         return retJobs
 
-    # get slimmed file info with PandaIDs
-    def getSlimmedFileInfoPandaIDs(self, pandaIDs):
-        iPandaID = 0
-        nPandaID = 100
-        retInfo = {}
-        while iPandaID < len(pandaIDs):
-            # get DBproxy
-            proxy = self.proxyPool.getProxy()
-            # get
-            tmpRetInfo = proxy.getSlimmedFileInfoPandaIDs(pandaIDs[iPandaID : iPandaID + nPandaID])
-            # release proxy
-            self.proxyPool.putProxy(proxy)
-            iPandaID += nPandaID
-            if retInfo == {}:
-                retInfo = tmpRetInfo
-            else:
-                for outKey in tmpRetInfo:
-                    if outKey not in retInfo:
-                        retInfo[outKey] = []
-                    # append
-                    for tmpItemRetInfo in tmpRetInfo[outKey]:
-                        if tmpItemRetInfo not in retInfo[outKey]:
-                            retInfo[outKey].append(tmpItemRetInfo)
-
-        return retInfo
-
     # get JobIDs in a time range
     def getJobIDsInTimeRange(self, dn, timeRangeStr):
         # check DN
