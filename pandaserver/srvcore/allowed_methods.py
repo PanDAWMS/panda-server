@@ -52,7 +52,6 @@ allowed_methods += [
     "reassignJobs",
     "getJobStatistics",
     "getJobStatisticsPerSite",
-    "resubmitJobs",
     "getSiteSpecs",
     "getJobIDsInTimeRange",
     "getPandIDsWithJobID",

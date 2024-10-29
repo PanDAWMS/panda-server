@@ -654,23 +654,6 @@ class TaskBuffer:
 
         return res
 
-    # resubmit jobs
-    def resubmitJobs(self, jobIDs):
-        # get DB proxy
-        proxy = self.proxyPool.getProxy()
-        jobs = []
-        # get jobs
-        for jobID in jobIDs:
-            res = proxy.peekJob(jobID, True, False, False, False)
-            if res:
-                jobs.append(res)
-        # release DB proxy
-        self.proxyPool.putProxy(proxy)
-        # set up dataset
-        if len(jobs) > 0:
-            Setupper(self, jobs).start()
-        return True
-
     # update overall job information
     def updateJobs(
         self,

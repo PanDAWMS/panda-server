@@ -266,14 +266,6 @@ class UserIF:
         )
         return WrappedPickle.dumps(ret)
 
-    # resubmit jobs
-    def resubmitJobs(self, idsStr):
-        # deserialize IDs
-        ids = WrappedPickle.loads(idsStr)
-        # kill jobs
-        ret = self.taskBuffer.resubmitJobs(ids)
-        return WrappedPickle.dumps(ret)
-
     # get list of site spec
     def getSiteSpecs(self, siteType="analysis"):
         # get analysis site list
@@ -981,14 +973,6 @@ def reassignJobs(req, ids, forPending=None, firstSubmission=None):
     else:
         firstSubmission = True
     return userIF.reassignJobs(ids, user, host, forPending, firstSubmission)
-
-
-# resubmit jobs
-def resubmitJobs(req, ids):
-    # check security
-    if not isSecure(req):
-        return False
-    return userIF.resubmitJobs(ids)
 
 
 # get list of site spec

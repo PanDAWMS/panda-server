@@ -132,7 +132,6 @@ from pandaserver.userinterface.UserIF import (
     reloadInput,
     reportWorkerStats,
     reportWorkerStats_jobtype,
-    resubmitJobs,
     resumeTask,
     retryTask,
     send_command_to_job,
