@@ -1077,45 +1077,6 @@ class TaskBuffer:
 
         return retJobs
 
-    # get JobIDs in a time range
-    def getJobIDsInTimeRange(self, dn, timeRangeStr):
-        # check DN
-        if dn in ["NULL", "", "None", None]:
-            return []
-        # check timeRange
-        match = re.match("^(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)$", timeRangeStr)
-        if match is None:
-            return []
-        timeRange = datetime.datetime(
-            year=int(match.group(1)),
-            month=int(match.group(2)),
-            day=int(match.group(3)),
-            hour=int(match.group(4)),
-            minute=int(match.group(5)),
-            second=int(match.group(6)),
-        )
-        # max range is 3 months
-        maxRange = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=30)
-        if timeRange < maxRange:
-            timeRange = maxRange
-        retJobIDs = []
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get JobIDs
-        retJobIDs = proxy.getJobIDsInTimeRange(dn, timeRange, retJobIDs)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # read ARCH when time window is more than 3days (- 3 hours as a margin)
-        if timeRange < datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=2, hours=21):
-            # get ArchiveDBproxy
-            proxy = self.proxyPool.getProxy()
-            # get JobIDs
-            retJobIDs = proxy.getJobIDsInTimeRangeLog(dn, timeRange, retJobIDs)
-            # release proxy
-            self.proxyPool.putProxy(proxy)
-
-        return retJobIDs
-
     # get PandaIDs for a JobID
     def getPandIDsWithJobID(self, dn, jobID, nJobs):
         idStatus = {}

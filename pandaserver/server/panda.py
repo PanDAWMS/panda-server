@@ -97,7 +97,6 @@ from pandaserver.userinterface.UserIF import (
     getFullJobStatus,
     getJediTaskDetails,
     getJediTasksInTimeRange,
-    getJobIDsInTimeRange,
     getJobStatistics,
     getJobStatisticsForBamboo,
     getJobStatisticsPerSite,

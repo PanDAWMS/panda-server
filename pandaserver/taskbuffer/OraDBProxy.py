@@ -5337,67 +5337,6 @@ class DBProxy:
             # return empty list
             return False, {}
 
-    # get JobIDs in a time range
-    def getJobIDsInTimeRange(self, dn, timeRange, retJobIDs):
-        comment = " /* DBProxy.getJobIDsInTimeRange */"
-        _logger.debug(f"getJobIDsInTimeRange : {dn} {timeRange.strftime('%Y-%m-%d %H:%M:%S')}")
-        try:
-            # get compact DN
-            compactDN = self.cleanUserID(dn)
-            if compactDN in ["", "NULL", None]:
-                compactDN = dn
-            tables = [
-                "ATLAS_PANDA.jobsArchived4",
-                "ATLAS_PANDA.jobsActive4",
-                "ATLAS_PANDA.jobsWaiting4",
-                "ATLAS_PANDA.jobsDefined4",
-            ]
-            # select
-            for table in tables:
-                # make sql
-                if table == "ATLAS_PANDA.jobsArchived4":
-                    sql = (
-                        'SELECT /*+ INDEX_RS_ASC(TAB("JOBSARCHIVED4"."PRODUSERNAME")) NO_INDEX(TAB("JOBSARCHIVED4"."MODIFICATIONTIME")) */ jobDefinitionID FROM %s tab '
-                        % table
-                    )
-                elif table == "ATLAS_PANDA.jobsActive4":
-                    sql = (
-                        'SELECT /*+ INDEX_RS_ASC(TAB("JOBSACTIVE4"."PRODUSERNAME")) NO_INDEX(TAB("JOBSACTIVE4"."MODIFICATIONTIME")) */ jobDefinitionID FROM %s tab '
-                        % table
-                    )
-                else:
-                    sql = f"SELECT jobDefinitionID FROM {table} "
-                sql += "WHERE prodUserName=:prodUserName AND modificationTime>:modificationTime "
-                sql += "AND prodSourceLabel=:prodSourceLabel AND lockedBy<>:ngLock GROUP BY jobDefinitionID"
-                varMap = {}
-                varMap[":prodUserName"] = compactDN
-                varMap[":prodSourceLabel"] = "user"
-                varMap[":ngLock"] = "jedi"
-                varMap[":modificationTime"] = timeRange
-                # start transaction
-                self.conn.begin()
-                # select
-                self.cur.arraysize = 10000
-                _logger.debug(sql + comment + str(varMap))
-                self.cur.execute(sql + comment, varMap)
-                resList = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # append
-                for (tmpID,) in resList:
-                    if tmpID not in retJobIDs:
-                        retJobIDs.append(tmpID)
-            _logger.debug(f"getJobIDsInTimeRange : {str(retJobIDs)}")
-            return retJobIDs
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getJobIDsInTimeRange : {type} {value}")
-            # return empty list
-            return []
-
     # get PandaIDs for a JobID
     def getPandIDsWithJobID(self, dn, jobID, idStatus, nJobs):
         comment = " /* DBProxy.getPandIDsWithJobID */"
@@ -9012,53 +8951,6 @@ class DBProxy:
     def getArchiveTables(self):
         # return
         return ["ATLAS_PANDAARCH.jobsArchived"]
-
-    # get JobIDs in a time range
-    def getJobIDsInTimeRangeLog(self, dn, timeRange, retJobIDs):
-        comment = " /* DBProxy.getJobIDsInTimeRangeLog */"
-        _logger.debug(f"getJobIDsInTimeRangeLog : {dn} {timeRange.strftime('%Y-%m-%d %H:%M:%S')}")
-        try:
-            # get compact DN
-            compactDN = self.cleanUserID(dn)
-            if compactDN in ["", "NULL", None]:
-                compactDN = dn
-            # get list of archived tables
-            tables = self.getArchiveTables()
-            # select
-            for table in tables:
-                # make sql
-                sql = "SELECT /*+ NO_INDEX(tab JOBS_MODTIME_IDX) INDEX_COMBINE(tab JOBS_PRODSOURCELABEL_IDX JOBS_PRODUSERNAME_IDX) */ "
-                sql += f"jobDefinitionID FROM {table} tab "
-                sql += "WHERE prodUserName=:prodUserName AND modificationTime>:modificationTime "
-                sql += "AND prodSourceLabel=:prodSourceLabel AND lockedBy<>:ngLock GROUP BY jobDefinitionID"
-                varMap = {}
-                varMap[":prodUserName"] = compactDN
-                varMap[":prodSourceLabel"] = "user"
-                varMap[":ngLock"] = "jedi"
-                varMap[":modificationTime"] = timeRange
-                # start transaction
-                self.conn.begin()
-                # select
-                self.cur.arraysize = 10000
-                _logger.debug(sql + comment + str(varMap))
-                self.cur.execute(sql + comment, varMap)
-                resList = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # append
-                for (tmpID,) in resList:
-                    if tmpID not in retJobIDs:
-                        retJobIDs.append(tmpID)
-            _logger.debug(f"getJobIDsInTimeRangeLog : {str(retJobIDs)}")
-            return retJobIDs
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getJobIDsInTimeRangeLog : {type} {value}")
-            # return empty list
-            return retJobIDs
 
     # get PandaIDs for a JobID
     def getPandIDsWithJobIDLog(self, dn, jobID, idStatus, nJobs, buildJobID=None):

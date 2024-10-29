@@ -305,11 +305,6 @@ class UserIF:
         ret = self.taskBuffer.getPandaClientVer()
         return ret
 
-    # get JobIDs in a time range
-    def getJobIDsInTimeRange(self, dn, timeRange):
-        ret = self.taskBuffer.getJobIDsInTimeRange(dn, timeRange)
-        return WrappedPickle.dumps(ret)
-
     # get active JediTasks in a time range
     def getJediTasksInTimeRange(self, dn, timeRange, fullFlag, minTaskID, task_type):
         ret = self.taskBuffer.getJediTasksInTimeRange(dn, timeRange, fullFlag, minTaskID, task_type)
@@ -983,21 +978,6 @@ def getScriptOfflineRunning(req, pandaID, days=None):
     except Exception:
         days = None
     return userIF.getScriptOfflineRunning(pandaID, days)
-
-
-# get JobIDs in a time range
-def getJobIDsInTimeRange(req, timeRange, dn=None):
-    # check security
-    if not isSecure(req):
-        return False
-    # get DN
-    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
-        return False
-    if dn is None:
-        dn = _getDN(req)
-    _logger.debug(f"getJobIDsInTimeRange {dn} {timeRange}")
-    # execute
-    return userIF.getJobIDsInTimeRange(dn, timeRange)
 
 
 # get active JediTasks in a time range

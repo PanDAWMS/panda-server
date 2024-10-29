@@ -53,7 +53,6 @@ allowed_methods += [
     "getJobStatistics",
     "getJobStatisticsPerSite",
     "getSiteSpecs",
-    "getJobIDsInTimeRange",
     "getPandIDsWithJobID",
     "getFullJobStatus",
     "getJobStatisticsForBamboo",
