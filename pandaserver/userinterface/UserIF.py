@@ -482,13 +482,6 @@ class UserIF:
         ret = self.taskBuffer.sendCommandTaskPanda(jedi_task_id, user, prod_role, command_string, properErrorCode=True)
         return ret
 
-    # get retry history
-    def getRetryHistory(self, jediTaskID, user):
-        _logger.debug(f"getRetryHistory jediTaskID={jediTaskID} start {user}")
-        ret = self.taskBuffer.getRetryHistoryJEDI(jediTaskID)
-        _logger.debug(f"getRetryHistory jediTaskID={jediTaskID} done")
-        return ret
-
     # change task priority
     def changeTaskPriority(self, jediTaskID, newPriority):
         ret = self.taskBuffer.changeTaskPriorityPanda(jediTaskID, newPriority)
@@ -1261,23 +1254,6 @@ def reloadInput(req, jediTaskID, properErrorCode=None):
         else:
             return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
     ret = userIF.reloadInput(jediTaskID, user, prodRole)
-    return WrappedPickle.dumps(ret)
-
-
-# get retry history
-def getRetryHistory(req, jediTaskID=None):
-    # check security
-    if not isSecure(req):
-        return WrappedPickle.dumps((False, "secure connection is required"))
-    # get DN
-    user = None
-    if "SSL_CLIENT_S_DN" in req.subprocess_env:
-        user = _getDN(req)
-    try:
-        jediTaskID = int(jediTaskID)
-    except Exception:
-        return WrappedPickle.dumps((False, "jediTaskID must be an integer"))
-    ret = userIF.getRetryHistory(jediTaskID, user)
     return WrappedPickle.dumps(ret)
 
 

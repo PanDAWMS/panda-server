@@ -9995,46 +9995,6 @@ class DBProxy:
             return resT[0]
         return None
 
-    # get retry history
-    def getRetryHistoryJEDI(self, jediTaskID):
-        comment = " /* DBProxy.getRetryHistoryJEDI */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        methodName += f" <jediTaskID={jediTaskID}>"
-        _logger.debug(f"{methodName} start")
-        try:
-            # set autocommit on
-            self.conn.begin()
-            self.cur.arraysize = 1000000
-            # get
-            varMap = {}
-            varMap[":jediTaskID"] = jediTaskID
-            sql = f"SELECT oldPandaID,newPandaID FROM {panda_config.schemaJEDI}.JEDI_Job_Retry_History "
-            sql += "WHERE jediTaskID=:jediTaskID GROUP BY oldPandaID,newPandaID "
-            for tmpType in EventServiceUtils.relationTypesForJS:
-                tmpKey = f":{tmpType}"
-                sql += f"{tmpKey},"
-                varMap[tmpKey] = tmpType
-            sql = sql[:-1]
-            sql += ")) "
-            self.cur.execute(sql + comment, varMap)
-            resG = self.cur.fetchall()
-            retMap = {}
-            for oldPandaID, newPandaID in resG:
-                if oldPandaID not in retMap:
-                    retMap[oldPandaID] = []
-                retMap[oldPandaID].append(newPandaID)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            _logger.debug(f"{methodName} return len={len(retMap)}")
-            return retMap
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, methodName)
-            return None
-
     # get original consumers
     def getOriginalConsumers(self, jediTaskID, jobsetID, pandaID):
         comment = " /* DBProxy.getOriginalConsumers */"

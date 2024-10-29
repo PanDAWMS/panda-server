@@ -104,7 +104,6 @@ from pandaserver.userinterface.UserIF import (
     getJumboJobDatasets,
     getPandaClientVer,
     getPandaIDsWithTaskID,
-    getRetryHistory,
     getScriptOfflineRunning,
     getSiteSpecs,
     getSlimmedFileInfoPandaIDs,

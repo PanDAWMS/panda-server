@@ -67,7 +67,6 @@ allowed_methods += [
     "getJediTasksInTimeRange",
     "getJediTaskDetails",
     "retryTask",
-    "getRetryHistory",
     "changeTaskPriority",
     "reassignTask",
     "changeTaskAttributePanda",
