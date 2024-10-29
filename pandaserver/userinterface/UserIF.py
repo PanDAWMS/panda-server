@@ -182,11 +182,6 @@ class UserIF:
         ret = self.taskBuffer.getJobStatisticsForExtIF(sourcetype)
         return WrappedPickle.dumps(ret)
 
-    # get queued analysis jobs at a site
-    def getQueuedAnalJobs(self, site, dn):
-        ret = self.taskBuffer.getQueuedAnalJobs(site, dn)
-        return WrappedPickle.dumps(ret)
-
     # get job statistics for Bamboo
     def getJobStatisticsForBamboo(self, useMorePG=False):
         ret = self.taskBuffer.getJobStatisticsForBamboo(useMorePG)
@@ -834,18 +829,6 @@ def submitJobs(req, jobs, toPending=None):
 # get job status
 def getJobStatus(req, ids, no_pickle=None):
     return userIF.getJobStatus(ids, req.acceptJson(), no_pickle)
-
-
-# get queued analysis jobs at a site
-def getQueuedAnalJobs(req, site):
-    # check security
-    if not isSecure(req):
-        return "ERROR: SSL is required"
-    # get DN
-    user = None
-    if "SSL_CLIENT_S_DN" in req.subprocess_env:
-        user = _getDN(req)
-    return userIF.getQueuedAnalJobs(site, user)
 
 
 # set debug mode

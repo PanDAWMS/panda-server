@@ -110,7 +110,6 @@ from pandaserver.userinterface.UserIF import (
     getPandaClientVer,
     getPandaIDsWithTaskID,
     getPandIDsWithJobID,
-    getQueuedAnalJobs,
     getRetryHistory,
     getScriptOfflineRunning,
     getSiteSpecs,
