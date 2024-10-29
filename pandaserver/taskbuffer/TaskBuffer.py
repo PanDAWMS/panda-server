@@ -2155,17 +2155,6 @@ class TaskBuffer:
 
         return ret
 
-    # get active datasets
-    def getActiveDatasets(self, computingSite, prodSourceLabel):
-        # query an SQL return Status
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.getActiveDatasets(computingSite, prodSourceLabel)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
     # check status of all sub datasets to trigger Notifier
     def checkDatasetStatusForNotifier(self, jobsetID, jobDefinitionID, prodUserName):
         # query an SQL return Status

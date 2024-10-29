@@ -176,11 +176,6 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
-    # get active datasets
-    def getActiveDatasets(self, computingSite, prodSourceLabel):
-        ret = self.taskBuffer.getActiveDatasets(computingSite, prodSourceLabel)
-        return ret
-
     # get job statistics
     def getJobStatistics(self, sourcetype=None):
         # get job statistics
@@ -851,11 +846,6 @@ def getQueuedAnalJobs(req, site):
     if "SSL_CLIENT_S_DN" in req.subprocess_env:
         user = _getDN(req)
     return userIF.getQueuedAnalJobs(site, user)
-
-
-# get active datasets
-def getActiveDatasets(req, computingSite, prodSourceLabel="managed"):
-    return userIF.getActiveDatasets(computingSite, prodSourceLabel)
 
 
 # set debug mode

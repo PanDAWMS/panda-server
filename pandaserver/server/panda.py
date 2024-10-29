@@ -94,7 +94,6 @@ from pandaserver.userinterface.UserIF import (
     get_files_in_datasets,
     get_job_statistics_per_site_label_resource,
     get_user_secrets,
-    getActiveDatasets,
     getDisInUseForAnal,
     getFilesInUseForAnal,
     getFullJobStatus,

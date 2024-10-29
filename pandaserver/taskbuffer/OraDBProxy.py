@@ -9707,50 +9707,6 @@ class DBProxy:
                 # return None
                 return None
 
-    # get active datasets
-    def getActiveDatasets(self, computingSite, prodSourceLabel):
-        comment = " /* DBProxy.getActiveDatasets */"
-        _logger.debug(f"getActiveDatasets({computingSite},{prodSourceLabel})")
-        varMap = {}
-        varMap[":computingSite"] = computingSite
-        varMap[":jobStatus1"] = "assigned"
-        varMap[":jobStatus2"] = "activated"
-        varMap[":jobStatus3"] = "waiting"
-        varMap[":prodSourceLabel"] = prodSourceLabel
-        try:
-            retList = []
-            for table in ["jobsActive4", "jobsDefined4", "jobsWaiting4"]:
-                if table == "jobsActive4":
-                    sql0 = f"SELECT distinct prodDBlock FROM ATLAS_PANDA.{table} "
-                else:
-                    sql0 = f"SELECT distinct prodDBlock FROM ATLAS_PANDA.{table} "
-                sql0 += "WHERE computingSite=:computingSite AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3) "
-                sql0 += "AND prodSourceLabel=:prodSourceLabel"
-                # start transaction
-                self.conn.begin()
-                # select
-                self.cur.execute(sql0 + comment, varMap)
-                resSs = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # append
-                for (prodDBlock,) in resSs:
-                    if prodDBlock not in retList:
-                        retList.append(prodDBlock)
-            # make string
-            retStr = ""
-            for tmpItem in retList:
-                retStr += f"{tmpItem},"
-            retStr = retStr[:-1]
-            return retStr
-        except Exception:
-            # roll back
-            self._rollback()
-            errType, errValue = sys.exc_info()[:2]
-            _logger.error(f"getActiveDatasets : {errType} {errValue}")
-            return ""
-
     # check status of all sub datasets to trigger Notifier
     def checkDatasetStatusForNotifier(self, jobsetID, jobDefinitionID, prodUserName):
         comment = " /* DBProxy.checkDatasetStatusForNotifier */"
