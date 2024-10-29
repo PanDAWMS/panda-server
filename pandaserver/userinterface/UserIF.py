@@ -123,20 +123,6 @@ class UserIF:
         # serialize
         return WrappedPickle.dumps(ret)
 
-    # retry failed subjobs in running job
-    def retryFailedJobsInActive(self, dn, jobID):
-        try:
-            _logger.debug(f"retryFailedJobsInActive {dn} JobID:{jobID}")
-            cUID = self.taskBuffer.cleanUserID(dn)
-            _ = self.taskBuffer.finalizePendingJobs(cUID, jobID)
-            returnVal = True
-        except Exception:
-            errType, errValue = sys.exc_info()[:2]
-            _logger.error(f"retryFailedJobsInActive: {errType} {errValue}")
-            returnVal = "ERROR: server side crash"
-        # return
-        return returnVal
-
     # set debug mode
     def setDebugMode(self, dn, pandaID, prodManager, modeOn, workingGroup):
         ret = self.taskBuffer.setDebugMode(dn, pandaID, prodManager, modeOn, workingGroup)
@@ -1084,23 +1070,6 @@ def get_ban_users(req):
 # get client version
 def getPandaClientVer(req):
     return userIF.getPandaClientVer()
-
-
-# retry failed subjobs in running job
-def retryFailedJobsInActive(req, jobID):
-    # check SSL
-    if "SSL_CLIENT_S_DN" not in req.subprocess_env:
-        return "ERROR: SSL connection is required"
-    # get DN
-    dn = _getDN(req)
-    if dn == "":
-        return "ERROR: could not get DN"
-    # convert jobID to long
-    try:
-        jobID = int(jobID)
-    except Exception:
-        return "ERROR: jobID is not an integer"
-    return userIF.retryFailedJobsInActive(dn, jobID)
 
 
 # get script for offline running

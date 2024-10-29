@@ -64,7 +64,6 @@ allowed_methods += [
     "getQueuedAnalJobs",
     "getActiveDatasets",
     "checkMergeGenerationStatus",
-    "retryFailedJobsInActive",
     "getDisInUseForAnal",
     "getLFNsInUseForAnal",
     "getScriptOfflineRunning",
