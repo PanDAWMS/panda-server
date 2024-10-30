@@ -842,7 +842,7 @@ class SWTagsDumper(threading.Thread):
         else:
             self.log_stream = _logger
 
-        if hasattr(panda_config, "CRIC_URL_SCHEDCONFIG"):
+        if hasattr(panda_config, "CRIC_URL_TAGS"):
             self.CRIC_URL_TAGS = panda_config.CRIC_URL_TAGS
         else:
             self.CRIC_URL_TAGS = "https://atlas-cric.cern.ch/api/atlas/pandaqueue/query/?json&preset=tags"
