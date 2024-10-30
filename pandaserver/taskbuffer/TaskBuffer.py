@@ -204,6 +204,7 @@ class TaskBuffer:
             userCountry = None
             useExpress = False
             nExpressJobs = 0
+            groupJobSerialNum = 0  # group jobs are not in use anymore, setting a 0 default
             useDebugMode = False
             siteMapper = self.get_site_mapper()
 
