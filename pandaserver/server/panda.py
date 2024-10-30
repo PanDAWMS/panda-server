@@ -106,7 +106,6 @@ from pandaserver.userinterface.UserIF import (
     getPandaIDsWithTaskID,
     getScriptOfflineRunning,
     getSiteSpecs,
-    getSlimmedFileInfoPandaIDs,
     getTaskParamsMap,
     getTaskStatus,
     getUserJobMetadata,

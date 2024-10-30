@@ -56,7 +56,6 @@ allowed_methods += [
     "getFullJobStatus",
     "getJobStatisticsForBamboo",
     "getPandaClientVer",
-    "getSlimmedFileInfoPandaIDs",
     "getScriptOfflineRunning",
     "setDebugMode",
     "insertSandboxFileInfo",
