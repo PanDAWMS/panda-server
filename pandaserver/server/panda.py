@@ -35,7 +35,6 @@ from pandaserver.jobdispatcher.JobDispatcher import (
     get_max_worker_id,
     get_token_key,
     getCommands,
-    getDNsForS3,
     getEventRanges,
     getJob,
     getKeyPair,

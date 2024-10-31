@@ -648,14 +648,6 @@ class JobDispatcher:
         # return
         return response.encode(accept_json)
 
-    # get DNs authorized for S3
-    def getDNsForS3(self):
-        # check permission
-        self.specialDispatchParams.update()
-        allowKey = self.specialDispatchParams.get("allowKeyPair", [])
-        # return
-        return json.dumps(allowKey)
-
     # get site mapper
     def getSiteMapper(self):
         return True, SiteMapper(self.taskBuffer)
@@ -1547,15 +1539,6 @@ def checkPilotPermission(req):
         return False, "production or pilot role is required"
 
     return True, None
-
-
-def getDNsForS3(req):
-    """
-    # get DNs authorized for S3
-    :param req:
-    :return:
-    """
-    return jobDispatcher.getDNsForS3()
 
 
 def getCommands(req, harvester_id, n_commands, timeout=30):
