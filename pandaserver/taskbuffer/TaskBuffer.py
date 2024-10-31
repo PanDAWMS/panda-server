@@ -204,7 +204,6 @@ class TaskBuffer:
             userCountry = None
             useExpress = False
             nExpressJobs = 0
-            groupJobSerialNum = 0  # group jobs are not in use anymore, setting a 0 default
             useDebugMode = False
             siteMapper = self.get_site_mapper()
 
@@ -482,7 +481,6 @@ class TaskBuffer:
                         weight,
                         priorityOffset,
                         userVO,
-                        groupJobSerialNum,
                         toPending,
                         origEsJob,
                         eventServiceInfo,
@@ -499,7 +497,7 @@ class TaskBuffer:
                     # keep parameters for late bulk execution
                     params_for_bulk_insert.append(
                         [
-                            [job, user, serNum, weight, priorityOffset, userVO, groupJobSerialNum, toPending],
+                            [job, user, serNum, weight, priorityOffset, userVO, toPending],
                             {
                                 "origEsJob": origEsJob,
                                 "eventServiceInfo": eventServiceInfo,

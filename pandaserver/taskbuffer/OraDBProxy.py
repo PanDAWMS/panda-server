@@ -454,7 +454,6 @@ class DBProxy:
         weight=0.0,
         priorityOffset=0,
         userVO=None,
-        groupJobSN=0,
         toPending=False,
         origEsJob=False,
         eventServiceInfo=None,
@@ -539,12 +538,6 @@ class DBProxy:
             if "express" in job.specialHandling:
                 job.currentPriority = 6500
 
-        # usergroup
-        if job.prodSourceLabel == "regional":
-            job.computingSite = "BNLPROD"
-
-        # group job SN
-        groupJobSN = "%05d" % groupJobSN
         # set attempt numbers
         if job.prodSourceLabel in ["user", "panda"] + JobUtils.list_ptest_prod_sources:
             if job.attemptNr in [None, "NULL", ""]:
@@ -680,7 +673,6 @@ class DBProxy:
                 # replace $JOBSETID with real jobsetID
                 if job.prodSourceLabel not in ["managed"]:
                     file.lfn = re.sub("\$JOBSETID", jobsetID, file.lfn)
-                    file.lfn = re.sub("\$GROUPJOBSN", groupJobSN, file.lfn)
                     try:
                         file.lfn = re.sub("\$JEDITASKID", strJediTaskID, file.lfn)
                     except Exception:
@@ -1015,7 +1007,6 @@ class DBProxy:
             # job parameters
             if job.prodSourceLabel not in ["managed"]:
                 job.jobParameters = re.sub("\$JOBSETID", jobsetID, job.jobParameters)
-                job.jobParameters = re.sub("\$GROUPJOBSN", groupJobSN, job.jobParameters)
                 try:
                     job.jobParameters = re.sub("\$JEDITASKID", strJediTaskID, job.jobParameters)
                 except Exception:
