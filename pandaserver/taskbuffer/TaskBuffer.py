@@ -204,6 +204,7 @@ class TaskBuffer:
             userCountry = None
             useExpress = False
             nExpressJobs = 0
+            groupJobSerialNum = 0  # group jobs are not in use anymore, setting a 0 default
             useDebugMode = False
             siteMapper = self.get_site_mapper()
 
@@ -313,17 +314,6 @@ class TaskBuffer:
             # get DB proxy
             proxy = self.proxyPool.getProxy()
             tmpLog.debug(f"got proxy")
-            # get group job serial number
-            groupJobSerialNum = 0
-            if len(jobs) > 0 and (jobs[0].prodSourceLabel in JobUtils.analy_sources) and (not jobs[0].processingType in ["merge", "unmerge"]):
-                for tmpFile in jobs[-1].Files:
-                    if tmpFile.type in ["output", "log"] and "$GROUPJOBSN" in tmpFile.lfn:
-                        tmpLog.debug(f"getting group job serial number")
-                        tmpSnRet = proxy.getSerialNumberForGroupJob(user)
-                        if tmpSnRet["status"]:
-                            groupJobSerialNum = tmpSnRet["sn"]
-                        break
-            tmpLog.debug(f"got group job serial number")
             # get total number of files
             totalNumFiles = 0
             for job in jobs:
@@ -665,23 +655,6 @@ class TaskBuffer:
 
         return res
 
-    # resubmit jobs
-    def resubmitJobs(self, jobIDs):
-        # get DB proxy
-        proxy = self.proxyPool.getProxy()
-        jobs = []
-        # get jobs
-        for jobID in jobIDs:
-            res = proxy.peekJob(jobID, True, False, False, False)
-            if res:
-                jobs.append(res)
-        # release DB proxy
-        self.proxyPool.putProxy(proxy)
-        # set up dataset
-        if len(jobs) > 0:
-            Setupper(self, jobs).start()
-        return True
-
     # update overall job information
     def updateJobs(
         self,
@@ -981,66 +954,6 @@ class TaskBuffer:
 
         return jobs + [nSent, {}, secrets_map]
 
-    # check merge job generation status
-    def checkMergeGenerationStatus(self, dn, jobID):
-        # return for NA
-        retNA = {"status": "NA", "mergeIDs": []}
-        try:
-            # get at most 2 PandaIDs
-            idStatus = self.getPandIDsWithJobID(dn, jobID, 2)
-            if idStatus == {}:
-                return retNA
-            # use larger PandaID which corresponds to runXYZ
-            tmpKeys = sorted(idStatus)
-            pandaID = tmpKeys[-1]
-            # get job
-            tmpJobs = self.getFullJobStatus([pandaID])
-            if tmpJobs == [] or tmpJobs[0] is None:
-                return retNA
-            pandaJob = tmpJobs[0]
-            # non-merge job
-            if "--mergeOutput" not in pandaJob.jobParameters:
-                return retNA
-            # loop over all sub datasets
-            subDsList = []
-            mergeStatus = None
-            mergeIDs = []
-            for tmpFile in pandaJob.Files:
-                if tmpFile.type in ["output", "log"]:
-                    if tmpFile.destinationDBlock not in subDsList:
-                        subDsList.append(tmpFile.destinationDBlock)
-                        # get dataset
-                        tmpDsSpec = self.queryDatasetWithMap({"name": tmpFile.destinationDBlock})
-                        if tmpDsSpec is not None:
-                            if tmpDsSpec.status in ["tobemerged"]:
-                                # going to be merged
-                                mergeStatus = "generating"
-                                mergeIDs = []
-                            elif tmpDsSpec.status in [
-                                "tobeclosed",
-                                "closed",
-                                "completed",
-                            ]:
-                                # another dataset from --individualOutDS is waiting for Merger
-                                if mergeStatus == "generating":
-                                    continue
-                                # set status
-                                mergeStatus = "generated"
-                                # collect JobIDs of merge jobs
-                                tmpMergeID = tmpDsSpec.MoverID
-                                if tmpMergeID not in [0, None, "NULL"] + mergeIDs:
-                                    mergeIDs.append(tmpMergeID)
-            # no merger most likely because jobs were killed
-            if mergeStatus == "generated" and mergeIDs == []:
-                mergeStatus = "aborted"
-            # jobs are still runnign
-            if mergeStatus is None:
-                mergeStatus = "standby"
-
-            return {"status": mergeStatus, "mergeIDs": mergeIDs}
-        except Exception:
-            return retNA
-
     # get job status
     def getJobStatus(
         self,
@@ -1094,20 +1007,6 @@ class TaskBuffer:
 
         return retJobs
 
-    # get PandaID with jobexeID
-    def getPandaIDwithJobExeID(self, jobexeIDs):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        retJobs = []
-        # peek at job
-        for jobexeID in jobexeIDs:
-            res = proxy.getPandaIDwithJobExeID(jobexeID)
-            retJobs.append(res)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return retJobs
-
     # get PandaIDs with TaskID
     def getPandaIDsWithTaskID(self, jediTaskID):
         # get DBproxy
@@ -1118,109 +1017,6 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
 
         return retJobs
-
-    # get slimmed file info with PandaIDs
-    def getSlimmedFileInfoPandaIDs(self, pandaIDs):
-        iPandaID = 0
-        nPandaID = 100
-        retInfo = {}
-        while iPandaID < len(pandaIDs):
-            # get DBproxy
-            proxy = self.proxyPool.getProxy()
-            # get
-            tmpRetInfo = proxy.getSlimmedFileInfoPandaIDs(pandaIDs[iPandaID : iPandaID + nPandaID])
-            # release proxy
-            self.proxyPool.putProxy(proxy)
-            iPandaID += nPandaID
-            if retInfo == {}:
-                retInfo = tmpRetInfo
-            else:
-                for outKey in tmpRetInfo:
-                    if outKey not in retInfo:
-                        retInfo[outKey] = []
-                    # append
-                    for tmpItemRetInfo in tmpRetInfo[outKey]:
-                        if tmpItemRetInfo not in retInfo[outKey]:
-                            retInfo[outKey].append(tmpItemRetInfo)
-
-        return retInfo
-
-    # get JobIDs in a time range
-    def getJobIDsInTimeRange(self, dn, timeRangeStr):
-        # check DN
-        if dn in ["NULL", "", "None", None]:
-            return []
-        # check timeRange
-        match = re.match("^(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)$", timeRangeStr)
-        if match is None:
-            return []
-        timeRange = datetime.datetime(
-            year=int(match.group(1)),
-            month=int(match.group(2)),
-            day=int(match.group(3)),
-            hour=int(match.group(4)),
-            minute=int(match.group(5)),
-            second=int(match.group(6)),
-        )
-        # max range is 3 months
-        maxRange = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=30)
-        if timeRange < maxRange:
-            timeRange = maxRange
-        retJobIDs = []
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get JobIDs
-        retJobIDs = proxy.getJobIDsInTimeRange(dn, timeRange, retJobIDs)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # read ARCH when time window is more than 3days (- 3 hours as a margin)
-        if timeRange < datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=2, hours=21):
-            # get ArchiveDBproxy
-            proxy = self.proxyPool.getProxy()
-            # get JobIDs
-            retJobIDs = proxy.getJobIDsInTimeRangeLog(dn, timeRange, retJobIDs)
-            # release proxy
-            self.proxyPool.putProxy(proxy)
-
-        return retJobIDs
-
-    # get PandaIDs for a JobID
-    def getPandIDsWithJobID(self, dn, jobID, nJobs):
-        idStatus = {}
-        # check DN
-        if dn in ["NULL", "", "None", None]:
-            return idStatus
-        # check JobID
-        try:
-            jobID = int(jobID)
-            nJobs = int(nJobs)
-        except Exception:
-            return idStatus
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get IDs
-        idStatus, buildJobID = proxy.getPandIDsWithJobID(dn, jobID, idStatus, nJobs)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # get ArchiveDBproxy
-        proxy = self.proxyPool.getProxy()
-        # get IDs
-        idStatus = proxy.getPandIDsWithJobIDLog(dn, jobID, idStatus, nJobs, buildJobID)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return idStatus
-
-    # get PandaIDs for a JobsetID or JobdefID in jobsArchived
-    def getPandIDsWithIdInArch(self, prodUserName, id, isJobset):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.getPandIDsWithIdInArch(prodUserName, id, isJobset)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
 
     # get full job status
     def getFullJobStatus(
@@ -1554,101 +1350,6 @@ class TaskBuffer:
 
         return True
 
-    # query PandaIDs
-    def queryPandaIDs(self, jobDefIDs):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        pandaIDs = []
-        # query PandaID
-        for jobDefID in jobDefIDs:
-            id = proxy.queryPandaID(jobDefID)
-            pandaIDs.append(id)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return pandaIDs
-
-    # query job info per cloud
-    def queryJobInfoPerCloud(self, cloud, schedulerID=None):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # query job info
-        ret = proxy.queryJobInfoPerCloud(cloud, schedulerID)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
-    # get PandaIDs to be updated in prodDB
-    def getPandaIDsForProdDB(self, limit, lockedby):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # query PandaID
-        ret = proxy.getPandaIDsForProdDB(limit, lockedby)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
-    # update prodDBUpdateTime
-    def updateProdDBUpdateTimes(self, paramList):
-        retList = []
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # update
-        for param in paramList:
-            ret = proxy.updateProdDBUpdateTime(param)
-            retList.append(ret)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return retList
-
-    # get PandaIDs at Site
-    def getPandaIDsSite(self, site, status, limit):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # query PandaID
-        ids = proxy.getPandaIDsSite(site, status, limit)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ids
-
-    # get input files currently in used for analysis
-    def getFilesInUseForAnal(self, outDataset):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        retList = []
-        # query LFNs
-        retList = proxy.getFilesInUseForAnal(outDataset)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return retList
-
-    # get list of dis dataset to get input files in shadow
-    def getDisInUseForAnal(self, outDataset):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # query dis
-        retList = proxy.getDisInUseForAnal(outDataset)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return retList
-
-    # get input LFNs currently in use for analysis with shadow dis
-    def getLFNsInUseForAnal(self, inputDisList):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # query dis
-        retList = proxy.getLFNsInUseForAnal(inputDisList)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return retList
-
     # update input files and return corresponding PandaIDs
     def updateInFilesReturnPandaIDs(self, dataset, status, fileLFN=""):
         # get DBproxy
@@ -1776,17 +1477,6 @@ class TaskBuffer:
 
         return ret
 
-    # query last files in a dataset
-    def queryLastFilesInDataset(self, datasets):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # query files
-        ret = proxy.queryLastFilesInDataset(datasets)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
     # set GUIDs
     def setGUIDs(self, files):
         # get DBproxy
@@ -1896,17 +1586,6 @@ class TaskBuffer:
 
         return ret
 
-    # get serial number for group job
-    def getSerialNumberForGroupJob(self, name):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get serial number
-        ret = proxy.getSerialNumberForGroupJob(name)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
     # add metadata
     def addMetadata(self, ids, metadataList, newStatusList):
         # get DBproxy
@@ -1951,17 +1630,6 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # get
         ret = proxy.extractScope(name)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
-    # change job priorities
-    def changeJobPriorities(self, newPrioMap):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.changeJobPriorities(newPrioMap)
         # release proxy
         self.proxyPool.putProxy(proxy)
 
@@ -2017,17 +1685,6 @@ class TaskBuffer:
 
         return ret
 
-    # get job statistics with label
-    def getJobStatisticsWithLabel(self, siteStr=""):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get serial number
-        ret = proxy.getJobStatisticsWithLabel(siteStr)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
     # get job statistics for brokerage
     def getJobStatisticsBrokerage(self, minPrio=None, maxPrio=None):
         # get DBproxy
@@ -2053,42 +1710,6 @@ class TaskBuffer:
         conRet = ProcessGroups.countJobsPerGroupForAnal(ret)
 
         return conRet
-
-    # get the number of waiting jobs per site and user
-    def getJobStatisticsPerUserSite(self):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get stat
-        ret = proxy.getJobStatisticsPerUserSite()
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
-    # get highest prio jobs
-    def getHighestPrioJobStat(self, perPG=False, useMorePG=False):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get stat
-        if not perPG:
-            ret = proxy.getHighestPrioJobStat()
-        else:
-            ret = proxy.getHighestPrioJobStatPerPG(useMorePG)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
-    # get queued analysis jobs at a site
-    def getQueuedAnalJobs(self, site, dn):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get stat
-        ret = proxy.getQueuedAnalJobs(site, dn)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
 
     # get job statistics for ExtIF
     def getJobStatisticsForExtIF(self, sourcetype=None):
@@ -2310,17 +1931,6 @@ class TaskBuffer:
 
         return ret
 
-    # get active datasets
-    def getActiveDatasets(self, computingSite, prodSourceLabel):
-        # query an SQL return Status
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.getActiveDatasets(computingSite, prodSourceLabel)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
     # check status of all sub datasets to trigger Notifier
     def checkDatasetStatusForNotifier(self, jobsetID, jobDefinitionID, prodUserName):
         # query an SQL return Status
@@ -2503,17 +2113,6 @@ class TaskBuffer:
         if version != 0:
             return ret
         return json.dumps(ret[0]), json.dumps(ret[1])
-
-    # get retry history
-    def getRetryHistoryJEDI(self, jediTaskID):
-        # get proxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        ret = proxy.getRetryHistoryJEDI(jediTaskID)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
 
     # change task priority
     def changeTaskPriorityPanda(self, jediTaskID, newPriority):
@@ -3049,17 +2648,6 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # exec
         res = proxy.reassignShare(jedi_task_ids, share_dest, reassign_running)
-        # release DB proxy
-        self.proxyPool.putProxy(proxy)
-
-        return res
-
-    # list tasks in share
-    def listTasksInShare(self, gshare, status):
-        # get DB proxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        res = proxy.listTasksInShare(gshare, status)
         # release DB proxy
         self.proxyPool.putProxy(proxy)
 

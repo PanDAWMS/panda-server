@@ -31,7 +31,7 @@ def main(tbuf=None, **kwargs):
     # memory checker
     def _memoryCheck(str):
         try:
-            proc_status = "/proc/%d/status" % os.getpid()
+            proc_status = f"/proc/{os.getpid()}/status"
             procfile = open(proc_status)
             name = ""
             vmSize = ""

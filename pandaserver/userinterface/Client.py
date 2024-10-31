@@ -1,68 +1,33 @@
 """
 client methods
-
 """
 
-import getpass
 import gzip
 import json
 import os
 import pickle
-import re
 import socket
 import sys
 import tempfile
-import uuid
-from urllib.parse import urlencode
 
+import requests
 from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
 
-from pandaserver.srvcore.CoreUtils import commands_get_status_output
-
-# configuration
-try:
-    baseURL = os.environ["PANDA_URL"]
-except Exception:
-    baseURL = "http://pandaserver.cern.ch:25080/server/panda"
-try:
-    baseURLSSL = os.environ["PANDA_URL_SSL"]
-except Exception:
-    baseURLSSL = "https://pandaserver.cern.ch:25443/server/panda"
-
+# PanDA server configuration
+baseURL = os.environ.get("PANDA_URL", "http://pandaserver.cern.ch:25080/server/panda")
+baseURLSSL = os.environ.get("PANDA_URL_SSL", "https://pandaserver.cern.ch:25443/server/panda")
 
 # exit code
 EC_Failed = 255
 
 
-# panda server URLs
-if "PANDA_URL_MAP" in os.environ:
-    serverURLs = {
-        "default": {"URL": baseURL, "URLSSL": baseURLSSL},
-    }
-    # decode envvar to map
-    try:
-        for tmpCompStr in os.environ["PANDA_URL_MAP"].split("|"):
-            tmpKey, tmpURL, tmpURLSSL = tmpCompStr.split(",")
-            # append
-            serverURLs[tmpKey] = {"URL": tmpURL, "URLSSL": tmpURLSSL}
-    except Exception:
-        pass
-else:
-    # default
-    serverURLs = {
-        "default": {"URL": baseURL, "URLSSL": baseURLSSL},
-        "CERN": {
-            "URL": "http://pandaserver.cern.ch:25080/server/panda",
-            "URLSSL": "https://pandaserver.cern.ch:25443/server/panda",
-        },
-    }
-
-# bamboo
-baseURLBAMBOO = "http://pandabamboo.cern.ch:25070/bamboo/bamboo"
+def is_https(url):
+    # check if https is used
+    return url.startswith("https://")
 
 
-# wrapper for pickle with python 3
 def pickle_dumps(obj):
+    # wrapper for pickle with python 3
     return pickle.dumps(obj, protocol=0)
 
 
@@ -73,276 +38,133 @@ def pickle_loads(obj_string):
         return pickle.loads(obj_string)
 
 
-# get URL
-def _getURL(type, srvID=None):
-    if srvID in serverURLs:
-        urls = serverURLs[srvID]
-    else:
-        urls = serverURLs["default"]
-    return urls[type]
-
-
-# get Panda srvIDs
-def getPandas():
-    srvs = list(serverURLs)
-    # remove 'default'
-    try:
-        srvs.remove("default")
-    except Exception:
-        pass
-    return srvs
-
-
-# look for a grid proxy certificate
-def _x509():
-    # see X509_USER_PROXY
-    try:
-        return os.environ["X509_USER_PROXY"]
-    except Exception:
-        pass
-    # see the default place
-    x509 = f"/tmp/x509up_u{os.getuid()}"
-    if os.access(x509, os.R_OK):
-        return x509
-    # no valid proxy certificate
-    # FIXME
-    print("No valid grid proxy certificate found")
-    return ""
-
-
-# check if https
-def is_https(url):
-    return url.startswith("https://")
-
-
-# curl class
-class _Curl:
-    # constructor
+class HttpClient:
     def __init__(self):
-        # path to curl
-        self.path = "curl"
         # verification of the host certificate
         if "PANDA_VERIFY_HOST" in os.environ and os.environ["PANDA_VERIFY_HOST"] == "off":
             self.verifyHost = False
         else:
             self.verifyHost = True
+
         # request a compressed response
         self.compress = True
+
         # SSL cert/key
-        self.sslCert = ""
-        self.sslKey = ""
-        # verbose
-        self.verbose = False
-        # use json
+        self.ssl_certificate = self._x509()
+        self.ssl_key = self._x509()
+
         self.use_json = False
+
         # OIDC
-        if "PANDA_AUTH" in os.environ and os.environ["PANDA_AUTH"] == "oidc":
-            self.oidc = True
-            if "PANDA_AUTH_VO" in os.environ:
-                self.authVO = os.environ["PANDA_AUTH_VO"]
-            else:
-                self.authVO = None
-            if "PANDA_AUTH_ID_TOKEN" in os.environ:
-                self.idToken = os.environ["PANDA_AUTH_ID_TOKEN"]
-            else:
-                self.idToken = None
-        else:
-            self.oidc = False
+        self.oidc = os.getenv("PANDA_AUTH") == "oidc"
+        self.auth_vo = os.getenv("PANDA_AUTH_VO") if self.oidc else None
+        self.id_token = os.getenv("PANDA_AUTH_ID_TOKEN") if self.oidc else None
 
-    # GET method
+    def _x509(self):
+        # retrieve the X509_USER_PROXY from the environment variables
+        try:
+            return os.environ["X509_USER_PROXY"]
+        except Exception:
+            pass
+
+        # look for the default place
+        x509 = f"/tmp/x509up_u{os.getuid()}"
+        if os.access(x509, os.R_OK):
+            return x509
+
+        # no valid proxy certificate
+        print("No valid grid proxy certificate found")
+        return ""
+
+    def _prepare_url(self, url):
+        """Modify URL with HTTPS check and hostname replacement."""
+        use_https = is_https(url)
+        modified_url = replace_hostname_in_url_randomly(url)
+        return modified_url, use_https
+
+    def _prepare_headers(self):
+        """Prepare headers based on authentication and JSON settings."""
+        headers = {}
+
+        if self.oidc:
+            headers["Authorization"] = f"Bearer {self.id_token}"
+            headers["Origin"] = self.auth_vo
+
+        if self.use_json:
+            headers["Accept"] = "application/json"
+
+        return headers
+
+    def _prepare_ssl(self, use_https):
+        """Prepare SSL configuration based on HTTPS usage and verification settings."""
+        cert = None
+        verify = True
+        if use_https:
+            cert = (self.ssl_certificate, self.ssl_key)
+
+            if not self.verifyHost:
+                verify = False
+            elif "X509_CERT_DIR" in os.environ:
+                verify = os.environ["X509_CERT_DIR"]
+            elif os.path.exists("/etc/grid-security/certificates"):
+                verify = "/etc/grid-security/certificates"
+
+        return cert, verify
+
     def get(self, url, data):
-        use_https = is_https(url)
-        url = replace_hostname_in_url_randomly(url)
-        # make command
-        com = f"{self.path} --silent --get"
-        if not self.verifyHost:
-            com += " --insecure"
-        elif "X509_CERT_DIR" in os.environ:
-            com += f" --capath {os.environ['X509_CERT_DIR']}"
-        elif os.path.exists("/etc/grid-security/certificates"):
-            com += " --capath /etc/grid-security/certificates"
-        if self.compress:
-            com += " --compressed"
-        if self.oidc:
-            com += f' -H "Authorization: Bearer {self.idToken}"'
-            com += f' -H "Origin: {self.authVO}"'
-        elif use_https:
-            if not self.sslCert:
-                self.sslCert = _x509()
-            com += f" --cert {self.sslCert}"
-            com += f" --cacert {self.sslCert}"
-            if not self.sslKey:
-                self.sslKey = _x509()
-            com += f" --key {self.sslKey}"
-        # timeout
-        com += " -m 600"
-        # json
-        if self.use_json:
-            com += ' -H "Accept: application/json"'
-        # data
-        strData = ""
-        for key in data:
-            strData += f'data="{urlencode({key: data[key]})}"\n'
-        # write data to temporary config file
-        try:
-            tmpName = os.environ["PANDA_TMP"]
-        except Exception:
-            tmpName = "/tmp"
-        tmpName += f"/{getpass.getuser()}_{str(uuid.uuid4())}"
-        tmpFile = open(tmpName, "w")
-        tmpFile.write(strData)
-        tmpFile.close()
-        com += f" --config {tmpName}"
-        com += f" {url}"
-        # execute
-        if self.verbose:
-            print(com)
-            print(strData)
-        ret = commands_get_status_output(com)
-        # remove temporary file
-        os.remove(tmpName)
-        if ret[0] != 0:
-            ret = (ret[0] % 255, ret[1])
-        if self.verbose:
-            print(ret)
-        return ret
+        url, use_https = self._prepare_url(url)
+        headers = self._prepare_headers()
+        cert, verify = self._prepare_ssl(use_https)
 
-    # POST method
-    def post(self, url, data, via_file=False):
-        use_https = is_https(url)
-        url = replace_hostname_in_url_randomly(url)
-        # make command
-        com = f"{self.path} --silent"
-        if not self.verifyHost:
-            com += " --insecure"
-        elif "X509_CERT_DIR" in os.environ:
-            com += f" --capath {os.environ['X509_CERT_DIR']}"
-        elif os.path.exists("/etc/grid-security/certificates"):
-            com += " --capath /etc/grid-security/certificates"
-        if self.compress:
-            com += " --compressed"
-        if self.oidc:
-            com += f' -H "Authorization: Bearer {self.idToken}"'
-            com += f' -H "Origin: {self.authVO}"'
-        elif use_https:
-            if not self.sslCert:
-                self.sslCert = _x509()
-            com += f" --cert {self.sslCert}"
-            com += f" --cacert {self.sslCert}"
-            if not self.sslKey:
-                self.sslKey = _x509()
-            com += f" --key {self.sslKey}"
-        # timeout
-        com += " -m 600"
-        # json
-        if self.use_json:
-            com += ' -H "Accept: application/json"'
-        # data
-        strData = ""
-        for key in data:
-            strData += f'data="{urlencode({key: data[key]})}"\n'
-        # write data to temporary config file
         try:
-            tmpName = os.environ["PANDA_TMP"]
-        except Exception:
-            tmpName = "/tmp"
-        tmpName += f"/{getpass.getuser()}_{str(uuid.uuid4())}"
-        tmpNameOut = f"{tmpName}.out"
-        tmpFile = open(tmpName, "w")
-        tmpFile.write(strData)
-        tmpFile.close()
-        com += f" --config {tmpName}"
-        if via_file:
-            com += f" -o {tmpNameOut}"
-        com += f" {url}"
-        # execute
-        if self.verbose:
-            print(com)
-            print(strData)
-        s, o = commands_get_status_output(com)
-        if via_file:
-            with open(tmpNameOut, "rb") as f:
-                ret = (s, f.read())
-            os.remove(tmpNameOut)
-        else:
-            ret = (s, o)
-        # remove temporary file
-        os.remove(tmpName)
-        if ret[0] != 0:
-            ret = (ret[0] % 255, ret[1])
-        if self.verbose:
-            print(ret)
-        return ret
+            response = requests.get(url, headers=headers, params=data, timeout=600, cert=cert, verify=verify)
+            response.raise_for_status()
+            return 0, response.text
+        except requests.RequestException as e:
+            return 255, str(e)
 
-    # PUT method
-    def put(self, url, data):
-        use_https = is_https(url)
-        url = replace_hostname_in_url_randomly(url)
-        # make command
-        com = f"{self.path} --silent"
-        if not self.verifyHost:
-            com += " --insecure"
-        elif "X509_CERT_DIR" in os.environ:
-            com += f" --capath {os.environ['X509_CERT_DIR']}"
-        elif os.path.exists("/etc/grid-security/certificates"):
-            com += " --capath /etc/grid-security/certificates"
-        if self.compress:
-            com += " --compressed"
-        if self.oidc:
-            com += f' -H "Authorization: Bearer {self.idToken}"'
-            com += f' -H "Origin: {self.authVO}"'
-        elif use_https:
-            if not self.sslCert:
-                self.sslCert = _x509()
-            com += f" --cert {self.sslCert}"
-            com += f" --cacert {self.sslCert}"
-            if not self.sslKey:
-                self.sslKey = _x509()
-            com += f" --key {self.sslKey}"
-        # emulate PUT
-        for key in data:
-            com += f' -F "{key}=@{data[key]}"'
-        com += f" {url}"
-        # execute
-        if self.verbose:
-            print(com)
-        ret = commands_get_status_output(com)
-        if ret[0] != 0:
-            ret = (ret[0] % 255, ret[1])
-        if self.verbose:
-            print(ret)
-        return ret
+    def post(self, url, data):
+        url, use_https = self._prepare_url(url)
+        headers = self._prepare_headers()
+        cert, verify = self._prepare_ssl(use_https)
+
+        try:
+            response = requests.post(url, headers=headers, data=data, timeout=600, cert=cert, verify=verify)
+            response.raise_for_status()
+            return 0, response.text
+        except requests.RequestException as e:
+            return 255, str(e)
+
+    def post_files(self, url, data):
+        url, use_https = self._prepare_url(url)
+        headers = self._prepare_headers()
+        cert, verify = self._prepare_ssl(use_https)
+
+        files = {}
+        try:
+            files = {key: open(value, "rb") for key, value in data.items()}
+            print(f"cert: {cert}, verify: {verify}")
+            response = requests.post(url, headers=headers, files=files, timeout=600, cert=cert, verify=verify)
+            response.raise_for_status()
+            return 0, response.text
+        except requests.RequestException as e:
+            return 255, str(e)
+        finally:
+            for file in files.values():
+                file.close()
 
 
 """
 Client API
-
 """
 
 
-# use web cache
-def useWebCache():
-    """Switch to use web cache for some read-only requests so that the number
-    of hits to the back-end database is reduced.
-
-       args:
-       returns:
+def submitJobs(jobs, toPending=False):
     """
-    global baseURL
-    baseURL = re.sub("25080", "25085", baseURL)
-    global serverURLs
-    for tmpKey in serverURLs:
-        tmpVal = serverURLs[tmpKey]
-        tmpVal["URL"] = baseURL
-
-
-# submit jobs
-def submitJobs(jobs, srvID=None, toPending=False):
-    """Submit jobs
+    Submit jobs
 
     args:
         jobs: the list of JobSpecs
-        srvID: obsolete
         toPending: set True if jobs need to be pending state for the
                    two-staged submission mechanism
     returns:
@@ -358,32 +180,30 @@ def submitJobs(jobs, srvID=None, toPending=False):
     for job in jobs:
         job.creationHost = hostname
     # serialize
-    strJobs = pickle_dumps(jobs)
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
-    # execute
-    url = _getURL("URLSSL", srvID) + "/submitJobs"
-    data = {"jobs": strJobs}
+    str_jobs = pickle_dumps(jobs)
+
+    http_client = HttpClient()
+
+    url = f"{baseURLSSL}/submitJobs"
+    data = {"jobs": str_jobs}
     if toPending:
         data["toPending"] = True
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     if status != 0:
         print(output)
         return status, output
     try:
         return status, pickle_loads(output)
     except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR submitJobs : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        err_type, err_value, _ = sys.exc_info()
+        err_str = f"ERROR submitJobs : {err_type} {err_value}"
+        print(err_str)
+        return EC_Failed, f"{output}\n{err_str}"
 
 
-# get job status
-def getJobStatus(ids, use_json=False):
-    """Get job status
+def getJobStatus(panda_ids):
+    """
+    Get job status
 
     args:
         ids: the list of PandaIDs
@@ -394,68 +214,33 @@ def getJobStatus(ids, use_json=False):
               255: communication failure
         the list of JobSpecs (or Nones for non-existing PandaIDs)
     """
-    # serialize
-    if use_json:
-        strIDs = json.dumps(ids)
-    else:
-        strIDs = pickle_dumps(ids)
-    # instantiate curl
-    curl = _Curl()
-    curl.use_json = use_json
-    # execute
-    url = _getURL("URL") + "/getJobStatus"
-    data = {"ids": strIDs}
-    status, output = curl.post(url, data, via_file=True)
+    # Serialize the panda IDs
+    str_ids = json.dumps(panda_ids)
+
+    http_client = HttpClient()
+    http_client.use_json = True
+
+    # Execute
+    url = f"{baseURL}/getJobStatus"
+    data = {"ids": str_ids}
+    status, output = http_client.post(url, data)
     try:
-        if use_json:
-            return status, json.loads(output)
-        return status, pickle_loads(output)
+        return status, json.loads(output)
     except Exception as e:
-        errStr = f"ERROR getJobStatus : {str(e)}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        err_str = f"ERROR getJobStatus: {str(e)}"
+        print(err_str)
+        return EC_Failed, f"{output}\n{err_str}"
 
 
-# get PandaID with jobexeID
-def getPandaIDwithJobExeID(ids):
-    """Get the list of PandaIDs corresponding to a given jobExecutionIDs
-
-    args:
-        ids: list of jobExecutionIDs
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        the list of PandaIDs (or Nones for non-existing IDs)
-    """
-    # serialize
-    strIDs = pickle_dumps(ids)
-    # instantiate curl
-    curl = _Curl()
-    # execute
-    url = _getURL("URL") + "/getPandaIDwithJobExeID"
-    data = {"ids": strIDs}
-    status, output = curl.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getPandaIDwithJobExeID : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
-
-
-# kill jobs
 def killJobs(
     ids,
     code=None,
-    verbose=False,
-    srvID=None,
     useMailAsID=False,
     keepUnmerged=False,
     jobSubStatus=None,
 ):
-    """Kill jobs. Normal users can kill only their own jobs.
+    """
+    Kill jobs. Normal users can kill only their own jobs.
     People with production VOMS role can kill any jobs.
     Running jobs are killed when next heartbeat comes from the pilot.
     Set code=9 if running jobs need to be killed immediately.
@@ -467,13 +252,11 @@ def killJobs(
                  3: aborted
                  4: expire in waiting
                  7: retry by server
-                 8: rebrokerage
+                 8: re-brokerage
                  9: force kill
-                 10: fast rebrokerage on overloaded PQs
+                 10: fast re-brokerage on overloaded PQs
                  50: kill by JEDI
                  91: kill user jobs with prod role
-           verbose: set True to see what's going on
-           srvID: obsolete
            useMailAsID: obsolete
            keepUnmerged: set True not to cancel unmerged jobs when pmerge is killed.
            jobSubStatus: set job sub status if any
@@ -484,34 +267,32 @@ def killJobs(
            the list of clouds (or Nones if tasks are not yet assigned)
     """
     # serialize
-    strIDs = pickle_dumps(ids)
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
-    curl.verbose = verbose
+    str_panda_ids = pickle_dumps(ids)
+
+    http_client = HttpClient()
+
     # execute
-    url = _getURL("URLSSL", srvID) + "/killJobs"
-    data = {"ids": strIDs, "code": code, "useMailAsID": useMailAsID}
-    killOpts = ""
+    url = f"{baseURLSSL}/killJobs"
+    data = {"ids": str_panda_ids, "code": code, "useMailAsID": useMailAsID}
+    kill_options = ""
     if keepUnmerged:
-        killOpts += "keepUnmerged,"
+        kill_options += "keepUnmerged,"
     if jobSubStatus is not None:
-        killOpts += f"jobSubStatus={jobSubStatus},"
-    data["killOpts"] = killOpts[:-1]
-    status, output = curl.post(url, data)
+        kill_options += f"jobSubStatus={jobSubStatus},"
+    data["killOpts"] = kill_options[:-1]
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR killJobs : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR killJobs : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# reassign jobs
 def reassignJobs(ids, forPending=False, firstSubmission=None):
-    """Triggers reassignment of jobs. This is not effective if jobs were preassigned to sites before being submitted.
+    """
+    Triggers reassignment of jobs. This is not effective if jobs were preassigned to sites before being submitted.
 
     args:
         ids: the list of taskIDs
@@ -527,69 +308,30 @@ def reassignJobs(ids, forPending=False, firstSubmission=None):
 
     """
     # serialize
-    strIDs = pickle_dumps(ids)
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+    str_task_ids = pickle_dumps(ids)
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/reassignJobs"
-    data = {"ids": strIDs}
+    url = f"{baseURLSSL}/reassignJobs"
+    data = {"ids": str_task_ids}
     if forPending:
         data["forPending"] = True
     if firstSubmission is not None:
         data["firstSubmission"] = firstSubmission
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR reassignJobs : {type} {value}"
-        print(errStr)
-        return EC_Failed, f"stat={status} err={output} {errStr}"
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR reassignJobs : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"stat={status} err={output} {error_str}"
 
 
-# query PandaIDs (obsolete)
-def queryPandaIDs(ids):
-    # serialize
-    strIDs = pickle_dumps(ids)
-    # instantiate curl
-    curl = _Curl()
-    # execute
-    url = baseURL + "/queryPandaIDs"
-    data = {"ids": strIDs}
-    status, output = curl.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR queryPandaIDs : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
-
-
-# query job info per cloud (obsolete)
-def queryJobInfoPerCloud(cloud, schedulerID=None):
-    # instantiate curl
-    curl = _Curl()
-    # execute
-    url = baseURL + "/queryJobInfoPerCloud"
-    data = {"cloud": cloud}
-    if schedulerID is not None:
-        data["schedulerID"] = schedulerID
-    status, output = curl.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR queryJobInfoPerCloud : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
-
-
-# get job statistics
 def getJobStatistics(sourcetype=None):
-    """Get job statistics
+    """
+    Get job statistics
 
     args:
         sourcetype: type of jobs
@@ -603,46 +345,47 @@ def getJobStatistics(sourcetype=None):
         map of the number jobs per job status in each site
 
     """
-    # instantiate curl
-    curl = _Curl()
+
+    http_client = HttpClient()
     # execute
     ret = {}
-    for srvID in getPandas():
-        url = _getURL("URL", srvID) + "/getJobStatistics"
-        data = {}
-        if sourcetype is not None:
-            data["sourcetype"] = sourcetype
-        status, output = curl.get(url, data)
-        try:
-            tmpRet = status, pickle_loads(output)
-            if status != 0:
-                return tmpRet
-        except Exception:
-            print(output)
-            type, value, traceBack = sys.exc_info()
-            errStr = f"ERROR getJobStatistics : {type} {value}"
-            print(errStr)
-            return EC_Failed, output + "\n" + errStr
-        # gather
-        for tmpCloud in tmpRet[1]:
-            tmpVal = tmpRet[1][tmpCloud]
-            if tmpCloud not in ret:
-                # append cloud values
-                ret[tmpCloud] = tmpVal
-            else:
-                # sum statistics
-                for tmpStatus in tmpVal:
-                    tmpCount = tmpVal[tmpStatus]
-                    if tmpStatus in ret[tmpCloud]:
-                        ret[tmpCloud][tmpStatus] += tmpCount
-                    else:
-                        ret[tmpCloud][tmpStatus] = tmpCount
+
+    url = f"{baseURL}/getJobStatistics"
+    data = {}
+    if sourcetype is not None:
+        data["sourcetype"] = sourcetype
+    status, output = http_client.get(url, data)
+    try:
+        tmp_return = status, pickle_loads(output)
+        if status != 0:
+            return tmp_return
+    except Exception:
+        print(output)
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR getJobStatistics : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
+    # gather
+    for tmpCloud in tmp_return[1]:
+        tmpVal = tmp_return[1][tmpCloud]
+        if tmpCloud not in ret:
+            # append cloud values
+            ret[tmpCloud] = tmpVal
+        else:
+            # sum statistics
+            for tmpStatus in tmpVal:
+                tmpCount = tmpVal[tmpStatus]
+                if tmpStatus in ret[tmpCloud]:
+                    ret[tmpCloud][tmpStatus] += tmpCount
+                else:
+                    ret[tmpCloud][tmpStatus] = tmpCount
+
     return 0, ret
 
 
-# get job statistics for Bamboo
 def getJobStatisticsForBamboo(useMorePG=False):
-    """Get job statistics for Bamboo
+    """
+    Get job statistics for Bamboo (used by TRIUMF panglia monitoring)
 
     args:
         useMorePG: set True if fine-grained classification is required
@@ -653,179 +396,47 @@ def getJobStatisticsForBamboo(useMorePG=False):
         map of the number jobs per job status in each site
 
     """
-    # instantiate curl
-    curl = _Curl()
+
+    http_client = HttpClient()
     # execute
     ret = {}
-    for srvID in getPandas():
-        url = _getURL("URL", srvID) + "/getJobStatisticsForBamboo"
-        data = {}
-        if useMorePG is not False:
-            data["useMorePG"] = useMorePG
-        status, output = curl.get(url, data)
-        try:
-            tmpRet = status, pickle_loads(output)
-            if status != 0:
-                return tmpRet
-        except Exception:
-            print(output)
-            type, value, traceBack = sys.exc_info()
-            errStr = f"ERROR getJobStatisticsForBamboo : {type} {value}"
-            print(errStr)
-            return EC_Failed, output + "\n" + errStr
-        # gather
-        for tmpCloud in tmpRet[1]:
-            tmpMap = tmpRet[1][tmpCloud]
-            if tmpCloud not in ret:
-                # append cloud values
-                ret[tmpCloud] = tmpMap
-            else:
-                # sum statistics
-                for tmpPType in tmpMap:
-                    tmpVal = tmpMap[tmpPType]
-                    if tmpPType not in ret[tmpCloud]:
-                        ret[tmpCloud][tmpPType] = tmpVal
-                    else:
-                        for tmpStatus in tmpVal:
-                            tmpCount = tmpVal[tmpStatus]
-                            if tmpStatus in ret[tmpCloud][tmpPType]:
-                                ret[tmpCloud][tmpPType][tmpStatus] += tmpCount
-                            else:
-                                ret[tmpCloud][tmpPType][tmpStatus] = tmpCount
+    url = f"{baseURL}/getJobStatisticsForBamboo"
+    data = {}
+    if useMorePG is not False:
+        data["useMorePG"] = useMorePG
+    status, output = http_client.get(url, data)
+    try:
+        tmp_return = status, pickle_loads(output)
+        if status != 0:
+            return tmp_return
+    except Exception:
+        print(output)
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR getJobStatisticsForBamboo : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
+    # gather
+    for tmpCloud in tmp_return[1]:
+        tmpMap = tmp_return[1][tmpCloud]
+        if tmpCloud not in ret:
+            # append cloud values
+            ret[tmpCloud] = tmpMap
+        else:
+            # sum statistics
+            for tmpPType in tmpMap:
+                tmpVal = tmpMap[tmpPType]
+                if tmpPType not in ret[tmpCloud]:
+                    ret[tmpCloud][tmpPType] = tmpVal
+                else:
+                    for tmpStatus in tmpVal:
+                        tmpCount = tmpVal[tmpStatus]
+                        if tmpStatus in ret[tmpCloud][tmpPType]:
+                            ret[tmpCloud][tmpPType][tmpStatus] += tmpCount
+                        else:
+                            ret[tmpCloud][tmpPType][tmpStatus] = tmpCount
     return 0, ret
 
 
-# get highest prio jobs
-def getHighestPrioJobStat(perPG=False, useMorePG=False):
-    """Get the number of jobs with the highest priorities in each combination of cloud and processingType
-
-    args:
-        perPG: set True if grouped by processingGroup instead of processingType
-        useMorePG: set True if fine-grained classification is required
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        map of the number jobs and priorities in each combination of cloud and processingType (or processingGroup)
-
-    """
-    # instantiate curl
-    curl = _Curl()
-    # execute
-    ret = {}
-    url = baseURL + "/getHighestPrioJobStat"
-    data = {"perPG": perPG}
-    if useMorePG is not False:
-        data["useMorePG"] = useMorePG
-    status, output = curl.get(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        print(output)
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getHighestPrioJobStat : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
-
-
-# get jobs updated recently
-def getJobsToBeUpdated(limit=5000, lockedby="", srvID=None):
-    """Get the list of jobs which have been recently updated.
-
-    args:
-        limit: the maximum number of jobs
-        lockedby: name of the machinery which submitted jobs
-        srvID: obsolete
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        the lit of PandaIDs
-
-    """
-    # instantiate curl
-    curl = _Curl()
-    # execute
-    url = _getURL("URL", srvID) + "/getJobsToBeUpdated"
-    status, output = curl.get(url, {"limit": limit, "lockedby": lockedby})
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        print(output)
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getJobsToBeUpdated : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
-
-
-# update prodDBUpdateTimes
-def updateProdDBUpdateTimes(params, verbose=False, srvID=None):
-    """Update timestamp of jobs when update info is propagated to another database
-
-    args:
-        params: map of PandaID and jobStatus and timestamp
-        verbose: set True to see what's going on
-        srvID: obsolete
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        return code
-              True: request is processed
-              False: not processed
-
-    """
-    # serialize
-    strPar = pickle_dumps(params)
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
-    curl.verbose = verbose
-    # execute
-    url = _getURL("URLSSL", srvID) + "/updateProdDBUpdateTimes"
-    data = {"params": strPar}
-    status, output = curl.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR updateProdDBUpdateTimes : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
-
-
-# get PandaID at site
-def getPandaIDsSite(site, status, limit=500):
-    """Get the list of jobs in a job status at at a site
-
-    args:
-        site: site name
-        status: job status
-        limit: maximum number of jobs
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        the list of PandaIDs
-
-    """
-    # instantiate curl
-    curl = _Curl()
-    # execute
-    url = baseURL + "/getPandaIDsSite"
-    status, output = curl.get(url, {"site": site, "status": status, "limit": limit})
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        print(output)
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getPandaIDsSite : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
-
-
-# get job statistics per site
 def getJobStatisticsPerSite(
     predefined=False,
     workingGroup="",
@@ -834,12 +445,13 @@ def getJobStatisticsPerSite(
     minPriority=None,
     readArchived=None,
 ):
-    """Get job statistics with job attributes
+    """
+    Get job statistics with job attributes
 
     args:
-        predefined: get jobs which are assiggned to sites before being submitted
-        workingGroup: commna-separated list of workingGroups
-        countryGroup: commna-separated list of countryGroups
+        predefined: get jobs which are assigned to sites before being submitted
+        workingGroup: comma-separated list of workingGroups
+        countryGroup: comma-separated list of countryGroups
         jobType: type of jobs
             all: all jobs
             analysis: analysis jobs
@@ -853,103 +465,50 @@ def getJobStatisticsPerSite(
         map of the number jobs per job status in each site
 
     """
-    # instantiate curl
-    curl = _Curl()
+
+    http_client = HttpClient()
     # execute
     ret = {}
-    for srvID in getPandas():
-        url = _getURL("URL", srvID) + "/getJobStatisticsPerSite"
-        data = {"predefined": predefined}
-        if workingGroup not in ["", None]:
-            data["workingGroup"] = workingGroup
-        if countryGroup not in ["", None]:
-            data["countryGroup"] = countryGroup
-        if jobType not in ["", None]:
-            data["jobType"] = jobType
-        if minPriority not in ["", None]:
-            data["minPriority"] = minPriority
-        if readArchived not in ["", None]:
-            data["readArchived"] = readArchived
-        status, output = curl.get(url, data)
-        try:
-            tmpRet = status, pickle_loads(output)
-            if status != 0:
-                return tmpRet
-        except Exception:
-            print(output)
-            type, value, traceBack = sys.exc_info()
-            errStr = f"ERROR getJobStatisticsPerSite : {type} {value}"
-            print(errStr)
-            return EC_Failed, output + "\n" + errStr
-        # gather
-        for tmpSite in tmpRet[1]:
-            tmpVal = tmpRet[1][tmpSite]
-            if tmpSite not in ret:
-                # append site values
-                ret[tmpSite] = tmpVal
-            else:
-                # sum statistics
-                for tmpStatus in tmpVal:
-                    tmpCount = tmpVal[tmpStatus]
-                    if tmpStatus in ret[tmpSite]:
-                        ret[tmpSite][tmpStatus] += tmpCount
-                    else:
-                        ret[tmpSite][tmpStatus] = tmpCount
+    url = f"{baseURL}/getJobStatisticsPerSite"
+    data = {"predefined": predefined}
+    if workingGroup not in ["", None]:
+        data["workingGroup"] = workingGroup
+    if countryGroup not in ["", None]:
+        data["countryGroup"] = countryGroup
+    if jobType not in ["", None]:
+        data["jobType"] = jobType
+    if minPriority not in ["", None]:
+        data["minPriority"] = minPriority
+    if readArchived not in ["", None]:
+        data["readArchived"] = readArchived
+    status, output = http_client.get(url, data)
+    try:
+        tmp_return = status, pickle_loads(output)
+        if status != 0:
+            return tmp_return
+    except Exception:
+        print(output)
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR getJobStatisticsPerSite : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
+
+    # gather
+    for tmp_site, tmp_value in tmp_return[1].items():
+        if tmp_site not in ret:
+            # append site values
+            ret[tmp_site] = tmp_value
+        else:
+            # sum statistics
+            for tmp_status, tmp_count in tmp_value.items():
+                ret[tmp_site][tmp_status] = ret[tmp_site].get(tmp_status, 0) + tmp_count
+
     return 0, ret
 
 
-# get job statistics per site with label
-def getJobStatisticsWithLabel(site=""):
-    """Get job statistics per prodSourceLabel
-
-    args:
-        site: commna-separated list of sites. An empty string for all sites.
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        map of the number jobs per job status and prodSourceLabel in each site
-
-    """
-    # instantiate curl
-    curl = _Curl()
-    # execute
-    url = baseURL + "/getJobStatisticsWithLabel"
-    data = {}
-    if site not in ["", None]:
-        data["site"] = site
-    status, output = curl.get(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        print(output)
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getJobStatisticsWithLabel : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
-
-
-# get the number of waiting jobs per site and user (obsolete)
-def getJobStatisticsPerUserSite():
-    # instantiate curl
-    curl = _Curl()
-    # execute
-    url = baseURL + "/getJobStatisticsPerUserSite"
-    data = {}
-    status, output = curl.get(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        print(output)
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getJobStatisticsPerUserSite : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
-
-
-# get job statistics per site and resource
 def getJobStatisticsPerSiteResource(timeWindow=None):
-    """Get job statistics with job attributes
+    """
+    Get job statistics per site and resource. This is used by panglia (TRIUMF monitoring)
 
     args:
        timeWindow: to count number of jobs that finish/failed/cancelled for last N minutes. 12*60 by default
@@ -960,27 +519,27 @@ def getJobStatisticsPerSiteResource(timeWindow=None):
         map of the number jobs per job status in each site and resource
 
     """
-    # instantiate curl
-    curl = _Curl()
+
+    http_client = HttpClient()
     # execute
-    url = baseURL + "/getJobStatisticsPerSiteResource"
+    url = f"{baseURL}/getJobStatisticsPerSiteResource"
     data = {}
     if timeWindow is not None:
         data["timeWindow"] = timeWindow
-    status, output = curl.get(url, data)
+    status, output = http_client.get(url, data)
     try:
         return status, json.loads(output)
     except Exception:
         print(output)
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getJobStatisticsPerSiteResource : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR getJobStatisticsPerSiteResource : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# get job statistics per site, label, and resource
 def get_job_statistics_per_site_label_resource(time_window=None):
-    """Get job statistics per site, label, and resource
+    """
+    Get job statistics per site, label, and resource
 
     args:
        timeWindow: to count number of jobs that finish/failed/cancelled for last N minutes. 12*60 by default
@@ -991,87 +550,55 @@ def get_job_statistics_per_site_label_resource(time_window=None):
         map of the number jobs per job status in each site and resource
 
     """
-    # instantiate curl
-    curl = _Curl()
+
+    http_client = HttpClient()
     # execute
-    url = baseURL + "/get_job_statistics_per_site_label_resource"
+    url = f"{baseURL}/get_job_statistics_per_site_label_resource"
     data = {}
     if time_window is not None:
         data["time_window"] = time_window
-    status, output = curl.get(url, data)
+    status, output = http_client.get(url, data)
     try:
         return status, json.loads(output)
     except Exception as e:
         print(output)
-        errStr = f"ERROR get_job_statistics_per_site_label_resource : {str(e)}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        error_str = f"ERROR get_job_statistics_per_site_label_resource : {str(e)}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# query last files in datasets
-def queryLastFilesInDataset(datasets):
-    """Get names of files which have the largest serial number in each dataset
-
-    args:
-        datasets: the list of dataset names
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        map of the dataset name and the file name
-
+def insertSandboxFileInfo(userName, fileName, fileSize, checkSum):
     """
-    # serialize
-    strDSs = pickle_dumps(datasets)
-    # instantiate curl
-    curl = _Curl()
-    # execute
-    url = baseURL + "/queryLastFilesInDataset"
-    data = {"datasets": strDSs}
-    status, output = curl.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        print(f"ERROR queryLastFilesInDataset : {type} {value}")
-        return EC_Failed, None
-
-
-# insert sandbox file info
-def insertSandboxFileInfo(userName, fileName, fileSize, checkSum, verbose=False):
-    """Insert infomation of input sandbox
+    Insert information of input sandbox
 
     args:
         userName: the name of the user
         fileName: the file name
         fileSize: the file size
         fileSize: md5sum of the file
-        verbose: set True to see what's going on
     returns:
         status code
               0: communication succeeded to the panda server
               else: communication failure
 
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
-    curl.verbose = verbose
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/insertSandboxFileInfo"
+    url = f"{baseURLSSL}/insertSandboxFileInfo"
     data = {
         "userName": userName,
         "fileName": fileName,
         "fileSize": fileSize,
         "checkSum": checkSum,
     }
-    return curl.post(url, data)
+    return http_client.post(url, data)
 
 
-# upload input sandbox file
 def putFile(file):
-    """Upload input sandbox
+    """
+    Upload input sandbox
 
     args:
         file: the file name
@@ -1081,43 +608,40 @@ def putFile(file):
               else: communication failure
 
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/putFile"
+    url = f"{baseURLSSL}/putFile"
     data = {"file": file}
-    return curl.put(url, data)
+    return http_client.post_files(url, data)
 
 
 # delete file (obsolete)
+# TODO: is this really obsolete? I think it's used in panda cache
 def deleteFile(file):
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/deleteFile"
+    url = f"{baseURLSSL}/deleteFile"
     data = {"file": file}
-    return curl.post(url, data)
+    return http_client.post(url, data)
 
 
 # touch file (obsolete)
-def touchFile(sourceURL, filename):
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+# TODO: is this really obsolete? I think it's used in panda cache
+def touchFile(source_url, filename):
+    http_client = HttpClient()
+
     # execute
-    url = sourceURL + "/server/panda/touchFile"
+    url = f"{source_url}/server/panda/touchFile"
     data = {"filename": filename}
-    return curl.post(url, data)
+    return http_client.post(url, data)
 
 
-# get site specs
 def getSiteSpecs(siteType=None):
-    """Get list of site specifications
+    """
+    Get list of site specifications
 
     args:
         siteType: type of sites
@@ -1131,144 +655,26 @@ def getSiteSpecs(siteType=None):
         map of site and attributes
 
     """
-    # instantiate curl
-    curl = _Curl()
+
+    http_client = HttpClient()
     # execute
-    url = baseURL + "/getSiteSpecs"
+    url = f"{baseURL}/getSiteSpecs"
     data = {}
     if siteType is not None:
         data = {"siteType": siteType}
-    status, output = curl.get(url, data)
+    status, output = http_client.get(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getSiteSpecs : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR getSiteSpecs : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# get cloud specs
-def getCloudSpecs():
-    """Get list of cloud specifications
-
-    args:
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        map of cloud and attributes
-
-    """
-    # instantiate curl
-    curl = _Curl()
-    # execute
-    url = baseURL + "/getCloudSpecs"
-    status, output = curl.get(url, {})
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getCloudSpecs : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
-
-
-# get nPilots (obsolete)
-def getNumPilots():
-    # instantiate curl
-    curl = _Curl()
-    # execute
-    url = baseURL + "/getNumPilots"
-    status, output = curl.get(url, {})
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getNumPilots : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
-
-
-# run brokerage
-def runBrokerage(sites, atlasRelease, cmtConfig=None):
-    """Run brokerage
-
-    args:
-        sites: the list of candidate sites
-        atlasRelease: version number of SW release
-        cmtConfig: cmt config
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              else: communication failure
-        the name of the selected site
-
-    """
-    # serialize
-    strSites = pickle_dumps(sites)
-    # instantiate curl
-    curl = _Curl()
-    # execute
-    url = baseURL + "/runBrokerage"
-    data = {"sites": strSites, "atlasRelease": atlasRelease}
-    if cmtConfig is not None:
-        data["cmtConfig"] = cmtConfig
-    return curl.get(url, data)
-
-
-# get RW
-def getRW(priority=0):
-    """Get the amount of workload queued in each cloud
-
-    args:
-        priority: workload with higher priorities than this value
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        map of cloud and the amount of workload
-
-    """
-    # instantiate curl
-    curl = _Curl()
-    # execute
-    url = baseURLBAMBOO + "/getRW"
-    # get RWs for high priority tasks
-    data = {"priority": priority}
-    status, output = curl.get(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getRW : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
-
-
-# change job priorities (obsolete)
-def changeJobPriorities(newPrioMap):
-    # serialize
-    newPrioMapStr = pickle_dumps(newPrioMap)
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
-    # execute
-    url = baseURLSSL + "/changeJobPriorities"
-    data = {"newPrioMap": newPrioMapStr}
-    status, output = curl.post(url, data)
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR changeJobPriorities : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
-
-
-# insert task params
 def insertTaskParams(taskParams):
-    """Insert task parameters
+    """
+    Insert task parameters
 
     args:
         taskParams: a dictionary of task parameters
@@ -1282,25 +688,24 @@ def insertTaskParams(taskParams):
     """
     # serialize
     taskParamsStr = json.dumps(taskParams)
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/insertTaskParams"
+    url = f"{baseURLSSL}/insertTaskParams"
     data = {"taskParams": taskParamsStr}
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR insertTaskParams : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR insertTaskParams : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# kill task
 def killTask(jediTaskID, broadcast=False):
-    """Kill a task
+    """
+    Kill a task
 
     args:
         jediTaskID: jediTaskID of the task to be killed
@@ -1318,27 +723,24 @@ def killTask(jediTaskID, broadcast=False):
             100: non SSL connection
             101: irrelevant taskID
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/killTask"
-    data = {"jediTaskID": jediTaskID}
-    data["properErrorCode"] = True
-    data["broadcast"] = broadcast
-    status, output = curl.post(url, data)
+    url = f"{baseURLSSL}/killTask"
+    data = {"jediTaskID": jediTaskID, "properErrorCode": True, "broadcast": broadcast}
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR killTask : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR killTask : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# finish task
 def finishTask(jediTaskID, soft=False, broadcast=False):
-    """Finish a task
+    """
+    Finish a task
 
     args:
         jediTaskID: jediTaskID of the task to be finished
@@ -1360,29 +762,26 @@ def finishTask(jediTaskID, soft=False, broadcast=False):
             100: non SSL connection
             101: irrelevant taskID
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/finishTask"
-    data = {"jediTaskID": jediTaskID}
-    data["properErrorCode"] = True
-    data["broadcast"] = broadcast
+    url = f"{baseURLSSL}/finishTask"
+    data = {"jediTaskID": jediTaskID, "properErrorCode": True, "broadcast": broadcast}
     if soft:
         data["soft"] = True
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR finishTask : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR finishTask : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# reassign task to a site
 def reassignTaskToSite(jediTaskID, site, mode=None):
-    """Reassign a task to a site. Existing jobs are killed and new jobs are generated at the site
+    """
+    Reassign a task to a site. Existing jobs are killed and new jobs are generated at the site
 
     args:
         jediTaskID: jediTaskID of the task to be reassigned
@@ -1404,27 +803,26 @@ def reassignTaskToSite(jediTaskID, site, mode=None):
     maxSite = 60
     if site is not None and len(site) > maxSite:
         return EC_Failed, f"site parameter is too long > {maxSite}chars"
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/reassignTask"
+    url = f"{baseURLSSL}/reassignTask"
     data = {"jediTaskID": jediTaskID, "site": site}
     if mode is not None:
         data["mode"] = mode
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR reassignTaskToSite : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR reassignTaskToSite : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# reassign task to a cloud
 def reassignTaskToCloud(jediTaskID, cloud, mode=None):
-    """Reassign a task to a cloud. Existing jobs are killed and new jobs are generated in the cloud
+    """
+    Reassign a task to a cloud. Existing jobs are killed and new jobs are generated in the cloud
 
     args:
         jediTaskID: jediTaskID of the task to be reassigned
@@ -1443,27 +841,26 @@ def reassignTaskToCloud(jediTaskID, cloud, mode=None):
             100: non SSL connection
             101: irrelevant taskID
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/reassignTask"
+    url = f"{baseURLSSL}/reassignTask"
     data = {"jediTaskID": jediTaskID, "cloud": cloud}
     if mode is not None:
         data["mode"] = mode
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR reassignTaskToCloud : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR reassignTaskToCloud : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# reassign task to a nucleus
 def reassignTaskToNucleus(jediTaskID, nucleus, mode=None):
-    """Reassign a task to a nucleus. Existing jobs are killed and new jobs are generated in the cloud
+    """
+    Reassign a task to a nucleus. Existing jobs are killed and new jobs are generated in the cloud
 
     args:
         jediTaskID: jediTaskID of the task to be reassigned
@@ -1482,27 +879,26 @@ def reassignTaskToNucleus(jediTaskID, nucleus, mode=None):
             100: non SSL connection
             101: irrelevant taskID
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/reassignTask"
+    url = f"{baseURLSSL}/reassignTask"
     data = {"jediTaskID": jediTaskID, "nucleus": nucleus}
     if mode is not None:
         data["mode"] = mode
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR reassignTaskToCloud : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR reassignTaskToCloud : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# upload log
 def uploadLog(logStr, logFileName):
-    """Upload sandbox
+    """
+    Upload log
 
     args:
         logStr: log message
@@ -1513,10 +909,9 @@ def uploadLog(logStr, logFileName):
               else: communication failure
 
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
+
     # write log to a tmp file
     fh = tempfile.NamedTemporaryFile(delete=False)
     gfh = gzip.open(fh.name, mode="wb")
@@ -1525,16 +920,16 @@ def uploadLog(logStr, logFileName):
     gfh.write(logStr)
     gfh.close()
     # execute
-    url = baseURLSSL + "/uploadLog"
+    url = f"{baseURLSSL}/uploadLog"
     data = {"file": f"{fh.name};filename={logFileName}"}
-    retVal = curl.put(url, data)
+    retVal = http_client.post_files(url, data)
     os.unlink(fh.name)
     return retVal
 
 
-# change task priority
 def changeTaskPriority(jediTaskID, newPriority):
-    """Change task priority
+    """
+    Change the task priority
 
     args:
         jediTaskID: jediTaskID of the task to change the priority
@@ -1548,25 +943,24 @@ def changeTaskPriority(jediTaskID, newPriority):
               1: succeeded
               None: database error
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/changeTaskPriority"
+    url = f"{baseURLSSL}/changeTaskPriority"
     data = {"jediTaskID": jediTaskID, "newPriority": newPriority}
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR changeTaskPriority : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR changeTaskPriority : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# set debug mode
 def setDebugMode(pandaID, modeOn):
-    """Turn debug mode on/off for a job
+    """
+    Turn debug mode for a job on/off
 
     args:
         pandaID: PandaID of the job
@@ -1577,19 +971,18 @@ def setDebugMode(pandaID, modeOn):
               another: communication failure
         error message
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/setDebugMode"
+    url = f"{baseURLSSL}/setDebugMode"
     data = {"pandaID": pandaID, "modeOn": modeOn}
-    return curl.post(url, data)
+    return http_client.post(url, data)
 
 
-# retry task
-def retryTask(jediTaskID, verbose=False, noChildRetry=False, discardEvents=False, disable_staging_mode=False, keep_gshare_priority=False):
-    """Retry task
+def retryTask(jediTaskID, noChildRetry=False, discardEvents=False, disable_staging_mode=False, keep_gshare_priority=False):
+    """
+    Retry a task
 
     args:
         jediTaskID: jediTaskID of the task to retry
@@ -1610,15 +1003,12 @@ def retryTask(jediTaskID, verbose=False, noChildRetry=False, discardEvents=False
             100: non SSL connection
             101: irrelevant taskID
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
-    curl.verbose = verbose
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/retryTask"
-    data = {"jediTaskID": jediTaskID}
-    data["properErrorCode"] = True
+    url = f"{baseURLSSL}/retryTask"
+    data = {"jediTaskID": jediTaskID, "properErrorCode": True}
     if noChildRetry:
         data["noChildRetry"] = True
     if discardEvents:
@@ -1627,18 +1017,18 @@ def retryTask(jediTaskID, verbose=False, noChildRetry=False, discardEvents=False
         data["disable_staging_mode"] = True
     if keep_gshare_priority:
         data["keep_gshare_priority"] = True
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR retryTask : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR retryTask : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# reload input
-def reloadInput(jediTaskID, verbose=False):
-    """Retry task
+def reloadInput(jediTaskID):
+    """
+    Reload the input for a task
 
     args:
         jediTaskID: jediTaskID of the task to retry
@@ -1655,26 +1045,24 @@ def reloadInput(jediTaskID, verbose=False):
             100: non SSL connection
             101: irrelevant taskID
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
-    curl.verbose = verbose
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/reloadInput"
+    url = f"{baseURLSSL}/reloadInput"
     data = {"jediTaskID": jediTaskID}
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR reloadInput : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR reloadInput : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# change task walltime
 def changeTaskWalltime(jediTaskID, wallTime):
-    """Change task priority
+    """
+    Change task walltime
 
     args:
         jediTaskID: jediTaskID of the task to change the priority
@@ -1688,25 +1076,24 @@ def changeTaskWalltime(jediTaskID, wallTime):
               1: succeeded
               None: database error
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/changeTaskAttributePanda"
+    url = f"{baseURLSSL}/changeTaskAttributePanda"
     data = {"jediTaskID": jediTaskID, "attrName": "wallTime", "attrValue": wallTime}
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR changeTaskWalltime : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR changeTaskWalltime : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# change task cputime
 def changeTaskCputime(jediTaskID, cpuTime):
-    """Change task cpuTime
+    """
+    Change task CPU time
 
     args:
         jediTaskID: jediTaskID of the task to change the priority
@@ -1720,25 +1107,24 @@ def changeTaskCputime(jediTaskID, cpuTime):
               1: succeeded
               None: database error
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/changeTaskAttributePanda"
+    url = f"{baseURLSSL}/changeTaskAttributePanda"
     data = {"jediTaskID": jediTaskID, "attrName": "cpuTime", "attrValue": cpuTime}
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR changeTaskCputime : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR changeTaskCputime : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# change task RAM count
 def changeTaskRamCount(jediTaskID, ramCount):
-    """Change task priority
+    """
+    Change task RAM count
 
     args:
         jediTaskID: jediTaskID of the task to change the priority
@@ -1752,25 +1138,24 @@ def changeTaskRamCount(jediTaskID, ramCount):
               1: succeeded
               None: database error
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/changeTaskAttributePanda"
+    url = f"{baseURLSSL}/changeTaskAttributePanda"
     data = {"jediTaskID": jediTaskID, "attrName": "ramCount", "attrValue": ramCount}
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR changeTaskRamCount : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR changeTaskRamCount : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# change task attribute
 def changeTaskAttribute(jediTaskID, attrName, attrValue):
-    """Change task attribute
+    """
+    Change task attribute
 
     args:
         jediTaskID: jediTaskID of the task to change the attribute
@@ -1780,31 +1165,30 @@ def changeTaskAttribute(jediTaskID, attrName, attrValue):
         status code
               0: communication succeeded to the panda server
               255: communication failure
-        return: a tupple of return code and message
+        return: a tuple of return code and message
               0: unknown task
               1: succeeded
               2: disallowed to update the attribute
               None: database error
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/changeTaskAttributePanda"
+    url = f"{baseURLSSL}/changeTaskAttributePanda"
     data = {"jediTaskID": jediTaskID, "attrName": attrName, "attrValue": attrValue}
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR changeTaskAttributePanda : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR changeTaskAttributePanda : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# change split rule for task
 def changeTaskSplitRule(jediTaskID, ruleName, ruleValue):
-    """Change split rule fo task
+    """
+    Change split rule fo task
 
     args:
         jediTaskID: jediTaskID of the task to change the rule
@@ -1814,31 +1198,30 @@ def changeTaskSplitRule(jediTaskID, ruleName, ruleValue):
         status code
               0: communication succeeded to the panda server
               255: communication failure
-        return: a tupple of return code and message
+        return: a tuple of return code and message
               0: unknown task
               1: succeeded
               2: disallowed to update the attribute
               None: database error
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/changeTaskSplitRulePanda"
+    url = f"{baseURLSSL}/changeTaskSplitRulePanda"
     data = {"jediTaskID": jediTaskID, "attrName": ruleName, "attrValue": ruleValue}
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR changeTaskSplitRule : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR changeTaskSplitRule : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# pause task
-def pauseTask(jediTaskID, verbose=False):
-    """Pause task
+def pauseTask(jediTaskID):
+    """
+    Pause task
 
     args:
         jediTaskID: jediTaskID of the task to pause
@@ -1855,26 +1238,24 @@ def pauseTask(jediTaskID, verbose=False):
             100: non SSL connection
             101: irrelevant taskID
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
-    curl.verbose = verbose
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/pauseTask"
+    url = f"{baseURLSSL}/pauseTask"
     data = {"jediTaskID": jediTaskID}
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR pauseTask : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR pauseTask : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# resume task
-def resumeTask(jediTaskID, verbose=False):
-    """Resume task
+def resumeTask(jediTaskID):
+    """
+    Resume task
 
     args:
         jediTaskID: jediTaskID of the task to release
@@ -1891,26 +1272,24 @@ def resumeTask(jediTaskID, verbose=False):
             100: non SSL connection
             101: irrelevant taskID
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
-    curl.verbose = verbose
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/resumeTask"
+    url = f"{baseURLSSL}/resumeTask"
     data = {"jediTaskID": jediTaskID}
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR resumeTask : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR resumeTask : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# avalanche task
-def avalancheTask(jediTaskID, verbose=False):
-    """force avalanche for task
+def avalancheTask(jediTaskID):
+    """
+    Force avalanche for task
 
     args:
         jediTaskID: jediTaskID of the task to avalanche
@@ -1927,26 +1306,24 @@ def avalancheTask(jediTaskID, verbose=False):
             100: non SSL connection
             101: irrelevant taskID
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
-    curl.verbose = verbose
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/avalancheTask"
+    url = f"{baseURLSSL}/avalancheTask"
     data = {"jediTaskID": jediTaskID}
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR resumeTask : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR resumeTask : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# increase attempt number for unprocessed files
 def increaseAttemptNr(jediTaskID, increase):
-    """Change task priority
+    """
+    Change task priority
 
     args:
         jediTaskID: jediTaskID of the task to increase attempt numbers
@@ -1963,25 +1340,24 @@ def increaseAttemptNr(jediTaskID, increase):
               4: wrong parameter
               None: database error
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/increaseAttemptNrPanda"
+    url = f"{baseURLSSL}/increaseAttemptNrPanda"
     data = {"jediTaskID": jediTaskID, "increasedNr": increase}
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR increaseAttemptNr : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR increaseAttemptNr : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# kill unfinished jobs
-def killUnfinishedJobs(jediTaskID, code=None, verbose=False, srvID=None, useMailAsID=False):
-    """Kill unfinished jobs in a task. Normal users can kill only their own jobs.
+def killUnfinishedJobs(jediTaskID, code=None, useMailAsID=False):
+    """
+    Kill unfinished jobs in a task. Normal users can kill only their own jobs.
     People with production VOMS role can kill any jobs.
     Running jobs are killed when next heartbeat comes from the pilot.
     Set code=9 if running jobs need to be killed immediately.
@@ -1993,12 +1369,10 @@ def killUnfinishedJobs(jediTaskID, code=None, verbose=False, srvID=None, useMail
                  3: aborted
                  4: expire in waiting
                  7: retry by server
-                 8: rebrokerage
+                 8: re-brokerage
                  9: force kill
                  50: kill by JEDI
                  91: kill user jobs with prod role
-           verbose: set True to see what's going on
-           srvID: obsolete
            useMailAsID: obsolete
        returns:
            status code
@@ -2006,27 +1380,25 @@ def killUnfinishedJobs(jediTaskID, code=None, verbose=False, srvID=None, useMail
                  255: communication failure
            the list of clouds (or Nones if tasks are not yet assigned)
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
-    curl.verbose = verbose
+
+    http_client = HttpClient()
+
     # execute
-    url = _getURL("URLSSL", srvID) + "/killUnfinishedJobs"
+    url = f"{baseURLSSL}/killUnfinishedJobs"
     data = {"jediTaskID": jediTaskID, "code": code, "useMailAsID": useMailAsID}
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR killUnfinishedJobs : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR killUnfinishedJobs : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# trigger task brokerage
 def triggerTaskBrokerage(jediTaskID):
-    """Trigger task brokerge
+    """
+    Trigger task brokerage
 
     args:
         jediTaskID: jediTaskID of the task to change the attribute
@@ -2034,30 +1406,29 @@ def triggerTaskBrokerage(jediTaskID):
         status code
               0: communication succeeded to the panda server
               255: communication failure
-        return: a tupple of return code and message
+        return: a tuple of return code and message
               0: unknown task
               1: succeeded
               None: database error
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/changeTaskModTimePanda"
+    url = f"{baseURLSSL}/changeTaskModTimePanda"
     data = {"jediTaskID": jediTaskID, "diffValue": -12}
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR triggerTaskBrokerage : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR triggerTaskBrokerage : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# get PanDA IDs with TaskID
 def getPandaIDsWithTaskID(jediTaskID):
-    """Get PanDA IDs with TaskID
+    """
+    Get PanDA IDs with TaskID
 
     args:
         jediTaskID: jediTaskID of the task to get lit of PanDA IDs
@@ -2067,24 +1438,24 @@ def getPandaIDsWithTaskID(jediTaskID):
               255: communication failure
         the list of PanDA IDs
     """
-    # instantiate curl
-    curl = _Curl()
+
+    http_client = HttpClient()
     # execute
-    url = baseURL + "/getPandaIDsWithTaskID"
+    url = f"{baseURL}/getPandaIDsWithTaskID"
     data = {"jediTaskID": jediTaskID}
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getPandaIDsWithTaskID : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR getPandaIDsWithTaskID : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# reactivate task
 def reactivateTask(jediTaskID, keep_attempt_nr=False, trigger_job_generation=False):
-    """Reactivate task
+    """
+    Reactivate task
 
     args:
         jediTaskID: jediTaskID of the task to be reactivated
@@ -2094,34 +1465,33 @@ def reactivateTask(jediTaskID, keep_attempt_nr=False, trigger_job_generation=Fal
         status code
               0: communication succeeded to the panda server
               255: communication failure
-        return: a tupple of return code and message
+        return: a tuple of return code and message
               0: unknown task
               1: succeeded
               None: database error
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/reactivateTask"
+    url = f"{baseURLSSL}/reactivateTask"
     data = {"jediTaskID": jediTaskID}
     if keep_attempt_nr:
         data["keep_attempt_nr"] = True
     if trigger_job_generation:
         data["trigger_job_generation"] = True
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR reactivateTask : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR reactivateTask : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# get task status TaskID
 def getTaskStatus(jediTaskID):
-    """Get task status
+    """
+    Get task status for a particular task ID
 
     args:
         jediTaskID: jediTaskID of the task to get lit of PanDA IDs
@@ -2131,27 +1501,28 @@ def getTaskStatus(jediTaskID):
               255: communication failure
         the status string
     """
-    # instantiate curl
-    curl = _Curl()
+
+    http_client = HttpClient()
     # execute
-    url = baseURL + "/getTaskStatus"
+    url = f"{baseURL}/getTaskStatus"
     data = {"jediTaskID": jediTaskID}
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getTaskStatus : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR getTaskStatus : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# reassign specified tasks (and their jobs) to a new share
 def reassignShare(jedi_task_ids, share, reassign_running=False):
     """
+    Reassign specified tasks (and their jobs) to a new share
+
     args:
         jedi_task_ids: task ids to act on
-        share: share to be applied to jeditaskids
+        share: share to be applied to jedi task ids
     returns:
         status code
               0: communication succeeded to the panda server
@@ -2161,66 +1532,31 @@ def reassignShare(jedi_task_ids, share, reassign_running=False):
               0: success
               None: database error
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
 
     jedi_task_ids_pickle = pickle_dumps(jedi_task_ids)
     change_running_pickle = pickle_dumps(reassign_running)
     # execute
-    url = baseURLSSL + "/reassignShare"
+    url = f"{baseURLSSL}/reassignShare"
     data = {
         "jedi_task_ids_pickle": jedi_task_ids_pickle,
         "share": share,
         "reassign_running": change_running_pickle,
     }
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
 
     try:
         return status, pickle_loads(output)
     except Exception:
-        err_type, err_value = sys.exc_info()[:2]
-        err_str = f"ERROR reassignShare : {err_type} {err_value}"
-        return EC_Failed, f"{output}\n{err_str}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR reassignShare : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# list tasks in a particular share and optionally status
-def listTasksInShare(gshare, status="running"):
-    """
-    args:
-        gshare: global share
-        status: task status, running by default
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        return: a tuple of return code and jedi_task_ids
-              1: logical error
-              0: success
-              None: database error
-    """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
-
-    # execute
-    url = baseURLSSL + "/listTasksInShare"
-    data = {"gshare": gshare, "status": status}
-    status, output = curl.post(url, data)
-
-    try:
-        return status, pickle_loads(output)
-    except Exception:
-        err_type, err_value = sys.exc_info()[:2]
-        err_str = f"ERROR listTasksInShare : {err_type} {err_value}"
-        return EC_Failed, f"{output}\n{err_str}"
-
-
-# get taskParamsMap with TaskID
 def getTaskParamsMap(jediTaskID):
-    """Get task status
+    """
+    Get task parameter map for a certain task ID
 
     args:
         jediTaskID: jediTaskID of the task to get taskParamsMap
@@ -2233,24 +1569,24 @@ def getTaskParamsMap(jediTaskID):
               0: success
               None: database error
     """
-    # instantiate curl
-    curl = _Curl()
+
+    http_client = HttpClient()
     # execute
-    url = baseURL + "/getTaskParamsMap"
+    url = f"{baseURL}/getTaskParamsMap"
     data = {"jediTaskID": jediTaskID}
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, pickle_loads(output)
     except Exception:
-        type, value, traceBack = sys.exc_info()
-        errStr = f"ERROR getTaskParamsMap : {type} {value}"
-        print(errStr)
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value, _ = sys.exc_info()
+        error_str = f"ERROR getTaskParamsMap : {error_type} {error_value}"
+        print(error_str)
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# set num slots for workload provisioning
 def setNumSlotsForWP(pandaQueueName, numSlots, gshare=None, resourceType=None, validPeriod=None):
-    """Set num slots for workload provisioning
+    """
+    Set num slots for workload provisioning
 
     args:
         pandaQueueName: Panda Queue name
@@ -2269,12 +1605,11 @@ def setNumSlotsForWP(pandaQueueName, numSlots, gshare=None, resourceType=None, v
             101: missing production role
             102: type error for some parameters
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/setNumSlotsForWP"
+    url = f"{baseURLSSL}/setNumSlotsForWP"
     data = {"pandaQueueName": pandaQueueName, "numSlots": numSlots}
     if gshare is not None:
         data["gshare"] = gshare
@@ -2282,18 +1617,19 @@ def setNumSlotsForWP(pandaQueueName, numSlots, gshare=None, resourceType=None, v
         data["resourceType"] = resourceType
     if validPeriod is not None:
         data["validPeriod"] = validPeriod
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, json.loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR setNumSlotsForWP : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR setNumSlotsForWP : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
 # enable jumbo jobs
 def enableJumboJobs(jediTaskID, totalJumboJobs=1, nJumboPerSite=1):
-    """Enable jumbo jobs
+    """
+    Enable jumbo jobs for a task
 
     args:
         jediTaskID: jediTaskID of the task
@@ -2310,60 +1646,29 @@ def enableJumboJobs(jediTaskID, totalJumboJobs=1, nJumboPerSite=1):
             101: missing production role
             102: type error for some parameters
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/enableJumboJobs"
+    url = f"{baseURLSSL}/enableJumboJobs"
     data = {
         "jediTaskID": jediTaskID,
         "nJumboJobs": totalJumboJobs,
         "nJumboPerSite": nJumboPerSite,
     }
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, json.loads(output)
     except Exception:
-        errtype, errvalue = sys.exc_info()[:2]
-        errStr = f"ERROR /enableJumboJobs : {errtype} {errvalue}"
-        return EC_Failed, output + "\n" + errStr
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR /enableJumboJobs : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# get Global Share status
-def getGShareStatus():
-    """
-
-    returns:
-        status code
-              0: communication succeeded to the panda server
-              255: communication failure
-        tuple of return code and diagnostic message
-              0: succeeded
-              1: server error
-            100: non SSL connection
-            101: missing production role
-            102: type error for some parameters
-    """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
-    # execute
-    url = baseURLSSL + "/getGShareStatus"
-
-    status, output = curl.post(url, {})
-    try:
-        return status, json.loads(output)
-    except Exception:
-        err_type, err_value = sys.exc_info()[:2]
-        err_str = f"ERROR /getGShareStatus : {err_type} {err_value}"
-        return EC_Failed, output + "\n" + err_str
-
-
-# send a harvester command to panda server in order sweep a panda queue
 def sweepPQ(panda_queue, status_list, ce_list, submission_host_list):
     """
+    Send a harvester command to panda server in order sweep a panda queue
+
     args:
         panda_queue: panda queue name
         status_list: list with statuses to sweep, e.g. ['submitted']
@@ -2377,10 +1682,8 @@ def sweepPQ(panda_queue, status_list, ce_list, submission_host_list):
               False: logical error
               True: success
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
 
     panda_queue_json = json.dumps(panda_queue)
     status_list_json = json.dumps(status_list)
@@ -2388,26 +1691,27 @@ def sweepPQ(panda_queue, status_list, ce_list, submission_host_list):
     submission_host_list_json = json.dumps(submission_host_list)
 
     # execute
-    url = baseURLSSL + "/sweepPQ"
+    url = f"{baseURLSSL}/sweepPQ"
     data = {
         "panda_queue": panda_queue_json,
         "status_list": status_list_json,
         "ce_list": ce_list_json,
         "submission_host_list": submission_host_list_json,
     }
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
 
     try:
         return status, json.loads(output)
     except Exception:
-        err_type, err_value = sys.exc_info()[:2]
-        err_str = f"ERROR sweepPQ : {err_type} {err_value}"
-        return EC_Failed, f"{output}\n{err_str}"
+        error_type, error_value = sys.exc_info()[:2]
+        error_str = f"ERROR sweepPQ : {error_type} {error_value}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# send a command to a job
 def send_command_to_job(panda_id, com):
     """
+    Send a command to a job
+
     args:
         panda_id: PandaID of the job
         com: a command string passed to the pilot. max 250 chars
@@ -2419,29 +1723,25 @@ def send_command_to_job(panda_id, com):
               False: failed
               True: the command received
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
+
+    http_client = HttpClient()
 
     # execute
-    url = baseURLSSL + "/send_command_to_job"
+    url = f"{baseURLSSL}/send_command_to_job"
     data = {"panda_id": panda_id, "com": com}
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
 
     try:
         return status, json.loads(output)
     except Exception as e:
-        err_str = f"ERROR send_command_to_job : {str(e)}"
-        return EC_Failed, f"{output}\n{err_str}"
+        error_str = f"ERROR send_command_to_job : {str(e)}"
+        return EC_Failed, f"{output}\n{error_str}"
 
 
-# get ban list
-def get_ban_users(verbose=False):
-    """Get ban user list
+def get_ban_users():
+    """
+    Get list of banned users
 
-    args:
-        verbose: set True to see what's going on
     returns:
         status code
               True: communication succeeded to the panda server
@@ -2449,14 +1749,14 @@ def get_ban_users(verbose=False):
 
 
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.verbose = verbose
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURL + "/get_ban_users"
+    url = f"{baseURL}/get_ban_users"
     output = None
     try:
-        status, output = curl.post(url, {})
+        status, output = http_client.post(url, {})
         if status == 0:
             return json.loads(output)
         else:
@@ -2465,8 +1765,9 @@ def get_ban_users(verbose=False):
         return False, f"broken response: {output}"
 
 
-def release_task(jedi_task_id, verbose=False):
-    """release task from staging
+def release_task(jedi_task_id):
+    """
+    Release task from staging
 
     args:
         jedi_task_id: jediTaskID of the task to avalanche
@@ -2483,17 +1784,15 @@ def release_task(jedi_task_id, verbose=False):
             100: non SSL connection
             101: irrelevant taskID
     """
-    # instantiate curl
-    curl = _Curl()
-    curl.sslCert = _x509()
-    curl.sslKey = _x509()
-    curl.verbose = verbose
+
+    http_client = HttpClient()
+
     # execute
-    url = baseURLSSL + "/release_task"
+    url = f"{baseURLSSL}/release_task"
     data = {"jedi_task_id": jedi_task_id}
-    status, output = curl.post(url, data)
+    status, output = http_client.post(url, data)
     try:
         return status, json.loads(output)
     except Exception as e:
-        err_str = f"ERROR release_task : failed with {str(e)}"
-        return EC_Failed, output + "\n" + err_str
+        error_str = f"ERROR release_task : failed with {str(e)}"
+        return EC_Failed, f"{output}\n{error_str}"
