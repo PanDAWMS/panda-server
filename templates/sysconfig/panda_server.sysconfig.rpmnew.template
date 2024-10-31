@@ -52,8 +52,6 @@ fi
 if [[ -z "${PANDA_URL_SSL}" ]]; then
   export PANDA_URL_SSL="https://`hostname --fqdn`:25443/server/panda"
 fi
-export PANDA_URL_MAP=CERN,$PANDA_URL,$PANDA_URL_SSL
-
 
 # httpd config
 
