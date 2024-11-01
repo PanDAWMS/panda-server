@@ -84,3 +84,59 @@ def isSecure(req):
         _logger.warning(f"access via limited proxy : {req.subprocess_env['SSL_CLIENT_S_DN']}")
         return False
     return True
+
+
+def require_secure(func):
+    @wraps(func)
+    def wrapper(req, *args, **kwargs):
+        if not is_secure(req):
+            # Print the function name and a custom message
+            _logger.error(f"'{func.__name__}': {MESSAGE_SSL}")
+            return json.dumps((False, MESSAGE_SSL))
+        return func(req, *args, **kwargs)
+
+    return wrapper
+
+
+def require_production_role(func):
+    @wraps(func)
+    def wrapper(req, *args, **kwargs):
+        if not _has_production_role(req):
+            return WrappedPickle.dumps((False, MESSAGE_PROD_ROLE))
+        return func(req, *args, **kwargs)
+
+    return wrapper
+
+
+def validate_types(type_mapping):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            for param, expected_type in type_mapping.items():
+                # Find the argument either in args or kwargs
+                if param in kwargs:
+                    value = kwargs[param]
+                else:
+                    # Get the index of the argument in args based on func's signature
+                    arg_names = func.__code__.co_varnames
+                    param_index = arg_names.index(param)
+                    value = args[param_index]
+
+                # Try to convert and validate type
+                try:
+                    converted_value = expected_type(value)
+                except (ValueError, TypeError):
+                    return json.dumps((False, f"{param} must be {expected_type.__name__}"))
+
+                # Update the args or kwargs with the converted value
+                if param in kwargs:
+                    kwargs[param] = converted_value
+                else:
+                    args = list(args)
+                    args[param_index] = converted_value
+
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
