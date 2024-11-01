@@ -10165,6 +10165,7 @@ class DBProxy:
                     psycopg_errorcodes.CONNECTION_DOES_NOT_EXIST,
                     psycopg_errorcodes.SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION,
                     psycopg_errorcodes.CONNECTION_FAILURE,
+                    psycopg_errorcodes.READ_ONLY_SQL_TRANSACTION,
                 ]
             else:
                 # mysql error codes for connection error
