@@ -12012,44 +12012,6 @@ class DBProxy:
             self.dumpErrorMessage(_logger, methodName)
             return None
 
-    # throttle job
-    def throttleJob(self, pandaID):
-        comment = " /* DBProxy.throttleJob */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        methodName += f" <PandaID={pandaID}>"
-        _logger.debug(f"{methodName} start")
-        try:
-            # sql to update job
-            sqlT = "UPDATE ATLAS_PANDA.jobsActive4 SET currentPriority=assignedPriority,jobStatus=:newJobStatus "
-            sqlT += "WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus "
-            # start transaction
-            self.conn.begin()
-            # select
-            self.cur.arraysize = 10
-            varMap = {}
-            varMap[":PandaID"] = pandaID
-            varMap[":newJobStatus"] = "throttled"
-            varMap[":oldJobStatus"] = "activated"
-            # get datasets
-            self.cur.execute(sqlT + comment, varMap)
-            nRow = self.cur.rowcount
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            try:
-                self.recordStatusChange(pandaID, varMap[":newJobStatus"])
-            except Exception:
-                _logger.error("recordStatusChange in throttleJob")
-            self.push_job_status_message(None, pandaID, varMap[":newJobStatus"])
-            _logger.debug(f"{methodName} done with {nRow}")
-            return nRow
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, methodName)
-            return None
-
     # throttle user jobs
     def throttleUserJobs(self, prodUserName, workingGroup, get_dict):
         comment = " /* DBProxy.throttleUserJobs */"
@@ -12154,44 +12116,6 @@ class DBProxy:
                 tmpLog.debug(f"done with {nRows}")
                 return nRows
             tmpLog.debug(f"done with {nRow}")
-            return nRow
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, methodName)
-            return None
-
-    # unthrottle job
-    def unThrottleJob(self, pandaID):
-        comment = " /* DBProxy.unThrottleJob */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        methodName += f" <PandaID={pandaID}>"
-        _logger.debug(f"{methodName} start")
-        try:
-            # sql to update job
-            sqlT = "UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:newJobStatus "
-            sqlT += "WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus "
-            # start transaction
-            self.conn.begin()
-            # select
-            self.cur.arraysize = 10
-            varMap = {}
-            varMap[":PandaID"] = pandaID
-            varMap[":newJobStatus"] = "activated"
-            varMap[":oldJobStatus"] = "throttled"
-            # get datasets
-            self.cur.execute(sqlT + comment, varMap)
-            nRow = self.cur.rowcount
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            try:
-                self.recordStatusChange(pandaID, varMap[":newJobStatus"])
-            except Exception:
-                _logger.error("recordStatusChange in unThrottleJob")
-            self.push_job_status_message(None, pandaID, varMap[":newJobStatus"])
-            _logger.debug(f"{methodName} done with {nRow}")
             return nRow
         except Exception:
             # roll back
@@ -13234,44 +13158,6 @@ class DBProxy:
             self.dumpErrorMessage(_logger, methodName)
             return None
 
-    # get prodSourceLabel from TaskID
-    def getProdSourceLabelwithTaskID(self, jediTaskID):
-        comment = " /* DBProxy.getProdSourceLabelwithTaskID */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        methodName += f" <jediTaskID={jediTaskID}>"
-        _logger.debug(f"{methodName} : start")
-        try:
-            # begin transaction
-            self.conn.begin()
-            # sql to get jediTaskID
-            sqlGF = f"SELECT prodSourceLabel, tasktype FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlGF += "WHERE jediTaskID=:jediTaskID "
-            varMap = {}
-            varMap[":jediTaskID"] = jediTaskID
-            self.cur.execute(sqlGF + comment, varMap)
-            resFJ = self.cur.fetchone()
-            if resFJ is not None:
-                prodSourceLabel, task_type = resFJ
-            else:
-                prodSourceLabel, task_type = None, None
-
-            if task_type:
-                job_label = JobUtils.translate_tasktype_to_jobtype(task_type)
-            else:
-                job_label = None
-
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            _logger.debug(f"{methodName} : jediTaskID={jediTaskID} prodSourceLabel={prodSourceLabel} job_label={job_label}")
-            return prodSourceLabel, job_label
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, methodName)
-            return None, None
-
     # update error dialog for a jediTaskID
     def updateTaskErrorDialogJEDI(self, jediTaskID, msg):
         comment = " /* DBProxy.updateTaskErrorDialogJEDI */"
@@ -14233,63 +14119,6 @@ class DBProxy:
             self.dumpErrorMessage(_logger, methodName)
             return False, None, None
 
-    # get input datasets for output dataset
-    def getInputDatasetsForOutputDatasetJEDI(self, datasetName):
-        comment = " /* DBProxy.getInputDatasetsForOutputDatasetJEDI */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        methodName += f" <datasetName={datasetName}>"
-        tmpLog = LogWrapper(_logger, methodName)
-        tmpLog.debug("start")
-        try:
-            toSkip = False
-            inputDatasets = {}
-            # begin transaction
-            self.conn.begin()
-            # get jediTaskID
-            varMap = {}
-            varMap[":type1"] = "log"
-            varMap[":type2"] = "output"
-            varMap[":name1"] = datasetName
-            varMap[":name2"] = datasetName.split(":")[-1]
-            sqlGI = f"SELECT jediTaskID,datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlGI += "WHERE type IN (:type1,:type2) AND datasetName IN (:name1,:name2) "
-            self.cur.execute(sqlGI + comment, varMap)
-            resGI = self.cur.fetchall()
-            # use the largest datasetID since broken tasks might have been retried
-            jediTaskID = None
-            datasetID = None
-            for tmpJediTaskID, tmpDatasetID in resGI:
-                if jediTaskID is None or jediTaskID < tmpJediTaskID:
-                    jediTaskID = tmpJediTaskID
-                    datasetID = tmpDatasetID
-                elif datasetID < tmpDatasetID:
-                    datasetID = tmpDatasetID
-            if jediTaskID is None:
-                tmpLog.debug("jediTaskID not found")
-                toSkip = True
-            if not toSkip:
-                # get input datasets
-                sqlID = f"SELECT datasetID,datasetName,masterID FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-                sqlID += "WHERE jediTaskID=:jediTaskID AND type=:type "
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":type"] = "input"
-                self.cur.execute(sqlID + comment, varMap)
-                resID = self.cur.fetchall()
-                for tmpDatasetID, tmpDatasetName, tmpMasterID in resID:
-                    inputDatasets[tmpDatasetID] = tmpDatasetName
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            tmpLog.debug("done")
-            return True, inputDatasets
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, methodName)
-            return False, None
-
     # record retry history
     def recordRetryHistoryJEDI(self, jediTaskID, newPandaID, oldPandaIDs, relationType, no_late_bulk_exec=True, extracted_sqls=None):
         comment = " /* DBProxy.recordRetryHistoryJEDI */"
@@ -14860,94 +14689,6 @@ class DBProxy:
         tmpLog.debug("Forced recalculation of CPUTime")
         return rowcount
 
-    # throttle jobs for resource shares
-    def throttleJobsForResourceShare(self, site):
-        comment = " /* DBProxy.throttleJobsForResourceShare */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        methodName += f" <site={site}>"
-        tmpLog = LogWrapper(_logger, methodName)
-        tmpLog.debug("start")
-        try:
-            # sql to throttle jobs
-            sql = "UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:newStatus "
-            sql += "WHERE computingSite=:site AND jobStatus=:oldStatus AND lockedby=:lockedby "
-            varMap = {}
-            varMap[":site"] = site
-            varMap[":lockedby"] = "jedi"
-            varMap[":newStatus"] = "throttled"
-            varMap[":oldStatus"] = "activated"
-            # begin transaction
-            self.conn.begin()
-            self.cur.execute(sql + comment, varMap)
-            nRow = self.cur.rowcount
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            tmpLog.debug(f"throttled {nRow} jobs")
-            return nRow
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, methodName)
-            return None
-
-    # activate jobs for resource shares
-    def activateJobsForResourceShare(self, site, nJobsPerQueue):
-        comment = " /* DBProxy.activateJobsForResourceShare */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        methodName += f" <site={site} nJobsPerQueue={nJobsPerQueue}>"
-        tmpLog = LogWrapper(_logger, methodName)
-        tmpLog.debug("start")
-        try:
-            # sql to get jobs
-            sqlJ = "SELECT PandaID,jobStatus FROM ("
-            sqlJ += "SELECT PandaID,jobStatus,"
-            sqlJ += "ROW_NUMBER() OVER(PARTITION BY workqueue_id ORDER BY currentPriority DESC,PandaID) AS row_number "
-            sqlJ += "FROM ATLAS_PANDA.jobsActive4 "
-            sqlJ += "WHERE computingSite=:site AND lockedby=:lockedby AND jobStatus IN (:st1,:st2) "
-            sqlJ += ") "
-            sqlJ += f"WHERE row_number<={nJobsPerQueue} "
-            # sql to activate jobs
-            sqlA = "UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:newStatus "
-            sqlA += "WHERE PandaID=:PandaID AND jobStatus=:oldStatus "
-            varMap = {}
-            varMap[":site"] = site
-            varMap[":lockedby"] = "jedi"
-            varMap[":st1"] = "throttled"
-            varMap[":st2"] = "activated"
-            # begin transaction
-            self.conn.begin()
-            self.cur.execute(sqlJ + comment, varMap)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            resList = self.cur.fetchall()
-            nRow = 0
-            for pandaID, jobStatus in resList:
-                if jobStatus == "activated":
-                    continue
-                # activate job
-                varMap = {}
-                varMap[":PandaID"] = pandaID
-                varMap[":newStatus"] = "activated"
-                varMap[":oldStatus"] = "throttled"
-                self.conn.begin()
-                self.cur.execute(sqlA + comment, varMap)
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                nRow += self.cur.rowcount
-                self.push_job_status_message(None, pandaID, varMap[":newStatus"])
-            tmpLog.debug(f"activated {nRow} jobs")
-            return nRow
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, methodName)
-            return None
-
     # add associate sub datasets for single consumer job
     def getDestDBlocksWithSingleConsumer(self, jediTaskID, PandaID, ngDatasets):
         comment = " /* DBProxy.getDestDBlocksWithSingleConsumer */"
@@ -15381,8 +15122,8 @@ class DBProxy:
             return {}
 
     # get task parameters
-    def getTaskPramsPanda(self, jediTaskID):
-        comment = " /* DBProxy.getTaskPramsPanda */"
+    def getTaskParamsPanda(self, jediTaskID):
+        comment = " /* DBProxy.getTaskParamsPanda */"
         methodName = comment.split(" ")[-2].split(".")[-1]
         methodName += f" <jediTaskID={jediTaskID}>"
         tmpLog = LogWrapper(_logger, methodName)
@@ -16361,42 +16102,6 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger, methodName)
             return None
-
-    # get OS IDs
-    def getObjIDs(self, jediTaskID, pandaID):
-        comment = " /* DBProxy.getObjIDs */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        tmpLog = LogWrapper(
-            _logger,
-            methodName + f" <jediTaskID={jediTaskID} PandaID={pandaID}>",
-        )
-        tmpLog.debug("start")
-        try:
-            # sql to get obj IDs
-            sql = f"SELECT distinct objstore_ID FROM {panda_config.schemaJEDI}.JEDI_Events "
-            sql += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID AND objstore_ID IS NOT NULL "
-            # begin transaction
-            self.conn.begin()
-            # get
-            varMap = {}
-            varMap[":PandaID"] = pandaID
-            varMap[":jediTaskID"] = jediTaskID
-            self.cur.execute(sql + comment, varMap)
-            resF = self.cur.fetchall()
-            resList = []
-            for (objstoreID,) in resF:
-                resList.append(objstoreID)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            tmpLog.debug(f"got {len(resList)} OS IDs")
-            return resList
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, methodName)
-            return []
 
     # bulk fetch PandaIDs
     def bulk_fetch_panda_ids(self, num_ids):

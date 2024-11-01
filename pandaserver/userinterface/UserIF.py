@@ -415,7 +415,7 @@ class UserIF:
                 # convert to dict
                 newParams = PrioUtil.decodeJSON(newParams)
                 # get original params
-                taskParams = self.taskBuffer.getTaskPramsPanda(jediTaskID)
+                taskParams = self.taskBuffer.getTaskParamsPanda(jediTaskID)
                 taskParamsJson = PrioUtil.decodeJSON(taskParams)
                 # replace with new values
                 for newKey in newParams:

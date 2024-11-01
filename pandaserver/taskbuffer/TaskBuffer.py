@@ -1929,34 +1929,12 @@ class TaskBuffer:
 
         return ret
 
-    # throttle job
-    def throttleJob(self, pandaID):
-        # get proxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        ret = proxy.throttleJob(pandaID)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
     # throttle user jobs
     def throttleUserJobs(self, prodUserName, workingGroup, get_dict=False):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
         ret = proxy.throttleUserJobs(prodUserName, workingGroup, get_dict)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
-    # unthrottle job
-    def unThrottleJob(self, pandaID):
-        # get proxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        ret = proxy.unThrottleJob(pandaID)
         # release proxy
         self.proxyPool.putProxy(proxy)
 
@@ -2034,17 +2012,6 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # exec
         ret = proxy.getTaskIDwithTaskNameJEDI(userName, taskName)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
-    # get prodSourceLabel from task ID
-    def getProdSourceLabelwithTaskID(self, taskID):
-        # get proxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        ret = proxy.getProdSourceLabelwithTaskID(taskID)
         # release proxy
         self.proxyPool.putProxy(proxy)
 
@@ -2138,17 +2105,6 @@ class TaskBuffer:
 
         return ret
 
-    # get input datasets for output dataset
-    def getInputDatasetsForOutputDatasetJEDI(self, datasetName):
-        # get proxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        ret = proxy.getInputDatasetsForOutputDatasetJEDI(datasetName)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
     # copy file records
     def copy_file_records(self, new_lfns, file_spec):
         # get proxy
@@ -2215,28 +2171,6 @@ class TaskBuffer:
 
         return ret
 
-    # throttle jobs for resource shares
-    def throttleJobsForResourceShare(self, site):
-        # get proxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        ret = proxy.throttleJobsForResourceShare(site)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
-    # activate jobs for resource shares
-    def activateJobsForResourceShare(self, site, nJobsPerQueue):
-        # get proxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        ret = proxy.activateJobsForResourceShare(site, nJobsPerQueue)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
     # add associate sub datasets for single consumer job
     def getDestDBlocksWithSingleConsumer(self, jediTaskID, PandaID, ngDatasets):
         # get proxy
@@ -2293,11 +2227,11 @@ class TaskBuffer:
         return ret
 
     # get task parameters
-    def getTaskPramsPanda(self, jediTaskID):
+    def getTaskParamsPanda(self, jediTaskID):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.getTaskPramsPanda(jediTaskID)
+        ret = proxy.getTaskParamsPanda(jediTaskID)
         # release proxy
         self.proxyPool.putProxy(proxy)
 
@@ -2375,17 +2309,6 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # exec
         res = proxy.convertObjIDtoEndPoint(srcFileName, ObjID)
-        # release DB proxy
-        self.proxyPool.putProxy(proxy)
-
-        return res
-
-    # get OS IDs
-    def getObjIDs(self, jediTaskID, pandaID):
-        # get DB proxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        res = proxy.getObjIDs(jediTaskID, pandaID)
         # release DB proxy
         self.proxyPool.putProxy(proxy)
 
@@ -2503,7 +2426,7 @@ class TaskBuffer:
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        res = proxy.getTaskPramsPanda(jediTaskID)
+        res = proxy.getTaskParamsPanda(jediTaskID)
         # release DB proxy
         self.proxyPool.putProxy(proxy)
 
