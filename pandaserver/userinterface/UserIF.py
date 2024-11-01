@@ -581,10 +581,6 @@ class UserIF:
         return self.taskBuffer.getWorkerStats()
 
     # report stat of workers
-    def reportWorkerStats(self, harvesterID, siteName, paramsList):
-        return self.taskBuffer.reportWorkerStats(harvesterID, siteName, paramsList)
-
-    # report stat of workers
     def reportWorkerStats_jobtype(self, harvesterID, siteName, paramsList):
         return self.taskBuffer.reportWorkerStats_jobtype(harvesterID, siteName, paramsList)
 
@@ -1639,16 +1635,6 @@ def harvesterIsAlive(req, harvesterID, data=None):
 def getWorkerStats(req):
     # get
     ret = userIF.getWorkerStats()
-    return json.dumps(ret)
-
-
-# report stat of workers
-def reportWorkerStats(req, harvesterID, siteName, paramsList):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-    # update
-    ret = userIF.reportWorkerStats(harvesterID, siteName, paramsList)
     return json.dumps(ret)
 
 

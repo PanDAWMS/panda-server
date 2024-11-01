@@ -18974,57 +18974,6 @@ class DBProxy:
         tmp_log.debug(f"done. resource_type is {resource_type}")
         return resource_type
 
-    # update stat of workers
-    def reportWorkerStats(self, harvesterID, siteName, paramsList):
-        comment = " /* DBProxy.reportWorkerStats */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        tmpLog = LogWrapper(
-            _logger,
-            methodName + f" < harvesterID={harvesterID} siteName={siteName} >",
-        )
-        tmpLog.debug("start")
-        tmpLog.debug(f"params={str(paramsList)}")
-        try:
-            # load new site data
-            paramsList = json.loads(paramsList)
-            # set autocommit on
-            self.conn.begin()
-            # delete old site data
-            sqlDel = "DELETE FROM ATLAS_PANDA.Harvester_Worker_Stats "
-            sqlDel += "WHERE harvester_ID=:harvesterID AND computingSite=:siteName "
-            varMap = dict()
-            varMap[":harvesterID"] = harvesterID
-            varMap[":siteName"] = siteName
-            self.cur.execute(sqlDel + comment, varMap)
-            # insert new site data
-            sqlI = "INSERT INTO ATLAS_PANDA.Harvester_Worker_Stats (harvester_ID,computingSite,resourceType,jobType,status,n_workers,lastUpdate) "
-            sqlI += "VALUES (:harvester_ID,:siteName,:resourceType,:jobType,:status,:n_workers,CURRENT_DATE) "
-            for resourceType in paramsList:
-                params = paramsList[resourceType]
-                if resourceType == "Undefined":
-                    continue
-                for status in params:
-                    n_workers = params[status]
-                    varMap = dict()
-                    varMap[":harvester_ID"] = harvesterID
-                    varMap[":siteName"] = siteName
-                    varMap[":status"] = status
-                    varMap[":resourceType"] = resourceType
-                    varMap[":n_workers"] = n_workers
-                    varMap[":jobType"] = "DUMMY"
-                    self.cur.execute(sqlI + comment, varMap)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # return
-            tmpLog.debug("done")
-            return True, "OK"
-        except Exception:
-            # roll back
-            self._rollback()
-            self.dumpErrorMessage(tmpLog, methodName)
-            return False, "database error"
-
     # update stat of workers with jobtype breakdown
     def reportWorkerStats_jobtype(self, harvesterID, siteName, parameter_list):
         comment = " /* DBProxy.reportWorkerStats_jobtype */"

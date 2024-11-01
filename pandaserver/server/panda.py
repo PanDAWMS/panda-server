@@ -124,7 +124,6 @@ from pandaserver.userinterface.UserIF import (
     relay_idds_command,
     release_task,
     reloadInput,
-    reportWorkerStats,
     reportWorkerStats_jobtype,
     resumeTask,
     retryTask,

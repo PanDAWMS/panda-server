@@ -2771,17 +2771,6 @@ class TaskBuffer:
         return res
 
     # report stat of workers
-    def reportWorkerStats(self, harvesterID, siteName, paramsList):
-        # get DB proxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        res = proxy.reportWorkerStats(harvesterID, siteName, paramsList)
-        # release DB proxy
-        self.proxyPool.putProxy(proxy)
-
-        return res
-
-    # report stat of workers
     def reportWorkerStats_jobtype(self, harvesterID, siteName, paramsList):
         # get DB proxy
         proxy = self.proxyPool.getProxy()
