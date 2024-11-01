@@ -642,17 +642,6 @@ class TaskBuffer:
 
         return res
 
-    # get number of activated/defined jobs with output datasets
-    def getNumWaitingJobsWithOutDS(self, outputDSs):
-        # get DB proxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        res = proxy.getNumWaitingJobsWithOutDS(outputDSs)
-        # release DB proxy
-        self.proxyPool.putProxy(proxy)
-
-        return res
-
     # update overall job information
     def updateJobs(
         self,
@@ -835,16 +824,6 @@ class TaskBuffer:
         # release proxy
         self.proxyPool.putProxy(proxy)
         return returns
-
-    # delete stalled jobs
-    def deleteStalledJobs(self, libFileName):
-        # get DB proxy
-        proxy = self.proxyPool.getProxy()
-        # execute
-        ret = proxy.deleteStalledJobs(libFileName)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        return ret
 
     # set debug mode
     def setDebugMode(self, dn, pandaID, prodManager, modeOn, workingGroup):
@@ -1360,17 +1339,6 @@ class TaskBuffer:
 
         return retList
 
-    # update file status in dispatch dataset
-    def updateFileStatusInDisp(self, dataset, fileStatusMap):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # query PandaID
-        retVal = proxy.updateFileStatusInDisp(dataset, fileStatusMap)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return retVal
-
     # update output files and return corresponding PandaIDs
     def updateOutFilesReturnPandaIDs(self, dataset, fileLFN=""):
         # get DBproxy
@@ -1378,17 +1346,6 @@ class TaskBuffer:
         retList = []
         # query PandaID
         retList = proxy.updateOutFilesReturnPandaIDs(dataset, fileLFN)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return retList
-
-    # get datasets associated with file
-    def getDatasetWithFile(self, lfn, jobPrioity=0):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # query PandaID
-        retList = proxy.getDatasetWithFile(lfn, jobPrioity)
         # release proxy
         self.proxyPool.putProxy(proxy)
 
@@ -1486,28 +1443,6 @@ class TaskBuffer:
 
         return ret
 
-    # query PandaID with dataset
-    def queryPandaIDwithDataset(self, datasets):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # query Dataset
-        ret = proxy.queryPandaIDwithDataset(datasets)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
-    # query PandaID with filenames
-    def queryPandaIDwithLFN(self, lfns):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # query Dataset
-        ret = proxy.queryPandaIDwithLFN(lfns)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
     # update dataset
     def updateDatasets(self, datasets, withLock=False, withCriteria="", criteriaMap={}):
         # get DBproxy
@@ -1526,48 +1461,12 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         return ret
 
-    # delete dataset
-    def deleteDatasets(self, datasets):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        retList = []
-        # query Dataset
-        for dataset in datasets:
-            ret = proxy.deleteDataset(dataset)
-            retList.append(ret)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return retList
-
-    # query files with map
-    def queryFilesWithMap(self, map):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # query files
-        ret = proxy.queryFilesWithMap(map)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
     # count the number of files with map
     def countFilesWithMap(self, map):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # query files
         ret = proxy.countFilesWithMap(map)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
-    # count the number of pending files
-    def countPendingFiles(self, pandaID, forInput=True):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # count files
-        ret = proxy.countPendingFiles(pandaID, forInput)
         # release proxy
         self.proxyPool.putProxy(proxy)
 
@@ -1633,28 +1532,6 @@ class TaskBuffer:
 
         return ret
 
-    # get destinationDBlockToken for a dataset
-    def getDestTokens(self, dsname):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get token
-        ret = proxy.getDestTokens(dsname)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
-    # get destinationSE for a dataset
-    def getDestSE(self, dsname, fromArch=False):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get token
-        ret = proxy.getDestSE(dsname, fromArch)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
     # get job statistics
     def getJobStatistics(
         self,
@@ -1683,33 +1560,6 @@ class TaskBuffer:
 
         return ret
 
-    # get job statistics for brokerage
-    def getJobStatisticsBrokerage(self, minPrio=None, maxPrio=None):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get stat
-        ret = proxy.getJobStatisticsBrokerage(minPrio, maxPrio)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # convert
-        conRet = ProcessGroups.countJobsPerGroup(ret)
-
-        return conRet
-
-    # get job statistics for analysis brokerage
-    def getJobStatisticsAnalBrokerage(self, minPriority=None):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get stat
-        ret = proxy.getJobStatisticsAnalBrokerage(minPriority=minPriority)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-        # convert
-        conRet = ProcessGroups.countJobsPerGroupForAnal(ret)
-
-        return conRet
-
-    # get job statistics for ExtIF
     def getJobStatisticsForExtIF(self, sourcetype=None):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
@@ -1726,17 +1576,6 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # get serial number
         ret = proxy.getJobStatisticsPerProcessingType(useMorePG)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
-    # get number of activated analysis jobs
-    def getNAnalysisJobs(self, nProcesses):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # count
-        ret = proxy.getNAnalysisJobs(nProcesses)
         # release proxy
         self.proxyPool.putProxy(proxy)
 
@@ -1770,17 +1609,6 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # get serial number
         ret = proxy.insertnRunningInSiteData()
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
-    # get nRunning in site data
-    def getnRunningInSiteData(self):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get serial number
-        ret = proxy.getnRunningInSiteData()
         # release proxy
         self.proxyPool.putProxy(proxy)
 
@@ -1913,28 +1741,6 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # get
         ret = proxy.checkQuota(dn)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
-    # get JobID for user
-    def getJobIdUser(self, dn):
-        # query an SQL return Status
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.getJobIdUser(dn)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
-    # check status of all sub datasets to trigger Notifier
-    def checkDatasetStatusForNotifier(self, jobsetID, jobDefinitionID, prodUserName):
-        # query an SQL return Status
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.checkDatasetStatusForNotifier(jobsetID, jobDefinitionID, prodUserName)
         # release proxy
         self.proxyPool.putProxy(proxy)
 
