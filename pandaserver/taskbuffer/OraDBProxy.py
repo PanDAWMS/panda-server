@@ -10122,19 +10122,19 @@ class DBProxy:
         _logger.debug("rollback")
         try:
             self.conn.rollback()
-        except Exception as e:
+        except Exception:
             _logger.error("rollback error")
-            # get error code from
-            if self.backend == "postgres":
-                try:
-                    err_code = e.pgcode
-                except Exception:
-                    pass
             return_value = False
         # reconnect if needed
         try:
-            # get ORA ErrorCode
             err_type, err_value = sys.exc_info()[:2]
+            # get error code for postgres
+            if self.backend == "postgres":
+                try:
+                    err_code = err_value.pgcode
+                except Exception:
+                    pass
+            # get ORA ErrorCode
             if err_code is None:
                 err_code = str(err_value).split()[0]
                 err_code = err_code[:-1]
