@@ -17762,42 +17762,6 @@ class DBProxy:
             self.dumpErrorMessage(tmpLog, methodName)
             return False
 
-    # get activated job statistics per resource
-    def getActivatedJobStatisticsPerResource(self, siteName):
-        comment = " /* DBProxy.getJobStatisticsPerResource */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        tmpLog = LogWrapper(_logger, methodName + f" < siteName={siteName} >")
-        tmpLog.debug("start")
-        try:
-            # get stats
-            sqlS = "SELECT resource_type,COUNT(*) FROM ATLAS_PANDA.jobsActive4 WHERE computingSite=:computingSite AND jobStatus=:status "
-            sqlS += "GROUP BY resource_type "
-            # start transaction
-            self.conn.begin()
-            # select
-            varMap = dict()
-            varMap[":computingSite"] = siteName
-            varMap[":status"] = "activated"
-            self.cur.arraysize = 10000
-            self.cur.execute(sqlS + comment, varMap)
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # create map
-            returnMap = dict()
-            for resourceType, cnt in res:
-                # add
-                returnMap[resourceType] = cnt
-            # return
-            tmpLog.debug(f"got {returnMap}")
-            return returnMap
-        except Exception:
-            # roll back
-            self._rollback()
-            self.dumpErrorMessage(tmpLog, methodName)
-            return []
-
     # check Job status
     def checkJobStatus(self, pandaID):
         comment = " /* DBProxy.checkJobStatus */"
@@ -17973,65 +17937,6 @@ class DBProxy:
             self._rollback()
             self.dumpErrorMessage(tmpLog, methodName)
             return False
-
-    # get active harvesters
-    def getActiveHarvesters(self, interval):
-        comment = " /* DBProxy.getActiveHarvesters */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        tmpLog = LogWrapper(_logger, methodName)
-        tmpLog.debug("start")
-        try:
-            timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-            # sql to get instances
-            sqlC = "SELECT harvester_ID FROM ATLAS_PANDA.Harvester_Instances "
-            sqlC += "WHERE startTime>:timeLimit "
-            # get instances
-            self.conn.begin()
-            self.cur.arraysize = 10000
-            varMap = dict()
-            varMap[":timeLimit"] = timeNow - datetime.timedelta(minutes=interval)
-            self.cur.execute(sqlC + comment, varMap)
-            res = self.cur.fetchall()
-            retList = []
-            for (harvester_ID,) in res:
-                retList.append(harvester_ID)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            tmpLog.debug(f"done with {str(retList)}")
-            return retList
-        except Exception:
-            # roll back
-            self._rollback()
-            self.dumpErrorMessage(tmpLog, methodName)
-            return []
-
-    # get minimal resource
-    def getMinimalResource(self):
-        comment = " /* JediDBProxy.getMinimalResource */"
-        method_name = comment.split(" ")[-2].split(".")[-1]
-        tmpLog = LogWrapper(_logger, method_name)
-        tmpLog.debug("start")
-        try:
-            timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-            # sql to get minimal
-            sqlC = "SELECT resource_name FROM ATLAS_PANDA.resource_types "
-            sqlC += "ORDER BY mincore, (CASE WHEN maxrampercore IS NULL THEN 1 ELSE 0 END), maxrampercore "
-            # get instances
-            self.conn.begin()
-            self.cur.execute(sqlC + comment)
-            res = self.cur.fetchone()
-            (resourceName,) = res
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            tmpLog.debug(f"got {resourceName}")
-            return resourceName
-        except Exception:
-            # roll back
-            self._rollback()
-            self.dumpErrorMessage(tmpLog, method_name)
-            return None
 
     def ups_get_queues(self):
         """
@@ -19826,56 +19731,6 @@ class DBProxy:
 
         tmp_log.debug("done")
         return pq_data_des
-
-    # get old job metadata
-    def get_old_job_metadata(self, job_spec):
-        comment = " /* DBProxy.get_old_job_metadata */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        methodName += f" < PandaID={job_spec.PandaID}>"
-        # sql to get master datasetIDs
-        sqlM = f"SELECT datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) AND masterID IS NULL"
-        # sql to get old PandaIDs
-        sqlI = f"SELECT MAX(PandaID) FROM {panda_config.schemaPANDA}.filesTable4 WHERE jediTaskID=:jedTaskID AND datasetID=:datasetID AND fileID=:fileID "
-        # sql to get associated fileIDs
-        sqlF = f"SELECT fileID FROM {panda_config.schemaPANDA}.fileTable4 WHERE PandaID=:PandaID AND type IN (:type1,:type2) "
-        try:
-            # get master datasetIDs
-            varMap = dict()
-            varMap[":jediTaskID"] = job_spec.jediTaskID
-            varMap[":type1"] = "input"
-            varMap[":type2"] = "pseudo_input"
-            self.cur.execute(sqlM + comment, varMap)
-            datasetIDs = set()
-            [datasetIDs.add(datasetID) for datasetID, in self.cur.fetchall()]
-            # loop over all files
-            fileIDs_checked = set()
-            pandaIDs = set()
-            for fileSpec in job_spec.Files:
-                if fileSpec.type not in ["input", "pseudo_input"]:
-                    continue
-                if fileSpec.datasetID not in datasetIDs:
-                    continue
-                if fileSpec.fileID in fileIDs_checked:
-                    continue
-                fileIDs_checked.add(fileSpec.fileID)
-                # get old PandaIDs
-                varMap = dict()
-                varMap[":jediTaskID"] = job_spec.jediTaskID
-                varMap[":datasetID"] = fileSpec.datasetID
-                varMap[":fileID"] = fileSpec.fileID
-                self.cur.execute(sqlI + comment, varMap)
-                for (pandaID,) in self.cur.fetchall():
-                    pandaIDs.add(pandaID)
-                    # get associated fileIDs
-                    varMap = dict()
-                    varMap[":PandaID"] = pandaID
-                    varMap[":type1"] = "input"
-                    varMap[":type2"] = "pseudo_input"
-                    self.cur.execute(sqlF + comment, varMap)
-                    [fileIDs_checked.add(fileID) for fileID, in self.cur.fetchall()]
-        except Exception:
-            self.dumpErrorMessage(_logger, methodName)
-            raise
 
     # lock process
     def lockProcess_PANDA(self, component, pid, time_limit, force=False):

@@ -2532,17 +2532,6 @@ class TaskBuffer:
 
         return res
 
-    # get active harvesters
-    def getActiveHarvesters(self, interval):
-        # get DB proxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        res = proxy.getActiveHarvesters(interval)
-        # release DB proxy
-        self.proxyPool.putProxy(proxy)
-
-        return res
-
     # update workers
     def updateWorkers(self, harvesterID, data):
         """
@@ -2641,17 +2630,6 @@ class TaskBuffer:
 
         return ret_val
 
-    # get activated job statistics per resource
-    def getActivatedJobStatisticsPerResource(self, siteName):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        ret_val = proxy.getActivatedJobStatisticsPerResource(siteName)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret_val
-
     # check Job status
     def checkJobStatus(self, pandaIDs):
         try:
@@ -2676,17 +2654,6 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # exec
         ret = proxy.getWorkerStats()
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
-    # get minimal resource
-    def getMinimalResource(self):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # exec
-        ret = proxy.getMinimalResource()
         # release proxy
         self.proxyPool.putProxy(proxy)
 
