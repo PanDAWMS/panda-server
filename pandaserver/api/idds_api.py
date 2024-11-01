@@ -1,3 +1,24 @@
+import datetime
+import json
+import traceback
+
+from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+
+from pandaserver.api.common_api import require_secure
+from pandaserver.srvcore.CoreUtils import clean_user_id, resolve_bool
+
+try:
+    import idds.common.constants
+    import idds.common.utils
+    from idds.client.client import Client as iDDS_Client
+    from idds.client.clientmanager import ClientManager as iDDS_ClientManager
+except ImportError:
+    pass
+
+_logger = PandaLogger().getLogger("harvester_api")
+
+
 # json decoder for idds constants
 def decode_idds_enum(d):
     if "__idds_const__" in d:
@@ -11,15 +32,13 @@ def decode_idds_enum(d):
 
 
 # relay iDDS command
+@require_secure(_logger)
 def relay_idds_command(req, command_name, args=None, kwargs=None, manager=None, json_outputs=None):
     tmp_log = LogWrapper(
         _logger,
         f"relay_idds_command-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}",
     )
-    # check security
-    if not isSecure(req):
-        tmp_log.error(MESSAGE_SSL)
-        return json.dumps((False, MESSAGE_SSL))
+
     try:
         manager = resolve_bool(manager)
         if not manager:
