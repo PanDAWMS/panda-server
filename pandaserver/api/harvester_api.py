@@ -5,22 +5,18 @@ provide web interface to users
 
 import datetime
 import json
-import re
-import sys
-import time
-import traceback
 
-from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
-import pandaserver.jobdispatcher.Protocol as Protocol
-from pandaserver.brokerage.SiteMapper import SiteMapper
-from pandaserver.config import panda_config
-from pandaserver.dataservice.ddm import rucioAPI
-from pandaserver.srvcore import CoreUtils
-from pandaserver.srvcore.CoreUtils import clean_user_id, resolve_bool
-from pandaserver.taskbuffer import JobUtils, PrioUtil
-from pandaserver.taskbuffer.WrappedPickle import WrappedPickle
+from pandaserver.api.common_api import (
+    MESSAGE_DATABASE,
+    MESSAGE_JSON,
+    get_dn,
+    json_loader,
+    require_production_role,
+    require_secure,
+)
+from pandaserver.userinterface.UserIF import MESSAGE_JSON
 
 _logger = PandaLogger().getLogger("harvester_api")
 
@@ -34,55 +30,47 @@ class HarvesterAPI:
         self.task_buffer = task_buffer
 
     # update workers
-    def updateWorkers(self, user, host, harvesterID, data):
-        ret = self.task_buffer.updateWorkers(harvesterID, data)
-        if ret is None:
-            return_value = (False, MESSAGE_DATABASE)
-        else:
-            return_value = (True, ret)
-        return json.dumps(return_value)
+    def update_workers(self, harvester_id, workers):
+        ret = self.task_buffer.updateWorkers(harvester_id, workers)
+        if not ret:
+            return json.dumps((False, MESSAGE_DATABASE))
+
+        return json.dumps((True, ret))
 
     # update workers
-    def updateServiceMetrics(self, user, host, harvesterID, data):
-        ret = self.task_buffer.updateServiceMetrics(harvesterID, data)
-        if ret is None:
-            return_value = (False, MESSAGE_DATABASE)
-        else:
-            return_value = (True, ret)
-        return json.dumps(return_value)
+    def update_harvester_service_metrics(self, harvester_id, data):
+        ret = self.task_buffer.updateServiceMetrics(harvester_id, data)
+        if not ret:
+            return json.dumps((False, MESSAGE_DATABASE))
+
+        return json.dumps((True, ret))
 
     # add harvester dialog messages
-    def addHarvesterDialogs(self, user, harvesterID, dialogs):
-        ret = self.task_buffer.addHarvesterDialogs(harvesterID, dialogs)
+    def add_harvester_dialogs(self, harvester_id, dialogs):
+        ret = self.task_buffer.addHarvesterDialogs(harvester_id, dialogs)
         if not ret:
-            return_value = (False, MESSAGE_DATABASE)
-        else:
-            return_value = (True, "")
-        return json.dumps(return_value)
+            return json.dumps((False, MESSAGE_DATABASE))
+
+        return json.dumps((True, ""))
 
     # heartbeat for harvester
-    def harvesterIsAlive(self, user, host, harvesterID, data):
-        ret = self.task_buffer.harvesterIsAlive(user, host, harvesterID, data)
-        if ret is None:
-            return_value = (False, MESSAGE_DATABASE)
-        else:
-            return_value = (True, ret)
-        return json.dumps(return_value)
+    def harvester_heartbeat(self, user, host, harvester_id, data):
+        ret = self.task_buffer.harvesterIsAlive(user, host, harvester_id, data)
+        if not ret:
+            return json.dumps((False, MESSAGE_DATABASE))
+
+        return json.dumps((True, ret))
 
     # get stats of workers
-    def getWorkerStats(self):
+    def get_worker_statistics(self):
         return self.task_buffer.getWorkerStats()
 
     # report stat of workers
-    def reportWorkerStats(self, harvesterID, siteName, paramsList):
-        return self.task_buffer.reportWorkerStats(harvesterID, siteName, paramsList)
-
-    # report stat of workers
-    def reportWorkerStats_jobtype(self, harvesterID, siteName, paramsList):
-        return self.task_buffer.reportWorkerStats_jobtype(harvesterID, siteName, paramsList)
+    def report_worker_statistics(self, harvester_id, site_name, parameter_list):
+        return self.task_buffer.reportWorkerStats_jobtype(harvester_id, site_name, parameter_list)
 
     # sweep panda queue
-    def sweepPQ(self, panda_queue, status_list, ce_list, submission_host_list):
+    def sweep_panda_queue(self, panda_queue, status_list, ce_list, submission_host_list):
         try:
             panda_queue_des = json.loads(panda_queue)
             status_list_des = json.loads(status_list)
@@ -90,9 +78,10 @@ class HarvesterAPI:
             submission_host_list_des = json.loads(submission_host_list)
         except Exception:
             _logger.error("Problem deserializing variables")
+            return json.dumps((False, MESSAGE_JSON))
 
-        ret = self.taskBuffer.sweepPQ(panda_queue_des, status_list_des, ce_list_des, submission_host_list_des)
-        return WrappedPickle.dumps(ret)
+        ret = self.task_buffer.sweepPQ(panda_queue_des, status_list_des, ce_list_des, submission_host_list_des)
+        return json.dumps(ret)
 
 
 # Singleton
@@ -101,130 +90,62 @@ del harvester_api
 
 
 # update workers
-def updateWorkers(req, harvesterID, workers):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-    # get DN
-    user = _getDN(req)
-    # hostname
-    host = req.get_remote_host()
-    return_value = None
-    tStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-    # convert
-    try:
-        data = json.loads(workers)
-    except Exception:
-        return_value = json.dumps((False, MESSAGE_JSON))
-    # update
-    if return_value is None:
-        return_value = userIF.updateWorkers(user, host, harvesterID, data)
-    tDelta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - tStart
-    _logger.debug(f"updateWorkers {harvesterID} took {tDelta.seconds}.{tDelta.microseconds // 1000:03d} sec")
+@require_secure(_logger)
+@json_loader("workers", logger=_logger)
+def update_workers(req, harvester_id, workers):
+    time_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    return_value = harvester_api.update_workers(harvester_id, workers)
+    time_delta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - time_start
+    _logger.debug(f"update_workers {harvester_id} took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")
 
     return return_value
 
 
 # update workers
-def updateServiceMetrics(req, harvesterID, metrics):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-
-    user = _getDN(req)
-
-    host = req.get_remote_host()
-    return_value = None
-    tStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-
-    # convert
-    try:
-        data = json.loads(metrics)
-    except Exception:
-        return_value = json.dumps((False, MESSAGE_JSON))
-
-    # update
-    if return_value is None:
-        return_value = userIF.updateServiceMetrics(user, host, harvesterID, data)
-
-    tDelta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - tStart
-    _logger.debug(f"updateServiceMetrics {harvesterID} took {tDelta.seconds}.{tDelta.microseconds // 1000:03d} sec")
+@require_secure(_logger)
+@json_loader("metrics", logger=_logger)
+def update_harvester_service_metrics(req, harvester_id, metrics):
+    time_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    return_value = harvester_api.update_harvester_service_metrics(harvester_id, metrics)
+    time_delta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - time_start
+    _logger.debug(f"update_harvester_service_metrics {harvester_id} took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")
 
     return return_value
 
 
 # add harvester dialog messages
-def addHarvesterDialogs(req, harvesterID, dialogs):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-    # get DN
-    user = _getDN(req)
-    # convert
-    try:
-        data = json.loads(dialogs)
-    except Exception:
-        return json.dumps((False, MESSAGE_JSON))
-    # update
-    return userIF.addHarvesterDialogs(user, harvesterID, data)
+@require_secure(_logger)
+@json_loader("dialogs", logger=_logger)
+def add_harvester_dialogs(req, harvester_id, dialogs):
+    return harvester_api.add_harvester_dialogs(harvester_id, dialogs)
 
 
 # heartbeat for harvester
-def harvesterIsAlive(req, harvesterID, data=None):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-    # get DN
-    user = _getDN(req)
-    # hostname
+@require_secure(_logger)
+@json_loader("data", default_value={}, logger=_logger)
+def harvester_heartbeat(req, harvester_id, data=None):
+    # get user and hostname to record in harvester metadata
+    user = get_dn(req)
     host = req.get_remote_host()
-    # convert
-    try:
-        if data is not None:
-            data = json.loads(data)
-        else:
-            data = dict()
-    except Exception:
-        return json.dumps((False, MESSAGE_JSON))
-    # update
-    return userIF.harvesterIsAlive(user, host, harvesterID, data)
+
+    return harvester_api.harvester_heartbeat(user, host, harvester_id, data)
 
 
 # get stats of workers
-def getWorkerStats(req):
-    # get
-    ret = userIF.getWorkerStats()
+def get_worker_statistics(req):
+    ret = harvester_api.get_worker_statistics()
     return json.dumps(ret)
 
 
 # report stat of workers
-def reportWorkerStats(req, harvesterID, siteName, paramsList):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-    # update
-    ret = userIF.reportWorkerStats(harvesterID, siteName, paramsList)
-    return json.dumps(ret)
-
-
-# report stat of workers
-def reportWorkerStats_jobtype(req, harvesterID, siteName, paramsList):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-    # update
-    ret = userIF.reportWorkerStats_jobtype(harvesterID, siteName, paramsList)
+@require_secure(_logger)
+def report_worker_statistics(req, harvester_id, site_name, parameter_list):
+    ret = harvester_api.report_worker_statistics(harvester_id, site_name, parameter_list)
     return json.dumps(ret)
 
 
 # send Harvester the command to clean up the workers for a panda queue
-def sweepPQ(req, panda_queue, status_list, ce_list, submission_host_list):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-    # check role
-    prod_role = _has_production_role(req)
-    if not prod_role:
-        return json.dumps((False, MESSAGE_PROD_ROLE))
-
-    return json.dumps((True, userIF.sweepPQ(panda_queue, status_list, ce_list, submission_host_list)))
+@require_secure(_logger)
+@require_production_role
+def sweep_panda_queue(req, panda_queue, status_list, ce_list, submission_host_list):
+    return json.dumps((True, harvester_api.sweep_panda_queue(panda_queue, status_list, ce_list, submission_host_list)))

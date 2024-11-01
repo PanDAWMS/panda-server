@@ -1,3 +1,11 @@
+import json
+import re
+from functools import wraps
+
+import pandaserver.jobdispatcher.Protocol as Protocol
+from pandaserver.config import panda_config
+from pandaserver.srvcore import CoreUtils
+
 MESSAGE_SSL = "SSL secure connection is required"
 MESSAGE_PROD_ROLE = "production or pilot role required"
 MESSAGE_TASK_ID = "jediTaskID must be an integer"
@@ -6,7 +14,7 @@ MESSAGE_JSON = "failed to load JSON"
 
 
 # get FQANs
-def _getFQAN(req):
+def get_fqan(req):
     fqans = []
     for tmp_key in req.subprocess_env:
         tmp_value = req.subprocess_env[tmp_key]
@@ -26,7 +34,7 @@ def _getFQAN(req):
 
 
 # get DN
-def _getDN(req):
+def get_dn(req):
     real_dn = ""
     if "SSL_CLIENT_S_DN" in req.subprocess_env:
         # remove redundant CN
@@ -35,14 +43,14 @@ def _getDN(req):
 
 
 # check role
-def _has_production_role(req):
+def has_production_role(req):
     # check DN
-    user = _getDN(req)
+    user = get_dn(req)
     for sdn in panda_config.production_dns:
         if sdn in user:
             return True
     # get FQANs
-    fqans = _getFQAN(req)
+    fqans = get_fqan(req)
     # loop over all FQANs
     for fqan in fqans:
         # check production role
@@ -59,56 +67,66 @@ def _has_production_role(req):
 
 
 # get primary working group with prod role
-def _getWGwithPR(req):
+def get_production_working_groups(req):
     try:
-        fqans = _getFQAN(req)
+        fqans = get_fqan(req)
         for fqan in fqans:
-            tmpMatch = re.search("/[^/]+/([^/]+)/Role=production", fqan)
-            if tmpMatch is not None:
+            tmp_match = re.search("/[^/]+/([^/]+)/Role=production", fqan)
+            if tmp_match is not None:
                 # ignore usatlas since it is used as atlas prod role
-                tmpWG = tmpMatch.group(1)
-                if tmpWG not in ["", "usatlas"]:
-                    return tmpWG.split("-")[-1].lower()
+                tmp_working_group = tmp_match.group(1)
+                if tmp_working_group not in ["", "usatlas"]:
+                    return tmp_working_group.split("-")[-1].lower()
     except Exception:
         pass
     return None
 
 
 # security check
-def isSecure(req):
+def is_secure(req, logger=None):
     # check security
     if not Protocol.isSecure(req):
         return False
+
     # disable limited proxy
     if "/CN=limited proxy" in req.subprocess_env["SSL_CLIENT_S_DN"]:
-        _logger.warning(f"access via limited proxy : {req.subprocess_env['SSL_CLIENT_S_DN']}")
+        if logger:
+            logger.warning(f"access via limited proxy : {req.subprocess_env['SSL_CLIENT_S_DN']}")
         return False
+
     return True
 
 
-def require_secure(func):
-    @wraps(func)
-    def wrapper(req, *args, **kwargs):
-        if not is_secure(req):
-            # Print the function name and a custom message
-            _logger.error(f"'{func.__name__}': {MESSAGE_SSL}")
-            return json.dumps((False, MESSAGE_SSL))
-        return func(req, *args, **kwargs)
+def require_secure(logger):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(req, *args, **kwargs):
+            if not is_secure(req, logger):
+                # Use the passed logger
+                logger.error(f"'{func.__name__}': {MESSAGE_SSL}")
+                return json.dumps((False, MESSAGE_SSL))
+            return func(req, *args, **kwargs)
 
-    return wrapper
+        return wrapper
 
-
-def require_production_role(func):
-    @wraps(func)
-    def wrapper(req, *args, **kwargs):
-        if not _has_production_role(req):
-            return WrappedPickle.dumps((False, MESSAGE_PROD_ROLE))
-        return func(req, *args, **kwargs)
-
-    return wrapper
+    return decorator
 
 
-def validate_types(type_mapping):
+def require_production_role(logger):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(req, *args, **kwargs):
+            if not has_production_role(req):
+                logger.error(f"'{func.__name__}': {MESSAGE_PROD_ROLE}")
+                return json.dumps((False, MESSAGE_PROD_ROLE))
+            return func(req, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+def validate_types(type_mapping, logger=None):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -117,23 +135,47 @@ def validate_types(type_mapping):
                 if param in kwargs:
                     value = kwargs[param]
                 else:
-                    # Get the index of the argument in args based on func's signature
                     arg_names = func.__code__.co_varnames
                     param_index = arg_names.index(param)
                     value = args[param_index]
 
-                # Try to convert and validate type
                 try:
                     converted_value = expected_type(value)
                 except (ValueError, TypeError):
-                    return json.dumps((False, f"{param} must be {expected_type.__name__}"))
+                    error_message = f"{param} must be {expected_type.__name__}"
+                    if logger:
+                        logger.error(f"'{func.__name__}': {error_message}")
+                    return json.dumps((False, error_message))
 
-                # Update the args or kwargs with the converted value
                 if param in kwargs:
                     kwargs[param] = converted_value
                 else:
                     args = list(args)
                     args[param_index] = converted_value
+
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+def json_loader(param_name, default_value=None, logger=None):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if param_name in kwargs:
+                if kwargs[param_name] is not None:
+                    try:
+                        kwargs[param_name] = json.loads(kwargs[param_name])
+                    except json.JSONDecodeError:
+                        if logger:
+                            logger.error(f"'{func.__name__}': {MESSAGE_JSON}")
+                        return json.dumps((False, MESSAGE_JSON))
+                else:
+                    kwargs[param_name] = default_value
+            else:
+                kwargs[param_name] = default_value
 
             return func(*args, **kwargs)
 
