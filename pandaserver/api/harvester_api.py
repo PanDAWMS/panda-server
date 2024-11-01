@@ -5,6 +5,7 @@ provide web interface to users
 
 import datetime
 import json
+from typing import Any, Dict, List
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
@@ -16,6 +17,7 @@ from pandaserver.api.common_api import (
     require_production_role,
     require_secure,
 )
+from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.userinterface.UserIF import MESSAGE_JSON
 
 _logger = PandaLogger().getLogger("harvester_api")
@@ -70,7 +72,7 @@ class HarvesterAPI:
         return self.task_buffer.reportWorkerStats_jobtype(harvester_id, site_name, parameter_list)
 
     # sweep panda queue
-    def sweep_panda_queue(self, panda_queue, status_list, ce_list, submission_host_list):
+    def add_sweep_harvester_command(self, panda_queue, status_list, ce_list, submission_host_list):
         try:
             panda_queue_des = json.loads(panda_queue)
             status_list_des = json.loads(status_list)
@@ -147,5 +149,14 @@ def report_worker_statistics(req, harvester_id, site_name, parameter_list):
 # send Harvester the command to clean up the workers for a panda queue
 @require_secure(_logger)
 @require_production_role
-def sweep_panda_queue(req, panda_queue, status_list, ce_list, submission_host_list):
-    return json.dumps((True, harvester_api.sweep_panda_queue(panda_queue, status_list, ce_list, submission_host_list)))
+def add_sweep_harvester_command(req: PandaRequest, panda_queue: str, status_list: List[str], ce_list: List[str], submission_host_list: List[str]) -> str:
+    """
+    Send a command to harvester in order to sweep a PanDA queue.
+    :param req: request object
+    :param panda_queue: string containing the name of the PanDA queue
+    :param status_list: list of worker statuses to be considered, e.g. ['submitted', 'running']
+    :param ce_list: list of the Computing Elements to be considered
+    :param submission_host_list: list of the harvester submission hosts to be considered
+    :return: json string with the result of the operation, typically a tuple with a boolean and a message, e.g. (False, 'Error message') or (True, 'OK')
+    """
+    return json.dumps((True, harvester_api.add_sweep_harvester_command(panda_queue, status_list, ce_list, submission_host_list)))
