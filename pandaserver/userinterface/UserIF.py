@@ -1252,7 +1252,7 @@ def increaseAttemptNrPanda(req, jediTaskID, increasedNr):
     if increasedNr < 0:
         return WrappedPickle.dumps((4, "increase must be a positive integer"))
 
-    return userIF.increaseAttemptNrPanda(jediTaskID, increasedNr)
+    return WrappedPickle.dumps(userIF.increaseAttemptNrPanda(jediTaskID, increasedNr))
 
 
 # change task attribute
