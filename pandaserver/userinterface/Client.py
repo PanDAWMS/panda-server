@@ -149,8 +149,6 @@ class HttpClient:
                 else:
                     # we got a file to upload which specifies the destination name
                     files[key] = (data[key][0], open(data[key][1], "rb"))
-
-            file = {key: open(value, "rb") for key, value in data.items()}
             print(f"cert: {cert}, verify: {verify}")
             response = requests.post(url, headers=headers, files=files, timeout=600, cert=cert, verify=verify)
             response.raise_for_status()
@@ -159,7 +157,11 @@ class HttpClient:
             return 255, str(e)
         finally:
             for file in files.values():
-                file.close()
+                if type(file) == tuple:
+                    file_handler = file[1]
+                else:
+                    file_handler = file
+                file_handler.close()
 
 
 """
