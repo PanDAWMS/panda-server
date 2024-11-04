@@ -18,7 +18,7 @@ _logger = PandaLogger().getLogger("harvester_api")
 global_task_buffer = None
 
 
-def init_task_buffer(task_buffer: TaskBuffer):
+def init_task_buffer(task_buffer: TaskBuffer) -> None:
     """
     Initialize the task buffer. This method needs to be called before any other method in this module.
     """
