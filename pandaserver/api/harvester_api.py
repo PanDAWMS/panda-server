@@ -17,7 +17,7 @@ _logger = PandaLogger().getLogger("harvester_api")
 global_task_buffer = None
 
 
-def init(task_buffer):
+def init_task_buffer(task_buffer):
     global global_task_buffer
     global_task_buffer = task_buffer
 
