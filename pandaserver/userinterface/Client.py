@@ -9,6 +9,7 @@ import pickle
 import socket
 import sys
 import tempfile
+from cgi import logfile
 
 import requests
 from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
@@ -931,11 +932,12 @@ def uploadLog(logStr, logFileName):
     gfh.close()
     # execute
     url = f"{baseURLSSL}/uploadLog"
-    # sometimes the logFileName comes as an integer (e.g. a JEDI task ID) and it needs to be converted to a string
-    data = {"file": (str(logFileName), fh.name)}
-    retVal = http_client.post_files(url, data)
+    # sometimes the destination file name (=logFileName) comes as an integer (e.g. a JEDI task ID) and it needs to be converted to a string
+    logFileName = str(logFileName)
+    data = {"file": (logFileName, fh.name)}
+    return_value = http_client.post_files(url, data)
     os.unlink(fh.name)
-    return retVal
+    return return_value
 
 
 def changeTaskPriority(jediTaskID, newPriority):
