@@ -5,7 +5,7 @@ import traceback
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
-from pandaserver.api.common_api import require_secure
+from pandaserver.api.common import require_secure
 from pandaserver.srvcore.CoreUtils import clean_user_id, resolve_bool
 
 try:

@@ -97,28 +97,20 @@ def is_secure(req, logger=None):
     return True
 
 
-def require_secure(logger):
+def request_validation(logger, secure=False, production=False):
     def decorator(func):
         @wraps(func)
         def wrapper(req, *args, **kwargs):
-            if not is_secure(req, logger):
-                # Use the passed logger
+            # check SSL if required
+            if secure and not is_secure(req, logger):
                 logger.error(f"'{func.__name__}': {MESSAGE_SSL}")
                 return json.dumps((False, MESSAGE_SSL))
-            return func(req, *args, **kwargs)
 
-        return wrapper
-
-    return decorator
-
-
-def require_production_role(logger):
-    def decorator(func):
-        @wraps(func)
-        def wrapper(req, *args, **kwargs):
-            if not has_production_role(req):
+            # check production role if required
+            if production and not has_production_role(req):
                 logger.error(f"'{func.__name__}': {MESSAGE_PROD_ROLE}")
                 return json.dumps((False, MESSAGE_PROD_ROLE))
+
             return func(req, *args, **kwargs)
 
         return wrapper
@@ -152,30 +144,6 @@ def validate_types(type_mapping, logger=None):
                 else:
                     args = list(args)
                     args[param_index] = converted_value
-
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
-
-
-def json_loader(param_name, default_value=None, logger=None):
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            if param_name in kwargs:
-                if kwargs[param_name] is not None:
-                    try:
-                        kwargs[param_name] = json.loads(kwargs[param_name])
-                    except json.JSONDecodeError:
-                        if logger:
-                            logger.error(f"'{func.__name__}': {MESSAGE_JSON}")
-                        return json.dumps((False, MESSAGE_JSON))
-                else:
-                    kwargs[param_name] = default_value
-            else:
-                kwargs[param_name] = default_value
 
             return func(*args, **kwargs)
 
