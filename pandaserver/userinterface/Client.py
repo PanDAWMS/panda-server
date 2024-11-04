@@ -9,6 +9,7 @@ import pickle
 import socket
 import sys
 import tempfile
+from cgi import logfile
 
 import requests
 from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
@@ -142,7 +143,13 @@ class HttpClient:
 
         files = {}
         try:
-            files = {key: open(value, "rb") for key, value in data.items()}
+            for key, value in data.items():
+                if type(data[key]) == str:
+                    # we got a file to upload without specifying the destination name
+                    files[key] = open(data[key], "rb")
+                else:
+                    # we got a file to upload which specifies the destination name
+                    files[key] = (data[key][0], open(data[key][1], "rb"))
             print(f"cert: {cert}, verify: {verify}")
             response = requests.post(url, headers=headers, files=files, timeout=600, cert=cert, verify=verify)
             response.raise_for_status()
@@ -151,7 +158,11 @@ class HttpClient:
             return 255, str(e)
         finally:
             for file in files.values():
-                file.close()
+                if type(file) == tuple:
+                    file_handler = file[1]
+                else:
+                    file_handler = file
+                file_handler.close()
 
 
 """
@@ -921,10 +932,12 @@ def uploadLog(logStr, logFileName):
     gfh.close()
     # execute
     url = f"{baseURLSSL}/uploadLog"
-    data = {"file": f"{fh.name};filename={logFileName}"}
-    retVal = http_client.post_files(url, data)
+    # sometimes the destination file name (=logFileName) comes as an integer (e.g. a JEDI task ID) and it needs to be converted to a string
+    logFileName = str(logFileName)
+    data = {"file": (logFileName, fh.name)}
+    return_value = http_client.post_files(url, data)
     os.unlink(fh.name)
-    return retVal
+    return return_value
 
 
 def changeTaskPriority(jediTaskID, newPriority):
