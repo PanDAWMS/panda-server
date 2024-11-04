@@ -931,7 +931,8 @@ def uploadLog(logStr, logFileName):
     gfh.close()
     # execute
     url = f"{baseURLSSL}/uploadLog"
-    data = {"file": (logFileName, fh.name)}
+    # sometimes the logFileName comes as an integer (e.g. a JEDI task ID) and it needs to be converted to a string
+    data = {"file": (str(logFileName), fh.name)}
     retVal = http_client.post_files(url, data)
     os.unlink(fh.name)
     return retVal
