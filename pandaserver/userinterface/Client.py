@@ -142,7 +142,15 @@ class HttpClient:
 
         files = {}
         try:
-            files = {key: open(value, "rb") for key, value in data.items()}
+            for key, value in data.items():
+                if type(data[key]) == str:
+                    # we got a file to upload without specifying the destination name
+                    files[key] = open(data[key], "rb")
+                else:
+                    # we got a file to upload which specifies the destination name
+                    files[key] = (data[key][0], open(data[key][1], "rb"))
+
+            file = {key: open(value, "rb") for key, value in data.items()}
             print(f"cert: {cert}, verify: {verify}")
             response = requests.post(url, headers=headers, files=files, timeout=600, cert=cert, verify=verify)
             response.raise_for_status()
@@ -921,7 +929,7 @@ def uploadLog(logStr, logFileName):
     gfh.close()
     # execute
     url = f"{baseURLSSL}/uploadLog"
-    data = {"file": f"{fh.name};filename={logFileName}"}
+    data = {"file": (logFileName, fh.name)}
     retVal = http_client.post_files(url, data)
     os.unlink(fh.name)
     return retVal
