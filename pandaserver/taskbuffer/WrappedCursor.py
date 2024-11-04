@@ -192,6 +192,8 @@ class WrappedCursor(object):
             self.conn.set_client_encoding("UTF-8")
             # TZ
             self.execute("SET timezone=0")
+            # commit to set session params permanently
+            self.conn.commit()
         else:
             # get hostname
             self.execute("SELECT SUBSTRING_INDEX(USER(),'@',-1)")
