@@ -560,7 +560,7 @@ class NetworkConfigurator(threading.Thread):
         if hasattr(panda_config, "NWS_URL"):
             self.NWS_URL = panda_config.NWS_URL
         else:
-            self.NWS_URL = "http://atlas-adc-netmetrics-lb.cern.ch/metrics/latest.json"
+            self.NWS_URL = "https://atlas-rucio-network-metrics.cern.ch/metrics.json"
 
         if hasattr(panda_config, "CRIC_URL_CM"):
             self.CRIC_URL_CM = panda_config.CRIC_URL_CM
@@ -704,21 +704,6 @@ class NetworkConfigurator(threading.Thread):
                                 self.log_stream.debug(sys.exc_info())
             except KeyError:
                 pass
-
-            # PerfSonar latency and packetloss
-            for metric in [LATENCY, PACKETLOSS]:
-                try:
-                    struc = self.nws_dump[src_dst][metric]
-                    try:
-                        updated_at = datetime.strptime(struc[TIMESTAMP], "%Y-%m-%dT%H:%M:%S")
-                        if updated_at > latest_validity:
-                            value = struc[LATEST]
-                            data.append((source, destination, metric, value, updated_at))
-                    except KeyError:
-                        self.log_stream.debug(f"Entry {struc} ({source}->{destination}) does not follow {metric} standards")
-                        pass
-                except KeyError:
-                    continue
 
         return data
 

@@ -82,7 +82,6 @@ allowed_methods += [
     "getTaskParamsMap",
     "updateWorkers",
     "harvesterIsAlive",
-    "reportWorkerStats",
     "reportWorkerStats_jobtype",
     "getWorkerStats",
     "addHarvesterDialogs",

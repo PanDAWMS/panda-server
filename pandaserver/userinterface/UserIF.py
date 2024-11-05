@@ -415,7 +415,7 @@ class UserIF:
                 # convert to dict
                 newParams = PrioUtil.decodeJSON(newParams)
                 # get original params
-                taskParams = self.taskBuffer.getTaskPramsPanda(jediTaskID)
+                taskParams = self.taskBuffer.getTaskParamsPanda(jediTaskID)
                 taskParamsJson = PrioUtil.decodeJSON(taskParams)
                 # replace with new values
                 for newKey in newParams:
@@ -579,10 +579,6 @@ class UserIF:
     # get stats of workers
     def getWorkerStats(self):
         return self.taskBuffer.getWorkerStats()
-
-    # report stat of workers
-    def reportWorkerStats(self, harvesterID, siteName, paramsList):
-        return self.taskBuffer.reportWorkerStats(harvesterID, siteName, paramsList)
 
     # report stat of workers
     def reportWorkerStats_jobtype(self, harvesterID, siteName, paramsList):
@@ -1252,7 +1248,7 @@ def increaseAttemptNrPanda(req, jediTaskID, increasedNr):
     if increasedNr < 0:
         return WrappedPickle.dumps((4, "increase must be a positive integer"))
 
-    return userIF.increaseAttemptNrPanda(jediTaskID, increasedNr)
+    return WrappedPickle.dumps(userIF.increaseAttemptNrPanda(jediTaskID, increasedNr))
 
 
 # change task attribute
@@ -1639,16 +1635,6 @@ def harvesterIsAlive(req, harvesterID, data=None):
 def getWorkerStats(req):
     # get
     ret = userIF.getWorkerStats()
-    return json.dumps(ret)
-
-
-# report stat of workers
-def reportWorkerStats(req, harvesterID, siteName, paramsList):
-    # check security
-    if not isSecure(req):
-        return json.dumps((False, MESSAGE_SSL))
-    # update
-    ret = userIF.reportWorkerStats(harvesterID, siteName, paramsList)
     return json.dumps(ret)
 
 
