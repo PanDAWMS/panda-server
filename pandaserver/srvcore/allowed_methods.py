@@ -2,6 +2,17 @@
 
 allowed_methods = []
 
+# methods from pandaserver.api.harvester_api
+allowed_methods += [
+    "update_workers",
+    "update_harvester_service_metrics",
+    "add_harvester_dialogs",
+    "harvester_heartbeat",
+    "get_worker_statistics",
+    "report_worker_statistics",
+    "add_sweep_harvester_command",
+]
+
 # methods from pandaserver.taskbuffer.Utils
 allowed_methods += [
     "isAlive",

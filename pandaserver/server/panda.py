@@ -23,6 +23,20 @@ from werkzeug.datastructures import CombinedMultiDict, EnvironHeaders
 from werkzeug.formparser import parse_form_data
 
 import pandaserver.taskbuffer.ErrorCode
+
+# pylint: disable=W0611
+from pandaserver.api.harvester_api import (
+    add_harvester_dialogs,
+    add_sweep_harvester_command,
+    get_worker_statistics,
+    harvester_heartbeat,
+)
+from pandaserver.api.harvester_api import init_task_buffer as init_harvester_api
+from pandaserver.api.harvester_api import (
+    report_worker_statistics,
+    update_harvester_service_metrics,
+    update_workers,
+)
 from pandaserver.config import panda_config
 
 # pylint: disable=W0611
@@ -150,6 +164,10 @@ taskBuffer.init(
     useTimeout=True,
     requester=requester_id,
 )
+
+# initialize harvester_api
+if panda_config.nDBConnection != 0:
+    init_harvester_api(taskBuffer)
 
 # initialize JobDispatcher
 if panda_config.nDBConnection != 0:
