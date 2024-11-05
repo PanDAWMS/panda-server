@@ -42,7 +42,7 @@ def update_workers(req: PandaRequest, harvester_id: str, workers: str) -> str:
     Returns:
         str: json string with the result of the operation, typically a tuple with a boolean and a message, e.g. (False, 'Error message') or (True, 'OK')
     """
-    tmp_logger = LogWrapper(_logger, f"update_workers harvester_id: {harvester_id}")
+    tmp_logger = LogWrapper(_logger, f"update_workers harvester_id={harvester_id}")
     tmp_logger.debug(f"Start")
 
     # convert and validate the workers field
@@ -82,7 +82,7 @@ def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metri
     Returns:
         str: json string with the result of the operation, typically a tuple with a boolean and a message, e.g. (False, 'Error message') or (True, 'OK')
     """
-    tmp_logger = LogWrapper(_logger, f"update_harvester_service_metrics harvester_id: {harvester_id}")
+    tmp_logger = LogWrapper(_logger, f"update_harvester_service_metrics harvester_id={harvester_id}")
     tmp_logger.debug(f"Start")
 
     # convert and validate the metrics field
@@ -123,7 +123,7 @@ def add_harvester_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) ->
     Returns:
         str: json string with the result of the operation, typically a tuple with a boolean and a message, e.g. (False, 'Error message') or (True, 'OK')
     """
-    tmp_logger = LogWrapper(_logger, f"add_harvester_dialogs harvester_id: {harvester_id}")
+    tmp_logger = LogWrapper(_logger, f"add_harvester_dialogs harvester_id={harvester_id}")
     tmp_logger.debug(f"Start")
 
     # convert and validate the dialogs field
@@ -156,7 +156,7 @@ def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) 
     Returns:
         str: json string with the result of the operation, typically a tuple with a boolean and a message, e.g. (False, 'Error message') or (True, 'OK')
     """
-    tmp_logger = LogWrapper(_logger, f"harvester_heartbeat harvester_id: {harvester_id}")
+    tmp_logger = LogWrapper(_logger, f"harvester_heartbeat harvester_id={harvester_id}")
     tmp_logger.debug(f"Start")
 
     # get user and hostname to record in harvester metadata
@@ -229,7 +229,7 @@ def report_worker_statistics(req: PandaRequest, harvester_id: str, panda_queue: 
         str: JSON string with the result of the operation, typically a tuple with a boolean and a message,
         e.g., `(False, 'Error message')` or `(True, 'OK')`.
     """
-    tmp_logger = LogWrapper(_logger, f"report_worker_statistics harvester_id: {harvester_id}")
+    tmp_logger = LogWrapper(_logger, f"report_worker_statistics harvester_id={harvester_id}")
     tmp_logger.debug(f"Start")
     return_tuple = global_task_buffer.reportWorkerStats_jobtype(harvester_id, panda_queue, statistics)
     tmp_logger.debug(f"Done")
@@ -253,7 +253,7 @@ def add_sweep_harvester_command(req: PandaRequest, panda_queue: str, status_list
     Returns
         str: json string with the result of the operation, typically a tuple with a boolean and a message, e.g. (False, 'Error message') or (True, 'OK')
     """
-    tmp_logger = LogWrapper(_logger, f"add_sweep_harvester_command panda_queue: {panda_queue}")
+    tmp_logger = LogWrapper(_logger, f"add_sweep_harvester_command panda_queue={panda_queue}")
     tmp_logger.debug(f"Start")
     try:
         panda_queue_des = json.loads(panda_queue)
