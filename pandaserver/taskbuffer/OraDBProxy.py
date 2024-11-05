@@ -3308,7 +3308,7 @@ class DBProxy:
             get_val_map[":taskID"] = task_id
 
         if average_memory_limit:
-            sql_where_clause += "AND minramcount<:average_memory_limit "
+            sql_where_clause += "AND minramcount / NVL(corecount, 1)<=:average_memory_limit "
             get_val_map[":average_memory_limit"] = average_memory_limit
 
         return sql_where_clause, get_val_map
