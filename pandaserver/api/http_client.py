@@ -42,8 +42,6 @@ class HttpClient:
         self.ssl_certificate = self._x509()
         self.ssl_key = self._x509()
 
-        self.use_json = True
-
         # OIDC
         self.oidc = os.getenv("PANDA_AUTH") == "oidc"
         self.auth_vo = os.getenv("PANDA_AUTH_VO") if self.oidc else None
@@ -73,14 +71,11 @@ class HttpClient:
 
     def _prepare_headers(self):
         """Prepare headers based on authentication and JSON settings."""
-        headers = {}
+        headers = {"Accept": "application/json", "Content-Type": "application/json"}
 
         if self.oidc:
             headers["Authorization"] = f"Bearer {self.id_token}"
             headers["Origin"] = self.auth_vo
-
-        if self.use_json:
-            headers["Accept"] = "application/json"
 
         return headers
 
