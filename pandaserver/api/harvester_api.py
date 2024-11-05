@@ -49,14 +49,14 @@ def update_workers(req: PandaRequest, harvester_id: str, workers: str) -> str:
     try:
         workers = json.loads(workers)
     except ValueError:
-        tmp_logger.error(f"Error deserializing workers: {workers})")
+        tmp_logger.error(f"Error deserializing workers: {workers}")
         return json.dumps((False, MESSAGE_JSON))
 
     time_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
 
     ret = global_task_buffer.updateWorkers(harvester_id, workers)
     if not ret:
-        tmp_logger.error(f"Error updating database for workers: {workers})")
+        tmp_logger.error(f"Error updating database for workers: {workers}")
         return_tuple = False, MESSAGE_DATABASE
     else:
         return_tuple = True, ret
@@ -89,7 +89,7 @@ def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metri
     try:
         metrics = json.loads(metrics)
     except ValueError:
-        tmp_logger.error(f"Error deserializing metrics: {metrics})")
+        tmp_logger.error(f"Error deserializing metrics: {metrics}")
         return json.dumps((False, MESSAGE_JSON))
 
     # update the metrics in the database
@@ -97,7 +97,7 @@ def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metri
 
     ret = global_task_buffer.updateServiceMetrics(harvester_id, metrics)
     if not ret:
-        tmp_logger.error(f"Error updating database for metrics: {metrics})")
+        tmp_logger.error(f"Error updating database for metrics: {metrics}")
         return_tuple = False, MESSAGE_DATABASE
     else:
         return_tuple = True, ret
@@ -130,12 +130,12 @@ def add_harvester_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) ->
     try:
         dialogs = json.loads(dialogs)
     except ValueError:
-        tmp_logger.error(f"Error deserializing dialogs: {dialogs})")
+        tmp_logger.error(f"Error deserializing dialogs: {dialogs}")
         return json.dumps((False, MESSAGE_JSON))
 
     ret = global_task_buffer.addHarvesterDialogs(harvester_id, dialogs)
     if not ret:
-        tmp_logger.error(f"Error updating database: {dialogs})")
+        tmp_logger.error(f"Error updating database: {dialogs}")
         return json.dumps((False, MESSAGE_DATABASE))
 
     return json.dumps((True, ret))
@@ -170,12 +170,12 @@ def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) 
         else:
             data = dict()
     except ValueError:
-        tmp_logger.error(f"Error deserializing data: {data})")
+        tmp_logger.error(f"Error deserializing data: {data}")
         return json.dumps((False, MESSAGE_JSON))
 
     ret = global_task_buffer.harvesterIsAlive(user, host, harvester_id, data)
     if not ret:
-        tmp_logger.error(f"Error updating database: {data})")
+        tmp_logger.error(f"Error updating database: {data}")
         return json.dumps((False, MESSAGE_DATABASE))
 
     tmp_logger.debug(f"Done")
