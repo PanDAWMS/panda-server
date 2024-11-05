@@ -14,8 +14,34 @@ class TestHarvesterAPI(unittest.TestCase):
 
     def test_update_workers(self):
         url = f"{base_url_ssl}/update_workers"
+        worker = {
+            "workerID": 1,
+            "batchID": 1,
+            "queueName": "queue1",
+            "status": "running",
+            "computingSite": "site1",
+            "nCore": 1,
+            "nodeID": None,
+            "submitTime": datetime.now(timezone.utc).isoformat(),
+            "startTime": datetime.now(timezone.utc).isoformat(),
+            "endTime": None,
+            "jobType": "managed",
+            "resourceType": "SCORE",
+            "nativeExitCode": None,
+            "nativeStatus": None,
+            "diagMessage": None,
+            "nJobs": 1,
+            "computingElement": "ce1",
+            "syncLevel": 0,
+            "submissionHost": "submissionhost1",
+            "harvesterHost": "harvesterhost1",
+            "errorCode": None,
+            "minRamCount": 2000,
+        }
+        workers = [worker]
+
         harvester_id = "harvester_mock"
-        workers = json.dumps([{"worker_id": "1", "status": "running"}])
+        workers = json.dumps(workers)
         data = {"harvester_id": harvester_id, "workers": workers}
 
         status, output = self.http_client.post(url, data)
