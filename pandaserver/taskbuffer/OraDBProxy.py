@@ -18709,8 +18709,7 @@ class DBProxy:
                 for resource_type in ret[computingSite]:
                     for jobStatus in stateList:
                         ret[computingSite][resource_type].setdefault(jobStatus, 0)
-            # return
-            tmp_log.debug(f"{str(ret)}")
+
             return ret
         except Exception:
             # roll back
