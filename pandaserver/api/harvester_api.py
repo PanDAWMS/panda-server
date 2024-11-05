@@ -2,6 +2,7 @@ import datetime
 import json
 from typing import List
 
+from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.api.common import (
@@ -12,7 +13,6 @@ from pandaserver.api.common import (
 )
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
-from pandaserver.userinterface.UserIF import MESSAGE_JSON
 
 _logger = PandaLogger().getLogger("harvester_api")
 
@@ -42,23 +42,27 @@ def update_workers(req: PandaRequest, harvester_id: str, workers: str) -> str:
     Returns:
         str: json string with the result of the operation, typically a tuple with a boolean and a message, e.g. (False, 'Error message') or (True, 'OK')
     """
+    tmp_logger = LogWrapper(_logger, f"update_workers harvester_id: {harvester_id}")
+    tmp_logger.debug(f"Start")
 
     # convert and validate the workers field
     try:
         workers = json.loads(workers)
-    except Exception:
+    except ValueError:
+        tmp_logger.error(f"Error deserializing workers: {workers})")
         return json.dumps((False, MESSAGE_JSON))
 
     time_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
 
     ret = global_task_buffer.updateWorkers(harvester_id, workers)
     if not ret:
+        tmp_logger.error(f"Error updating database for workers: {workers})")
         return_tuple = False, MESSAGE_DATABASE
     else:
         return_tuple = True, ret
 
     time_delta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - time_start
-    _logger.debug(f"update_workers {harvester_id} took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")
+    tmp_logger.debug(f"Done. Took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")
 
     return json.dumps(return_tuple)
 
@@ -78,10 +82,14 @@ def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metri
     Returns:
         str: json string with the result of the operation, typically a tuple with a boolean and a message, e.g. (False, 'Error message') or (True, 'OK')
     """
+    tmp_logger = LogWrapper(_logger, f"update_harvester_service_metrics harvester_id: {harvester_id}")
+    tmp_logger.debug(f"Start")
+
     # convert and validate the metrics field
     try:
         metrics = json.loads(metrics)
     except ValueError:
+        tmp_logger.error(f"Error deserializing metrics: {metrics})")
         return json.dumps((False, MESSAGE_JSON))
 
     # update the metrics in the database
@@ -89,12 +97,13 @@ def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metri
 
     ret = global_task_buffer.updateServiceMetrics(harvester_id, metrics)
     if not ret:
+        tmp_logger.error(f"Error updating database for metrics: {metrics})")
         return_tuple = False, MESSAGE_DATABASE
     else:
         return_tuple = True, ret
 
     time_delta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - time_start
-    _logger.debug(f"update_harvester_service_metrics {harvester_id} took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")
+    _logger.debug(f"Done. Took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")
 
     return json.dumps(return_tuple)
 
@@ -114,15 +123,19 @@ def add_harvester_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) ->
     Returns:
         str: json string with the result of the operation, typically a tuple with a boolean and a message, e.g. (False, 'Error message') or (True, 'OK')
     """
+    tmp_logger = LogWrapper(_logger, f"add_harvester_dialogs harvester_id: {harvester_id}")
+    tmp_logger.debug(f"Start")
 
     # convert and validate the dialogs field
     try:
         dialogs = json.loads(dialogs)
     except ValueError:
+        tmp_logger.error(f"Error deserializing dialogs: {dialogs})")
         return json.dumps((False, MESSAGE_JSON))
 
     ret = global_task_buffer.addHarvesterDialogs(harvester_id, dialogs)
     if not ret:
+        tmp_logger.error(f"Error updating database: {dialogs})")
         return json.dumps((False, MESSAGE_DATABASE))
 
     return json.dumps((True, ret))
@@ -143,6 +156,9 @@ def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) 
     Returns:
         str: json string with the result of the operation, typically a tuple with a boolean and a message, e.g. (False, 'Error message') or (True, 'OK')
     """
+    tmp_logger = LogWrapper(_logger, f"harvester_heartbeat harvester_id: {harvester_id}")
+    tmp_logger.debug(f"Start")
+
     # get user and hostname to record in harvester metadata
     user = get_dn(req)
     host = req.get_remote_host()
@@ -154,12 +170,15 @@ def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) 
         else:
             data = dict()
     except ValueError:
+        tmp_logger.error(f"Error deserializing data: {data})")
         return json.dumps((False, MESSAGE_JSON))
 
     ret = global_task_buffer.harvesterIsAlive(user, host, harvester_id, data)
     if not ret:
+        tmp_logger.error(f"Error updating database: {data})")
         return json.dumps((False, MESSAGE_DATABASE))
 
+    tmp_logger.debug(f"Done")
     return json.dumps((True, ret))
 
 
@@ -173,7 +192,10 @@ def get_worker_statistics(req: PandaRequest) -> str:
     Returns:
         str: json string with the result of the operation, typically a tuple with a boolean and the statistics or an error message, e.g. (False, 'Error message') or (True, {...}})
     """
+    tmp_logger = LogWrapper(_logger, f"get_worker_statistics")
+    tmp_logger.debug(f"Start")
     return_tuple = True, global_task_buffer.getWorkerStats()
+    tmp_logger.debug(f"Done")
     return json.dumps(return_tuple)
 
 
@@ -207,7 +229,10 @@ def report_worker_statistics(req: PandaRequest, harvester_id: str, panda_queue: 
         str: JSON string with the result of the operation, typically a tuple with a boolean and a message,
         e.g., `(False, 'Error message')` or `(True, 'OK')`.
     """
+    tmp_logger = LogWrapper(_logger, f"report_worker_statistics harvester_id: {harvester_id}")
+    tmp_logger.debug(f"Start")
     return_tuple = global_task_buffer.reportWorkerStats_jobtype(harvester_id, panda_queue, statistics)
+    tmp_logger.debug(f"Done")
     return json.dumps(return_tuple)
 
 
@@ -228,15 +253,19 @@ def add_sweep_harvester_command(req: PandaRequest, panda_queue: str, status_list
     Returns
         str: json string with the result of the operation, typically a tuple with a boolean and a message, e.g. (False, 'Error message') or (True, 'OK')
     """
+    tmp_logger = LogWrapper(_logger, f"add_sweep_harvester_command panda_queue: {panda_queue}")
+    tmp_logger.debug(f"Start")
     try:
         panda_queue_des = json.loads(panda_queue)
         status_list_des = json.loads(status_list)
         ce_list_des = json.loads(ce_list)
         submission_host_list_des = json.loads(submission_host_list)
     except Exception:
-        _logger.error("Problem deserializing variables")
-        return_tuple = False, MESSAGE_JSON
-        return json.dumps(return_tuple)
+        tmp_logger.error(
+            f"Error deserializing variables. panda_queue_des: {panda_queue} status_list_des: {status_list} ce_list_des: {ce_list} submission_host_list_des: {submission_host_list}"
+        )
+        return json.dumps((False, MESSAGE_JSON))
 
     return_tuple = True, global_task_buffer.sweepPQ(panda_queue_des, status_list_des, ce_list_des, submission_host_list_des)
+    tmp_logger.debug(f"Done")
     return json.dumps(return_tuple)
