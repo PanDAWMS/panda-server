@@ -15,7 +15,7 @@ class TestHarvesterAPI(unittest.TestCase):
     def test_update_workers(self):
         url = f"{base_url_ssl}/update_workers"
         harvester_id = "harvester_mock"
-        workers = [{"worker_id": "1", "status": "running"}]
+        workers = json.dumps([{"worker_id": "1", "status": "running"}])
         data = {"harvester_id": harvester_id, "workers": workers}
 
         status, output = self.http_client.post(url, data)
