@@ -9,7 +9,6 @@ import pickle
 import socket
 import sys
 import tempfile
-from cgi import logfile
 
 import requests
 from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
@@ -98,9 +97,10 @@ class HttpClient:
 
     def _prepare_ssl(self, use_https):
         """Prepare SSL configuration based on HTTPS usage and verification settings."""
-        cert = None
-        verify = True
-        if use_https:
+        cert = None  # no certificate by default when no HTTS or using oidc headers
+        verify = True  # validate against system CA certificates by default
+
+        if use_https and not self.oidc:
             cert = (self.ssl_certificate, self.ssl_key)
 
             if not self.verifyHost:
@@ -150,7 +150,6 @@ class HttpClient:
                 else:
                     # we got a file to upload which specifies the destination name
                     files[key] = (data[key][0], open(data[key][1], "rb"))
-            print(f"cert: {cert}, verify: {verify}")
             response = requests.post(url, headers=headers, files=files, timeout=600, cert=cert, verify=verify)
             response.raise_for_status()
             return 0, response.text
