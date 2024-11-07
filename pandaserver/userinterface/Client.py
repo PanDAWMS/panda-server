@@ -63,9 +63,10 @@ class HttpClient:
         self.id_token = os.getenv("PANDA_AUTH_ID_TOKEN") if self.oidc else None
 
     def _x509(self):
-        # retrieve the X509_USER_PROXY from the environment variables
+        # retrieve the X509_USER_PROXY from the environment variables and check if it is readable
         try:
-            return os.environ["X509_USER_PROXY"]
+            if "X509_USER_PROXY" in os.environ and os.access(os.environ["X509_USER_PROXY"], os.R_OK):
+                return os.environ["X509_USER_PROXY"]
         except Exception:
             pass
 
