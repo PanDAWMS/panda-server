@@ -5,6 +5,10 @@ from unittest.mock import MagicMock
 
 from pandaserver.api.http_client import HttpClient, base_url, base_url_ssl
 
+# Get current UTC time with microseconds. The format needs to be compatible with the one used in the database
+now_utc = datetime.now(datetime.UTC)
+formatted_time = now_utc.strftime("%d.%m.%y %H:%M:%S") + f".{now_utc.microsecond // 1000:02d}"
+
 
 class TestHarvesterAPI(unittest.TestCase):
     def setUp(self):
@@ -22,8 +26,8 @@ class TestHarvesterAPI(unittest.TestCase):
             "computingSite": "site1",
             "nCore": 1,
             "nodeID": None,
-            "submitTime": datetime.now(timezone.utc).isoformat(),
-            "startTime": datetime.now(timezone.utc).isoformat(),
+            "submitTime": formatted_time,
+            "startTime": formatted_time,
             "endTime": None,
             "jobType": "managed",
             "resourceType": "SCORE",
