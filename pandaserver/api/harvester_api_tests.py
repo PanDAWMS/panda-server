@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 from pandaserver.api.http_client import HttpClient, base_url, base_url_ssl
 
 # Get current UTC time with microseconds. The format needs to be compatible with the one used in the database
-now_utc = datetime.now(datetime.UTC)
+now_utc = datetime.now(timezone.utc)
 formatted_time = now_utc.strftime("%d.%m.%y %H:%M:%S") + f".{now_utc.microsecond // 1000:02d}"
 
 
