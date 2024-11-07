@@ -304,6 +304,10 @@ def application(environ, start_response):
         if exec_result in [True, False]:
             exec_result = str(exec_result)
 
+        # convert to json
+        if json_body:
+            exec_result = json.dumps(exec_result)
+
     except Exception as exc:
         tmp_log.error(f"execution failure : {str(exc)}\n {traceback.format_exc()}")
         if hasattr(panda_config, "dumpBadRequest") and panda_config.dumpBadRequest:
@@ -315,10 +319,7 @@ def application(environ, start_response):
             except Exception:
                 tmp_log.error(traceback.format_exc())
                 pass
-        error_string = ""
-        for tmp_key in environ:
-            tmp_value = environ[tmp_key]
-            error_string += f"{tmp_key} : {str(tmp_value)}\n"
+        error_string = "\n".join(f"{tmp_key} : {str(tmp_value)}" for tmp_key, tmp_value in environ.items())
         tmp_log.error(error_string)
 
         # return internal server error
