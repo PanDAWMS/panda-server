@@ -1,7 +1,7 @@
 import json
 import unittest
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from pandaserver.api.http_client import HttpClient, base_url, base_url_ssl
 

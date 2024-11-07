@@ -9,7 +9,6 @@ import pickle
 import socket
 import sys
 import tempfile
-from cgi import logfile
 
 import requests
 from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
@@ -113,7 +112,7 @@ class HttpClient:
         cert, verify = self._prepare_ssl(use_https)
 
         try:
-            response = requests.post(url, headers=headers, data=data, timeout=600, cert=cert, verify=verify)
+            response = requests.post(url, headers=headers, json=data, timeout=600, cert=cert, verify=verify)
             response.raise_for_status()
             return 0, response.text
         except requests.RequestException as e:

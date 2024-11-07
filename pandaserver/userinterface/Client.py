@@ -9,7 +9,6 @@ import pickle
 import socket
 import sys
 import tempfile
-from cgi import logfile
 
 import requests
 from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly

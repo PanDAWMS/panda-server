@@ -199,6 +199,7 @@ def application(environ, start_response):
     tmp_log = LogWrapper(_logger, f"PID={os.getpid()} {method_name}", seeMem=True)
     cont_length = int(environ.get("CONTENT_LENGTH", 0))
     json_body = environ.get("CONTENT_TYPE", None) == "application/json"
+    content_encoding = environ.get("HTTP_CONTENT_ENCODING")
     tmp_log.debug(f"""start content-length={cont_length} json={json_body} origin={environ.get("HTTP_ORIGIN", None)}""")
 
     start_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
@@ -275,15 +276,17 @@ def application(environ, start_response):
 
         # parse parameters for json requests
         else:
-            # json
-            body = gzip.decompress(body)
+            # decompress the body if it is gzip-encoded
+            if content_encoding == "gzip":
+                body = gzip.decompress(body)
+
+            # de-serialize the body the patch for True/False
             params = json.loads(body)
-            # patch for True/False
-            for k in list(params):
-                if params[k] is True:
-                    params[k] = "True"
-                elif params[k] is False:
-                    params[k] = "False"
+            for key in list(params):
+                if params[key] is True:
+                    params[key] = "True"
+                elif params[key] is False:
+                    params[key] = "False"
 
         if panda_config.entryVerbose:
             tmp_log.debug(f"with {str(list(params))}")
