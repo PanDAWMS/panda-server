@@ -103,8 +103,9 @@ class HttpClient:
         cert = None  # no certificate by default when no HTTS or using oidc headers
         verify = True  # validate against system CA certificates by default
 
-        if use_https and not self.oidc:
-            cert = (self.ssl_certificate, self.ssl_key)
+        if use_https:
+            if not self.oidc:
+                cert = (self.ssl_certificate, self.ssl_key)
 
             if not self.verifyHost:
                 verify = False
