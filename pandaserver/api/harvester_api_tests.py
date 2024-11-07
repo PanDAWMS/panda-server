@@ -50,7 +50,7 @@ class TestHarvesterAPI(unittest.TestCase):
         status, output = self.http_client.post(url, data)
 
         # Assert
-        expected_response = [True, "Workers updated"]
+        expected_response = [True, [True]]
         self.assertEqual(output, expected_response)
 
 
