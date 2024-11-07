@@ -17,6 +17,8 @@ from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
 baseURL = os.environ.get("PANDA_URL", "http://pandaserver.cern.ch:25080/server/panda")
 baseURLSSL = os.environ.get("PANDA_URL_SSL", "https://pandaserver.cern.ch:25443/server/panda")
 
+DEFAULT_CERT_PATH = "/etc/grid-security/certificates"
+
 # exit code
 EC_Failed = 255
 
@@ -101,18 +103,22 @@ class HttpClient:
     def _prepare_ssl(self, use_https):
         """Prepare SSL configuration based on HTTPS usage and verification settings."""
         cert = None  # no certificate by default when no HTTS or using oidc headers
-        verify = True  # validate against system CA certificates by default
+        verify = True  # validate against default system CA certificates
 
         if use_https:
+            # oidc tokens are added to the headers, we don't need to provide a certificate
             if not self.oidc:
                 cert = (self.ssl_certificate, self.ssl_key)
 
+            # the host verification has been disabled in the configuration
             if not self.verifyHost:
                 verify = False
-            elif "X509_CERT_DIR" in os.environ:
+            # there is a path to the CA certificate folder and it exists
+            elif "X509_CERT_DIR" in os.environ and os.path.exists(os.environ["X509_CERT_DIR"]):
                 verify = os.environ["X509_CERT_DIR"]
-            elif os.path.exists("/etc/grid-security/certificates"):
-                verify = "/etc/grid-security/certificates"
+            # the CA certificate folder is available in the standard location
+            elif os.path.exists(DEFAULT_CERT_PATH):
+                verify = DEFAULT_CERT_PATH
 
         return cert, verify
 
