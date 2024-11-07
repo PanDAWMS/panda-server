@@ -41,13 +41,12 @@ class TestHarvesterAPI(unittest.TestCase):
         workers = [worker]
 
         harvester_id = "harvester_mock"
-        workers = json.dumps(workers)
         data = {"harvester_id": harvester_id, "workers": workers}
 
         status, output = self.http_client.post(url, data)
 
         # Assert
-        expected_response = True, "Workers updated"
+        expected_response = [True, "Workers updated"]
         self.assertEqual(output, expected_response)
 
 

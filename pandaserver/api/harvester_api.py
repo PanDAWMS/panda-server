@@ -1,5 +1,5 @@
 import datetime
-from typing import List
+from typing import List, Tuple
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -22,7 +22,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 
 
 @request_validation(_logger, secure=True)
-def update_workers(req: PandaRequest, harvester_id: str, workers: str) -> tuple:
+def update_workers(req: PandaRequest, harvester_id: str, workers: List) -> Tuple:
     """
     Update workers
 
@@ -55,7 +55,7 @@ def update_workers(req: PandaRequest, harvester_id: str, workers: str) -> tuple:
 
 
 @request_validation(_logger, secure=True)
-def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metrics: str) -> tuple:
+def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metrics: str) -> Tuple:
     """
     Update harvester service metrics
 
@@ -89,7 +89,7 @@ def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metri
 
 
 @request_validation(_logger, secure=True)
-def add_harvester_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) -> tuple:
+def add_harvester_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) -> Tuple:
     """
     Add harvester dialog messages
 
@@ -115,7 +115,7 @@ def add_harvester_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) ->
 
 
 @request_validation(_logger, secure=True)
-def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) -> tuple:
+def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) -> Tuple:
     """
     Heartbeat for harvester. User and host are retrieved from the request object and updated in the database.
 
@@ -145,7 +145,7 @@ def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) 
     return True, ret
 
 
-def get_worker_statistics(req: PandaRequest) -> tuple:
+def get_worker_statistics(req: PandaRequest) -> Tuple:
     """
     Get statistics for all the workers managed across the Grid.
 
@@ -163,7 +163,7 @@ def get_worker_statistics(req: PandaRequest) -> tuple:
 
 
 @request_validation(_logger, secure=True)
-def report_worker_statistics(req: PandaRequest, harvester_id: str, panda_queue: str, statistics: str) -> tuple:
+def report_worker_statistics(req: PandaRequest, harvester_id: str, panda_queue: str, statistics: str) -> Tuple:
     """
     Report statistics for the workers managed by a harvester instance at a PanDA queue.
 
@@ -200,7 +200,7 @@ def report_worker_statistics(req: PandaRequest, harvester_id: str, panda_queue: 
 
 
 @request_validation(_logger, secure=True, production=True)
-def add_sweep_harvester_command(req: PandaRequest, panda_queue: str, status_list: List[str], ce_list: List[str], submission_host_list: List[str]) -> tuple:
+def add_sweep_harvester_command(req: PandaRequest, panda_queue: str, status_list: List[str], ce_list: List[str], submission_host_list: List[str]) -> Tuple:
     """
     Send a command to harvester to kill the workers in a PanDA queue, with the possibility of specifying filters by status, CE or submission host.
 
