@@ -44,7 +44,7 @@ class TestHarvesterAPI(unittest.TestCase):
         }
         workers = [worker]
 
-        harvester_id = "harvester_mock"
+        harvester_id = "test_fbarreir"
         data = {"harvester_id": harvester_id, "workers": workers}
 
         status, output = self.http_client.post(url, data)
