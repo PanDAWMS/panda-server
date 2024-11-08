@@ -1,7 +1,6 @@
 import json
 import unittest
 from datetime import datetime, timezone
-from unittest.mock import MagicMock
 
 from pandaserver.api.http_client import HttpClient, base_url, base_url_ssl
 
@@ -79,7 +78,7 @@ class TestHarvesterAPI(unittest.TestCase):
     def test_get_worker_statistics(self):
         url = f"{base_url_ssl}/get_worker_statistics"
         data = {}
-        status, output = self.http_client.post(url, data)
+        status, output = self.http_client.get(url, data)
         expected_response = [True, {}]
 
         # the statistics can't be predicted, so we just check the type of the response

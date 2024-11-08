@@ -198,7 +198,8 @@ def application(environ, start_response):
 
     tmp_log = LogWrapper(_logger, f"PID={os.getpid()} {method_name}", seeMem=True)
     cont_length = int(environ.get("CONTENT_LENGTH", 0))
-    json_body = environ.get("CONTENT_TYPE", None) == "application/json"
+    request_method = environ.get("REQUEST_METHOD", None)  # GET, POST, PUT, DELETE
+    json_body = environ.get("CONTENT_TYPE", None) == "application/json" and request_method in ["PUT", "POST"]
     content_encoding = environ.get("HTTP_CONTENT_ENCODING")
     tmp_log.debug(f"""start content-length={cont_length} json={json_body} origin={environ.get("HTTP_ORIGIN", None)}""")
 
@@ -258,9 +259,6 @@ def application(environ, start_response):
             environ["wsgi.input"] = io.BytesIO(body)
             environ["CONTENT_LENGTH"] = str(len(body))
             environ["wsgi.headers"] = EnvironHeaders(environ)
-
-            # get request method
-            request_method = environ.get("REQUEST_METHOD", None)
 
             # In the case of GET, HEAD methods we need to parse the query string list in the URL looking for parameters
             if request_method in ["GET", "HEAD"]:
