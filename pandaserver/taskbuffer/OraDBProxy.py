@@ -17625,8 +17625,8 @@ class DBProxy:
     # get stat of workers
     def getWorkerStats(self):
         comment = " /* DBProxy.getWorkerStats */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        tmpLog = LogWrapper(_logger)
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        tmpLog = LogWrapper(_logger, method_name)
         tmpLog.debug("start")
         try:
             # set autocommit on
@@ -17672,7 +17672,7 @@ class DBProxy:
         except Exception:
             # roll back
             self._rollback()
-            self.dumpErrorMessage(tmpLog, methodName)
+            self.dumpErrorMessage(tmpLog, method_name)
             return {}
 
     # send command to harvester or lock command
