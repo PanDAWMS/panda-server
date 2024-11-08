@@ -111,6 +111,7 @@ def add_harvester_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) ->
         tmp_logger.error(f"Error updating database: {dialogs}")
         return False, MESSAGE_DATABASE
 
+    tmp_logger.debug(f"Done")
     return True, ret
 
 
