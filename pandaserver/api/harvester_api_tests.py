@@ -9,12 +9,95 @@ from pandaserver.api.http_client import HttpClient, base_url, base_url_ssl
 now_utc = datetime.now(timezone.utc)
 formatted_time = now_utc.strftime("%d.%m.%y %H:%M:%S") + f".{now_utc.microsecond // 1000:02d}"
 
+HARVESTER_ID = "test_fbarreir"
+HARVESTER_HOST = "test_fbarreir.cern.ch"
+PANDA_QUEUE = "test_queue"
+
 
 class TestHarvesterAPI(unittest.TestCase):
     def setUp(self):
         # Set up a mock TaskBuffer and initialize it
-        self.mock_task_buffer = MagicMock()
         self.http_client = HttpClient()
+
+    def test_update_harvester_service_metrics(self):
+        url = f"{base_url_ssl}/update_harvester_service_metrics"
+        harvester_id = HARVESTER_ID
+        harvester_host = HARVESTER_HOST
+        creation_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+        metric = {
+            "rss_mib": 2737.36,
+            "memory_pc": 39.19,
+            "cpu_pc": 15.23,
+            "volume_data_pc": 20.0,
+            "cert_lifetime": {
+                "/data/atlpan/proxy/x509up_u25606_prod": 81,
+                "/data/atlpan/proxy/x509up_u25606_pilot": 81,
+                "/cephfs/atlpan/harvester/proxy/x509up_u25606_prod": 96,
+                "/cephfs/atlpan/harvester/proxy/x509up_u25606_pilot": 96,
+            },
+        }
+
+        metrics = [[creation_time, harvester_host, metric]]
+
+        data = {"harvester_id": harvester_id, "metrics": metrics}
+        status, output = self.http_client.post(url, data)
+
+        # Assert
+        expected_response = [True, [True]]
+        self.assertEqual(output, expected_response)
+
+    def test_add_harvester_dialogs(self):
+        url = f"{base_url_ssl}/add_harvester_dialogs"
+        harvester_id = HARVESTER_ID
+
+        dialog = {
+            "diagID": 1,
+            "moduleName": "test_module",
+            "identifier": "test identifier",
+            "creationTime": datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"),
+            "messageLevel": "INFO",
+            "diagMessage": "test message",
+        }
+
+        dialogs = [dialog]
+
+        data = {"harvester_id": harvester_id, "dialogs": dialogs}
+        status, output = self.http_client.post(url, data)
+
+        # Assert
+        expected_response = [True, True]
+        self.assertEqual(output, expected_response)
+
+    def test_harvester_heartbeat(self):
+        url = f"{base_url_ssl}/harvester_heartbeat"
+        harvester_id = HARVESTER_ID
+        data = {"harvester_id": harvester_id, "data": []}
+        status, output = self.http_client.post(url, data)
+
+        # Assert
+        expected_response = [True, "succeeded"]
+        self.assertEqual(output, expected_response)
+
+    def test_get_worker_statistics(self):
+        url = f"{base_url_ssl}/get_worker_statistics"
+        data = {}
+        status, output = self.http_client.post(url, data)
+
+        # Assert
+        expected_response = [True, [True]]
+        self.assertEqual(output, expected_response)
+
+    def test_report_worker_statistics(self):
+        url = f"{base_url_ssl}/report_worker_statistics"
+        harvester_id = HARVESTER_ID
+        panda_queue = PANDA_QUEUE
+        statistics = {"user": {"SCORE": {"running": 1, "submitted": 1}}, "managed": {"MCORE": {"running": 1, "submitted": 1}}}
+        data = {"harvester_id": harvester_id, "panda_queue": panda_queue, "statistics": statistics}
+        status, output = self.http_client.post(url, data)
+
+        # Assert
+        expected_response = [True, [True]]
+        self.assertEqual(output, expected_response)
 
     def test_update_workers(self):
         url = f"{base_url_ssl}/update_workers"
@@ -44,7 +127,7 @@ class TestHarvesterAPI(unittest.TestCase):
         }
         workers = [worker]
 
-        harvester_id = "test_fbarreir"
+        harvester_id = HARVESTER_ID
         data = {"harvester_id": harvester_id, "workers": workers}
 
         status, output = self.http_client.post(url, data)
