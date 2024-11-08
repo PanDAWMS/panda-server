@@ -26,7 +26,7 @@ def update_workers(req: PandaRequest, harvester_id: str, workers: List) -> Tuple
     """
     Update workers
 
-    **Requires secure connection.**
+    **Requires POST method and a secure connection.**
 
     Args:
         req(PandaRequest): internally generated request object
@@ -59,7 +59,7 @@ def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metri
     """
     Update harvester service metrics
 
-    **Requires secure connection.**
+    **Requires POST method and a secure connection.**
 
     Args:
         req(PandaRequest): internally generated request object
@@ -93,7 +93,7 @@ def add_harvester_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) ->
     """
     Add harvester dialog messages
 
-    **Requires secure connection.**
+    **Requires POST method and a secure connection.**
 
     Args:
         req(PandaRequest): internally generated request object
@@ -120,7 +120,7 @@ def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) 
     """
     Heartbeat for harvester. User and host are retrieved from the request object and updated in the database.
 
-    **Requires secure connection.**
+    **Requires POST method and a secure connection.**
 
     Args:
         req(PandaRequest): internally generated request object
@@ -150,6 +150,8 @@ def get_worker_statistics(req: PandaRequest) -> Tuple:
     """
     Get statistics for all the workers managed across the Grid.
 
+    Requires GET method.
+
     Args:
         req(PandaRequest): internally generated request object
 
@@ -168,7 +170,7 @@ def report_worker_statistics(req: PandaRequest, harvester_id: str, panda_queue: 
     """
     Report statistics for the workers managed by a harvester instance at a PanDA queue.
 
-    **Requires a secure connection.**
+    **Requires POST method and a secure connection.**
 
     Args:
         req (PandaRequest): Internally generated request object.
@@ -205,7 +207,7 @@ def add_sweep_harvester_command(req: PandaRequest, panda_queue: str, status_list
     """
     Send a command to harvester to kill the workers in a PanDA queue, with the possibility of specifying filters by status, CE or submission host.
 
-    **Requires secure connection and production role.**
+    **Requires POST method, secure connection and production role.**
 
     Args:
         req(PandaRequest): internally generated request object
