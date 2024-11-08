@@ -37,7 +37,8 @@ class TestHarvesterAPI(unittest.TestCase):
             },
         }
 
-        metrics = [[creation_time, harvester_host, metric]]
+        # DBProxy expects the metrics in json format and stores them directly in the database
+        metrics = [[creation_time, harvester_host, json.dumps(metric)]]
 
         data = {"harvester_id": harvester_id, "metrics": metrics}
         status, output = self.http_client.post(url, data)
@@ -82,16 +83,18 @@ class TestHarvesterAPI(unittest.TestCase):
         url = f"{base_url_ssl}/get_worker_statistics"
         data = {}
         status, output = self.http_client.post(url, data)
+        output = type(output)  # it's difficult to predict the exact statistics in the DB, so just checking the type
 
         # Assert
-        expected_response = [True, [True]]
+        expected_response = [True, dict]
         self.assertEqual(output, expected_response)
 
     def test_report_worker_statistics(self):
         url = f"{base_url_ssl}/report_worker_statistics"
         harvester_id = HARVESTER_ID
         panda_queue = PANDA_QUEUE
-        statistics = {"user": {"SCORE": {"running": 1, "submitted": 1}}, "managed": {"MCORE": {"running": 1, "submitted": 1}}}
+        # the json loads is done in DBProxy
+        statistics = json.dumps({"user": {"SCORE": {"running": 1, "submitted": 1}}, "managed": {"MCORE": {"running": 1, "submitted": 1}}})
         data = {"harvester_id": harvester_id, "panda_queue": panda_queue, "statistics": statistics}
         status, output = self.http_client.post(url, data)
 
