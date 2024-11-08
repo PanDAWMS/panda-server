@@ -102,7 +102,7 @@ class HttpClient:
         try:
             response = requests.get(url, headers=headers, params=data, timeout=600, cert=cert, verify=verify)
             response.raise_for_status()
-            return 0, response.text
+            return 0, response.json()
         except requests.RequestException as e:
             return 255, str(e)
 

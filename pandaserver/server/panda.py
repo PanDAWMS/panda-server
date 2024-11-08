@@ -199,7 +199,12 @@ def application(environ, start_response):
     tmp_log = LogWrapper(_logger, f"PID={os.getpid()} {method_name}", seeMem=True)
     cont_length = int(environ.get("CONTENT_LENGTH", 0))
     request_method = environ.get("REQUEST_METHOD", None)  # GET, POST, PUT, DELETE
+
+    # json app means the content type is application/json,
+    # while json body requires additionally to be a PUT or POST request, where the body is json encoded
+    json_app = environ.get("CONTENT_TYPE", None) == "application/json"
     json_body = environ.get("CONTENT_TYPE", None) == "application/json" and request_method in ["PUT", "POST"]
+
     content_encoding = environ.get("HTTP_CONTENT_ENCODING")
     tmp_log.debug(f"""start content-length={cont_length} json={json_body} origin={environ.get("HTTP_ORIGIN", None)}""")
 
@@ -303,7 +308,7 @@ def application(environ, start_response):
             exec_result = str(exec_result)
 
         # convert to json
-        if json_body:
+        if json_app:
             exec_result = json.dumps(exec_result)
 
     except Exception as exc:
