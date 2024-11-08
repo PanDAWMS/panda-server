@@ -83,10 +83,11 @@ class TestHarvesterAPI(unittest.TestCase):
         url = f"{base_url_ssl}/get_worker_statistics"
         data = {}
         status, output = self.http_client.post(url, data)
-        expected_response = [True, dict]
+        expected_response = [True, {}]
 
         # the statistics can't be predicted, so we just check the type of the response
-        self.assertTrue(expected_response[0] == output[0] and type(expected_response[1]) == type(output[1]))
+        self.assertEqual(expected_response[0], output[0])
+        self.assertEqual(type(expected_response[1]), type(output[1]))
 
     def test_report_worker_statistics(self):
         url = f"{base_url_ssl}/report_worker_statistics"
