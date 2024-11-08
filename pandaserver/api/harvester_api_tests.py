@@ -43,7 +43,6 @@ class TestHarvesterAPI(unittest.TestCase):
         data = {"harvester_id": harvester_id, "metrics": metrics}
         status, output = self.http_client.post(url, data)
 
-        # Assert
         expected_response = [True, [True]]
         self.assertEqual(output, expected_response)
 
@@ -65,7 +64,6 @@ class TestHarvesterAPI(unittest.TestCase):
         data = {"harvester_id": harvester_id, "dialogs": dialogs}
         status, output = self.http_client.post(url, data)
 
-        # Assert
         expected_response = [True, True]
         self.assertEqual(output, expected_response)
 
@@ -75,7 +73,6 @@ class TestHarvesterAPI(unittest.TestCase):
         data = {"harvester_id": harvester_id, "data": []}
         status, output = self.http_client.post(url, data)
 
-        # Assert
         expected_response = [True, "succeeded"]
         self.assertEqual(output, expected_response)
 
@@ -98,7 +95,6 @@ class TestHarvesterAPI(unittest.TestCase):
         data = {"harvester_id": harvester_id, "panda_queue": panda_queue, "statistics": statistics}
         status, output = self.http_client.post(url, data)
 
-        # Assert
         expected_response = [True, "OK"]
         self.assertEqual(output, expected_response)
 
@@ -135,7 +131,6 @@ class TestHarvesterAPI(unittest.TestCase):
 
         status, output = self.http_client.post(url, data)
 
-        # Assert
         expected_response = [True, [True]]
         self.assertEqual(output, expected_response)
 
