@@ -26,8 +26,11 @@ import pandaserver.taskbuffer.ErrorCode
 
 # pylint: disable=W0611
 from pandaserver.api.harvester_api import (
+    acknowledge_harvester_commands,
     add_harvester_dialogs,
     add_sweep_harvester_command,
+    get_current_worker_id,
+    get_harvester_commands,
     get_worker_statistics,
     harvester_heartbeat,
 )

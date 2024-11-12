@@ -88,6 +88,7 @@ class TestHarvesterAPI(unittest.TestCase):
         url = f"{base_url_ssl}/get_current_worker_id"
         data = {"harvester_id": HARVESTER_ID}
         status, output = self.http_client.get(url, data)
+        print(output)
 
         # the current/max worker id can't be predicted, so we just check the type of the response
         self.assertEqual(True, output[0])

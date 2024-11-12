@@ -8,8 +8,11 @@ allowed_methods += [
     "update_harvester_service_metrics",
     "add_harvester_dialogs",
     "harvester_heartbeat",
+    "get_current_worker_id",
     "get_worker_statistics",
     "report_worker_statistics",
+    "get_harvester_commands",
+    "acknowledge_harvester_commands",
     "add_sweep_harvester_command",
 ]
 
