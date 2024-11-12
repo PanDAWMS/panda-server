@@ -5,6 +5,7 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.api.common import MESSAGE_DATABASE, get_dn, request_validation
+from pandaserver.api.timed_method import TIME_OUT, TimedMethod
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
@@ -146,6 +147,25 @@ def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) 
     return True, ret
 
 
+def get_current_worker_id(req: PandaRequest, harvester_id: str) -> Tuple:
+    """
+    TODO: Validate.
+    Get the current worker ID.
+    :param req:
+    :param harvester_id:
+    :return:
+    """
+    tmp_logger = LogWrapper(_logger, f"get_current_worker_id")
+    tmp_logger.debug(f"Start")
+    current_worker_id = global_task_buffer.get_max_worker_id(harvester_id)
+    tmp_logger.debug(f"Done")
+
+    if current_worker_id is None:
+        return False, MESSAGE_DATABASE
+
+    return True, current_worker_id
+
+
 def get_worker_statistics(req: PandaRequest) -> Tuple:
     """
     Get statistics for all the workers managed across the Grid.
@@ -200,6 +220,77 @@ def report_worker_statistics(req: PandaRequest, harvester_id: str, panda_queue: 
     return_tuple = global_task_buffer.reportWorkerStats_jobtype(harvester_id, panda_queue, statistics)
     tmp_logger.debug(f"Done")
     return return_tuple
+
+
+@request_validation(_logger, secure=True, production=True)
+def get_harvester_commands(req: PandaRequest, harvester_id: str, n_commands: int, timeout: int = 30):
+    """
+    This function checks the permissions and retrieves the commands for a specified harvester instance.
+
+    TODO: Validate.
+    Args:
+        req: The request object containing the environment variables.
+        harvester_id (str): The ID of the harvester instance.
+        n_commands (int): The number of commands to retrieve.
+        timeout (int, optional): The timeout value. Defaults to 30.
+    Returns:
+        dict: The response from the job dispatcher.
+    """
+    tmp_logger = LogWrapper(_logger, f"get_harvester_commands")
+    tmp_logger.debug(f"Start")
+
+    timed_method = TimedMethod(global_task_buffer.getCommands, timeout)
+    timed_method.run(harvester_id, n_commands)
+
+    tmp_logger.debug(f"Done")
+
+    # Getting the commands timed out
+    if timed_method.result == TIME_OUT:
+        return False, TIME_OUT
+
+    # Unpack the return code and the commands
+    return_code, commands = timed_method.result
+
+    # There was an error retrieving the commands from the database
+    if return_code == -1:
+        return False, MESSAGE_DATABASE
+
+    return True, commands
+
+
+@request_validation(_logger, secure=True, production=True)
+def acknowledge_harvester_commands(req: PandaRequest, command_ids: List, timeout=30) -> Tuple:
+    """
+    This function checks the permissions, parses the command IDs from JSON, and acknowledges the list of commands.
+
+    TODO: Validate.
+    Args:
+        req: The request object containing the environment variables.
+        command_ids (str): A JSON string containing the list of command IDs to acknowledge.
+        timeout (int, optional): The timeout value. Defaults to 30.
+    Returns:
+        dict: The response from the job dispatcher.
+    """
+    tmp_logger = LogWrapper(_logger, f"acknowledge_harvester_commands")
+    tmp_logger.debug(f"Start")
+
+    timed_method = TimedMethod(global_task_buffer.ackCommands, timeout)
+    timed_method.run(command_ids)
+
+    tmp_logger.debug(f"Done")
+
+    # Make response
+    if timed_method.result == TIME_OUT:
+        return False, TIME_OUT
+
+    # Unpack the return code and the commands
+    return_code, commands = timed_method.result
+
+    # There was an error acknowledging the commands in the database
+    if return_code == -1:
+        return False, MESSAGE_DATABASE
+
+    return True, ""
 
 
 @request_validation(_logger, secure=True, production=True)

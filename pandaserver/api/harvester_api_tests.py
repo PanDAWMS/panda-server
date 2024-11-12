@@ -79,11 +79,19 @@ class TestHarvesterAPI(unittest.TestCase):
         url = f"{base_url_ssl}/get_worker_statistics"
         data = {}
         status, output = self.http_client.get(url, data)
-        expected_response = [True, {}]
 
         # the statistics can't be predicted, so we just check the type of the response
-        self.assertEqual(expected_response[0], output[0])
-        self.assertEqual(type(expected_response[1]), type(output[1]))
+        self.assertEqual(True, output[0])
+        self.assertEqual(dict, type(output[1]))
+
+    def test_get_current_worker_id(self):
+        url = f"{base_url_ssl}/get_current_worker_id"
+        data = {"harvester_id": HARVESTER_ID}
+        status, output = self.http_client.get(url, data)
+
+        # the current/max worker id can't be predicted, so we just check the type of the response
+        self.assertEqual(True, output[0])
+        self.assertEqual(int, type(output[1]))
 
     def test_report_worker_statistics(self):
         url = f"{base_url_ssl}/report_worker_statistics"
@@ -132,6 +140,30 @@ class TestHarvesterAPI(unittest.TestCase):
 
         expected_response = [True, [True]]
         self.assertEqual(output, expected_response)
+
+
+def test_get_harvester_commands(self):
+    url = f"{base_url_ssl}/get_harvester_commands"
+
+    harvester_id = HARVESTER_ID
+    n_commands = 1
+    data = {"harvester_id": harvester_id, "n_commands": n_commands}
+    status, output = self.http_client.get(url, data)
+
+    # the commands can't be predicted, so we just check the type of the response
+    self.assertEqual(True, output[0])
+    self.assertEqual(list, type(output[1]))
+
+
+def acknowledge_harvester_commands(self):
+    url = f"{base_url_ssl}/acknowledge_harvester_commands"
+    harvester_id = HARVESTER_ID
+    command_ids = [1]
+    data = {"harvester_id": harvester_id, "command_ids": command_ids}
+    status, output = self.http_client.post(url, data)
+
+    expected_response = [True, ""]
+    self.assertEqual(output, expected_response)
 
 
 # Run tests
