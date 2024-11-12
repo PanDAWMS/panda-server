@@ -61,7 +61,6 @@ def find_error_source (jobId):
     #If there are zero matches then the code will exit here
     print("Error source does not exist")
     sys.exit(1)
-
     return None, None, None
 
 #Step2: We need to check if the error source is in the error classification database table and classify the error
@@ -76,7 +75,8 @@ def classify_error(err_source, err_code, err_diag):
             _logger.info(f"Classified error ({err_source}, {err_code}, {err_diag})")
             return rule_class
     _logger.info(f"Error ({err_source}, {err_code}, {err_diag}) classified as Unknown")
-    return rule_class  # Default if no match found
+    sys.exit()
+    return None  # Default if no match found
 
 
 
