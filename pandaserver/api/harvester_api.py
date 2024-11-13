@@ -223,7 +223,7 @@ def report_worker_statistics(req: PandaRequest, harvester_id: str, panda_queue: 
 
 
 @request_validation(_logger, secure=True, production=True)
-def get_harvester_commands(req: PandaRequest, harvester_id: str, n_commands: int, timeout: int = 30):
+def get_harvester_commands(req: PandaRequest, harvester_id: str, n_commands: int, timeout: int = 30) -> Tuple:
     """
     This function checks the permissions and retrieves the commands for a specified harvester instance.
 
@@ -259,7 +259,7 @@ def get_harvester_commands(req: PandaRequest, harvester_id: str, n_commands: int
 
 
 @request_validation(_logger, secure=True, production=True)
-def acknowledge_harvester_commands(req: PandaRequest, command_ids: List, timeout=30) -> Tuple:
+def acknowledge_harvester_commands(req: PandaRequest, command_ids: List, timeout: int = 30) -> Tuple:
     """
     This function checks the permissions, parses the command IDs from JSON, and acknowledges the list of commands.
 
@@ -313,5 +313,37 @@ def add_sweep_harvester_command(req: PandaRequest, panda_queue: str, status_list
     tmp_logger = LogWrapper(_logger, f"add_sweep_harvester_command panda_queue={panda_queue}")
     tmp_logger.debug(f"Start")
     return_tuple = True, global_task_buffer.sweepPQ(panda_queue, status_list, ce_list, submission_host_list)
+    tmp_logger.debug(f"Done")
+    return return_tuple
+
+
+@request_validation(_logger, secure=True, production=True)
+def add_target_slots(req, panda_queue: str, slots: int, global_share: str = None, resource_type: str = None, expiration_date: str = None):
+    """
+    Set the number of slots for a PanDA queue.
+
+    TODO: Validate.
+    **Requires POST method, secure connection and production role.**
+
+    Args:
+        req(PandaRequest): internally generated request object
+        panda_queue(str): name of the PanDA queue
+        slots(int): number of slots to set
+        global_share(str): global share the slots apply to. Optional - by default it applies to the whole queue.
+        resource_type: resource type (SCORE, MCORE,...) the slots apply to. Optional - by default it applies to the whole queue.
+        expiration_date: the expiration date of the slots. Optional - by default it applies indefinitely.
+
+    Returns
+        str: json string with the result of the operation, typically a tuple with a boolean and a message, e.g. (False, 'Error message') or (True, '...')
+    """
+    tmp_logger = LogWrapper(_logger, f"add_target_slots panda_queue={panda_queue}")
+    tmp_logger.debug(f"Start with slots={slots}, global_share={global_share}, resource_type={resource_type}, expiration_date={expiration_date}")
+    return_code, return_message = global_task_buffer.setNumSlotsForWP(panda_queue, slots, global_share, resource_type, expiration_date)
+
+    if return_code == 0:
+        return_tuple = True, return_message
+    else:
+        return_tuple = False, return_message
+
     tmp_logger.debug(f"Done")
     return return_tuple

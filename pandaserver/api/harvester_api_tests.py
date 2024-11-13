@@ -155,7 +155,7 @@ def test_get_harvester_commands(self):
     self.assertEqual(list, type(output[1]))
 
 
-def acknowledge_harvester_commands(self):
+def test_acknowledge_harvester_commands(self):
     url = f"{base_url_ssl}/acknowledge_harvester_commands"
     harvester_id = HARVESTER_ID
     command_ids = [1]
@@ -164,6 +164,17 @@ def acknowledge_harvester_commands(self):
 
     expected_response = [True, ""]
     self.assertEqual(output, expected_response)
+
+
+def test_add_target_slots(self):
+    url = f"{base_url_ssl}/add_target_slots"
+    panda_queue = PANDA_QUEUE
+    slots = 0
+    data = {"panda_queue": panda_queue, "slots": slots}
+    status, output = self.http_client.post(url, data)
+
+    self.assertEqual(True, output[0])
+    self.assertEqual(str, type(output[1]))
 
 
 # Run tests
