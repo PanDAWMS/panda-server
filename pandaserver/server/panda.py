@@ -168,16 +168,15 @@ taskBuffer.init(
     requester=requester_id,
 )
 
-# initialize harvester_api
+
 if panda_config.nDBConnection != 0:
+    # initialize harvester_api
     init_harvester_api(taskBuffer)
 
-# initialize JobDispatcher
-if panda_config.nDBConnection != 0:
+    # initialize JobDispatcher
     jobDispatcher.init(taskBuffer)
 
-# initialize UserIF
-if panda_config.nDBConnection != 0:
+    # initialize UserIF
     userIF.init(taskBuffer)
 
 # logger
@@ -208,7 +207,10 @@ def application(environ, start_response):
     json_app = environ.get("CONTENT_TYPE", None) == "application/json"
     json_body = environ.get("CONTENT_TYPE", None) == "application/json" and request_method in ["PUT", "POST"]
 
+    # Content encoding specifies whether the body is compressed through gzip or others.
+    # No encoding usually means the body is not compressed
     content_encoding = environ.get("HTTP_CONTENT_ENCODING")
+
     tmp_log.debug(f"""start content-length={cont_length} json={json_body} origin={environ.get("HTTP_ORIGIN", None)}""")
 
     start_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
@@ -310,7 +312,7 @@ def application(environ, start_response):
         if exec_result in [True, False]:
             exec_result = str(exec_result)
 
-        # convert to json
+        # convert the response to json when specified through CONTENT_TYPE="application/json"
         if json_app:
             exec_result = json.dumps(exec_result)
 
