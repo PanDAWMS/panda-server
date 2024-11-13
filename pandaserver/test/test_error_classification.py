@@ -1,3 +1,14 @@
+
+
+
+# Standalone script for first testing of error classification rules in the database
+
+import sys
+import re
+
+from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.thread_utils import GenericThread
+
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 from pandaserver.taskbuffer.JobSpec import JobSpec
@@ -52,8 +63,6 @@ def find_error_source (jobId):
                 return error_code, error_diag, error_source
     #If there are zero matches then the code will exit here
     print("Error source does not exist")
-    sys.exit(1)
-
     return None, None, None
 
 #Step2: We need to check if the error source is in the error classification database table and classify the error
@@ -61,7 +70,7 @@ def classify_error(err_source, err_code, err_diag):
     sql = "SELECT error_source, error_code, error_diag, error_class FROM ATLAS_PANDA.ERROR_CLASSIFICATION"
     var_map = []
     status, results = taskBuffer.querySQLS(sql, var_map)
-    print(f"sql results: {results}")
+    #print(f"sql results: {results}")
     for rule in results:
         rule_source, rule_code, rule_diag, rule_class = rule
 
@@ -71,7 +80,7 @@ def classify_error(err_source, err_code, err_diag):
             _logger.info(f"Classified error ({err_source}, {err_code}, {err_diag})")
             return rule_class
     _logger.info(f"Error ({err_source}, {err_code}, {err_diag}) classified as Unknown")
-    sys.exit()
+    print("Error class does not exist")
     return None,  # Default if no match found
 
 
@@ -99,4 +108,5 @@ if __name__ == "__main__":
     #Classify the error 
     class_error = classify_error(err_source, err_code, err_diag)
 
+    print(f"Should show error classification here")
     print(f"Classification error: {class_error}")
