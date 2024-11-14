@@ -16,7 +16,7 @@ try:
 except ImportError:
     pass
 
-_logger = PandaLogger().getLogger("harvester_api")
+_logger = PandaLogger().getLogger("idds_api")
 
 
 # json decoder for idds constants
