@@ -258,14 +258,14 @@ def parse_json_parameters(body, content_encoding):
     return params
 
 
-def parse_parameters(api_module, json_body, environ, body, request_method):
+def parse_parameters(api_module, json_body, content_encoding, environ, body, request_method):
     # parse parameters for non-json requests
     if not json_body:
         return parse_qsl_parameters(environ, body, request_method)
 
     # parse parameters for json requests with the new refactored API
     if is_new_api(api_module):
-        return parse_json_parameters(body)
+        return parse_json_parameters(body, content_encoding)
 
     # parse parameters for json requests with the legacy API
     return parse_json_parameters_legacy(body)
@@ -340,7 +340,7 @@ def application(environ, start_response):
         body = read_body(environ, cont_length)
 
         # parse the parameters
-        params = parse_parameters(api_module, json_body, environ, body, request_method)
+        params = parse_parameters(api_module, json_body, content_encoding, environ, body, request_method)
 
         if panda_config.entryVerbose:
             tmp_log.debug(f"with {str(list(params))}")
