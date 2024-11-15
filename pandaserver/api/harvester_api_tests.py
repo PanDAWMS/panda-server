@@ -2,7 +2,7 @@ import json
 import unittest
 from datetime import datetime, timezone
 
-from pandaserver.api.http_client import HttpClient, base_url, base_url_ssl
+from pandaserver.api.http_client import HttpClient, api_url, api_url_ssl
 
 # Get current UTC time with microseconds. The format needs to be compatible with the one used in the database
 now_utc = datetime.now(timezone.utc)
@@ -19,7 +19,7 @@ class TestHarvesterAPI(unittest.TestCase):
         self.http_client = HttpClient()
 
     def test_update_harvester_service_metrics(self):
-        url = f"{base_url_ssl}/update_harvester_service_metrics"
+        url = f"{api_url_ssl}/harvester/update_harvester_service_metrics"
         harvester_id = HARVESTER_ID
         harvester_host = HARVESTER_HOST
         creation_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
@@ -46,7 +46,7 @@ class TestHarvesterAPI(unittest.TestCase):
         self.assertEqual(output, expected_response)
 
     def test_add_harvester_dialogs(self):
-        url = f"{base_url_ssl}/add_harvester_dialogs"
+        url = f"{api_url_ssl}/harvester/add_harvester_dialogs"
         harvester_id = HARVESTER_ID
 
         dialog = {
@@ -67,7 +67,7 @@ class TestHarvesterAPI(unittest.TestCase):
         self.assertEqual(output, expected_response)
 
     def test_harvester_heartbeat(self):
-        url = f"{base_url_ssl}/harvester_heartbeat"
+        url = f"{api_url_ssl}/harvester/harvester_heartbeat"
         harvester_id = HARVESTER_ID
         data = {"harvester_id": harvester_id, "data": []}
         status, output = self.http_client.post(url, data)
@@ -76,7 +76,7 @@ class TestHarvesterAPI(unittest.TestCase):
         self.assertEqual(output, expected_response)
 
     def test_get_worker_statistics(self):
-        url = f"{base_url_ssl}/get_worker_statistics"
+        url = f"{api_url_ssl}/harvester/get_worker_statistics"
         data = {}
         status, output = self.http_client.get(url, data)
 
@@ -85,7 +85,7 @@ class TestHarvesterAPI(unittest.TestCase):
         self.assertEqual(dict, type(output[1]))
 
     def test_get_current_worker_id(self):
-        url = f"{base_url_ssl}/get_current_worker_id"
+        url = f"{api_url_ssl}/harvester/get_current_worker_id"
         data = {"harvester_id": HARVESTER_ID}
         status, output = self.http_client.get(url, data)
 
@@ -94,7 +94,7 @@ class TestHarvesterAPI(unittest.TestCase):
         self.assertEqual(int, type(output[1]))
 
     def test_report_worker_statistics(self):
-        url = f"{base_url_ssl}/report_worker_statistics"
+        url = f"{api_url_ssl}/harvester/report_worker_statistics"
         harvester_id = HARVESTER_ID
         panda_queue = PANDA_QUEUE
         # the json loads is done in DBProxy
@@ -106,7 +106,7 @@ class TestHarvesterAPI(unittest.TestCase):
         self.assertEqual(output, expected_response)
 
     def test_update_workers(self):
-        url = f"{base_url_ssl}/update_workers"
+        url = f"{api_url_ssl}/harvester/update_workers"
         worker = {
             "workerID": 1,
             "batchID": 1,
@@ -142,7 +142,7 @@ class TestHarvesterAPI(unittest.TestCase):
         self.assertEqual(output, expected_response)
 
     def test_get_harvester_commands(self):
-        url = f"{base_url_ssl}/get_harvester_commands"
+        url = f"{api_url_ssl}/harvester/get_harvester_commands"
 
         harvester_id = HARVESTER_ID
         n_commands = 1
@@ -154,7 +154,7 @@ class TestHarvesterAPI(unittest.TestCase):
         self.assertEqual(list, type(output[1]))
 
     def test_acknowledge_harvester_commands(self):
-        url = f"{base_url_ssl}/acknowledge_harvester_commands"
+        url = f"{api_url_ssl}/harvester/acknowledge_harvester_commands"
         command_ids = [1]
         data = {"command_ids": command_ids}
         status, output = self.http_client.post(url, data)
@@ -163,7 +163,7 @@ class TestHarvesterAPI(unittest.TestCase):
         self.assertEqual(output, expected_response)
 
     def test_add_target_slots(self):
-        url = f"{base_url_ssl}/add_target_slots"
+        url = f"{api_url_ssl}/harvester/add_target_slots"
         panda_queue = PANDA_QUEUE
         slots = 0
         data = {"panda_queue": panda_queue, "slots": slots}
