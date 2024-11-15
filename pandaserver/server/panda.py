@@ -284,7 +284,7 @@ def application(environ, start_response):
         api_module = environ["SCRIPT_NAME"].split("/")[-2]
         method_name = environ["SCRIPT_NAME"].split("/")[-1]
 
-    tmp_log = LogWrapper(_logger, f"PID={os.getpid()} {method_name}", seeMem=True)
+    tmp_log = LogWrapper(_logger, f"PID={os.getpid()} {api_module} {method_name}", seeMem=True)
     cont_length = int(environ.get("CONTENT_LENGTH", 0))
     request_method = environ.get("REQUEST_METHOD", None)  # GET, POST, PUT, DELETE
 
@@ -308,7 +308,7 @@ def application(environ, start_response):
         or (api_module == "harvester" and method_name not in harvester_api_methods)
         or (api_module not in ["panda", "harvester"])
     ):
-        error_message = f"{method_name} is forbidden"
+        error_message = f"method {method_name} is forbidden"
         tmp_log.error(error_message)
         start_response("403 Forbidden", [("Content-Type", "text/plain")])
         return [f"ERROR : {error_message}".encode()]
