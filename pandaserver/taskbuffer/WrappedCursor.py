@@ -424,7 +424,7 @@ class WrappedCursor(object):
         if sql is None:
             sql = self.statement
         sql = self.change_schema(sql)
-        if self.alt_executemany:
+        if self.backend == "postgres":
             sql, vars_list = convert_query_in_printf_format(sql, params, self.sql_conv_map)
             self.alt_executemany(self.cur, sql, vars_list)
         else:
