@@ -139,8 +139,7 @@ def convert_query_in_printf_format(sql, var_dict_list, sql_conv_map):
         for item in items:
             if item not in var_dict:
                 raise KeyError(f"{item} is missing in SQL parameters")
-            if item not in params:
-                params.append(var_dict[item])
+            params.append(var_dict[item])
         params_list.append(params)
     # using the printf style syntax
     sql = re.sub(":[^ $,)\+\-]+", "%s", sql)
