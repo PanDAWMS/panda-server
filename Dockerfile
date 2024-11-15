@@ -20,8 +20,6 @@ RUN mkdir /tmp/python && cd /tmp/python && \
     echo /usr/local/lib > /etc/ld.so.conf.d/local.conf && ldconfig && \
     cd / && rm -rf /tmp/pyton
 
-#     ./configure --enable-shared --enable-optimizations --with-lto && \
-
 # install postgres
 RUN yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
 RUN yum install --nogpgcheck -y postgresql16
