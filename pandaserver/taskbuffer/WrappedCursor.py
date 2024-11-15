@@ -17,11 +17,15 @@ _logger = PandaLogger().getLogger("WrappedCursor")
 
 
 # convert SQL and parameters in_printf format
-def convert_query_in_printf_format(sql, var_dict, sql_conv_map):
+def convert_query_in_printf_format(sql, var_dict_list, sql_conv_map):
     if sql in sql_conv_map:
         sql = sql_conv_map[sql]
     else:
         old_sql = sql
+        if var_dict_list:
+            var_dict = var_dict_list[0]
+        else:
+            var_dict = {}
         # %
         sql = re.sub(r"%", r"%%", sql)
         # current date except for being used for interval
@@ -128,16 +132,19 @@ def convert_query_in_printf_format(sql, var_dict, sql_conv_map):
             # cache
             sql_conv_map[old_sql] = sql
     # extract placeholders
-    paramList = []
+    params_list = []
     items = re.findall(r":[^ $,)\+\-\n]+", sql)
-    for item in items:
-        if item not in var_dict:
-            raise KeyError(f"{item} is missing in SQL parameters")
-        if item not in paramList:
-            paramList.append(var_dict[item])
+    for var_dict in var_dict_list:
+        params = []
+        for item in items:
+            if item not in var_dict:
+                raise KeyError(f"{item} is missing in SQL parameters")
+            if item not in paramList:
+                params.append(var_dict[item])
+        params_list.append(params)
     # using the printf style syntax
     sql = re.sub(":[^ $,)\+\-]+", "%s", sql)
-    return sql, paramList
+    return sql, param_list
 
 
 # proxy
@@ -234,7 +241,8 @@ class WrappedCursor(object):
         elif self.backend == "postgres":
             if self.dump:
                 _logger.debug(f"OLD: {sql} {str(varDict)}")
-            sql, varList = convert_query_in_printf_format(sql, varDict, self.sql_conv_map)
+            sql, vars_list = convert_query_in_printf_format(sql, [varDict], self.sql_conv_map)
+            varList = vars_list[0]
             if self.dump:
                 _logger.debug(f"NEW: {sql} {str(varList)}")
             ret = cur.execute(sql, varList)
@@ -420,9 +428,9 @@ class WrappedCursor(object):
             sql = self.statement
         sql = self.change_schema(sql)
         if self.alt_executemany:
-            self.alt_executemany(self.cur, sql, params)
+            sql, vars_list = convert_query_in_printf_format(sql, params, self.sql_conv_map)
+            self.alt_executemany(self.cur, sql, vars_list)
         else:
-            sql = re.sub("\n", " ", sql)
             self.cur.executemany(sql, params)
 
     # get_description
