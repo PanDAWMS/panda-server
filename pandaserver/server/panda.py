@@ -303,7 +303,11 @@ def application(environ, start_response):
     return_type = None
 
     # check method name is allowed, otherwise return 403
-    if (api_module == "server" and method_name not in allowed_methods) or (api_module == "harvester" and method_name not in harvester_api_methods):
+    if (
+        (api_module == "panda" and method_name not in allowed_methods)
+        or (api_module == "harvester" and method_name not in harvester_api_methods)
+        or (api_module not in ["panda", "harvester"])
+    ):
         error_message = f"{method_name} is forbidden"
         tmp_log.error(error_message)
         start_response("403 Forbidden", [("Content-Type", "text/plain")])
@@ -316,7 +320,7 @@ def application(environ, start_response):
         else:
             tmp_method = globals()[method_name]
     except Exception:
-        error_message = f"{method_name} is undefined"
+        error_message = f"method {method_name} is undefined"
         tmp_log.error(error_message)
         start_response("500 INTERNAL SERVER ERROR", [("Content-Type", "text/plain")])
         return ["ERROR : {error_message}".encode()]
