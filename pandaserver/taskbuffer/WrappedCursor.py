@@ -159,6 +159,13 @@ class WrappedCursor(object):
             self.dump = False
         # SQL conversion map
         self.sql_conv_map = {}
+        # executemany
+        if self.backend == "postgres":
+            from psycopg2.extras import execute_batch
+
+            self.alt_executemany = execute_batch
+        else:
+            self.alt_executemany = None
 
     # __iter__
     def __iter__(self):
@@ -412,11 +419,10 @@ class WrappedCursor(object):
         if sql is None:
             sql = self.statement
         sql = self.change_schema(sql)
-        if self.backend == "oracle":
-            self.cur.executemany(sql, params)
+        if self.alt_executemany:
+            self.alt_executemany(self.cur, sql, params)
         else:
-            for paramsItem in params:
-                self.execute(sql, paramsItem)
+            self.cur.executemany(sql, params)
 
     # get_description
     @property
