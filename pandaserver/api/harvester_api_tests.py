@@ -155,9 +155,8 @@ class TestHarvesterAPI(unittest.TestCase):
 
     def test_acknowledge_harvester_commands(self):
         url = f"{base_url_ssl}/acknowledge_harvester_commands"
-        harvester_id = HARVESTER_ID
         command_ids = [1]
-        data = {"harvester_id": harvester_id, "command_ids": command_ids}
+        data = {"command_ids": command_ids}
         status, output = self.http_client.post(url, data)
 
         expected_response = [True, ""]
