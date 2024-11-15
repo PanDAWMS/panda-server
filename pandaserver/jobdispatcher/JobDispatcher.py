@@ -163,7 +163,6 @@ class JobDispatcher:
     ):
         t_getJob_start = time.time()
         jobs = []
-        useProxyCache = False
         try:
             tmpNumJobs = int(nJobs)
         except Exception:
