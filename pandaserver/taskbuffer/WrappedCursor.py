@@ -422,7 +422,6 @@ class WrappedCursor(object):
         if self.alt_executemany:
             self.alt_executemany(self.cur, sql, params)
         else:
-            sql = re.sub(r"\n", r" ", sql)
             self.cur.executemany(sql, params)
 
     # get_description
