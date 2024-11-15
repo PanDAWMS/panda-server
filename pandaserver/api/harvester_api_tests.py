@@ -141,40 +141,37 @@ class TestHarvesterAPI(unittest.TestCase):
         expected_response = [True, [True]]
         self.assertEqual(output, expected_response)
 
+    def test_get_harvester_commands(self):
+        url = f"{base_url_ssl}/get_harvester_commands"
 
-def test_get_harvester_commands(self):
-    url = f"{base_url_ssl}/get_harvester_commands"
+        harvester_id = HARVESTER_ID
+        n_commands = 1
+        data = {"harvester_id": harvester_id, "n_commands": n_commands}
+        status, output = self.http_client.get(url, data)
 
-    harvester_id = HARVESTER_ID
-    n_commands = 1
-    data = {"harvester_id": harvester_id, "n_commands": n_commands}
-    status, output = self.http_client.get(url, data)
+        # the commands can't be predicted, so we just check the type of the response
+        self.assertEqual(True, output[0])
+        self.assertEqual(list, type(output[1]))
 
-    # the commands can't be predicted, so we just check the type of the response
-    self.assertEqual(True, output[0])
-    self.assertEqual(list, type(output[1]))
+    def test_acknowledge_harvester_commands(self):
+        url = f"{base_url_ssl}/acknowledge_harvester_commands"
+        harvester_id = HARVESTER_ID
+        command_ids = [1]
+        data = {"harvester_id": harvester_id, "command_ids": command_ids}
+        status, output = self.http_client.post(url, data)
 
+        expected_response = [True, ""]
+        self.assertEqual(output, expected_response)
 
-def test_acknowledge_harvester_commands(self):
-    url = f"{base_url_ssl}/acknowledge_harvester_commands"
-    harvester_id = HARVESTER_ID
-    command_ids = [1]
-    data = {"harvester_id": harvester_id, "command_ids": command_ids}
-    status, output = self.http_client.post(url, data)
+    def test_add_target_slots(self):
+        url = f"{base_url_ssl}/add_target_slots"
+        panda_queue = PANDA_QUEUE
+        slots = 0
+        data = {"panda_queue": panda_queue, "slots": slots}
+        status, output = self.http_client.post(url, data)
 
-    expected_response = [True, ""]
-    self.assertEqual(output, expected_response)
-
-
-def test_add_target_slots(self):
-    url = f"{base_url_ssl}/add_target_slots"
-    panda_queue = PANDA_QUEUE
-    slots = 0
-    data = {"panda_queue": panda_queue, "slots": slots}
-    status, output = self.http_client.post(url, data)
-
-    self.assertEqual(True, output[0])
-    self.assertEqual(str, type(output[1]))
+        self.assertEqual(True, output[0])
+        self.assertEqual(str, type(output[1]))
 
 
 # Run tests

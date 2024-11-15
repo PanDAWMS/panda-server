@@ -7,6 +7,7 @@ entry point
 
 import datetime
 import gzip
+import inspect
 import io
 import json
 import os
@@ -23,6 +24,7 @@ from werkzeug.datastructures import CombinedMultiDict, EnvironHeaders
 from werkzeug.formparser import parse_form_data
 
 import pandaserver.taskbuffer.ErrorCode
+from pandaserver.api import harvester_api
 
 # pylint: disable=W0611
 from pandaserver.api.harvester_api import (
@@ -154,6 +156,8 @@ from pandaserver.userinterface.UserIF import (
     updateWorkers,
     userIF,
 )
+
+allowed_methods += [name for name, obj in inspect.getmembers(harvester_api, inspect.isfunction)]
 
 # initialize oracledb using dummy connection
 initializer.init()
