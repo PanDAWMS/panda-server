@@ -284,7 +284,7 @@ def acknowledge_harvester_commands(req: PandaRequest, command_ids: List, timeout
         return False, TIME_OUT
 
     # Unpack the return code and the commands
-    return_code, commands = timed_method.result
+    return_code = timed_method.result
 
     # There was an error acknowledging the commands in the database
     if return_code == -1:
