@@ -20,10 +20,9 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice.adder_gen import AdderGen
-from pandaserver.jobdispatcher import DispatcherUtils, Protocol
+from pandaserver.jobdispatcher import Protocol
 from pandaserver.proxycache import panda_proxy_cache, token_cache
 from pandaserver.srvcore import CoreUtils
-from pandaserver.taskbuffer import EventServiceUtils
 
 # logger
 _logger = PandaLogger().getLogger("JobDispatcher")
@@ -164,7 +163,6 @@ class JobDispatcher:
     ):
         t_getJob_start = time.time()
         jobs = []
-        useProxyCache = False
         try:
             tmpNumJobs = int(nJobs)
         except Exception:
@@ -237,55 +235,6 @@ class JobDispatcher:
                     response.appendNode("secrets", secrets_map[tmpJob.prodUserName])
                 if panda_config.pilot_secrets in secrets_map and secrets_map[panda_config.pilot_secrets]:
                     response.appendNode("pilotSecrets", secrets_map[panda_config.pilot_secrets])
-                # check if proxy cache is used
-                if hasattr(panda_config, "useProxyCache") and panda_config.useProxyCache is True:
-                    self.specialDispatchParams.update()
-                    if "proxyCacheSites" not in self.specialDispatchParams:
-                        proxyCacheSites = {}
-                    else:
-                        proxyCacheSites = self.specialDispatchParams["proxyCacheSites"]
-                    if siteName in proxyCacheSites:
-                        useProxyCache = True
-                # set proxy
-                if useProxyCache:
-                    try:
-                        #  get compact
-                        compactDN = self.taskBuffer.cleanUserID(realDN)
-                        # check permission
-                        self.specialDispatchParams.update()
-                        if "allowProxy" not in self.specialDispatchParams:
-                            allowProxy = []
-                        else:
-                            allowProxy = self.specialDispatchParams["allowProxy"]
-                        if compactDN not in allowProxy:
-                            tmpLog.warning(f"{siteName} {node} '{compactDN}' no permission to retrieve user proxy")
-                        else:
-                            if useProxyCache:
-                                tmpStat, tmpOut = self.set_user_proxy(
-                                    response,
-                                    proxyCacheSites[siteName]["dn"],
-                                    proxyCacheSites[siteName]["role"],
-                                )
-                            else:
-                                tmpStat, tmpOut = self.set_user_proxy(response)
-                            if not tmpStat:
-                                tmpLog.warning(f"{siteName} {node} failed to get user proxy : {tmpOut}")
-                    except Exception as e:
-                        tmpLog.warning(f"{siteName} {node} failed to get user proxy with {str(e)}")
-                # panda proxy
-                if (
-                    "pandaProxySites" in self.specialDispatchParams
-                    and siteName in self.specialDispatchParams["pandaProxySites"]
-                    and (EventServiceUtils.isEventServiceJob(tmpJob) or EventServiceUtils.isEventServiceMerge(tmpJob))
-                ):
-                    # get secret key
-                    tmpSecretKey, tmpErrMsg = DispatcherUtils.getSecretKey(tmpJob.PandaID)
-                    if tmpSecretKey is None:
-                        tmpLog.warning(f"PandaID={tmpJob.PandaID} site={siteName} failed to get panda proxy secret key : {tmpErrMsg}")
-                    else:
-                        # set secret key
-                        tmpLog.debug(f"PandaID={tmpJob.PandaID} set key={tmpSecretKey}")
-                        response.setPandaProxySecretKey(tmpSecretKey)
                 # add
                 responseList.append(response.data)
             # make response for bulk
