@@ -19628,7 +19628,7 @@ class DBProxy:
             self.cur.execute(sql_delete + comment)
             tmp_log.debug("done cleaning up SW_TAGS table")
 
-            sql_insert = "INSERT INTO ATLAS_PANDA.SW_TAGS (panda_queue, data, last_update)" "VALUES (:pq, :data, :last_update)"
+            sql_insert = "INSERT INTO ATLAS_PANDA.SW_TAGS (panda_queue, data, last_update) VALUES (:pq, :data, :last_update)"
             tmp_log.debug("start filling up SW_TAGS table")
             for shard in create_shards(var_map_tags, 100):  # insert in batches of 100 rows
                 self.cur.executemany(sql_insert + comment, shard)
