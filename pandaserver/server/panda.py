@@ -24,7 +24,7 @@ from werkzeug.datastructures import CombinedMultiDict, EnvironHeaders
 from werkzeug.formparser import parse_form_data
 
 import pandaserver.taskbuffer.ErrorCode
-from pandaserver.api import harvester_api
+from pandaserver.api.v1 import harvester_api as harvester_api_v1
 from pandaserver.config import panda_config
 
 # pylint: disable=W0611
@@ -141,7 +141,7 @@ from pandaserver.userinterface.UserIF import (
 )
 
 # generate the allowed methods dynamically with all function names present in harvester_api
-harvester_api_methods = [name for name, obj in inspect.getmembers(harvester_api, inspect.isfunction)]
+harvester_api_methods = [name for name, obj in inspect.getmembers(harvester_api_v1, inspect.isfunction)]
 
 # initialize oracledb using dummy connection
 initializer.init()
@@ -156,10 +156,9 @@ taskBuffer.init(
     requester=requester_id,
 )
 
-
 if panda_config.nDBConnection != 0:
-    # initialize harvester_api
-    harvester_api.init_task_buffer(taskBuffer)
+    # initialize harvester_api_v1
+    harvester_api_v1.init_task_buffer(taskBuffer)
 
     # initialize JobDispatcher
     jobDispatcher.init(taskBuffer)
@@ -272,19 +271,65 @@ def parse_parameters(api_module, json_body, content_encoding, environ, body, req
 
 
 def is_new_api(api_module):
-    return api_module in ["harvester"]
+    return api_module != "panda"
+
+
+def parse_script_name(environ):
+    method_name = ""
+    api_module = ""
+    version = "v0"
+
+    if "SCRIPT_NAME" in environ:
+        script_name = environ["SCRIPT_NAME"]
+        fields = script_name.split("/")
+
+        # Legacy API: /server/panda/<method>
+        if script_name.startswith("/server/panda/") and len(fields) == 3:
+            api_module = "panda"
+            method_name = fields[-1]
+
+        # Refactored API: /api/<version>/<module>/<method>
+        elif script_name.startswith("/api/") and len(fields) == 4:
+            method_name = fields[-1]
+            api_module = fields[-2]
+            version = fields[-3]
+
+    return method_name, api_module, version
+
+
+def module_mapping(version, module):
+    mapping = {"v1": {"harvester": harvester_api_v1}}
+    try:
+        return mapping[module][version]
+    except KeyError:
+        return None
+
+
+def validate_method(method_name, api_module, version):
+    valid_modules = ["panda", "harvester"]
+
+    # The module is not valid
+    if api_module not in valid_modules:
+        return False
+
+    # We are in the legacy API and the method is not in the allowed list
+    if api_module == "panda" and method_name not in allowed_methods:
+        return False
+
+    # We are in the refactored API and the method is not in the allowed list
+    # TODO: generalize for multiple modules and versions
+    if api_module == "harvester" and method_name not in harvester_api_methods:
+        return False
+
+    return True
 
 
 # This is the starting point for all WSGI requests
 def application(environ, start_response):
-    # get method name from environment
-    method_name = ""
-    api_module = ""
-    if "SCRIPT_NAME" in environ:
-        api_module = environ["SCRIPT_NAME"].split("/")[-2]
-        method_name = environ["SCRIPT_NAME"].split("/")[-1]
+    # Parse the script name to retrieve method, module and version
+    method_name, api_module, version = parse_script_name(environ)
 
-    tmp_log = LogWrapper(_logger, f"PID={os.getpid()} {api_module} {method_name}", seeMem=True)
+    tmp_log = LogWrapper(_logger, f"PID={os.getpid()} {api_module} {method_name} {version}", seeMem=True)
     cont_length = int(environ.get("CONTENT_LENGTH", 0))
     request_method = environ.get("REQUEST_METHOD", None)  # GET, POST, PUT, DELETE
 
@@ -303,11 +348,7 @@ def application(environ, start_response):
     return_type = None
 
     # check method name is allowed, otherwise return 403
-    if (
-        (api_module == "panda" and method_name not in allowed_methods)
-        or (api_module == "harvester" and method_name not in harvester_api_methods)
-        or (api_module not in ["panda", "harvester"])
-    ):
+    if not validate_method(method_name, api_module, version):
         error_message = f"method {method_name} is forbidden"
         tmp_log.error(error_message)
         start_response("403 Forbidden", [("Content-Type", "text/plain")])
@@ -316,11 +357,12 @@ def application(environ, start_response):
     # get the method object to be executed
     try:
         if is_new_api(api_module):
-            tmp_method = getattr(harvester_api, method_name)
+            module = module_mapping(version, api_module)
+            tmp_method = getattr(module, method_name)
         else:
             tmp_method = globals()[method_name]
     except Exception:
-        error_message = f"method {method_name} is undefined"
+        error_message = f"method {method_name} is undefined in {api_module} {version}"
         tmp_log.error(error_message)
         start_response("500 INTERNAL SERVER ERROR", [("Content-Type", "text/plain")])
         return ["ERROR : {error_message}".encode()]
