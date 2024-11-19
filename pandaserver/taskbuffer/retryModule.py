@@ -5,6 +5,15 @@ import traceback
 from re import error as ReError
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.thread_utils import GenericThread
+
+from pandaserver.config import panda_config
+from pandaserver.taskbuffer.TaskBuffer import taskBuffer
+
+# instantiate task buffer
+requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
+taskBuffer.init(panda_config.dbhost, panda_config.dbpasswd, nDBConnection=1, requester=requester_id)
+
 
 # logger
 _logger = PandaLogger().getLogger("RetrialModule")
@@ -451,3 +460,68 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
 
     except KeyError as e:
         _logger.debug(f"No retrial rules to apply for jobID {jobID}, attemptNr {attemptNr}, failed with {errors}. (Exception {e})")
+
+# List of errors
+error_code_source = ["pilotError", "exeError", "supError", "ddmError", "brokerageError", "jobDispatcherError", "taskBufferError"]
+
+def find_error_source(job_id):
+    job_spec = taskBuffer.peekJobs([job_id])[0]
+    job_errors = []
+    # Check that job_id is available
+    if not job_spec:
+        print(f"Job with ID {job_id} not found")
+        return
+    else:
+        print(f"Got job with ID {job_spec.PandaID} and status {job_spec.jobStatus}")
+        for source in error_code_source:
+            error_code = getattr(job_spec, source + "Code", None)  # 1099
+            error_diag = getattr(job_spec, source + "Diag", None)  # "Test error message"
+            error_source = source + "Code"  # pilotErrorCode
+            if error_code:
+                print(f"-------")  # error name ddmErrorCode
+                print(f"Error source: {error_source}")  # error name ddmErrorCode
+                print(f"Error code: {error_code}")  # The error code
+                print(f"Error diag: {error_diag}")  # The message
+                job_errors.append((error_code, error_diag, error_source))
+
+    if job_errors:
+        print(f"Job has following error codes: {job_errors}")
+    else:
+        print("Job has no error codes")
+
+    return job_errors
+
+def classify_error(job_errors):
+
+    # Get the error classification rules
+    sql = "SELECT error_source, error_code, error_diag, error_class FROM ATLAS_PANDA.ERROR_CLASSIFICATION"
+    var_map = []
+    status, rules = taskBuffer.querySQLS(sql, var_map)
+
+    # Iterate job errors and rules to find a match
+    for job_error in job_errors:
+        err_code, err_diag, err_source = job_error
+        for rule in rules:
+            rule_source, rule_code, rule_diag, rule_class = rule
+
+            if (
+                (rule_source and err_source is not None and rule_source == err_source)
+                and (rule_code and err_code is not None and rule_code == err_code)
+                and (rule_diag and err_diag is not None and safe_match(rule_diag, err_diag))
+            ):
+                print(f"The job was classified with error ({err_source}, {err_code}, {err_diag}) as {rule_class}")
+                return rule_class
+
+    print(f"The job with {job_errors} did not match any rule and could not be classified")
+    return "Unknown"  # Default if no match found
+
+
+def processing_job_failure:
+    # Run the retry module on the job
+    apply_retrial_rules(task_buffer, jobID, errors, attemptNr)
+
+    # Find the error source and getting the code, diag, and source
+    job_errors = find_error_source(job_id)
+
+    # Classify the error
+    class_error = classify_error(job_errors)
