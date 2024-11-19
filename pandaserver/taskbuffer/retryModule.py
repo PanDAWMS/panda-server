@@ -516,7 +516,7 @@ def classify_error(job_errors):
     return "Unknown"  # Default if no match found
 
 
-def processing_job_failure:
+def processing_job_failure(task_buffer, jobID, errors, attemptNr):
     # Run the retry module on the job
     apply_retrial_rules(task_buffer, jobID, errors, attemptNr)
 
@@ -525,3 +525,4 @@ def processing_job_failure:
 
     # Classify the error
     class_error = classify_error(job_errors)
+
