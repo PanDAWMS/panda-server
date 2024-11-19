@@ -464,12 +464,12 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
 # List of errors
 error_code_source = ["pilotError", "exeError", "supError", "ddmError", "brokerageError", "jobDispatcherError", "taskBufferError"]
 
-def find_error_source(job_id):
-    job_spec = taskBuffer.peekJobs([job_id])[0]
+def find_error_source(jobID):
+    job_spec = taskBuffer.peekJobs([jobID])[0]
     job_errors = []
-    # Check that job_id is available
+    # Check that jobID is available
     if not job_spec:
-        print(f"Job with ID {job_id} not found")
+        print(f"Job with ID {jobID} not found")
         return
     else:
         print(f"Got job with ID {job_spec.PandaID} and status {job_spec.jobStatus}")
@@ -521,7 +521,7 @@ def processing_job_failure:
     apply_retrial_rules(task_buffer, jobID, errors, attemptNr)
 
     # Find the error source and getting the code, diag, and source
-    job_errors = find_error_source(job_id)
+    job_errors = find_error_source(jobID)
 
     # Classify the error
     class_error = classify_error(job_errors)
