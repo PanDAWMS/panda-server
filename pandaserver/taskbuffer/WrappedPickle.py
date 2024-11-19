@@ -1,28 +1,16 @@
 import decimal
+import pickle
 import sys
+from copyreg import _reconstructor as map__reconstructor
 from io import BytesIO
 
-try:
-    # python 2
-    import cPickle as pickle
-    from copy_reg import _reconstructor as map__reconstructor
-except ImportError:
-    # python 3
-    import pickle
-    from copyreg import _reconstructor as map__reconstructor
 
-# define Unpickler
-if pickle.__name__ == "cPickle":
-    # python 2
-    Common_Unpickler = pickle.Unpickler
-else:
-    # python 3
-    class Common_Unpickler(pickle.Unpickler):
-        def __setattr__(self, key, value):
-            if key == "find_global":
-                pickle.Unpickler.__setattr__(self, "find_class", value)
-            else:
-                pickle.Unpickler.__setattr__(self, key, value)
+class Common_Unpickler(pickle.Unpickler):
+    def __setattr__(self, key, value):
+        if key == "find_global":
+            pickle.Unpickler.__setattr__(self, "find_class", value)
+        else:
+            pickle.Unpickler.__setattr__(self, key, value)
 
 
 # conversion for unserializable values

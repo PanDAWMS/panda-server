@@ -31,7 +31,7 @@ def main(tbuf=None, **kwargs):
     # memory checker
     def _memoryCheck(str):
         try:
-            proc_status = "/proc/%d/status" % os.getpid()
+            proc_status = f"/proc/{os.getpid()}/status"
             procfile = open(proc_status)
             name = ""
             vmSize = ""
@@ -105,7 +105,7 @@ def main(tbuf=None, **kwargs):
     def setTobeDeletedToDis(subDsName):
         try:
             # only production sub datasets
-            if subDsName.startswith("user") or subDsName.startswith("group") or subDsName.startswith("pandaddm_") or re.search("_sub\d+$", subDsName) is None:
+            if subDsName.startswith("user") or subDsName.startswith("group") or re.search("_sub\d+$", subDsName) is None:
                 return
             # get _dis names with _sub
             disNameList = taskBuffer.getAssociatedDisDatasets(subDsName)
@@ -190,13 +190,7 @@ def main(tbuf=None, **kwargs):
                 for vuid, name, modDate in self.datasets:
                     _logger.debug(f"Close {modDate} {name}")
                     dsExists = True
-                    if (
-                        name.startswith("pandaddm_")
-                        or name.startswith("user.")
-                        or name.startswith("group.")
-                        or name.startswith("hc_test.")
-                        or name.startswith("panda.um.")
-                    ):
+                    if name.startswith("user.") or name.startswith("group.") or name.startswith("hc_test.") or name.startswith("panda.um."):
                         dsExists = False
                     if dsExists:
                         # check if dataset exists
@@ -350,13 +344,7 @@ def main(tbuf=None, **kwargs):
                         if allFinished:
                             _logger.debug(f"freeze {name} ")
                             dsExists = True
-                            if (
-                                name.startswith("pandaddm_")
-                                or name.startswith("user.")
-                                or name.startswith("group.")
-                                or name.startswith("hc_test.")
-                                or name.startswith("panda.um.")
-                            ):
+                            if name.startswith("user.") or name.startswith("group.") or name.startswith("hc_test.") or name.startswith("panda.um."):
                                 dsExists = False
                             if name.startswith("panda.um."):
                                 self.proxyLock.acquire()
@@ -431,7 +419,7 @@ def main(tbuf=None, **kwargs):
                                     varMap,
                                 )
                                 self.proxyLock.release()
-                                if name.startswith("pandaddm_") or name.startswith("panda.um.") or not dsExists:
+                                if name.startswith("panda.um.") or not dsExists:
                                     continue
                                 # set tobedeleted to dis
                                 setTobeDeletedToDis(name)
@@ -1025,13 +1013,7 @@ def main(tbuf=None, **kwargs):
                         _logger.debug(f"skip non sub {name}")
                         continue
                     _logger.debug(f"delete sub {name}")
-                    if (
-                        name.startswith("pandaddm_")
-                        or name.startswith("user.")
-                        or name.startswith("group.")
-                        or name.startswith("hc_test.")
-                        or name.startswith("panda.um.")
-                    ):
+                    if name.startswith("user.") or name.startswith("group.") or name.startswith("hc_test.") or name.startswith("panda.um."):
                         dsExists = False
                     else:
                         dsExists = True

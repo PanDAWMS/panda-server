@@ -12,8 +12,8 @@ else:
         sys.exit(1)
     jobDefIDs = range(startID, endID + 1)
 
-# quesry PandaID
-status, ids = Client.queryPandaIDs(jobDefIDs)
+# query PandaID - this UserIF method is obsolete
+# status, ids = Client.queryPandaIDs(jobDefIDs)
 
 if status != 0:
     sys.exit(0)

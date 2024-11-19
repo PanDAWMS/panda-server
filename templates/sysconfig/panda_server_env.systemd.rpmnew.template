@@ -30,4 +30,3 @@ X509_USER_PROXY=/data/atlpan/x509up_u25606
 # panda server URLs
 PANDA_URL='http://pandaserver.cern.ch:25080/server/panda'
 PANDA_URL_SSL='https://pandaserver.cern.ch:25443/server/panda'
-PANDA_URL_MAP=CERN,$PANDA_URL,$PANDA_URL_SSL

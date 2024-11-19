@@ -23,7 +23,6 @@ class SiteSpec(object):
         "status",
         "setokens_input",
         "setokens_output",
-        "priorityoffset",
         "defaulttoken",
         "validatedreleases",
         "maxinputsize",

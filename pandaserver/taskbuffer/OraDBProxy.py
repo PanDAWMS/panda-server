@@ -17,7 +17,6 @@ import socket
 import sys
 import time
 import traceback
-import urllib
 import uuid
 import warnings
 
@@ -61,11 +60,14 @@ except ImportError:
 if panda_config.backend == "oracle":
     import oracledb
 
+    from . import wrapped_oracle_conn
+
     oracledb.init_oracle_client()
     varNUMBER = oracledb.NUMBER
 
 elif panda_config.backend == "postgres":
     import psycopg2 as psycopg
+    import psycopg2.errorcodes as psycopg_errorcodes
 
     from . import WrappedPostgresConn
 
@@ -200,13 +202,15 @@ class DBProxy:
         # connect
         try:
             if self.backend == "oracle":
-                self.conn = oracledb.connect(dsn=self.dbhost, user=self.dbuser, password=self.dbpasswd)
+                conn = oracledb.connect(dsn=self.dbhost, user=self.dbuser, password=self.dbpasswd)
 
                 def OutputTypeHandler(cursor, name, defaultType, size, precision, scale):
                     if defaultType == oracledb.CLOB:
                         return cursor.var(oracledb.LONG_STRING, arraysize=cursor.arraysize)
 
-                self.conn.outputtypehandler = OutputTypeHandler
+                conn.outputtypehandler = OutputTypeHandler
+                self.conn = wrapped_oracle_conn.WrappedOracleConn(conn)
+
             elif self.backend == "postgres":
                 dsn = {"dbname": self.dbname, "user": self.dbuser, "keepalives_idle": 30, "keepalives_interval": 30, "keepalives": 1}
                 if self.dbpasswd:
@@ -280,9 +284,8 @@ class DBProxy:
             now = datetime.datetime.now()
             key = args + (kwd_mark,) + tuple(sorted(kwargs.items()))
             if key not in memo or memo[key]["timestamp"] < now - datetime.timedelta(hours=1):
-                memo[key] = {}
-                memo[key]["value"] = f(self, *args, **kwargs)
-                memo[key]["timestamp"] = now
+                tmp_data = {"value": f(self, *args, **kwargs), "timestamp": now}
+                memo[key] = tmp_data
             return memo[key]["value"]
 
         return helper
@@ -451,7 +454,6 @@ class DBProxy:
         weight=0.0,
         priorityOffset=0,
         userVO=None,
-        groupJobSN=0,
         toPending=False,
         origEsJob=False,
         eventServiceInfo=None,
@@ -536,12 +538,6 @@ class DBProxy:
             if "express" in job.specialHandling:
                 job.currentPriority = 6500
 
-        # usergroup
-        if job.prodSourceLabel == "regional":
-            job.computingSite = "BNLPROD"
-
-        # group job SN
-        groupJobSN = "%05d" % groupJobSN
         # set attempt numbers
         if job.prodSourceLabel in ["user", "panda"] + JobUtils.list_ptest_prod_sources:
             if job.attemptNr in [None, "NULL", ""]:
@@ -677,7 +673,6 @@ class DBProxy:
                 # replace $JOBSETID with real jobsetID
                 if job.prodSourceLabel not in ["managed"]:
                     file.lfn = re.sub("\$JOBSETID", jobsetID, file.lfn)
-                    file.lfn = re.sub("\$GROUPJOBSN", groupJobSN, file.lfn)
                     try:
                         file.lfn = re.sub("\$JEDITASKID", strJediTaskID, file.lfn)
                     except Exception:
@@ -1012,7 +1007,6 @@ class DBProxy:
             # job parameters
             if job.prodSourceLabel not in ["managed"]:
                 job.jobParameters = re.sub("\$JOBSETID", jobsetID, job.jobParameters)
-                job.jobParameters = re.sub("\$GROUPJOBSN", groupJobSN, job.jobParameters)
                 try:
                     job.jobParameters = re.sub("\$JEDITASKID", strJediTaskID, job.jobParameters)
                 except Exception:
@@ -1600,147 +1594,6 @@ class DBProxy:
                         if useCommit and inTransaction:
                             if not self._commit():
                                 raise RuntimeError("Commit error")
-                elif job.prodSourceLabel == "ddm" and job.jobStatus == "failed" and job.transferType == "dis":
-                    if useCommit:
-                        self.conn.begin()
-                    # get corresponding jobs for production movers
-                    vuid = ""
-                    # extract vuid
-                    match = re.search("--callBack (\S+)", job.jobParameters)
-                    if match is not None:
-                        try:
-                            callbackUrl = urllib.unquote(match.group(1))
-                            callbackUrl = re.sub("[&\?]", " ", callbackUrl)
-                            # look for vuid=
-                            for item in callbackUrl.split():
-                                if item.startswith("vuid="):
-                                    vuid = item.split("=")[-1]
-                                    break
-                        except Exception:
-                            pass
-                        if vuid == "":
-                            tmpLog.error(f"cannot extract vuid from {job.jobParameters}")
-                        else:
-                            # get name
-                            varMap = {}
-                            varMap[":vuid"] = vuid
-                            varMap[":type"] = "dispatch"
-                            self.cur.arraysize = 10
-                            self.cur.execute(
-                                "SELECT name FROM ATLAS_PANDA.Datasets WHERE vuid=:vuid AND type=:type " + comment,
-                                varMap,
-                            )
-                            res = self.cur.fetchall()
-                            if len(res) != 0:
-                                disName = res[0][0]
-                                # check lost files
-                                varMap = {}
-                                varMap[":status"] = "lost"
-                                varMap[":dispatchDBlock"] = disName
-                                sqlLost = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ distinct PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE status=:status AND dispatchDBlock=:dispatchDBlock"
-                                self.cur.execute(sqlLost + comment, varMap)
-                                resLost = self.cur.fetchall()
-                                # fail jobs with lost files
-                                sqlDJS = f"SELECT {JobSpec.columnNames()} "
-                                sqlDJS += "FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
-                                sqlDJD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
-                                sqlDJI = f"INSERT INTO ATLAS_PANDA.jobsArchived4 ({JobSpec.columnNames()}) "
-                                sqlDJI += JobSpec.bindValuesExpression()
-                                sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-                                sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-                                sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-                                lostJobIDs = []
-                                for (tmpID,) in resLost:
-                                    tmpLog.debug(f"fail due to lost files : {tmpID}")
-                                    varMap = {}
-                                    varMap[":PandaID"] = tmpID
-                                    self.cur.arraysize = 10
-                                    self.cur.execute(sqlDJS + comment, varMap)
-                                    resJob = self.cur.fetchall()
-                                    if len(resJob) == 0:
-                                        continue
-                                    # instantiate JobSpec
-                                    dJob = JobSpec()
-                                    dJob.pack(resJob[0])
-                                    # delete
-                                    varMap = {}
-                                    varMap[":PandaID"] = tmpID
-                                    self.cur.execute(sqlDJD + comment, varMap)
-                                    retD = self.cur.rowcount
-                                    if retD == 0:
-                                        continue
-                                    # error code
-                                    dJob.jobStatus = "failed"
-                                    dJob.endTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-                                    dJob.ddmErrorCode = 101
-                                    dJob.ddmErrorDiag = "lost file in SE"
-                                    dJob.modificationTime = dJob.endTime
-                                    dJob.stateChangeTime = dJob.endTime
-                                    # insert
-                                    self.cur.execute(sqlDJI + comment, dJob.valuesMap())
-                                    # update files,metadata,parametes
-                                    varMap = {}
-                                    varMap[":PandaID"] = tmpID
-                                    varMap[":modificationTime"] = dJob.modificationTime
-                                    self.cur.execute(sqlFMod + comment, varMap)
-                                    self.cur.execute(sqlMMod + comment, varMap)
-                                    self.cur.execute(sqlPMod + comment, varMap)
-                                    # append
-                                    lostJobIDs.append(tmpID)
-                                    # collect to record state change
-                                    updatedJobList.append(dJob)
-                                # get PandaIDs
-                                varMap = {}
-                                varMap[":jobStatus"] = "assigned"
-                                varMap[":dispatchDBlock"] = disName
-                                self.cur.execute(
-                                    "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE dispatchDBlock=:dispatchDBlock AND jobStatus=:jobStatus " + comment,
-                                    varMap,
-                                )
-                                resDDM = self.cur.fetchall()
-                                for (tmpID,) in resDDM:
-                                    if tmpID not in lostJobIDs:
-                                        ddmIDs.append(tmpID)
-                                # get offset
-                                ddmAttempt = job.attemptNr
-                                tmpLog.debug(f"get PandaID for reassign : {str(ddmIDs)} ddmAttempt={ddmAttempt}")
-                    if useCommit:
-                        if not self._commit():
-                            raise RuntimeError("Commit error")
-                elif (
-                    job.prodSourceLabel == "ddm"
-                    and job.jobStatus == "failed"
-                    and job.transferType == "ddm"
-                    and job.attemptNr < 2
-                    and job.commandToPilot != "tobekilled"
-                ):
-                    # instantiate new mover to retry subscription
-                    newJob = JobSpec()
-                    newJob.jobDefinitionID = job.jobDefinitionID
-                    newJob.jobName = job.jobName
-                    newJob.attemptNr = job.attemptNr + 1
-                    newJob.transformation = job.transformation
-                    newJob.destinationDBlock = job.destinationDBlock
-                    newJob.destinationSE = job.destinationSE
-                    newJob.currentPriority = job.currentPriority
-                    newJob.prodSourceLabel = job.prodSourceLabel
-                    newJob.prodUserID = job.prodUserID
-                    newJob.computingSite = job.computingSite
-                    newJob.transferType = job.transferType
-                    newJob.sourceSite = job.sourceSite
-                    newJob.destinationSite = job.destinationSite
-                    newJob.jobParameters = job.jobParameters
-                    if job.Files != []:
-                        file = job.Files[0]
-                        fileOL = FileSpec()
-                        # add attempt nr
-                        fileOL.lfn = re.sub("\.\d+$", "", file.lfn)
-                        fileOL.lfn = "%s.%d" % (fileOL.lfn, job.attemptNr)
-                        fileOL.destinationDBlock = file.destinationDBlock
-                        fileOL.destinationSE = file.destinationSE
-                        fileOL.dataset = file.dataset
-                        fileOL.type = file.type
-                        newJob.addFile(fileOL)
 
                 # main job
                 if useCommit:
@@ -2286,81 +2139,6 @@ class DBProxy:
             # roll back
             self._rollback()
             tmpLog.error(f"failed with {str(e)}")
-            return False
-
-    # delete stalled jobs
-    def deleteStalledJobs(self, libFileName):
-        comment = " /* DBProxy.deleteStalledJobs */"
-        _logger.debug(f"deleteStalledJobs : {libFileName}")
-        sql2 = f"INSERT INTO ATLAS_PANDA.jobsArchived4 ({JobSpec.columnNames()}) "
-        sql2 += JobSpec.bindValuesExpression()
-        nTry = 3
-        try:
-            # begin transaction
-            self.conn.begin()
-            # look for downstream jobs
-            sqlD = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 WHERE type=:type AND lfn=:lfn GROUP BY PandaID"
-            sqlDJS = f"SELECT {JobSpec.columnNames()} "
-            sqlDJS += "FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
-            sqlDJD = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID"
-            sqlDJI = f"INSERT INTO ATLAS_PANDA.jobsArchived4 ({JobSpec.columnNames()}) "
-            sqlDJI += JobSpec.bindValuesExpression()
-            sqlFMod = "UPDATE ATLAS_PANDA.filesTable4 SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-            sqlMMod = "UPDATE ATLAS_PANDA.metaTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-            sqlPMod = "UPDATE ATLAS_PANDA.jobParamsTable SET modificationTime=:modificationTime WHERE PandaID=:PandaID"
-            _logger.debug(f"deleteStalledJobs : look for downstream jobs for {libFileName}")
-            # select PandaID
-            varMap = {}
-            varMap[":lfn"] = libFileName
-            varMap[":type"] = "input"
-            self.cur.arraysize = 100000
-            self.cur.execute(sqlD + comment, varMap)
-            res = self.cur.fetchall()
-            for (downID,) in res:
-                _logger.debug(f"deleteStalledJobs : delete {downID}")
-                # select jobs
-                varMap = {}
-                varMap[":PandaID"] = downID
-                self.cur.arraysize = 10
-                self.cur.execute(sqlDJS + comment, varMap)
-                resJob = self.cur.fetchall()
-                if len(resJob) == 0:
-                    continue
-                # instantiate JobSpec
-                dJob = JobSpec()
-                dJob.pack(resJob[0])
-                # delete
-                varMap = {}
-                varMap[":PandaID"] = downID
-                self.cur.execute(sqlDJD + comment, varMap)
-                retD = self.cur.rowcount
-                if retD == 0:
-                    continue
-                # error code
-                dJob.jobStatus = "cancelled"
-                dJob.endTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-                dJob.taskBufferErrorCode = ErrorCode.EC_Kill
-                dJob.taskBufferErrorDiag = "killed by Panda server : upstream job failed"
-                dJob.modificationTime = dJob.endTime
-                dJob.stateChangeTime = dJob.endTime
-                # insert
-                self.cur.execute(sqlDJI + comment, dJob.valuesMap())
-                # update files,metadata,parametes
-                varMap = {}
-                varMap[":PandaID"] = downID
-                varMap[":modificationTime"] = dJob.modificationTime
-                self.cur.execute(sqlFMod + comment, varMap)
-                self.cur.execute(sqlMMod + comment, varMap)
-                self.cur.execute(sqlPMod + comment, varMap)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            return True
-        except Exception:
-            # roll back
-            self._rollback(True)
-            errtype, errvalue = sys.exc_info()[:2]
-            _logger.error(f"deleteStalledJobs : {errtype} {errvalue}")
             return False
 
     # update Job status in jobsActive
@@ -3205,7 +2983,6 @@ class DBProxy:
                         and (not job.computingSite.startswith("ANALY_LONG_"))
                         and job.attemptNr < 2
                     )
-                    or (job.prodSourceLabel == "ddm" and job.cloud == "CA" and job.attemptNr <= 10)
                     or failedInActive
                     or usePilotRetry
                 ) and job.commandToPilot != "tobekilled":
@@ -3531,7 +3308,7 @@ class DBProxy:
             get_val_map[":taskID"] = task_id
 
         if average_memory_limit:
-            sql_where_clause += "AND minramcount<:average_memory_limit "
+            sql_where_clause += "AND minramcount / NVL(corecount, 1)<=:average_memory_limit "
             get_val_map[":average_memory_limit"] = average_memory_limit
 
         return sql_where_clause, get_val_map
@@ -4907,45 +4684,6 @@ class DBProxy:
                 job.jobStatus = "unknown"
                 return job
 
-    # get PandaID with jobexeID
-    def getPandaIDwithJobExeID(self, jobexeID):
-        comment = " /* DBProxy.getPandaIDwithJobExeID */"
-        _logger.debug(f"getPandaIDwithJobExeID : {jobexeID}")
-        failedRetVal = (None, None, "")
-        # return for wrong jobexeID
-        if jobexeID in ["NULL", "", "None", None]:
-            return failedRetVal
-        # SQL
-        sql = "SELECT PandaID,jobDefinitionID,jobName FROM ATLAS_PANDA.jobsWaiting4 "
-        sql += "WHERE jobExecutionID=:jobexeID AND prodSourceLabel=:prodSourceLabel "
-        sql += "AND jobStatus=:jobStatus "
-        varMap = {}
-        varMap[":jobexeID"] = jobexeID
-        varMap[":jobStatus"] = "pending"
-        varMap[":prodSourceLabel"] = "managed"
-        try:
-            # start transaction
-            self.conn.begin()
-            # select
-            self.cur.arraysize = 10
-            self.cur.execute(sql + comment, varMap)
-            res = self.cur.fetchone()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # not found
-            if res is None:
-                _logger.debug(f"getPandaIDwithJobExeID : jobexeID {jobexeID} not found")
-                return failedRetVal
-            _logger.debug(f"getPandaIDwithJobExeID : {jobexeID} -> {str(res)}")
-            return res
-        except Exception:
-            # roll back
-            self._rollback()
-            errtype, errvalue = sys.exc_info()[:2]
-            _logger.error(f"getPandaIDwithJobExeID : {jobexeID} {errtype} {errvalue}")
-            return failedRetVal
-
     # get PandaIDs with TaskID
     def getPandaIDsWithTaskID(self, jediTaskID):
         comment = " /* DBProxy.getPandaIDsWithTaskID */"
@@ -5322,384 +5060,6 @@ class DBProxy:
             _logger.error(f"setDebugMode : {errtype} {errvalue}")
             return None
 
-    # get PandaID with destinationDBlock
-    def getPandaIDwithDestDBlock(self, destinationDBlock):
-        comment = " /* DBProxy.getPandaIDwithDestDBlock */"
-        _logger.debug(f"getPandaIDwithDestDBlock : {destinationDBlock}")
-        try:
-            sqlP = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab "
-            sqlP += "WHERE type IN (:type1,:type2) AND destinationDBlock=:destinationDBlock AND rownum<=1"
-            # start transaction
-            self.conn.begin()
-            pandaID = None
-            varMap = {}
-            varMap[":type1"] = "log"
-            varMap[":type2"] = "output"
-            varMap[":destinationDBlock"] = destinationDBlock
-            # select
-            self.cur.arraysize = 10
-            self.cur.execute(sqlP + comment, varMap)
-            res = self.cur.fetchone()
-            # append
-            if res is not None:
-                (pandaID,) = res
-            # commit to release tables
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # return
-            return pandaID
-        except Exception:
-            # roll back
-            self._rollback()
-            errType, errValue = sys.exc_info()[:2]
-            _logger.error(f"getPandaIDwithDestDBlock : {errType} {errValue}")
-            # return empty list
-            return None
-
-    # get destSE with destinationDBlock
-    def getDestSEwithDestDBlock(self, destinationDBlock):
-        comment = " /* DBProxy.getDestSEwithDestDBlock */"
-        _logger.debug(f"getDestSEwithDestDBlock : {destinationDBlock}")
-        try:
-            sqlP = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ destinationSE,destinationDBlockToken FROM ATLAS_PANDA.filesTable4 tab "
-            sqlP += "WHERE type IN (:type1,:type2) AND destinationDBlock=:destinationDBlock AND rownum<=1"
-            # start transaction
-            self.conn.begin()
-            varMap = {}
-            varMap[":type1"] = "log"
-            varMap[":type2"] = "output"
-            varMap[":destinationDBlock"] = destinationDBlock
-            # select
-            self.cur.arraysize = 10
-            self.cur.execute(sqlP + comment, varMap)
-            res = self.cur.fetchone()
-            # append
-            destinationSE = None
-            destinationDBlockToken = None
-            if res is not None:
-                destinationSE, destinationDBlockToken = res
-            # commit to release tables
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # return
-            return destinationSE, destinationDBlockToken
-        except Exception:
-            # roll back
-            self._rollback()
-            errType, errValue = sys.exc_info()[:2]
-            _logger.error(f"getDestSEwithDestDBlock : {errType} {errValue}")
-            # return empty list
-            return None, None
-
-    # get number of activated/defined jobs with output datasets
-    def getNumWaitingJobsWithOutDS(self, outputDSs):
-        comment = " /* DBProxy.getNumWaitingJobsWithOutDS */"
-        _logger.debug(f"getNumWaitingJobsWithOutDS : {str(outputDSs)}")
-        try:
-            sqlD = "SELECT distinct destinationDBlock FROM ATLAS_PANDA.filesTable4 "
-            sqlD += "WHERE type IN (:type1,:type2) AND dataset=:dataset AND status IN (:status1,:status2)"
-            sqlP = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab "
-            sqlP += "WHERE type IN (:type1,:type2) AND destinationDBlock=:destinationDBlock AND status IN (:status1,:status2) AND rownum<=1"
-            sqlJ = "SELECT jobDefinitionID,taskID,prodUserName,jobStatus,prodSourceLabel FROM %s "
-            sqlJ += "WHERE PandaID=:PandaID"
-            sqlC = "SELECT count(*) FROM ATLAS_PANDA.jobsActive4 "
-            sqlC += "WHERE jobDefinitionID=:jobDefinitionID AND prodUserName=:prodUserName AND jobStatus IN (:jobStatus1)"
-            # start transaction
-            self.conn.begin()
-            # get sub datasets
-            subDSList = []
-            for outputDS in outputDSs:
-                varMap = {}
-                varMap[":type1"] = "log"
-                varMap[":type2"] = "output"
-                varMap[":status1"] = "unknown"
-                varMap[":status2"] = "pending"
-                varMap[":dataset"] = outputDS
-                # select
-                self.cur.arraysize = 1000
-                self.cur.execute(sqlD + comment, varMap)
-                resList = self.cur.fetchall()
-                # append
-                for (destinationDBlock,) in resList:
-                    subDSList.append(destinationDBlock)
-            # get PandaIDs
-            pandaIDs = []
-            for subDS in subDSList:
-                varMap = {}
-                varMap[":type1"] = "log"
-                varMap[":type2"] = "output"
-                varMap[":status1"] = "unknown"
-                varMap[":status2"] = "pending"
-                varMap[":destinationDBlock"] = subDS
-                # select
-                self.cur.arraysize = 10
-                self.cur.execute(sqlP + comment, varMap)
-                res = self.cur.fetchone()
-                # append
-                if res is not None:
-                    (pandaID,) = res
-                    pandaIDs.append(pandaID)
-            # commit to release tables
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # loop over all PandaIDs
-            jobInfos = []
-            for pandaID in pandaIDs:
-                varMap = {}
-                varMap[":PandaID"] = pandaID
-                # start transaction
-                self.conn.begin()
-                # get jobID,nJobs,jobStatus,userName
-                res = None
-                for table in ["ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsDefined4"]:
-                    # select
-                    self.cur.arraysize = 10
-                    self.cur.execute((sqlJ % table) + comment, varMap)
-                    res = self.cur.fetchone()
-                    if res is not None:
-                        break
-                # commit to release tables
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # not found
-                if res is None:
-                    continue
-                # append
-                jobInfos.append(res)
-            # no jobs
-            if jobInfos == []:
-                _logger.error("getNumWaitingJobsWithOutDS : no jobs found")
-                return False, {}
-            # loop over all jobIDs
-            retMap = {}
-            for jobID, taskID, prodUserName, jobStatus, prodSourceLabel in jobInfos:
-                if jobID in retMap:
-                    continue
-                retMap[jobID] = {}
-                retMap[jobID]["nJobs"] = taskID
-                retMap[jobID]["sourceLabel"] = prodSourceLabel
-                # don't check # of activated
-                if jobStatus in ["defined"]:
-                    retMap[jobID]["activated"] = False
-                    retMap[jobID]["nActs"] = 0
-                    continue
-                retMap[jobID]["activated"] = True
-                # get # of activated jobs
-                varMap = {}
-                varMap[":prodUserName"] = prodUserName
-                varMap[":jobDefinitionID"] = jobID
-                varMap[":jobStatus1"] = "activated"
-                # start transaction
-                self.conn.begin()
-                # select
-                self.cur.arraysize = 10
-                self.cur.execute(sqlC + comment, varMap)
-                res = self.cur.fetchone()
-                # commit to release tables
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                if res is None:
-                    _logger.error(f"getNumWaitingJobsWithOutDS : cannot get # of activated for {jobID}:{prodUserName}")
-                    return False, {}
-                # set # of activated
-                (nActs,) = res
-                retMap[jobID]["nActs"] = nActs
-            # return
-            _logger.debug(f"getNumWaitingJobsWithOutDS -> {str(retMap)}")
-            return True, retMap
-        except Exception:
-            # roll back
-            self._rollback()
-            errType, errValue = sys.exc_info()[:2]
-            _logger.error(f"getNumWaitingJobsWithOutDS : {errType} {errValue}")
-            # return empty list
-            return False, {}
-
-    # get slimmed file info with PandaIDs
-    def getSlimmedFileInfoPandaIDs(self, pandaIDs):
-        comment = " /* DBProxy.getSlimmedFileInfoPandaIDs */"
-        _logger.debug(f"getSlimmedFileInfoPandaIDs : {pandaIDs[0]} len={len(pandaIDs)}")
-        try:
-            sqlL = "SELECT lfn,type,dataset FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID"
-            sqlA = "SELECT /*+ INDEX(tab FILES_ARCH_PANDAID_IDX)*/ lfn,type,dataset FROM ATLAS_PANDAARCH.filesTable_ARCH tab "
-            sqlA += "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-60)"
-            retMap = {"inDS": [], "outDS": []}
-            # start transaction
-            self.conn.begin()
-            # select
-            for pandaID in pandaIDs:
-                # make sql
-                varMap = {}
-                varMap[":PandaID"] = pandaID
-                # select
-                self.cur.arraysize = 10000
-                self.cur.execute(sqlL + comment, varMap)
-                resList = self.cur.fetchall()
-                # try archived if not found in filesTable4
-                if len(resList) == 0:
-                    self.cur.execute(sqlA + comment, varMap)
-                    resList = self.cur.fetchall()
-                # append
-                for tmp_lfn, tmp_type, tmp_dataset in resList:
-                    # skip lib.tgz
-                    if tmp_lfn.endswith(".lib.tgz"):
-                        continue
-                    if tmp_type == "input":
-                        if tmp_dataset not in retMap["inDS"]:
-                            retMap["inDS"].append(tmp_dataset)
-                    elif tmp_type == "output":
-                        if tmp_dataset not in retMap["outDS"]:
-                            retMap["outDS"].append(tmp_dataset)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            _logger.debug(f"getSlimmedFileInfoPandaIDs : {str(retMap)}")
-            return retMap
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getSlimmedFileInfoPandaIDs : {type} {value}")
-            # return empty list
-            return {}
-
-    # get JobIDs in a time range
-    def getJobIDsInTimeRange(self, dn, timeRange, retJobIDs):
-        comment = " /* DBProxy.getJobIDsInTimeRange */"
-        _logger.debug(f"getJobIDsInTimeRange : {dn} {timeRange.strftime('%Y-%m-%d %H:%M:%S')}")
-        try:
-            # get compact DN
-            compactDN = self.cleanUserID(dn)
-            if compactDN in ["", "NULL", None]:
-                compactDN = dn
-            tables = [
-                "ATLAS_PANDA.jobsArchived4",
-                "ATLAS_PANDA.jobsActive4",
-                "ATLAS_PANDA.jobsWaiting4",
-                "ATLAS_PANDA.jobsDefined4",
-            ]
-            # select
-            for table in tables:
-                # make sql
-                if table == "ATLAS_PANDA.jobsArchived4":
-                    sql = (
-                        'SELECT /*+ INDEX_RS_ASC(TAB("JOBSARCHIVED4"."PRODUSERNAME")) NO_INDEX(TAB("JOBSARCHIVED4"."MODIFICATIONTIME")) */ jobDefinitionID FROM %s tab '
-                        % table
-                    )
-                elif table == "ATLAS_PANDA.jobsActive4":
-                    sql = (
-                        'SELECT /*+ INDEX_RS_ASC(TAB("JOBSACTIVE4"."PRODUSERNAME")) NO_INDEX(TAB("JOBSACTIVE4"."MODIFICATIONTIME")) */ jobDefinitionID FROM %s tab '
-                        % table
-                    )
-                else:
-                    sql = f"SELECT jobDefinitionID FROM {table} "
-                sql += "WHERE prodUserName=:prodUserName AND modificationTime>:modificationTime "
-                sql += "AND prodSourceLabel=:prodSourceLabel AND lockedBy<>:ngLock GROUP BY jobDefinitionID"
-                varMap = {}
-                varMap[":prodUserName"] = compactDN
-                varMap[":prodSourceLabel"] = "user"
-                varMap[":ngLock"] = "jedi"
-                varMap[":modificationTime"] = timeRange
-                # start transaction
-                self.conn.begin()
-                # select
-                self.cur.arraysize = 10000
-                _logger.debug(sql + comment + str(varMap))
-                self.cur.execute(sql + comment, varMap)
-                resList = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # append
-                for (tmpID,) in resList:
-                    if tmpID not in retJobIDs:
-                        retJobIDs.append(tmpID)
-            _logger.debug(f"getJobIDsInTimeRange : {str(retJobIDs)}")
-            return retJobIDs
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getJobIDsInTimeRange : {type} {value}")
-            # return empty list
-            return []
-
-    # get PandaIDs for a JobID
-    def getPandIDsWithJobID(self, dn, jobID, idStatus, nJobs):
-        comment = " /* DBProxy.getPandIDsWithJobID */"
-        _logger.debug(f"getPandIDsWithJobID : {dn} {jobID}")
-        try:
-            # get compact DN
-            compactDN = self.cleanUserID(dn)
-            if compactDN in ["", "NULL", None]:
-                compactDN = dn
-            tables = [
-                "ATLAS_PANDA.jobsDefined4",
-                "ATLAS_PANDA.jobsActive4",
-                "ATLAS_PANDA.jobsWaiting4",
-                "ATLAS_PANDA.jobsArchived4",
-            ]
-            buildJobID = None
-            # select
-            for table in tables:
-                # skip if all jobs have already been gotten
-                if nJobs > 0 and len(idStatus) >= nJobs:
-                    continue
-                # make sql
-                sql = f"SELECT PandaID,jobStatus,commandToPilot,prodSourceLabel,taskBufferErrorCode FROM {table} "
-                sql += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
-                sql += "AND prodSourceLabel in (:prodSourceLabel1,:prodSourceLabel2)"
-                varMap = {}
-                varMap[":prodUserName"] = compactDN
-                varMap[":jobDefinitionID"] = jobID
-                varMap[":prodSourceLabel1"] = "user"
-                varMap[":prodSourceLabel2"] = "panda"
-                # start transaction
-                self.conn.begin()
-                # select
-                self.cur.arraysize = 10000
-                # select
-                _logger.debug(sql + comment + str(varMap))
-                self.cur.execute(sql + comment, varMap)
-                resList = self.cur.fetchall()
-                # append
-                for (
-                    tmpID,
-                    tmpStatus,
-                    tmpCommand,
-                    tmpProdSourceLabel,
-                    tmpTaskBufferErrorCode,
-                ) in resList:
-                    # ignore jobs retried by pilot since they have new PandaIDs with the same jobsetID/jobdefID
-                    if tmpTaskBufferErrorCode in [ErrorCode.EC_PilotRetried]:
-                        continue
-                    # ignore old buildJob which was replaced by rebrokerage
-                    if tmpProdSourceLabel == "panda":
-                        if buildJobID is None:
-                            # first buildJob
-                            buildJobID = tmpID
-                        elif buildJobID >= tmpID:
-                            # don't append old one
-                            continue
-                        else:
-                            # delete old one
-                            del idStatus[buildJobID]
-                            buildJobID = tmpID
-                    # append
-                    idStatus[tmpID] = (tmpStatus, tmpCommand)
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-            _logger.debug(f"getPandIDsWithJobID : {str(idStatus)}")
-            return idStatus, buildJobID
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getPandIDsWithJobID : {type} {value}")
-            # return empty list
-            return {}, None
-
     # lock jobs for reassign
     def lockJobsForReassign(
         self,
@@ -5917,303 +5277,6 @@ class DBProxy:
             self.dumpErrorMessage(_logger, methodName)
             # return empty
             return False, []
-
-    # query PandaID
-    def queryPandaID(self, jobDefID):
-        comment = " /* DBProxy.queryPandaID */"
-        _logger.debug(f"queryPandaID : {jobDefID}")
-        sql0 = "SELECT PandaID,attemptNr FROM %s WHERE attemptNr=("
-        sql0 += "SELECT MAX(attemptNr) FROM %s"
-        sql1 = " WHERE prodSourceLabel=:prodSourceLabel AND jobDefinitionID=:jobDefinitionID)"
-        sql1 += " AND prodSourceLabel=:prodSourceLabel AND jobDefinitionID=:jobDefinitionID"
-        try:
-            ids = []
-            # select
-            varMap = {}
-            varMap[":jobDefinitionID"] = jobDefID
-            varMap[":prodSourceLabel"] = "managed"
-            for table in [
-                "ATLAS_PANDA.jobsDefined4",
-                "ATLAS_PANDA.jobsActive4",
-                "ATLAS_PANDA.jobsArchived4",
-                "ATLAS_PANDA.jobsWaiting4",
-            ]:
-                # start transaction
-                self.conn.begin()
-                # select
-                sql = sql0 % (table, table) + sql1
-                self.cur.arraysize = 10
-                self.cur.execute(sql + comment, varMap)
-                res = self.cur.fetchall()
-                ids += list(res)
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-            # look for the latest attempt
-            preAtt = -1
-            pandaID = None
-            for pID, att in ids:
-                if att > preAtt:
-                    pandaID = pID
-                    preAtt = att
-                if att == preAtt:
-                    if pandaID < pID:
-                        pandaID = pID
-            return pandaID
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"queryPandaID : {type} {value}")
-            # roll back
-            self._rollback()
-            return None
-
-    # query job info per cloud
-    def queryJobInfoPerCloud(self, cloud, schedulerID=None):
-        comment = " /* DBProxy.queryJobInfoPerCloud */"
-        _logger.debug(f"queryJobInfoPerCloud : {cloud} {schedulerID}")
-        attrs = ["PandaID", "jobStatus", "jobName"]
-        sql0 = "SELECT "
-        for attr in attrs:
-            sql0 += f"{attr},"
-        sql0 = f"{sql0[:-1]} "
-        sql0 += "FROM %s "
-        sql0 += "WHERE cloud=:cloud "
-        varMap = {}
-        varMap[":cloud"] = cloud
-        if schedulerID is not None:
-            sql0 += "AND schedulerID=:schedulerID "
-            varMap[":schedulerID"] = schedulerID
-        try:
-            ids = []
-            returnList = []
-            # select
-            for table in [
-                "ATLAS_PANDA.jobsActive4",
-                "ATLAS_PANDA.jobsWaiting4",
-                "ATLAS_PANDA.jobsDefined4",
-            ]:
-                # start transaction
-                self.conn.begin()
-                # select
-                sql = sql0 % table
-                self.cur.arraysize = 10000
-                self.cur.execute(sql + comment, varMap)
-                resList = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # loop over all
-                for res in resList:
-                    valMap = {}
-                    # skip if already in the list
-                    PandaID = res[0]
-                    if PandaID in ids:
-                        continue
-                    # convert to map
-                    for idx, attr in enumerate(attrs):
-                        valMap[attr] = res[idx]
-                    # append to list
-                    ids.append(PandaID)
-                    returnList.append(valMap)
-            # return
-            return returnList
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"queryJobInfoPerCloud : {type} {value}")
-            # roll back
-            self._rollback()
-            return None
-
-    # get PandaIDs at Site
-    def getPandaIDsSite(self, site, status, limit):
-        comment = " /* DBProxy.getPandaIDsSite */"
-        _logger.debug(f"getPandaIDsSite : {site} {status} {limit}")
-        try:
-            ids = []
-            # find table
-            if status in ["defined", "assigned"]:
-                table = "ATLAS_PANDA.jobsDefined4"
-            elif status in ["activated", "running", "holding", "transferring"]:
-                table = "ATLAS_PANDA.jobsActive4"
-            elif status in ["waiting"]:
-                table = "ATLAS_PANDA.jobsWaiting4"
-            elif status in ["finished", "failed"]:
-                table = "ATLAS_PANDA.jobsArchived4"
-            else:
-                _logger.error(f"unknown status:{status}")
-                return ids
-            # limit
-            limit = int(limit)
-            # SQL
-            sql = f"SELECT PandaID FROM {table} "
-            sql += "WHERE computingSite=:computingSite AND jobStatus=:jobStatus AND prodSourceLabel=:prodSourceLabel "
-            sql += "AND rownum<=:limit"
-            # start transaction
-            self.conn.begin()
-            # select
-            varMap = {}
-            varMap[":computingSite"] = site
-            varMap[":jobStatus"] = status
-            varMap[":limit"] = limit
-            varMap[":prodSourceLabel"] = "managed"
-            self.cur.arraysize = limit
-            self.cur.execute(sql + comment, varMap)
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # convert to list
-            for (id,) in res:
-                ids.append(id)
-            return ids
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getPandaIDsSite : {type} {value}")
-            # roll back
-            self._rollback()
-            return []
-
-    # get PandaIDs to be updated in prodDB
-    def getPandaIDsForProdDB(self, limit, lockedby):
-        comment = " /* DBProxy.getPandaIDsForProdDB */"
-        _logger.debug(f"getPandaIDsForProdDB {limit}")
-        varMap = {}
-        varMap[":lockedby"] = lockedby
-        varMap[":limit"] = limit
-        varMap[":prodSourceLabel1"] = "managed"
-        sql0 = "PandaID,jobStatus,stateChangeTime,attemptNr,jobDefinitionID,jobExecutionID FROM %s "
-        sqlW = "WHERE prodSourceLabel IN (:prodSourceLabel1,"
-        for tmpLabel in JobUtils.list_ptest_prod_sources:
-            tmpKey = f":prodSourceLabel_{tmpLabel}"
-            sqlW += tmpKey
-            sqlW += ","
-            varMap[tmpKey] = tmpLabel
-        sqlW = sqlW[:-1]
-        sqlW += ") AND lockedby=:lockedby "
-        sqlX = "AND stateChangeTime>prodDBUpdateTime "
-        sqlA = "AND (CASE WHEN stateChangeTime>prodDBUpdateTime THEN 1 ELSE null END) = 1 "
-        sql1 = "AND rownum<=:limit "
-        try:
-            retMap = {}
-            totalIDs = 0
-            # select
-            for table in [
-                "ATLAS_PANDA.jobsArchived4",
-                "ATLAS_PANDA.jobsActive4",
-                "ATLAS_PANDA.jobsWaiting4",
-                "ATLAS_PANDA.jobsDefined4",
-            ]:
-                # start transaction
-                self.conn.begin()
-                # select
-                sql = sql0 % table
-                if table in ["ATLAS_PANDA.jobsArchived4"]:
-                    sql = "SELECT /*+ INDEX_RS_ASC(tab JOBSARCHIVED4_CHANGETIME) NO_INDEX(tab(PRODSOURCELABEL))*/ " + sql + " tab " + sqlW + sqlA
-                else:
-                    sql = "SELECT " + sql + sqlW + sqlX
-                sql += sql1
-                self.cur.arraysize = limit
-                _logger.debug(f"getPandaIDsForProdDB {sql + comment} {str(varMap)}")
-                self.cur.execute(sql + comment, varMap)
-                res = self.cur.fetchall()
-                _logger.debug(f"getPandaIDsForProdDB got {len(res)}")
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                for (
-                    PandaID,
-                    jobStatus,
-                    stateChangeTime,
-                    attemptNr,
-                    jobDefinitionID,
-                    jobExecutionID,
-                ) in res:
-                    # ignore dummy jobs in jobsDefined4
-                    if table == "ATLAS_PANDA.jobsDefined4" and (jobStatus not in ["defined", "assigned"]):
-                        continue
-                    # add status
-                    if jobStatus not in retMap:
-                        retMap[jobStatus] = []
-                    # append
-                    retMap[jobStatus].append(
-                        {
-                            "PandaID": PandaID,
-                            "attemptNr": attemptNr,
-                            "stateChangeTime": stateChangeTime.strftime("%Y-%m-%d %H:%M:%S"),
-                            "jobDefinitionID": jobDefinitionID,
-                            "jobExecutionID": jobExecutionID,
-                        }
-                    )
-                    totalIDs += 1
-                    # limit
-                    if totalIDs > limit:
-                        break
-            _logger.debug(f"getPandaIDsForProdDB {limit} ret->{totalIDs}")
-            return retMap
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getPandaIDsForProdDB : {type} {value}")
-            # roll back
-            self._rollback()
-            return {}
-
-    # update prodDBUpdateTime
-    def updateProdDBUpdateTime(self, param):
-        comment = " /* DBProxy.updateProdDBUpdateTime */"
-        _logger.debug(f"updateProdDBUpdateTime {str(param)}")
-        sql0 = "UPDATE %s "
-        sql0 += "SET prodDBUpdateTime=TO_TIMESTAMP(:prodDBUpdateTime,'YYYY-MM-DD HH24:MI:SS') "
-        sql0 += "WHERE PandaID=:PandaID AND jobStatus=:jobStatus AND stateChangeTime=TO_TIMESTAMP(:stateChangeTime,'YYYY-MM-DD HH24:MI:SS') "
-        varMap = {}
-        varMap[":prodDBUpdateTime"] = param["stateChangeTime"]
-        varMap[":PandaID"] = param["PandaID"]
-        varMap[":jobStatus"] = param["jobStatus"]
-        varMap[":stateChangeTime"] = param["stateChangeTime"]
-        try:
-            # convert to string
-            if isinstance(varMap[":prodDBUpdateTime"], datetime.datetime):
-                varMap[":prodDBUpdateTime"] = varMap[":prodDBUpdateTime"].strftime("%Y-%m-%d %H:%M:%S")
-            if isinstance(varMap[":stateChangeTime"], datetime.datetime):
-                varMap[":stateChangeTime"] = varMap[":stateChangeTime"].strftime("%Y-%m-%d %H:%M:%S")
-            # set table
-            if param["jobStatus"] in ["defined", "assigned"]:
-                table = "ATLAS_PANDA.jobsDefined4"
-            elif param["jobStatus"] in ["waiting", "pending"]:
-                table = "ATLAS_PANDA.jobsWaiting4"
-            elif param["jobStatus"] in [
-                "activated",
-                "sent",
-                "starting",
-                "running",
-                "holding",
-                "transferring",
-            ]:
-                table = "ATLAS_PANDA.jobsActive4"
-            elif param["jobStatus"] in ["finished", "failed", "cancelled", "closed"]:
-                table = "ATLAS_PANDA.jobsArchived4"
-            else:
-                _logger.error(f"invalid status {param['jobStatus']}")
-                return False
-            # set transaction
-            self.conn.begin()
-            # update
-            sql = sql0 % table
-            _logger.debug(sql + comment + str(varMap))
-            self.cur.execute(sql + comment, varMap)
-            retU = self.cur.rowcount
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            _logger.debug(f"updateProdDBUpdateTime {param['PandaID']} ret={retU}")
-            if retU == 1:
-                return True
-            return False
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"updateProdDBUpdateTime : {type} {value}")
-            # roll back
-            self._rollback()
-            return False
 
     # add metadata
     def addMetadata(self, pandaID, metadata, newStatus):
@@ -6679,29 +5742,6 @@ class DBProxy:
             _logger.error(f"updateDataset() : {type} {value}")
             return []
 
-    # delete dataset
-    def deleteDataset(self, name):
-        comment = " /* DBProxy.deleteDataset */"
-        sql1 = "DELETE /*+ INDEX(tab DATASETS_NAME_IDX)*/ FROM ATLAS_PANDA.Datasets tab WHERE name=:name"
-        try:
-            # start transaction
-            self.conn.begin()
-            # delete
-            varMap = {}
-            varMap[":name"] = name
-            self.cur.execute(sql1 + comment, varMap)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            return True
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"deleteDataset() : {type} {value}")
-            return False
-
     # trigger cleanup of internal datasets used by a task
     def trigger_cleanup_internal_datasets(self, task_id: int) -> bool:
         """
@@ -6800,139 +5840,6 @@ class DBProxy:
             _logger.error(f"getSerialNumber() : {type} {value}")
             return (-1, False)
 
-    # get serial number for group job
-    def getSerialNumberForGroupJob(self, name):
-        comment = " /* DBProxy.getSerialNumberForGroupJob */"
-        retVal = {"sn": "", "status": False}
-        try:
-            _logger.debug(f"getSerialNumberForGroupJob({name})")
-            # start transaction
-            self.conn.begin()
-            # get serial number
-            if self.backend == "oracle":
-                sql = "SELECT ATLAS_PANDA.GROUP_JOBID_SEQ.nextval FROM dual"
-                self.cur.execute(sql + comment, {})
-                (sn,) = self.cur.fetchone()
-            else:
-                # panda_config.backend == 'mysql'
-                # fake sequence
-                sql = " INSERT INTO ATLAS_PANDA.GROUP_JOBID_SEQ (col) VALUES (NULL) "
-                self.cur.arraysize = 100
-                self.cur.execute(sql + comment, {})
-                sql2 = """ SELECT LAST_INSERT_ID() """
-                self.cur.execute(sql2 + comment, {})
-                (sn,) = self.cur.fetchone()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # return
-            retVal["sn"] = sn
-            retVal["status"] = True
-            _logger.debug(f"getSerialNumberForGroupJob : {name} {str(retVal)}")
-            return retVal
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            errtype, errvalue = sys.exc_info()[:2]
-            _logger.error(f"getSerialNumberForGroupJob : {errtype} {errvalue}")
-            retVal["status"] = False
-            return retVal
-
-    # change job priorities
-    def changeJobPriorities(self, newPrioMap):
-        comment = " /* DBProxy.changeJobPriorities */"
-        try:
-            _logger.debug("changeJobPriorities start")
-            sql = "UPDATE %s SET currentPriority=:currentPriority,assignedPriority=:assignedPriority "
-            sql += "WHERE PandaID=:PandaID"
-            # loop over all PandaIDs
-            for pandaID in newPrioMap:
-                newPrio = newPrioMap[pandaID]
-                varMap = {}
-                varMap[":PandaID"] = pandaID
-                varMap[":currentPriority"] = newPrio
-                varMap[":assignedPriority"] = newPrio
-                _logger.debug(f"changeJobPriorities PandaID={pandaID} -> prio={newPrio}")
-                # start transaction
-                self.conn.begin()
-                # try active tables
-                retU = None
-                for tableName in [
-                    "ATLAS_PANDA.jobsActive4",
-                    "ATLAS_PANDA.jobsDefined4",
-                    "ATLAS_PANDA.jobsWaiting4",
-                ]:
-                    # execute
-                    self.cur.execute((sql % tableName) + comment, varMap)
-                    retU = self.cur.rowcount
-                    if retU > 0:
-                        break
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                _logger.debug(f"changeJobPriorities PandaID={pandaID} retU={retU}")
-            # return
-            _logger.debug("changeJobPriorities done")
-            return True, ""
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            errtype, errvalue = sys.exc_info()[:2]
-            _logger.error(f"changeJobPriorities : {errtype} {errvalue}")
-            return False, "database error"
-
-    # query files with map
-    def queryFilesWithMap(self, map):
-        comment = " /* DBProxy.queryFilesWithMap */"
-        _logger.debug("queryFilesWithMap()")
-        sql1 = f"SELECT PandaID,{FileSpec.columnNames()} FROM ATLAS_PANDA.filesTable4"
-        varMap = {}
-        for key in map:
-            if len(varMap) == 0:
-                sql1 += f" WHERE {key}=:{key}"
-            else:
-                sql1 += f" AND {key}=:{key}"
-            varMap[f":{key}"] = map[key]
-        nTry = 3
-        for iTry in range(nTry):
-            try:
-                # start transaction
-                self.conn.begin()
-                # select
-                self.cur.arraysize = 10000
-                self.cur.execute(sql1 + comment, varMap)
-                res = self.cur.fetchall()
-                _logger.debug(f"queryFilesWithMap() : {str(res)}")
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # instantiate files
-                retList = []
-                for item in res:
-                    # instantiate dummy JobSpec obj for PandaID
-                    job = JobSpec()
-                    job.PandaID = item[0]
-                    # instantiate file
-                    file = FileSpec()
-                    file.pack(item[1:])
-                    # set owner
-                    file.setOwner(job)
-                    # append
-                    retList.append(file)
-                return retList
-            except Exception:
-                # roll back
-                self._rollback()
-                if iTry + 1 < nTry:
-                    _logger.debug(f"queryFilesWithMap retry : {iTry}")
-                    time.sleep(random.randint(10, 20))
-                    continue
-                type, value, traceBack = sys.exc_info()
-                _logger.error(f"queryFilesWithMap : {type} {value}")
-                return []
-
     # count the number of files with map
     def countFilesWithMap(self, map):
         comment = " /* DBProxy.countFilesWithMap */"
@@ -6972,424 +5879,6 @@ class DBProxy:
                 type, value, traceBack = sys.exc_info()
                 _logger.error(f"countFilesWithMap({map}) : {type} {value}")
                 return -1
-
-    # count the number of pending files
-    def countPendingFiles(self, pandaID, forInput=True):
-        comment = " /* DBProxy.countPendingFiles */"
-        varMap = {}
-        varMap[":pandaID"] = pandaID
-        varMap[":status"] = "ready"
-        if forInput:
-            sql1 = "SELECT COUNT(*) FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:pandaID AND type=:type AND status<>:status "
-            varMap[":type"] = "input"
-        else:
-            sql1 = "SELECT COUNT(*) FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:pandaID AND type IN (:type1,:type2) AND status<>:status "
-            varMap[":type1"] = "output"
-            varMap[":type2"] = "log"
-        try:
-            # start transaction
-            self.conn.begin()
-            # select
-            _logger.debug(f"countPendingFiles : {pandaID} start")
-            self.cur.arraysize = 10
-            retS = self.cur.execute(sql1 + comment, varMap)
-            res = self.cur.fetchone()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            nFiles = -1
-            if res is not None:
-                nFiles = res[0]
-            _logger.debug(f"countPendingFiles : {pandaID} -> {nFiles}")
-            return nFiles
-        except Exception:
-            # roll back
-            self._rollback()
-            errType, errValue = sys.exc_info()[:2]
-            _logger.error(f"countPendingFiles : {pandaID} : {errType} {errValue}")
-            return -1
-
-    # get datasets associated with file
-    def getDatasetWithFile(self, lfn, jobPrioity=0):
-        comment = " /* DBProxy.getDatasetWithFile */"
-        varMap = {}
-        varMap[":lfn"] = lfn
-        varMap[":status1"] = "pending"
-        varMap[":status2"] = "transferring"
-        sql1 = "SELECT PandaID,status,destinationDBlock,destinationDBlockToken,dispatchDBlock FROM ATLAS_PANDA.filesTable4 "
-        sql1 += "WHERE lfn=:lfn AND status IN (:status1,:status2) AND modificationTime<CURRENT_DATE-60 "
-        try:
-            # start transaction
-            self.conn.begin()
-            retMap = {}
-            # select
-            _logger.debug(f"getDatasetWithFile : {lfn} start")
-            self.cur.arraysize = 1000
-            retS = self.cur.execute(sql1 + comment, varMap)
-            res = self.cur.fetchall()
-            if res is not None and len(res) != 0:
-                for (
-                    pandaID,
-                    status,
-                    destinationDBlock,
-                    destinationDBlockToken,
-                    dispatchDBlock,
-                ) in res:
-                    varMap = {}
-                    varMap[":PandaID"] = pandaID
-                    if status == "pending":
-                        # input
-                        sqlP = "SELECT computingSite,prodSourceLabel FROM ATLAS_PANDA.jobsDefined4 "
-                        varMap[":jobStatus"] = "assigned"
-                        dsName = dispatchDBlock
-                        dsToken = ""
-                    else:
-                        # output
-                        sqlP = "SELECT destinationSE,prodSourceLabel FROM ATLAS_PANDA.jobsActive4 "
-                        varMap[":jobStatus"] = "transferring"
-                        dsName = destinationDBlock
-                        dsToken = destinationDBlockToken
-                    # check duplication
-                    if dsName in retMap:
-                        continue
-                    # get site info
-                    sqlP += "WHERE PandaID=:PandaID AND jobStatus=:jobStatus AND currentPriority>=:currentPriority "
-                    varMap[":currentPriority"] = jobPrioity
-                    self.cur.execute(sqlP + comment, varMap)
-                    resP = self.cur.fetchone()
-                    # append
-                    if resP is not None and resP[1] in ["managed", "test"]:
-                        retMap[dsName] = (resP[0], dsToken)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            _logger.debug(f"getDatasetWithFile : {lfn} -> {str(retMap)}")
-            return retMap
-        except Exception:
-            # roll back
-            self._rollback()
-            errType, errValue = sys.exc_info()[:2]
-            _logger.error(f"getDatasetWithFile : {lfn} : {errType} {errValue}")
-            return {}
-
-    # get input files currently in use for analysis
-    def getFilesInUseForAnal(self, outDataset):
-        comment = " /* DBProxy.getFilesInUseForAnal */"
-        sqlSub = "SELECT destinationDBlock,PandaID FROM ATLAS_PANDA.filesTable4 "
-        sqlSub += "WHERE dataset=:dataset AND type IN (:type1,:type2) GROUP BY destinationDBlock,PandaID"
-        sqlPaA = "SELECT jobDefinitionID,prodUserName FROM ATLAS_PANDA.jobsDefined4 "
-        sqlPaA += "WHERE PandaID=:PandaID "
-        sqlPaA += "UNION "
-        sqlPaA += "SELECT jobDefinitionID,prodUserName FROM ATLAS_PANDA.jobsActive4 "
-        sqlPaA += "WHERE PandaID=:PandaID "
-        sqlPan = "SELECT jobDefinitionID,prodUserName FROM ATLAS_PANDA.jobsArchived4 "
-        sqlPan += "WHERE PandaID=:PandaID AND modificationTime<=CURRENT_DATE "
-        sqlPan += "UNION "
-        sqlPan += "SELECT jobDefinitionID,prodUserName FROM ATLAS_PANDAARCH.jobsArchived "
-        sqlPan += "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30)"
-        sqlIdA = "SELECT PandaID,jobStatus FROM ATLAS_PANDA.jobsArchived4 "
-        sqlIdA += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
-        sqlIdA += "AND prodSourceLabel=:prodSourceLabel1 "
-        sqlIdL = "SELECT /*+ NO_INDEX(tab JOBS_MODTIME_IDX) INDEX_COMBINE(tab JOBS_PRODUSERNAME_IDX JOBS_JOBDEFID_IDX) */ "
-        sqlIdL += "PandaID,jobStatus FROM ATLAS_PANDAARCH.jobsArchived tab "
-        sqlIdL += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
-        sqlIdL += "AND prodSourceLabel=:prodSourceLabel1 AND modificationTime>(CURRENT_DATE-30) "
-        sqlDis = "SELECT distinct dispatchDBlock FROM ATLAS_PANDA.filesTable4 "
-        sqlDis += "WHERE PandaID=:PandaID AND type=:type AND dispatchDBlock IS NOT NULL AND modificationTime <= CURRENT_DATE"
-        sqlLfn = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ lfn,PandaID FROM ATLAS_PANDA.filesTable4 tab "
-        sqlLfn += "WHERE dispatchDBlock=:dispatchDBlock AND type=:type "
-        sqlLfn += "AND (destinationDBlockToken IS NULL OR destinationDBlockToken<>:noshadow) AND modificationTime<=CURRENT_DATE"
-        nTry = 3
-        for iTry in range(nTry):
-            inputFilesList = []
-            try:
-                # start transaction
-                self.conn.begin()
-                # get sub datasets
-                varMap = {}
-                varMap[":dataset"] = outDataset
-                varMap[":type1"] = "output"
-                varMap[":type2"] = "log"
-                _logger.debug(f"getFilesInUseForAnal : {sqlSub} {str(varMap)}")
-                self.cur.arraysize = 100000
-                retS = self.cur.execute(sqlSub + comment, varMap)
-                res = self.cur.fetchall()
-                subDSpandaIDmap = {}
-                checkedPandaIDs = {}
-                for subDataset, pandaID in res:
-                    # avoid redundunt lookup
-                    if pandaID in checkedPandaIDs:
-                        continue
-                    if subDataset in subDSpandaIDmap:
-                        # append jobs as running since they are not in archived tables
-                        if pandaID not in subDSpandaIDmap[subDataset]:
-                            checkedPandaIDs[pandaID] = "running"
-                            subDSpandaIDmap[subDataset].append(pandaID)
-                        continue
-                    # look for jobdefID and userName
-                    varMap = {}
-                    varMap[":PandaID"] = pandaID
-                    _logger.debug(f"getFilesInUseForAnal : {sqlPaA} {str(varMap)}")
-                    retP = self.cur.execute(sqlPaA + comment, varMap)
-                    resP = self.cur.fetchall()
-                    if len(resP) != 0:
-                        jobDefinitionID, prodUserName = resP[0]
-                    else:
-                        _logger.debug(f"getFilesInUseForAnal : {sqlPan} {str(varMap)}")
-                        retP = self.cur.execute(sqlPan + comment, varMap)
-                        resP = self.cur.fetchall()
-                        if len(resP) != 0:
-                            jobDefinitionID, prodUserName = resP[0]
-                        else:
-                            continue
-                    # get PandaIDs with obdefID and userName
-                    tmpPandaIDs = []
-                    varMap = {}
-                    varMap[":prodUserName"] = prodUserName
-                    varMap[":jobDefinitionID"] = jobDefinitionID
-                    varMap[":prodSourceLabel1"] = "user"
-                    _logger.debug(f"getFilesInUseForAnal : {sqlIdA} {str(varMap)}")
-                    retID = self.cur.execute(sqlIdA + comment, varMap)
-                    resID = self.cur.fetchall()
-                    for tmpPandaID, tmpJobStatus in resID:
-                        checkedPandaIDs[tmpPandaID] = tmpJobStatus
-                        tmpPandaIDs.append(tmpPandaID)
-                    _logger.debug(f"getFilesInUseForAnal : {sqlIdL} {str(varMap)}")
-                    retID = self.cur.execute(sqlIdL + comment, varMap)
-                    resID = self.cur.fetchall()
-                    for tmpPandaID, tmpJobStatus in resID:
-                        if tmpPandaID not in tmpPandaIDs:
-                            checkedPandaIDs[tmpPandaID] = tmpJobStatus
-                            tmpPandaIDs.append(tmpPandaID)
-                    # append
-                    if subDataset not in subDSpandaIDmap:
-                        subDSpandaIDmap[subDataset] = []
-                    for tmpPandaID in tmpPandaIDs:
-                        # reuse failed files if jobs are in Archived since they cannot change back to active
-                        if checkedPandaIDs[tmpPandaID] in [
-                            "failed",
-                            "cancelled",
-                            "closed",
-                        ]:
-                            continue
-                        # collect PandaIDs
-                        subDSpandaIDmap[subDataset].append(tmpPandaID)
-                # loop over all sub datasets
-                for subDataset in subDSpandaIDmap:
-                    activePandaIDs = subDSpandaIDmap[subDataset]
-                    # skip empty
-                    if activePandaIDs == []:
-                        continue
-                    # get dispatchDBlocks
-                    pandaID = activePandaIDs[0]
-                    varMap = {}
-                    varMap[":PandaID"] = pandaID
-                    varMap[":type"] = "input"
-                    _logger.debug(f"getFilesInUseForAnal : {sqlDis} {str(varMap)}")
-                    self.cur.arraysize = 10000
-                    retD = self.cur.execute(sqlDis + comment, varMap)
-                    resD = self.cur.fetchall()
-                    # get LFNs
-                    for (disDataset,) in resD:
-                        # use new style only
-                        if not disDataset.startswith("user_disp."):
-                            continue
-                        varMap = {}
-                        varMap[":dispatchDBlock"] = disDataset
-                        varMap[":type"] = "input"
-                        varMap[":noshadow"] = "noshadow"
-                        _logger.debug(f"getFilesInUseForAnal : {sqlLfn} {str(varMap)}")
-                        self.cur.arraysize = 100000
-                        retL = self.cur.execute(sqlLfn + comment, varMap)
-                        resL = self.cur.fetchall()
-                        # append
-                        for lfn, filePandaID in resL:
-                            # skip files used by archived failed or cancelled jobs
-                            if filePandaID in activePandaIDs and lfn not in inputFilesList:
-                                inputFilesList.append(lfn)
-                # commit
-                if not self._commit():
-                    RuntimeError("Commit error")
-                _logger.debug(f"getFilesInUseForAnal : {len(inputFilesList)}")
-                return inputFilesList
-            except Exception:
-                # roll back
-                self._rollback()
-                if iTry + 1 < nTry:
-                    _logger.debug(f"inputFilesList retry : {iTry}")
-                    time.sleep(random.randint(10, 20))
-                    continue
-                type, value, traceBack = sys.exc_info()
-                _logger.error(f"inputFilesList({outDataset}) : {type} {value}")
-                return []
-
-    # get list of dis dataset to get input files in shadow
-    def getDisInUseForAnal(self, outDataset):
-        comment = " /* DBProxy.getDisInUseForAnal */"
-        sqlSub = "SELECT destinationDBlock,PandaID,status FROM ATLAS_PANDA.filesTable4 "
-        sqlSub += "WHERE dataset=:dataset AND type=:type1 GROUP BY destinationDBlock,PandaID,status"
-        sqlPaA = "SELECT jobStatus FROM ATLAS_PANDA.jobsDefined4 "
-        sqlPaA += "WHERE PandaID=:PandaID "
-        sqlPaA += "UNION "
-        sqlPaA += "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 "
-        sqlPaA += "WHERE PandaID=:PandaID "
-        sqlPan = "SELECT jobStatus FROM ATLAS_PANDA.jobsArchived4 "
-        sqlPan += "WHERE PandaID=:PandaID AND modificationTime<=CURRENT_DATE "
-        sqlPan += "UNION "
-        sqlPan += "SELECT jobStatus FROM ATLAS_PANDAARCH.jobsArchived "
-        sqlPan += "WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30)"
-        sqlDis = "SELECT distinct dispatchDBlock FROM ATLAS_PANDA.filesTable4 "
-        sqlDis += "WHERE PandaID=:PandaID AND type=:type AND dispatchDBlock IS NOT NULL AND modificationTime <= CURRENT_DATE"
-        inputDisList = []
-        try:
-            timeStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-            _logger.debug(f"getDisInUseForAnal start for {outDataset}")
-            # start transaction
-            self.conn.begin()
-            # get sub datasets
-            varMap = {}
-            varMap[":dataset"] = outDataset
-            varMap[":type1"] = "log"
-            _logger.debug(f"getDisInUseForAnal : {sqlSub} {str(varMap)}")
-            self.cur.arraysize = 100000
-            retS = self.cur.execute(sqlSub + comment, varMap)
-            res = self.cur.fetchall()
-            subDSpandaIDmap = {}
-            checkedPandaIDs = {}
-            for subDataset, pandaID, fileStatus in res:
-                # add map
-                if subDataset not in subDSpandaIDmap:
-                    subDSpandaIDmap[subDataset] = []
-                # check job status
-                if fileStatus != "ready":
-                    varMap = {}
-                    varMap[":PandaID"] = pandaID
-                    _logger.debug(f"getDisInUseForAnal : {sqlPaA} {str(varMap)}")
-                    retP = self.cur.execute(sqlPaA + comment, varMap)
-                    resP = self.cur.fetchall()
-                    if len(resP) != 0:
-                        # append jobs as running since they are not in archived tables yet
-                        checkedPandaIDs[pandaID] = "running"
-                        subDSpandaIDmap[subDataset].append(pandaID)
-                    else:
-                        _logger.debug(f"getDisInUseForAnal : {sqlPan} {str(varMap)}")
-                        retP = self.cur.execute(sqlPan + comment, varMap)
-                        resP = self.cur.fetchall()
-                        if len(resP) != 0:
-                            (checkedPandaIDs[pandaID],) = resP[0]
-                            # reuse failed files if jobs are in Archived since they cannot change back to active
-                            if checkedPandaIDs[pandaID] in [
-                                "failed",
-                                "cancelled",
-                                "closed",
-                            ]:
-                                continue
-                            # collect PandaIDs
-                            subDSpandaIDmap[subDataset].append(pandaID)
-                        else:
-                            # not found
-                            continue
-                else:
-                    # no job lookup since file was sucessfully finished
-                    checkedPandaIDs[pandaID] = "finished"
-                    # collect PandaIDs
-                    subDSpandaIDmap[subDataset].append(pandaID)
-            # loop over all sub datasets
-            for subDataset in subDSpandaIDmap:
-                activePandaIDs = subDSpandaIDmap[subDataset]
-                # skip empty
-                if activePandaIDs == []:
-                    continue
-                resDisList = []
-                # get dispatchDBlocks
-                pandaID = activePandaIDs[0]
-                varMap = {}
-                varMap[":PandaID"] = pandaID
-                varMap[":type"] = "input"
-                _logger.debug(f"getDisInUseForAnal : {sqlDis} {str(varMap)}")
-                self.cur.arraysize = 10000
-                retD = self.cur.execute(sqlDis + comment, varMap)
-                resD = self.cur.fetchall()
-                # get shadow dis
-                for (disDataset,) in resD:
-                    # use new style only
-                    if not disDataset.startswith("user_disp."):
-                        continue
-                    if disDataset not in resDisList:
-                        resDisList.append(disDataset)
-                # append
-                if resDisList != []:
-                    inputDisList.append((resDisList, activePandaIDs))
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            timeDelta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - timeStart
-            _logger.debug(f"getDisInUseForAnal end for {outDataset} len={len(inputDisList)} time={timeDelta.seconds}sec")
-            return inputDisList
-        except Exception:
-            # roll back
-            self._rollback()
-            errtype, errvalue = sys.exc_info()[:2]
-            _logger.error(f"getDisInUseForAnal({outDataset}) : {errtype} {errvalue}")
-            return None
-
-    # get input LFNs currently in use for analysis with shadow dis
-    def getLFNsInUseForAnal(self, inputDisList):
-        comment = " /* DBProxy.getLFNsInUseForAnal */"
-        sqlLfn = "SELECT /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ lfn,PandaID FROM ATLAS_PANDA.filesTable4 tab "
-        sqlLfn += "WHERE dispatchDBlock=:dispatchDBlock AND type=:type "
-        sqlLfn += "AND (destinationDBlockToken IS NULL OR destinationDBlockToken<>:noshadow) AND modificationTime<=CURRENT_DATE"
-        inputFilesList = []
-        try:
-            token = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat("/")
-            # loop over all shadow dis datasets
-            pandaIdLfnMap = {}
-            for disDatasetList, activePandaIDs in inputDisList:
-                for disDataset in disDatasetList:
-                    # use new style only
-                    if not disDataset.startswith("user_disp."):
-                        continue
-                    # read LFNs and PandaIDs
-                    if disDataset not in pandaIdLfnMap:
-                        # start transaction
-                        self.conn.begin()
-                        varMap = {}
-                        varMap[":dispatchDBlock"] = disDataset
-                        varMap[":type"] = "input"
-                        varMap[":noshadow"] = "noshadow"
-                        _logger.debug(f"getLFNsInUseForAnal : <{token}> {sqlLfn} {str(varMap)}")
-                        timeStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-                        self.cur.arraysize = 100000
-                        retL = self.cur.execute(sqlLfn + comment, varMap)
-                        resL = self.cur.fetchall()
-                        # commit
-                        timeDelta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - timeStart
-                        _logger.debug(f"getLFNsInUseForAnal : <{token}> {disDataset} time={timeDelta.seconds}sec commit")
-                        if not self._commit():
-                            raise RuntimeError("Commit error")
-                        # make map
-                        pandaIdLfnMap[disDataset] = {}
-                        for lfn, filePandaID in resL:
-                            if filePandaID not in pandaIdLfnMap[disDataset]:
-                                pandaIdLfnMap[disDataset][filePandaID] = []
-                            pandaIdLfnMap[disDataset][filePandaID].append(lfn)
-                        _logger.debug(f"getLFNsInUseForAnal : <{token}> {disDataset} map made with len={len(resL)}")
-                # append
-                for disDataset in disDatasetList:
-                    _logger.debug(f"getLFNsInUseForAnal : <{token}> {disDataset} list making pandaIDs={len(activePandaIDs)} fileLen={len(inputFilesList)}")
-                    for activePandaID in activePandaIDs:
-                        # skip files used by archived failed or cancelled jobs
-                        if activePandaID in pandaIdLfnMap[disDataset]:
-                            inputFilesList += pandaIdLfnMap[disDataset][activePandaID]
-                    _logger.debug(f"getLFNsInUseForAnal : <{token}> {disDataset} done")
-            _logger.debug(f"getLFNsInUseForAnal : <{token}> {len(inputFilesList)}")
-            return inputFilesList
-        except Exception:
-            # roll back
-            self._rollback()
-            errtype, errvalue = sys.exc_info()[:2]
-            _logger.error(f"getLFNsInUseForAnal({str(inputDisList)}) : {errtype} {errvalue}")
-            return None
 
     # update input files and return corresponding PandaIDs
     def updateInFilesReturnPandaIDs(self, dataset, status, fileLFN=""):
@@ -7437,45 +5926,6 @@ class DBProxy:
                 type, value, traceBack = sys.exc_info()
                 _logger.error(f"updateInFilesReturnPandaIDs : {type} {value}")
         return []
-
-    # update file status in dispatch dataset
-    def updateFileStatusInDisp(self, dataset, fileStatusMap):
-        comment = " /* DBProxy.updateFileStatusInDisp */"
-        _logger.debug(f"updateFileStatusInDisp({dataset},{fileStatusMap})")
-        sql1 = "UPDATE /*+ index(tab FILESTABLE4_DISPDBLOCK_IDX) */ ATLAS_PANDA.filesTable4 tab SET status=:status WHERE dispatchDBlock=:dispatchDBlock AND lfn=:lfn"
-        nTry = 1
-        for iTry in range(nTry):
-            try:
-                # start transaction
-                self.conn.begin()
-                # update
-                for status in fileStatusMap:
-                    lfns = fileStatusMap[status]
-                    varMap = {}
-                    varMap[":status"] = status
-                    varMap[":dispatchDBlock"] = dataset
-                    # loop over all files
-                    for lfn in lfns:
-                        varMap["lfn"] = lfn
-                        # update
-                        retU = self.cur.execute(sql1 + comment, varMap)
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # return
-                _logger.debug("updateFileStatusInDisp : done")
-                return True
-            except Exception:
-                # roll back
-                self._rollback()
-                # error report
-                if iTry + 1 < nTry:
-                    _logger.debug(f"updateFileStatusInDisp retry : {iTry}")
-                    time.sleep(random.randint(5, 10))
-                    continue
-                type, value, traceBack = sys.exc_info()
-                _logger.error(f"updateFileStatusInDisp : {type} {value}")
-        return False
 
     # update output files and return corresponding PandaIDs
     def updateOutFilesReturnPandaIDs(self, dataset, fileLFN=""):
@@ -7618,172 +6068,6 @@ class DBProxy:
                 type, value, traceBack = sys.exc_info()
                 _logger.error(f"setGUIDs : {type} {value}")
         return False
-
-    # query PandaID with Datasets
-    def queryPandaIDwithDataset(self, datasets):
-        comment = " /* DBProxy.queryPandaIDwithDataset */"
-        _logger.debug(f"queryPandaIDwithDataset({datasets})")
-        if len(datasets) == 0:
-            return []
-        # make SQL query
-        sql1 = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock GROUP BY PandaID"
-        # execute
-        try:
-            retList = []
-            for dataset in datasets:
-                # start transaction
-                self.conn.begin()
-                # select
-                self.cur.arraysize = 10000
-                varMap = {}
-                varMap[":destinationDBlock"] = dataset
-                self.cur.execute(sql1 + comment, varMap)
-                res = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # get IDs
-                for r in res:
-                    retList.append(r[0])
-            # return
-            _logger.debug(f"queryPandaIDwithDataset : {str(retList)}")
-            return retList
-        except Exception:
-            # roll back
-            self._rollback()
-            # error report
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"queryPandaIDwithDataset : {type} {value}")
-            return []
-
-    # query last files in datasets
-    def queryLastFilesInDataset(self, datasets):
-        comment = " /* DBProxy.queryLastFilesInDataset */"
-        _logger.debug(f"queryLastFilesInDataset({datasets})")
-        if len(datasets) == 0:
-            return []
-        # make SQL query
-        sql1 = "SELECT lfn,PandaID FROM ATLAS_PANDA.filesTable4 WHERE dataset=:dataset AND type=:type ORDER BY lfn DESC"
-        sqlL = "SELECT processingType FROM %s WHERE PandaID=:PandaID "
-        sqlA = "UNION SELECT processingType FROM ATLAS_PANDAARCH.jobsArchived WHERE PandaID=:PandaID AND modificationTime>(CURRENT_DATE-30)"
-        sql2 = "SELECT lfn FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type=:type"
-        # execute
-        try:
-            retMap = {}
-            for dataset in datasets:
-                # start transaction
-                self.conn.begin()
-                # select max LFN
-                varMap = {}
-                varMap[":type"] = "output"
-                varMap[":dataset"] = dataset
-                self.cur.arraysize = 100000
-                self.cur.execute(sql1 + comment, varMap)
-                res = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # found
-                retList = []
-                for tmpLFN, pandaID in res:
-                    # skip log.tgz
-                    if re.search("\.log\.tgz(\.\d+)*$", tmpLFN) is not None:
-                        continue
-                    # start transaction
-                    self.conn.begin()
-                    self.cur.arraysize = 10
-                    # check processingType
-                    processingType = None
-                    for tmpTable in [
-                        "ATLAS_PANDA.jobsDefined4",
-                        "ATLAS_PANDA.jobsActive4",
-                        "ATLAS_PANDA.jobsArchived4",
-                    ]:
-                        varMap = {}
-                        varMap[":PandaID"] = pandaID
-                        if tmpTable == "ATLAS_PANDA.jobsArchived4":
-                            self.cur.execute((sqlL % tmpTable) + sqlA + comment, varMap)
-                        else:
-                            self.cur.execute((sqlL % tmpTable) + comment, varMap)
-                        resP = self.cur.fetchone()
-                        if resP is not None:
-                            processingType = resP[0]
-                            break
-                    # commit
-                    if not self._commit():
-                        raise RuntimeError("Commit error")
-                    # job not found
-                    if processingType is None:
-                        continue
-
-                    # start transaction
-                    self.conn.begin()
-                    # select LFNs
-                    varMap = {}
-                    varMap[":PandaID"] = pandaID
-                    varMap[":type"] = "output"
-                    self.cur.arraysize = 1000
-                    self.cur.execute(sql2 + comment, varMap)
-                    res = self.cur.fetchall()
-                    for r in res:
-                        retList.append(r[0])
-                    # commit
-                    if not self._commit():
-                        raise RuntimeError("Commit error")
-                    # get only the largest one
-                    break
-                # append
-                retMap[dataset] = retList
-            # return
-            _logger.debug(f"queryLastFilesInDataset : {str(retMap)}")
-            return retMap
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"queryLastFilesInDataset : {type} {value}")
-            return {}
-
-    # query PandaID with filenames
-    def queryPandaIDwithLFN(self, vlfns):
-        comment = " /* DBProxy.queryPandaIDwithLFN */"
-        _logger.debug(f"queryPandaIDwithLFN({vlfns})")
-        if len(vlfns) == 0:
-            return []
-        # make SQL query
-        sql1 = "SELECT PandaID FROM ATLAS_PANDA.filesTable4 WHERE lfn=:lfn GROUP BY PandaID"
-        # execute
-        retList = []
-        for lfn in vlfns:
-            # get generic LFNs
-            gLFN = re.sub("\.\d+$", "", lfn)
-            # try
-            try:
-                # start transaction
-                self.conn.begin()
-                # select
-                varMap = {}
-                varMap[":lfn"] = gLFN
-                self.cur.arraysize = 10000
-                self.cur.execute(sql1 + comment, varMap)
-                res = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # append IDs
-                for (tmpID,) in res:
-                    if tmpID not in retList:
-                        retList.append(tmpID)
-            except Exception:
-                # roll back
-                self._rollback()
-                # error report
-                type, value, traceBack = sys.exc_info()
-                _logger.error(f"queryPandaIDwithLFN : {type} {value}")
-                return []
-        # return
-        _logger.debug(f"queryPandaIDwithLFN : {str(retList)}")
-        return retList
 
     # get job statistics
     def getJobStatistics(
@@ -7937,598 +6221,6 @@ class DBProxy:
                 type, value, traceBack = sys.exc_info()
                 _logger.error(f"getJobStatistics : {type} {value}")
                 return {}
-
-    # get job statistics with label
-    def getJobStatisticsWithLabel(self, siteStr=""):
-        comment = " /* DBProxy.getJobStatisticsWithLabel */"
-        _logger.debug(f"getJobStatisticsWithLabel({siteStr})")
-        sql0 = "SELECT computingSite,prodSourceLabel,jobStatus,COUNT(*) FROM %s "
-        # site
-        tmpSiteMap = {}
-        if siteStr != "":
-            sql0 += "WHERE computingSite IN ("
-            # loop over all sites
-            idxSite = 1
-            for tmpSite in siteStr.split(","):
-                tmpSiteKey = f":site{idxSite}"
-                sql0 += f"{tmpSiteKey},"
-                tmpSiteMap[tmpSiteKey] = tmpSite
-                idxSite += 1
-            sql0 = sql0[:-1] + ") "
-        sql0 += "GROUP BY computingSite,prodSourceLabel,jobStatus "
-        sqlMV = re.sub("COUNT\(\*\)", "SUM(num_of_jobs)", sql0)
-        sqlMV = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sqlMV)
-        tables = ["ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsDefined4"]
-        returnMap = {}
-        try:
-            for table in tables:
-                # start transaction
-                self.conn.begin()
-                # select
-                varMap = {}
-                self.cur.arraysize = 10000
-                if table == "ATLAS_PANDA.jobsActive4":
-                    sqlExeTmp = (sqlMV + comment) % "ATLAS_PANDA.MV_JOBSACTIVE4_STATS"
-                else:
-                    sqlExeTmp = (sql0 + comment) % table
-                self.cur.execute(sqlExeTmp, tmpSiteMap)
-                res = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # create map
-                for computingSite, prodSourceLabel, jobStatus, nCount in res:
-                    # FIXME
-                    # ignore some job status since they break APF
-                    if jobStatus in ["merging"]:
-                        continue
-                    # add site
-                    if computingSite not in returnMap:
-                        returnMap[computingSite] = {}
-                    # add SourceLabel
-                    if prodSourceLabel not in returnMap[computingSite]:
-                        returnMap[computingSite][prodSourceLabel] = {}
-                    # add jobstatus
-                    if jobStatus not in returnMap[computingSite][prodSourceLabel]:
-                        returnMap[computingSite][prodSourceLabel][jobStatus] = 0
-                    # add
-                    returnMap[computingSite][prodSourceLabel][jobStatus] += nCount
-            # return
-            _logger.debug(f"getJobStatisticsWithLabel() : {str(returnMap)}")
-            return returnMap
-        except Exception:
-            # roll back
-            self._rollback()
-            errType, errValue = sys.exc_info()[:2]
-            _logger.error(f"getJobStatisticsWithLabel : {errType} {errValue}")
-            return {}
-
-    # get job statistics for brokerage
-    def getJobStatisticsBrokerage(self, minPriority=None, maxPriority=None):
-        comment = " /* DBProxy.getJobStatisticsBrokerage */"
-        _logger.debug(f"getJobStatisticsBrokerage(min={minPriority} max={maxPriority})")
-        sql0 = "SELECT cloud,computingSite,jobStatus,processingType,COUNT(*) FROM %s WHERE "
-        sql0 += "prodSourceLabel IN (:prodSourceLabel1) "
-        tmpPrioMap = {}
-        if minPriority is not None:
-            sql0 += "AND currentPriority>=:minPriority "
-            tmpPrioMap[":minPriority"] = minPriority
-        sql0 += "GROUP BY cloud,computingSite,jobStatus,processingType"
-        # sql for materialized view
-        sqlMV = re.sub("COUNT\(\*\)", "SUM(num_of_jobs)", sql0)
-        sqlMV = re.sub(":minPriority", "TRUNC(:minPriority,-1)", sqlMV)
-        sqlMV = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sqlMV)
-        tables = ["ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsDefined4"]
-        if minPriority is not None or maxPriority is not None:
-            # read the number of running jobs with prio<=MIN
-            tables.append("ATLAS_PANDA.jobsActive4")
-            sqlMVforRun = re.sub("currentPriority>=", "currentPriority<=", sqlMV)
-        ret = {}
-        nTry = 3
-        iActive = 0
-        for iTry in range(nTry):
-            try:
-                for table in tables:
-                    # start transaction
-                    self.conn.begin()
-                    # select
-                    varMap = {}
-                    varMap[":prodSourceLabel1"] = "managed"
-                    for tmpPrio in tmpPrioMap:
-                        varMap[tmpPrio] = tmpPrioMap[tmpPrio]
-                    self.cur.arraysize = 10000
-                    useRunning = None
-                    if table == "ATLAS_PANDA.jobsActive4":
-                        # first count non-running and then running if minPriority is specified
-                        if minPriority is not None:
-                            if iActive == 0:
-                                useRunning = False
-                            else:
-                                useRunning = True
-                            iActive += 1
-                        if useRunning in [None, False]:
-                            self.cur.execute(
-                                (sqlMV + comment) % "ATLAS_PANDA.MV_JOBSACTIVE4_STATS",
-                                varMap,
-                            )
-                        else:
-                            # use maxPriority to avoid underestimation of running jobs
-                            if minPriority is not None and maxPriority is not None:
-                                varMap[":minPriority"] = maxPriority
-                            self.cur.execute(
-                                (sqlMVforRun + comment) % "ATLAS_PANDA.MV_JOBSACTIVE4_STATS",
-                                varMap,
-                            )
-                    else:
-                        self.cur.execute((sql0 + comment) % table, varMap)
-                    res = self.cur.fetchall()
-                    # commit
-                    if not self._commit():
-                        raise RuntimeError("Commit error")
-                    # create map
-                    for cloud, computingSite, jobStatus, processingType, count in res:
-                        # check jobstatus if minPriority isspecified
-                        if minPriority is not None:
-                            # count the number of non-running with prio>=MIN
-                            if useRunning is True and jobStatus != "running":
-                                continue
-                            # count the number of running with prio<=MIN
-                            if useRunning is False and jobStatus == "running":
-                                continue
-                        # add cloud
-                        ret.setdefault(cloud, {})
-                        # add site
-                        ret[cloud].setdefault(computingSite, {})
-                        # add processingType
-                        ret[cloud][computingSite].setdefault(processingType, {})
-                        # add jobStatus
-                        if jobStatus not in ret[cloud][computingSite][processingType]:
-                            ret[cloud][computingSite][processingType][jobStatus] = count
-                # for zero
-                for cloud in ret:
-                    cloudVal = ret[cloud]
-                    for site in cloudVal:
-                        siteVal = cloudVal[site]
-                        for pType in siteVal:
-                            typeVal = siteVal[pType]
-                            for stateItem in [
-                                "assigned",
-                                "activated",
-                                "running",
-                                "transferring",
-                            ]:
-                                if stateItem not in typeVal:
-                                    typeVal[stateItem] = 0
-                # return
-                _logger.debug(f"getJobStatisticsBrokerage -> {str(ret)}")
-                return ret
-            except Exception:
-                # roll back
-                self._rollback()
-                if iTry + 1 < nTry:
-                    _logger.debug(f"getJobStatisticsBrokerage retry : {iTry}")
-                    time.sleep(2)
-                    continue
-                type, value, traceBack = sys.exc_info()
-                _logger.error(f"getJobStatisticsBrokerage : {type} {value}")
-                return {}
-
-    # get job statistics for analysis brokerage
-    def getJobStatisticsAnalBrokerage(self, minPriority=None):
-        comment = " /* DBProxy.getJobStatisticsAnalBrokerage */"
-        _logger.debug(f"getJobStatisticsAnalBrokerage({minPriority})")
-        sql0 = "SELECT computingSite,jobStatus,processingType,COUNT(*) FROM %s WHERE "
-        sql0 += "prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
-        if minPriority is not None:
-            sql0 += "AND currentPriority>=:minPriority "
-        sql0 += "GROUP BY cloud,computingSite,jobStatus,processingType"
-        # sql for materialized view
-        sqlMV = re.sub("COUNT\(\*\)", "SUM(num_of_jobs)", sql0)
-        sqlMV = re.sub(":minPriority", "TRUNC(:minPriority,-1)", sqlMV)
-        sqlMV = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sqlMV)
-        tables = ["ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsDefined4"]
-        ret = {}
-        nTry = 3
-        for iTry in range(nTry):
-            try:
-                for table in tables:
-                    # start transaction
-                    self.conn.begin()
-                    # select
-                    varMap = {}
-                    varMap[":prodSourceLabel1"] = "user"
-                    varMap[":prodSourceLabel2"] = "panda"
-                    if minPriority is not None:
-                        varMap[":minPriority"] = minPriority
-                    self.cur.arraysize = 10000
-                    if table == "ATLAS_PANDA.jobsActive4":
-                        self.cur.execute(
-                            (sqlMV + comment) % "ATLAS_PANDA.MV_JOBSACTIVE4_STATS",
-                            varMap,
-                        )
-                    else:
-                        self.cur.execute((sql0 + comment) % table, varMap)
-                    res = self.cur.fetchall()
-                    # commit
-                    if not self._commit():
-                        raise RuntimeError("Commit error")
-                    # create map
-                    for computingSite, jobStatus, processingType, count in res:
-                        # add site
-                        if computingSite not in ret:
-                            ret[computingSite] = {}
-                        # add processingType
-                        if processingType not in ret[computingSite]:
-                            ret[computingSite][processingType] = {}
-                        # add jobStatus
-                        if jobStatus not in ret[computingSite][processingType]:
-                            ret[computingSite][processingType][jobStatus] = count
-                # for zero
-                for site in ret:
-                    siteVal = ret[site]
-                    for pType in siteVal:
-                        typeVal = siteVal[pType]
-                        for stateItem in [
-                            "defined",
-                            "assigned",
-                            "activated",
-                            "running",
-                        ]:
-                            if stateItem not in typeVal:
-                                typeVal[stateItem] = 0
-                # return
-                _logger.debug(f"getJobStatisticsAnalBrokerage -> {str(ret)}")
-                return ret
-            except Exception:
-                # roll back
-                self._rollback()
-                if iTry + 1 < nTry:
-                    _logger.debug(f"getJobStatisticsAnalBrokerage retry : {iTry}")
-                    time.sleep(2)
-                    continue
-                type, value, traceBack = sys.exc_info()
-                _logger.error(f"getJobStatisticsAnalBrokerage : {type} {value}")
-                return {}
-
-    # get highest prio jobs
-    def getHighestPrioJobStat(self):
-        comment = " /* DBProxy.getHighestPrioJobStat */"
-        _logger.debug("getHighestPrioJobStat()")
-        sql0 = "SELECT cloud,max(currentPriority) FROM %s WHERE "
-        sql0 += "prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) GROUP BY cloud"
-        sqlC = "SELECT COUNT(*) FROM %s WHERE "
-        sqlC += "prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) AND "
-        sqlC += "cloud=:cloud AND currentPriority=:currentPriority"
-        tables = ["ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsDefined4"]
-        ret = {}
-        try:
-            for table in tables:
-                # start transaction
-                self.conn.begin()
-                # select
-                varMap = {}
-                varMap[":prodSourceLabel"] = "managed"
-                if table == "ATLAS_PANDA.jobsActive4":
-                    varMap[":jobStatus1"] = "activated"
-                    varMap[":jobStatus2"] = "dummy"
-                else:
-                    varMap[":jobStatus1"] = "defined"
-                    varMap[":jobStatus2"] = "assigned"
-                self.cur.arraysize = 100
-                _logger.debug((sql0 + comment) % table)
-                self.cur.execute((sql0 + comment) % table, varMap)
-                res = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # create map
-                for cloud, maxPriority in res:
-                    # add cloud
-                    if cloud not in ret:
-                        ret[cloud] = {}
-                    # add max priority
-                    prioKey = "highestPrio"
-                    nNotRunKey = "nNotRun"
-                    getNumber = False
-                    if prioKey not in ret[cloud]:
-                        ret[cloud][prioKey] = maxPriority
-                        ret[cloud][nNotRunKey] = 0
-                        getNumber = True
-                    else:
-                        # use highest one
-                        if ret[cloud][prioKey] < maxPriority:
-                            ret[cloud][prioKey] = maxPriority
-                            # reset
-                            ret[cloud][nNotRunKey] = 0
-                            getNumber = True
-                        elif ret[cloud][prioKey] == maxPriority:
-                            getNumber = True
-                    # get number of jobs with highest prio
-                    if getNumber:
-                        varMap[":cloud"] = cloud
-                        varMap[":currentPriority"] = maxPriority
-                        self.cur.arraysize = 10
-                        _logger.debug((sqlC + comment) % table)
-                        self.cur.execute((sqlC + comment) % table, varMap)
-                        resC = self.cur.fetchone()
-                        # commit
-                        if not self._commit():
-                            raise RuntimeError("Commit error")
-                        ret[cloud][nNotRunKey] += resC[0]
-            # return
-            return ret
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getHighestPrioJobStat : {type} {value}")
-            return {}
-
-    # get highest prio jobs per process group
-    def getHighestPrioJobStatPerPG(self, useMorePG=False):
-        comment = " /* DBProxy.getHighestPrioJobStatPerPG */"
-        _logger.debug("getHighestPrioJobStatPerPG()")
-        if useMorePG is False:
-            sql0 = "SELECT cloud,max(currentPriority),processingType FROM %s WHERE "
-            sql0 += "prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) GROUP BY cloud,processingType"
-            sqlC = "SELECT COUNT(*) FROM %s WHERE "
-            sqlC += "prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) AND "
-            sqlC += "cloud=:cloud AND currentPriority=:currentPriority AND processingType=:processingType"
-        else:
-            sql0 = "SELECT cloud,max(currentPriority),processingType,coreCount,workingGroup FROM %s WHERE "
-            sql0 += "prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) "
-            sql0 += "GROUP BY cloud,processingType,coreCount,workingGroup"
-            sqlC = "SELECT COUNT(*) FROM %s WHERE "
-            sqlC += "prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) AND "
-            sqlC += "cloud=:cloud AND currentPriority=:currentPriority AND processingType=:processingType AND "
-            sqlC += "coreCount=:coreCount AND workingGroup=:workingGroup"
-            sqlCN = "SELECT COUNT(*) FROM %s WHERE "
-            sqlCN += "prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) AND "
-            sqlCN += "cloud=:cloud AND currentPriority=:currentPriority AND processingType=:processingType AND "
-            sqlCN += "coreCount IS NULL AND workingGroup=:workingGroup"
-        tables = ["ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsDefined4"]
-        ret = {}
-        try:
-            for table in tables:
-                # start transaction
-                self.conn.begin()
-                # select
-                varMap = {}
-                varMap[":prodSourceLabel"] = "managed"
-                if table == "ATLAS_PANDA.jobsActive4":
-                    varMap[":jobStatus1"] = "activated"
-                    varMap[":jobStatus2"] = "dummy"
-                else:
-                    varMap[":jobStatus1"] = "defined"
-                    varMap[":jobStatus2"] = "assigned"
-                self.cur.arraysize = 100
-                _logger.debug((sql0 + comment) % table + str(varMap))
-                self.cur.execute((sql0 + comment) % table, varMap)
-                res = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # create map
-                for tmpItem in res:
-                    if useMorePG is False:
-                        cloud, maxPriority, processingType = tmpItem
-                        origCloud = cloud
-                        origProcessingType = processingType
-                    else:
-                        (
-                            origCloud,
-                            maxPriority,
-                            origProcessingType,
-                            coreCount,
-                            workingGroup,
-                        ) = tmpItem
-                        # convert cloud and processingType for extended process group
-                        if useMorePG == ProcessGroups.extensionLevel_1:
-                            # extension level 1
-                            cloud, processingType = ProcessGroups.converCPTforEPG(origCloud, origProcessingType, coreCount)
-                        else:
-                            # extension level 2
-                            cloud, processingType = ProcessGroups.converCPTforEPG(origCloud, origProcessingType, coreCount, workingGroup)
-                    # add cloud
-                    if cloud not in ret:
-                        ret[cloud] = {}
-                    # get process group
-                    processGroup = ProcessGroups.getProcessGroup(processingType)
-                    # add process group
-                    if processGroup not in ret[cloud]:
-                        ret[cloud][processGroup] = {}
-                    # add max priority
-                    prioKey = "highestPrio"
-                    nNotRunKey = "nNotRun"
-                    getNumber = False
-                    if prioKey not in ret[cloud][processGroup]:
-                        ret[cloud][processGroup][prioKey] = maxPriority
-                        ret[cloud][processGroup][nNotRunKey] = 0
-                        getNumber = True
-                    else:
-                        # use highest one
-                        if ret[cloud][processGroup][prioKey] < maxPriority:
-                            ret[cloud][processGroup][prioKey] = maxPriority
-                            # reset
-                            ret[cloud][processGroup][nNotRunKey] = 0
-                            getNumber = True
-                        elif ret[cloud][processGroup][prioKey] == maxPriority:
-                            getNumber = True
-                    # get number of jobs with highest prio
-                    if getNumber:
-                        varMap[":cloud"] = origCloud
-                        varMap[":currentPriority"] = maxPriority
-                        varMap[":processingType"] = origProcessingType
-                        if useMorePG is not False:
-                            varMap[":workingGroup"] = workingGroup
-                            if coreCount is not None:
-                                varMap[":coreCount"] = coreCount
-                        self.cur.arraysize = 10
-                        _logger.debug((sqlC + comment) % table + str(varMap))
-                        self.cur.execute((sqlC + comment) % table, varMap)
-                        resC = self.cur.fetchone()
-                        # commit
-                        if not self._commit():
-                            raise RuntimeError("Commit error")
-                        ret[cloud][processGroup][nNotRunKey] += resC[0]
-            # return
-            _logger.debug(f"getHighestPrioJobStatPerPG -> {ret}")
-            return ret
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getHighestPrioJobStatPerPG : {type} {value}")
-            return {}
-
-    # get queued analysis jobs at a site
-    def getQueuedAnalJobs(self, site, dn):
-        comment = " /* DBProxy.getQueuedAnalJobs */"
-        _logger.debug(f"getQueuedAnalJobs({site},{dn})")
-        sql0 = "SELECT COUNT(*),jobStatus FROM %s WHERE "
-        sql0 += "prodSourceLabel=:prodSourceLabel AND jobStatus IN (:jobStatus1,:jobStatus2) "
-        sql0 += "AND computingSite=:computingSite AND prodUserName != :prodUserName "
-        sql0 += "GROUP BY jobStatus "
-        tables = ["ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsDefined4"]
-        try:
-            # get compact DN
-            compactDN = self.cleanUserID(dn)
-            if compactDN in ["", "NULL", None]:
-                compactDN = dn
-            nQueued = 0
-            nRunning = 0
-            # loop over all tables
-            for table in tables:
-                # start transaction
-                self.conn.begin()
-                # select
-                varMap = {}
-                varMap[":prodSourceLabel"] = "user"
-                varMap[":computingSite"] = site
-                varMap[":prodUserName"] = compactDN
-                if table == "ATLAS_PANDA.jobsActive4":
-                    varMap[":jobStatus1"] = "activated"
-                    varMap[":jobStatus2"] = "running"
-                else:
-                    varMap[":jobStatus1"] = "defined"
-                    varMap[":jobStatus2"] = "assigned"
-                self.cur.arraysize = 10
-                self.cur.execute((sql0 + comment) % table, varMap)
-                res = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # sum
-                for cnt, jobStatus in res:
-                    if jobStatus == "running":
-                        nRunning += cnt
-                    else:
-                        nQueued += cnt
-            # return
-            return {"queued": nQueued, "running": nRunning}
-        except Exception:
-            # roll back
-            self._rollback()
-            errType, errValue = sys.exc_info()[:2]
-            _logger.error(f"getQueuedAnalJobs : {errType} {errValue}")
-            return {}
-
-    # get computingSite and destinationSE for a dataset
-    def getDestSE(self, dsname, fromArch=False):
-        comment = " /* DBProxy.getDestSE */"
-        _logger.debug(f"getDestSE({dsname},{fromArch})")
-        sql0 = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock "
-        if not fromArch:
-            sql0 += "AND status=:status "
-        sql0 += "AND rownum=1"
-        sql1 = "SELECT computingSite,destinationSE FROM %s WHERE PandaID=:PandaID"
-        actTableList = ["ATLAS_PANDA.jobsActive4"]
-        if fromArch:
-            actTableList.append("ATLAS_PANDA.jobsArchived4")
-        try:
-            # start transaction
-            self.conn.begin()
-            # select
-            varMap = {}
-            if not fromArch:
-                varMap[":status"] = "transferring"
-            varMap[":destinationDBlock"] = dsname
-            self.cur.arraysize = 10
-            self.cur.execute(sql0 + comment, varMap)
-            res = self.cur.fetchall()
-            # get PandaID
-            pandaID = None
-            if len(res) != 0:
-                pandaID = res[0][0]
-            # get computingSite and destinationSE
-            destSE = None, None
-            if pandaID is not None:
-                varMap = {}
-                varMap[":PandaID"] = pandaID
-                # loop over all active tables
-                foundInActive = False
-                for actTable in actTableList:
-                    self.cur.execute((sql1 % actTable) + comment, varMap)
-                    res = self.cur.fetchall()
-                    if len(res) != 0:
-                        destSE = res[0]
-                        foundInActive = True
-                        break
-                # look into ARCH table
-                if not foundInActive:
-                    if fromArch:
-                        sqlA = "SELECT computingSite,destinationSE FROM ATLAS_PANDAARCH.jobsArchived WHERE PandaID=:PandaID "
-                        sqlA += "AND modificationTime>(CURRENT_DATE-30) "
-                        self.cur.execute(sqlA + comment, varMap)
-                        res = self.cur.fetchall()
-                        if len(res) != 0:
-                            destSE = res[0]
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # return
-            _logger.debug(f"getDestSE({dsname}) : {str(destSE)}")
-            return destSE
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getDestSE : {type} {value}")
-            return None, None
-
-    # get destinationDBlockToken for a dataset
-    def getDestTokens(self, dsname):
-        comment = " /* DBProxy.getDestTokens */"
-        _logger.debug(f"getDestTokens({dsname})")
-        sql0 = "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ destinationDBlockToken FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock AND rownum=1"
-        try:
-            # start transaction
-            self.conn.begin()
-            # select
-            varMap = {}
-            varMap[":destinationDBlock"] = dsname
-            self.cur.arraysize = 10
-            self.cur.execute(sql0 + comment, varMap)
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # create map
-            retToken = None
-            if len(res) != 0:
-                retToken = res[0][0]
-                # convert None to NULL
-                if retToken is None:
-                    retToken = "NULL"
-            # return
-            _logger.debug(f"getDestTokens({dsname}) : {retToken}")
-            return retToken
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getDestTokens : {type} {value}")
-            return None
 
     # get the number of job for a user
     def getNumberJobsUser(self, dn, workingGroup=None):
@@ -8797,162 +6489,6 @@ class DBProxy:
             type, value, traceBack = sys.exc_info()
             _logger.error(f"getJobStatisticsPerProcessingType : {type} {value}")
             return {}
-
-    # get the number of waiting jobs per site and user
-    def getJobStatisticsPerUserSite(self):
-        comment = " /* DBProxy.getJobStatisticsPerUserSite */"
-        _logger.debug("getJobStatisticsPerUserSite()")
-        sqlN = "SELECT COUNT(*),prodUserID,computingSite FROM %s "
-        sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND jobStatus=:jobStatus GROUP BY prodUserID,computingSite"
-        ret = {}
-        try:
-            for table in ("ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsDefined4"):
-                # start transaction
-                self.conn.begin()
-                # select
-                self.cur.arraysize = 100000
-                # select
-                if table == "ATLAS_PANDA.jobsActive4":
-                    jobStatus = "activated"
-                else:
-                    jobStatus = "assigned"
-                varMap = {}
-                varMap[":prodSourceLabel1"] = "user"
-                varMap[":prodSourceLabel2"] = "panda"
-                varMap[":jobStatus"] = jobStatus
-                self.cur.execute((sqlN + comment) % table, varMap)
-                res = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # create map
-                for cnt, prodUserName, computingSite in res:
-                    # add site
-                    if computingSite not in ret:
-                        ret[computingSite] = {}
-                    # add user
-                    if prodUserName not in ret[computingSite]:
-                        ret[computingSite][prodUserName] = {
-                            "assigned": 0,
-                            "activated": 0,
-                        }
-                    # add info
-                    ret[computingSite][prodUserName][jobStatus] = cnt
-            # return
-            _logger.debug(f"getJobStatisticsPerUserSite -> {str(ret)}")
-            return ret
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            errtype, errvalue = sys.exc_info()[:2]
-            _logger.error(f"getJobStatisticsPerUserSite : {errtype} {errvalue}")
-            return {}
-
-    # get number of activated analysis jobs
-    def getNAnalysisJobs(self, nProcesses):
-        comment = " /* DBProxy.getNAnalysisJobs */"
-        _logger.debug(f"getNAnalysisJobs({nProcesses})")
-        sql0 = "SELECT computingSite,COUNT(*) FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus "
-        sql0 += "AND (prodSourceLabel=:prodSourceLabel1 OR prodSourceLabel=:prodSourceLabel2) GROUP BY computingSite"
-        varMap = {}
-        varMap[":jobStatus"] = "activated"
-        varMap[":prodSourceLabel1"] = "user"
-        varMap[":prodSourceLabel2"] = "panda"
-        ret = {}
-        try:
-            # start transaction
-            self.conn.begin()
-            # select
-            self.cur.arraysize = 10000
-            self.cur.execute(sql0 + comment)
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # create map
-            for item in res:
-                ret[item[0]] = float(item[1]) / nProcesses
-            # return
-            _logger.debug(f"getNAnalysisJobs() : {str(ret)}")
-            return ret
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getNAnalysisJobs : {type} {value}")
-            return {}
-
-    # generate pilot token
-    def genPilotToken(self, schedulerhost, scheduleruser, schedulerid):
-        comment = " /* DBProxy.genPilotToken */"
-        try:
-            _logger.debug(f"genPilotToken({schedulerhost},{scheduleruser},{schedulerid})")
-            token = str(uuid.uuid4())
-            timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-            timeExp = timeNow + datetime.timedelta(days=4)
-            sql = "INSERT INTO ATLAS_PANDA.pilottoken (token,schedulerhost,scheduleruser,schedulerid,created,expires) "
-            sql += "VALUES (:token,:schedulerhost,:scheduleruser,:schedulerid,:created,:expires)"
-            # start transaction
-            self.conn.begin()
-            # execute
-            varMap = {
-                ":token": token,
-                ":schedulerhost": schedulerhost,
-                ":scheduleruser": scheduleruser,
-                ":schedulerid": schedulerid,
-                ":created": timeNow,
-                ":expires": timeExp,
-            }
-            self.cur.execute(sql + comment, varMap)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # return
-            retVal = f"token={token},created={timeNow.strftime('%Y-%m-%d %H:%M:%S')},expires={timeExp.strftime('%Y-%m-%d %H:%M:%S')}"
-            _logger.debug(f"genPilotToken -> {retVal}")
-            return retVal
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"genPilotToken : {type} {value}")
-            return None
-
-    # get list of scheduler users
-    def getListSchedUsers(self):
-        comment = " /* DBProxy.getListSchedUsers */"
-        try:
-            _logger.debug("getListSchedUsers")
-            sql = "SELECT token,scheduleruser FROM ATLAS_PANDA.pilottoken WHERE expires>CURRENT_DATE"
-            # start transaction
-            self.conn.begin()
-            # execute
-            self.cur.arraysize = 100
-            self.cur.execute(sql + comment)
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # return
-            retVal = {}
-            for token, scheduleruser in res:
-                retVal[token] = scheduleruser
-            _logger.debug(f"getListSchedUsers->{str(retVal)}")
-            return retVal
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getListSchedUsers : {type} {value}")
-            return {}
-
-    ###########################################################################
-    #
-    # LogDBProxy stuff
 
     # update site data
     def updateSiteData(self, hostID, pilotRequests, interval):
@@ -9318,41 +6854,6 @@ class DBProxy:
             _logger.error(f"insertnRunningInSiteData : {type} {value}")
             return False
 
-    # get nRunning in site data
-    def getnRunningInSiteData(self):
-        comment = " /* DBProxy.getnRunningInSiteData */"
-        _logger.debug("getnRunningInSiteData start")
-        sqlMax = "SELECT SITE,RUNNING FROM ATLAS_PANDAMETA.SiteData WHERE HOURS=:HOURS AND FLAG=:FLAG"
-        try:
-            # get nRunning
-            varMap = {}
-            varMap[":FLAG"] = "max"
-            varMap[":HOURS"] = 0
-            # start transaction
-            self.conn.begin()
-            self.cur.arraysize = 10000
-            # get
-            self.cur.execute(sqlMax + comment, varMap)
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # loop over all sites
-            retMap = {}
-            for computingSite, maxnRunning in res:
-                retMap[computingSite] = maxnRunning
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            _logger.debug("getnRunningInSiteData done")
-            return retMap
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getnRunningInSiteData : {type} {value}")
-            return {}
-
     # get site info
     def getSiteInfo(self):
         comment = " /* DBProxy.getSiteInfo */"
@@ -9457,7 +6958,6 @@ class DBProxy:
                         ret.maxDiskio = queue_data.get("maxdiskio")
                         ret.pandasite_state = "ACTIVE"
                         ret.fairsharePolicy = queue_data.get("fairsharepolicy")
-                        ret.priorityoffset = queue_data.get("priorityoffset")
                         ret.defaulttoken = queue_data.get("defaulttoken")
 
                         ret.direct_access_lan = queue_data.get("direct_access_lan") is True
@@ -9825,48 +7325,6 @@ class DBProxy:
             self._rollback()
             return []
 
-    # get pilot owners
-    def getPilotOwners(self):
-        comment = " /* DBProxy.getPilotOwners */"
-        _logger.debug("getPilotOwners")
-        try:
-            ret = {None: set()}
-            # set autocommit on
-            self.conn.begin()
-            # select
-            sql = "SELECT pilotowners FROM ATLAS_PANDAMETA.cloudconfig "
-            self.cur.arraysize = 10000
-            self.cur.execute(sql + comment)
-            resList = self.cur.fetchall()
-            for (tmpItem,) in resList:
-                if tmpItem is not None:
-                    for tmpOwner in tmpItem.split("|"):
-                        if tmpOwner != "":
-                            ret[None].add(tmpOwner)
-
-            sql = "SELECT /* use_json_type */ scj.data.siteid, scj.data.dn FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.data.dn IS NOT NULL "
-            self.cur.execute(sql + comment)
-            resList = self.cur.fetchall()
-            for tmpSiteID, tmpItem in resList:
-                if tmpItem is not None:
-                    tmpItem = tmpItem.strip()
-                    for tmpOwner in tmpItem.split("|"):
-                        if tmpOwner not in ["", "None"]:
-                            if tmpSiteID not in ret:
-                                ret[tmpSiteID] = set()
-                            ret[tmpSiteID].add(tmpOwner)
-            _logger.debug(f"getPilotOwners -> {str(ret)}")
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            return ret
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getPilotOwners : {type} {value}")
-            return ret
-
     # get special dispatcher parameters
     def get_special_dispatch_params(self):
         """
@@ -10139,35 +7597,6 @@ class DBProxy:
             # roll back
             self._rollback()
             return retJobID, retJobsetID, retStatus
-
-    # get JobID for user
-    def getJobIdUser(self, dn):
-        comment = " /* DBProxy.getJobIdUser */"
-        _logger.debug(f"getJobIdUser {dn}")
-        jobID = 0
-        try:
-            # set autocommit on
-            self.conn.begin()
-            # select
-            name = self.cleanUserID(dn)
-            sql = "SELECT jobid FROM ATLAS_PANDAMETA.users WHERE name=:name"
-            varMap = {}
-            varMap[":name"] = name
-            self.cur.arraysize = 10
-            self.cur.execute(sql + comment, varMap)
-            res = self.cur.fetchone()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            if res is not None:
-                (jobID,) = res
-            _logger.debug(f"getJobIdUser {name} -> {jobID}")
-        except Exception:
-            errType, errValue = sys.exc_info()[:2]
-            _logger.error(f"getJobIdUser : {errType} {errValue}")
-            # roll back
-            self._rollback()
-        return jobID
 
     # check ban user
     def checkBanUser(self, dn, sourceLabel, jediCheck=False):
@@ -10444,435 +7873,10 @@ class DBProxy:
             self.dumpErrorMessage(_logger, method_name)
             return False
 
-    # check site access
-    def checkSiteAccess(self, siteid, longDN):
-        comment = " /* DBProxy.checkSiteAccess */"
-        _logger.debug(f"checkSiteAccess {siteid}:{longDN}")
-        try:
-            # use compact DN
-            dn = self.cleanUserID(longDN)
-            # construct SQL
-            sql = "SELECT poffset,rights,status,workingGroups FROM ATLAS_PANDAMETA.siteaccess WHERE dn=:dn AND pandasite=:pandasite"
-            varMap = {}
-            varMap[":dn"] = dn
-            varMap[":pandasite"] = siteid
-            # set autocommit on
-            self.conn.begin()
-            # select
-            self.cur.execute(sql + comment, varMap)
-            self.cur.arraysize = 10
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # return
-            retMap = {}
-            if res is not None and len(res) != 0:
-                poffset, rights, status, workingGroups = res[0]
-                retMap["poffset"] = poffset
-                retMap["rights"] = rights
-                retMap["status"] = status
-                if workingGroups in ["", None]:
-                    workingGroups = []
-                else:
-                    workingGroups = workingGroups.split(",")
-                retMap["workingGroups"] = workingGroups
-            _logger.debug(retMap)
-            return retMap
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"checkSiteAccess : {type} {value}")
-            # roll back
-            self._rollback()
-            return {}
-
-    # add account to siteaccess
-    def addSiteAccess(self, siteID, longDN):
-        comment = " /* DBProxy.addSiteAccess */"
-        _logger.debug(f"addSiteAccess : {siteID} {longDN}")
-        try:
-            # use compact DN
-            dn = self.cleanUserID(longDN)
-            # set autocommit on
-            self.conn.begin()
-            # select
-            sql = "SELECT status FROM ATLAS_PANDAMETA.siteaccess WHERE dn=:dn AND pandasite=:pandasite"
-            varMap = {}
-            varMap[":dn"] = dn
-            varMap[":pandasite"] = siteID
-            self.cur.execute(sql + comment, varMap)
-            self.cur.arraysize = 10
-            res = self.cur.fetchone()
-            if res is not None:
-                _logger.debug(f"account already exists with status={res[0]}")
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                return res[0]
-            # add
-            sql = "INSERT INTO ATLAS_PANDAMETA.siteaccess (id,dn,pandasite,status,created) VALUES (ATLAS_PANDAMETA.SITEACCESS_ID_SEQ.nextval,:dn,:pandasite,:status,CURRENT_DATE)"
-
-            varMap = {}
-            varMap[":dn"] = dn
-            varMap[":pandasite"] = siteID
-            varMap[":status"] = "requested"
-            self.cur.execute(sql + comment, varMap)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            _logger.debug("account was added")
-            return 0
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"addSiteAccess : {type} {value}")
-            # return None
-            return -1
-
-    # list site access
-    def listSiteAccess(self, siteid=None, dn=None, longFormat=False):
-        comment = " /* DBProxy.listSiteAccess */"
-        _logger.debug(f"listSiteAccess {siteid}:{dn}")
-        try:
-            if siteid is None and dn is None:
-                return []
-            longAttributes = "status,poffset,rights,workingGroups,created"
-            # set autocommit on
-            self.conn.begin()
-            # construct SQL
-            if siteid is not None:
-                varMap = {":pandasite": siteid}
-                if not longFormat:
-                    sql = "SELECT dn,status FROM ATLAS_PANDAMETA.siteaccess WHERE pandasite=:pandasite ORDER BY dn"
-                else:
-                    sql = f"SELECT dn,{longAttributes} FROM ATLAS_PANDAMETA.siteaccess "
-                    sql += "WHERE pandasite=:pandasite ORDER BY dn"
-            else:
-                shortDN = self.cleanUserID(dn)
-                varMap = {":dn": shortDN}
-                if not longFormat:
-                    sql = "SELECT pandasite,status FROM ATLAS_PANDAMETA.siteaccess WHERE dn=:dn ORDER BY pandasite"
-                else:
-                    sql = f"SELECT pandasite,{longAttributes} FROM ATLAS_PANDAMETA.siteaccess "
-                    sql += "WHERE dn=:dn ORDER BY pandasite"
-            # select
-            self.cur.execute(sql + comment, varMap)
-            self.cur.arraysize = 1000
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # return
-            ret = []
-            if res is not None and len(res) != 0:
-                for tmpRes in res:
-                    if not longFormat:
-                        ret.append(tmpRes)
-                    else:
-                        # create map for long format
-                        tmpRetMap = {}
-                        # use first value as a primary key
-                        tmpRetMap["primKey"] = tmpRes[0]
-                        idxVal = 1
-                        for tmpKey in longAttributes.split(","):
-                            tmpRetMap[tmpKey] = tmpRes[idxVal]
-                            idxVal += 1
-                        ret.append(tmpRetMap)
-            _logger.debug(ret)
-            return ret
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"listSiteAccess : {type} {value}")
-            return []
-
-    # update site access
-    def updateSiteAccess(self, method, siteid, requesterDN, userName, attrValue):
-        comment = " /* DBProxy.updateSiteAccess */"
-        _logger.debug(f"updateSiteAccess {method}:{siteid}:{requesterDN}:{userName}:{attrValue}")
-        try:
-            # set autocommit on
-            self.conn.begin()
-            # check existence
-            varMap = {}
-            varMap[":pandasite"] = siteid
-            varMap[":dn"] = userName
-            sql = "SELECT count(*) FROM ATLAS_PANDAMETA.siteaccess WHERE pandasite=:pandasite AND dn=:dn"
-            self.cur.execute(sql + comment, varMap)
-            self.cur.arraysize = 10
-            res = self.cur.fetchall()
-            if res is None or res[0][0] == 0:
-                _logger.error(f"updateSiteAccess : No request for {varMap}")
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # return
-                return f"No request for {siteid}:{userName}"
-            # get cloud
-            varMap = {":pandasite": siteid}
-            sql = "SELECT /* use_json_type */ scj.data.cloud, scj.data.dn FROM ATLAS_PANDA.schedconfig_json scj WHERE scj.panda_queue=:pandasite AND rownum<=1"
-            self.cur.execute(sql + comment, varMap)
-            res = self.cur.fetchall()
-            if res is None or len(res) == 0:
-                _logger.error(f"updateSiteAccess : No cloud in schedconfig for {siteid}")
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # return
-                return f"No cloud in schedconfig for {siteid}"
-            cloud = res[0][0]
-            siteContact = res[0][1]
-            # get cloud responsible
-            varMap = {":cloud": cloud}
-            sql = "SELECT dn FROM ATLAS_PANDAMETA.cloudconfig WHERE name=:cloud"
-            self.cur.execute(sql + comment, varMap)
-            res = self.cur.fetchall()
-            if res is None or len(res) == 0:
-                _logger.error(f"updateSiteAccess : No contact in cloudconfig for {cloud}")
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # return
-                return f"No contact in cloudconfig for {cloud}"
-            contactNames = res[0][0]
-            if contactNames in [None, ""]:
-                contactNames = []
-            else:
-                contactNames = contactNames.split(",")
-            # get site responsible
-            if siteContact not in [None, ""]:
-                contactNames += siteContact.split(",")
-            # check privilege
-            if self.cleanUserID(requesterDN) not in contactNames:
-                _logger.error(f"updateSiteAccess : {requesterDN} is not one of contacts {str(contactNames)}")
-                # return
-                return "Insufficient privilege"
-            # update
-            varMap = {}
-            varMap[":pandasite"] = siteid
-            varMap[":dn"] = userName
-            if method in ["approve", "reject"]:
-                # update status
-                sql = "UPDATE ATLAS_PANDAMETA.siteaccess SET status=:newStatus WHERE pandasite=:pandasite AND dn=:dn"
-                if method == "approve":
-                    varMap[":newStatus"] = "tobeapproved"
-                else:
-                    varMap[":newStatus"] = "toberejected"
-            elif method == "delete":
-                # delete
-                sql = "DELETE FROM ATLAS_PANDAMETA.siteaccess WHERE pandasite=:pandasite AND dn=:dn"
-            elif method == "set":
-                # check value
-                if re.search("^[a-z,A-Z]+:[a-z,A-Z,0-9,\,_\-]+$", attrValue) is None:
-                    errStr = f"Invalid argument for set : {attrValue}. Must be key:value"
-                    _logger.error(f"updateSiteAccess : {errStr}")
-                    # retrun
-                    return errStr
-                # decompose to key and value
-                tmpKey = attrValue.split(":")[0].lower()
-                tmpVal = attrValue.split(":")[-1]
-                # check key
-                changeableKeys = ["poffset", "workinggroups", "rights"]
-                if tmpKey not in changeableKeys:
-                    errStr = f"{tmpKey} cannot be set. Only {str(changeableKeys)} are allowed"
-                    _logger.error(f"updateSiteAccess : {errStr}")
-                    # retrun
-                    return errStr
-                # set value map
-                varMap[f":{tmpKey}"] = tmpVal
-                sql = f"UPDATE ATLAS_PANDAMETA.siteaccess SET {tmpKey}=:{tmpKey} WHERE pandasite=:pandasite AND dn=:dn"
-            else:
-                _logger.error(f"updateSiteAccess : Unknown method '{method}'")
-                # return
-                return f"Unknown method '{method}'"
-            # execute
-            _logger.debug(sql + comment + str(varMap))
-            self.cur.execute(sql + comment, varMap)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            _logger.debug("updateSiteAccess : completed")
-            return True
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"updateSiteAccess : {type} {value}")
-            return f"DB error {type} {value}"
-
     # get list of archived tables
     def getArchiveTables(self):
         # return
         return ["ATLAS_PANDAARCH.jobsArchived"]
-
-    # get JobIDs in a time range
-    def getJobIDsInTimeRangeLog(self, dn, timeRange, retJobIDs):
-        comment = " /* DBProxy.getJobIDsInTimeRangeLog */"
-        _logger.debug(f"getJobIDsInTimeRangeLog : {dn} {timeRange.strftime('%Y-%m-%d %H:%M:%S')}")
-        try:
-            # get compact DN
-            compactDN = self.cleanUserID(dn)
-            if compactDN in ["", "NULL", None]:
-                compactDN = dn
-            # get list of archived tables
-            tables = self.getArchiveTables()
-            # select
-            for table in tables:
-                # make sql
-                sql = "SELECT /*+ NO_INDEX(tab JOBS_MODTIME_IDX) INDEX_COMBINE(tab JOBS_PRODSOURCELABEL_IDX JOBS_PRODUSERNAME_IDX) */ "
-                sql += f"jobDefinitionID FROM {table} tab "
-                sql += "WHERE prodUserName=:prodUserName AND modificationTime>:modificationTime "
-                sql += "AND prodSourceLabel=:prodSourceLabel AND lockedBy<>:ngLock GROUP BY jobDefinitionID"
-                varMap = {}
-                varMap[":prodUserName"] = compactDN
-                varMap[":prodSourceLabel"] = "user"
-                varMap[":ngLock"] = "jedi"
-                varMap[":modificationTime"] = timeRange
-                # start transaction
-                self.conn.begin()
-                # select
-                self.cur.arraysize = 10000
-                _logger.debug(sql + comment + str(varMap))
-                self.cur.execute(sql + comment, varMap)
-                resList = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # append
-                for (tmpID,) in resList:
-                    if tmpID not in retJobIDs:
-                        retJobIDs.append(tmpID)
-            _logger.debug(f"getJobIDsInTimeRangeLog : {str(retJobIDs)}")
-            return retJobIDs
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getJobIDsInTimeRangeLog : {type} {value}")
-            # return empty list
-            return retJobIDs
-
-    # get PandaIDs for a JobID
-    def getPandIDsWithJobIDLog(self, dn, jobID, idStatus, nJobs, buildJobID=None):
-        comment = " /* Proxy.getPandIDsWithJobIDLog */"
-        _logger.debug(f"getPandIDsWithJobIDLog : {dn} {jobID}")
-        try:
-            # get compact DN
-            compactDN = self.cleanUserID(dn)
-            if compactDN in ["", "NULL", None]:
-                compactDN = dn
-            # get list of archived tables
-            tables = self.getArchiveTables()
-            # select
-            for table in tables:
-                # skip if all jobs have already been gotten
-                if nJobs > 0 and len(idStatus) >= nJobs:
-                    continue
-                # make sql
-                sql = "SELECT /*+ NO_INDEX(tab JOBS_MODTIME_IDX) INDEX_COMBINE(tab JOBS_PRODUSERNAME_IDX JOBS_JOBDEFID_IDX) */ "
-                sql += f"PandaID,jobStatus,commandToPilot,prodSourceLabel,taskBufferErrorCode FROM {table} tab "
-                sql += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
-                sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND modificationTime>(CURRENT_DATE-30) "
-                varMap = {}
-                varMap[":prodUserName"] = compactDN
-                varMap[":jobDefinitionID"] = jobID
-                varMap[":prodSourceLabel1"] = "user"
-                varMap[":prodSourceLabel2"] = "panda"
-                # start transaction
-                self.conn.begin()
-                # select
-                self.cur.arraysize = 10000
-                # select
-                _logger.debug(sql + comment + str(varMap))
-                self.cur.execute(sql + comment, varMap)
-                resList = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # append
-                for (
-                    tmpID,
-                    tmpStatus,
-                    tmpCommand,
-                    tmpProdSourceLabel,
-                    tmpTaskBufferErrorCode,
-                ) in resList:
-                    # ignore jobs retried by pilot since they have new PandaIDs with the same jobsetID/jobdefID
-                    if tmpTaskBufferErrorCode in [ErrorCode.EC_PilotRetried]:
-                        continue
-                    # ignore old buildJob which was replaced by rebrokerage
-                    if tmpProdSourceLabel == "panda":
-                        if buildJobID is None:
-                            # first buildJob
-                            buildJobID = tmpID
-                        elif buildJobID >= tmpID:
-                            # don't append old one
-                            continue
-                        else:
-                            # delete old one
-                            del idStatus[buildJobID]
-                            buildJobID = tmpID
-                    # append
-                    if tmpID not in idStatus:
-                        idStatus[tmpID] = (tmpStatus, tmpCommand)
-            _logger.debug(f"getPandIDsWithJobIDLog : {str(idStatus)}")
-            return idStatus
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getPandIDsWithJobIDLog : {type} {value}")
-            # return empty list
-            return {}
-
-    # get PandaIDs for a JobsetID or JobdefID in jobsArchived
-    def getPandIDsWithIdInArch(self, prodUserName, id, isJobset):
-        comment = " /* Proxy.getPandIDsWithIdInArch */"
-        _logger.debug(f"getPandIDsWithIdInArch : {prodUserName} {id} {isJobset}")
-        try:
-            # make sql
-            if isJobset:
-                sql = "SELECT /*+ NO_INDEX(tab JOBS_MODTIME_IDX) INDEX_COMBINE(tab JOBS_PRODUSERNAME_IDX JOBS_JOBSETID_IDX) */ "
-            else:
-                sql = "SELECT /*+ NO_INDEX(tab JOBS_MODTIME_IDX) INDEX_COMBINE(tab JOBS_PRODUSERNAME_IDX JOBS_JOBDEFID_IDX) */ "
-            sql += "PandaID FROM ATLAS_PANDAARCH.jobsArchived tab "
-            sql += "WHERE prodUserName=:prodUserName "
-            sql += "AND prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND modificationTime>(CURRENT_DATE-30) "
-            if isJobset:
-                sql += "AND jobsetID=:jobID "
-            else:
-                sql += "AND jobDefinitionID=:jobID "
-            varMap = {}
-            varMap[":prodUserName"] = prodUserName
-            varMap[":jobID"] = id
-            varMap[":prodSourceLabel1"] = "user"
-            varMap[":prodSourceLabel2"] = "panda"
-            # start transaction
-            self.conn.begin()
-            # select
-            self.cur.arraysize = 1000000
-            # select
-            _logger.debug(sql + comment + str(varMap))
-            self.cur.execute(sql + comment, varMap)
-            resList = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # append
-            pandaIDs = []
-            for (tmpID,) in resList:
-                pandaIDs.append(tmpID)
-            _logger.debug(f"getPandIDsWithIdInArch : {prodUserName} {id} -> {str(pandaIDs)}")
-            return pandaIDs
-        except Exception:
-            # roll back
-            self._rollback()
-            errType, errValue = sys.exc_info()[:2]
-            _logger.error(f"getPandIDsWithIdInArch : {errType} {errValue}")
-            # return empty list
-            return []
 
     # peek at job
     def peekJobLog(self, pandaID, days=None):
@@ -10981,190 +7985,6 @@ class DBProxy:
                 _logger.error(f"peekJobLog : {type} {value}")
                 # return None
                 return None
-
-    # get active datasets
-    def getActiveDatasets(self, computingSite, prodSourceLabel):
-        comment = " /* DBProxy.getActiveDatasets */"
-        _logger.debug(f"getActiveDatasets({computingSite},{prodSourceLabel})")
-        varMap = {}
-        varMap[":computingSite"] = computingSite
-        varMap[":jobStatus1"] = "assigned"
-        varMap[":jobStatus2"] = "activated"
-        varMap[":jobStatus3"] = "waiting"
-        varMap[":prodSourceLabel"] = prodSourceLabel
-        try:
-            retList = []
-            for table in ["jobsActive4", "jobsDefined4", "jobsWaiting4"]:
-                if table == "jobsActive4":
-                    sql0 = f"SELECT distinct prodDBlock FROM ATLAS_PANDA.{table} "
-                else:
-                    sql0 = f"SELECT distinct prodDBlock FROM ATLAS_PANDA.{table} "
-                sql0 += "WHERE computingSite=:computingSite AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3) "
-                sql0 += "AND prodSourceLabel=:prodSourceLabel"
-                # start transaction
-                self.conn.begin()
-                # select
-                self.cur.execute(sql0 + comment, varMap)
-                resSs = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # append
-                for (prodDBlock,) in resSs:
-                    if prodDBlock not in retList:
-                        retList.append(prodDBlock)
-            # make string
-            retStr = ""
-            for tmpItem in retList:
-                retStr += f"{tmpItem},"
-            retStr = retStr[:-1]
-            return retStr
-        except Exception:
-            # roll back
-            self._rollback()
-            errType, errValue = sys.exc_info()[:2]
-            _logger.error(f"getActiveDatasets : {errType} {errValue}")
-            return ""
-
-    # check status of all sub datasets to trigger Notifier
-    def checkDatasetStatusForNotifier(self, jobsetID, jobDefinitionID, prodUserName):
-        comment = " /* DBProxy.checkDatasetStatusForNotifier */"
-        _logger.debug(f"checkDatasetStatusForNotifier({jobsetID},{jobDefinitionID},{prodUserName})")
-        try:
-            # get PandaIDs to get all associated destinationDBlocks
-            varMap = {}
-            varMap[":jobsetID"] = jobsetID
-            varMap[":prodUserName"] = prodUserName
-            sql = "SELECT MAX(PandaID),jobDefinitionID FROM %s WHERE prodUserName=:prodUserName AND jobsetID=:jobsetID GROUP BY jobDefinitionID"
-            pandaIDs = {}
-            for table in [
-                "ATLAS_PANDA.jobsArchived4",
-                "ATLAS_PANDA.jobsActive4",
-                "ATLAS_PANDA.jobsDefined4",
-                "ATLAS_PANDA.jobsWaiting4",
-            ]:
-                # start transaction
-                self.conn.begin()
-                # select
-                self.cur.arraysize = 1000
-                self.cur.execute((sql % table) + comment, varMap)
-                resSs = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # get PandaIDs
-                for tmpPandaID, tmpJobDefID in resSs:
-                    if tmpJobDefID not in pandaIDs or tmpPandaID > pandaIDs[tmpJobDefID]:
-                        pandaIDs[tmpJobDefID] = tmpPandaID
-            # get all destinationDBlocks
-            varMap = {}
-            varMap[":type1"] = "log"
-            varMap[":type2"] = "output"
-            sql = "SELECT DISTINCT destinationDBlock FROM ATLAS_PANDA.filesTable4 WHERE PandaID=:PandaID AND type IN (:type1,:type2)"
-            datasetMap = {}
-            # start transaction
-            self.conn.begin()
-            self.cur.arraysize = 1000
-            for tmpJobDefID in pandaIDs:
-                tmpPandaID = pandaIDs[tmpJobDefID]
-                varMap[":PandaID"] = tmpPandaID
-                # select
-                self.cur.execute(sql + comment, varMap)
-                resSs = self.cur.fetchall()
-                # get destinationDBlock
-                for (tmpDestDBlock,) in resSs:
-                    if tmpJobDefID not in datasetMap:
-                        datasetMap[tmpJobDefID] = []
-                    if tmpDestDBlock not in datasetMap[tmpJobDefID]:
-                        datasetMap[tmpJobDefID].append(tmpDestDBlock)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # check dataset status
-            allClosed = True
-            retInfo = {}
-            latestUpdate = None
-            latestJobDefID = None
-            varMap = {}
-            varMap[":type1"] = "log"
-            varMap[":type2"] = "output"
-            sql = "SELECT status,modificationDate FROM ATLAS_PANDA.Datasets WHERE name=:name AND type IN (:type1,:type2)"
-            sqlJ = "SELECT MAX(modificationTime) FROM ATLAS_PANDA.jobsArchived4 "
-            sqlJ += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID"
-            # start transaction
-            self.conn.begin()
-            self.cur.arraysize = 1000
-            for tmpJobDefID in datasetMap:
-                tmpDatasets = datasetMap[tmpJobDefID]
-                retInfo[tmpJobDefID] = []
-                for tmpDataset in tmpDatasets:
-                    if tmpDataset not in retInfo[tmpJobDefID]:
-                        retInfo[tmpJobDefID].append(tmpDataset)
-                    varMap[":name"] = tmpDataset
-                    # select
-                    self.cur.execute(sql + comment, varMap)
-                    resSs = self.cur.fetchall()
-                    # check status and mod time
-                    for tmpStatus, tmpModificationDate in resSs:
-                        _logger.debug(
-                            "checkDatasetStatusForNotifier(%s,%s) %s has %s with %s at %s"
-                            % (
-                                jobsetID,
-                                jobDefinitionID,
-                                tmpJobDefID,
-                                tmpDataset,
-                                tmpStatus,
-                                tmpModificationDate,
-                            )
-                        )
-                        if tmpStatus not in ["closed", "tobeclosed", "completed"]:
-                            # some datasets are still active
-                            allClosed = False
-                            _logger.debug(f"checkDatasetStatusForNotifier({jobsetID},{jobDefinitionID}) wait due to {tmpJobDefID} {tmpDataset} {tmpStatus}")
-                            break
-                        elif tmpStatus == "tobeclosed":
-                            # select latest modificationTime in job table
-                            varMapJ = {}
-                            varMapJ[":prodUserName"] = prodUserName
-                            varMapJ[":jobDefinitionID"] = tmpJobDefID
-                            self.cur.execute(sqlJ + comment, varMapJ)
-                            resJ = self.cur.fetchone()
-                            if resJ is None:
-                                # error
-                                allClosed = False
-                                _logger.error(f"checkDatasetStatusForNotifier({jobsetID},{jobDefinitionID}) {tmpJobDefID} cannot find job")
-                                break
-                            (tmpModificationTime,) = resJ
-                            _logger.debug(f"checkDatasetStatusForNotifier({jobsetID},{jobDefinitionID}) {tmpJobDefID} modtime:{tmpModificationTime}")
-                            if latestUpdate is None or latestUpdate < tmpModificationTime:
-                                # use the latest updated jobDefID
-                                latestUpdate = tmpModificationTime
-                                latestJobDefID = tmpJobDefID
-                            elif latestUpdate == tmpModificationTime and latestJobDefID < tmpJobDefID:
-                                # use larger jobDefID when datasets are closed at the same time
-                                latestJobDefID = tmpJobDefID
-                    # escape
-                    if not allClosed:
-                        break
-                # escape
-                if not allClosed:
-                    break
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            _logger.debug(
-                f"checkDatasetStatusForNotifier({jobsetID},{jobDefinitionID}) -> all:{allClosed} {latestJobDefID} latest:{jobDefinitionID == latestJobDefID}"
-            )
-            # return
-            if not allClosed or jobDefinitionID != latestJobDefID:
-                return False, {}
-            return True, retInfo
-        except Exception:
-            # roll back
-            self._rollback()
-            errType, errValue = sys.exc_info()[:2]
-            _logger.error(f"checkDatasetStatusForNotifier : {errType} {errValue}")
-            return False, {}
 
     # record status change
     def recordStatusChange(self, pandaID, jobStatus, jobInfo=None, infoMap={}, useCommit=True, no_late_bulk_exec=True, extracted_sqls=None):
@@ -12037,46 +8857,6 @@ class DBProxy:
             return resT[0]
         return None
 
-    # get retry history
-    def getRetryHistoryJEDI(self, jediTaskID):
-        comment = " /* DBProxy.getRetryHistoryJEDI */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        methodName += f" <jediTaskID={jediTaskID}>"
-        _logger.debug(f"{methodName} start")
-        try:
-            # set autocommit on
-            self.conn.begin()
-            self.cur.arraysize = 1000000
-            # get
-            varMap = {}
-            varMap[":jediTaskID"] = jediTaskID
-            sql = f"SELECT oldPandaID,newPandaID FROM {panda_config.schemaJEDI}.JEDI_Job_Retry_History "
-            sql += "WHERE jediTaskID=:jediTaskID GROUP BY oldPandaID,newPandaID "
-            for tmpType in EventServiceUtils.relationTypesForJS:
-                tmpKey = f":{tmpType}"
-                sql += f"{tmpKey},"
-                varMap[tmpKey] = tmpType
-            sql = sql[:-1]
-            sql += ")) "
-            self.cur.execute(sql + comment, varMap)
-            resG = self.cur.fetchall()
-            retMap = {}
-            for oldPandaID, newPandaID in resG:
-                if oldPandaID not in retMap:
-                    retMap[oldPandaID] = []
-                retMap[oldPandaID].append(newPandaID)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            _logger.debug(f"{methodName} return len={len(retMap)}")
-            return retMap
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, methodName)
-            return None
-
     # get original consumers
     def getOriginalConsumers(self, jediTaskID, jobsetID, pandaID):
         comment = " /* DBProxy.getOriginalConsumers */"
@@ -12207,25 +8987,33 @@ class DBProxy:
 
     # rollback
     def _rollback(self, useOtherError=False):
-        retVal = True
+        return_value = True
         # rollback
+        err_code = None
         _logger.debug("rollback")
         try:
             self.conn.rollback()
         except Exception:
             _logger.error("rollback error")
-            retVal = False
+            return_value = False
         # reconnect if needed
         try:
+            err_type, err_value = sys.exc_info()[:2]
+            # get error code for postgres
+            if self.backend == "postgres":
+                try:
+                    err_code = err_value.pgcode
+                except Exception:
+                    pass
             # get ORA ErrorCode
-            errType, errValue = sys.exc_info()[:2]
-            oraErrCode = str(errValue).split()[0]
-            oraErrCode = oraErrCode[:-1]
-            errMsg = f"rollback EC:{oraErrCode} {errValue}"
-            _logger.debug(errMsg)
+            if err_code is None:
+                err_code = str(err_value).split()[0]
+                err_code = err_code[:-1]
+            err_msg = f"rollback EC:{err_code} {err_value}"
+            _logger.debug(err_msg)
             # error codes for connection error
             if self.backend == "oracle":
-                error_Codes = [
+                error_list_for_reconnect = [
                     "ORA-01012",
                     "ORA-01033",
                     "ORA-01034",
@@ -12238,9 +9026,18 @@ class DBProxy:
                     "ORA-03135",
                     "ORA-25402",
                 ]
-                # other errors are apperantly given when connection lost contact
+                # other errors are apparently given when connection lost contact
                 if useOtherError:
-                    error_Codes += ["ORA-01861", "ORA-01008"]
+                    error_list_for_reconnect += ["ORA-01861", "ORA-01008"]
+            elif self.backend == "postgres":
+                error_list_for_reconnect = [
+                    psycopg_errorcodes.CONNECTION_EXCEPTION,
+                    psycopg_errorcodes.SQLSERVER_REJECTED_ESTABLISHMENT_OF_SQLCONNECTION,
+                    psycopg_errorcodes.CONNECTION_DOES_NOT_EXIST,
+                    psycopg_errorcodes.SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION,
+                    psycopg_errorcodes.CONNECTION_FAILURE,
+                    psycopg_errorcodes.READ_ONLY_SQL_TRANSACTION,
+                ]
             else:
                 # mysql error codes for connection error
                 from MySQLdb.constants.CR import (
@@ -12256,7 +9053,7 @@ class DBProxy:
                     SERVER_SHUTDOWN,
                 )
 
-                error_Codes = [
+                error_list_for_reconnect = [
                     ACCESS_DENIED_ERROR,
                     DBACCESS_DENIED_ERROR,
                     SERVER_SHUTDOWN,
@@ -12265,17 +9062,17 @@ class DBProxy:
                     LOCALHOST_CONNECTION,
                     SERVER_LOST,
                 ]
-                # other errors are apperantly given when connection lost contact
+                # other errors are apparently given when connection lost contact
                 if useOtherError:
-                    error_Codes += [ILLEGAL_VALUE_FOR_TYPE]
-            if oraErrCode in error_Codes:
+                    error_list_for_reconnect += [ILLEGAL_VALUE_FOR_TYPE]
+            if err_code in error_list_for_reconnect:
                 # reconnect
-                retFlag = self.connect(reconnect=True)
-                _logger.debug(f"rollback reconnected {retFlag}")
+                reconnect_stat = self.connect(reconnect=True)
+                _logger.debug(f"rollback reconnected {reconnect_stat}")
         except Exception:
             pass
         # return
-        return retVal
+        return return_value
 
     # dump error message
     def dumpErrorMessage(self, tmpLog, methodName):
@@ -13830,7 +10627,6 @@ class DBProxy:
             tmpLog.debug(f"total {len(eventDictList)} events")
             zipRowIdMap = {}
             nEventsMap = dict()
-            cpuConsumptionTimeMap = dict()
             iEvents = 0
             maxEvents = 100000
             iSkipped = 0
@@ -15217,44 +12013,6 @@ class DBProxy:
             self.dumpErrorMessage(_logger, methodName)
             return None
 
-    # throttle job
-    def throttleJob(self, pandaID):
-        comment = " /* DBProxy.throttleJob */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        methodName += f" <PandaID={pandaID}>"
-        _logger.debug(f"{methodName} start")
-        try:
-            # sql to update job
-            sqlT = "UPDATE ATLAS_PANDA.jobsActive4 SET currentPriority=assignedPriority,jobStatus=:newJobStatus "
-            sqlT += "WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus "
-            # start transaction
-            self.conn.begin()
-            # select
-            self.cur.arraysize = 10
-            varMap = {}
-            varMap[":PandaID"] = pandaID
-            varMap[":newJobStatus"] = "throttled"
-            varMap[":oldJobStatus"] = "activated"
-            # get datasets
-            self.cur.execute(sqlT + comment, varMap)
-            nRow = self.cur.rowcount
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            try:
-                self.recordStatusChange(pandaID, varMap[":newJobStatus"])
-            except Exception:
-                _logger.error("recordStatusChange in throttleJob")
-            self.push_job_status_message(None, pandaID, varMap[":newJobStatus"])
-            _logger.debug(f"{methodName} done with {nRow}")
-            return nRow
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, methodName)
-            return None
-
     # throttle user jobs
     def throttleUserJobs(self, prodUserName, workingGroup, get_dict):
         comment = " /* DBProxy.throttleUserJobs */"
@@ -15359,44 +12117,6 @@ class DBProxy:
                 tmpLog.debug(f"done with {nRows}")
                 return nRows
             tmpLog.debug(f"done with {nRow}")
-            return nRow
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, methodName)
-            return None
-
-    # unthrottle job
-    def unThrottleJob(self, pandaID):
-        comment = " /* DBProxy.unThrottleJob */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        methodName += f" <PandaID={pandaID}>"
-        _logger.debug(f"{methodName} start")
-        try:
-            # sql to update job
-            sqlT = "UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:newJobStatus "
-            sqlT += "WHERE PandaID=:PandaID AND jobStatus=:oldJobStatus "
-            # start transaction
-            self.conn.begin()
-            # select
-            self.cur.arraysize = 10
-            varMap = {}
-            varMap[":PandaID"] = pandaID
-            varMap[":newJobStatus"] = "activated"
-            varMap[":oldJobStatus"] = "throttled"
-            # get datasets
-            self.cur.execute(sqlT + comment, varMap)
-            nRow = self.cur.rowcount
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            try:
-                self.recordStatusChange(pandaID, varMap[":newJobStatus"])
-            except Exception:
-                _logger.error("recordStatusChange in unThrottleJob")
-            self.push_job_status_message(None, pandaID, varMap[":newJobStatus"])
-            _logger.debug(f"{methodName} done with {nRow}")
             return nRow
         except Exception:
             # roll back
@@ -16439,44 +13159,6 @@ class DBProxy:
             self.dumpErrorMessage(_logger, methodName)
             return None
 
-    # get prodSourceLabel from TaskID
-    def getProdSourceLabelwithTaskID(self, jediTaskID):
-        comment = " /* DBProxy.getProdSourceLabelwithTaskID */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        methodName += f" <jediTaskID={jediTaskID}>"
-        _logger.debug(f"{methodName} : start")
-        try:
-            # begin transaction
-            self.conn.begin()
-            # sql to get jediTaskID
-            sqlGF = f"SELECT prodSourceLabel, tasktype FROM {panda_config.schemaJEDI}.JEDI_Tasks "
-            sqlGF += "WHERE jediTaskID=:jediTaskID "
-            varMap = {}
-            varMap[":jediTaskID"] = jediTaskID
-            self.cur.execute(sqlGF + comment, varMap)
-            resFJ = self.cur.fetchone()
-            if resFJ is not None:
-                prodSourceLabel, task_type = resFJ
-            else:
-                prodSourceLabel, task_type = None, None
-
-            if task_type:
-                job_label = JobUtils.translate_tasktype_to_jobtype(task_type)
-            else:
-                job_label = None
-
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            _logger.debug(f"{methodName} : jediTaskID={jediTaskID} prodSourceLabel={prodSourceLabel} job_label={job_label}")
-            return prodSourceLabel, job_label
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, methodName)
-            return None, None
-
     # update error dialog for a jediTaskID
     def updateTaskErrorDialogJEDI(self, jediTaskID, msg):
         comment = " /* DBProxy.updateTaskErrorDialogJEDI */"
@@ -17438,63 +14120,6 @@ class DBProxy:
             self.dumpErrorMessage(_logger, methodName)
             return False, None, None
 
-    # get input datasets for output dataset
-    def getInputDatasetsForOutputDatasetJEDI(self, datasetName):
-        comment = " /* DBProxy.getInputDatasetsForOutputDatasetJEDI */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        methodName += f" <datasetName={datasetName}>"
-        tmpLog = LogWrapper(_logger, methodName)
-        tmpLog.debug("start")
-        try:
-            toSkip = False
-            inputDatasets = {}
-            # begin transaction
-            self.conn.begin()
-            # get jediTaskID
-            varMap = {}
-            varMap[":type1"] = "log"
-            varMap[":type2"] = "output"
-            varMap[":name1"] = datasetName
-            varMap[":name2"] = datasetName.split(":")[-1]
-            sqlGI = f"SELECT jediTaskID,datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-            sqlGI += "WHERE type IN (:type1,:type2) AND datasetName IN (:name1,:name2) "
-            self.cur.execute(sqlGI + comment, varMap)
-            resGI = self.cur.fetchall()
-            # use the largest datasetID since broken tasks might have been retried
-            jediTaskID = None
-            datasetID = None
-            for tmpJediTaskID, tmpDatasetID in resGI:
-                if jediTaskID is None or jediTaskID < tmpJediTaskID:
-                    jediTaskID = tmpJediTaskID
-                    datasetID = tmpDatasetID
-                elif datasetID < tmpDatasetID:
-                    datasetID = tmpDatasetID
-            if jediTaskID is None:
-                tmpLog.debug("jediTaskID not found")
-                toSkip = True
-            if not toSkip:
-                # get input datasets
-                sqlID = f"SELECT datasetID,datasetName,masterID FROM {panda_config.schemaJEDI}.JEDI_Datasets "
-                sqlID += "WHERE jediTaskID=:jediTaskID AND type=:type "
-                varMap = {}
-                varMap[":jediTaskID"] = jediTaskID
-                varMap[":type"] = "input"
-                self.cur.execute(sqlID + comment, varMap)
-                resID = self.cur.fetchall()
-                for tmpDatasetID, tmpDatasetName, tmpMasterID in resID:
-                    inputDatasets[tmpDatasetID] = tmpDatasetName
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            tmpLog.debug("done")
-            return True, inputDatasets
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, methodName)
-            return False, None
-
     # record retry history
     def recordRetryHistoryJEDI(self, jediTaskID, newPandaID, oldPandaIDs, relationType, no_late_bulk_exec=True, extracted_sqls=None):
         comment = " /* DBProxy.recordRetryHistoryJEDI */"
@@ -18065,94 +14690,6 @@ class DBProxy:
         tmpLog.debug("Forced recalculation of CPUTime")
         return rowcount
 
-    # throttle jobs for resource shares
-    def throttleJobsForResourceShare(self, site):
-        comment = " /* DBProxy.throttleJobsForResourceShare */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        methodName += f" <site={site}>"
-        tmpLog = LogWrapper(_logger, methodName)
-        tmpLog.debug("start")
-        try:
-            # sql to throttle jobs
-            sql = "UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:newStatus "
-            sql += "WHERE computingSite=:site AND jobStatus=:oldStatus AND lockedby=:lockedby "
-            varMap = {}
-            varMap[":site"] = site
-            varMap[":lockedby"] = "jedi"
-            varMap[":newStatus"] = "throttled"
-            varMap[":oldStatus"] = "activated"
-            # begin transaction
-            self.conn.begin()
-            self.cur.execute(sql + comment, varMap)
-            nRow = self.cur.rowcount
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            tmpLog.debug(f"throttled {nRow} jobs")
-            return nRow
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, methodName)
-            return None
-
-    # activate jobs for resource shares
-    def activateJobsForResourceShare(self, site, nJobsPerQueue):
-        comment = " /* DBProxy.activateJobsForResourceShare */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        methodName += f" <site={site} nJobsPerQueue={nJobsPerQueue}>"
-        tmpLog = LogWrapper(_logger, methodName)
-        tmpLog.debug("start")
-        try:
-            # sql to get jobs
-            sqlJ = "SELECT PandaID,jobStatus FROM ("
-            sqlJ += "SELECT PandaID,jobStatus,"
-            sqlJ += "ROW_NUMBER() OVER(PARTITION BY workqueue_id ORDER BY currentPriority DESC,PandaID) AS row_number "
-            sqlJ += "FROM ATLAS_PANDA.jobsActive4 "
-            sqlJ += "WHERE computingSite=:site AND lockedby=:lockedby AND jobStatus IN (:st1,:st2) "
-            sqlJ += ") "
-            sqlJ += f"WHERE row_number<={nJobsPerQueue} "
-            # sql to activate jobs
-            sqlA = "UPDATE ATLAS_PANDA.jobsActive4 SET jobStatus=:newStatus "
-            sqlA += "WHERE PandaID=:PandaID AND jobStatus=:oldStatus "
-            varMap = {}
-            varMap[":site"] = site
-            varMap[":lockedby"] = "jedi"
-            varMap[":st1"] = "throttled"
-            varMap[":st2"] = "activated"
-            # begin transaction
-            self.conn.begin()
-            self.cur.execute(sqlJ + comment, varMap)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            resList = self.cur.fetchall()
-            nRow = 0
-            for pandaID, jobStatus in resList:
-                if jobStatus == "activated":
-                    continue
-                # activate job
-                varMap = {}
-                varMap[":PandaID"] = pandaID
-                varMap[":newStatus"] = "activated"
-                varMap[":oldStatus"] = "throttled"
-                self.conn.begin()
-                self.cur.execute(sqlA + comment, varMap)
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                nRow += self.cur.rowcount
-                self.push_job_status_message(None, pandaID, varMap[":newStatus"])
-            tmpLog.debug(f"activated {nRow} jobs")
-            return nRow
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, methodName)
-            return None
-
     # add associate sub datasets for single consumer job
     def getDestDBlocksWithSingleConsumer(self, jediTaskID, PandaID, ngDatasets):
         comment = " /* DBProxy.getDestDBlocksWithSingleConsumer */"
@@ -18586,8 +15123,8 @@ class DBProxy:
             return {}
 
     # get task parameters
-    def getTaskPramsPanda(self, jediTaskID):
-        comment = " /* DBProxy.getTaskPramsPanda */"
+    def getTaskParamsPanda(self, jediTaskID):
+        comment = " /* DBProxy.getTaskParamsPanda */"
         methodName = comment.split(" ")[-2].split(".")[-1]
         methodName += f" <jediTaskID={jediTaskID}>"
         tmpLog = LogWrapper(_logger, methodName)
@@ -19567,42 +16104,6 @@ class DBProxy:
             self.dumpErrorMessage(_logger, methodName)
             return None
 
-    # get OS IDs
-    def getObjIDs(self, jediTaskID, pandaID):
-        comment = " /* DBProxy.getObjIDs */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        tmpLog = LogWrapper(
-            _logger,
-            methodName + f" <jediTaskID={jediTaskID} PandaID={pandaID}>",
-        )
-        tmpLog.debug("start")
-        try:
-            # sql to get obj IDs
-            sql = f"SELECT distinct objstore_ID FROM {panda_config.schemaJEDI}.JEDI_Events "
-            sql += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID AND objstore_ID IS NOT NULL "
-            # begin transaction
-            self.conn.begin()
-            # get
-            varMap = {}
-            varMap[":PandaID"] = pandaID
-            varMap[":jediTaskID"] = jediTaskID
-            self.cur.execute(sql + comment, varMap)
-            resF = self.cur.fetchall()
-            resList = []
-            for (objstoreID,) in resF:
-                resList.append(objstoreID)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            tmpLog.debug(f"got {len(resList)} OS IDs")
-            return resList
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, methodName)
-            return []
-
     # bulk fetch PandaIDs
     def bulk_fetch_panda_ids(self, num_ids):
         comment = " /* JediDBProxy.bulk_fetch_panda_ids */"
@@ -20394,39 +16895,6 @@ class DBProxy:
             tmp_log.error(f"reassignShare : {type} {value}")
             return -1, None
 
-    def listTasksInShare(self, gshare, status):
-        """
-        Lists all task ids corresponding to share and in specified status
-        @param gshare: global share
-        @param status: status
-        """
-
-        comment = " /* DBProxy.listTasksInShare */"
-        method_name = comment.split(" ")[-2].split(".")[-1]
-        tmp_log = LogWrapper(_logger, method_name)
-        tmp_log.debug("start")
-
-        try:
-            # Prepare the bindings and var map
-            var_map = {":gshare": gshare, "status": status}
-
-            sql = """
-                  SELECT jeditaskid FROM ATLAS_PANDA.jedi_tasks
-                  WHERE gshare=:gshare AND status=:status
-                  """
-
-            self.cur.execute(sql + comment, var_map)
-            jedi_task_ids = [entry[0] for entry in self.cur.fetchall()]
-
-            tmp_log.debug("done")
-            return 0, jedi_task_ids
-
-        except Exception:
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"{comment}: {sql} {var_map}")
-            _logger.error(f"{comment}: {type} {value}")
-            return -1, None
-
     def getCommands(self, harvester_id, n_commands):
         """
         Gets n commands in status 'new' for a particular harvester instance and updates their status to 'retrieved'
@@ -21083,57 +17551,6 @@ class DBProxy:
         tmp_log.debug(f"done. resource_type is {resource_type}")
         return resource_type
 
-    # update stat of workers
-    def reportWorkerStats(self, harvesterID, siteName, paramsList):
-        comment = " /* DBProxy.reportWorkerStats */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        tmpLog = LogWrapper(
-            _logger,
-            methodName + f" < harvesterID={harvesterID} siteName={siteName} >",
-        )
-        tmpLog.debug("start")
-        tmpLog.debug(f"params={str(paramsList)}")
-        try:
-            # load new site data
-            paramsList = json.loads(paramsList)
-            # set autocommit on
-            self.conn.begin()
-            # delete old site data
-            sqlDel = "DELETE FROM ATLAS_PANDA.Harvester_Worker_Stats "
-            sqlDel += "WHERE harvester_ID=:harvesterID AND computingSite=:siteName "
-            varMap = dict()
-            varMap[":harvesterID"] = harvesterID
-            varMap[":siteName"] = siteName
-            self.cur.execute(sqlDel + comment, varMap)
-            # insert new site data
-            sqlI = "INSERT INTO ATLAS_PANDA.Harvester_Worker_Stats (harvester_ID,computingSite,resourceType,jobType,status,n_workers,lastUpdate) "
-            sqlI += "VALUES (:harvester_ID,:siteName,:resourceType,:jobType,:status,:n_workers,CURRENT_DATE) "
-            for resourceType in paramsList:
-                params = paramsList[resourceType]
-                if resourceType == "Undefined":
-                    continue
-                for status in params:
-                    n_workers = params[status]
-                    varMap = dict()
-                    varMap[":harvester_ID"] = harvesterID
-                    varMap[":siteName"] = siteName
-                    varMap[":status"] = status
-                    varMap[":resourceType"] = resourceType
-                    varMap[":n_workers"] = n_workers
-                    varMap[":jobType"] = "DUMMY"
-                    self.cur.execute(sqlI + comment, varMap)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # return
-            tmpLog.debug("done")
-            return True, "OK"
-        except Exception:
-            # roll back
-            self._rollback()
-            self.dumpErrorMessage(tmpLog, methodName)
-            return False, "database error"
-
     # update stat of workers with jobtype breakdown
     def reportWorkerStats_jobtype(self, harvesterID, siteName, parameter_list):
         comment = " /* DBProxy.reportWorkerStats_jobtype */"
@@ -21346,42 +17763,6 @@ class DBProxy:
             self.dumpErrorMessage(tmpLog, methodName)
             return False
 
-    # get activated job statistics per resource
-    def getActivatedJobStatisticsPerResource(self, siteName):
-        comment = " /* DBProxy.getJobStatisticsPerResource */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        tmpLog = LogWrapper(_logger, methodName + f" < siteName={siteName} >")
-        tmpLog.debug("start")
-        try:
-            # get stats
-            sqlS = "SELECT resource_type,COUNT(*) FROM ATLAS_PANDA.jobsActive4 WHERE computingSite=:computingSite AND jobStatus=:status "
-            sqlS += "GROUP BY resource_type "
-            # start transaction
-            self.conn.begin()
-            # select
-            varMap = dict()
-            varMap[":computingSite"] = siteName
-            varMap[":status"] = "activated"
-            self.cur.arraysize = 10000
-            self.cur.execute(sqlS + comment, varMap)
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            # create map
-            returnMap = dict()
-            for resourceType, cnt in res:
-                # add
-                returnMap[resourceType] = cnt
-            # return
-            tmpLog.debug(f"got {returnMap}")
-            return returnMap
-        except Exception:
-            # roll back
-            self._rollback()
-            self.dumpErrorMessage(tmpLog, methodName)
-            return []
-
     # check Job status
     def checkJobStatus(self, pandaID):
         comment = " /* DBProxy.checkJobStatus */"
@@ -21557,65 +17938,6 @@ class DBProxy:
             self._rollback()
             self.dumpErrorMessage(tmpLog, methodName)
             return False
-
-    # get active harvesters
-    def getActiveHarvesters(self, interval):
-        comment = " /* DBProxy.getActiveHarvesters */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        tmpLog = LogWrapper(_logger, methodName)
-        tmpLog.debug("start")
-        try:
-            timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-            # sql to get instances
-            sqlC = "SELECT harvester_ID FROM ATLAS_PANDA.Harvester_Instances "
-            sqlC += "WHERE startTime>:timeLimit "
-            # get instances
-            self.conn.begin()
-            self.cur.arraysize = 10000
-            varMap = dict()
-            varMap[":timeLimit"] = timeNow - datetime.timedelta(minutes=interval)
-            self.cur.execute(sqlC + comment, varMap)
-            res = self.cur.fetchall()
-            retList = []
-            for (harvester_ID,) in res:
-                retList.append(harvester_ID)
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            tmpLog.debug(f"done with {str(retList)}")
-            return retList
-        except Exception:
-            # roll back
-            self._rollback()
-            self.dumpErrorMessage(tmpLog, methodName)
-            return []
-
-    # get minimal resource
-    def getMinimalResource(self):
-        comment = " /* JediDBProxy.getMinimalResource */"
-        method_name = comment.split(" ")[-2].split(".")[-1]
-        tmpLog = LogWrapper(_logger, method_name)
-        tmpLog.debug("start")
-        try:
-            timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-            # sql to get minimal
-            sqlC = "SELECT resource_name FROM ATLAS_PANDA.resource_types "
-            sqlC += "ORDER BY mincore, (CASE WHEN maxrampercore IS NULL THEN 1 ELSE 0 END), maxrampercore "
-            # get instances
-            self.conn.begin()
-            self.cur.execute(sqlC + comment)
-            res = self.cur.fetchone()
-            (resourceName,) = res
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            tmpLog.debug(f"got {resourceName}")
-            return resourceName
-        except Exception:
-            # roll back
-            self._rollback()
-            self.dumpErrorMessage(tmpLog, method_name)
-            return None
 
     def ups_get_queues(self):
         """
@@ -22387,8 +18709,7 @@ class DBProxy:
                 for resource_type in ret[computingSite]:
                     for jobStatus in stateList:
                         ret[computingSite][resource_type].setdefault(jobStatus, 0)
-            # return
-            tmp_log.debug(f"{str(ret)}")
+
             return ret
         except Exception:
             # roll back
@@ -23307,7 +19628,7 @@ class DBProxy:
             self.cur.execute(sql_delete + comment)
             tmp_log.debug("done cleaning up SW_TAGS table")
 
-            sql_insert = "INSERT INTO ATLAS_PANDA.SW_TAGS (panda_queue, data, last_update)" "VALUES (:pq, :data, :last_update)"
+            sql_insert = "INSERT INTO ATLAS_PANDA.SW_TAGS (panda_queue, data, last_update) VALUES (:pq, :data, :last_update)"
             tmp_log.debug("start filling up SW_TAGS table")
             for shard in create_shards(var_map_tags, 100):  # insert in batches of 100 rows
                 self.cur.executemany(sql_insert + comment, shard)
@@ -23401,63 +19722,15 @@ class DBProxy:
             return None
 
         try:
-            pq_data_des = json.loads(pq_data[0][0])
+            pq_data_des = pq_data[0][0]
+            if not isinstance(pq_data_des, dict):
+                pq_data_des = json.loads(pq_data_des)
         except Exception:
             tmp_log.error("Could not find queue configuration")
             return None
 
         tmp_log.debug("done")
         return pq_data_des
-
-    # get old job metadata
-    def get_old_job_metadata(self, job_spec):
-        comment = " /* DBProxy.get_old_job_metadata */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
-        methodName += f" < PandaID={job_spec.PandaID}>"
-        # sql to get master datasetIDs
-        sqlM = f"SELECT datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND type IN (:type1,:type2) AND masterID IS NULL"
-        # sql to get old PandaIDs
-        sqlI = f"SELECT MAX(PandaID) FROM {panda_config.schemaPANDA}.filesTable4 WHERE jediTaskID=:jedTaskID AND datasetID=:datasetID AND fileID=:fileID "
-        # sql to get associated fileIDs
-        sqlF = f"SELECT fileID FROM {panda_config.schemaPANDA}.fileTable4 WHERE PandaID=:PandaID AND type IN (:type1,:type2) "
-        try:
-            # get master datasetIDs
-            varMap = dict()
-            varMap[":jediTaskID"] = job_spec.jediTaskID
-            varMap[":type1"] = "input"
-            varMap[":type2"] = "pseudo_input"
-            self.cur.execute(sqlM + comment, varMap)
-            datasetIDs = set()
-            [datasetIDs.add(datasetID) for datasetID, in self.cur.fetchall()]
-            # loop over all files
-            fileIDs_checked = set()
-            pandaIDs = set()
-            for fileSpec in job_spec.Files:
-                if fileSpec.type not in ["input", "pseudo_input"]:
-                    continue
-                if fileSpec.datasetID not in datasetIDs:
-                    continue
-                if fileSpec.fileID in fileIDs_checked:
-                    continue
-                fileIDs_checked.add(fileSpec.fileID)
-                # get old PandaIDs
-                varMap = dict()
-                varMap[":jediTaskID"] = job_spec.jediTaskID
-                varMap[":datasetID"] = fileSpec.datasetID
-                varMap[":fileID"] = fileSpec.fileID
-                self.cur.execute(sqlI + comment, varMap)
-                for (pandaID,) in self.cur.fetchall():
-                    pandaIDs.add(pandaID)
-                    # get associated fileIDs
-                    varMap = dict()
-                    varMap[":PandaID"] = pandaID
-                    varMap[":type1"] = "input"
-                    varMap[":type2"] = "pseudo_input"
-                    self.cur.execute(sqlF + comment, varMap)
-                    [fileIDs_checked.add(fileID) for fileID, in self.cur.fetchall()]
-        except Exception:
-            self.dumpErrorMessage(_logger, methodName)
-            raise
 
     # lock process
     def lockProcess_PANDA(self, component, pid, time_limit, force=False):
