@@ -303,7 +303,7 @@ def parse_script_name(environ):
 def module_mapping(version, api_module):
     mapping = {"v1": {"harvester": harvester_api_v1}}
     try:
-        return mapping[api_module][version]
+        return mapping[version][api_module]
     except KeyError:
         _logger.error(f"Could not find module {api_module} in API version {version}")
         return None
