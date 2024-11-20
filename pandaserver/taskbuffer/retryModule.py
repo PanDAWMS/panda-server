@@ -6,7 +6,7 @@ from re import error as ReError
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
-# logger
+# _logger
 _logger = PandaLogger().getLogger("RetrialModule")
 
 NO_RETRY = "no_retry"
@@ -444,25 +444,25 @@ def find_error_source(task_buffer, jobID):
     job_errors = []
     # Check that jobID is available
     if not job_spec:
-        logger.debug(f"Job with ID {jobID} not found")
+        _logger.debug(f"Job with ID {jobID} not found")
         return
     else:
-        logger.debug(f"Got job with ID {job_spec.PandaID} and status {job_spec.jobStatus}")
+        _logger.debug(f"Got job with ID {job_spec.PandaID} and status {job_spec.jobStatus}")
         for source in error_code_source:
             error_code = getattr(job_spec, source + "Code", None)  # 1099
             error_diag = getattr(job_spec, source + "Diag", None)  # "Test error message"
             error_source = source + "Code"  # pilotErrorCode
             if error_code:
-                logger.debug(f"-------")  # error name ddmErrorCode
-                logger.debug(f"Error source: {error_source}")  # error name ddmErrorCode
-                logger.debug(f"Error code: {error_code}")  # The error code
-                logger.debug(f"Error diag: {error_diag}")  # The message
+                _logger.debug(f"-------")  # error name ddmErrorCode
+                _logger.debug(f"Error source: {error_source}")  # error name ddmErrorCode
+                _logger.debug(f"Error code: {error_code}")  # The error code
+                _logger.debug(f"Error diag: {error_diag}")  # The message
                 job_errors.append((error_code, error_diag, error_source))
 
     if job_errors:
-        logger.debug(f"Job has following error codes: {job_errors}")
+        _logger.debug(f"Job has following error codes: {job_errors}")
     else:
-        logger.debug("Job has no error codes")
+        _logger.debug("Job has no error codes")
 
     return job_errors
 
@@ -484,10 +484,10 @@ def classify_error(task_buffer, job_errors):
                 and (rule_code and err_code is not None and rule_code == err_code)
                 and (rule_diag and err_diag is not None and safe_match(rule_diag, err_diag))
             ):
-                logger.debug(f"The job was classified with error ({err_source}, {err_code}, {err_diag}) as {rule_class}")
+                _logger.debug(f"The job was classified with error ({err_source}, {err_code}, {err_diag}) as {rule_class}")
                 return rule_class
 
-    logger.debug(f"The job with {job_errors} did not match any rule and could not be classified")
+    _logger.debug(f"The job with {job_errors} did not match any rule and could not be classified")
     return "Unknown"  # Default if no match found
 
 def apply_error_classification_logic(jobID):
