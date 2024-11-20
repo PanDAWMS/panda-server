@@ -188,7 +188,7 @@ def pre_validate_request(panda_request):
         error_message = f"Token authentication failed. {panda_request.message}"
         return error_message
 
-    # check ban list
+    # check list of banned users
     username = panda_request.subprocess_env.get("SSL_CLIENT_S_DN", None)
     if username:
         username = CoreUtils.clean_user_id(username)
