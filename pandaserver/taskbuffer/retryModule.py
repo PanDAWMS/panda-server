@@ -494,6 +494,7 @@ def classify_error(task_buffer, job_id, job_errors):
     return "Unknown"  # Default if no match found
 
 
+@timeit
 def apply_error_classification_logic(task_buffer, job):
     tmp_log = LogWrapper(_logger, f"apply_error_classification_logic PandaID={job.PandaID}")
 
