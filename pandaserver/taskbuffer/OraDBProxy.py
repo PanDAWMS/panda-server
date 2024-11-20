@@ -14415,6 +14415,71 @@ class DBProxy:
         tmpLog.debug("done")
         return True
 
+    def increase_max_attempt(self, job_id, task_id, files):
+        """Increase the max attempt number by one for specific files."""
+        comment = " /* DBProxy.increase_max_attempt */"
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+
+        # Update the file entries to increase the max attempt number by one
+        input_types = ("input", "pseudo_input", "pp_input", "trn_log", "trn_output")
+        input_files = [
+            pandafile for pandafile in files
+            if pandafile.type in input_types and re.search("DBRelease", pandafile.lfn) is None
+        ]
+        input_file_ids = [input_file.fileID for input_file in input_files]
+        input_dataset_ids = [input_file.datasetID for input_file in input_files]
+
+        if input_file_ids:
+            try:
+                # Start transaction
+                self.conn.begin()
+
+                var_map = {
+                    ":taskID": task_id,
+                    ":pandaID": job_id,
+                }
+
+                # Bind the files
+                file_bindings = []
+                for index, file_id in enumerate(input_file_ids):
+                    var_map[f":file{index}"] = file_id
+                    file_bindings.append(f":file{index}")
+                file_bindings_str = ",".join(file_bindings)
+
+                # Bind the datasets
+                dataset_bindings = []
+                for index, dataset_id in enumerate(input_dataset_ids):
+                    var_map[f":dataset{index}"] = dataset_id
+                    dataset_bindings.append(f":dataset{index}")
+                dataset_bindings_str = ",".join(dataset_bindings)
+
+                sql_update = f"""
+                UPDATE ATLAS_PANDA.JEDI_Dataset_Contents
+                SET maxAttempt = maxAttempt + 1
+                WHERE JEDITaskID = :taskID
+                AND datasetID IN ({dataset_bindings_str})
+                AND fileID IN ({file_bindings_str})
+                AND pandaID = :pandaID
+                """
+
+                self.cur.execute(sql_update + comment, var_map)
+
+                # Commit updates
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+
+            except Exception:
+                # Roll back
+                self._rollback()
+                # Log error
+                self.dumpErrorMessage(_logger, method_name)
+                return False
+
+        tmp_log.debug("done")
+        return True
+
     def setNoRetry(self, jobID, taskID, files):
         # Logging
         comment = " /* DBProxy.setNoRetry */"

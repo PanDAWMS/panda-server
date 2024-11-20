@@ -136,11 +136,11 @@ class Watcher(threading.Thread):
                         ]
 
                         try:
-                            self.logger.debug("Watcher will call apply_retrial_rules")
-                            retryModule.apply_retrial_rules(self.taskBuffer, job.PandaID, errors, job.attemptNr)
-                            self.logger.debug("apply_retrial_rules is back")
+                            self.logger.debug("Watcher will call processing_job_failure")
+                            retryModule.processing_job_failure(self.taskBuffer, job.PandaID, errors, job.attemptNr)
+                            self.logger.debug("processing_job_failure is back")
                         except Exception as e:
-                            self.logger.debug(f"apply_retrial_rules excepted and needs to be investigated ({e}): {traceback.format_exc()}")
+                            self.logger.debug(f"processing_job_failure excepted and needs to be investigated ({e}): {traceback.format_exc()}")
 
                         # updateJobs was successful and it failed a job with taskBufferErrorCode
                         try:
@@ -155,8 +155,8 @@ class Watcher(threading.Thread):
                                 source = "taskBufferErrorCode"
                                 error_code = job_tmp.taskBufferErrorCode
                                 error_diag = job_tmp.taskBufferErrorDiag
-                                self.logger.debug("Watcher.run 2 will call apply_retrial_rules")
-                                retryModule.apply_retrial_rules(
+                                self.logger.debug("Watcher.run 2 will call processing_job_failure")
+                                retryModule.processing_job_failure(
                                     self.taskBuffer,
                                     job_tmp.PandaID,
                                     source,
@@ -164,11 +164,11 @@ class Watcher(threading.Thread):
                                     error_diag,
                                     job_tmp.attemptNr,
                                 )
-                                self.logger.debug("apply_retrial_rules 2 is back")
+                                self.logger.debug("processing_job_failure 2 is back")
                         except IndexError:
                             pass
                         except Exception as e:
-                            self.logger.error(f"apply_retrial_rules 2 excepted and needs to be investigated ({e}): {traceback.format_exc()}")
+                            self.logger.error(f"processing_job_failure 2 excepted and needs to be investigated ({e}): {traceback.format_exc()}")
 
                         cThr = Closer(self.taskBuffer, destDBList, job)
                         cThr.run()

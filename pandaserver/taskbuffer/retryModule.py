@@ -6,7 +6,7 @@ from re import error as ReError
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
-# logger
+# _logger
 _logger = PandaLogger().getLogger("RetrialModule")
 
 NO_RETRY = "no_retry"
@@ -15,6 +15,8 @@ LIMIT_RETRY = "limit_retry"
 INCREASE_CPU = "increase_cputime"
 INCREASE_MEM_XTIMES = "increase_memory_xtimes"
 REDUCE_INPUT_PER_JOB = "reduce_input_per_job"
+
+SYSTEM_ERROR_CLASS = "system"
 
 
 def timeit(method):
@@ -239,13 +241,15 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
 
 
 @timeit
-def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
+def apply_retrial_rules(task_buffer, job, errors, attemptNr):
     """
     Get rules from DB and applies them to a failed job. Actions can be:
     - flag the job so it is not retried again (error code is a final state and retrying will not help)
     - limit the number of retries
     - increase the memory of a job if it failed because of insufficient memory
     """
+    jobID = job.PandaID
+
     _logger.debug(f"Entered apply_retrial_rules for PandaID={jobID}, errors={errors}, attemptNr={attemptNr}")
 
     retrial_rules = task_buffer.getRetrialRules()
@@ -254,7 +258,6 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
         return
 
     try:
-        job = task_buffer.peekJobs([jobID], fromDefined=False, fromArchived=True, fromWaiting=False)[0]
         acted_on_job = False
         for error in errors:
             # in case of multiple errors for a job (e.g. pilot error + exe error) we will only apply one action
@@ -433,3 +436,80 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
 
     except KeyError as e:
         _logger.debug(f"No retrial rules to apply for jobID {jobID}, attemptNr {attemptNr}, failed with {errors}. (Exception {e})")
+
+
+def find_error_source(job_spec):
+    # List of errors
+    error_code_source = ["pilotError", "exeError", "supError", "ddmError", "brokerageError", "jobDispatcherError", "taskBufferError"]
+
+    job_id = job_spec.PandaID
+    job_errors = []
+    # Check that job_id is available
+    if not job_spec:
+        _logger.debug(f"Job with ID {job_id} not found")
+        return
+    else:
+        _logger.debug(f"Got job with ID {job_id} and status {job_spec.jobStatus}")
+        for source in error_code_source:
+            error_code = getattr(job_spec, source + "Code", None)  # 1099
+            error_diag = getattr(job_spec, source + "Diag", None)  # "Test error message"
+            error_source = source + "Code"  # pilotErrorCode
+            if error_code:
+                _logger.debug(f"-------")  # error name ddmErrorCode
+                _logger.debug(f"Error source: {error_source}")  # error name ddmErrorCode
+                _logger.debug(f"Error code: {error_code}")  # The error code
+                _logger.debug(f"Error diag: {error_diag}")  # The message
+                job_errors.append((error_code, error_diag, error_source))
+
+    if job_errors:
+        _logger.debug(f"Job has following error codes: {job_errors}")
+    else:
+        _logger.debug("Job has no error codes")
+
+    return job_errors
+
+
+def classify_error(task_buffer, job_errors):
+    # Get the error classification rules
+    sql = "SELECT error_source, error_code, error_diag, error_class FROM ATLAS_PANDA.ERROR_CLASSIFICATION"
+    var_map = []
+    status, rules = task_buffer.querySQLS(sql, var_map)
+
+    # Iterate job errors and rules to find a match
+    for job_error in job_errors:
+        err_code, err_diag, err_source = job_error
+        for rule in rules:
+            rule_source, rule_code, rule_diag, rule_class = rule
+
+            if (
+                (rule_source and err_source is not None and rule_source == err_source)
+                and (rule_code and err_code is not None and rule_code == err_code)
+                and (rule_diag and err_diag is not None and safe_match(rule_diag, err_diag))
+            ):
+                _logger.debug(f"The job was classified with error ({err_source}, {err_code}, {err_diag}) as {rule_class}")
+                return rule_class
+
+    _logger.debug(f"The job with {job_errors} did not match any rule and could not be classified")
+    return "Unknown"  # Default if no match found
+
+
+def apply_error_classification_logic(task_buffer, job):
+    # Find the error source and getting the code, diag, and source
+    job_errors = find_error_source(job)
+
+    # Classify the error
+    error_class = classify_error(task_buffer, job_errors)
+    return error_class
+
+
+def processing_job_failure(task_buffer, job_id, errors, attempt_number):
+    # get the job spec from the ID
+    job = task_buffer.peekJobs([job_id], fromDefined=False, fromArchived=True, fromWaiting=False)[0]
+
+    # Run the retry module on the job
+    apply_retrial_rules(task_buffer, job, errors, attempt_number)
+
+    # Applying error classification logic
+    error_class = apply_error_classification_logic(task_buffer, job)
+    if error_class == SYSTEM_ERROR_CLASS:
+        task_buffer.increase_max_attempt(job_id, job.jediTaskID, job.Files)
