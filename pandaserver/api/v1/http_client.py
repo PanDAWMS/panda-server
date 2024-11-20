@@ -2,13 +2,7 @@
 client methods
 """
 
-import gzip
-import json
 import os
-import pickle
-import socket
-import sys
-import tempfile
 
 import requests
 from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
