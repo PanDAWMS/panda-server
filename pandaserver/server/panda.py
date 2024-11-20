@@ -284,12 +284,12 @@ def parse_script_name(environ):
         fields = script_name.split("/")
 
         # Legacy API: /server/panda/<method>
-        if script_name.startswith("/server/panda/") and len(fields) == 3:
+        if script_name.startswith("/server/panda/") and len(fields) == 4:
             api_module = "panda"
             method_name = fields[-1]
 
         # Refactored API: /api/<version>/<module>/<method>
-        elif script_name.startswith("/api/") and len(fields) == 4:
+        elif script_name.startswith("/api/") and len(fields) == 5:
             method_name = fields[-1]
             api_module = fields[-2]
             version = fields[-3]
