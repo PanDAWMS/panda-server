@@ -4,9 +4,9 @@ import time
 import traceback
 from re import error as ReError
 
+from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
-# _logger
 _logger = PandaLogger().getLogger("RetrialModule")
 
 NO_RETRY = "no_retry"
@@ -40,11 +40,13 @@ def safe_match(pattern, message):
     """
     Wrapper around re.search with simple exception handling
     """
+    tmp_log = LogWrapper(_logger, f"safe_match")
+
     matches = False
     try:
         matches = re.match(pattern, message)
     except ReError:
-        _logger.error(f"Regexp matching excepted. \nPattern: {pattern} \nString: {message}")
+        tmp_log.error(f"Regexp matching excepted. \nPattern: {pattern} \nString: {message}")
     finally:
         return matches
 
@@ -63,16 +65,18 @@ def conditions_apply(
     Checks that the error regexp, architecture, release and work queue of rule and job match,
     only in case the attributes are defined for the rule
     """
-    _logger.debug(f"Entered conditions_apply {locals()}")
+    tmp_log = LogWrapper(_logger, f"conditions_apply")
+    tmp_log.debug(f"Start {locals()}")
     if (
         (errordiag_rule and not safe_match(errordiag_rule, errordiag_job))
         or (architecture_rule and architecture_rule != architecture_job)
         or (release_rule and release_rule != release_job)
         or (wqid_rule and wqid_rule != wqid_job)
     ):
-        _logger.debug("Leaving conditions_apply: False")
+        tmp_log.debug("Leaving: False")
         return False
-    _logger.debug("Leaving conditions_apply: True")
+
+    _logger.debug("Leaving: True")
     return True
 
 
@@ -80,7 +84,8 @@ def compare_strictness(rule1, rule2):
     """
     Return 1 if rule1 is stricter, 0 if equal, -1 if rule2 is stricter
     """
-    _logger.debug("Entered compare_strictness")
+    tmp_log = LogWrapper(_logger, f"compare_strictness")
+    tmp_log.debug("Start")
     rule1_weight = 0
     if rule1["architecture"]:
         rule1_weight += 1
@@ -114,7 +119,8 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
          resolve into the strictest rule, in our example (limit_retry = 5)
     - Bad intended rules, e.g. (action=limit_retry, maxAttempt=5) vs (action=limit_retry, maxAttempt=7, release=X):
     """
-    _logger.debug("Entered preprocess_rules")
+    tmp_log = LogWrapper(_logger, f"preprocess_rules")
+    tmp_log.debug("Start")
     filtered_rules = []
     try:
         # See if there is a  NO_RETRY rule.
@@ -232,7 +238,7 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
                 elif comparison == -1:
                     pass
     except KeyError:
-        _logger.error(f"Rules are not properly defined. Rules: {rules}")
+        tmp_log.error(f"Rules are not properly defined. Rules: {rules}")
 
     if limit_retry_rule:
         filtered_rules.append(limit_retry_rule)
@@ -438,28 +444,21 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
         _logger.debug(f"No retrial rules to apply for jobID {jobID}, attemptNr {attemptNr}, failed with {errors}. (Exception {e})")
 
 
-def find_error_source(job_spec):
-    # List of errors
-    error_code_source = ["pilotError", "exeError", "supError", "ddmError", "brokerageError", "jobDispatcherError", "taskBufferError"]
-
+def get_job_error_details(job_spec):
+    # Possible error types
+    error_sources = ["pilotError", "exeError", "supError", "ddmError", "brokerageError", "jobDispatcherError", "taskBufferError"]
     job_id = job_spec.PandaID
     job_errors = []
-    # Check that job_id is available
-    if not job_spec:
-        _logger.debug(f"Job with ID {job_id} not found")
-        return
-    else:
-        _logger.debug(f"Got job with ID {job_id} and status {job_spec.jobStatus}")
-        for source in error_code_source:
-            error_code = getattr(job_spec, source + "Code", None)  # 1099
-            error_diag = getattr(job_spec, source + "Diag", None)  # "Test error message"
-            error_source = source + "Code"  # pilotErrorCode
-            if error_code:
-                _logger.debug(f"-------")  # error name ddmErrorCode
-                _logger.debug(f"Error source: {error_source}")  # error name ddmErrorCode
-                _logger.debug(f"Error code: {error_code}")  # The error code
-                _logger.debug(f"Error diag: {error_diag}")  # The message
-                job_errors.append((error_code, error_diag, error_source))
+
+    _logger.debug(f"Got job with ID {job_id} and status {job_spec.jobStatus}")
+
+    # Get the error codes and messages that are set for the job
+    for source in error_sources:
+        error_code = getattr(job_spec, source + "Code", None)  # 1099
+        error_diag = getattr(job_spec, source + "Diag", None)  # "Test error message"
+        error_source = source + "Code"  # pilotErrorCode
+        if error_code:
+            job_errors.append((error_code, error_diag, error_source))
 
     if job_errors:
         _logger.debug(f"Job has following error codes: {job_errors}")
@@ -469,9 +468,11 @@ def find_error_source(job_spec):
     return job_errors
 
 
-def classify_error(task_buffer, job_errors):
-    # Get the error classification rules
-    sql = "SELECT error_source, error_code, error_diag, error_class FROM ATLAS_PANDA.ERROR_CLASSIFICATION"
+def classify_error(task_buffer, job_id, job_errors):
+    # Get the confirmed error classification rules
+    tmp_log = LogWrapper(_logger, f"classify_error PandaID={job_id}")
+
+    sql = "SELECT error_source, error_code, error_diag, error_class FROM ATLAS_PANDA.ERROR_CLASSIFICATION WHERE status='confirmed'"
     var_map = []
     status, rules = task_buffer.querySQLS(sql, var_map)
 
@@ -486,30 +487,39 @@ def classify_error(task_buffer, job_errors):
                 and (rule_code and err_code is not None and rule_code == err_code)
                 and (rule_diag and err_diag is not None and safe_match(rule_diag, err_diag))
             ):
-                _logger.debug(f"The job was classified with error ({err_source}, {err_code}, {err_diag}) as {rule_class}")
+                tmp_log.debug(f"Job classified with error: ({err_source}, {err_code}, {err_diag}) as {rule_class}")
                 return rule_class
 
-    _logger.debug(f"The job with {job_errors} did not match any rule and could not be classified")
+    tmp_log.debug(f"No matching rule found")
     return "Unknown"  # Default if no match found
 
 
 def apply_error_classification_logic(task_buffer, job):
+    tmp_log = LogWrapper(_logger, f"apply_error_classification_logic PandaID={job.PandaID}")
+
     # Find the error source and getting the code, diag, and source
-    job_errors = find_error_source(job)
+    job_errors = get_job_error_details(job)
 
     # Classify the error
-    error_class = classify_error(task_buffer, job_errors)
-    return error_class
+    error_class = classify_error(task_buffer, job.PandaID, job_errors)
+
+    # System errors should not count towards the user's max attempt. We increase the max attempt, since we can't repeat attempt numbers
+    if error_class == SYSTEM_ERROR_CLASS:
+        tmp_log.debug(f"Job classified as system error - increasing max attempt")
+        task_buffer.increase_max_attempt(job.PandaID, job.jediTaskID, job.Files)
 
 
-def processing_job_failure(task_buffer, job_id, errors, attempt_number):
+def job_failure_postprocessing(task_buffer, job_id, errors, attempt_number):
+    """
+    Entry point for job failure post-processing. This includes applying the retry rules and error classification logic.
+    """
     # get the job spec from the ID
     job = task_buffer.peekJobs([job_id], fromDefined=False, fromArchived=True, fromWaiting=False)[0]
+    if not job:
+        return
 
     # Run the retry module on the job
     apply_retrial_rules(task_buffer, job, errors, attempt_number)
 
-    # Applying error classification logic
-    error_class = apply_error_classification_logic(task_buffer, job)
-    if error_class == SYSTEM_ERROR_CLASS:
-        task_buffer.increase_max_attempt(job_id, job.jediTaskID, job.Files)
+    # Apply any logic related to error classification
+    apply_error_classification_logic(task_buffer, job)

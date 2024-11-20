@@ -10,6 +10,7 @@ import traceback
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+
 from pandaserver.dataservice.closer import Closer
 from pandaserver.jobdispatcher import ErrorCode
 from pandaserver.taskbuffer import EventServiceUtils, retryModule
@@ -136,11 +137,11 @@ class Watcher(threading.Thread):
                         ]
 
                         try:
-                            self.logger.debug("Watcher will call processing_job_failure")
-                            retryModule.processing_job_failure(self.taskBuffer, job.PandaID, errors, job.attemptNr)
-                            self.logger.debug("processing_job_failure is back")
+                            self.logger.debug("Watcher will call job_failure_postprocessing")
+                            retryModule.job_failure_postprocessing(self.taskBuffer, job.PandaID, errors, job.attemptNr)
+                            self.logger.debug("job_failure_postprocessing is back")
                         except Exception as e:
-                            self.logger.debug(f"processing_job_failure excepted and needs to be investigated ({e}): {traceback.format_exc()}")
+                            self.logger.debug(f"job_failure_postprocessing excepted and needs to be investigated ({e}): {traceback.format_exc()}")
 
                         # updateJobs was successful and it failed a job with taskBufferErrorCode
                         try:
@@ -155,8 +156,8 @@ class Watcher(threading.Thread):
                                 source = "taskBufferErrorCode"
                                 error_code = job_tmp.taskBufferErrorCode
                                 error_diag = job_tmp.taskBufferErrorDiag
-                                self.logger.debug("Watcher.run 2 will call processing_job_failure")
-                                retryModule.processing_job_failure(
+                                self.logger.debug("Watcher.run 2 will call job_failure_postprocessing")
+                                retryModule.job_failure_postprocessing(
                                     self.taskBuffer,
                                     job_tmp.PandaID,
                                     source,
@@ -164,11 +165,11 @@ class Watcher(threading.Thread):
                                     error_diag,
                                     job_tmp.attemptNr,
                                 )
-                                self.logger.debug("processing_job_failure 2 is back")
+                                self.logger.debug("job_failure_postprocessing 2 is back")
                         except IndexError:
                             pass
                         except Exception as e:
-                            self.logger.error(f"processing_job_failure 2 excepted and needs to be investigated ({e}): {traceback.format_exc()}")
+                            self.logger.error(f"job_failure_postprocessing 2 excepted and needs to be investigated ({e}): {traceback.format_exc()}")
 
                         cThr = Closer(self.taskBuffer, destDBList, job)
                         cThr.run()

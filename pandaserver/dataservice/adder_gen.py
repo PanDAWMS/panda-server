@@ -336,16 +336,16 @@ class AdderGen:
 
         if source and error_code:
             try:
-                self.logger.debug("AdderGen.run will call processing_job_failure")
-                retryModule.processing_job_failure(
+                self.logger.debug("AdderGen.run will call job_failure_postprocessing")
+                retryModule.job_failure_postprocessing(
                     self.taskBuffer,
                     self.job.PandaID,
                     errors,
                     self.job.attemptNr,
                 )
-                self.logger.debug("processing_job_failure is back")
+                self.logger.debug("job_failure_postprocessing is back")
             except Exception as e:
-                self.logger.error(f"processing_job_failure excepted and needs to be investigated ({e}): {traceback.format_exc()}")
+                self.logger.error(f"job_failure_postprocessing excepted and needs to be investigated ({e}): {traceback.format_exc()}")
 
         self.job.jobStatus = "failed"
         for file in self.job.Files:
@@ -488,18 +488,18 @@ class AdderGen:
                             "error_diag": error_diag,
                         }
                     ]
-                    self.logger.debug("AdderGen.run 2 will call processing_job_failure")
-                    retryModule.processing_job_failure(
+                    self.logger.debug("AdderGen.run 2 will call job_failure_postprocessing")
+                    retryModule.job_failure_postprocessing(
                         self.taskBuffer,
                         job_tmp.PandaID,
                         errors,
                         job_tmp.attemptNr,
                     )
-                    self.logger.debug("processing_job_failure 2 is back")
+                    self.logger.debug("job_failure_postprocessing 2 is back")
             except IndexError:
                 pass
             except Exception as e:
-                self.logger.error(f"processing_job_failure 2 excepted and needs to be investigated ({e}): {traceback.format_exc()}")
+                self.logger.error(f"job_failure_postprocessing 2 excepted and needs to be investigated ({e}): {traceback.format_exc()}")
 
             self.setup_closer()
 
