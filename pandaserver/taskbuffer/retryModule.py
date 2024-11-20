@@ -16,6 +16,8 @@ INCREASE_CPU = "increase_cputime"
 INCREASE_MEM_XTIMES = "increase_memory_xtimes"
 REDUCE_INPUT_PER_JOB = "reduce_input_per_job"
 
+SYSTEM_ERROR_CLASS = "system"
+
 
 def timeit(method):
     """
@@ -239,13 +241,15 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
 
 
 @timeit
-def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
+def apply_retrial_rules(task_buffer, job, errors, attemptNr):
     """
     Get rules from DB and applies them to a failed job. Actions can be:
     - flag the job so it is not retried again (error code is a final state and retrying will not help)
     - limit the number of retries
     - increase the memory of a job if it failed because of insufficient memory
     """
+    jobID = job.PandaID
+
     _logger.debug(f"Entered apply_retrial_rules for PandaID={jobID}, errors={errors}, attemptNr={attemptNr}")
 
     retrial_rules = task_buffer.getRetrialRules()
@@ -254,7 +258,6 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
         return
 
     try:
-        job = task_buffer.peekJobs([jobID], fromDefined=False, fromArchived=True, fromWaiting=False)[0]
         acted_on_job = False
         for error in errors:
             # in case of multiple errors for a job (e.g. pilot error + exe error) we will only apply one action
@@ -435,19 +438,18 @@ def apply_retrial_rules(task_buffer, jobID, errors, attemptNr):
         _logger.debug(f"No retrial rules to apply for jobID {jobID}, attemptNr {attemptNr}, failed with {errors}. (Exception {e})")
 
 
-def find_error_source(task_buffer, jobID):
+def find_error_source(job_spec):
     # List of errors
-    error_code_source = ["pilotError", "exeError", "supError", "ddmError", "brokerageError", "jobDispatcherError",
-                         "taskBufferError"]
+    error_code_source = ["pilotError", "exeError", "supError", "ddmError", "brokerageError", "jobDispatcherError", "taskBufferError"]
 
-    job_spec = task_buffer.peekJobs([jobID])[0]
+    job_id = job_spec.PandaID
     job_errors = []
-    # Check that jobID is available
+    # Check that job_id is available
     if not job_spec:
-        _logger.debug(f"Job with ID {jobID} not found")
+        _logger.debug(f"Job with ID {job_id} not found")
         return
     else:
-        _logger.debug(f"Got job with ID {job_spec.PandaID} and status {job_spec.jobStatus}")
+        _logger.debug(f"Got job with ID {job_id} and status {job_spec.jobStatus}")
         for source in error_code_source:
             error_code = getattr(job_spec, source + "Code", None)  # 1099
             error_diag = getattr(job_spec, source + "Diag", None)  # "Test error message"
@@ -466,8 +468,8 @@ def find_error_source(task_buffer, jobID):
 
     return job_errors
 
-def classify_error(task_buffer, job_errors):
 
+def classify_error(task_buffer, job_errors):
     # Get the error classification rules
     sql = "SELECT error_source, error_code, error_diag, error_class FROM ATLAS_PANDA.ERROR_CLASSIFICATION"
     var_map = []
@@ -490,18 +492,24 @@ def classify_error(task_buffer, job_errors):
     _logger.debug(f"The job with {job_errors} did not match any rule and could not be classified")
     return "Unknown"  # Default if no match found
 
-def apply_error_classification_logic(jobID):
+
+def apply_error_classification_logic(job):
     # Find the error source and getting the code, diag, and source
-    job_errors = find_error_source(jobID)
+    job_errors = find_error_source(job)
 
     # Classify the error
-    class_error = classify_error(job_errors)
+    error_class = classify_error(job_errors)
+    return error_class
 
 
-def processing_job_failure(task_buffer, jobID, errors, attemptNr):
+def processing_job_failure(task_buffer, job_id, errors, attempt_number):
+    # get the job spec from the ID
+    job = task_buffer.peekJobs([job_id], fromDefined=False, fromArchived=True, fromWaiting=False)[0]
+
     # Run the retry module on the job
-    apply_retrial_rules(task_buffer, jobID, errors, attemptNr)
+    apply_retrial_rules(task_buffer, job, errors, attempt_number)
 
     # Applying error classification logic
-    apply_error_classification_logic(jobID)
-
+    error_class = apply_error_classification_logic(job)
+    if error_class == SYSTEM_ERROR_CLASS:
+        task_buffer.increase_max_attempt(job_id, job.jediTaskID, job.Files)
