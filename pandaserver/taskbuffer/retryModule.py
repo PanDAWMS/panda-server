@@ -493,12 +493,12 @@ def classify_error(task_buffer, job_errors):
     return "Unknown"  # Default if no match found
 
 
-def apply_error_classification_logic(job):
+def apply_error_classification_logic(task_buffer, job):
     # Find the error source and getting the code, diag, and source
     job_errors = find_error_source(job)
 
     # Classify the error
-    error_class = classify_error(job_errors)
+    error_class = classify_error(task_buffer, job_errors)
     return error_class
 
 
@@ -510,6 +510,6 @@ def processing_job_failure(task_buffer, job_id, errors, attempt_number):
     apply_retrial_rules(task_buffer, job, errors, attempt_number)
 
     # Applying error classification logic
-    error_class = apply_error_classification_logic(job)
+    error_class = apply_error_classification_logic(task_buffer, job)
     if error_class == SYSTEM_ERROR_CLASS:
         task_buffer.increase_max_attempt(job_id, job.jediTaskID, job.Files)
