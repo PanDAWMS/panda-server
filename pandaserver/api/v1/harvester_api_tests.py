@@ -20,6 +20,7 @@ class TestHarvesterAPI(unittest.TestCase):
 
     def test_update_harvester_service_metrics(self):
         url = f"{api_url_ssl}/harvester/update_harvester_service_metrics"
+        print(f"Testing URL: {url}")
         harvester_id = HARVESTER_ID
         harvester_host = HARVESTER_HOST
         creation_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
@@ -47,6 +48,7 @@ class TestHarvesterAPI(unittest.TestCase):
 
     def test_add_harvester_dialogs(self):
         url = f"{api_url_ssl}/harvester/add_harvester_dialogs"
+        print(f"Testing URL: {url}")
         harvester_id = HARVESTER_ID
 
         dialog = {
@@ -68,6 +70,7 @@ class TestHarvesterAPI(unittest.TestCase):
 
     def test_harvester_heartbeat(self):
         url = f"{api_url_ssl}/harvester/harvester_heartbeat"
+        print(f"Testing URL: {url}")
         harvester_id = HARVESTER_ID
         data = {"harvester_id": harvester_id, "data": []}
         status, output = self.http_client.post(url, data)
@@ -77,6 +80,7 @@ class TestHarvesterAPI(unittest.TestCase):
 
     def test_get_worker_statistics(self):
         url = f"{api_url_ssl}/harvester/get_worker_statistics"
+        print(f"Testing URL: {url}")
         data = {}
         status, output = self.http_client.get(url, data)
 
@@ -86,6 +90,7 @@ class TestHarvesterAPI(unittest.TestCase):
 
     def test_get_current_worker_id(self):
         url = f"{api_url_ssl}/harvester/get_current_worker_id"
+        print(f"Testing URL: {url}")
         data = {"harvester_id": HARVESTER_ID}
         status, output = self.http_client.get(url, data)
 
@@ -95,6 +100,7 @@ class TestHarvesterAPI(unittest.TestCase):
 
     def test_report_worker_statistics(self):
         url = f"{api_url_ssl}/harvester/report_worker_statistics"
+        print(f"Testing URL: {url}")
         harvester_id = HARVESTER_ID
         panda_queue = PANDA_QUEUE
         # the json loads is done in DBProxy
@@ -107,6 +113,7 @@ class TestHarvesterAPI(unittest.TestCase):
 
     def test_update_workers(self):
         url = f"{api_url_ssl}/harvester/update_workers"
+        print(f"Testing URL: {url}")
         worker = {
             "workerID": 1,
             "batchID": 1,
@@ -143,6 +150,7 @@ class TestHarvesterAPI(unittest.TestCase):
 
     def test_get_harvester_commands(self):
         url = f"{api_url_ssl}/harvester/get_harvester_commands"
+        print(f"Testing URL: {url}")
 
         harvester_id = HARVESTER_ID
         n_commands = 1
@@ -155,6 +163,7 @@ class TestHarvesterAPI(unittest.TestCase):
 
     def test_acknowledge_harvester_commands(self):
         url = f"{api_url_ssl}/harvester/acknowledge_harvester_commands"
+        print(f"Testing URL: {url}")
         command_ids = [1]
         data = {"command_ids": command_ids}
         status, output = self.http_client.post(url, data)
@@ -164,6 +173,7 @@ class TestHarvesterAPI(unittest.TestCase):
 
     def test_add_target_slots(self):
         url = f"{api_url_ssl}/harvester/add_target_slots"
+        print(f"Testing URL: {url}")
         panda_queue = PANDA_QUEUE
         slots = 0
         data = {"panda_queue": panda_queue, "slots": slots}
