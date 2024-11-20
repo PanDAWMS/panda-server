@@ -300,11 +300,12 @@ def parse_script_name(environ):
     return method_name, api_module, version
 
 
-def module_mapping(version, module):
+def module_mapping(version, api_module):
     mapping = {"v1": {"harvester": harvester_api_v1}}
     try:
-        return mapping[module][version]
+        return mapping[api_module][version]
     except KeyError:
+        _logger.error(f"Could not find module {api_module} in API version {version}")
         return None
 
 
@@ -361,6 +362,7 @@ def application(environ, start_response):
     try:
         if is_new_api(api_module):
             module = module_mapping(version, api_module)
+            _logger.debug(f"{dir(module)}")
             tmp_method = getattr(module, method_name)
         else:
             tmp_method = globals()[method_name]
