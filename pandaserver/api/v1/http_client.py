@@ -17,8 +17,8 @@ from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
 base_url = os.environ.get("PANDA_URL", "http://pandaserver.cern.ch:25080/server/panda")
 base_url_ssl = os.environ.get("PANDA_URL_SSL", "https://pandaserver.cern.ch:25443/server/panda")
 
-api_url = os.environ.get("PANDA_URL", "http://pandaserver.cern.ch:25080/server/")
-api_url_ssl = os.environ.get("PANDA_URL_SSL", "https://pandaserver.cern.ch:25443/server/")
+api_url = os.environ.get("PANDA_URL", "http://pandaserver.cern.ch:25080/api/v1/")
+api_url_ssl = os.environ.get("PANDA_URL_SSL", "https://pandaserver.cern.ch:25443/api/v1/")
 
 # exit code
 EC_Failed = 255

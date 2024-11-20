@@ -294,6 +294,9 @@ def parse_script_name(environ):
             api_module = fields[-2]
             version = fields[-3]
 
+        else:
+            _logger.error(f"Could not parse script name: {script_name}")
+
     return method_name, api_module, version
 
 
