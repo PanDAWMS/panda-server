@@ -8150,28 +8150,10 @@ class DBProxy:
         hasInput = False
         tmpLog.debug(f"waitLock={waitLock} async_params={async_params}")
         # make pseudo files for dynamic number of events
-        pseudoFiles = []
         if EventServiceUtils.isDynNumEventsSH(jobSpec.specialHandling):
-            # make row_ID and fileSpec map
-            rowIdSpecMap = {}
-            for fileSpec in jobSpec.Files:
-                rowIdSpecMap[fileSpec.row_ID] = fileSpec
-            # get pseudo files
-            varMap = {}
-            varMap[":PandaID"] = jobSpec.PandaID
-            varMap[":jediTaskID"] = jobSpec.jediTaskID
-            varMap[":eventID"] = -1
-            sqlPF = "SELECT fileID,attemptNr,job_processID "
-            sqlPF += f"FROM {panda_config.schemaJEDI}.JEDI_Events "
-            sqlPF += "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID AND processed_upto_eventID=:eventID "
-            cur.execute(sqlPF + comment, varMap)
-            resPF = self.cur.fetchall()
-            for tmpFileID, tmpAttemptNr, tmpRow_ID in resPF:
-                tmpFileSpec = copy.copy(rowIdSpecMap[tmpRow_ID])
-                tmpFileSpec.fileID = tmpFileID
-                tmpFileSpec.attemptNr = tmpAttemptNr - 1
-                pseudoFiles.append(tmpFileSpec)
-            tmpLog.debug(f"{len(pseudoFiles)} pseudo files")
+            pseudoFiles = self.create_pseudo_files_for_dyn_num_events(jobSpec, tmpLog)
+        else:
+            pseudoFiles = []
         # flag for job cloning
         useJobCloning = False
         if EventServiceUtils.isEventServiceJob(jobSpec) and EventServiceUtils.isJobCloningJob(jobSpec):
@@ -13262,9 +13244,14 @@ class DBProxy:
                 (datasetID,) = resPD
             else:
                 datasetID = None
+            # make pseudo files for dynamic number of events
+            if EventServiceUtils.isDynNumEventsSH(jobSpec.specialHandling):
+                pseudoFiles = self.create_pseudo_files_for_dyn_num_events(jobSpec, tmpLog)
+            else:
+                pseudoFiles = []
             # loop over all input files
             allOK = True
-            for fileSpec in jobSpec.Files:
+            for fileSpec in jobSpec.Files + pseudoFiles:
                 if datasetID is None:
                     continue
                 # only input file
@@ -21552,3 +21539,32 @@ class DBProxy:
             # error
             self.dumpErrorMessage(tmpLog, methodName)
             return False
+
+    def create_pseudo_files_for_dyn_num_events(self, job_spec, tmp_log):
+        """
+        create pseudo files for dynamic number of events
+        param job_spec: JobSpec
+        param tmp_log: logger
+        """
+        comment = " /* DBProxy.create_pseudo_files_for_dyn_num_events */"
+        # make row_ID and fileSpec map
+        row_id_spec_map = {}
+        for fileSpec in job_spec.Files:
+            row_id_spec_map[fileSpec.row_ID] = fileSpec
+        # get pseudo files
+        pseudo_files = []
+        var_map = {":PandaID": job_spec.PandaID, ":jediTaskID": job_spec.jediTaskID, ":eventID": -1}
+        sql = (
+            "SELECT fileID,attemptNr,job_processID "
+            f"FROM {panda_config.schemaJEDI}.JEDI_Events "
+            "WHERE jediTaskID=:jediTaskID AND PandaID=:PandaID AND processed_upto_eventID=:eventID "
+        )
+        self.cur.execute(sql + comment, var_map)
+        res = self.cur.fetchall()
+        for tmpFileID, tmpAttemptNr, tmpRow_ID in res:
+            tmpFileSpec = copy.copy(row_id_spec_map[tmpRow_ID])
+            tmpFileSpec.fileID = tmpFileID
+            tmpFileSpec.attemptNr = tmpAttemptNr - 1
+            pseudo_files.append(tmpFileSpec)
+        tmp_log.debug(f"{len(pseudo_files)} pseudo files")
+        return pseudo_files
