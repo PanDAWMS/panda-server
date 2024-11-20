@@ -262,8 +262,11 @@ class FetchData(object):
                     for tup in dsinfo_list
                 }
                 # get n jobs of each task
-                (n_jobs,) = self.tbuf.querySQL(sql_get_task_n_jobs, varMap)
-                dsinfo_dict[taskID]["nJobs"] = n_jobs
+                tmp_res = self.tbuf.querySQL(sql_get_task_n_jobs, varMap)
+                for obj in tmp_res:
+                    (n_jobs,) = obj
+                    dsinfo_dict[taskID]["nJobs"] = n_jobs
+                    break
                 # get task proceeding progress
                 ds_info = dsinfo_dict.get(taskID)
                 if ds_info is not None:
@@ -271,11 +274,10 @@ class FetchData(object):
                     n_files_finished = ds_info.get("nFilesFinished", 0)
                     n_files_failed = ds_info.get("nFilesFailed", 0)
                     n_files_remaining = max(n_files_total - n_files_finished - n_files_failed, 0)
+                    n_jobs = ds_info.get("nJobs", 0)
                     if n_files_total > 0:
                         pct_finished = n_files_finished * 100 / n_files_total
                         pct_failed = n_files_failed * 100 / n_files_total
-                    n_jobs = ds_info.get("nJobs", 0)
-                    if n_jobs is not None and n_files_total:
                         n_jobs_remaining = int(n_jobs * n_files_remaining / n_files_total)
                 # classify
                 if gshare == "Express Analysis":
@@ -297,10 +299,10 @@ class FetchData(object):
                         else:
                             task_class = 0
                     # boost for nearly done tasks
-                    if task_class == 1 and pct_finished >= progress_to_boost_A and n_jobs_remaining <= max_rem_jobs_to_boost_A:
+                    if task_class == 1 and pct_finished >= progress_to_boost_A and n_jobs_remaining > 0 and n_jobs_remaining <= max_rem_jobs_to_boost_A:
                         # almost done A-tasks, to boost
                         task_class = 2
-                    elif task_class == 0 and pct_finished >= progress_to_boost_B and n_jobs_remaining <= max_rem_jobs_to_boost_B:
+                    elif task_class == 0 and pct_finished >= progress_to_boost_B and n_jobs_remaining > 0 and n_jobs_remaining <= max_rem_jobs_to_boost_B:
                         # almost done B-tasks, to boost
                         task_class = 2
                 # fill in task class
