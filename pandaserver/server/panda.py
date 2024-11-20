@@ -366,7 +366,6 @@ def application(environ, start_response):
     try:
         if is_new_api(api_module):
             module = module_mapping(version, api_module)
-            _logger.debug(f"{dir(module)}")
             tmp_method = getattr(module, method_name)
         else:
             tmp_method = globals()[method_name]
