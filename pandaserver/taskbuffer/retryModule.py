@@ -17,6 +17,7 @@ INCREASE_MEM_XTIMES = "increase_memory_xtimes"
 REDUCE_INPUT_PER_JOB = "reduce_input_per_job"
 
 SYSTEM_ERROR_CLASS = "system"
+NO_ERROR_CLASS = "unknown"
 
 
 def timeit(method):
@@ -450,7 +451,9 @@ def get_job_error_details(job_spec):
     job_id = job_spec.PandaID
     job_errors = []
 
-    _logger.debug(f"Got job with ID {job_id} and status {job_spec.jobStatus}")
+    tmp_log = LogWrapper(_logger, f"get_job_error_details PandaID={job_id}")
+
+    _logger.debug(f"Starting for status {job_spec.jobStatus}")
 
     # Get the error codes and messages that are set for the job
     for source in error_sources:
@@ -461,9 +464,9 @@ def get_job_error_details(job_spec):
             job_errors.append((error_code, error_diag, error_source))
 
     if job_errors:
-        _logger.debug(f"Job has following error codes: {job_errors}")
+        tmp_log.debug(f"Job has following error codes: {job_errors}")
     else:
-        _logger.debug("Job has no error codes")
+        tmp_log.debug("Job has no error codes")
 
     return job_errors
 
@@ -472,9 +475,12 @@ def classify_error(task_buffer, job_id, job_errors):
     # Get the confirmed error classification rules
     tmp_log = LogWrapper(_logger, f"classify_error PandaID={job_id}")
 
+    # Query the error classification rules from the database
     sql = "SELECT error_source, error_code, error_diag, error_class FROM ATLAS_PANDA.ERROR_CLASSIFICATION WHERE status='confirmed'"
     var_map = []
     status, rules = task_buffer.querySQLS(sql, var_map)
+    if not rules:
+        return NO_ERROR_CLASS
 
     # Iterate job errors and rules to find a match
     for job_error in job_errors:
@@ -491,7 +497,7 @@ def classify_error(task_buffer, job_id, job_errors):
                 return rule_class
 
     tmp_log.debug(f"No matching rule found")
-    return "Unknown"  # Default if no match found
+    return NO_ERROR_CLASS
 
 
 @timeit
