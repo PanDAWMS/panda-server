@@ -476,28 +476,29 @@ def classify_error(task_buffer, job_id, job_errors):
     tmp_log = LogWrapper(_logger, f"classify_error PandaID={job_id}")
 
     # Query the error classification rules from the database
-    sql = "SELECT error_source, error_code, error_diag, error_class FROM ATLAS_PANDA.ERROR_CLASSIFICATION WHERE status='confirmed'"
+    sql = "SELECT id, error_source, error_code, error_diag, error_class, active FROM ATLAS_PANDA.ERROR_CLASSIFICATION"
     var_map = []
     status, rules = task_buffer.querySQLS(sql, var_map)
     if not rules:
-        return NO_ERROR_CLASS
+        return None
 
     # Iterate job errors and rules to find a match
     for job_error in job_errors:
         err_code, err_diag, err_source = job_error
         for rule in rules:
-            rule_source, rule_code, rule_diag, rule_class = rule
+            rule_id, rule_source, rule_code, rule_diag, rule_class, rule_active = rule
 
             if (
                 (rule_source and err_source is not None and rule_source == err_source)
                 and (rule_code and err_code is not None and rule_code == err_code)
                 and (rule_diag and err_diag is not None and safe_match(rule_diag, err_diag))
             ):
-                tmp_log.debug(f"Job classified with error: ({err_source}, {err_code}, {err_diag}) as {rule_class}")
-                return rule_class
+                active = rule_active == "Y"
+                tmp_log.debug(f"Job classified with rule {rule_id}: ({err_source}, {err_code}, {err_diag}) as {rule_class} ({active: active})")
+                return rule_id, rule_source, rule_code, rule_diag, rule_class, active
 
     tmp_log.debug(f"No matching rule found")
-    return NO_ERROR_CLASS
+    return None
 
 
 @timeit
@@ -508,12 +509,27 @@ def apply_error_classification_logic(task_buffer, job):
     job_errors = get_job_error_details(job)
 
     # Classify the error
-    error_class = classify_error(task_buffer, job.PandaID, job_errors)
+    ret = classify_error(task_buffer, job.PandaID, job_errors)
+    if not ret:
+        return
+
+    # Unpack the classification
+    rule_id, rule_source, rule_code, rule_diag, rule_class, active = ret
 
     # System errors should not count towards the user's max attempt. We increase the max attempt, since we can't repeat attempt numbers
-    if error_class == SYSTEM_ERROR_CLASS:
-        tmp_log.debug(f"Job classified as system error - increasing max attempt")
-        task_buffer.increase_max_attempt(job.PandaID, job.jediTaskID, job.Files)
+    if rule_class == SYSTEM_ERROR_CLASS:
+        # Structure the message for logstash parsing and monitoring.
+        # We are using a large offset in the rule IDs in the database to avoid overlapping IDs with the retry module
+        message = (
+            f"action=increase_max_attempt for PandaID={job.PandaID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} "
+            f"( ErrorSource={rule_source} ErrorCode={rule_code} ErrorDiag: {rule_diag}. "
+            f"Error/action active={active} error_id={rule_id} )"
+        )
+        tmp_log.info(message)
+
+        # Apply the rule only for active errors
+        if active:
+            task_buffer.increase_max_attempt(job.PandaID, job.jediTaskID, job.Files)
 
 
 def job_failure_postprocessing(task_buffer, job_id, errors, attempt_number):
