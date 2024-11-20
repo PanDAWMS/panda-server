@@ -2,7 +2,7 @@ import json
 import unittest
 from datetime import datetime, timezone
 
-from pandaserver.api.http_client import HttpClient, api_url, api_url_ssl
+from pandaserver.api.v1.http_client import HttpClient, api_url, api_url_ssl
 
 # Get current UTC time with microseconds. The format needs to be compatible with the one used in the database
 now_utc = datetime.now(timezone.utc)
