@@ -140,8 +140,15 @@ from pandaserver.userinterface.UserIF import (
     userIF,
 )
 
+_logger = PandaLogger().getLogger("Entry")
+
 # generate the allowed methods dynamically with all function names present in harvester_api
-harvester_api_methods = [name for name, obj in inspect.getmembers(harvester_api_v1, inspect.isfunction)]
+# exclude functions imported from other modules or the init_task_buffer function
+harvester_api_methods = [
+    name
+    for name, obj in inspect.getmembers(harvester_api_v1, inspect.isfunction)
+    if obj.__module__ == harvester_api_v1.__name__ and name != "init_task_buffer" and name.startswith("_") is False
+]
 
 # initialize oracledb using dummy connection
 initializer.init()
@@ -165,9 +172,6 @@ if panda_config.nDBConnection != 0:
 
     # initialize UserIF
     userIF.init(taskBuffer)
-
-# logger
-_logger = PandaLogger().getLogger("Entry")
 
 # ban list
 if panda_config.nDBConnection != 0:
