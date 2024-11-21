@@ -306,7 +306,10 @@ def parse_script_name(environ):
 
 
 def module_mapping(version, api_module):
-    mapping = {"v1": {"harvester": {"module": harvester_api_v1, "allowed_methods": harvester_api_v1_methods}}}
+    mapping = {
+        "v0": {"panda": {"module": None, "allowed_methods": allowed_methods}},
+        "v1": {"harvester": {"module": harvester_api_v1, "allowed_methods": harvester_api_v1_methods}},
+    }
     try:
         return mapping[version][api_module]
     except KeyError:
@@ -315,10 +318,6 @@ def module_mapping(version, api_module):
 
 
 def validate_method(method_name, api_module, version):
-    # We are in the legacy API and the method is not in the allowed list
-    if api_module == "panda" and method_name in allowed_methods:
-        return True
-
     # We are in the refactored API and the method is not in the specific allowed list
     mapping = module_mapping(version, api_module)
     if mapping and method_name in mapping["allowed_methods"]:
