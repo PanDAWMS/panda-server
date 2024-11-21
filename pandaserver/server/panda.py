@@ -144,7 +144,7 @@ _logger = PandaLogger().getLogger("Entry")
 
 # generate the allowed methods dynamically with all function names present in harvester_api
 # exclude functions imported from other modules or the init_task_buffer function
-harvester_api_methods = [
+harvester_api_v1_methods = [
     name
     for name, obj in inspect.getmembers(harvester_api_v1, inspect.isfunction)
     if obj.__module__ == harvester_api_v1.__name__ and name != "init_task_buffer" and name.startswith("_") is False
@@ -305,7 +305,7 @@ def parse_script_name(environ):
 
 
 def module_mapping(version, api_module):
-    mapping = {"v1": {"harvester": harvester_api_v1}}
+    mapping = {"v1": {"harvester": {"module": harvester_api_v1, "allowed_methods": harvester_api_v1_methods}}}
     try:
         return mapping[version][api_module]
     except KeyError:
@@ -324,9 +324,9 @@ def validate_method(method_name, api_module, version):
     if api_module == "panda" and method_name not in allowed_methods:
         return False
 
-    # We are in the refactored API and the method is not in the allowed list
-    # TODO: generalize for multiple modules and versions
-    if api_module == "harvester" and method_name not in harvester_api_methods:
+    # We are in the refactored API and the method is not in the specific allowed list
+    mapping = module_mapping(version, api_module)
+    if not mapping or method_name not in mapping["allowed_methods"]:
         return False
 
     return True
@@ -365,7 +365,7 @@ def application(environ, start_response):
     # get the method object to be executed
     try:
         if is_new_api(api_module):
-            module = module_mapping(version, api_module)
+            module = module_mapping(version, api_module)["module"]
             tmp_method = getattr(module, method_name)
         else:
             tmp_method = globals()[method_name]
