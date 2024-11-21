@@ -335,7 +335,7 @@ def application(environ, start_response):
     # Parse the script name to retrieve method, module and version
     method_name, api_module, version = parse_script_name(environ)
 
-    tmp_log = LogWrapper(_logger, f"PID={os.getpid()} {api_module} {method_name} {version}", seeMem=True)
+    tmp_log = LogWrapper(_logger, f"PID={os.getpid()} module={api_module} method={method_name} version={version}", seeMem=True)
     cont_length = int(environ.get("CONTENT_LENGTH", 0))
     request_method = environ.get("REQUEST_METHOD", None)  # GET, POST, PUT, DELETE
 
