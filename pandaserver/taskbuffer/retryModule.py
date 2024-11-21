@@ -453,7 +453,7 @@ def get_job_error_details(job_spec):
 
     tmp_log = LogWrapper(_logger, f"get_job_error_details PandaID={job_id}")
 
-    _logger.debug(f"Starting for status {job_spec.jobStatus}")
+    tmp_log.debug(f"Starting for status {job_spec.jobStatus}")
 
     # Get the error codes and messages that are set for the job
     for source in error_sources:
