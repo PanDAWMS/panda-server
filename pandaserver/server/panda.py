@@ -209,6 +209,7 @@ def read_body(environ, content_length):
         content_length -= len(chunk)
         body += chunk
     if content_length > 0:
+        # OSError is caught in the main function and forces killing the process
         raise OSError(f"partial read from client. {content_length} bytes remaining")
 
     return body
