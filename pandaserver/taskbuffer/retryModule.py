@@ -27,12 +27,12 @@ def timeit(method):
 
     def timed(*args, **kwargs):
         tmp_log = LogWrapper(_logger, f"timed {method.__name__!r} ({args!r}, {kwargs!r})")
-        _logger.debug(f"Start")
+        tmp_log.debug(f"Start")
         ts = time.time()
         result = method(*args, **kwargs)
         te = time.time()
 
-        _logger.debug(f"Took {te - ts:.2f} sec")
+        tmp_log.debug(f"Took {te - ts:.2f} sec")
         return result
 
     return timed
