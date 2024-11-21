@@ -307,7 +307,7 @@ def parse_script_name(environ):
 
 def module_mapping(version, api_module):
     mapping = {
-        "v0": {"panda": {"module": None, "allowed_methods": allowed_methods}},
+        "v0": {"panda": {"module": None, "allowed_methods": allowed_methods}},  # legacy API uses globals instead of a particular module
         "v1": {"harvester": {"module": harvester_api_v1, "allowed_methods": harvester_api_v1_methods}},
     }
     try:
