@@ -17,6 +17,8 @@ from pandacommon.pandautils.net_utils import replace_hostname_in_url_randomly
 baseURL = os.environ.get("PANDA_URL", "http://pandaserver.cern.ch:25080/server/panda")
 baseURLSSL = os.environ.get("PANDA_URL_SSL", "https://pandaserver.cern.ch:25443/server/panda")
 
+DEFAULT_CERT_PATH = "/etc/grid-security/certificates"
+
 # exit code
 EC_Failed = 255
 
@@ -61,9 +63,10 @@ class HttpClient:
         self.id_token = os.getenv("PANDA_AUTH_ID_TOKEN") if self.oidc else None
 
     def _x509(self):
-        # retrieve the X509_USER_PROXY from the environment variables
+        # retrieve the X509_USER_PROXY from the environment variables and check if it is readable
         try:
-            return os.environ["X509_USER_PROXY"]
+            if "X509_USER_PROXY" in os.environ and os.access(os.environ["X509_USER_PROXY"], os.R_OK):
+                return os.environ["X509_USER_PROXY"]
         except Exception:
             pass
 
@@ -79,7 +82,10 @@ class HttpClient:
     def _prepare_url(self, url):
         """Modify URL with HTTPS check and hostname replacement."""
         use_https = is_https(url)
-        modified_url = replace_hostname_in_url_randomly(url)
+        if "PANDA_BEHIND_REAL_LB" in os.environ:
+            modified_url = url
+        else:
+            modified_url = replace_hostname_in_url_randomly(url)
         return modified_url, use_https
 
     def _prepare_headers(self):
@@ -97,17 +103,23 @@ class HttpClient:
 
     def _prepare_ssl(self, use_https):
         """Prepare SSL configuration based on HTTPS usage and verification settings."""
-        cert = None
-        verify = True
-        if use_https:
-            cert = (self.ssl_certificate, self.ssl_key)
+        cert = None  # no certificate by default when no HTTS or using oidc headers
+        verify = True  # validate against default system CA certificates
 
+        if use_https:
+            # oidc tokens are added to the headers, we don't need to provide a certificate
+            if not self.oidc:
+                cert = (self.ssl_certificate, self.ssl_key)
+
+            # the host verification has been disabled in the configuration
             if not self.verifyHost:
                 verify = False
-            elif "X509_CERT_DIR" in os.environ:
+            # there is a path to the CA certificate folder and it exists
+            elif "X509_CERT_DIR" in os.environ and os.path.exists(os.environ["X509_CERT_DIR"]):
                 verify = os.environ["X509_CERT_DIR"]
-            elif os.path.exists("/etc/grid-security/certificates"):
-                verify = "/etc/grid-security/certificates"
+            # the CA certificate folder is available in the standard location
+            elif os.path.exists(DEFAULT_CERT_PATH):
+                verify = DEFAULT_CERT_PATH
 
         return cert, verify
 
@@ -149,7 +161,6 @@ class HttpClient:
                 else:
                     # we got a file to upload which specifies the destination name
                     files[key] = (data[key][0], open(data[key][1], "rb"))
-            print(f"cert: {cert}, verify: {verify}")
             response = requests.post(url, headers=headers, files=files, timeout=600, cert=cert, verify=verify)
             response.raise_for_status()
             return 0, response.text

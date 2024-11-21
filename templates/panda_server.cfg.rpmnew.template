@@ -198,16 +198,6 @@ useJEDI = True
 
 ##########################
 #
-# Proxy Cache
-#
-
-# use Proxy Cache
-useProxyCache = False
-
-
-
-##########################
-#
 # Plugin setup
 #
 

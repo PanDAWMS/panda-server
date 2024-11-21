@@ -167,7 +167,7 @@ class SiteMapper:
         # calculate the minRSS for the child queue
         if resource_spec.minrampercore is not None:
             child_site_spec.minrss = max(
-                child_site_spec.coreCount * resource_spec.minrampercore,
+                child_site_spec.coreCount * resource_spec.minrampercore - child_site_spec.coreCount + 1,
                 site_spec.minrss * child_site_spec.coreCount / core_count,
             )
         else:

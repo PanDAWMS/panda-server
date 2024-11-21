@@ -610,11 +610,13 @@ class TaskBuffer:
         return res
 
     # get a DB configuration value
-    def getConfigValue(self, component, key, app="pandaserver", vo=None):
+    def getConfigValue(self, component, key, app="pandaserver", vo=None, default=None):
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         # exec
         res = proxy.getConfigValue(component, key, app, vo)
+        if res is None and default is not None:
+            res = default
         # release DB proxy
         self.proxyPool.putProxy(proxy)
 
