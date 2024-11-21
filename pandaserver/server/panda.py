@@ -142,6 +142,8 @@ from pandaserver.userinterface.UserIF import (
 
 _logger = PandaLogger().getLogger("Entry")
 
+LATEST = "1"
+
 # generate the allowed methods dynamically with all function names present in harvester_api
 # exclude functions imported from other modules or the init_task_buffer function
 harvester_api_v1_methods = [
@@ -298,6 +300,8 @@ def parse_script_name(environ):
             method_name = fields[-1]
             api_module = fields[-2]
             version = fields[-3]
+            if version == "latest":
+                version = LATEST
 
         else:
             _logger.error(f"Could not parse script name: {script_name}")
