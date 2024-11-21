@@ -480,6 +480,7 @@ def classify_error(task_buffer, job_id, job_errors):
     var_map = []
     status, rules = task_buffer.querySQLS(sql, var_map)
     if not rules:
+        tmp_log.debug(f"No error classification rules defined in the database")
         return None
 
     # Iterate job errors and rules to find a match
