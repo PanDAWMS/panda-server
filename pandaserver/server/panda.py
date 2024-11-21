@@ -315,22 +315,16 @@ def module_mapping(version, api_module):
 
 
 def validate_method(method_name, api_module, version):
-    valid_modules = ["panda", "harvester"]
-
-    # The module is not valid
-    if api_module not in valid_modules:
-        return False
-
     # We are in the legacy API and the method is not in the allowed list
-    if api_module == "panda" and method_name not in allowed_methods:
-        return False
+    if api_module == "panda" and method_name in allowed_methods:
+        return True
 
     # We are in the refactored API and the method is not in the specific allowed list
     mapping = module_mapping(version, api_module)
-    if not mapping or method_name not in mapping["allowed_methods"]:
-        return False
+    if mapping and method_name in mapping["allowed_methods"]:
+        return True
 
-    return True
+    return False
 
 
 # This is the starting point for all WSGI requests
