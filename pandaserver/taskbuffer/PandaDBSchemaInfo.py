@@ -13,6 +13,6 @@ class PandaDBSchemaInfo:
     schema_version = None
 
     def method(self):
-        schema_version = "0.0.20"
+        schema_version = "0.0.22"
         _logger.debug(f"PanDA schema version required for Server is : {schema_version}")
         return schema_version
