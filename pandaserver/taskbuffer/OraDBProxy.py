@@ -1163,7 +1163,7 @@ class DBProxy:
                 self.push_job_status_message(job, job.PandaID, job.jobStatus, job.jediTaskID, special_handling)
             exec_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
             tmp_log.debug("done OK. took %s.%03d sec" % (exec_time.seconds, exec_time.microseconds / 1000))
-            return True, return_list
+            return True, return_list, es_jobset_map
         except Exception:
             # roll back
             self._rollback()
@@ -1171,7 +1171,7 @@ class DBProxy:
             self.dumpErrorMessage(_logger, method_name)
             exec_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
             tmp_log.debug("done NG. took %s.%03d sec" % (exec_time.seconds, exec_time.microseconds / 1000))
-            return False, None
+            return False, None, None
 
     # activate job. move job from jobsDefined to jobsActive
     def activateJob(self, job):
