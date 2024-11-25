@@ -457,6 +457,7 @@ class TaskBuffer:
                     else:
                         origEsJob = True
                         num_original_event_service_jobs += 1
+                        esJobsetMap[esIndex] = None
                     # sort files since file order is important for positional event number
                     job.sortFiles()
                 if oldPandaIDs is not None and len(oldPandaIDs) > idxJob:
@@ -513,7 +514,7 @@ class TaskBuffer:
                     )
                     special_handling_list.append(origSH)
                     tmp_ret_i = True
-                if tmp_ret_i and origEsJob:
+                if tmp_ret_i and origEsJob and not bulk_job_insert:
                     # mapping of jobsetID for event service
                     esJobsetMap[esIndex] = job.jobsetID
                 job_ret_list.append([job, tmp_ret_i])
@@ -529,9 +530,13 @@ class TaskBuffer:
                     new_jobset_ids = proxy.bulk_fetch_panda_ids(num_original_event_service_jobs)
                 else:
                     new_jobset_ids = []
-                tmp_ret, job_ret_list = proxy.bulk_insert_new_jobs(jobs[0].jediTaskID, params_for_bulk_insert, new_jobset_ids, special_handling_list)
+                tmp_ret, job_ret_list, es_jobset_map = proxy.bulk_insert_new_jobs(
+                    jobs[0].jediTaskID, params_for_bulk_insert, new_jobset_ids, special_handling_list
+                )
                 if not tmp_ret:
                     raise RuntimeError("bulk job insert failed")
+                # update esJobsetMap
+                esJobsetMap.update(es_jobset_map)
 
             # check returns
             for job, tmp_ret_i in job_ret_list:
