@@ -558,6 +558,7 @@ class DaemonMaster(object):
         """
         main scheduler cycle
         """
+        # self.logger.debug(f"run scheduler cycle")
         now_ts = int(time.time())
         # check last run time from pipes
         for worker in list(self.worker_pool):
@@ -630,17 +631,22 @@ class DaemonMaster(object):
                         # old message not processed yet or daemon still running, skip
                         run_delay = now_ts - (last_run_start_ts + run_period)
                         warn_since_ago = now_ts - last_warn_ts
-                        if last_run_start_ts > 0 and run_delay > max(300, run_period // 2) and warn_since_ago > 900:
-                            # make warning if super delayed
-                            self.logger.warning(f"{dem_name} delayed to run for {run_delay} sec ")
-                            dem_run_attrs["last_warn_ts"] = now_ts
+                        if last_run_start_ts > 0 and run_delay > max(300, run_period // 2):
+                            # delayed
                             n_super_delayed_dems += 1
+                            if warn_since_ago > 900:
+                                # warning
+                                self.logger.warning(f"{dem_name} delayed to run for {run_delay} sec ")
+                                dem_run_attrs["last_warn_ts"] = now_ts
                     else:
                         # old message processed, send new message
                         self.msg_queue.put(dem_name)
                         self.logger.debug(f"scheduled to run {dem_name} ; qsize={self.msg_queue.qsize()}")
                         dem_run_attrs["msg_ongoing"] = True
                         # dem_run_attrs['last_run_start_ts'] = now_ts
+        # warning about delayed scripts
+        if n_super_delayed_dems:
+            self.logger.warning(f"{n_super_delayed_dems} delayed scripts")
         # call revive if too many daemons are delayed too much (probably the queue is stuck)
         if n_super_delayed_dems >= min(4, int(len(self.dem_config) * 0.667)):
             self.logger.warning(f"found {n_super_delayed_dems} daemons delayed too much; start to revive")
