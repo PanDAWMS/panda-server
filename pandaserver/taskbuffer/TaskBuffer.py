@@ -508,6 +508,7 @@ class TaskBuffer:
                                 "unprocessedMap": unprocessedMap,
                                 "prio_reduction": prio_reduction,
                             },
+                            {"esIndex": esIndex},
                         ]
                     )
                     special_handling_list.append(origSH)
