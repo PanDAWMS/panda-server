@@ -577,23 +577,22 @@ class DBProxy:
                 self.conn.begin()
 
             # get jobsetID for event service
-            if origEsJob:
-                if not no_late_bulk_exec:
-                    job.jobsetID = new_jobset_id
+            if not no_late_bulk_exec and new_jobset_id is not None:
+                job.jobsetID = new_jobset_id
+            elif origEsJob:
+                if self.backend == "mysql":
+                    # fake sequence
+                    sql = " INSERT INTO ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ (col) VALUES (NULL) "
+                    self.cur.arraysize = 10
+                    self.cur.execute(sql + comment, {})
+                    sql2 = """ SELECT LAST_INSERT_ID() """
+                    self.cur.execute(sql2 + comment, {})
+                    (job.jobsetID,) = self.cur.fetchone()
                 else:
-                    if self.backend == "mysql":
-                        # fake sequence
-                        sql = " INSERT INTO ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ (col) VALUES (NULL) "
-                        self.cur.arraysize = 10
-                        self.cur.execute(sql + comment, {})
-                        sql2 = """ SELECT LAST_INSERT_ID() """
-                        self.cur.execute(sql2 + comment, {})
-                        (job.jobsetID,) = self.cur.fetchone()
-                    else:
-                        sqlESS = "SELECT ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ.nextval FROM dual "
-                        self.cur.arraysize = 10
-                        self.cur.execute(sqlESS + comment, {})
-                        (job.jobsetID,) = self.cur.fetchone()
+                    sqlESS = "SELECT ATLAS_PANDA.JOBSDEFINED4_PANDAID_SEQ.nextval FROM dual "
+                    self.cur.arraysize = 10
+                    self.cur.execute(sqlESS + comment, {})
+                    (job.jobsetID,) = self.cur.fetchone()
 
             # get originPandaID
             originPandaID = None
@@ -1105,7 +1104,8 @@ class DBProxy:
             self.conn.begin()
             return_list = []
             extracted_sqls = {}
-            for args, kwargs in arg_list:
+            es_jobset_map = {}
+            for args, kwargs, extra_params in arg_list:
                 tmp_extracted_sqls = {}
                 new_kwargs = {
                     "no_late_bulk_exec": False,
@@ -1113,6 +1113,11 @@ class DBProxy:
                 }
                 if kwargs.get("origEsJob"):
                     new_kwargs["new_jobset_id"] = new_jobset_id_list.pop(0)
+                    if extra_params["esIndex"]:
+                        es_jobset_map[extra_params["esIndex"]] = new_kwargs["new_jobset_id"]
+                elif kwargs.get("eventServiceInfo"):
+                    if extra_params["esIndex"] in es_jobset_map:
+                        new_kwargs["new_jobset_id"] = es_jobset_map[extra_params["esIndex"]]
                 kwargs.update(new_kwargs)
                 ret = self.insertNewJob(*args, **kwargs)
                 job = args[0]
@@ -14411,10 +14416,7 @@ class DBProxy:
 
         # Update the file entries to increase the max attempt number by one
         input_types = ("input", "pseudo_input", "pp_input", "trn_log", "trn_output")
-        input_files = [
-            pandafile for pandafile in files
-            if pandafile.type in input_types and re.search("DBRelease", pandafile.lfn) is None
-        ]
+        input_files = [pandafile for pandafile in files if pandafile.type in input_types and re.search("DBRelease", pandafile.lfn) is None]
         input_file_ids = [input_file.fileID for input_file in input_files]
         input_dataset_ids = [input_file.datasetID for input_file in input_files]
 

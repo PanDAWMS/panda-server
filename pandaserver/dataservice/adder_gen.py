@@ -92,13 +92,15 @@ class AdderGen:
             self.job = self.taskBuffer.peekJobs([self.job_id], fromDefined=False, fromWaiting=False, forAnal=True)[0]
 
             # check if job has finished
-            self.check_job_status()
+            checked = self.check_job_status()
+            self.logger.debug(f"checked: {checked}")
 
             duration = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - start_time
             self.logger.debug("end: took %s.%03d sec in total" % (duration.seconds, duration.microseconds / 1000))
 
             # remove Catalog
-            self.taskBuffer.deleteJobOutputReport(panda_id=self.job_id, attempt_nr=self.attempt_nr)
+            if checked:
+                self.taskBuffer.deleteJobOutputReport(panda_id=self.job_id, attempt_nr=self.attempt_nr)
 
             del self.data
             del self.report_dict
@@ -355,22 +357,23 @@ class AdderGen:
                 else:
                     file.status = "failed"
 
-    def check_job_status(self) -> None:
+    def check_job_status(self) -> bool:
         """
         Check the job status and log appropriate messages.
+        return: True if successful or unnecessary, False otherwise to retry.
         """
         if self.job is None:
             self.logger.debug("job not found in DB")
-            return
+            return True
         if self.job.jobStatus in ["finished", "failed", "unknown", "merging"]:
             self.logger.error(f"invalid state -> {self.job.jobStatus}")
-            return
+            return True
         if self.attempt_nr is not None and self.job.attemptNr != self.attempt_nr:
             self.logger.error(f"wrong attemptNr -> job={self.job.attemptNr} <> {self.attempt_nr}")
-            return
+            return True
         if self.job_status == EventServiceUtils.esRegStatus:
             self.register_event_service_files()
-            return
+            return True
 
         # check file status in JEDI
         self.check_file_status_in_jedi()
@@ -410,7 +413,7 @@ class AdderGen:
                     pid=self.pid,
                     lock_offset=self.lock_offset,
                 )
-                return
+                return True
             # failed
             if self.add_result is None or not self.add_result.is_succeeded():
                 self.job.jobStatus = "failed"
@@ -463,7 +466,7 @@ class AdderGen:
                     pid=self.pid,
                     lock_offset=self.lock_offset,
                 )
-                return
+                return False
 
             try:
                 # updateJobs was successful and it failed a job with taskBufferErrorCode
@@ -502,6 +505,7 @@ class AdderGen:
                 self.logger.error(f"job_failure_postprocessing 2 excepted and needs to be investigated ({e}): {traceback.format_exc()}")
 
             self.setup_closer()
+        return True
 
     def setup_closer(self) -> None:
         """
