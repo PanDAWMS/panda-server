@@ -320,10 +320,13 @@ def add_sweep_harvester_command(req: PandaRequest, panda_queue: str, status_list
 @request_validation(_logger, secure=True, production=True)
 def add_target_slots(req, panda_queue: str, slots: int, global_share: str = None, resource_type: str = None, expiration_date: str = None):
     """
-    Set the number of slots for a PanDA queue.
+    Set the number of slots for a PanDA queue. Requires secure connection and production role
 
-    TODO: Validate.
-    **Requires POST method, secure connection and production role.**
+    HTTP Method:
+        POST
+
+    Path:
+        /harvester/v1/add_target_slots
 
     Args:
         req(PandaRequest): internally generated request object

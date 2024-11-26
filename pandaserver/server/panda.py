@@ -264,17 +264,23 @@ def parse_json_parameters(body, content_encoding):
     return params
 
 
-def parse_parameters(api_module, json_app, content_encoding, environ, body, request_method):
-    # parse parameters for non-json requests
-    if not json_app:
-        return parse_qsl_parameters(environ, body, request_method)
-
-    # parse parameters for json requests with the new refactored API
+def parse_parameters(api_module, json_app, json_body, content_encoding, environ, body, request_method):
+    # parse parameters with the new refactored API
     if is_new_api(api_module):
-        return parse_json_parameters(body, content_encoding)
+        # the request specifies json and it's a PUT/POST request with the data in the body
+        if json_body:
+            return parse_json_parameters(body, content_encoding)
+        else:
+            return parse_qsl_parameters(environ, body, request_method)
 
-    # parse parameters for json requests with the legacy API
-    return parse_json_parameters_legacy(body)
+    # parse parameters conserving the legacy API logic
+    else:
+        # parse parameters for json requests with the legacy API, even for GET requests
+        if json_app:
+            return parse_json_parameters_legacy(body)
+        # parse parameters for non-json requests
+        else:
+            return parse_qsl_parameters(environ, body, request_method)
 
 
 def is_new_api(api_module):
@@ -342,6 +348,7 @@ def application(environ, start_response):
     # json app means the content type is application/json,
     # while json body requires additionally to be a PUT or POST request, where the body is json encoded
     json_app = environ.get("CONTENT_TYPE", None) == "application/json"
+    json_body = environ.get("CONTENT_TYPE", None) == "application/json" and request_method in ["PUT", "POST"]
 
     # Content encoding specifies whether the body is compressed through gzip or others.
     # No encoding usually means the body is not compressed
@@ -387,7 +394,7 @@ def application(environ, start_response):
         body = read_body(environ, cont_length)
 
         # parse the parameters
-        params = parse_parameters(api_module, json_app, content_encoding, environ, body, request_method)
+        params = parse_parameters(api_module, json_app, json_body, content_encoding, environ, body, request_method)
 
         if panda_config.entryVerbose:
             tmp_log.debug(f"with {str(list(params))}")
