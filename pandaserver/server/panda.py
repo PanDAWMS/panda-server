@@ -264,9 +264,9 @@ def parse_json_parameters(body, content_encoding):
     return params
 
 
-def parse_parameters(api_module, json_body, content_encoding, environ, body, request_method):
+def parse_parameters(api_module, json_app, content_encoding, environ, body, request_method):
     # parse parameters for non-json requests
-    if not json_body:
+    if not json_app:
         return parse_qsl_parameters(environ, body, request_method)
 
     # parse parameters for json requests with the new refactored API
@@ -342,13 +342,12 @@ def application(environ, start_response):
     # json app means the content type is application/json,
     # while json body requires additionally to be a PUT or POST request, where the body is json encoded
     json_app = environ.get("CONTENT_TYPE", None) == "application/json"
-    json_body = environ.get("CONTENT_TYPE", None) == "application/json" and request_method in ["PUT", "POST"]
 
     # Content encoding specifies whether the body is compressed through gzip or others.
     # No encoding usually means the body is not compressed
     content_encoding = environ.get("HTTP_CONTENT_ENCODING")
 
-    tmp_log.debug(f"""start content-length={cont_length} json={json_body} origin={environ.get("HTTP_ORIGIN", None)}""")
+    tmp_log.debug(f"""start content-length={cont_length} json={json_app} origin={environ.get("HTTP_ORIGIN", None)}""")
 
     start_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     return_type = None
@@ -388,7 +387,7 @@ def application(environ, start_response):
         body = read_body(environ, cont_length)
 
         # parse the parameters
-        params = parse_parameters(api_module, json_body, content_encoding, environ, body, request_method)
+        params = parse_parameters(api_module, json_app, content_encoding, environ, body, request_method)
 
         if panda_config.entryVerbose:
             tmp_log.debug(f"with {str(list(params))}")
