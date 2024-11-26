@@ -506,7 +506,7 @@ def classify_error(task_buffer, job_id, job_errors):
 
 @timeit
 def apply_error_classification_logic(task_buffer, job):
-    tmp_log = LogWrapper(_logger, f"apply_error_classification_logic PandaID={job.PandaID}")
+    tmp_log = LogWrapper(_logger, f"apply_error_classification_logic")
 
     # Find the error source and getting the code, diag, and source
     job_errors = get_job_error_details(job)
