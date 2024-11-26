@@ -497,7 +497,7 @@ def classify_error(task_buffer, job_id, job_errors):
                 and (rule_diag and err_diag is not None and safe_match(rule_diag, err_diag))
             ):
                 active = rule_active == "Y"
-                tmp_log.debug(f"Job classified with rule {rule_id}: ({err_source}, {err_code}, {err_diag}) as {rule_class} ({active: active})")
+                tmp_log.debug(f"Job classified with rule {rule_id}: ({err_source}, {err_code}, {err_diag}) as {rule_class} (active: {active})")
                 return rule_id, rule_source, rule_code, rule_diag, rule_class, active
 
     tmp_log.debug(f"No matching rule found")
