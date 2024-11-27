@@ -14407,9 +14407,9 @@ class DBProxy:
         tmpLog.debug("done")
         return True
 
-    def increase_max_attempt(self, job_id, task_id, files):
-        """Increase the max attempt number by one for specific files."""
-        comment = " /* DBProxy.increase_max_attempt */"
+    def increase_max_failure(self, job_id, task_id, files):
+        """Increase the max failure number by one for specific files."""
+        comment = " /* DBProxy.increase_max_failure */"
         method_name = comment.split(" ")[-2].split(".")[-1]
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")
@@ -14446,7 +14446,7 @@ class DBProxy:
 
                 sql_update = f"""
                 UPDATE ATLAS_PANDA.JEDI_Dataset_Contents
-                SET maxAttempt = maxAttempt + 1
+                SET maxFailure = maxFailure + 1
                 WHERE JEDITaskID = :taskID
                 AND datasetID IN ({dataset_bindings_str})
                 AND fileID IN ({file_bindings_str})

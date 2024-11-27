@@ -2147,11 +2147,11 @@ class TaskBuffer:
         return ret
 
     # error classification action: increase by one the max number of retries
-    def increase_max_attempt(self, job_id, task_id, files):
+    def increase_max_failure(self, job_id, task_id, files):
         # get proxy
         proxy = self.proxyPool.getProxy()
         # exec
-        ret = proxy.increase_max_attempt(job_id, task_id, files)
+        ret = proxy.increase_max_failure(job_id, task_id, files)
         # release proxy
         self.proxyPool.putProxy(proxy)
 
