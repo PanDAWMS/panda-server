@@ -1,0 +1,188 @@
+import json
+import unittest
+from datetime import datetime, timezone
+
+from pandaserver.api.v1.http_client import HttpClient, api_url, api_url_ssl
+
+# Get current UTC time with microseconds. The format needs to be compatible with the one used in the database
+now_utc = datetime.now(timezone.utc)
+formatted_time = now_utc.strftime("%d.%m.%y %H:%M:%S") + f".{now_utc.microsecond // 1000:02d}"
+
+HARVESTER_ID = "test_fbarreir"
+HARVESTER_HOST = "test_fbarreir.cern.ch"
+PANDA_QUEUE = "test_queue"
+
+
+class TestHarvesterAPI(unittest.TestCase):
+    def setUp(self):
+        # Set up a mock TaskBuffer and initialize it
+        self.http_client = HttpClient()
+
+    def test_update_harvester_service_metrics(self):
+        url = f"{api_url_ssl}/harvester/update_harvester_service_metrics"
+        print(f"Testing URL: {url}")
+        harvester_id = HARVESTER_ID
+        harvester_host = HARVESTER_HOST
+        creation_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+        metric = {
+            "rss_mib": 2737.36,
+            "memory_pc": 39.19,
+            "cpu_pc": 15.23,
+            "volume_data_pc": 20.0,
+            "cert_lifetime": {
+                "/data/atlpan/proxy/x509up_u25606_prod": 81,
+                "/data/atlpan/proxy/x509up_u25606_pilot": 81,
+                "/cephfs/atlpan/harvester/proxy/x509up_u25606_prod": 96,
+                "/cephfs/atlpan/harvester/proxy/x509up_u25606_pilot": 96,
+            },
+        }
+
+        # DBProxy expects the metrics in json format and stores them directly in the database
+        metrics = [[creation_time, harvester_host, json.dumps(metric)]]
+
+        data = {"harvester_id": harvester_id, "metrics": metrics}
+        status, output = self.http_client.post(url, data)
+
+        expected_response = [True, [True]]
+        self.assertEqual(output, expected_response)
+
+    def test_add_harvester_dialogs(self):
+        url = f"{api_url_ssl}/harvester/add_harvester_dialogs"
+        print(f"Testing URL: {url}")
+        harvester_id = HARVESTER_ID
+
+        dialog = {
+            "diagID": 1,
+            "moduleName": "test_module",
+            "identifier": "test identifier",
+            "creationTime": datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"),
+            "messageLevel": "INFO",
+            "diagMessage": "test message",
+        }
+
+        dialogs = [dialog]
+
+        data = {"harvester_id": harvester_id, "dialogs": dialogs}
+        status, output = self.http_client.post(url, data)
+
+        expected_response = [True, True]
+        self.assertEqual(output, expected_response)
+
+    def test_harvester_heartbeat(self):
+        url = f"{api_url_ssl}/harvester/harvester_heartbeat"
+        print(f"Testing URL: {url}")
+        harvester_id = HARVESTER_ID
+        data = {"harvester_id": harvester_id, "data": []}
+        status, output = self.http_client.post(url, data)
+
+        expected_response = [True, "succeeded"]
+        self.assertEqual(output, expected_response)
+
+    def test_get_worker_statistics(self):
+        url = f"{api_url_ssl}/harvester/get_worker_statistics"
+        print(f"Testing URL: {url}")
+        data = {}
+        status, output = self.http_client.get(url, data)
+
+        # the statistics can't be predicted, so we just check the type of the response
+        self.assertEqual(True, output[0])
+        self.assertEqual(dict, type(output[1]))
+
+    def test_get_current_worker_id(self):
+        url = f"{api_url_ssl}/harvester/get_current_worker_id"
+        print(f"Testing URL: {url}")
+        data = {"harvester_id": HARVESTER_ID}
+        status, output = self.http_client.get(url, data)
+
+        # the current/max worker id can't be predicted, so we just check the type of the response
+        self.assertEqual(True, output[0])
+        self.assertEqual(int, type(output[1]))
+
+    def test_report_worker_statistics(self):
+        url = f"{api_url_ssl}/harvester/report_worker_statistics"
+        print(f"Testing URL: {url}")
+        harvester_id = HARVESTER_ID
+        panda_queue = PANDA_QUEUE
+        # the json loads is done in DBProxy
+        statistics = json.dumps({"user": {"SCORE": {"running": 1, "submitted": 1}}, "managed": {"MCORE": {"running": 1, "submitted": 1}}})
+        data = {"harvester_id": harvester_id, "panda_queue": panda_queue, "statistics": statistics}
+        status, output = self.http_client.post(url, data)
+
+        expected_response = [True, "OK"]
+        self.assertEqual(output, expected_response)
+
+    def test_update_workers(self):
+        url = f"{api_url_ssl}/harvester/update_workers"
+        print(f"Testing URL: {url}")
+        worker = {
+            "workerID": 1,
+            "batchID": 1,
+            "queueName": "queue1",
+            "status": "running",
+            "computingSite": "site1",
+            "nCore": 1,
+            "nodeID": None,
+            "submitTime": "02-NOV-24 00:02:18",
+            "startTime": "02-NOV-24 00:02:18",
+            "endTime": None,
+            "jobType": "managed",
+            "resourceType": "SCORE",
+            "nativeExitCode": None,
+            "nativeStatus": None,
+            "diagMessage": None,
+            "nJobs": 1,
+            "computingElement": "ce1",
+            "syncLevel": 0,
+            "submissionHost": "submissionhost1",
+            "harvesterHost": "harvesterhost1",
+            "errorCode": None,
+            "minRamCount": 2000,
+        }
+        workers = [worker]
+
+        harvester_id = HARVESTER_ID
+        data = {"harvester_id": harvester_id, "workers": workers}
+
+        status, output = self.http_client.post(url, data)
+
+        expected_response = [True, [True]]
+        self.assertEqual(output, expected_response)
+
+    def test_get_harvester_commands(self):
+        url = f"{api_url_ssl}/harvester/get_harvester_commands"
+        print(f"Testing URL: {url}")
+
+        harvester_id = HARVESTER_ID
+        n_commands = 1
+        data = {"harvester_id": harvester_id, "n_commands": n_commands}
+        status, output = self.http_client.get(url, data)
+
+        # the commands can't be predicted, so we just check the type of the response
+        self.assertEqual(True, output[0])
+        self.assertEqual(list, type(output[1]))
+
+    def test_acknowledge_harvester_commands(self):
+        url = f"{api_url_ssl}/harvester/acknowledge_harvester_commands"
+        print(f"Testing URL: {url}")
+        command_ids = [1]
+        data = {"command_ids": command_ids}
+        status, output = self.http_client.post(url, data)
+
+        expected_response = [True, ""]
+        self.assertEqual(output, expected_response)
+
+    def test_add_target_slots(self):
+        url = f"{api_url_ssl}/harvester/add_target_slots"
+        print(f"Testing URL: {url}")
+        panda_queue = PANDA_QUEUE
+        slots = 0
+        data = {"panda_queue": panda_queue, "slots": slots}
+        status, output = self.http_client.post(url, data)
+
+        self.assertEqual(True, output[0])
+        self.assertEqual(str, type(output[1]))
+
+
+# Run tests
+if __name__ == "__main__":
+    unittest.main()
