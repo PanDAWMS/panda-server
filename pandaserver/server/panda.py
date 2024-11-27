@@ -7,6 +7,7 @@ entry point
 
 import datetime
 import gzip
+import inspect
 import io
 import json
 import os
@@ -23,6 +24,7 @@ from werkzeug.datastructures import CombinedMultiDict, EnvironHeaders
 from werkzeug.formparser import parse_form_data
 
 import pandaserver.taskbuffer.ErrorCode
+from pandaserver.api.v1 import harvester_api as harvester_api_v1
 from pandaserver.config import panda_config
 
 # pylint: disable=W0611
@@ -138,6 +140,18 @@ from pandaserver.userinterface.UserIF import (
     userIF,
 )
 
+_logger = PandaLogger().getLogger("Entry")
+
+LATEST = "1"
+
+# generate the allowed methods dynamically with all function names present in harvester_api
+# exclude functions imported from other modules or the init_task_buffer function
+harvester_api_v1_methods = [
+    name
+    for name, obj in inspect.getmembers(harvester_api_v1, inspect.isfunction)
+    if obj.__module__ == harvester_api_v1.__name__ and name != "init_task_buffer" and name.startswith("_") is False
+]
+
 # initialize oracledb using dummy connection
 initializer.init()
 
@@ -151,16 +165,15 @@ taskBuffer.init(
     requester=requester_id,
 )
 
-# initialize JobDispatcher
 if panda_config.nDBConnection != 0:
+    # initialize harvester_api_v1
+    harvester_api_v1.init_task_buffer(taskBuffer)
+
+    # initialize JobDispatcher
     jobDispatcher.init(taskBuffer)
 
-# initialize UserIF
-if panda_config.nDBConnection != 0:
+    # initialize UserIF
     userIF.init(taskBuffer)
-
-# logger
-_logger = PandaLogger().getLogger("Entry")
 
 # ban list
 if panda_config.nDBConnection != 0:
@@ -171,107 +184,223 @@ else:
     ban_user_list = CoreUtils.CachedObject("ban_list", 600, Client.get_ban_users, _logger)
 
 
+def pre_validate_request(panda_request):
+    # check authentication
+    if not panda_request.authenticated:
+        error_message = f"Token authentication failed. {panda_request.message}"
+        return error_message
+
+    # check list of banned users
+    username = panda_request.subprocess_env.get("SSL_CLIENT_S_DN", None)
+    if username:
+        username = CoreUtils.clean_user_id(username)
+        if username in ban_user_list:
+            error_message = f"{username} is banned"
+            return error_message
+
+    return None
+
+
+def read_body(environ, content_length):
+    # read body contents
+    body = b""
+    while content_length > 0:
+        chunk = environ["wsgi.input"].read(min(content_length, 1024 * 1024))
+        if not chunk:
+            break
+        content_length -= len(chunk)
+        body += chunk
+    if content_length > 0:
+        # OSError is caught in the main function and forces killing the process
+        raise OSError(f"partial read from client. {content_length} bytes remaining")
+
+    return body
+
+
+def parse_qsl_parameters(environ, body, request_method):
+    # parse parameters for non-json requests
+    environ["wsgi.input"] = io.BytesIO(body)
+    environ["CONTENT_LENGTH"] = str(len(body))
+    environ["wsgi.headers"] = EnvironHeaders(environ)
+
+    # In the case of GET, HEAD methods we need to parse the query string list in the URL looking for parameters
+    if request_method in ["GET", "HEAD"]:
+        params = dict(parse_qsl(environ.get("QUERY_STRING", ""), keep_blank_values=True))
+
+    # In the case of POST, PUT methods we need to parse the form data
+    else:
+        # Parse form data. Combine the form (string fields) and the files (file uploads) into a single object
+        _, form, files = parse_form_data(environ)
+
+        # Combine the form and files into a single dictionary
+        params = dict(CombinedMultiDict([form, files]))
+    return params
+
+
+def parse_json_parameters_legacy(body):
+    # parse parameters for json requests
+    # decompress the body, this was done without checking the content encoding
+    body = gzip.decompress(body)
+
+    # de-serialize the body and patch for True/False
+    params = json.loads(body)
+    for key in list(params):
+        if params[key] is True:
+            params[key] = "True"
+        elif params[key] is False:
+            params[key] = "False"
+    return params
+
+
+def parse_json_parameters(body, content_encoding):
+    # parse parameters for json requests
+    # decompress the body if necessary
+    if content_encoding == "gzip":
+        body = gzip.decompress(body)
+
+    # de-serialize the body and patch for True/False
+    params = json.loads(body)
+
+    return params
+
+
+def parse_parameters(api_module, json_app, json_body, content_encoding, environ, body, request_method):
+    # parse parameters with the new refactored API
+    if is_new_api(api_module):
+        # the request specifies json and it's a PUT/POST request with the data in the body
+        if json_body:
+            return parse_json_parameters(body, content_encoding)
+        else:
+            return parse_qsl_parameters(environ, body, request_method)
+
+    # parse parameters conserving the legacy API logic
+    else:
+        # parse parameters for json requests with the legacy API, even for GET requests
+        if json_app:
+            return parse_json_parameters_legacy(body)
+        # parse parameters for non-json requests
+        else:
+            return parse_qsl_parameters(environ, body, request_method)
+
+
+def is_new_api(api_module):
+    return api_module != "panda"
+
+
+def parse_script_name(environ):
+    method_name = ""
+    api_module = ""
+    version = "v0"
+
+    if "SCRIPT_NAME" in environ:
+        script_name = environ["SCRIPT_NAME"]
+        fields = script_name.split("/")
+
+        # Legacy API: /server/panda/<method>
+        if script_name.startswith("/server/panda/") and len(fields) == 4:
+            api_module = "panda"
+            method_name = fields[-1]
+
+        # Refactored API: /api/<version>/<module>/<method>
+        elif script_name.startswith("/api/") and len(fields) == 5:
+            method_name = fields[-1]
+            api_module = fields[-2]
+            version = fields[-3]
+            if version == "latest":
+                version = LATEST
+
+        else:
+            _logger.error(f"Could not parse script name: {script_name}")
+
+    return method_name, api_module, version
+
+
+def module_mapping(version, api_module):
+    mapping = {
+        "v0": {"panda": {"module": None, "allowed_methods": allowed_methods}},  # legacy API uses globals instead of a particular module
+        "v1": {"harvester": {"module": harvester_api_v1, "allowed_methods": harvester_api_v1_methods}},
+    }
+    try:
+        return mapping[version][api_module]
+    except KeyError:
+        _logger.error(f"Could not find module {api_module} in API version {version}")
+        return None
+
+
+def validate_method(method_name, api_module, version):
+    # We are in the refactored API and the method is not in the specific allowed list
+    mapping = module_mapping(version, api_module)
+    if mapping and method_name in mapping["allowed_methods"]:
+        return True
+
+    return False
+
+
 # This is the starting point for all WSGI requests
 def application(environ, start_response):
-    # get method name from environment
-    method_name = ""
-    if "SCRIPT_NAME" in environ:
-        method_name = environ["SCRIPT_NAME"].split("/")[-1]
+    # Parse the script name to retrieve method, module and version
+    method_name, api_module, version = parse_script_name(environ)
 
-    tmp_log = LogWrapper(_logger, f"PID={os.getpid()} {method_name}", seeMem=True)
+    tmp_log = LogWrapper(_logger, f"PID={os.getpid()} module={api_module} method={method_name} version={version}", seeMem=True)
     cont_length = int(environ.get("CONTENT_LENGTH", 0))
-    json_body = environ.get("CONTENT_TYPE", None) == "application/json"
-    tmp_log.debug(f"""start content-length={cont_length} json={json_body} origin={environ.get("HTTP_ORIGIN", None)}""")
+    request_method = environ.get("REQUEST_METHOD", None)  # GET, POST, PUT, DELETE
+
+    # json app means the content type is application/json,
+    # while json body requires additionally to be a PUT or POST request, where the body is json encoded
+    json_app = environ.get("CONTENT_TYPE", None) == "application/json"
+    json_body = environ.get("CONTENT_TYPE", None) == "application/json" and request_method in ["PUT", "POST"]
+
+    # Content encoding specifies whether the body is compressed through gzip or others.
+    # No encoding usually means the body is not compressed
+    content_encoding = environ.get("HTTP_CONTENT_ENCODING")
+
+    tmp_log.debug(f"""start content-length={cont_length} json={json_app} origin={environ.get("HTTP_ORIGIN", None)}""")
 
     start_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     return_type = None
 
     # check method name is allowed, otherwise return 403
-    if method_name not in allowed_methods:
-        error_message = f"{method_name} is forbidden"
+    if not validate_method(method_name, api_module, version):
+        error_message = f"method {method_name} is forbidden"
         tmp_log.error(error_message)
         start_response("403 Forbidden", [("Content-Type", "text/plain")])
         return [f"ERROR : {error_message}".encode()]
 
     # get the method object to be executed
     try:
-        tmp_method = globals()[method_name]
+        if is_new_api(api_module):
+            module = module_mapping(version, api_module)["module"]
+            tmp_method = getattr(module, method_name)
+        else:
+            tmp_method = globals()[method_name]
     except Exception:
-        error_message = f"{method_name} is undefined"
+        error_message = f"method {method_name} is undefined in {api_module} {version}"
         tmp_log.error(error_message)
         start_response("500 INTERNAL SERVER ERROR", [("Content-Type", "text/plain")])
         return ["ERROR : {error_message}".encode()]
 
-    body = b""
     try:
         # generate a request object with the environment and the logger
         panda_request = PandaRequest(environ, tmp_log)
 
-        # check authentication
-        if not panda_request.authenticated:
-            error_message = f"Token authentication failed. {panda_request.message}"
+        # pre-validate the request
+        error_message = pre_validate_request(panda_request)
+        if error_message:
             tmp_log.error(error_message)
             start_response("403 Forbidden", [("Content-Type", "text/plain")])
             return [f"ERROR : {error_message}".encode()]
 
-        # check ban list
-        username = panda_request.subprocess_env.get("SSL_CLIENT_S_DN", None)
-        if username:
-            username = CoreUtils.clean_user_id(username)
-            if username in ban_user_list:
-                error_message = f"{username} is banned"
-                tmp_log.error(error_message)
-                start_response("403 Forbidden", [("Content-Type", "text/plain")])
-                return [f"ERROR : {error_message}".encode()]
+        # read the body of the request
+        body = read_body(environ, cont_length)
 
-        # read contents
-        while cont_length > 0:
-            chunk = environ["wsgi.input"].read(min(cont_length, 1024 * 1024))
-            if not chunk:
-                break
-            cont_length -= len(chunk)
-            body += chunk
-        if cont_length > 0:
-            raise OSError(f"partial read from client. {cont_length} bytes remaining")
-
-        # parse parameters for non-json requests
-        if not json_body:
-            environ["wsgi.input"] = io.BytesIO(body)
-            environ["CONTENT_LENGTH"] = str(len(body))
-            environ["wsgi.headers"] = EnvironHeaders(environ)
-
-            # get request method
-            request_method = environ.get("REQUEST_METHOD", None)
-
-            # In the case of GET, HEAD methods we need to parse the query string list in the URL looking for parameters
-            if request_method in ["GET", "HEAD"]:
-                params = dict(parse_qsl(environ.get("QUERY_STRING", ""), keep_blank_values=True))
-
-            # In the case of POST, PUT methods we need to parse the form data
-            else:
-                # Parse form data. Combine the form (string fields) and the files (file uploads) into a single object
-                _, form, files = parse_form_data(environ)
-
-                # Combine the form and files into a single dictionary
-                params = dict(CombinedMultiDict([form, files]))
-
-        # parse parameters for json requests
-        else:
-            # json
-            body = gzip.decompress(body)
-            params = json.loads(body)
-            # patch for True/False
-            for k in list(params):
-                if params[k] is True:
-                    params[k] = "True"
-                elif params[k] is False:
-                    params[k] = "False"
+        # parse the parameters
+        params = parse_parameters(api_module, json_app, json_body, content_encoding, environ, body, request_method)
 
         if panda_config.entryVerbose:
             tmp_log.debug(f"with {str(list(params))}")
-        param_list = [panda_request]
 
         # execute the method, passing along the request and the decoded parameters
+        param_list = [panda_request]
         exec_result = tmp_method(*param_list, **params)
 
         # extract return type
@@ -282,6 +411,10 @@ def application(environ, start_response):
         # convert bool to string
         if exec_result in [True, False]:
             exec_result = str(exec_result)
+
+        # convert the response to json when specified through CONTENT_TYPE="application/json"
+        if json_app and is_new_api(api_module):
+            exec_result = json.dumps(exec_result)
 
     except Exception as exc:
         tmp_log.error(f"execution failure : {str(exc)}\n {traceback.format_exc()}")
@@ -294,10 +427,7 @@ def application(environ, start_response):
             except Exception:
                 tmp_log.error(traceback.format_exc())
                 pass
-        error_string = ""
-        for tmp_key in environ:
-            tmp_value = environ[tmp_key]
-            error_string += f"{tmp_key} : {str(tmp_value)}\n"
+        error_string = "\n".join(f"{tmp_key} : {str(tmp_value)}" for tmp_key, tmp_value in environ.items())
         tmp_log.error(error_string)
 
         # return internal server error

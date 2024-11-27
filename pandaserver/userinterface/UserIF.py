@@ -715,12 +715,6 @@ def _getWGwithPR(req):
     return None
 
 
-"""
-web service interface
-
-"""
-
-
 # security check
 def isSecure(req):
     # check security
@@ -731,6 +725,12 @@ def isSecure(req):
         _logger.warning(f"access via limited proxy : {req.subprocess_env['SSL_CLIENT_S_DN']}")
         return False
     return True
+
+
+"""
+web service interface
+
+"""
 
 
 # submit jobs
