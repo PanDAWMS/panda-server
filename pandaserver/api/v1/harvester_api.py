@@ -322,11 +322,9 @@ def add_target_slots(req, panda_queue: str, slots: int, global_share: str = None
     """
     Set the number of slots for a PanDA queue. Requires secure connection and production role
 
-    HTTP Method:
-        POST
-
-    Path:
-        /harvester/v1/add_target_slots
+    API details:
+        HTTP Method: POST
+        Path: /harvester/v1/add_target_slots
 
     Args:
         req(PandaRequest): internally generated request object
