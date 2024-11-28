@@ -55,6 +55,12 @@ coJumboJobFlagNumber = 5
 fineGrainedFlagNumber = 6
 
 
+# values for task.eventService
+TASK_NORMAL = 0
+TASK_EVENT_SERVICE = 1
+TASK_JOB_CLONING = 2
+TASK_FINE_GRAINED = 3
+
 # values for event.is_jumbo
 eventTableIsJumbo = 1
 

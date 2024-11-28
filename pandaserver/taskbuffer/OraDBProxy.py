@@ -123,6 +123,21 @@ def convert_dict_to_bind_vars(item):
     return ret
 
 
+# create method name and logger
+def create_method_name_logger(comment: str, tag: str = None) -> tuple[str, LogWrapper]:
+    """
+    create method name and logger from function comment
+    param comment: comment of the function
+    param tag: tag to add to the method name
+    return: (method name, log wrapper)
+    """
+    method_name = comment.split(" ")[-2].split(".")[-1]
+    if tag is not None:
+        method_name += f"< {tag} >"
+    tmp_log = LogWrapper(_logger, method_name)
+    return method_name, tmp_log
+
+
 # topics in SQL_QUEUE
 SQL_QUEUE_TOPIC_async_dataset_update = "async_dataset_update"
 
@@ -21635,3 +21650,195 @@ class DBProxy:
             pseudo_files.append(tmpFileSpec)
         tmp_log.debug(f"{len(pseudo_files)} pseudo files")
         return pseudo_files
+
+    # set job or task metrics
+    def set_workload_metrics(self, jedi_task_id: int, panda_id: int, metrics: dict, use_commit: bool = True) -> bool:
+        """
+        Set job and task metrics
+
+        :param jedi_task_id: jediTaskID
+        :param panda_id: PandaID. None to set task
+        :param metrics: metrics data
+        :param use_commit: use commit
+        :return: True if success
+        """
+        comment = " /* DBProxy.set_workload_metrics */"
+        if panda_id is not None:
+            method_name, tmp_log = create_method_name_logger(comment, f"jediTaskID={jedi_task_id} PandaID={panda_id}")
+        else:
+            method_name, tmp_log = create_method_name_logger(comment, f"jediTaskID={jedi_task_id}")
+        tmp_log.debug("start")
+        try:
+            if panda_id is not None:
+                table_name = "Job_Metrics"
+                var_map = {":jediTaskID": jedi_task_id, ":PandaID": panda_id}
+            else:
+                table_name = "Task_Metrics"
+                var_map = {":jediTaskID": jedi_task_id}
+            # check if data is already there
+            sql_check = f"SELECT data FROM {panda_config.schemaPANDA}.{table_name} WHERE jediTaskID=:jediTaskID "
+            if panda_id is not None:
+                sql_check += "AND PandaID=:PandaID "
+            # insert data
+            sql_insert = f"INSERT INTO {panda_config.schemaPANDA}.{table_name} "
+            if panda_id is not None:
+                sql_insert += "(jediTaskID,PandaID,creationTime,modificationTime,data) VALUES(:jediTaskID,:PandaID,CURRENT_DATE,CURRENT_DATE,:data) "
+            else:
+                sql_insert += "(jediTaskID,creationTime,modificationTime,data) VALUES(:jediTaskID,CURRENT_DATE,CURRENT_DATE,:data) "
+            # update data
+            sql_update = f"UPDATE {panda_config.schemaPANDA}.{table_name} SET modificationTime=CURRENT_DATE,data=:data WHERE jediTaskID=:jediTaskID "
+            if panda_id is not None:
+                sql_update += "AND PandaID=:PandaID "
+            # start transaction
+            if use_commit:
+                self.conn.begin()
+            # check if data is already there
+            self.cur.execute(sql_check + comment, var_map)
+            # read data
+            tmp_data = None
+            for (clob_data,) in self.cur:
+                try:
+                    tmp_data = clob_data.read()
+                except AttributeError:
+                    tmp_data = str(clob_data)
+                break
+            if not tmp_data:
+                # insert new data
+                var_map[":data"] = json.dumps(metrics)
+                self.cur.execute(sql_insert + comment, var_map)
+                tmp_log.debug("inserted")
+            else:
+                # update existing data
+                tmp_data = json.loads(tmp_data)
+                tmp_data.update(metrics)
+                var_map[":data"] = json.dumps(tmp_data)
+                self.cur.execute(sql_update + comment, var_map)
+                tmp_log.debug("updated")
+            if use_commit:
+                # commit
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+            tmp_log.debug("done")
+            return True
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return False
+
+    # enable job cloning
+    def enable_job_cloning(self, jedi_task_id: int, mode: str = None, multiplicity: int = None, num_sites: int = None) -> tuple[bool, str]:
+        """
+        Enable job cloning for a task
+
+        :param jedi_task_id: jediTaskID
+        :param mode: mode of cloning, runonce or storeonce
+        :param multiplicity: number of jobs to be created for each target
+        :param num_sites: number of sites to be used for each target
+        :return: (True, None) if success otherwise (False, error message)
+        """
+        comment = " /* DBProxy.enable_job_cloning */"
+        method_name, tmp_log = create_method_name_logger(comment, f"jediTaskID={jedi_task_id}")
+        tmp_log.debug("start")
+        try:
+            ret_value = (True, None)
+            # start transaction
+            self.conn.begin()
+            # get current split rule
+            sql_check = f"SELECT splitRule FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
+            var_map = {":jediTaskID": jedi_task_id}
+            self.cur.execute(sql_check + comment, var_map)
+            res = self.cur.fetchone()
+            if not res:
+                # not found
+                ret_value = (False, "task not found")
+            else:
+                (split_rule,) = res
+                # set default values
+                if mode is None:
+                    mode = "runonce"
+                if multiplicity is None:
+                    multiplicity = 2
+                if num_sites is None:
+                    num_sites = 2
+                # ID of job cloning mode
+                mode_id = EventServiceUtils.getJobCloningValue(mode)
+                if mode_id == "":
+                    ret_value = (False, f"invalid job cloning mode: {mode}")
+                else:
+                    # set mode
+                    split_rule = task_split_rules.replace_rule(split_rule, "useJobCloning", mode_id)
+                    # set semaphore size
+                    split_rule = task_split_rules.replace_rule(split_rule, "nEventsPerWorker", 1)
+                    # set job multiplicity
+                    split_rule = task_split_rules.replace_rule(split_rule, "nEsConsumers", multiplicity)
+                    # set number of sites
+                    split_rule = task_split_rules.replace_rule(split_rule, "nSitesPerJob", num_sites)
+                    # update split rule and event service flag
+                    sql_update = (
+                        f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET splitRule=:splitRule,eventService=:eventService WHERE jediTaskID=:jediTaskID "
+                    )
+                    var_map = {":jediTaskID": jedi_task_id, ":splitRule": split_rule, ":eventService": EventServiceUtils.TASK_JOB_CLONING}
+                    self.cur.execute(sql_update + comment, var_map)
+                    if not self.cur.rowcount:
+                        ret_value = (False, "failed to update task")
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmp_log.debug("done")
+            return ret_value
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return False, "failed to enable job cloning"
+
+    # disable job cloning
+    def disable_job_cloning(self, jedi_task_id: int) -> tuple[bool, str]:
+        """
+        Disable job cloning for a task
+
+        :param jedi_task_id: jediTaskID
+        :return: (True, None) if success otherwise (False, error message)
+        """
+        comment = " /* DBProxy.disable_job_cloning */"
+        method_name, tmp_log = create_method_name_logger(comment, f"jediTaskID={jedi_task_id}")
+        tmp_log.debug("start")
+        try:
+            ret_value = (True, None)
+            # start transaction
+            self.conn.begin()
+            # get current split rule
+            sql_check = f"SELECT splitRule FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
+            var_map = {":jediTaskID": jedi_task_id}
+            self.cur.execute(sql_check + comment, var_map)
+            res = self.cur.fetchone()
+            if not res:
+                # not found
+                ret_value = (False, "task not found")
+            else:
+                (split_rule,) = res
+                # remove job cloning related rules
+                split_rule = task_split_rules.remove_rule_with_name(split_rule, "useJobCloning")
+                split_rule = task_split_rules.remove_rule_with_name(split_rule, "nEventsPerWorker")
+                split_rule = task_split_rules.remove_rule_with_name(split_rule, "nEsConsumers")
+                split_rule = task_split_rules.remove_rule_with_name(split_rule, "nSitesPerJob")
+                # update split rule and event service flag
+                sql_update = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET splitRule=:splitRule,eventService=:eventService WHERE jediTaskID=:jediTaskID "
+                var_map = {":jediTaskID": jedi_task_id, ":splitRule": split_rule, ":eventService": EventServiceUtils.TASK_NORMAL}
+                self.cur.execute(sql_update + comment, var_map)
+                if not self.cur.rowcount:
+                    ret_value = (False, "failed to update task")
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmp_log.debug("done")
+            return ret_value
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return False, "failed to disable job cloning"

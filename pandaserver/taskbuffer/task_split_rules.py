@@ -110,12 +110,13 @@ split_rule_dict = {
 
 
 # extract rules
-def extract_rule_values(split_rules, rule_names, is_sub_rule=False):
+def extract_rule_values(split_rules: str, rule_names: list, is_sub_rule: bool = False) -> dict:
     """
     Extract rule values from split rule string
-    :param split_rules: comma separated string
-    :param rule_names: list of rule names
-    :param is_sub_rule: bool to indicate if the rule is a sub-rule
+
+    :param split_rules: a comma separated string
+    :param rule_names: a list of rule names
+    :param is_sub_rule: True to indicate the rule is a subrule
     :return: dict of rule names and values
     """
     if split_rules is None:
@@ -139,13 +140,14 @@ def extract_rule_values(split_rules, rule_names, is_sub_rule=False):
 
 
 # replace a rule
-def replace_rule(split_rules, rule_name, rule_value, is_sub_rule=False):
+def replace_rule(split_rules: str, rule_name: str, rule_value: int | str, is_sub_rule=False):
     """
     Replace a rule in the split rule string
-    :param split_rules: comma separated string
+
+    :param split_rules: s comma separated string
     :param rule_name: rule name
     :param rule_value: rule value
-    :param is_sub_rule: bool to indicate if the rule is a sub-rule
+    :param is_sub_rule: True to indicate the rule is a subrule
     :return: string of split rules
     """
     if rule_name not in split_rule_dict:
@@ -172,12 +174,13 @@ def replace_rule(split_rules, rule_name, rule_value, is_sub_rule=False):
 
 
 # remove a rule
-def remove_rule(split_rules, rule_token, is_sub_rule=False):
+def remove_rule(split_rules: str, rule_token: str, is_sub_rule: bool = False):
     """
     Remove a rule from the split rule string
-    :param split_rules: comma separated string
+
+    :param split_rules: s comma separated string
     :param rule_token: rule token
-    :param is_sub_rule: bool to indicate if the rule is a sub-rule
+    :param is_sub_rule: TRue to indicate the rule is a subrule
     :return: string of split rules
     """
     if split_rules is None:
@@ -196,3 +199,17 @@ def remove_rule(split_rules, rule_token, is_sub_rule=False):
             tmp_str += rule_separator
         tmp_str += tmp_rule
     return tmp_str
+
+
+# remove a rule with name
+def remove_rule_with_name(split_rules: str, rule_name: str, is_sub_rule: bool = False) -> str:
+    """
+    Remove a rule from the split rule string using the rule name
+
+    :param split_rules: a comma separated string
+    :param rule_name: rule name
+    :param is_sub_rule: True to indicate the rule is a subrule
+    :return: string of split rules
+    """
+    split_rules = remove_rule(split_rules, split_rule_dict[rule_name], is_sub_rule)
+    return split_rules
