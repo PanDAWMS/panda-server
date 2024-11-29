@@ -21652,9 +21652,9 @@ class DBProxy:
         return pseudo_files
 
     # set job or task metrics
-    def set_workload_metrics(self, jedi_task_id: int, panda_id: int, metrics: dict, use_commit: bool = True) -> bool:
+    def set_workload_metrics(self, jedi_task_id: int, panda_id: int | None, metrics: dict, use_commit: bool = True) -> bool:
         """
-        Set job and task metrics
+        Set job or task metrics
 
         :param jedi_task_id: jediTaskID
         :param panda_id: PandaID. None to set task
@@ -21726,6 +21726,84 @@ class DBProxy:
             # error
             self.dumpErrorMessage(_logger, method_name)
             return False
+
+    # get job or task metrics
+    def get_workload_metrics(self, jedi_task_id: int, panda_id: int | None) -> tuple[bool, dict | None]:
+        """
+        Get job metrics or task metrics
+
+        :param jedi_task_id: jediTaskID
+        :param panda_id: PandaID. None to get task metrics
+        :return: (False, None) if failed, otherwise (True, metrics)
+        """
+        comment = " /* DBProxy.get_workload_metrics */"
+        if panda_id is not None:
+            method_name, tmp_log = create_method_name_logger(comment, f"jediTaskID={jedi_task_id} PandaID={panda_id}")
+        else:
+            method_name, tmp_log = create_method_name_logger(comment, f"jediTaskID={jedi_task_id}")
+        tmp_log.debug("start")
+        try:
+            if panda_id is not None:
+                table_name = "Job_Metrics"
+                var_map = {":jediTaskID": jedi_task_id, ":PandaID": panda_id}
+            else:
+                table_name = "Task_Metrics"
+                var_map = {":jediTaskID": jedi_task_id}
+            # get data
+            sql_get = f"SELECT data FROM {panda_config.schemaPANDA}.{table_name} WHERE jediTaskID=:jediTaskID "
+            if panda_id is not None:
+                sql_get += "AND PandaID=:PandaID "
+            self.cur.execute(sql_get + comment, var_map)
+            # read data
+            metrics = None
+            for (clob_data,) in self.cur:
+                try:
+                    metrics = clob_data.read()
+                except AttributeError:
+                    metrics = str(clob_data)
+                break
+            if metrics is not None:
+                metrics = json.loads(metrics)
+                tmp_log.debug(f"got {sys.getsizeof(metrics)} bytes")
+            else:
+                tmp_log.debug("no data")
+            return True, metrics
+        except Exception:
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return False, None
+
+    # get jobs' metrics in a task
+    def get_jobs_metrics_in_task(self, jedi_task_id: int) -> tuple[bool, list | None]:
+        """
+        Get metrics of jobs in a task
+
+        :param jedi_task_id: jediTaskID
+        :return: (False, None) if failed, otherwise (True, list of [PandaID, metrics])
+        """
+        comment = " /* DBProxy.get_jobs_metrics_in_task */"
+        method_name, tmp_log = create_method_name_logger(comment, f"jediTaskID={jedi_task_id}")
+        tmp_log.debug("start")
+        try:
+            table_name = "Job_Metrics"
+            var_map = {":jediTaskID": jedi_task_id}
+            # get data
+            sql_get = f"SELECT PandaID,data FROM {panda_config.schemaPANDA}.Job_Metrics WHERE jediTaskID=:jediTaskID "
+            self.cur.execute(sql_get + comment, var_map)
+            # read data
+            metrics_list = []
+            for panda_id, clob_data in self.cur:
+                try:
+                    tmp_data = clob_data.read()
+                except AttributeError:
+                    tmp_data = str(clob_data)
+                metrics_list.append([panda_id, json.loads(tmp_data)])
+            tmp_log.debug(f"got metrics for {len(metrics_list)} jobs")
+            return True, metrics_list
+        except Exception:
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return False, None
 
     # enable job cloning
     def enable_job_cloning(self, jedi_task_id: int, mode: str = None, multiplicity: int = None, num_sites: int = None) -> tuple[bool, str]:
