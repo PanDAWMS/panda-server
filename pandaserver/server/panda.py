@@ -25,6 +25,7 @@ from werkzeug.formparser import parse_form_data
 
 import pandaserver.taskbuffer.ErrorCode
 from pandaserver.api.v1 import harvester_api as harvester_api_v1
+from pandaserver.api.v1 import task_api as task_api_v1
 from pandaserver.config import panda_config
 
 # pylint: disable=W0611
@@ -144,12 +145,17 @@ _logger = PandaLogger().getLogger("Entry")
 
 LATEST = "1"
 
-# generate the allowed methods dynamically with all function names present in harvester_api
+# generate the allowed methods dynamically with all function names present in the API modules
 # exclude functions imported from other modules or the init_task_buffer function
 harvester_api_v1_methods = [
     name
     for name, obj in inspect.getmembers(harvester_api_v1, inspect.isfunction)
     if obj.__module__ == harvester_api_v1.__name__ and name != "init_task_buffer" and name.startswith("_") is False
+]
+task_api_v1_methods = [
+    name
+    for name, obj in inspect.getmembers(task_api_v1, inspect.isfunction)
+    if obj.__module__ == task_api_v1.__name__ and name != "init_task_buffer" and name.startswith("_") is False
 ]
 
 # initialize oracledb using dummy connection
@@ -168,6 +174,9 @@ taskBuffer.init(
 if panda_config.nDBConnection != 0:
     # initialize harvester_api_v1
     harvester_api_v1.init_task_buffer(taskBuffer)
+
+    # initialize task_api_v1
+    task_api_v1.init_task_buffer(taskBuffer)
 
     # initialize JobDispatcher
     jobDispatcher.init(taskBuffer)
@@ -318,7 +327,10 @@ def parse_script_name(environ):
 def module_mapping(version, api_module):
     mapping = {
         "v0": {"panda": {"module": None, "allowed_methods": allowed_methods}},  # legacy API uses globals instead of a particular module
-        "v1": {"harvester": {"module": harvester_api_v1, "allowed_methods": harvester_api_v1_methods}},
+        "v1": {
+            "harvester": {"module": harvester_api_v1, "allowed_methods": harvester_api_v1_methods},
+            "task": {"module": task_api_v1, "allowed_methods": task_api_v1_methods},
+        },
     }
     try:
         return mapping[version][api_module]
