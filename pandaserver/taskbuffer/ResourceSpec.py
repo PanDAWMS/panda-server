@@ -140,7 +140,7 @@ class ResourceSpec(object):
             return False
 
         # We assume ram unit is always MB
-        ram_per_core = ramcount / corecount
+        ram_per_core = round(ramcount / corecount)
         # check min ram
         if self.minrampercore is not None and ram_per_core < self.minrampercore:
             return False

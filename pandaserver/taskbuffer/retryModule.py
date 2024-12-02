@@ -524,7 +524,7 @@ def apply_error_classification_logic(task_buffer, job):
         # Structure the message for logstash parsing and monitoring.
         # We are using a large offset in the rule IDs in the database to avoid overlapping IDs with the retry module
         message = (
-            f"action=increase_max_attempt for PandaID={job.PandaID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} "
+            f"action=increase_max_failure for PandaID={job.PandaID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} "
             f"( ErrorSource={rule_source} ErrorCode={rule_code} ErrorDiag: {rule_diag}. "
             f"Error/action active={active} error_id={rule_id} )"
         )
@@ -532,7 +532,7 @@ def apply_error_classification_logic(task_buffer, job):
 
         # Apply the rule only for active errors
         if active:
-            task_buffer.increase_max_attempt(job.PandaID, job.jediTaskID, job.Files)
+            task_buffer.increase_max_failure(job.PandaID, job.jediTaskID, job.Files)
 
 
 def job_failure_postprocessing(task_buffer, job_id, errors, attempt_number):

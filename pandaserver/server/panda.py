@@ -7,6 +7,7 @@ entry point
 
 import datetime
 import gzip
+import inspect
 import io
 import json
 import os
@@ -145,7 +146,7 @@ _logger = PandaLogger().getLogger("Entry")
 
 LATEST = "1"
 
-# generate the allowed methods dynamically with all function names present in the API module,
+# generate the allowed methods dynamically with all function names present in the API modules,
 # excluding functions imported from other modules or the init_task_buffer function
 harvester_api_v1_methods = extract_allowed_methods(harvester_api_v1)
 task_api_v1_methods = extract_allowed_methods(task_api_v1)
@@ -166,6 +167,8 @@ taskBuffer.init(
 if panda_config.nDBConnection != 0:
     # initialize harvester_api_v1
     harvester_api_v1.init_task_buffer(taskBuffer)
+
+    # initialize task_api_v1
     task_api_v1.init_task_buffer(taskBuffer)
 
     # initialize JobDispatcher
