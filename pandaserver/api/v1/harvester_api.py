@@ -37,7 +37,7 @@ def update_workers(req: PandaRequest, harvester_id: str, workers: List) -> Tuple
         workers(list): TODO
 
     Returns:
-        str: json string with the result of the operation, typically a tuple with a boolean and a message, e.g. (False, 'Error message') or (True, 'OK')
+        tuple: tuple with a boolean and a message, e.g. (False, 'Error message') or (True, 'OK')
     """
     tmp_logger = LogWrapper(_logger, f"update_workers harvester_id={harvester_id}")
     tmp_logger.debug(f"Start")
