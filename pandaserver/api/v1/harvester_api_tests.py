@@ -180,8 +180,8 @@ class TestHarvesterAPI(unittest.TestCase):
         data = {"panda_queue": panda_queue, "slots": slots}
         status, output = self.http_client.post(url, data)
 
-        self.assertEqual(True, output["success"])
-        self.assertEqual(str, type(output["data"]))
+        expected_response = {"success": True, "message": "", "data": None}
+        self.assertEqual(expected_response, output)
 
 
 # Run tests
