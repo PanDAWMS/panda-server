@@ -104,12 +104,12 @@ def request_validation(logger, secure=False, production=False):
             # check SSL if required
             if secure and not is_secure(req, logger):
                 logger.error(f"'{func.__name__}': {MESSAGE_SSL}")
-                return json.dumps((False, MESSAGE_SSL))
+                return generate_response(False, message=MESSAGE_SSL)
 
             # check production role if required
             if production and not has_production_role(req):
                 logger.error(f"'{func.__name__}': {MESSAGE_PROD_ROLE}")
-                return json.dumps((False, MESSAGE_PROD_ROLE))
+                return generate_response(False, message=MESSAGE_PROD_ROLE)
 
             return func(req, *args, **kwargs)
 
@@ -150,3 +150,8 @@ def validate_types(type_mapping, logger=None):
         return wrapper
 
     return decorator
+
+
+def generate_response(success, message="", data=None):
+    response = {"success": success, "message": message, "data": data}
+    return response
