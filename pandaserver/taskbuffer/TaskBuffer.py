@@ -3163,6 +3163,36 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         return ret
 
+    def set_workload_metrics(self, jedi_task_id, panda_id, metrics):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.set_workload_metrics(jedi_task_id, panda_id, metrics, True)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    def get_workload_metrics(self, jedi_task_id, panda_id):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.get_workload_metrics(jedi_task_id, panda_id)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    def get_jobs_metrics_in_task(self, jedi_task_id: int):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.get_jobs_metrics_in_task(jedi_task_id)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    def enable_job_cloning(self, jedi_task_id, mode, multiplicity, num_sites):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.enable_job_cloning(jedi_task_id, mode, multiplicity, num_sites)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
+    def disable_job_cloning(self, jedi_task_id):
+        proxy = self.proxyPool.getProxy()
+        ret = proxy.disable_job_cloning(jedi_task_id)
+        self.proxyPool.putProxy(proxy)
+        return ret
+
 
 # Singleton
 taskBuffer = TaskBuffer()

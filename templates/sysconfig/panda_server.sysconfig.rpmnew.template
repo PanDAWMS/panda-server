@@ -53,6 +53,15 @@ if [[ -z "${PANDA_URL_SSL}" ]]; then
   export PANDA_URL_SSL="https://`hostname --fqdn`:25443/server/panda"
 fi
 
+# API URLs
+if [[ -z "${PANDA_API_URL}" ]]; then
+  export PANDA_API_URL="http://`hostname --fqdn`:25080/api/v1"
+fi
+if [[ -z "${PANDA_API_URL_SSL}" ]]; then
+  export PANDA_API_URL_SSL="https://`hostname --fqdn`:25443/api/v1"
+fi
+
+
 # httpd config
 
 # server name

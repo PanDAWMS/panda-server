@@ -1,6 +1,8 @@
+import inspect
 import json
 import re
 from functools import wraps
+from types import ModuleType
 
 import pandaserver.jobdispatcher.Protocol as Protocol
 from pandaserver.config import panda_config
@@ -150,6 +152,21 @@ def validate_types(type_mapping, logger=None):
         return wrapper
 
     return decorator
+
+
+def extract_allowed_methods(module: ModuleType) -> list:
+    """
+    Generate the allowed methods dynamically with all function names present in the API module, excluding
+    functions imported from other modules or the init_task_buffer function
+
+    :param module: The module to extract the allowed methods from
+    :return: A list of allowed method names
+    """
+    return [
+        name
+        for name, obj in inspect.getmembers(module, inspect.isfunction)
+        if obj.__module__ == module.__name__ and name != "init_task_buffer" and name.startswith("_") is False
+    ]
 
 
 def generate_response(success, message="", data=None):
