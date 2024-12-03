@@ -107,7 +107,7 @@ def extract_parameters(parsed):
         elif "bool" in param.type_name:
             param_type = "boolean"
 
-        # print(f"Param: {param.arg_name}, Type: {param_type}, Optional: {param.is_optional}")
+        print(f"Param: {param.arg_name}, Type: {param_type}, Optional: {param.is_optional} {param.description}")
         is_required = not param.is_optional
 
         parameter_schema = {"name": param.arg_name, "in": "query", "required": is_required, "schema": {"type": param_type}, "description": param.description}
@@ -148,7 +148,7 @@ def extract_parameters_as_json(parsed):
         param_schema = {"type": param_type, "description": param.description}
 
         if param_type == "array":
-            param_schema["items"] = {"type": "string"}  # Default array item type
+            param_schema["items"] = {"type": "object"}  # Default array item type
 
         properties[param.arg_name] = param_schema
 
@@ -236,6 +236,5 @@ if __name__ == "__main__":
 
     # Convert docstrings to OpenAPI
     open_api_doc = convert_docstrings_to_openapi(docstrings)
-
-    yaml_spec = yaml.dump(open_api_doc, sort_keys=False)
-    print(yaml_spec)
+    with open("/tmp/panda_api.yaml", "w") as output_file:
+        yaml.dump(open_api_doc, output_file, sort_keys=False)
