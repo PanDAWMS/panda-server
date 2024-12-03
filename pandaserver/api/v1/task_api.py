@@ -4,7 +4,7 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.api.v1.common import (
-    MESSAGE_DATABASE,
+    generate_response,
     get_dn,
     has_production_role,
     request_validation,
@@ -36,9 +36,11 @@ def retry(
     keep_gshare_priority: bool = None,
 ) -> tuple[int, str]:
     """
-    Retry a given task.
+    Retry a given task. Requires a secure connection without a production role to retry own tasks and with a production role to retry others' tasks.
 
-    **Requires POST method, and secure connection. Production role for others' task.**
+    API details:
+        HTTP Method: POST
+        Path: /task/v1/retry
 
     Args:
         req(PandaRequest): internally generated request object
@@ -49,7 +51,7 @@ def retry(
         keep_gshare_priority(bool): if True, the task keeps current gshare and priority
 
     Returns:
-        str: json string with the result of the operation, typically a tuple with an integer and the statistics or an error message, e.g. (non-zero int, 'Error message') or (0, 'Successful messages')
+        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
     user = get_dn(req)
     production_role = has_production_role(req)
@@ -97,7 +99,9 @@ def retry(
             properErrorCode=True,
             comQualifier=qualifier,
         )
-    return ret
+    data, message = ret
+    success = data == 0
+    return generate_response(success, message, data)
 
 
 @request_validation(_logger, secure=True, production=True)
@@ -109,9 +113,11 @@ def enable_job_cloning(
     num_sites: int = None,
 ) -> tuple[bool, str]:
     """
-    Enable job cloning for a given task.
+    Enable job cloning for a given task. Requires secure connection and production role.
 
-    **Requires POST method, secure connection and production role.**
+    API details:
+        HTTP Method: POST
+        Path: /task/v1/enable_job_cloning
 
     Args:
         req(PandaRequest): internally generated request object
@@ -121,13 +127,13 @@ def enable_job_cloning(
         num_sites(int): number of sites to be used for each target
 
     Returns:
-        str: json string with the result of the operation, typically a tuple with a boolean and the statistics or an error message, e.g. (False, 'Error message') or (True, None)
+        dict: The system response. True for success, False for failure, and an error message.
     """
     tmp_logger = LogWrapper(_logger, f"enable_job_cloning jediTaskID=={jedi_task_id}")
     tmp_logger.debug(f"Start")
-    return_tuple = global_task_buffer.enable_job_cloning(jedi_task_id, mode, multiplicity, num_sites)
+    success, message = global_task_buffer.enable_job_cloning(jedi_task_id, mode, multiplicity, num_sites)
     tmp_logger.debug(f"Done")
-    return return_tuple
+    return generate_response(success, message)
 
 
 @request_validation(_logger, secure=True, production=True)
@@ -136,19 +142,21 @@ def disable_job_cloning(
     jedi_task_id: int,
 ) -> tuple[bool, str]:
     """
-    Disable job cloning for a given task.
+    Disable job cloning for a given task. Requires secure connection and production role.
 
-    **Requires POST method, secure connection and production role.**
+    API details:
+        HTTP Method: POST
+        Path: /task/v1/disable_job_cloning
 
     Args:
         req(PandaRequest): internally generated request object
         jedi_task_id(int): JEDI Task ID
 
     Returns:
-        str: json string with the result of the operation, typically a tuple with a boolean and the statistics or an error message, e.g. (False, 'Error message') or (True, None)
+        dict: The system response. True for success, False for failure, and an error message.
     """
     tmp_logger = LogWrapper(_logger, f"disable_job_cloning jediTaskID=={jedi_task_id}")
     tmp_logger.debug(f"Start")
-    return_tuple = global_task_buffer.disable_job_cloning(jedi_task_id)
+    success, message = global_task_buffer.disable_job_cloning(jedi_task_id)
     tmp_logger.debug(f"Done")
-    return return_tuple
+    return generate_response(success, message)
