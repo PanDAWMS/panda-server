@@ -43,7 +43,7 @@ class TestHarvesterAPI(unittest.TestCase):
         data = {"harvester_id": harvester_id, "metrics": metrics}
         status, output = self.http_client.post(url, data)
 
-        expected_response = [True, [True]]
+        expected_response = {"success": True, "message": "", "data": [True]}
         self.assertEqual(output, expected_response)
 
     def test_add_harvester_dialogs(self):
@@ -65,7 +65,7 @@ class TestHarvesterAPI(unittest.TestCase):
         data = {"harvester_id": harvester_id, "dialogs": dialogs}
         status, output = self.http_client.post(url, data)
 
-        expected_response = [True, True]
+        expected_response = {"success": True, "message": "", "data": None}
         self.assertEqual(output, expected_response)
 
     def test_harvester_heartbeat(self):
@@ -75,7 +75,7 @@ class TestHarvesterAPI(unittest.TestCase):
         data = {"harvester_id": harvester_id, "data": []}
         status, output = self.http_client.post(url, data)
 
-        expected_response = [True, "succeeded"]
+        expected_response = {"success": True, "message": "", "data": None}
         self.assertEqual(output, expected_response)
 
     def test_get_worker_statistics(self):
@@ -85,8 +85,8 @@ class TestHarvesterAPI(unittest.TestCase):
         status, output = self.http_client.get(url, data)
 
         # the statistics can't be predicted, so we just check the type of the response
-        self.assertEqual(True, output[0])
-        self.assertEqual(dict, type(output[1]))
+        self.assertEqual(True, output["success"])
+        self.assertEqual(dict, type(output["data"]))
 
     def test_get_current_worker_id(self):
         url = f"{api_url_ssl}/harvester/get_current_worker_id"
@@ -95,8 +95,8 @@ class TestHarvesterAPI(unittest.TestCase):
         status, output = self.http_client.get(url, data)
 
         # the current/max worker id can't be predicted, so we just check the type of the response
-        self.assertEqual(True, output[0])
-        self.assertEqual(int, type(output[1]))
+        self.assertEqual(True, output["success"])
+        self.assertEqual(int, type(output["data"]))
 
     def test_report_worker_statistics(self):
         url = f"{api_url_ssl}/harvester/report_worker_statistics"
@@ -108,7 +108,7 @@ class TestHarvesterAPI(unittest.TestCase):
         data = {"harvester_id": harvester_id, "panda_queue": panda_queue, "statistics": statistics}
         status, output = self.http_client.post(url, data)
 
-        expected_response = [True, "OK"]
+        expected_response = {"success": True, "message": "OK", "data": None}
         self.assertEqual(output, expected_response)
 
     def test_update_workers(self):
@@ -145,7 +145,8 @@ class TestHarvesterAPI(unittest.TestCase):
 
         status, output = self.http_client.post(url, data)
 
-        expected_response = [True, [True]]
+        expected_response = {"success": True, "message": "", "data": [True]}
+
         self.assertEqual(output, expected_response)
 
     def test_get_harvester_commands(self):
@@ -158,8 +159,8 @@ class TestHarvesterAPI(unittest.TestCase):
         status, output = self.http_client.get(url, data)
 
         # the commands can't be predicted, so we just check the type of the response
-        self.assertEqual(True, output[0])
-        self.assertEqual(list, type(output[1]))
+        self.assertEqual(True, output["success"])
+        self.assertEqual(list, type(output["data"]))
 
     def test_acknowledge_harvester_commands(self):
         url = f"{api_url_ssl}/harvester/acknowledge_harvester_commands"
@@ -168,7 +169,7 @@ class TestHarvesterAPI(unittest.TestCase):
         data = {"command_ids": command_ids}
         status, output = self.http_client.post(url, data)
 
-        expected_response = [True, ""]
+        expected_response = {"success": True, "message": "", "data": None}
         self.assertEqual(output, expected_response)
 
     def test_add_target_slots(self):
@@ -179,8 +180,8 @@ class TestHarvesterAPI(unittest.TestCase):
         data = {"panda_queue": panda_queue, "slots": slots}
         status, output = self.http_client.post(url, data)
 
-        self.assertEqual(True, output[0])
-        self.assertEqual(str, type(output[1]))
+        self.assertEqual(True, output["success"])
+        self.assertEqual(None, output["data"])
 
 
 # Run tests

@@ -106,12 +106,12 @@ def request_validation(logger, secure=False, production=False):
             # check SSL if required
             if secure and not is_secure(req, logger):
                 logger.error(f"'{func.__name__}': {MESSAGE_SSL}")
-                return json.dumps((False, MESSAGE_SSL))
+                return generate_response(False, message=MESSAGE_SSL)
 
             # check production role if required
             if production and not has_production_role(req):
                 logger.error(f"'{func.__name__}': {MESSAGE_PROD_ROLE}")
-                return json.dumps((False, MESSAGE_PROD_ROLE))
+                return generate_response(False, message=MESSAGE_PROD_ROLE)
 
             return func(req, *args, **kwargs)
 
@@ -167,3 +167,8 @@ def extract_allowed_methods(module: ModuleType) -> list:
         for name, obj in inspect.getmembers(module, inspect.isfunction)
         if obj.__module__ == module.__name__ and name != "init_task_buffer" and name.startswith("_") is False
     ]
+
+
+def generate_response(success, message="", data=None):
+    response = {"success": success, "message": message, "data": data}
+    return response

@@ -4,7 +4,12 @@ from typing import List, Tuple
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
-from pandaserver.api.v1.common import MESSAGE_DATABASE, get_dn, request_validation
+from pandaserver.api.v1.common import (
+    MESSAGE_DATABASE,
+    generate_response,
+    get_dn,
+    request_validation,
+)
 from pandaserver.api.v1.timed_method import TIME_OUT, TimedMethod
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
@@ -37,24 +42,24 @@ def update_workers(req: PandaRequest, harvester_id: str, workers: List) -> Tuple
         workers(list): TODO
 
     Returns:
-        str: json string with the result of the operation, typically a tuple with a boolean and a message, e.g. (False, 'Error message') or (True, 'OK')
+        tuple: tuple with a boolean and a message, e.g. (False, 'Error message') or (True, 'OK')
     """
     tmp_logger = LogWrapper(_logger, f"update_workers harvester_id={harvester_id}")
     tmp_logger.debug(f"Start")
-
+    success, message, data = False, "", None
     time_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
 
     ret = global_task_buffer.updateWorkers(harvester_id, workers)
     if not ret:
         tmp_logger.error(f"Error updating database for workers: {workers}")
-        return_tuple = False, MESSAGE_DATABASE
+        success, message = False, MESSAGE_DATABASE
     else:
-        return_tuple = True, ret
+        success, data = True, ret
 
     time_delta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - time_start
     tmp_logger.debug(f"Done. Took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")
 
-    return return_tuple
+    return generate_response(success, message, data)
 
 
 @request_validation(_logger, secure=True)
@@ -76,6 +81,7 @@ def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metri
     """
     tmp_logger = LogWrapper(_logger, f"update_harvester_service_metrics harvester_id={harvester_id}")
     tmp_logger.debug(f"Start")
+    success, message, data = False, "", None
 
     # update the metrics in the database
     time_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
@@ -83,14 +89,14 @@ def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metri
     ret = global_task_buffer.updateServiceMetrics(harvester_id, metrics)
     if not ret:
         tmp_logger.error(f"Error updating database for metrics: {metrics}")
-        return_tuple = False, MESSAGE_DATABASE
+        success, message = False, MESSAGE_DATABASE
     else:
-        return_tuple = True, ret
+        success, data = True, ret
 
     time_delta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - time_start
     _logger.debug(f"Done. Took {time_delta.seconds}.{time_delta.microseconds // 1000:03d} sec")
 
-    return return_tuple
+    return generate_response(success, message, data)
 
 
 @request_validation(_logger, secure=True)
@@ -116,10 +122,10 @@ def add_harvester_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) ->
     ret = global_task_buffer.addHarvesterDialogs(harvester_id, dialogs)
     if not ret:
         tmp_logger.error(f"Error updating database: {dialogs}")
-        return False, MESSAGE_DATABASE
+        return generate_response(False, message=MESSAGE_DATABASE)
 
     tmp_logger.debug(f"Done")
-    return True, ret
+    return generate_response(True)
 
 
 @request_validation(_logger, secure=True)
@@ -146,13 +152,13 @@ def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) 
     user = get_dn(req)
     host = req.get_remote_host()
 
-    ret = global_task_buffer.harvesterIsAlive(user, host, harvester_id, data)
-    if not ret:
+    ret_message = global_task_buffer.harvesterIsAlive(user, host, harvester_id, data)
+    if not ret_message or ret_message != "succeeded":
         tmp_logger.error(f"Error updating database: {data}")
-        return False, MESSAGE_DATABASE
+        return generate_response(False, message=MESSAGE_DATABASE)
 
     tmp_logger.debug(f"Done")
-    return True, ret
+    return generate_response(True)
 
 
 def get_current_worker_id(req: PandaRequest, harvester_id: str) -> Tuple:
@@ -176,16 +182,14 @@ def get_current_worker_id(req: PandaRequest, harvester_id: str) -> Tuple:
     tmp_logger.debug(f"Done")
 
     if current_worker_id is None:
-        return False, MESSAGE_DATABASE
+        return generate_response(False, message=MESSAGE_DATABASE)
 
-    return True, current_worker_id
+    return generate_response(True, data=current_worker_id)
 
 
 def get_worker_statistics(req: PandaRequest) -> Tuple:
     """
     Get statistics for all the workers managed across the Grid.
-
-    LONG DESCRIPTION.
 
     API details:
         HTTP Method: GET
@@ -199,9 +203,9 @@ def get_worker_statistics(req: PandaRequest) -> Tuple:
     """
     tmp_logger = LogWrapper(_logger, f"get_worker_statistics")
     tmp_logger.debug(f"Start")
-    return_tuple = True, global_task_buffer.getWorkerStats()
+    worker_stats = global_task_buffer.getWorkerStats()
     tmp_logger.debug(f"Done")
-    return return_tuple
+    return generate_response(True, data=worker_stats)
 
 
 @request_validation(_logger, secure=True)
@@ -238,9 +242,9 @@ def report_worker_statistics(req: PandaRequest, harvester_id: str, panda_queue: 
     """
     tmp_logger = LogWrapper(_logger, f"report_worker_statistics harvester_id={harvester_id}")
     tmp_logger.debug(f"Start")
-    return_tuple = global_task_buffer.reportWorkerStats_jobtype(harvester_id, panda_queue, statistics)
+    success, message = global_task_buffer.reportWorkerStats_jobtype(harvester_id, panda_queue, statistics)
     tmp_logger.debug(f"Done")
-    return return_tuple
+    return generate_response(success, message=message)
 
 
 @request_validation(_logger, secure=True, production=True)
@@ -271,16 +275,16 @@ def get_harvester_commands(req: PandaRequest, harvester_id: str, n_commands: int
 
     # Getting the commands timed out
     if timed_method.result == TIME_OUT:
-        return False, TIME_OUT
+        return generate_response(False, message=TIME_OUT)
 
     # Unpack the return code and the commands
     return_code, commands = timed_method.result
 
     # There was an error retrieving the commands from the database
     if return_code == -1:
-        return False, MESSAGE_DATABASE
+        return generate_response(False, message=MESSAGE_DATABASE)
 
-    return True, commands
+    return generate_response(True, data=commands)
 
 
 @request_validation(_logger, secure=True, production=True)
@@ -310,16 +314,16 @@ def acknowledge_harvester_commands(req: PandaRequest, command_ids: List, timeout
 
     # Make response
     if timed_method.result == TIME_OUT:
-        return False, TIME_OUT
+        return generate_response(False, message=TIME_OUT)
 
     # Unpack the return code and the commands
     return_code = timed_method.result
 
     # There was an error acknowledging the commands in the database
     if return_code == -1:
-        return False, MESSAGE_DATABASE
+        return generate_response(False, message=MESSAGE_DATABASE)
 
-    return True, ""
+    return generate_response(True)
 
 
 @request_validation(_logger, secure=True, production=True)
@@ -344,9 +348,13 @@ def add_sweep_harvester_command(req: PandaRequest, panda_queue: str, status_list
 
     tmp_logger = LogWrapper(_logger, f"add_sweep_harvester_command panda_queue={panda_queue}")
     tmp_logger.debug(f"Start")
-    return_tuple = True, global_task_buffer.sweepPQ(panda_queue, status_list, ce_list, submission_host_list)
+    return_message = global_task_buffer.sweepPQ(panda_queue, status_list, ce_list, submission_host_list)
+    if return_message == "OK":
+        success, message = True, ""
+    else:
+        success, message = False, return_message
     tmp_logger.debug(f"Done")
-    return return_tuple
+    return generate_response(success, message=message)
 
 
 @request_validation(_logger, secure=True, production=True)
@@ -375,9 +383,9 @@ def add_target_slots(req, panda_queue: str, slots: int, global_share: str = None
     return_code, return_message = global_task_buffer.setNumSlotsForWP(panda_queue, slots, global_share, resource_type, expiration_date)
 
     if return_code == 0:
-        return_tuple = True, return_message
+        success, message = True, return_message
     else:
-        return_tuple = False, return_message
+        success, message = False, return_message
 
     tmp_logger.debug(f"Done")
-    return return_tuple
+    return generate_response(success, message=message)

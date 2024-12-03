@@ -355,6 +355,9 @@ def application(environ, start_response):
     json_app = environ.get("CONTENT_TYPE", None) == "application/json"
     json_body = environ.get("CONTENT_TYPE", None) == "application/json" and request_method in ["PUT", "POST"]
 
+    # see if we are on the new or old APIs
+    new_api = is_new_api(api_module)
+
     # Content encoding specifies whether the body is compressed through gzip or others.
     # No encoding usually means the body is not compressed
     content_encoding = environ.get("HTTP_CONTENT_ENCODING")
@@ -373,7 +376,7 @@ def application(environ, start_response):
 
     # get the method object to be executed
     try:
-        if is_new_api(api_module):
+        if new_api:
             module = module_mapping(version, api_module)["module"]
             tmp_method = getattr(module, method_name)
         else:
@@ -409,7 +412,7 @@ def application(environ, start_response):
         exec_result = tmp_method(*param_list, **params)
 
         # extract return type
-        if isinstance(exec_result, dict):
+        if isinstance(exec_result, dict) and "type" in exec_result and "content" in exec_result:
             return_type = exec_result["type"]
             exec_result = exec_result["content"]
 
@@ -418,7 +421,7 @@ def application(environ, start_response):
             exec_result = str(exec_result)
 
         # convert the response to json when specified through CONTENT_TYPE="application/json"
-        if json_app and is_new_api(api_module):
+        if json_app and new_api:
             exec_result = json.dumps(exec_result)
 
     except Exception as exc:
