@@ -421,7 +421,7 @@ class DBProxy:
         methodName = comment.split(" ")[-2].split(".")[-1]
         varMap = {":component": component, ":key": key, ":app": app}
         sql = """
-        SELECT value, type FROM ATLAS_PANDA.CONFIG
+        SELECT value, value_json, type FROM ATLAS_PANDA.CONFIG
         WHERE component=:component
         AND key=:key
         AND app=:app
@@ -435,7 +435,7 @@ class DBProxy:
         self.cur.execute(sql + comment, varMap)
 
         try:
-            value_str, type = self.cur.fetchone()
+            value_str, value_json_str, type = self.cur.fetchone()
         except TypeError:
             error_message = f"Specified key={key} not found for component={component} app={app}"
             _logger.debug(error_message)
@@ -453,6 +453,8 @@ class DBProxy:
                     return True
                 else:
                     return False
+            elif type.lower() == "json":
+                return json.loads(value_json_str)
             else:
                 raise ValueError
         except ValueError:
