@@ -19,6 +19,7 @@ import time
 import traceback
 import uuid
 import warnings
+from json.decoder import JSONDecodeError
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -457,9 +458,11 @@ class DBProxy:
                 return json.loads(value_json_str)
             else:
                 raise ValueError
+        except JSONDecodeError:
+            _logger.debug(f"Could not decode. Value_json: {value_json_str}, Type: {type}")
+            return None
         except ValueError:
-            error_message = f"Wrong value/type pair. Value: {value_str}, Type: {type}"
-            _logger.debug(error_message)
+            _logger.debug(f"Wrong value/type pair. Value: {value_str}, Type: {type}")
             return None
 
     # insert job to jobsDefined
