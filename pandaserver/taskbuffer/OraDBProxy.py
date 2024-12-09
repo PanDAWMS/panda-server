@@ -435,7 +435,7 @@ class DBProxy:
         self.cur.execute(sql + comment, varMap)
 
         try:
-            value_str, type = self.cur.fetchone()
+            value_str, value_json_str, type = self.cur.fetchone()
         except TypeError:
             error_message = f"Specified key={key} not found for component={component} app={app}"
             _logger.debug(error_message)
@@ -454,10 +454,7 @@ class DBProxy:
                 else:
                     return False
             elif type.lower() == "json":
-                if value_str.lower() == "true":
-                    return True
-                else:
-                    return False
+                return json.loads(value_json_str)
             else:
                 raise ValueError
         except ValueError:
