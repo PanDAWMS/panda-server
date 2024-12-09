@@ -421,7 +421,7 @@ class DBProxy:
         methodName = comment.split(" ")[-2].split(".")[-1]
         varMap = {":component": component, ":key": key, ":app": app}
         sql = """
-        SELECT value, type FROM ATLAS_PANDA.CONFIG
+        SELECT value, value_json, type FROM ATLAS_PANDA.CONFIG
         WHERE component=:component
         AND key=:key
         AND app=:app
@@ -449,6 +449,11 @@ class DBProxy:
             elif type.lower() == "float":
                 return float(value_str)
             elif type.lower() in ("bool", "boolean"):
+                if value_str.lower() == "true":
+                    return True
+                else:
+                    return False
+            elif type.lower() == "json":
                 if value_str.lower() == "true":
                     return True
                 else:
