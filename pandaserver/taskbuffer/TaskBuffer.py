@@ -17,6 +17,7 @@ from pandaserver.dataservice.setupper import Setupper
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import ErrorCode, EventServiceUtils, JobUtils, ProcessGroups
 from pandaserver.taskbuffer.DBProxyPool import DBProxyPool
+from pandaserver.taskbuffer.JobSpec import get_task_queued_time
 
 _logger = PandaLogger().getLogger("TaskBuffer")
 
@@ -370,6 +371,7 @@ class TaskBuffer:
                         use_secrets = job.use_secrets()
                         push_changes = job.push_status_changes()
                         is_push_job = job.is_push_job()
+                        task_queued_time = get_task_queued_time(job.specialHandling)
                         # reset specialHandling
                         specialHandling = specialHandling[:-1]
                         job.specialHandling = specialHandling
@@ -385,6 +387,8 @@ class TaskBuffer:
                             job.set_push_status_changes()
                         if is_push_job:
                             job.set_push_job()
+                        if task_queued_time:
+                            job.set_task_queued_time(task_queued_time.timestamp())
                         # set DDM backend
                         if ddmBackEnd is not None:
                             job.setDdmBackEnd(ddmBackEnd)

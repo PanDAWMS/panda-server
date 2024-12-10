@@ -214,6 +214,7 @@ class JobSpec(object):
         "requestType": "rt",
         "jobCloning": "sc",
         "scoutJob": "sj",
+        "taskQueuedTime": "tq",
         "usePrefetcher": "up",
         "useSecrets": "us",
         "useZipToPin": "uz",
@@ -917,6 +918,22 @@ class JobSpec(object):
             out_types = sorted(list(out_types))
             self.outputFileType = ",".join(out_types)[: self._limitLength["outputFileType"]]
 
+    # set task queued time
+    def set_task_queued_time(self, queued_time: float | None):
+        """
+        Set task queued time in job metrics. Skip if queued_time is None
+
+        :param queued_time: task queued time in seconds since epoch
+        """
+        if queued_time is None:
+            return
+        if self.specialHandling in [None, "", "NULL"]:
+            items = []
+        else:
+            items = self.specialHandling.split(",")
+        items.append(f"{self._tagForSH['taskQueuedTime']}={queued_time}")
+        self.specialHandling = ",".join(items)
+
 
 # utils
 
@@ -927,3 +944,21 @@ def push_status_changes(special_handling):
         items = special_handling.split(",")
         return JobSpec._tagForSH["pushStatusChanges"] in items
     return False
+
+
+# get task queued time
+def get_task_queued_time(special_handling) -> datetime.datetime | None:
+    """
+    Get task queued time from job metrics
+
+    :param special_handling: special handling string
+    :return: task queued time. None if unset
+    """
+    try:
+        if special_handling is not None:
+            for item in special_handling.split(","):
+                if item.startswith(f"{JobSpec._tagForSH['taskQueuedTime']}="):
+                    return datetime.datetime.fromtimestamp(float(item.split("=")[-1]), datetime.timezone.utc)
+    except Exception:
+        pass
+    return None
