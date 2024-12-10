@@ -26,7 +26,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
     global_task_buffer = task_buffer
 
 
-@request_validation(_logger, secure=True)
+@request_validation(_logger, secure=True, request_method="POST")
 def retry(
     req: PandaRequest,
     jedi_task_id: int,
@@ -104,7 +104,7 @@ def retry(
     return generate_response(success, message, data)
 
 
-@request_validation(_logger, secure=True, production=True)
+@request_validation(_logger, secure=True, production=True, request_method="POST")
 def enable_job_cloning(
     req: PandaRequest,
     jedi_task_id: int,
@@ -136,7 +136,7 @@ def enable_job_cloning(
     return generate_response(success, message)
 
 
-@request_validation(_logger, secure=True, production=True)
+@request_validation(_logger, secure=True, production=True, request_method="POST")
 def disable_job_cloning(
     req: PandaRequest,
     jedi_task_id: int,

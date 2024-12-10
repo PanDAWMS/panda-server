@@ -27,7 +27,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
     global_task_buffer = task_buffer
 
 
-@request_validation(_logger, secure=True)
+@request_validation(_logger, secure=True, request_method="POST")
 def update_workers(req: PandaRequest, harvester_id: str, workers: List) -> dict:
     """
     Update workers.
@@ -74,7 +74,7 @@ def update_workers(req: PandaRequest, harvester_id: str, workers: List) -> dict:
     return generate_response(success, message, data)
 
 
-@request_validation(_logger, secure=True)
+@request_validation(_logger, secure=True, request_method="POST")
 def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metrics: str) -> dict:
     """
     Update harvester service metrics.
@@ -132,7 +132,7 @@ def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metri
     return generate_response(success, message, data)
 
 
-@request_validation(_logger, secure=True)
+@request_validation(_logger, secure=True, request_method="POST")
 def add_harvester_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) -> dict:
     """
     Add harvester dialog messages.
@@ -173,7 +173,7 @@ def add_harvester_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) ->
     return generate_response(True)
 
 
-@request_validation(_logger, secure=True)
+@request_validation(_logger, secure=True, request_method="POST")
 def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) -> dict:
     """
     Heartbeat for harvester.
@@ -208,6 +208,7 @@ def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) 
     return generate_response(True)
 
 
+@request_validation(_logger, request_method="GET")
 def get_current_worker_id(req: PandaRequest, harvester_id: str) -> dict:
     """
     Get the current worker ID.
@@ -236,6 +237,7 @@ def get_current_worker_id(req: PandaRequest, harvester_id: str) -> dict:
     return generate_response(True, data=current_worker_id)
 
 
+@request_validation(_logger, request_method="GET")
 def get_worker_statistics(req: PandaRequest) -> dict:
     """
     Get worker statistics.
@@ -259,7 +261,7 @@ def get_worker_statistics(req: PandaRequest) -> dict:
     return generate_response(True, data=worker_stats)
 
 
-@request_validation(_logger, secure=True)
+@request_validation(_logger, secure=True, request_method="POST")
 def report_worker_statistics(req: PandaRequest, harvester_id: str, panda_queue: str, statistics: str) -> dict:
     """
     Report worker statistics.
@@ -289,7 +291,7 @@ def report_worker_statistics(req: PandaRequest, harvester_id: str, panda_queue: 
     return generate_response(success, message=message)
 
 
-@request_validation(_logger, secure=True, production=True)
+@request_validation(_logger, secure=True, production=True, request_method="POST")
 def get_harvester_commands(req: PandaRequest, harvester_id: str, n_commands: int, timeout: int = 30) -> dict:
     """
     Get harvester commands.
@@ -331,7 +333,7 @@ def get_harvester_commands(req: PandaRequest, harvester_id: str, n_commands: int
     return generate_response(True, data=commands)
 
 
-@request_validation(_logger, secure=True, production=True)
+@request_validation(_logger, secure=True, production=True, request_method="GET")
 def acknowledge_harvester_commands(req: PandaRequest, command_ids: List, timeout: int = 30) -> dict:
     """
     Acknowledge harvester commands.
@@ -372,7 +374,7 @@ def acknowledge_harvester_commands(req: PandaRequest, command_ids: List, timeout
     return generate_response(True)
 
 
-@request_validation(_logger, secure=True, production=True)
+@request_validation(_logger, secure=True, production=True, request_method="POST")
 def add_sweep_harvester_command(req: PandaRequest, panda_queue: str, status_list: List[str], ce_list: List[str], submission_host_list: List[str]) -> dict:
     """
     Add sweep command for harvester.
@@ -405,7 +407,7 @@ def add_sweep_harvester_command(req: PandaRequest, panda_queue: str, status_list
     return generate_response(success, message=message)
 
 
-@request_validation(_logger, secure=True, production=True)
+@request_validation(_logger, secure=True, production=True, request_method="POST")
 def add_target_slots(req, panda_queue: str, slots: int, global_share: str = None, resource_type: str = None, expiration_date: str = None):
     """
     Set target slots.

@@ -35,6 +35,14 @@ def get_fqan(req):
     return fqans
 
 
+def validate_request_method(req, expected_method):
+    environ = req.subprocess_env
+    request_method = environ.get("REQUEST_METHOD", None)  # GET, POST, PUT, DELETE
+    if request_method and request_method == expected_method:
+        return True
+    return False
+
+
 # get DN
 def get_dn(req):
     real_dn = ""
@@ -99,7 +107,7 @@ def is_secure(req, logger=None):
     return True
 
 
-def request_validation(logger, secure=False, production=False):
+def request_validation(logger, secure=False, production=False, request_method=None):
     def decorator(func):
         @wraps(func)
         def wrapper(req, *args, **kwargs):
@@ -112,6 +120,11 @@ def request_validation(logger, secure=False, production=False):
             if production and not has_production_role(req):
                 logger.error(f"'{func.__name__}': {MESSAGE_PROD_ROLE}")
                 return generate_response(False, message=MESSAGE_PROD_ROLE)
+
+            # check method if required
+            if request_method and validate_request_method(req, request_method):
+                logger.error(f"'{func.__name__}': expecting {request_method}")
+                return generate_response(False, message=f"expecting {request_method}")
 
             return func(req, *args, **kwargs)
 
