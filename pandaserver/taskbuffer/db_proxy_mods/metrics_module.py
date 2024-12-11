@@ -169,19 +169,21 @@ class MetricsModule(BaseModule):
             self.dump_error_message(tmp_log)
             return False, None
 
-    # update task queued time
-    def update_task_queued_time(self, jedi_task_id: int):
+    # update task queued and activated times
+    def update_task_queued_activated_times(self, jedi_task_id: int) -> None:
         """
-        Update task queued time depending on the number of inputs to be processed. Update it if it was None and inputs become available.
+        Update task queued time depending on the number of inputs to be processed. Update queued and activated times if they were None and inputs become available.
         Set None if no input is available and record the queuing duration to task metrics.
 
-        :param jedi_task_id: jediTaskID of the task
+        :param jedi_task_id: task's jediTaskID
         """
-        comment = " /* DBProxy.update_task_queued_time */"
+        comment = " /* DBProxy.update_task_queued_activated_times */"
         method_name, tmp_log = self.create_method_name_logger(comment, f"jediTaskID={jedi_task_id}")
         tmp_log.debug("start")
         # check if the task is queued
-        sql_check = f"SELECT status,oldStatus,queuedTime,currentPriority,gshare FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
+        sql_check = (
+            f"SELECT status,oldStatus,queuedTime,activatedTime,currentPriority,gshare FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
+        )
         var_map = {":jediTaskID": jedi_task_id}
         self.cur.execute(sql_check + comment, var_map)
         res = self.cur.fetchone()
@@ -189,7 +191,7 @@ class MetricsModule(BaseModule):
             # not found
             tmp_log.debug("task not found")
             return
-        (task_status, task_old_status, queued_time, current_priority, global_share) = res
+        (task_status, task_old_status, queued_time, activated_time, current_priority, global_share) = res
         has_input = False
         active_status_list = ("ready", "running", "scouting", "scouted")
         if task_status in active_status_list or (task_old_status in active_status_list and task_status == "pending"):
@@ -210,6 +212,13 @@ class MetricsModule(BaseModule):
                     sql_update = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET queuedTime=CURRENT_DATE WHERE jediTaskID=:jediTaskID AND queuedTime IS NULL "
                     var_map = {":jediTaskID": jedi_task_id}
                     self.cur.execute(sql_update + comment, var_map)
+                    n_row = self.cur.rowcount
+                    if n_row > 0 and activated_time is None:
+                        # set activated time
+                        tmp_log.debug(f"set activated time when task is {task_status}")
+                        sql_update = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET activatedTime=CURRENT_DATE WHERE jediTaskID=:jediTaskID AND activatedTime IS NULL "
+                        var_map = {":jediTaskID": jedi_task_id}
+                        self.cur.execute(sql_update + comment, var_map)
                 else:
                     tmp_log.debug(f"keep current queued time {queued_time.strftime('%Y-%m-%d %H:%M:%S')}")
         # record queuing duration since the task has no more input to process
@@ -241,7 +250,7 @@ class MetricsModule(BaseModule):
                     return
             else:
                 tmp_log.debug("skipped since queuing period list is too long")
-        tmp_log.debug("done")
+        tmp_log.debug(f"done in {task_status}")
 
     # record job queuing period
     def record_job_queuing_period(self, panda_id: int, job_spec: JobSpec = None) -> bool | None:
@@ -298,8 +307,67 @@ class MetricsModule(BaseModule):
                     err_str = "Failed to update job metrics"
                     tmp_log.error(err_str)
                     return False
-            tmp_log.debug("done")
+            tmp_log.debug(f"done in {job_status}")
             return True
         else:
             tmp_log.debug(f"skipped as jediTaskID={jedi_task_id} taskQueuedTime={task_queued_time}")
             return None
+
+    # unset task active period
+    def unset_task_activated_time(self, jedi_task_id: int, task_status: str = None) -> bool | None:
+        """
+        Unset activated time and record active period in task metrics
+
+        :param jedi_task_id: task's JediTaskID
+        :param task_status: task status. None to get it from the database
+        :return: True if success. False if failed. None if skipped
+        """
+        frozen_status_list = ("done", "finished", "failed", "broken", "paused", "exhausted")
+        if task_status is not None and task_status not in frozen_status_list:
+            return None
+        comment = " /* DBProxy.record_task_active_period */"
+        method_name, tmp_log = self.create_method_name_logger(comment, f"JediTaskID={jedi_task_id}")
+        tmp_log.debug(f"start")
+        # get activated time
+        sql_check = f"SELECT status,activatedTime FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
+        var_map = {":jediTaskID": jedi_task_id}
+        self.cur.execute(sql_check + comment, var_map)
+        res = self.cur.fetchone()
+        if not res:
+            # not found
+            tmp_log.debug("task not found")
+            return None
+        task_status, activated_time = res
+        # record active duration
+        if task_status in frozen_status_list and activated_time:
+            tmp_log.debug(f"to record active period when task is {task_status}")
+            # get task metrics dict
+            tmp_success, task_metrics = self.get_workload_metrics(jedi_task_id, None)
+            if not tmp_success:
+                err_str = "Failed to get task metrics "
+                tmp_log.error(err_str)
+                return False
+            # new
+            if not task_metrics:
+                task_metrics = {}
+            # add duration
+            task_metrics.setdefault("activePeriod", [])
+            task_metrics["activePeriod"].append(
+                {
+                    "start": activated_time,
+                    "end": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
+                    "status": task_status,
+                }
+            )
+            tmp_success = self.set_workload_metrics(jedi_task_id, None, task_metrics, False)
+            if not tmp_success:
+                err_str = "Failed to update task metrics"
+                tmp_log.error(err_str)
+                return False
+            # unset activated time
+            tmp_log.debug(f"unset activated time")
+            sql_update = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET activatedTime=NULL WHERE jediTaskID=:jediTaskID AND activatedTime IS NOT NULL "
+            var_map = {":jediTaskID": jedi_task_id}
+            self.cur.execute(sql_update + comment, var_map)
+        tmp_log.debug(f"done in {task_status}")
+        return True
