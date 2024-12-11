@@ -8736,7 +8736,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         # task and job metrics
         if get_task_queued_time(jobSpec.specialHandling):
             # update task queued time
-            self.update_task_queued_time(jobSpec.jediTaskID)
+            self.update_task_queued_activated_times(jobSpec.jediTaskID)
             # record job queuing time if the job didn't start running
             self.record_job_queuing_period(jobSpec.PandaID, jobSpec)
 
