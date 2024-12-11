@@ -36,6 +36,8 @@ def retry(
     keep_gshare_priority: bool = None,
 ) -> tuple[int, str]:
     """
+    Task retry
+
     Retry a given task. Requires a secure connection without a production role to retry own tasks and with a production role to retry others' tasks.
 
     API details:
@@ -113,6 +115,8 @@ def enable_job_cloning(
     num_sites: int = None,
 ) -> tuple[bool, str]:
     """
+    Enable job cloning
+
     Enable job cloning for a given task. Requires secure connection and production role.
 
     API details:
@@ -142,6 +146,8 @@ def disable_job_cloning(
     jedi_task_id: int,
 ) -> tuple[bool, str]:
     """
+    Disable job cloning
+
     Disable job cloning for a given task. Requires secure connection and production role.
 
     API details:

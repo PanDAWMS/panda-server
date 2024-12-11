@@ -7,7 +7,6 @@ entry point
 
 import datetime
 import gzip
-import inspect
 import io
 import json
 import os
