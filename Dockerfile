@@ -121,11 +121,11 @@ RUN mkdir /tmp/panda-wnscript && cd /tmp/panda-wnscript && \
     git clone https://github.com/PanDAWMS/panda-wnscript.git && \
     cp -R panda-wnscript/dist/* /var/trf/user/ && \
     cd / && rm -rf /tmp/panda-wnscript
-
-COPY /opt/panda/etc/panda/auth/vo.darkside.org_auth_config.json /opt/panda/etc/panda/auth/vo.darkside.org:_auth_config.json    
-
+    
 ENV PANDA_LOCK_DIR /var/run/panda
 RUN mkdir -p ${PANDA_LOCK_DIR} && chmod 777 ${PANDA_LOCK_DIR}
+
+COPY /opt/panda/etc/panda/auth/vo.darkside.org_auth_config.json /opt/panda/etc/panda/auth/vo.darkside.org:_auth_config.json    
 
 CMD exec /bin/bash -c "trap : TERM INT; sleep infinity & wait"
 
