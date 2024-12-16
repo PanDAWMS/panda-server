@@ -1,5 +1,5 @@
 import datetime
-from typing import List, Tuple
+from typing import Any, Dict, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -75,7 +75,7 @@ def update_workers(req: PandaRequest, harvester_id: str, workers: List) -> dict:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metrics: str) -> dict:
+def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metrics: str) -> Dict[str, Any]:
     """
     Update harvester service metrics.
 
@@ -133,7 +133,7 @@ def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metri
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def add_harvester_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) -> dict:
+def add_harvester_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) -> Dict[str, Any]:
     """
     Add harvester dialog messages.
 
@@ -174,7 +174,7 @@ def add_harvester_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) ->
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) -> dict:
+def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) -> Dict[str, Any]:
     """
     Heartbeat for harvester.
 
@@ -209,7 +209,7 @@ def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) 
 
 
 @request_validation(_logger, request_method="GET")
-def get_current_worker_id(req: PandaRequest, harvester_id: str) -> dict:
+def get_current_worker_id(req: PandaRequest, harvester_id: str) -> Dict[str, Any]:
     """
     Get the current worker ID.
 
@@ -238,7 +238,7 @@ def get_current_worker_id(req: PandaRequest, harvester_id: str) -> dict:
 
 
 @request_validation(_logger, request_method="GET")
-def get_worker_statistics(req: PandaRequest) -> dict:
+def get_worker_statistics(req: PandaRequest) -> Dict[str, Any]:
     """
     Get worker statistics.
 
@@ -262,7 +262,7 @@ def get_worker_statistics(req: PandaRequest) -> dict:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def report_worker_statistics(req: PandaRequest, harvester_id: str, panda_queue: str, statistics: str) -> dict:
+def report_worker_statistics(req: PandaRequest, harvester_id: str, panda_queue: str, statistics: str) -> Dict[str, Any]:
     """
     Report worker statistics.
 
@@ -292,7 +292,7 @@ def report_worker_statistics(req: PandaRequest, harvester_id: str, panda_queue: 
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def get_harvester_commands(req: PandaRequest, harvester_id: str, n_commands: int, timeout: int = 30) -> dict:
+def get_harvester_commands(req: PandaRequest, harvester_id: str, n_commands: int, timeout: int = 30) -> Dict[str, Any]:
     """
     Get harvester commands.
 
@@ -334,7 +334,7 @@ def get_harvester_commands(req: PandaRequest, harvester_id: str, n_commands: int
 
 
 @request_validation(_logger, secure=True, production=True, request_method="GET")
-def acknowledge_harvester_commands(req: PandaRequest, command_ids: List, timeout: int = 30) -> dict:
+def acknowledge_harvester_commands(req: PandaRequest, command_ids: List, timeout: int = 30) -> Dict[str, Any]:
     """
     Acknowledge harvester commands.
 
@@ -375,7 +375,9 @@ def acknowledge_harvester_commands(req: PandaRequest, command_ids: List, timeout
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def add_sweep_harvester_command(req: PandaRequest, panda_queue: str, status_list: List[str], ce_list: List[str], submission_host_list: List[str]) -> dict:
+def add_sweep_harvester_command(
+    req: PandaRequest, panda_queue: str, status_list: List[str], ce_list: List[str], submission_host_list: List[str]
+) -> Dict[str, Any]:
     """
     Add sweep command for harvester.
 
