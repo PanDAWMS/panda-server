@@ -20654,35 +20654,24 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             self.job_prio_boost_dict = {}
             # get configs
             tmpLog = LogWrapper(_logger, methodName)
-            # sql to get configs
-            sqlC = "SELECT value FROM ATLAS_PANDA.Config " "WHERE app=:app AND component=:component AND vo=:vo AND key LIKE :key "
-            # start transaction
-            self.conn.begin()
-            varMap = {}
-            varMap[":app"] = "pandaserver"
-            varMap[":component"] = "dbproxy"
-            varMap[":vo"] = vo
-            varMap[":key"] = "USER_JOB_PRIO_BOOST_LIST_%"
-            self.cur.execute(sqlC + comment, varMap)
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
+            # get dicts
+            res_dicts = self.getConfigValue("dbproxy", "USER_JOB_PRIO_BOOST_DICTS", "pandaserver")
             # parse list
-            for (tmp_data,) in res:
-                if tmp_data:
-                    for tmp_item in tmp_data.split(","):
-                        try:
-                            tmp_name, tmp_type, tmp_prio, tmp_expire = tmp_item.split(":")
-                            # check expiration
-                            if tmp_expire:
-                                tmp_expire = datetime.datetime.strptime(tmp_expire, "%Y%m%d")
-                                if tmp_expire < datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None):
-                                    continue
-                            self.job_prio_boost_dict.setdefault(tmp_type, {})
-                            self.job_prio_boost_dict[tmp_type][tmp_name] = int(tmp_prio)
-                        except Exception as e:
-                            tmpLog.error(str(e))
+            for tmp_item in res_dicts:
+                try:
+                    tmp_name = tmp_item["name"]
+                    tmp_type = tmp_item["type"]
+                    tmp_prio = tmp_item["prio"]
+                    tmp_expire = tmp_item.get("expire", None)
+                    # check expiration
+                    if tmp_expire:
+                        tmp_expire = datetime.datetime.strptime(tmp_expire, "%Y%m%d")
+                        if tmp_expire < datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None):
+                            continue
+                    self.job_prio_boost_dict.setdefault(tmp_type, {})
+                    self.job_prio_boost_dict[tmp_type][tmp_name] = int(tmp_prio)
+                except Exception as e:
+                    tmpLog.error(str(e))
             tmpLog.debug(f"got {self.job_prio_boost_dict}")
             return self.job_prio_boost_dict
         except Exception:
