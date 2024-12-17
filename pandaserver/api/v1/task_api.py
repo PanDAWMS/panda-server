@@ -1,3 +1,4 @@
+import datetime
 import json
 from typing import Any, Dict, List
 
@@ -167,7 +168,7 @@ def release(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
     # check jedi_task_id
     try:
         jedi_task_id = int(jedi_task_id)
-    except Exception:
+    except ValueError:
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     ret = global_task_buffer.sendCommandTaskPanda(jedi_task_id, user, is_production_role, "release", properErrorCode=True)
@@ -204,7 +205,7 @@ def reassign(req: PandaRequest, jedi_task_id: int, site: str = None, cloud: str 
     # check jedi_task_id
     try:
         jedi_task_id = int(jedi_task_id)
-    except Exception:
+    except ValueError:
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     user = get_dn(req)
@@ -258,7 +259,7 @@ def pause(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
 
     try:
         jedi_task_id = int(jedi_task_id)
-    except Exception:
+    except ValueError:
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     user = get_dn(req)
@@ -271,7 +272,7 @@ def pause(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def kill(req, jedi_task_id=None, broadcast=False):
+def kill(req: PandaRequest, jedi_task_id: int = None, broadcast: bool = False) -> Dict[str, Any]:
     """
     Task kill
 
@@ -292,7 +293,7 @@ def kill(req, jedi_task_id=None, broadcast=False):
     # check jedi_task_id
     try:
         jedi_task_id = int(jedi_task_id)
-    except Exception:
+    except ValueError:
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     user = get_dn(req)
@@ -311,8 +312,55 @@ def kill(req, jedi_task_id=None, broadcast=False):
     return generate_response(success, message, data)
 
 
+@request_validation(_logger, secure=True, request_method="POST")
+def finish(req: PandaRequest, jedi_task_id: int, soft: bool = False, broadcast: bool = False) -> Dict[str, Any]:
+    """
+    Task finish
+
+    Finish a given task. Requires a secure connection.
+
+    API details:
+        HTTP Method: POST
+        Path: /task/v1/finish
+
+    Args:
+        req(PandaRequest): internally generated request object
+        jedi_task_id(int): JEDI Task ID
+        soft(bool, optional): soft finish
+        broadcast(bool, optional): broadcast finish command to pilots
+
+    Returns:
+        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+    """
+    qualifier = None
+    if soft:
+        qualifier = "soft"
+
+    user = get_dn(req)
+    is_production_role = has_production_role(req)
+
+    # check jedi_task_id
+    try:
+        jedi_task_id = int(jedi_task_id)
+    except ValueError:
+        return generate_response(False, message=MESSAGE_TASK_ID)
+
+    ret = global_task_buffer.sendCommandTaskPanda(
+        jedi_task_id,
+        user,
+        is_production_role,
+        "finish",
+        properErrorCode=True,
+        comQualifier=qualifier,
+        broadcast=broadcast,
+    )
+    data, message = ret
+    success = data == 0
+    return generate_response(success, message, data)
+
+
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def reactivate(req: PandaRequest, jedi_task_id: int, keep_attempt_nr: bool = False, trigger_job_generation: bool = False):
+def reactivate(req: PandaRequest, jedi_task_id: int, keep_attempt_nr: bool = False, trigger_job_generation: bool = False) -> Dict[str, Any]:
     """
     Reactivate task
 
@@ -334,13 +382,46 @@ def reactivate(req: PandaRequest, jedi_task_id: int, keep_attempt_nr: bool = Fal
     """
     try:
         jedi_task_id = int(jedi_task_id)
-    except Exception:
+    except ValueError:
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     ret = global_task_buffer.reactivateTask(jedi_task_id, keep_attempt_nr, trigger_job_generation)
     code, message = ret
     success = code == 0
     return generate_response(success, message)
+
+
+@request_validation(_logger, secure=True, production=True, request_method="POST")
+def avalanche(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
+    """
+    Task avalanche
+
+    Avalanche a given task. Requires a secure connection and production role.
+
+    API details:
+        HTTP Method: POST
+        Path: /task/v1/avalanche
+
+    Args:
+        req(PandaRequest): internally generated request object
+        jedi_task_id(int): JEDI Task ID
+
+    Returns:
+        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+    """
+    user = get_dn(req)
+    is_production_role = has_production_role(req)
+
+    # check jedi_task_id
+    try:
+        jedi_task_id = int(jedi_task_id)
+    except ValueError:
+        return generate_response(False, message=MESSAGE_TASK_ID)
+
+    ret = global_task_buffer.sendCommandTaskPanda(jedi_task_id, user, is_production_role, "avalanche", properErrorCode=True)
+    data, message = ret
+    success = data == 0
+    return generate_response(success, message, data)
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
@@ -433,3 +514,210 @@ def disable_job_cloning(
     success, message = global_task_buffer.disable_job_cloning(jedi_task_id)
     tmp_logger.debug(f"Done")
     return generate_response(success, message)
+
+
+@request_validation(_logger, request_method="GET")
+def get_status(req, jedi_task_id):
+    """
+    Get task status
+
+    Get the status of a given task.
+
+    API details:
+        HTTP Method: GET
+        Path: /task/v1/get_status
+
+    Args:
+        req(PandaRequest): internally generated request object
+        jedi_task_id(int): JEDI Task ID
+
+    Returns:
+        dict: The system response. True for success, False for failure, and an error message.
+    """
+    try:
+        jedi_task_id = int(jedi_task_id)
+    except ValueError:
+        return generate_response(False, message=MESSAGE_TASK_ID)
+
+    ret = global_task_buffer.getTaskStatus(jedi_task_id)
+    if not ret:
+        generate_response(False, message="Task not found")
+    status = ret[0]
+    return generate_response(True, data=status)
+
+
+@request_validation(_logger, request_method="GET", secure=True)
+def get_details(req: PandaRequest, jedi_task_id: int, include_parameters: bool = False, include_status: bool = False):
+    """
+    Get task details
+
+    Get the details of a given task.
+
+    API details:
+        HTTP Method: GET
+        Path: /task/v1/get_details
+
+    Args:
+        req(PandaRequest): internally generated request object
+        jedi_task_id(int): JEDI Task ID
+        include_parameters(bool, optional): flag to include task parameter information (Previously fullFlag)
+        include_status(bool, optional): flag to include status information (Previously withTaskInfo)
+
+    Returns:
+        dict: The system response. True for success, False for failure, and an error message.
+    """
+
+    _logger.debug(f"get_details {jedi_task_id} include_parameters:{include_parameters} include_status:{include_status}")
+
+    details = global_task_buffer.getJediTaskDetails(jedi_task_id, include_parameters, include_status)
+    if not details:
+        return generate_response(False, message="Task not found or error retrieving the details")
+
+    return generate_response(True, data=details)
+
+
+@request_validation(_logger, secure=True, production=True, request_method="POST")
+def change_attribute(req: PandaRequest, jedi_task_id: int, attribute_name: str, value: int) -> Dict[str, Any]:
+    """
+    Change a task attribute
+
+    Change a task attribute within the list of valid attributes ("ramCount", "wallTime", "cpuTime", "coreCount"). Requires a secure connection and production role.
+
+    API details:
+        HTTP Method: POST
+        Path: /task/v1/change_attribute
+
+    Args:
+        req(PandaRequest): internally generated request object
+        jedi_task_id_list(List): List of JEDI task IDs to reassign
+        share(str): destination share
+        reassign_running_jobs(bool): whether you want to reassign existing running jobs
+
+    Returns:
+        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+    """
+
+    # check jedi_task_id
+    try:
+        jedi_task_id = int(jedi_task_id)
+    except ValueError:
+        return generate_response(False, message=MESSAGE_TASK_ID)
+
+    # check if attribute_name is valid
+    valid_attributes = ["ramCount", "wallTime", "cpuTime", "coreCount"]
+    if attribute_name not in valid_attributes:
+        return generate_response(False, message=f"{attribute_name} is not a valid attribute. Valid attributes are {valid_attributes}")
+
+    n_tasks_changed = global_task_buffer.changeTaskAttributePanda(jedi_task_id, attribute_name, value)
+    if n_tasks_changed is None:  # method excepted
+        generate_response(False, message="Exception while changing the attribute")
+    if n_tasks_changed == 0:  # no tasks were changed should mean that it doesn't exist
+        generate_response(False, message="Task not found")
+
+    return generate_response(True, message=f"{n_tasks_changed} tasks changed")
+
+
+@request_validation(_logger, secure=True, production=True, request_method="POST")
+def change_modification_time(req: PandaRequest, jedi_task_id: int, positive_hour_offset: int) -> Dict[str, Any]:
+    """
+    Change task modification time
+
+    Change the modification time for a task to `now() + positive_hour_offset`. Requires a secure connection and production role.
+
+    API details:
+        HTTP Method: POST
+        Path: /task/v1/change_modification_time
+
+    Args:
+        req(PandaRequest): internally generated request object
+        jedi_task_id(int): JEDI task ID
+        positive_hour_offset(int): number of hours to add to the current time
+
+    Returns:
+        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+    """
+
+    # check jedi_task_id
+    try:
+        jedi_task_id = int(jedi_task_id)
+    except ValueError:
+        return generate_response(False, message=MESSAGE_TASK_ID)
+
+    # check offset
+    try:
+        positive_hour_offset = int(positive_hour_offset)
+        new_modification_time = datetime.datetime.now() + datetime.timedelta(hours=positive_hour_offset)
+    except ValueError:
+        return generate_response(False, message=f"failed to convert {positive_hour_offset} to time")
+
+    n_tasks_changed = global_task_buffer.changeTaskAttributePanda(jedi_task_id, "modificationTime", new_modification_time)
+    if n_tasks_changed is None:  # method excepted
+        generate_response(False, message="Exception while changing the attribute")
+    if n_tasks_changed == 0:  # no tasks were changed should mean that it doesn't exist
+        generate_response(False, message="Task not found")
+
+    return generate_response(True, message=f"{n_tasks_changed} tasks changed")
+
+
+@request_validation(_logger, secure=True, production=True, request_method="POST")
+def change_priority(req: PandaRequest, jedi_task_id: int, priority: int):
+    """
+    Change priority
+
+    Change the priority of a given task. Requires a secure connection and production role.
+
+    API details:
+        HTTP Method: POST
+        Path: /task/v1/change_priority
+
+    Args:
+        req(PandaRequest): internally generated request object
+        jedi_task_id(int): JEDI task ID
+        positive_hour_offset(int): number of hours to add to the current time
+
+    Returns:
+        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+    """
+    # check jedi_task_id
+    try:
+        jedi_task_id = int(jedi_task_id)
+    except ValueError:
+        return generate_response(False, message=MESSAGE_TASK_ID)
+
+    # check priority
+    try:
+        priority = int(priority)
+    except ValueError:
+        return generate_response(False, message="priority must be an integer")
+
+    n_tasks_changed = global_task_buffer.changeTaskPriorityPanda(jedi_task_id, priority)
+
+    if n_tasks_changed is None:  # method excepted
+        generate_response(False, message="Exception while changing the priority")
+    if n_tasks_changed == 0:  # no tasks were changed should mean that it doesn't exist
+        generate_response(False, message="Task not found")
+
+    return generate_response(True, message=f"{n_tasks_changed} tasks changed")
+
+
+@request_validation(_logger, secure=True, production=True, request_method="POST")
+def change_split_rule(req: PandaRequest, jedi_task_id: int, attribute_name: str, value: int) -> Dict[str, Any]:
+    # check jedi_task_id
+    try:
+        jedi_task_id = int(jedi_task_id)
+    except Exception:
+        return generate_response(False, message=MESSAGE_TASK_ID)
+
+    # see what the attributes mean in pandaserver/taskbuffer/task_split_rules.py
+    valid_attributes = ["AI", "TW", "EC", "ES", "MF", "NG", "NI", "NF", "NJ", "AV", "IL", "LI", "LC", "CC", "OT", "UZ"]
+    # check attribute
+    if attribute_name not in valid_attributes:
+        return generate_response(False, message=f"{attribute_name} is not a valid attribute. Valid attributes are {valid_attributes}", data=2)
+
+    n_tasks_changed = global_task_buffer.changeTaskSplitRulePanda(jedi_task_id, attribute_name, value)
+    if n_tasks_changed is None:  # method excepted
+        generate_response(False, message="Exception while changing the priority")
+    if n_tasks_changed == 0:  # no tasks were changed should mean that it doesn't exist
+        generate_response(False, message="Task not found")
+
+    return generate_response(True, message=f"{n_tasks_changed} tasks changed")
