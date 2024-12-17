@@ -113,7 +113,8 @@ def resume(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
     """
     Task resume
 
-    Resume a given task. Requires a secure connection and production role.
+    Resume a given task. This transitions a paused or throttled task back to its previous active state. Resume can also be used to kick a task in staging state to the next state.
+    Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
@@ -146,7 +147,8 @@ def release(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
     """
     Task release
 
-    Release a given task. Requires a secure connection and production role.
+    Release a given task. This triggers the avalanche for tasks in scouting state or dynamically reconfigures the task to skip over the scouting state.
+    Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
@@ -314,7 +316,8 @@ def reactivate(req: PandaRequest, jedi_task_id: int, keep_attempt_nr: bool = Fal
     """
     Reactivate task
 
-    Reactivate a given task. Requires a secure connection and production role.
+    Reactivate a given task, i.e. recycle a finished/done task. A reactivated task will generate new jobs and then go to done/finished.
+    Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
