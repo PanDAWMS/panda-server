@@ -589,9 +589,9 @@ def change_attribute(req: PandaRequest, jedi_task_id: int, attribute_name: str, 
 
     Args:
         req(PandaRequest): internally generated request object
-        jedi_task_id_list(List): List of JEDI task IDs to reassign
-        share(str): destination share
-        reassign_running_jobs(bool): whether you want to reassign existing running jobs
+        jedi_task_id(int): JEDI task ID
+        attribute_name(str): attribute to change
+        value(int): value to set to the attribute
 
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
@@ -673,7 +673,7 @@ def change_priority(req: PandaRequest, jedi_task_id: int, priority: int):
     Args:
         req(PandaRequest): internally generated request object
         jedi_task_id(int): JEDI task ID
-        positive_hour_offset(int): number of hours to add to the current time
+        priority(int): new priority for the task
 
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
@@ -702,6 +702,25 @@ def change_priority(req: PandaRequest, jedi_task_id: int, priority: int):
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
 def change_split_rule(req: PandaRequest, jedi_task_id: int, attribute_name: str, value: int) -> Dict[str, Any]:
+    """
+    Change the split rule
+
+    Change the split rule for a task. Requires a secure connection and production role.
+
+    API details:
+        HTTP Method: POST
+        Path: /task/v1/change_split_rule
+
+    Args:
+        req(PandaRequest): internally generated request object
+        jedi_task_id(int): JEDI task ID
+        attribute_name(str): split rule attribute to change
+        value(int): value to set to the attribute
+
+    Returns:
+        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+    """
+
     # check jedi_task_id
     try:
         jedi_task_id = int(jedi_task_id)
