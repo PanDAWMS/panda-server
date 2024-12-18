@@ -9107,16 +9107,7 @@ class DBProxy:
         return None
 
     # insert TaskParams
-    def insertTaskParamsPanda(
-        self,
-        taskParams,
-        dn,
-        prodRole,
-        fqans,
-        parent_tid,
-        properErrorCode=False,
-        allowActiveTask=False,
-    ):
+    def insertTaskParamsPanda(self, taskParams, dn, prodRole, fqans, parent_tid, properErrorCode=False, allowActiveTask=False, decode=True):
         comment = " /* JediDBProxy.insertTaskParamsPanda */"
         try:
             methodName = "insertTaskParamsPanda"
@@ -9126,8 +9117,13 @@ class DBProxy:
                 compactDN = dn
             methodName += f" <{compactDN}>"
             _logger.debug(f"{methodName} start")
+
             # decode json
-            taskParamsJson = PrioUtil.decodeJSON(taskParams)
+            if decode:
+                taskParamsJson = PrioUtil.decodeJSON(taskParams)
+            else:
+                taskParamsJson = taskParams
+
             # set user name
             if not prodRole or "userName" not in taskParamsJson:
                 taskParamsJson["userName"] = compactDN

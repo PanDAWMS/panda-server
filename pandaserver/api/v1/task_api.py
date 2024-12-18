@@ -1,5 +1,6 @@
 import datetime
 import json
+import re
 from typing import Any, Dict, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -9,6 +10,7 @@ from pandaserver.api.v1.common import (
     MESSAGE_TASK_ID,
     generate_response,
     get_dn,
+    get_fqan,
     has_production_role,
     request_validation,
 )
@@ -780,9 +782,9 @@ def get_tasks_modified_since(req, since: str, dn: str = "", full: bool = False, 
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_files_in_datasets(req, jedi_task_id, dataset_types: List = ("input", "pseudo_input")) -> Dict[str, Any]:
+def get_datasets_and_files(req, jedi_task_id, dataset_types: List = ("input", "pseudo_input")) -> Dict[str, Any]:
     """
-    Get files in datasets
+    Get datasets and files
 
     Get the files in the datasets associated to a given task. You can filter passing a list of dataset types. The return format is:
     ```
@@ -809,7 +811,7 @@ def get_files_in_datasets(req, jedi_task_id, dataset_types: List = ("input", "ps
 
     API details:
         HTTP Method: GET
-        Path: /task/v1/get_files_in_datasets
+        Path: /task/v1/get_datasets_and_files
 
     Args:
         req(PandaRequest): internally generated request object
@@ -820,10 +822,122 @@ def get_files_in_datasets(req, jedi_task_id, dataset_types: List = ("input", "ps
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
 
-    files = global_task_buffer.get_files_in_datasets(jedi_task_id, dataset_types)
-    if files is None:
+    data = global_task_buffer.get_data_in_datasets(jedi_task_id, dataset_types)
+    if data is None:
         return generate_response(False, message="Database exception while gathering files")
-    if files == []:
-        return generate_response(False, message="No files found for the task")
+    if data == []:
+        return generate_response(False, message="No data found for the task")
 
-    return generate_response(True, data=files)
+    return generate_response(True, data=data)
+
+
+@request_validation(_logger, secure=True, request_method="GET")
+def get_job_ids(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
+    """
+    Get job IDs
+
+    Get a list with the job IDs `[job_id, ...]` (in any status) associated to a given task. Requires a secure connection.
+
+    API details:
+        HTTP Method: GET
+        Path: /task/v1/get_job_ids
+
+    Args:
+        req(PandaRequest): internally generated request object
+        jedi_task_id(int): JEDI task ID
+
+    Returns:
+        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+    """
+    try:
+        jedi_task_id = int(jedi_task_id)
+    except ValueError:
+        return generate_response(False, message=MESSAGE_TASK_ID)
+
+    job_id_list = global_task_buffer.getPandaIDsWithTaskID(jedi_task_id)
+    return generate_response(True, data=job_id_list)
+
+
+@request_validation(_logger, secure=True, request_method="POST")
+def insert_task_parameters(req: PandaRequest, task_parameters: Dict, parent_tid: int = None) -> Dict[str, Any]:
+    """
+    Register task
+
+    Insert the task parameters to register a task. Requires a secure connection.
+
+    API details:
+        HTTP Method: POST
+        Path: /task/v1/insert_task_parameters
+
+    Args:
+        req(PandaRequest): internally generated request object
+        task_parameters(dict): Dictionary with all the required task parameters.
+        parent_tid(int, optional): Parent task ID
+
+    Returns:
+        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+    """
+    tmp_log = LogWrapper(_logger, f"insertTaskParams-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+    tmp_log.debug("start")
+
+    user = get_dn(req)
+    is_production_role = has_production_role(req)
+    fqans = get_fqan(req)
+
+    tmp_log.debug(f"user={user} is_production_role={is_production_role} FQAN:{str(fqans)} parent_tid={parent_tid}")
+    ret = global_task_buffer.insertTaskParamsPanda(task_parameters, user, is_production_role, fqans, properErrorCode=True, parent_tid=parent_tid, decode=False)
+
+    code, message = ret
+    success = code == 0
+    if not success:
+        return generate_response(False, message=message, data=code)
+
+    # Extract the task ID from the message
+    jedi_task_id = None
+    match = re.search(r"jediTaskID=(\d+)", message)
+    if match:
+        try:
+            jedi_task_id = int(match.group(1))  # Convert to an integer
+        except ValueError:
+            jedi_task_id = None
+
+    return generate_response(True, message=message, data=jedi_task_id)
+
+
+@request_validation(_logger, request_method="GET")
+def get_task_parameters(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
+    """
+    Get task parameters
+
+    Get a dictionary with the task parameters used to create a task.
+
+    API details:
+        HTTP Method: GET
+        Path: /task/v1/get_task_parameters
+
+    Args:
+        req(PandaRequest): internally generated request object
+        jedi_task_id(int): JEDI task ID
+
+    Returns:
+        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+    """
+
+    # validate the task id
+    try:
+        jedi_task_id = int(jedi_task_id)
+    except Exception:
+        return generate_response(False, message=MESSAGE_TASK_ID)
+
+    # get the parameters
+    task_parameters_str = global_task_buffer.getTaskParamsMap(jedi_task_id)
+    if not task_parameters_str:
+        return generate_response(False, message="Task not found")
+
+    # decode the parameters
+    try:
+        task_parameters = json.loads(task_parameters_str)
+    except json.JSONDecodeError as e:
+        return generate_response(False, message=f"Error decoding the task parameters: {str(e)}")
+
+    return generate_response(True, data=task_parameters)
