@@ -21401,7 +21401,12 @@ class DBProxy:
             varMap = {}
             varMap[":jediTaskID"] = task_id
             sqlD = f"SELECT datasetName,datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND type IN ("
-            for tmp_type in dataset_types.split(","):
+
+            # Old API expects comma separated types, while new API is taking directly a tuple of dataset types
+            if type(dataset_types) == str:
+                dataset_types = dataset_types.split(",")
+
+            for tmp_type in dataset_types:
                 sqlD += f":{tmp_type},"
                 varMap[f":{tmp_type}"] = tmp_type
             sqlD = sqlD[:-1]

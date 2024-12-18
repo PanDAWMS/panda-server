@@ -134,7 +134,7 @@ def resume(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
     # check jedi_task_id
     try:
         jedi_task_id = int(jedi_task_id)
-    except Exception:
+    except ValueError:
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     ret = global_task_buffer.sendCommandTaskPanda(jedi_task_id, user, is_production_role, "resume", properErrorCode=True)
@@ -724,7 +724,7 @@ def change_split_rule(req: PandaRequest, jedi_task_id: int, attribute_name: str,
     # check jedi_task_id
     try:
         jedi_task_id = int(jedi_task_id)
-    except Exception:
+    except ValueError:
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     # see what the attributes mean in pandaserver/taskbuffer/task_split_rules.py
@@ -740,3 +740,90 @@ def change_split_rule(req: PandaRequest, jedi_task_id: int, attribute_name: str,
         generate_response(False, message="Task not found")
 
     return generate_response(True, message=f"{n_tasks_changed} tasks changed")
+
+
+@request_validation(_logger, secure=True, request_method="GET")
+def get_tasks_modified_since(req, since: str, dn: str = "", full: bool = False, min_task_id: int = None, prod_source_label: str = "user") -> Dict[str, Any]:
+    """
+    Get tasks modified since
+
+    Get the tasks with `modificationtime > since`. Requires a secure connection.
+
+    API details:
+        HTTP Method: GET
+        Path: /task/v1/get_tasks_modified_since
+
+    Args:
+        req(PandaRequest): internally generated request object
+        since(str): time in the format `%Y-%m-%d %H:%M:%S`, e.g. `2024-12-18 14:30:45`. The tasks with `modificationtime > since` will be returned
+        dn(str, optional): user DN
+        full(bool, optional): flag to include full task information. If `full=False` the basic fields are `jediTaskID, modificationTime, status, processingType, transUses, transHome, architecture, reqID, creationDate, site, cloud, taskName`
+        min_task_id(int, optional): minimum task ID
+        prod_source_label(str, optional): task type (e.g. `user`, `managed`, `test`, etc.)
+
+    Returns:
+        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+    """
+
+    if not dn:
+        dn = get_dn(req)
+
+    try:
+        min_task_id = int(min_task_id)
+    except ValueError:
+        min_task_id = None
+
+    _logger.debug(f"get_tasks_modified_since dn:{dn} since:{since} full:{full} min_task_id:{min_task_id} prod_source_label:{prod_source_label}")
+
+    tasks = global_task_buffer.getJediTasksInTimeRange(dn, since, full, min_task_id, prod_source_label)
+    return generate_response(True, data=tasks)
+
+
+@request_validation(_logger, secure=True, request_method="GET")
+def get_files_in_datasets(req, jedi_task_id, dataset_types: List = ("input", "pseudo_input")) -> Dict[str, Any]:
+    """
+    Get files in datasets
+
+    Get the files in the datasets associated to a given task. You can filter passing a list of dataset types. The return format is:
+    ```
+    [
+        {
+            "dataset": {
+                "name": dataset_name,
+                "id": dataset_id
+            },
+            "files": [
+                {
+                    "lfn": lfn,
+                    "scope": file_scope,
+                    "id": file_id,
+                    "status": status
+                },
+                ...
+            ]
+        },
+        ...
+    ]
+    ```
+    Requires a secure connection.
+
+    API details:
+        HTTP Method: GET
+        Path: /task/v1/get_files_in_datasets
+
+    Args:
+        req(PandaRequest): internally generated request object
+        jedi_task_id(int): JEDI task ID
+        dataset_types(List, optional): list of dataset types, defaults to `["input", "pseudo_input"]`
+
+    Returns:
+        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+    """
+
+    files = global_task_buffer.get_files_in_datasets(jedi_task_id, dataset_types)
+    if files is None:
+        return generate_response(False, message="Database exception while gathering files")
+    if files == []:
+        return generate_response(False, message="No files found for the task")
+
+    return generate_response(True, data=files)
