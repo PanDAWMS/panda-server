@@ -42,7 +42,7 @@ class TestHarvesterAPI(unittest.TestCase):
 
         data = {"harvester_id": harvester_id, "metrics": metrics}
         status, output = self.http_client.post(url, data)
-
+        print(output)
         expected_response = {"success": True, "message": "", "data": [True]}
         self.assertEqual(output, expected_response)
 
@@ -64,7 +64,7 @@ class TestHarvesterAPI(unittest.TestCase):
 
         data = {"harvester_id": harvester_id, "dialogs": dialogs}
         status, output = self.http_client.post(url, data)
-
+        print(output)
         expected_response = {"success": True, "message": "", "data": None}
         self.assertEqual(output, expected_response)
 
@@ -83,7 +83,7 @@ class TestHarvesterAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {}
         status, output = self.http_client.get(url, data)
-
+        print(output)
         # the statistics can't be predicted, so we just check the type of the response
         self.assertEqual(True, output["success"])
         self.assertEqual(dict, type(output["data"]))
@@ -93,7 +93,7 @@ class TestHarvesterAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"harvester_id": HARVESTER_ID}
         status, output = self.http_client.get(url, data)
-
+        print(output)
         # the current/max worker id can't be predicted, so we just check the type of the response
         self.assertEqual(True, output["success"])
         self.assertEqual(int, type(output["data"]))
@@ -107,7 +107,7 @@ class TestHarvesterAPI(unittest.TestCase):
         statistics = json.dumps({"user": {"SCORE": {"running": 1, "submitted": 1}}, "managed": {"MCORE": {"running": 1, "submitted": 1}}})
         data = {"harvester_id": harvester_id, "panda_queue": panda_queue, "statistics": statistics}
         status, output = self.http_client.post(url, data)
-
+        print(output)
         expected_response = {"success": True, "message": "OK", "data": None}
         self.assertEqual(output, expected_response)
 
@@ -144,7 +144,7 @@ class TestHarvesterAPI(unittest.TestCase):
         data = {"harvester_id": harvester_id, "workers": workers}
 
         status, output = self.http_client.post(url, data)
-
+        print(output)
         expected_response = {"success": True, "message": "", "data": [True]}
 
         self.assertEqual(output, expected_response)
@@ -157,7 +157,7 @@ class TestHarvesterAPI(unittest.TestCase):
         n_commands = 1
         data = {"harvester_id": harvester_id, "n_commands": n_commands}
         status, output = self.http_client.get(url, data)
-
+        print(output)
         # the commands can't be predicted, so we just check the type of the response
         self.assertEqual(True, output["success"])
         self.assertEqual(list, type(output["data"]))
@@ -168,7 +168,7 @@ class TestHarvesterAPI(unittest.TestCase):
         command_ids = [1]
         data = {"command_ids": command_ids}
         status, output = self.http_client.post(url, data)
-
+        print(output)
         expected_response = {"success": True, "message": "", "data": None}
         self.assertEqual(output, expected_response)
 
@@ -179,7 +179,7 @@ class TestHarvesterAPI(unittest.TestCase):
         slots = 0
         data = {"panda_queue": panda_queue, "slots": slots}
         status, output = self.http_client.post(url, data)
-
+        print(output)
         self.assertEqual(True, output["success"])
         self.assertEqual(None, output["data"])
 

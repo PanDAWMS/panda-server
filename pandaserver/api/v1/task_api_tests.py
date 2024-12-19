@@ -1,6 +1,7 @@
 # Description: Unit tests for the Task API methods
 import os
 import unittest
+from datetime import datetime, timedelta
 
 from pandaserver.api.v1.http_client import HttpClient, api_url, api_url_ssl
 
@@ -20,6 +21,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID}
         status, output = self.http_client.post(url, data)
+        print(output)
         output["status"] = status
         output["message"] = ""
 
@@ -36,6 +38,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID}
         status, output = self.http_client.post(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
@@ -53,6 +56,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID}
         status, output = self.http_client.post(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
@@ -70,6 +74,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID}
         status, output = self.http_client.post(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
@@ -87,6 +92,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID}
         status, output = self.http_client.post(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
@@ -105,6 +111,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID, "site": "CERN"}
         status, output = self.http_client.post(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
@@ -122,6 +129,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID}
         status, output = self.http_client.post(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
@@ -139,6 +147,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID}
         status, output = self.http_client.post(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
@@ -157,6 +166,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID, "soft": False, "broadcast": False}
         status, output = self.http_client.post(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
@@ -175,6 +185,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID}
         status, output = self.http_client.post(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
@@ -192,6 +203,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID}
         status, output = self.http_client.post(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
@@ -209,6 +221,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID, "share": "Test", "reassign_running_jobs": False}
         status, output = self.http_client.post(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
@@ -226,6 +239,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID}
         status, output = self.http_client.get(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
@@ -243,6 +257,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID, "include_parameters": False, "include_status": False}
         status, output = self.http_client.get(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
@@ -260,6 +275,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID, "attribute_name": "test", "value": 1}
         status, output = self.http_client.post(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
@@ -277,6 +293,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID, "positive_hour_offset": 1}
         status, output = self.http_client.post(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
@@ -294,6 +311,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID, "priority": 1}
         status, output = self.http_client.post(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
@@ -311,6 +329,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID, "attribute_name": "test", "value": 1}
         status, output = self.http_client.post(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
@@ -327,8 +346,14 @@ class TestTaskAPI(unittest.TestCase):
         # def get_tasks_modified_since(req, since: str, dn: str = "", full: bool = False, min_task_id: int = None, prod_source_label: str = "user") -> Dict[str, Any]:
         url = f"{api_url_ssl}/task/get_tasks_modified_since"
         print(f"Testing URL: {url}")
-        data = {"since": "2021-01-01T00:00:00", "dn": "test", "full": False, "min_task_id": 1, "prod_source_label": "user"}
+
+        # generate the date one week ago
+        one_week_ago = datetime.now() - timedelta(weeks=1)
+        one_week_ago_str = one_week_ago.strftime("%Y-%m-%d %H:%M:%S")
+
+        data = {"since": one_week_ago_str, "dn": "test", "full": False, "min_task_id": 1, "prod_source_label": "user"}
         status, output = self.http_client.get(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
@@ -342,6 +367,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID}
         status, output = self.http_client.get(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
@@ -360,6 +386,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID}
         status, output = self.http_client.get(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
@@ -378,6 +405,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"task_parameters": {"test": 1}, "parent_tid": 1}
         status, output = self.http_client.post(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
@@ -391,6 +419,7 @@ class TestTaskAPI(unittest.TestCase):
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID}
         status, output = self.http_client.get(url, data)
+        print(output)
         output["status"] = status
         del output["data"]
         del output["message"]
