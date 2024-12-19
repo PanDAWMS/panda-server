@@ -327,7 +327,7 @@ class TestTaskAPI(unittest.TestCase):
     def test_change_split_rule(self):
         url = f"{api_url_ssl}/task/change_split_rule"
         print(f"Testing URL: {url}")
-        data = {"jedi_task_id": JEDI_TASK_ID, "attribute_name": "test", "value": 1}
+        data = {"jedi_task_id": JEDI_TASK_ID, "attribute_name": "AI", "value": 1}
         status, output = self.http_client.post(url, data)
         print(output)
         output["status"] = status
@@ -384,7 +384,7 @@ class TestTaskAPI(unittest.TestCase):
         # def get_job_ids(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
         url = f"{api_url_ssl}/task/get_job_ids"
         print(f"Testing URL: {url}")
-        data = {"jedi_task_id": JEDI_TASK_ID}
+        data = {"jedi_task_id_list": [JEDI_TASK_ID]}
         status, output = self.http_client.get(url, data)
         print(output)
         output["status"] = status
