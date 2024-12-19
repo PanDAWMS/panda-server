@@ -188,7 +188,7 @@ class TestTaskAPI(unittest.TestCase):
         self.assertEqual(output, expected_response)
 
     def test_avalanche(self):
-        url = f"{api_url_ssl}/task/reactivate"
+        url = f"{api_url_ssl}/task/avalanche"
         print(f"Testing URL: {url}")
         data = {"jedi_task_id": JEDI_TASK_ID}
         status, output = self.http_client.post(url, data)
