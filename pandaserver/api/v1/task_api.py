@@ -822,7 +822,7 @@ def get_datasets_and_files(req, jedi_task_id, dataset_types: List = ("input", "p
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
 
-    data = global_task_buffer.get_data_in_datasets(jedi_task_id, dataset_types)
+    data = global_task_buffer.get_files_in_datasets(jedi_task_id, dataset_types)
     if data is None:
         return generate_response(False, message="Database exception while gathering files")
     if data == []:

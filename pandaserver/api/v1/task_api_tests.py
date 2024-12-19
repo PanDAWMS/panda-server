@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from pandaserver.api.v1.http_client import HttpClient, api_url, api_url_ssl
 
 # to run the tests with a real JEDI Task ID by setting the environment variable
-JEDI_TASK_ID = os.environ.get("TEST_TASK_API_JEDI_TASK_ID", -1)
+JEDI_TASK_ID = os.environ.get("JEDI_TASK_ID_TEST", -1)
 
 
 class TestTaskAPI(unittest.TestCase):
@@ -219,7 +219,7 @@ class TestTaskAPI(unittest.TestCase):
     def test_reassign_global_share(self):
         url = f"{api_url_ssl}/task/reassign_global_share"
         print(f"Testing URL: {url}")
-        data = {"jedi_task_id": JEDI_TASK_ID, "share": "Test", "reassign_running_jobs": False}
+        data = {"jedi_task_id_list": [JEDI_TASK_ID], "share": "Test", "reassign_running_jobs": False}
         status, output = self.http_client.post(url, data)
         print(output)
         output["status"] = status
@@ -384,7 +384,7 @@ class TestTaskAPI(unittest.TestCase):
         # def get_job_ids(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
         url = f"{api_url_ssl}/task/get_job_ids"
         print(f"Testing URL: {url}")
-        data = {"jedi_task_id_list": [JEDI_TASK_ID]}
+        data = {"jedi_task_id": [JEDI_TASK_ID]}
         status, output = self.http_client.get(url, data)
         print(output)
         output["status"] = status
