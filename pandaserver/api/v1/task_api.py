@@ -543,7 +543,7 @@ def get_status(req, jedi_task_id):
 
     ret = global_task_buffer.getTaskStatus(jedi_task_id)
     if not ret:
-        generate_response(False, message="Task not found")
+        return generate_response(False, message="Task not found")
     status = ret[0]
     return generate_response(True, data=status)
 
@@ -612,9 +612,9 @@ def change_attribute(req: PandaRequest, jedi_task_id: int, attribute_name: str, 
 
     n_tasks_changed = global_task_buffer.changeTaskAttributePanda(jedi_task_id, attribute_name, value)
     if n_tasks_changed is None:  # method excepted
-        generate_response(False, message="Exception while changing the attribute")
+        return generate_response(False, message="Exception while changing the attribute")
     if n_tasks_changed == 0:  # no tasks were changed should mean that it doesn't exist
-        generate_response(False, message="Task not found")
+        return generate_response(False, message="Task not found")
 
     return generate_response(True, message=f"{n_tasks_changed} tasks changed")
 
@@ -654,9 +654,9 @@ def change_modification_time(req: PandaRequest, jedi_task_id: int, positive_hour
 
     n_tasks_changed = global_task_buffer.changeTaskAttributePanda(jedi_task_id, "modificationTime", new_modification_time)
     if n_tasks_changed is None:  # method excepted
-        generate_response(False, message="Exception while changing the attribute")
+        return generate_response(False, message="Exception while changing the attribute")
     if n_tasks_changed == 0:  # no tasks were changed should mean that it doesn't exist
-        generate_response(False, message="Task not found")
+        return generate_response(False, message="Task not found")
 
     return generate_response(True, message=f"{n_tasks_changed} tasks changed")
 
@@ -695,9 +695,9 @@ def change_priority(req: PandaRequest, jedi_task_id: int, priority: int):
     n_tasks_changed = global_task_buffer.changeTaskPriorityPanda(jedi_task_id, priority)
 
     if n_tasks_changed is None:  # method excepted
-        generate_response(False, message="Exception while changing the priority")
+        return generate_response(False, message="Exception while changing the priority")
     if n_tasks_changed == 0:  # no tasks were changed should mean that it doesn't exist
-        generate_response(False, message="Task not found")
+        return generate_response(False, message="Task not found")
 
     return generate_response(True, message=f"{n_tasks_changed} tasks changed")
 
@@ -737,9 +737,9 @@ def change_split_rule(req: PandaRequest, jedi_task_id: int, attribute_name: str,
 
     n_tasks_changed = global_task_buffer.changeTaskSplitRulePanda(jedi_task_id, attribute_name, value)
     if n_tasks_changed is None:  # method excepted
-        generate_response(False, message="Exception while changing the priority")
+        return generate_response(False, message="Exception while changing the priority")
     if n_tasks_changed == 0:  # no tasks were changed should mean that it doesn't exist
-        generate_response(False, message="Task not found")
+        return generate_response(False, message="Task not found")
 
     return generate_response(True, message=f"{n_tasks_changed} tasks changed")
 

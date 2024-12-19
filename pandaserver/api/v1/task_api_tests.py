@@ -273,7 +273,7 @@ class TestTaskAPI(unittest.TestCase):
     def test_change_attribute(self):
         url = f"{api_url_ssl}/task/change_attribute"
         print(f"Testing URL: {url}")
-        data = {"jedi_task_id": JEDI_TASK_ID, "attribute_name": "test", "value": 1}
+        data = {"jedi_task_id": JEDI_TASK_ID, "attribute_name": "coreCount", "value": 8}
         status, output = self.http_client.post(url, data)
         print(output)
         output["status"] = status
