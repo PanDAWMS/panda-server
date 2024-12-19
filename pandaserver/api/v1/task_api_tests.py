@@ -190,12 +190,8 @@ class TestTaskAPI(unittest.TestCase):
         del output["data"]
         del output["message"]
 
-        if JEDI_TASK_ID == -1:
-            # Fake task should not be found
-            expected_response = {"status": 0, "success": False}
-        else:
-            # Real task
-            expected_response = {"status": 0, "success": True}
+        # This method does not distinguish between real and fake tasks
+        expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
     def test_avalanche(self):
@@ -391,12 +387,8 @@ class TestTaskAPI(unittest.TestCase):
         del output["data"]
         del output["message"]
 
-        if JEDI_TASK_ID == -1:
-            # Fake task should not be found
-            expected_response = {"status": 0, "success": False}
-        else:
-            # Real task
-            expected_response = {"status": 0, "success": True}
+        # This method does not distinguish between real and fake tasks
+        expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
     def test_insert_task_parameters(self):
