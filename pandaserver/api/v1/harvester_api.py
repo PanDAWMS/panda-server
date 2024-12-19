@@ -291,7 +291,7 @@ def report_worker_statistics(req: PandaRequest, harvester_id: str, panda_queue: 
     return generate_response(success, message=message)
 
 
-@request_validation(_logger, secure=True, production=True, request_method="POST")
+@request_validation(_logger, secure=True, production=True, request_method="GET")
 def get_harvester_commands(req: PandaRequest, harvester_id: str, n_commands: int, timeout: int = 30) -> Dict[str, Any]:
     """
     Get harvester commands.
@@ -333,7 +333,7 @@ def get_harvester_commands(req: PandaRequest, harvester_id: str, n_commands: int
     return generate_response(True, data=commands)
 
 
-@request_validation(_logger, secure=True, production=True, request_method="GET")
+@request_validation(_logger, secure=True, production=True, request_method="POST")
 def acknowledge_harvester_commands(req: PandaRequest, command_ids: List, timeout: int = 30) -> Dict[str, Any]:
     """
     Acknowledge harvester commands.
@@ -341,7 +341,7 @@ def acknowledge_harvester_commands(req: PandaRequest, command_ids: List, timeout
     Acknowledges the list of command IDs in the PanDA database. Requires a secure connection and production role.
 
     API details:
-        HTTP Method: GET
+        HTTP Method: POST
         Path: /v1/harvester/acknowledge_harvester_commands
 
     Args:
