@@ -123,8 +123,9 @@ def request_validation(logger, secure=False, production=False, request_method=No
 
             # check method if required
             if request_method and validate_request_method(req, request_method):
-                logger.error(f"'{func.__name__}': expecting {request_method}, received {req.subprocess_env.get('REQUEST_METHOD', None)}")
-                return generate_response(False, message=f"expecting {request_method}")
+                message = f"expecting {request_method}, received {req.subprocess_env.get('REQUEST_METHOD', None)}"
+                logger.error(f"'{func.__name__}': {message}")
+                return generate_response(False, message=message)
 
             return func(req, *args, **kwargs)
 
