@@ -2498,6 +2498,9 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                         # first transition to running
                         if oldJobStatus in ("starting", "sent") and jobStatus == "running":
                             # update lastStart
+                            sql_last_start_lock = (
+                                "SELECT lastStart FROM ATLAS_PANDAMETA.siteData " "WHERE site=:site AND hours=:hours AND flag IN (:flag1,:flag2) " ""
+                            )
                             sqlLS = "UPDATE ATLAS_PANDAMETA.siteData SET lastStart=CURRENT_DATE "
                             sqlLS += "WHERE site=:site AND hours=:hours AND flag IN (:flag1,:flag2) "
                             varMap = {}
@@ -2505,8 +2508,12 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                             varMap[":hours"] = 3
                             varMap[":flag1"] = "production"
                             varMap[":flag2"] = "analysis"
-                            self.cur.execute(sqlLS + comment, varMap)
-                            tmp_log.debug("updated lastStart")
+                            try:
+                                self.cur.execute(sql_last_start_lock + comment, varMap)
+                                self.cur.execute(sqlLS + comment, varMap)
+                                tmp_log.debug("updated lastStart")
+                            except Exception:
+                                tmp_log.debug("skip to update lastStart")
                             # record queuing period
                             if jediTaskID and get_task_queued_time(specialHandling):
                                 tmp_success = self.record_job_queuing_period(pandaID)

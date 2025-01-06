@@ -33,6 +33,8 @@ class MetricsModule(BaseModule):
         else:
             method_name, tmp_log = self.create_method_name_logger(comment, f"jediTaskID={jedi_task_id}")
         tmp_log.debug("start")
+        ### FIXME
+        return True
         try:
             if panda_id is not None:
                 table_name = "Job_Metrics"
@@ -180,6 +182,8 @@ class MetricsModule(BaseModule):
         comment = " /* DBProxy.update_task_queued_activated_times */"
         method_name, tmp_log = self.create_method_name_logger(comment, f"jediTaskID={jedi_task_id}")
         tmp_log.debug("start")
+        ### FIXME
+        return True
         # check if the task is queued
         sql_check = (
             f"SELECT status,oldStatus,queuedTime,activatedTime,currentPriority,gshare FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
@@ -264,6 +268,8 @@ class MetricsModule(BaseModule):
         comment = " /* DBProxy.record_job_queuing_period */"
         method_name, tmp_log = self.create_method_name_logger(comment, f"PandaID={panda_id}")
         tmp_log.debug(f"start with job spec: {job_spec is None}")
+        ### FIXME
+        return True
         # get task queued time
         if job_spec is None:
             sql_check = f"SELECT jediTaskID,jobStatus,specialHandling FROM {panda_config.schemaPANDA}.jobsActive4 WHERE PandaID=:PandaID "
@@ -328,6 +334,8 @@ class MetricsModule(BaseModule):
         comment = " /* DBProxy.record_task_active_period */"
         method_name, tmp_log = self.create_method_name_logger(comment, f"JediTaskID={jedi_task_id}")
         tmp_log.debug(f"start")
+        ### FIXME
+        return True
         # get activated time
         sql_check = f"SELECT status,activatedTime FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
         var_map = {":jediTaskID": jedi_task_id}
