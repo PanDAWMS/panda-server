@@ -386,6 +386,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     timeOutVal = taskBuffer.getConfigValue("job_timeout", "TIMEOUT_holding", "pandaserver")
     if not timeOutVal:
         timeOutVal = 48 * 60
+    else:
+        timeOutVal *= 60
     timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=timeOutVal)
     sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime))"
     varMap = {}

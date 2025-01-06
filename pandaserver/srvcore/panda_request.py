@@ -28,10 +28,8 @@ def decode_token(serialized_token, env, tmp_log):
                 # two formats, vo:role and vo.role
                 vo = env["HTTP_ORIGIN"]
                 # only vo.role for auth filename which is a key of auth_vo_dict
-                vo_role = vo.replace(":", ".")
             else:
                 vo = None
-                vo_role = ""
             # only vo.role for auth filename which is a key of auth_vo_dict
             vo_role = vo.replace(":", ".")
             token = token_decoder.deserialize_token(serialized_token, panda_config.auth_config, vo, tmp_log)
