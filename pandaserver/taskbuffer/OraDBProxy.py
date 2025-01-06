@@ -2499,7 +2499,9 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                         if oldJobStatus in ("starting", "sent") and jobStatus == "running":
                             # update lastStart
                             sql_last_start_lock = (
-                                "SELECT lastStart FROM ATLAS_PANDAMETA.siteData " "WHERE site=:site AND hours=:hours AND flag IN (:flag1,:flag2) " ""
+                                "SELECT lastStart FROM ATLAS_PANDAMETA.siteData "
+                                "WHERE site=:site AND hours=:hours AND flag IN (:flag1,:flag2) "
+                                "FOR UPDATE NOWAIT "
                             )
                             sqlLS = "UPDATE ATLAS_PANDAMETA.siteData SET lastStart=CURRENT_DATE "
                             sqlLS += "WHERE site=:site AND hours=:hours AND flag IN (:flag1,:flag2) "
