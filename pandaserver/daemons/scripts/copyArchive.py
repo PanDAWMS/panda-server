@@ -385,9 +385,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # check heartbeat for production jobs
     timeOutVal = taskBuffer.getConfigValue("job_timeout", "TIMEOUT_holding", "pandaserver")
     if not timeOutVal:
-        timeOutVal = 48 * 60
-    else:
-        timeOutVal *= 60
+        timeOutVal = 48
+    timeOutVal *= 60
     timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=timeOutVal)
     sql = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE jobStatus=:jobStatus AND (modificationTime<:modificationTime OR (endTime IS NOT NULL AND endTime<:endTime))"
     varMap = {}
@@ -692,7 +691,8 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # reassign defined jobs in defined table
     timeoutValue = taskBuffer.getConfigValue("job_timeout", "TIMEOUT_defined", "pandaserver")
     if not timeoutValue:
-        timeoutValue = 4 * 60
+        timeoutValue = 4
+    timeoutValue *= 60
     timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=timeoutValue)
     # get PandaIDs
     status, res = taskBuffer.lockJobsForReassign(
