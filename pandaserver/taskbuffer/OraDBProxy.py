@@ -18836,6 +18836,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                     for jobStatus in stateList:
                         ret[computingSite][resource_type].setdefault(jobStatus, 0)
 
+            tmp_log.debug("done")
             return ret
         except Exception:
             # roll back
