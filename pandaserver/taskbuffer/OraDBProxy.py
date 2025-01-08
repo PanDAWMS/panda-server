@@ -18274,7 +18274,7 @@ class DBProxy:
         # cases of test instances submitting to large queues in classic pull mode and not following commands.
         try:
             assigned_harvester_id = pq_data_des["harvester"]
-        except KeyErrorException:
+        except KeyError:
             assigned_harvester_id = None
 
         # If there is no harvester instance assigned to the queue or there are no statistics, we exit without any action
