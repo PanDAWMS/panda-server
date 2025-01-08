@@ -6245,7 +6245,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                         if state not in ret[site]:
                             ret[site][state] = 0
                 # return
-                tmp_log.debug(f"done -> {str(ret)}")
+                tmp_log.debug(f"done")
                 return ret
             except Exception:
                 # roll back
@@ -6396,7 +6396,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                     ret[cloud][jobStatus] += count
 
             # return
-            tmp_log.debug(f"done with {str(ret)}")
+            tmp_log.debug(f"done")
             return ret
         except Exception:
             # roll back
@@ -6532,7 +6532,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                         ret[cloud][processingType][jobStatus] = 0
                     ret[cloud][processingType][jobStatus] += count
             # return
-            tmp_log.debug(f"done -> {str(ret)}")
+            tmp_log.debug(f"done")
             return ret
         except Exception:
             # roll back
@@ -18921,7 +18921,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                         for jobStatus in stateList:
                             ret[computingSite][prodSourceLabel][resource_type].setdefault(jobStatus, 0)
             # return
-            tmp_log.debug(f"{str(ret)}")
+            tmp_log.debug(f"done")
             return ret
         except Exception:
             # roll back
