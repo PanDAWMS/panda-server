@@ -6113,7 +6113,11 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         minPriority=None,
     ):
         comment = " /* DBProxy.getJobStatistics */"
-        _logger.debug(f"getJobStatistics({archived},{predefined},'{workingGroup}','{countryGroup}','{jobType}',{forAnal},{minPriority})")
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        method_name += f" < archived={archived} predefined={predefined} workingGroup={workingGroup} countryGroup={countryGroup} jobType={jobType} forAnal={forAnal} minPriority={minPriority} >"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+
         timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
         sql0 = "SELECT computingSite,jobStatus,COUNT(*) FROM %s "
         # processingType
@@ -6211,7 +6215,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                             sqlExeTmp = (sqlMV + comment) % f"{panda_config.schemaPANDA}.MV_JOBSACTIVE4_STATS"
                         else:
                             sqlExeTmp = (sql0 + comment) % table
-                        _logger.debug(f"getJobStatistics : {sqlExeTmp} {str(varMap)}")
+                        tmp_log.debug(f" will execute: {sqlExeTmp} {str(varMap)}")
                         self.cur.execute(sqlExeTmp, varMap)
                     else:
                         varMap[":modificationTime"] = timeLimit
@@ -6241,17 +6245,17 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                         if state not in ret[site]:
                             ret[site][state] = 0
                 # return
-                _logger.debug(f"getJobStatistics -> {str(ret)}")
+                tmp_log.debug(f"done -> {str(ret)}")
                 return ret
             except Exception:
                 # roll back
                 self._rollback()
                 if iTry + 1 < nTry:
-                    _logger.debug(f"getJobStatistics() retry : {iTry}")
+                    tmp_log.debug(f"retry: {iTry}")
                     time.sleep(2)
                     continue
                 type, value, traceBack = sys.exc_info()
-                _logger.error(f"getJobStatistics : {type} {value}")
+                tmp_log.error(f"excepted: {type} {value}")
                 return {}
 
     # get the number of job for a user
@@ -6307,13 +6311,20 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
     # get job statistics for ExtIF
     def getJobStatisticsForExtIF(self, sourcetype=None):
         comment = " /* DBProxy.getJobStatisticsForExtIF */"
-        _logger.debug("getJobStatisticsForExtIF()")
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        method_name += f" < sourcetype={sourcetype} >"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+
         timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
+
+        # analysis
         if sourcetype == "analysis":
             sql0 = "SELECT jobStatus,COUNT(*), cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1, :prodSourceLabel2) GROUP BY jobStatus, cloud"
 
             sqlA = "SELECT /* use_json_type */ /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
             sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.computingSite=tabS.panda_queue "
+        # production
         else:
             sql0 = "SELECT /* use_json_type */ tab.jobStatus, COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
             sql0 += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
@@ -6331,11 +6342,14 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 sqlA += ","
             sqlA = sqlA[:-1]
             sqlA += ") AND tab.computingSite=tabS.panda_queue "
+
         sqlA += "AND modificationTime>:modificationTime GROUP BY tab.jobStatus,tabS.data.cloud"
+
         # sql for materialized view
         sqlMV = re.sub("COUNT\(\*\)", "SUM(num_of_jobs)", sql0)
         sqlMV = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sqlMV)
         ret = {}
+
         try:
             for table in (
                 "ATLAS_PANDA.jobsActive4",
@@ -6355,6 +6369,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                     for tmpLabel in JobUtils.list_ptest_prod_sources:
                         tmpKey = f":prodSourceLabel_{tmpLabel}"
                         varMap[tmpKey] = tmpLabel
+
                 if table != "ATLAS_PANDA.jobsArchived4":
                     self.cur.arraysize = 10000
                     if table == "ATLAS_PANDA.jobsActive4":
@@ -6369,32 +6384,37 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                     self.cur.arraysize = 10000
                     self.cur.execute((sqlA + comment) % table, varMap)
                 res = self.cur.fetchall()
+
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
-                # change NULL to US for old jobs
-                newRes = []
-                usMap = {}
+
+                # create map
                 for jobStatus, count, cloud in res:
                     ret.setdefault(cloud, dict())
                     ret[cloud].setdefault(jobStatus, 0)
                     ret[cloud][jobStatus] += count
+
             # return
-            _logger.debug(f"getJobStatisticsForExtIF -> {str(ret)}")
+            tmp_log.debug(f"done with {str(ret)}")
             return ret
         except Exception:
             # roll back
             self._rollback()
             # error
             type, value, traceBack = sys.exc_info()
-            _logger.error(f"getJobStatisticsForExtIF : {type} {value}")
+            tmp_log.error(f"excepted with : {type} {value}")
             return {}
 
     # get job statistics per processingType
     def getJobStatisticsPerProcessingType(self, useMorePG=False):
         comment = " /* DBProxy.getJobStatisticsPerProcessingType */"
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        method_name += f" < useMorePG={useMorePG} >"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+
         timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
-        _logger.debug("getJobStatisticsPerProcessingType()")
         if useMorePG is False:
             sqlN = "SELECT /* use_json_type */ jobStatus, COUNT(*), tabS.data.cloud, processingType "
             sqlN += "FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
@@ -6512,14 +6532,14 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                         ret[cloud][processingType][jobStatus] = 0
                     ret[cloud][processingType][jobStatus] += count
             # return
-            _logger.debug(f"getJobStatisticsPerProcessingType -> {str(ret)}")
+            tmp_log.debug(f"done -> {str(ret)}")
             return ret
         except Exception:
             # roll back
             self._rollback()
             # error
             type, value, traceBack = sys.exc_info()
-            _logger.error(f"getJobStatisticsPerProcessingType : {type} {value}")
+            _logger.error(f"excepted : {type} {value}")
             return {}
 
     # update site data
@@ -18309,7 +18329,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         # cases of test instances submitting to large queues in classic pull mode and not following commands.
         try:
             assigned_harvester_id = pq_data_des["harvester"]
-        except KeyErrorException:
+        except KeyError:
             assigned_harvester_id = None
 
         # If there is no harvester instance assigned to the queue or there are no statistics, we exit without any action
