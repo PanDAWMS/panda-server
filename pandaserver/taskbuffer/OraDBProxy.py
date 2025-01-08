@@ -6316,6 +6316,7 @@ class DBProxy:
                 sql0 += ","
             sql0 = sql0[:-1]
             sql0 += ") AND tab.computingSite=tabS.panda_queue GROUP BY tab.jobStatus, tabS.data.cloud"
+
             sqlA = "SELECT /* use_json_type */ /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus, COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
             sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
             for tmpLabel in JobUtils.list_ptest_prod_sources:
