@@ -6114,7 +6114,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
     ):
         comment = " /* DBProxy.getJobStatistics */"
         method_name = comment.split(" ")[-2].split(".")[-1]
-        method_name += f" < archived={archived} predefined={predefined} workingGroup={workingGroup} countryGroup={countryGroup} jobType={jobType} forAnal={forAnal} minPriority={minPriority} >"
+        method_name += f" < archived={archived} predefined={predefined} workingGroup='{workingGroup}' countryGroup='{countryGroup}' jobType='{jobType}' forAnal={forAnal} minPriority={minPriority} >"
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")
 
