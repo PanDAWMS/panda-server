@@ -37,10 +37,15 @@ from pandaserver.taskbuffer import (
     task_split_rules,
 )
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
+from pandaserver.taskbuffer.db_proxy_mods import metrics_module, task_module
 from pandaserver.taskbuffer.DdmSpec import DdmSpec
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.HarvesterMetricsSpec import HarvesterMetricsSpec
-from pandaserver.taskbuffer.JobSpec import JobSpec, push_status_changes
+from pandaserver.taskbuffer.JobSpec import (
+    JobSpec,
+    get_task_queued_time,
+    push_status_changes,
+)
 from pandaserver.taskbuffer.ResourceSpec import (
     BASIC_RESOURCE_TYPE,
     ResourceSpec,
@@ -124,29 +129,16 @@ def convert_dict_to_bind_vars(item):
     return ret
 
 
-# create method name and logger
-def create_method_name_logger(comment: str, tag: str = None) -> tuple[str, LogWrapper]:
-    """
-    create method name and logger from function comment
-    param comment: comment of the function
-    param tag: tag to add to the method name
-    return: (method name, log wrapper)
-    """
-    method_name = comment.split(" ")[-2].split(".")[-1]
-    if tag is not None:
-        method_name += f"< {tag} >"
-    tmp_log = LogWrapper(_logger, method_name)
-    return method_name, tmp_log
-
-
 # topics in SQL_QUEUE
 SQL_QUEUE_TOPIC_async_dataset_update = "async_dataset_update"
 
 
 # proxy
-class DBProxy:
+class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
     # constructor
     def __init__(self, useOtherError=False):
+        # init modules
+        super().__init__(_logger)
         # connection object
         self.conn = None
         # cursor object
@@ -2503,8 +2495,14 @@ class DBProxy:
                                 varMap[":ngType2"] = "trn_output"
                                 tmp_log.debug(sqlJediDU + comment + str(varMap))
                                 self.cur.execute(sqlJediDU + comment, varMap)
-                        # update lastStart
+                        # first transition to running
                         if oldJobStatus in ("starting", "sent") and jobStatus == "running":
+                            # update lastStart
+                            sql_last_start_lock = (
+                                "SELECT lastStart FROM ATLAS_PANDAMETA.siteData "
+                                "WHERE site=:site AND hours=:hours AND flag IN (:flag1,:flag2) "
+                                "FOR UPDATE NOWAIT "
+                            )
                             sqlLS = "UPDATE ATLAS_PANDAMETA.siteData SET lastStart=CURRENT_DATE "
                             sqlLS += "WHERE site=:site AND hours=:hours AND flag IN (:flag1,:flag2) "
                             varMap = {}
@@ -2512,8 +2510,17 @@ class DBProxy:
                             varMap[":hours"] = 3
                             varMap[":flag1"] = "production"
                             varMap[":flag2"] = "analysis"
-                            self.cur.execute(sqlLS + comment, varMap)
-                            tmp_log.debug("updated lastStart")
+                            try:
+                                self.cur.execute(sql_last_start_lock + comment, varMap)
+                                self.cur.execute(sqlLS + comment, varMap)
+                                tmp_log.debug("updated lastStart")
+                            except Exception:
+                                tmp_log.debug("skip to update lastStart")
+                            # record queuing period
+                            if jediTaskID and get_task_queued_time(specialHandling):
+                                tmp_success = self.record_job_queuing_period(pandaID)
+                                if tmp_success is True:
+                                    tmp_log.debug("recorded queuing period")
                         # update input
                         if updatedFlag and jediTaskID is not None and jobStatus == "running" and oldJobStatus != jobStatus:
                             self.updateInputStatusJedi(jediTaskID, pandaID, jobStatus)
@@ -6106,7 +6113,11 @@ class DBProxy:
         minPriority=None,
     ):
         comment = " /* DBProxy.getJobStatistics */"
-        _logger.debug(f"getJobStatistics({archived},{predefined},'{workingGroup}','{countryGroup}','{jobType}',{forAnal},{minPriority})")
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        method_name += f" < archived={archived} predefined={predefined} workingGroup='{workingGroup}' countryGroup='{countryGroup}' jobType='{jobType}' forAnal={forAnal} minPriority={minPriority} >"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+
         timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
         sql0 = "SELECT computingSite,jobStatus,COUNT(*) FROM %s "
         # processingType
@@ -6204,7 +6215,7 @@ class DBProxy:
                             sqlExeTmp = (sqlMV + comment) % f"{panda_config.schemaPANDA}.MV_JOBSACTIVE4_STATS"
                         else:
                             sqlExeTmp = (sql0 + comment) % table
-                        _logger.debug(f"getJobStatistics : {sqlExeTmp} {str(varMap)}")
+                        tmp_log.debug(f" will execute: {sqlExeTmp} {str(varMap)}")
                         self.cur.execute(sqlExeTmp, varMap)
                     else:
                         varMap[":modificationTime"] = timeLimit
@@ -6234,17 +6245,17 @@ class DBProxy:
                         if state not in ret[site]:
                             ret[site][state] = 0
                 # return
-                _logger.debug(f"getJobStatistics -> {str(ret)}")
+                tmp_log.debug(f"done")
                 return ret
             except Exception:
                 # roll back
                 self._rollback()
                 if iTry + 1 < nTry:
-                    _logger.debug(f"getJobStatistics() retry : {iTry}")
+                    tmp_log.debug(f"retry: {iTry}")
                     time.sleep(2)
                     continue
                 type, value, traceBack = sys.exc_info()
-                _logger.error(f"getJobStatistics : {type} {value}")
+                tmp_log.error(f"excepted: {type} {value}")
                 return {}
 
     # get the number of job for a user
@@ -6300,13 +6311,20 @@ class DBProxy:
     # get job statistics for ExtIF
     def getJobStatisticsForExtIF(self, sourcetype=None):
         comment = " /* DBProxy.getJobStatisticsForExtIF */"
-        _logger.debug("getJobStatisticsForExtIF()")
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        method_name += f" < sourcetype={sourcetype} >"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+
         timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
+
+        # analysis
         if sourcetype == "analysis":
             sql0 = "SELECT jobStatus,COUNT(*), cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1, :prodSourceLabel2) GROUP BY jobStatus, cloud"
 
             sqlA = "SELECT /* use_json_type */ /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
             sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.computingSite=tabS.panda_queue "
+        # production
         else:
             sql0 = "SELECT /* use_json_type */ tab.jobStatus, COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
             sql0 += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
@@ -6325,11 +6343,14 @@ class DBProxy:
                 sqlA += ","
             sqlA = sqlA[:-1]
             sqlA += ") AND tab.computingSite=tabS.panda_queue "
+
         sqlA += "AND modificationTime>:modificationTime GROUP BY tab.jobStatus,tabS.data.cloud"
+
         # sql for materialized view
         sqlMV = re.sub("COUNT\(\*\)", "SUM(num_of_jobs)", sql0)
         sqlMV = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sqlMV)
         ret = {}
+
         try:
             for table in (
                 "ATLAS_PANDA.jobsActive4",
@@ -6349,6 +6370,7 @@ class DBProxy:
                     for tmpLabel in JobUtils.list_ptest_prod_sources:
                         tmpKey = f":prodSourceLabel_{tmpLabel}"
                         varMap[tmpKey] = tmpLabel
+
                 if table != "ATLAS_PANDA.jobsArchived4":
                     self.cur.arraysize = 10000
                     if table == "ATLAS_PANDA.jobsActive4":
@@ -6363,32 +6385,37 @@ class DBProxy:
                     self.cur.arraysize = 10000
                     self.cur.execute((sqlA + comment) % table, varMap)
                 res = self.cur.fetchall()
+
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
-                # change NULL to US for old jobs
-                newRes = []
-                usMap = {}
+
+                # create map
                 for jobStatus, count, cloud in res:
                     ret.setdefault(cloud, dict())
                     ret[cloud].setdefault(jobStatus, 0)
                     ret[cloud][jobStatus] += count
+
             # return
-            _logger.debug(f"getJobStatisticsForExtIF -> {str(ret)}")
+            tmp_log.debug(f"done")
             return ret
         except Exception:
             # roll back
             self._rollback()
             # error
             type, value, traceBack = sys.exc_info()
-            _logger.error(f"getJobStatisticsForExtIF : {type} {value}")
+            tmp_log.error(f"excepted with : {type} {value}")
             return {}
 
     # get job statistics per processingType
     def getJobStatisticsPerProcessingType(self, useMorePG=False):
         comment = " /* DBProxy.getJobStatisticsPerProcessingType */"
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        method_name += f" < useMorePG={useMorePG} >"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+
         timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
-        _logger.debug("getJobStatisticsPerProcessingType()")
         if useMorePG is False:
             sqlN = "SELECT /* use_json_type */ jobStatus, COUNT(*), tabS.data.cloud, processingType "
             sqlN += "FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
@@ -6506,14 +6533,14 @@ class DBProxy:
                         ret[cloud][processingType][jobStatus] = 0
                     ret[cloud][processingType][jobStatus] += count
             # return
-            _logger.debug(f"getJobStatisticsPerProcessingType -> {str(ret)}")
+            tmp_log.debug(f"done")
             return ret
         except Exception:
             # roll back
             self._rollback()
             # error
             type, value, traceBack = sys.exc_info()
-            _logger.error(f"getJobStatisticsPerProcessingType : {type} {value}")
+            _logger.error(f"excepted : {type} {value}")
             return {}
 
     # update site data
@@ -8173,7 +8200,7 @@ class DBProxy:
         datasetContentsStat = {}
         # loop over all files
         finishUnmerge = set()
-        hasInput = False
+        trigger_reattempt = False
         tmpLog.debug(f"waitLock={waitLock} async_params={async_params}")
         # make pseudo files for dynamic number of events
         if EventServiceUtils.isDynNumEventsSH(jobSpec.specialHandling):
@@ -8449,6 +8476,7 @@ class DBProxy:
                                 elif fileSpec.status != "merging":
                                     # decrement nUsed to trigger reattempt
                                     datasetContentsStat[datasetID]["nFilesUsed"] -= 1
+                                    trigger_reattempt = True
                                 else:
                                     # increment nTobeUsed to trigger merging
                                     datasetContentsStat[datasetID]["nFilesTobeUsed"] += 1
@@ -8616,6 +8644,23 @@ class DBProxy:
                             toSet = self.checkFailureCountWithCorruptedFiles(jobSpec.jediTaskID, jobSpec.PandaID)
                         if toSet:
                             self.setCorruptedEventRanges(jobSpec.jediTaskID, jobSpec.PandaID)
+        # update task queued time
+        if trigger_reattempt and get_task_queued_time(jobSpec.specialHandling):
+            sql_update_tq = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET queuedTime=CURRENT_DATE WHERE jediTaskID=:jediTaskID AND queuedTime IS NULL "
+            var_map = {":jediTaskID": jobSpec.jediTaskID}
+            tmpLog.debug(sql_update_tq + comment + str(var_map))
+            if async_params is not None:
+                self.insert_to_query_pool(
+                    SQL_QUEUE_TOPIC_async_dataset_update,
+                    async_params["PandaID"],
+                    async_params["jediTaskID"],
+                    sql_update_tq,
+                    var_map,
+                    async_params["exec_order"],
+                )
+                async_params["exec_order"] += 1
+            else:
+                cur.execute(sql_update_tq + comment, var_map)
         # add jobset info for job cloning
         if useJobCloning:
             self.recordRetryHistoryJEDI(
@@ -8717,6 +8762,13 @@ class DBProxy:
             tmpLog.debug(f"calculated gCO2 regional {gco2_regional} and global {gco2_global}")
         except Exception:
             tmpLog.error(f"failed calculating gCO2 with {traceback.format_exc()}")
+
+        # task and job metrics
+        if get_task_queued_time(jobSpec.specialHandling):
+            # update task queued time
+            self.update_task_queued_activated_times(jobSpec.jediTaskID)
+            # record job queuing time if the job didn't start running
+            self.record_job_queuing_period(jobSpec.PandaID, jobSpec)
 
         # return
         return True
@@ -18781,6 +18833,7 @@ class DBProxy:
                     for jobStatus in stateList:
                         ret[computingSite][resource_type].setdefault(jobStatus, 0)
 
+            tmp_log.debug("done")
             return ret
         except Exception:
             # roll back
@@ -18866,7 +18919,7 @@ class DBProxy:
                         for jobStatus in stateList:
                             ret[computingSite][prodSourceLabel][resource_type].setdefault(jobStatus, 0)
             # return
-            tmp_log.debug(f"{str(ret)}")
+            tmp_log.debug(f"done")
             return ret
         except Exception:
             # roll back
@@ -20628,35 +20681,24 @@ class DBProxy:
             self.job_prio_boost_dict = {}
             # get configs
             tmpLog = LogWrapper(_logger, methodName)
-            # sql to get configs
-            sqlC = "SELECT value FROM ATLAS_PANDA.Config " "WHERE app=:app AND component=:component AND vo=:vo AND key LIKE :key "
-            # start transaction
-            self.conn.begin()
-            varMap = {}
-            varMap[":app"] = "pandaserver"
-            varMap[":component"] = "dbproxy"
-            varMap[":vo"] = vo
-            varMap[":key"] = "USER_JOB_PRIO_BOOST_LIST_%"
-            self.cur.execute(sqlC + comment, varMap)
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
+            # get dicts
+            res_dicts = self.getConfigValue("dbproxy", "USER_JOB_PRIO_BOOST_DICTS", "pandaserver")
             # parse list
-            for (tmp_data,) in res:
-                if tmp_data:
-                    for tmp_item in tmp_data.split(","):
-                        try:
-                            tmp_name, tmp_type, tmp_prio, tmp_expire = tmp_item.split(":")
-                            # check expiration
-                            if tmp_expire:
-                                tmp_expire = datetime.datetime.strptime(tmp_expire, "%Y%m%d")
-                                if tmp_expire < datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None):
-                                    continue
-                            self.job_prio_boost_dict.setdefault(tmp_type, {})
-                            self.job_prio_boost_dict[tmp_type][tmp_name] = int(tmp_prio)
-                        except Exception as e:
-                            tmpLog.error(str(e))
+            for tmp_item in res_dicts:
+                try:
+                    tmp_name = tmp_item["name"]
+                    tmp_type = tmp_item["type"]
+                    tmp_prio = tmp_item["prio"]
+                    tmp_expire = tmp_item.get("expire", None)
+                    # check expiration
+                    if tmp_expire:
+                        tmp_expire = datetime.datetime.strptime(tmp_expire, "%Y%m%d")
+                        if tmp_expire < datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None):
+                            continue
+                    self.job_prio_boost_dict.setdefault(tmp_type, {})
+                    self.job_prio_boost_dict[tmp_type][tmp_name] = int(tmp_prio)
+                except Exception as e:
+                    tmpLog.error(str(e))
             tmpLog.debug(f"got {self.job_prio_boost_dict}")
             return self.job_prio_boost_dict
         except Exception:
@@ -21538,7 +21580,7 @@ class DBProxy:
     def async_update_datasets(self, panda_id):
         comment = " /* DBProxy.async_update_datasets */"
         methodName = comment.split(" ")[-2].split(".")[-1]
-        methodName += f" < ID={panda_id} >"
+        methodName += f" < PandaID={panda_id} >"
         tmpLog = LogWrapper(_logger, methodName)
         tmpLog.debug("start")
         try:
@@ -21657,273 +21699,3 @@ class DBProxy:
             pseudo_files.append(tmpFileSpec)
         tmp_log.debug(f"{len(pseudo_files)} pseudo files")
         return pseudo_files
-
-    # set job or task metrics
-    def set_workload_metrics(self, jedi_task_id: int, panda_id: int | None, metrics: dict, use_commit: bool = True) -> bool:
-        """
-        Set job or task metrics
-
-        :param jedi_task_id: jediTaskID
-        :param panda_id: PandaID. None to set task
-        :param metrics: metrics data
-        :param use_commit: use commit
-        :return: True if success
-        """
-        comment = " /* DBProxy.set_workload_metrics */"
-        if panda_id is not None:
-            method_name, tmp_log = create_method_name_logger(comment, f"jediTaskID={jedi_task_id} PandaID={panda_id}")
-        else:
-            method_name, tmp_log = create_method_name_logger(comment, f"jediTaskID={jedi_task_id}")
-        tmp_log.debug("start")
-        try:
-            if panda_id is not None:
-                table_name = "Job_Metrics"
-                var_map = {":jediTaskID": jedi_task_id, ":PandaID": panda_id}
-            else:
-                table_name = "Task_Metrics"
-                var_map = {":jediTaskID": jedi_task_id}
-            # check if data is already there
-            sql_check = f"SELECT data FROM {panda_config.schemaPANDA}.{table_name} WHERE jediTaskID=:jediTaskID "
-            if panda_id is not None:
-                sql_check += "AND PandaID=:PandaID "
-            # insert data
-            sql_insert = f"INSERT INTO {panda_config.schemaPANDA}.{table_name} "
-            if panda_id is not None:
-                sql_insert += "(jediTaskID,PandaID,creationTime,modificationTime,data) VALUES(:jediTaskID,:PandaID,CURRENT_DATE,CURRENT_DATE,:data) "
-            else:
-                sql_insert += "(jediTaskID,creationTime,modificationTime,data) VALUES(:jediTaskID,CURRENT_DATE,CURRENT_DATE,:data) "
-            # update data
-            sql_update = f"UPDATE {panda_config.schemaPANDA}.{table_name} SET modificationTime=CURRENT_DATE,data=:data WHERE jediTaskID=:jediTaskID "
-            if panda_id is not None:
-                sql_update += "AND PandaID=:PandaID "
-            # start transaction
-            if use_commit:
-                self.conn.begin()
-            # check if data is already there
-            self.cur.execute(sql_check + comment, var_map)
-            # read data
-            tmp_data = None
-            for (clob_data,) in self.cur:
-                try:
-                    tmp_data = clob_data.read()
-                except AttributeError:
-                    tmp_data = str(clob_data)
-                break
-            if not tmp_data:
-                # insert new data
-                var_map[":data"] = json.dumps(metrics)
-                self.cur.execute(sql_insert + comment, var_map)
-                tmp_log.debug("inserted")
-            else:
-                # update existing data
-                tmp_data = json.loads(tmp_data)
-                tmp_data.update(metrics)
-                var_map[":data"] = json.dumps(tmp_data)
-                self.cur.execute(sql_update + comment, var_map)
-                tmp_log.debug("updated")
-            if use_commit:
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-            tmp_log.debug("done")
-            return True
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, method_name)
-            return False
-
-    # get job or task metrics
-    def get_workload_metrics(self, jedi_task_id: int, panda_id: int | None) -> tuple[bool, dict | None]:
-        """
-        Get job metrics or task metrics
-
-        :param jedi_task_id: jediTaskID
-        :param panda_id: PandaID. None to get task metrics
-        :return: (False, None) if failed, otherwise (True, metrics)
-        """
-        comment = " /* DBProxy.get_workload_metrics */"
-        if panda_id is not None:
-            method_name, tmp_log = create_method_name_logger(comment, f"jediTaskID={jedi_task_id} PandaID={panda_id}")
-        else:
-            method_name, tmp_log = create_method_name_logger(comment, f"jediTaskID={jedi_task_id}")
-        tmp_log.debug("start")
-        try:
-            if panda_id is not None:
-                table_name = "Job_Metrics"
-                var_map = {":jediTaskID": jedi_task_id, ":PandaID": panda_id}
-            else:
-                table_name = "Task_Metrics"
-                var_map = {":jediTaskID": jedi_task_id}
-            # get data
-            sql_get = f"SELECT data FROM {panda_config.schemaPANDA}.{table_name} WHERE jediTaskID=:jediTaskID "
-            if panda_id is not None:
-                sql_get += "AND PandaID=:PandaID "
-            self.cur.execute(sql_get + comment, var_map)
-            # read data
-            metrics = None
-            for (clob_data,) in self.cur:
-                try:
-                    metrics = clob_data.read()
-                except AttributeError:
-                    metrics = str(clob_data)
-                break
-            if metrics is not None:
-                metrics = json.loads(metrics)
-                tmp_log.debug(f"got {sys.getsizeof(metrics)} bytes")
-            else:
-                tmp_log.debug("no data")
-            return True, metrics
-        except Exception:
-            # error
-            self.dumpErrorMessage(_logger, method_name)
-            return False, None
-
-    # get jobs' metrics in a task
-    def get_jobs_metrics_in_task(self, jedi_task_id: int) -> tuple[bool, list | None]:
-        """
-        Get metrics of jobs in a task
-
-        :param jedi_task_id: jediTaskID
-        :return: (False, None) if failed, otherwise (True, list of [PandaID, metrics])
-        """
-        comment = " /* DBProxy.get_jobs_metrics_in_task */"
-        method_name, tmp_log = create_method_name_logger(comment, f"jediTaskID={jedi_task_id}")
-        tmp_log.debug("start")
-        try:
-            table_name = "Job_Metrics"
-            var_map = {":jediTaskID": jedi_task_id}
-            # get data
-            sql_get = f"SELECT PandaID,data FROM {panda_config.schemaPANDA}.Job_Metrics WHERE jediTaskID=:jediTaskID "
-            self.cur.execute(sql_get + comment, var_map)
-            # read data
-            metrics_list = []
-            for panda_id, clob_data in self.cur:
-                try:
-                    tmp_data = clob_data.read()
-                except AttributeError:
-                    tmp_data = str(clob_data)
-                metrics_list.append([panda_id, json.loads(tmp_data)])
-            tmp_log.debug(f"got metrics for {len(metrics_list)} jobs")
-            return True, metrics_list
-        except Exception:
-            # error
-            self.dumpErrorMessage(_logger, method_name)
-            return False, None
-
-    # enable job cloning
-    def enable_job_cloning(self, jedi_task_id: int, mode: str = None, multiplicity: int = None, num_sites: int = None) -> tuple[bool, str]:
-        """
-        Enable job cloning for a task
-
-        :param jedi_task_id: jediTaskID
-        :param mode: mode of cloning, runonce or storeonce
-        :param multiplicity: number of jobs to be created for each target
-        :param num_sites: number of sites to be used for each target
-        :return: (True, None) if success otherwise (False, error message)
-        """
-        comment = " /* DBProxy.enable_job_cloning */"
-        method_name, tmp_log = create_method_name_logger(comment, f"jediTaskID={jedi_task_id}")
-        tmp_log.debug("start")
-        try:
-            ret_value = (True, None)
-            # start transaction
-            self.conn.begin()
-            # get current split rule
-            sql_check = f"SELECT splitRule FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
-            var_map = {":jediTaskID": jedi_task_id}
-            self.cur.execute(sql_check + comment, var_map)
-            res = self.cur.fetchone()
-            if not res:
-                # not found
-                ret_value = (False, "task not found")
-            else:
-                (split_rule,) = res
-                # set default values
-                if mode is None:
-                    mode = "runonce"
-                if multiplicity is None:
-                    multiplicity = 2
-                if num_sites is None:
-                    num_sites = 2
-                # ID of job cloning mode
-                mode_id = EventServiceUtils.getJobCloningValue(mode)
-                if mode_id == "":
-                    ret_value = (False, f"invalid job cloning mode: {mode}")
-                else:
-                    # set mode
-                    split_rule = task_split_rules.replace_rule(split_rule, "useJobCloning", mode_id)
-                    # set semaphore size
-                    split_rule = task_split_rules.replace_rule(split_rule, "nEventsPerWorker", 1)
-                    # set job multiplicity
-                    split_rule = task_split_rules.replace_rule(split_rule, "nEsConsumers", multiplicity)
-                    # set number of sites
-                    split_rule = task_split_rules.replace_rule(split_rule, "nSitesPerJob", num_sites)
-                    # update split rule and event service flag
-                    sql_update = (
-                        f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET splitRule=:splitRule,eventService=:eventService WHERE jediTaskID=:jediTaskID "
-                    )
-                    var_map = {":jediTaskID": jedi_task_id, ":splitRule": split_rule, ":eventService": EventServiceUtils.TASK_JOB_CLONING}
-                    self.cur.execute(sql_update + comment, var_map)
-                    if not self.cur.rowcount:
-                        ret_value = (False, "failed to update task")
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            tmp_log.debug("done")
-            return ret_value
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, method_name)
-            return False, "failed to enable job cloning"
-
-    # disable job cloning
-    def disable_job_cloning(self, jedi_task_id: int) -> tuple[bool, str]:
-        """
-        Disable job cloning for a task
-
-        :param jedi_task_id: jediTaskID
-        :return: (True, None) if success otherwise (False, error message)
-        """
-        comment = " /* DBProxy.disable_job_cloning */"
-        method_name, tmp_log = create_method_name_logger(comment, f"jediTaskID={jedi_task_id}")
-        tmp_log.debug("start")
-        try:
-            ret_value = (True, None)
-            # start transaction
-            self.conn.begin()
-            # get current split rule
-            sql_check = f"SELECT splitRule FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
-            var_map = {":jediTaskID": jedi_task_id}
-            self.cur.execute(sql_check + comment, var_map)
-            res = self.cur.fetchone()
-            if not res:
-                # not found
-                ret_value = (False, "task not found")
-            else:
-                (split_rule,) = res
-                # remove job cloning related rules
-                split_rule = task_split_rules.remove_rule_with_name(split_rule, "useJobCloning")
-                split_rule = task_split_rules.remove_rule_with_name(split_rule, "nEventsPerWorker")
-                split_rule = task_split_rules.remove_rule_with_name(split_rule, "nEsConsumers")
-                split_rule = task_split_rules.remove_rule_with_name(split_rule, "nSitesPerJob")
-                # update split rule and event service flag
-                sql_update = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET splitRule=:splitRule,eventService=:eventService WHERE jediTaskID=:jediTaskID "
-                var_map = {":jediTaskID": jedi_task_id, ":splitRule": split_rule, ":eventService": EventServiceUtils.TASK_NORMAL}
-                self.cur.execute(sql_update + comment, var_map)
-                if not self.cur.rowcount:
-                    ret_value = (False, "failed to update task")
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            tmp_log.debug("done")
-            return ret_value
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, method_name)
-            return False, "failed to disable job cloning"
