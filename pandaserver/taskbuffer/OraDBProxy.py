@@ -6122,12 +6122,18 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")
 
-        sql_template = "SELECT computingSite, jobStatus, COUNT(*) " f"FROM {{table_name}} " "GROUP BY computingSite, jobStatus"
+        # tables to query
         jobs_active_4_table = f"{panda_config.schemaPANDA}.jobsActive4"
         jobs_defined_4_table = f"{panda_config.schemaPANDA}.jobsDefined4"
         tables = [jobs_active_4_table, jobs_defined_4_table]
 
-        # sql for materialized view
+        # states that are necessary and irrelevant states
+        necessary_states = ["assigned", "activated", "running"]
+        ignored_states = ["merging"]
+
+        # sql template for jobs table
+        sql_template = "SELECT computingSite, jobStatus, COUNT(*) " f"FROM {{table_name}} " "GROUP BY computingSite, jobStatus"
+        # sql template for statistics table (materialized view)
         sql_mv_template = sql_template.replace("COUNT(*)", "SUM(num_of_jobs)")
         sql_mv_template = sql_mv_template.replace("SELECT ", "SELECT /*+ RESULT_CACHE */ ")
         ret = {}
@@ -6149,7 +6155,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                     else:
                         table_name = table
                         sql = (sql_template + comment).format(table_name=table_name)
-                    tmp_log.debug(f"Will execute: {sql_tmp} {str(var_map)}")
+                    tmp_log.debug(f"Will execute: {sql} {str(var_map)}")
 
                     self.cur.execute(sql, var_map)
                     res = self.cur.fetchall()
@@ -6158,13 +6164,12 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
 
                     # create map
                     for computing_site, job_status, n_jobs in res:
-                        if job_status in ["merging"]:  # ignore some job status since they break APF
+                        if job_status in ignored_states:  # ignore some job status since they break APF
                             continue
                         ret.setdefault(computing_site, {}).setdefault(job_status, 0)
                         ret[computing_site][job_status] += n_jobs
 
                 # fill in missing states with 0
-                necessary_states = ["assigned", "activated", "running"]
                 for site in ret:
                     for state in necessary_states:
                         ret[site].setdefault(state, 0)
