@@ -1892,14 +1892,28 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                                 myDisList.append(tmpFile.dispatchDBlock)
                     # collect to record state change
                     updatedJobList.append(job)
-                    # update JEDI tables unless it is an ES consumer job which was successful but waits for merging or other running consumers
-                    if useJEDI and not (EventServiceUtils.isEventServiceJob(job) and (job.isCancelled() or job.jobStatus == "merging")):
-                        self.propagateResultToJEDI(
-                            job,
-                            self.cur,
-                            extraInfo=extraInfo,
-                            async_params=async_params,
-                        )
+                    # updates JEDI tables except for a successful ES consumer job awaiting merging or other active
+                    # consumers, or a closed/cancelled cloning job without getting a semaphore
+                    if useJEDI:
+                        to_propagate = True
+                        if EventServiceUtils.isEventServiceJob(job):
+                            if EventServiceUtils.isJobCloningJob(job):
+                                if job.isCancelled():
+                                    # check semaphore
+                                    check_jc = self.checkClonedJob(job, False)
+                                    if check_jc["lock"] is False:
+                                        tmpLog.debug("not propagate results to JEDI for cloning job without semaphore")
+                                        to_propagate = False
+                            elif job.isCancelled() or job.jobStatus == "merging":
+                                tmpLog.debug("not propagate results to JEDI for intermediate ES consumer")
+                                to_propagate = False
+                        if to_propagate:
+                            self.propagateResultToJEDI(
+                                job,
+                                self.cur,
+                                extraInfo=extraInfo,
+                                async_params=async_params,
+                            )
                     # update related ES jobs when ES-merge job is done
                     if (
                         useJEDI
