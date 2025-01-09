@@ -207,24 +207,8 @@ class UserIF:
         return WrappedPickle.dumps(ret)
 
     # get job statistics per site
-    def getJobStatisticsPerSite(
-        self,
-        predefined=False,
-        workingGroup="",
-        countryGroup="",
-        jobType="",
-        minPriority=None,
-        readArchived=True,
-    ):
-        # get job statistics
-        ret = self.taskBuffer.getJobStatistics(
-            readArchived,
-            predefined,
-            workingGroup,
-            countryGroup,
-            jobType,
-            minPriority=minPriority,
-        )
+    def getJobStatisticsPerSite(self):
+        ret = self.taskBuffer.getJobStatistics()
         return WrappedPickle.dumps(ret, convert_to_safe=True)
 
     # get job statistics per site and resource

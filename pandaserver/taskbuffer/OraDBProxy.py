@@ -6116,161 +6116,72 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         return False
 
     # get job statistics
-    def getJobStatistics(
-        self,
-        archived=False,
-        predefined=False,
-        workingGroup="",
-        countryGroup="",
-        jobType="",
-        forAnal=None,
-        minPriority=None,
-    ):
+    def getJobStatistics(self):
         comment = " /* DBProxy.getJobStatistics */"
         method_name = comment.split(" ")[-2].split(".")[-1]
-        method_name += f" < archived={archived} predefined={predefined} workingGroup='{workingGroup}' countryGroup='{countryGroup}' jobType='{jobType}' forAnal={forAnal} minPriority={minPriority} >"
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")
 
-        timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
-        sql0 = "SELECT computingSite,jobStatus,COUNT(*) FROM %s "
-        # processingType
-        tmpJobTypeMap = {}
-        sqlJobType = ""
-        useWhereInSQL = True
-        if forAnal is None or jobType != "":
-            useWhereInSQL = False
-        elif forAnal is True:
-            tmpJobTypeMap[":prodSourceLabel1"] = "user"
-            tmpJobTypeMap[":prodSourceLabel2"] = "panda"
-            sql0 += "WHERE prodSourceLabel IN ("
-            sqlJobType = ":prodSourceLabel1,:prodSourceLabel2) "
-        else:
-            tmpJobTypeMap[":prodSourceLabel1"] = "managed"
-            sql0 += "WHERE prodSourceLabel IN ("
-            sqlJobType = ":prodSourceLabel1) "
-        sql0 += sqlJobType
-        # predefined
-        if predefined:
-            if useWhereInSQL:
-                sql0 += "AND relocationFlag=1 "
-            else:
-                sql0 += "WHERE relocationFlag=1 "
-                useWhereInSQL = True
-        # working group
-        tmpGroupMap = {}
-        sqlGroups = ""
-        if workingGroup != "":
-            if useWhereInSQL:
-                sqlGroups += "AND workingGroup IN ("
-            else:
-                sqlGroups += "WHERE workingGroup IN ("
-                useWhereInSQL = True
-            # loop over all groups
-            idxWG = 1
-            for tmpWG in workingGroup.split(","):
-                tmpWGkey = f":workingGroup{idxWG}"
-                sqlGroups += f"{tmpWGkey},"
-                tmpGroupMap[tmpWGkey] = tmpWG
-                idxWG += 1
-            sqlGroups = sqlGroups[:-1] + ") "
-
-        sql0 += sqlGroups
-        # minimum priority
-        sqlPrio = ""
-        tmpPrioMap = {}
-        if minPriority is not None:
-            if useWhereInSQL:
-                sqlPrio = "AND currentPriority>=:minPriority "
-            else:
-                sqlPrio = "WHERE currentPriority>=:minPriority "
-                useWhereInSQL = True
-            tmpPrioMap[":minPriority"] = minPriority
-        sql0 += sqlPrio
-        sql0 += "GROUP BY computingSite,jobStatus"
-        sqlA = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ computingSite,jobStatus,COUNT(*) "
-        sqlA += f"FROM {panda_config.schemaPANDA}.jobsArchived4 tab WHERE modificationTime>:modificationTime "
-        if sqlJobType != "":
-            sqlA += "AND prodSourceLabel IN ("
-            sqlA += sqlJobType
-        if predefined:
-            sqlA += "AND relocationFlag=1 "
-        sqlA += sqlGroups
-        sqlA += sqlPrio
-        sqlA += "GROUP BY computingSite,jobStatus"
+        sql_template = "SELECT computingSite, jobStatus, COUNT(*) " f"FROM {{table_name}} " "GROUP BY computingSite, jobStatus"
         jobs_active_4_table = f"{panda_config.schemaPANDA}.jobsActive4"
         jobs_defined_4_table = f"{panda_config.schemaPANDA}.jobsDefined4"
-        jobs_archived_4_table = f"{panda_config.schemaPANDA}.jobsArchived4"
         tables = [jobs_active_4_table, jobs_defined_4_table]
-        if archived:
-            tables.append(jobs_archived_4_table)
+
         # sql for materialized view
-        sqlMV = re.sub("COUNT\(\*\)", "SUM(num_of_jobs)", sql0)
-        sqlMV = re.sub(":minPriority", "TRUNC(:minPriority,-1)", sqlMV)
-        sqlMV = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sqlMV)
+        sql_mv_template = sql_template.replace("COUNT(*)", "SUM(num_of_jobs)")
+        sql_mv_template = sql_mv_template.replace("SELECT ", "SELECT /*+ RESULT_CACHE */ ")
         ret = {}
-        nTry = 3
-        for iTry in range(nTry):
+        max_retries = 3
+
+        for retry in range(max_retries):
             try:
                 for table in tables:
                     # start transaction
                     self.conn.begin()
-                    # select
-                    varMap = {}
-                    for tmpJobType in tmpJobTypeMap:
-                        varMap[tmpJobType] = tmpJobTypeMap[tmpJobType]
-                    for tmpGroup in tmpGroupMap:
-                        varMap[tmpGroup] = tmpGroupMap[tmpGroup]
-                    for tmpPrio in tmpPrioMap:
-                        varMap[tmpPrio] = tmpPrioMap[tmpPrio]
-                    if table != jobs_archived_4_table:
-                        self.cur.arraysize = 10000
-                        if table == jobs_active_4_table:
-                            sqlExeTmp = (sqlMV + comment) % f"{panda_config.schemaPANDA}.MV_JOBSACTIVE4_STATS"
-                        else:
-                            sqlExeTmp = (sql0 + comment) % table
-                        tmp_log.debug(f" will execute: {sqlExeTmp} {str(varMap)}")
-                        self.cur.execute(sqlExeTmp, varMap)
+                    var_map = {}
+                    self.cur.arraysize = 10000
+
+                    # for active jobs we will query the summarized materialized view
+                    if table == jobs_active_4_table:
+                        table_name = f"{panda_config.schemaPANDA}.MV_JOBSACTIVE4_STATS"
+                        sql = (sql_mv_template + comment).format(table_name=table_name)
+                    # for defined jobs we will query the actual table
                     else:
-                        varMap[":modificationTime"] = timeLimit
-                        self.cur.arraysize = 10000
-                        self.cur.execute(sqlA + comment, varMap)
+                        table_name = table
+                        sql = (sql_template + comment).format(table_name=table_name)
+                    tmp_log.debug(f"Will execute: {sql_tmp} {str(var_map)}")
+
+                    self.cur.execute(sql, var_map)
                     res = self.cur.fetchall()
-                    # commit
                     if not self._commit():
                         raise RuntimeError("Commit error")
+
                     # create map
-                    for computingSite, jobStatus, nJobs in res:
-                        # FIXME
-                        # ignore some job status since they break APF
-                        if jobStatus in ["merging"]:
+                    for computing_site, job_status, n_jobs in res:
+                        if job_status in ["merging"]:  # ignore some job status since they break APF
                             continue
-                        if computingSite not in ret:
-                            ret[computingSite] = {}
-                        if jobStatus not in ret[computingSite]:
-                            ret[computingSite][jobStatus] = 0
-                        ret[computingSite][jobStatus] += nJobs
-                # for zero
-                stateList = ["assigned", "activated", "running"]
-                if archived:
-                    stateList += ["finished", "failed"]
+                        ret.setdefault(computing_site, {}).setdefault(job_status, 0)
+                        ret[computing_site][job_status] += n_jobs
+
+                # fill in missing states with 0
+                necessary_states = ["assigned", "activated", "running"]
                 for site in ret:
-                    for state in stateList:
-                        if state not in ret[site]:
-                            ret[site][state] = 0
-                # return
+                    for state in necessary_states:
+                        ret[site].setdefault(state, 0)
+
                 tmp_log.debug(f"done")
                 return ret
+
             except Exception:
-                # roll back
                 self._rollback()
-                if iTry + 1 < nTry:
-                    tmp_log.debug(f"retry: {iTry}")
+
+                if retry + 1 < max_retries:  # wait 2 seconds before the next retry
+                    tmp_log.debug(f"retry: {retry}")
                     time.sleep(2)
-                    continue
-                type, value, traceBack = sys.exc_info()
-                tmp_log.error(f"excepted: {type} {value}")
-                return {}
+                else:  # reached max retries - leave
+                    error_type, error_value, _ = sys.exc_info()
+                    tmp_log.error(f"excepted: {error_type} {error_value}")
+                    return {}
 
     # get the number of job for a user
     def getNumberJobsUser(self, dn, workingGroup=None):
