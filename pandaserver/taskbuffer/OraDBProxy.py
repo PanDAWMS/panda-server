@@ -6417,81 +6417,87 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 _logger.error(f"getNumberJobsUsers : {type} {value}")
                 return 0
 
-    # get job statistics for ExtIF
-    def getJobStatisticsForExtIF(self, sourcetype=None):
+    # get job statistics for ExtIF. Source type is analysis or production
+    def getJobStatisticsForExtIF(self, source_type=None):
         comment = " /* DBProxy.getJobStatisticsForExtIF */"
         method_name = comment.split(" ")[-2].split(".")[-1]
-        method_name += f" < sourcetype={sourcetype} >"
+        method_name += f" < source_type={source_type} >"
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")
 
-        timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
+        time_floor = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
 
         # analysis
-        if sourcetype == "analysis":
-            sql0 = "SELECT jobStatus, COUNT(*), cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1, :prodSourceLabel2) GROUP BY jobStatus, cloud"
+        if source_type == "analysis":
+            sql = "SELECT jobStatus, COUNT(*), cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1, :prodSourceLabel2) GROUP BY jobStatus, cloud"
 
-            sqlA = "SELECT /* use_json_type */ /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
-            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.computingSite=tabS.panda_queue "
+            sql_archived = (
+                "SELECT /* use_json_type */ /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ "
+                "jobStatus, COUNT(*), tabS.data.cloud "
+                "FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
+                "WHERE prodSourceLabel IN (:prodSourceLabel1, :prodSourceLabel2) "
+                "AND tab.computingSite = tabS.panda_queue "
+                "AND modificationTime>:modificationTime GROUP BY tab.jobStatus,tabS.data.cloud"
+            )
+
         # production
         else:
-            sql0 = "SELECT /* use_json_type */ tab.jobStatus, COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
-            sql0 += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
-            for tmpLabel in JobUtils.list_ptest_prod_sources:
-                tmpKey = f":prodSourceLabel_{tmpLabel}"
-                sql0 += tmpKey
-                sql0 += ","
-            sql0 = sql0[:-1]
-            sql0 += ") AND tab.computingSite=tabS.panda_queue GROUP BY tab.jobStatus, tabS.data.cloud"
-            sqlA = "SELECT /* use_json_type */ /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus, COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
-            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
-            for tmpLabel in JobUtils.list_ptest_prod_sources:
-                tmpKey = f":prodSourceLabel_{tmpLabel}"
-                sqlA += tmpKey
-                sqlA += ","
-            sqlA = sqlA[:-1]
-            sqlA += ") AND tab.computingSite=tabS.panda_queue "
+            prod_source_label_string = ":prodSourceLabel1, " + ", ".join(f":prodSourceLabel_{label}" for label in JobUtils.list_ptest_prod_sources)
+            sql = (
+                "SELECT /* use_json_type */ tab.jobStatus, COUNT(*), tabS.data.cloud "
+                "FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
+                f"WHERE prodSourceLabel IN ({prod_source_label_string}) "
+                "AND tab.computingSite = tabS.panda_queue "
+                "GROUP BY tab.jobStatus, tabS.data.cloud"
+            )
 
-        sqlA += "AND modificationTime>:modificationTime GROUP BY tab.jobStatus,tabS.data.cloud"
+            sql_archived = (
+                "SELECT /* use_json_type */ /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ "
+                "jobStatus, COUNT(*), tabS.data.cloud "
+                "FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
+                f"WHERE prodSourceLabel IN ({prod_source_label_string}) "
+                "AND tab.computingSite = tabS.panda_queue "
+                "AND modificationTime>:modificationTime GROUP BY tab.jobStatus,tabS.data.cloud"
+            )
 
         # sql for materialized view
-        sqlMV = re.sub("COUNT\(\*\)", "SUM(num_of_jobs)", sql0)
-        sqlMV = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sqlMV)
+        sql_active_mv = re.sub("COUNT\(\*\)", "SUM(num_of_jobs)", sql)
+        sql_active_mv = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sql_active_mv)
+
         ret = {}
 
+        tables = ["ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsWaiting4", "ATLAS_PANDA.jobsArchived4", "ATLAS_PANDA.jobsDefined4"]
         try:
-            for table in (
-                "ATLAS_PANDA.jobsActive4",
-                "ATLAS_PANDA.jobsWaiting4",
-                "ATLAS_PANDA.jobsArchived4",
-                "ATLAS_PANDA.jobsDefined4",
-            ):
+            for table in tables:
                 # start transaction
                 self.conn.begin()
+
                 # select
-                varMap = {}
-                if sourcetype == "analysis":
-                    varMap[":prodSourceLabel1"] = "user"
-                    varMap[":prodSourceLabel2"] = "panda"
+                var_map = {}
+                if source_type == "analysis":
+                    var_map[":prodSourceLabel1"] = "user"
+                    var_map[":prodSourceLabel2"] = "panda"
                 else:
-                    varMap[":prodSourceLabel1"] = "managed"
-                    for tmpLabel in JobUtils.list_ptest_prod_sources:
-                        tmpKey = f":prodSourceLabel_{tmpLabel}"
-                        varMap[tmpKey] = tmpLabel
+                    var_map[":prodSourceLabel1"] = "managed"
+                    for tmp_label in JobUtils.list_ptest_prod_sources:
+                        tmp_key = f":prodSourceLabel_{tmp_label}"
+                        var_map[tmp_key] = tmp_label
 
                 if table != "ATLAS_PANDA.jobsArchived4":
                     self.cur.arraysize = 10000
+                    # active uses materialized view
                     if table == "ATLAS_PANDA.jobsActive4":
                         self.cur.execute(
-                            (sqlMV + comment) % "ATLAS_PANDA.MV_JOBSACTIVE4_STATS",
-                            varMap,
+                            (sql_active_mv + comment) % "ATLAS_PANDA.MV_JOBSACTIVE4_STATS",
+                            var_map,
                         )
+                    # defined and waiting tables
                     else:
-                        self.cur.execute((sql0 + comment) % table, varMap)
+                        self.cur.execute((sql + comment) % table, var_map)
                 else:
-                    varMap[":modificationTime"] = timeLimit
+                    var_map[":modificationTime"] = time_floor
                     self.cur.arraysize = 10000
-                    self.cur.execute((sqlA + comment) % table, varMap)
+                    self.cur.execute((sql_archived + comment) % table, var_map)
                 res = self.cur.fetchall()
 
                 # commit
@@ -6499,10 +6505,10 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                     raise RuntimeError("Commit error")
 
                 # create map
-                for jobStatus, count, cloud in res:
+                for job_status, count, cloud in res:
                     ret.setdefault(cloud, dict())
-                    ret[cloud].setdefault(jobStatus, 0)
-                    ret[cloud][jobStatus] += count
+                    ret[cloud].setdefault(job_status, 0)
+                    ret[cloud][job_status] += count
 
             # return
             tmp_log.debug(f"done")
