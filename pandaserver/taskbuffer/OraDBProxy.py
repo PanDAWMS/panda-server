@@ -6900,24 +6900,32 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
     def insertnRunningInSiteData(self):
         comment = " /* DBProxy.insertnRunningInSiteData */"
         _logger.debug("insertnRunningInSiteData start")
-        sqlDel = "DELETE FROM ATLAS_PANDAMETA.SiteData WHERE FLAG IN (:FLAG1,:FLAG2) AND LASTMOD<CURRENT_DATE-1"
 
-        sqlRun = "SELECT COUNT(*),computingSite FROM ATLAS_PANDA.jobsActive4 "
-        sqlRun += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
-        sqlRun += "AND jobStatus=:jobStatus GROUP BY computingSite"
+        sqlDel = "DELETE FROM ATLAS_PANDAMETA.SiteData WHERE FLAG IN (:FLAG1, :FLAG2) AND LASTMOD < CURRENT_DATE - 1"
 
-        sqlCh = "SELECT COUNT(*) FROM ATLAS_PANDAMETA.SiteData WHERE FLAG=:FLAG AND HOURS=:HOURS AND SITE=:SITE"
+        sqlRun = (
+            "SELECT COUNT(*), computingSite "
+            "FROM ATLAS_PANDA.jobsActive4 "
+            "WHERE prodSourceLabel IN (:prodSourceLabel1, :prodSourceLabel2) "
+            "AND jobStatus = :jobStatus "
+            "GROUP BY computingSite"
+        )
 
-        sqlIn = "INSERT INTO ATLAS_PANDAMETA.SiteData (SITE,FLAG,HOURS,GETJOB,UPDATEJOB,LASTMOD,"
-        sqlIn += "NSTART,FINISHED,FAILED,DEFINED,ASSIGNED,WAITING,ACTIVATED,HOLDING,RUNNING,TRANSFERRING) "
-        sqlIn += "VALUES (:SITE,:FLAG,:HOURS,0,0,CURRENT_DATE,"
-        sqlIn += "0,0,0,0,0,0,0,0,:RUNNING,0)"
+        sqlCh = "SELECT COUNT(*) FROM ATLAS_PANDAMETA.SiteData WHERE FLAG = :FLAG AND HOURS = :HOURS AND SITE = :SITE"
 
-        sqlUp = "UPDATE ATLAS_PANDAMETA.SiteData SET RUNNING=:RUNNING,LASTMOD=CURRENT_DATE "
-        sqlUp += "WHERE FLAG=:FLAG AND HOURS=:HOURS AND SITE=:SITE"
+        sqlIn = (
+            "INSERT INTO ATLAS_PANDAMETA.SiteData "
+            "(SITE, FLAG, HOURS, GETJOB, UPDATEJOB, LASTMOD, "
+            "NSTART, FINISHED, FAILED, DEFINED, ASSIGNED, WAITING, "
+            "ACTIVATED, HOLDING, RUNNING, TRANSFERRING) "
+            "VALUES (:SITE, :FLAG, :HOURS, 0, 0, CURRENT_DATE, "
+            "0, 0, 0, 0, 0, 0, 0, 0, :RUNNING, 0)"
+        )
 
-        sqlMax = "SELECT SITE,MAX(RUNNING) FROM ATLAS_PANDAMETA.SiteData "
-        sqlMax += "WHERE FLAG=:FLAG GROUP BY SITE"
+        sqlUp = "UPDATE ATLAS_PANDAMETA.SiteData SET RUNNING = :RUNNING, LASTMOD = CURRENT_DATE WHERE FLAG = :FLAG AND HOURS = :HOURS AND SITE = :SITE"
+
+        sqlMax = "SELECT SITE, MAX(RUNNING) FROM ATLAS_PANDAMETA.SiteData WHERE FLAG = :FLAG GROUP BY SITE"
+
         try:
             # use offset(1000)+minutes for :HOURS
             timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
