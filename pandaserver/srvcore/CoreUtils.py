@@ -89,6 +89,28 @@ def get_id_from_dn(dn, keep_proxy=False, keep_digits=True):
     return get_bare_dn(dn, keep_proxy, keep_digits)
 
 
+def get_distinguished_name_list(distinguished_name: str) -> list:
+    """
+    Get a list of possible distinguished names from a string, including legacy and RFC formats.
+
+    Args:
+        distinguished_name (str): The distinguished name string.
+
+    Returns:
+        list: A list of possible distinguished names.
+    """
+    name_list = []
+    # characters to be escaped in RFC format
+    trans_table = str.maketrans({",": r"\,", "+": r"\+", '"': r"\"", "\\": r"\\", "<": r"\<", ">": r"\>", ";": r"\;"})
+    # loop over distinguished name and without-CN form
+    for tmp_name in [distinguished_name, get_bare_dn(distinguished_name, keep_digits=False)]:
+        name_list.append(tmp_name)
+        # replace backslashes with commas and reverse substrings to be converted to RFC format
+        tmp_list = [s.translate(trans_table) for s in tmp_name.split("/") if s]
+        name_list.append(",".join(tmp_list[::-1]))
+    return name_list
+
+
 # resolve string bool
 def resolve_bool(param):
     if isinstance(param, bool):
