@@ -6132,7 +6132,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         excluded_states = ["merging"]
 
         # sql template for jobs table
-        sql_template = "SELECT computingSite, jobStatus, COUNT(*) " f"FROM {{table_name}} " "GROUP BY computingSite, jobStatus"
+        sql_template = f"SELECT computingSite, jobStatus, COUNT(*) FROM {{table_name}} GROUP BY computingSite, jobStatus"
         # sql template for statistics table (materialized view)
         sql_mv_template = sql_template.replace("COUNT(*)", "SUM(num_of_jobs)")
         sql_mv_template = sql_mv_template.replace("SELECT ", "SELECT /*+ RESULT_CACHE */ ")
