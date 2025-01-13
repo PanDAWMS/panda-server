@@ -13437,7 +13437,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             if jobSpec.lockedby != "jedi":
                 return True
             # sql to check file status
-            sqlFileStat = "SELECT status,attemptNr,keepTrack,is_waiting FROM ATLAS_PANDA.JEDI_Dataset_Contents "
+            sqlFileStat = "SELECT PandaID,status,attemptNr,keepTrack,is_waiting FROM ATLAS_PANDA.JEDI_Dataset_Contents "
             sqlFileStat += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
             if withLock:
                 sqlFileStat += "FOR UPDATE NOWAIT "
@@ -13462,6 +13462,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 pseudoFiles = self.create_pseudo_files_for_dyn_num_events(jobSpec, tmpLog)
             else:
                 pseudoFiles = []
+            is_job_cloning = EventServiceUtils.isJobCloningJob(jobSpec)
             # loop over all input files
             allOK = True
             for fileSpec in jobSpec.Files + pseudoFiles:
@@ -13488,7 +13489,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                     allOK = False
                     break
                 else:
-                    fileStatus, attemptNr, keepTrack, is_waiting = resFileStat
+                    input_panda_id, fileStatus, attemptNr, keepTrack, is_waiting = resFileStat
                     if attemptNr is None:
                         continue
                     if keepTrack != 1:
@@ -13516,6 +13517,12 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                                 fileSpec.attemptNr,
                                 fileStatus,
                             )
+                        )
+                        allOK = False
+                        break
+                    if not is_job_cloning and input_panda_id != jobSpec.PandaID:
+                        tmpLog.debug(
+                            f"jediTaskID={fileSpec.jediTaskID} datasetID={fileSpec.datasetID} fileID={fileSpec.fileID} attemptNr={fileSpec.attemptNr} has different PandaID={input_panda_id}"
                         )
                         allOK = False
                         break

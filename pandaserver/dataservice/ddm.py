@@ -880,6 +880,7 @@ class RucioAPI:
         If an exception occurs, the boolean is False and the string contains the error message.
         """
         try:
+            return_value = False
             # get rucio API
             client = RucioClient()
             user_info = None
@@ -892,19 +893,7 @@ class RucioAPI:
                 x509_user_name = None
             for account_type in ["USER", "GROUP"]:
                 if x509_user_name is not None:
-                    user_names = [x509_user_name]
-                    # replace / with , and reverse substrings to be converted to RFC format
-                    tmp_list = user_names[-1].split("/")
-                    if "" in tmp_list:
-                        tmp_list.remove("")
-                    user_names.append(",".join(tmp_list[::-1]))
-                    # remove /CN=\d
-                    user_names.append(CoreUtils.get_bare_dn(distinguished_name, keep_digits=False))
-                    # replace / with , and reverse substrings to be converted to RFC format
-                    tmp_list = user_names[-1].split("/")
-                    if "" in tmp_list:
-                        tmp_list.remove("")
-                    user_names.append(",".join(tmp_list[::-1]))
+                    user_names = CoreUtils.get_distinguished_name_list(x509_user_name)
                     for user_name in user_names:
                         for i in client.list_accounts(account_type=account_type, identity=user_name):
                             user_info = {"nickname": i["account"], "email": i["email"]}
