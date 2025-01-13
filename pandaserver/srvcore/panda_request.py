@@ -34,16 +34,22 @@ def decode_token(serialized_token, env, tmp_log):
             vo_role = vo.replace(":", ".")
             token = token_decoder.deserialize_token(serialized_token, panda_config.auth_config, vo, tmp_log)
             # extract role
-            if vo:
+            if "vo" in token:
+                vo_role = token["vo"].replace(":", ".")  # Replace ":" with "." for consistent handling
+
                 if ":" in token["vo"]:
-                    # vo:role
-                    vo, role = token["vo"].split(":")
+                    # ':' is the separator for vo and role
+                    vo, role = token["vo"].split(":", 1)
+                elif "." in token["vo"]:
+                    # '.' is the separator for vo.role
+                    parts = token["vo"].rsplit(".", 1)  # Split from the right side, at most once
+                    if len(parts) > 1:
+                        vo, role = parts[0], parts[1]
+                    else:
+                        vo, role = token["vo"], None  # Single part, no role
                 else:
-                    # vo.role
-                    vo = token["vo"].split(".")[0]
-                    if vo != token["vo"]:
-                        role = token["vo"].split(":")[-1]
-                        role = role.split(".")[-1]
+                    # No separator; assume entire token["vo"] is vo, no role
+                    vo, role = token["vo"], None
             # check vo
             if vo not in panda_config.auth_policies:
                 message_str = f"Unknown vo : {vo}"
@@ -83,6 +89,7 @@ def decode_token(serialized_token, env, tmp_log):
                             break
                     if not authenticated:
                         message_str = f"Not a member of the {vo} group"
+            tmp_log.debug(f"Extracted VO: {vo}, Role: {role}, Token VO: {token['vo']}")
         else:
             token = scitokens.SciToken.deserialize(serialized_token, audience=panda_config.token_audience)
 
