@@ -36,14 +36,17 @@ def decode_token(serialized_token, env, tmp_log):
             # extract role
             if vo:
                 if ":" in token["vo"]:
-                    # vo:role
-                    vo, role = token["vo"].split(":")
+                    # Use ':' as the separator for vo and role
+                    vo, role = token["vo"].split(":", 1)
                 else:
-                    # vo.role
-                    vo = token["vo"].split(".")[0]
-                    if vo != token["vo"]:
-                        role = token["vo"].split(":")[-1]
-                        role = role.split(".")[-1]
+                    # Use '.' as the separator for vo.role, assuming last part is the role
+                    parts = token["vo"].split(".")
+                    if len(parts) > 1:
+                        vo = ".".join(parts[:-1])  # All parts except the last one are vo
+                        role = parts[-1]  # Last part is the role
+                    else:
+                        vo = token["vo"]  # Single part, no role
+                        role = None
             # check vo
             if vo not in panda_config.auth_policies:
                 message_str = f"Unknown vo : {vo}"
