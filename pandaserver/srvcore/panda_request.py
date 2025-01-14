@@ -36,6 +36,7 @@ def decode_token(serialized_token, env, tmp_log):
             # extract role
             if "vo" in token:
                 vo_raw = token["vo"]  # Original input value of vo
+                tmp_log.debug(f"Raw VO from token: {vo_raw}")
 
                 if vo_raw.startswith("vo."):
                     # Handle vo names starting with "vo."
@@ -52,8 +53,12 @@ def decode_token(serialized_token, env, tmp_log):
                         vo, role = parts[0], parts[1]
                     else:
                         vo, role = vo_raw, None  # Single part, no role
+
+            tmp_log.debug(f"Parsed VO: {vo}, role: {role}")
+
             # check vo
             if vo not in panda_config.auth_policies:
+                tmp_log.error(f"VO '{vo}' not found in auth_policies: {list(panda_config.auth_policies.keys())}")
                 message_str = f"Unknown vo : {vo}"
             else:
                 # robot
