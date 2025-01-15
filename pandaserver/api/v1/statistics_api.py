@@ -85,7 +85,6 @@ def production_job_stats_by_cloud_and_processing_type(req: PandaRequest) -> Dict
     return generate_response(success, message, data)
 
 
-# get job statistics by site
 @request_validation(_logger, secure=False, request_method="GET")
 def active_job_stats_by_site(req: PandaRequest) -> Dict[str, Any]:
     """
@@ -114,7 +113,6 @@ def active_job_stats_by_site(req: PandaRequest) -> Dict[str, Any]:
     return generate_response(success, message, data)
 
 
-# get job statistics by site and resource
 @request_validation(_logger, secure=False, request_method="GET")
 def job_stats_by_site_and_resource_type(req: PandaRequest, time_window: int = None) -> Dict[str, Any]:
     """
@@ -148,7 +146,6 @@ def job_stats_by_site_and_resource_type(req: PandaRequest, time_window: int = No
     return generate_response(success, message, data)
 
 
-# get job statistics by site and resource
 @request_validation(_logger, secure=False, request_method="GET")
 def job_stats_by_site_share_and_resource_type(req: PandaRequest, time_window: int = None) -> Dict[str, Any]:
     """
