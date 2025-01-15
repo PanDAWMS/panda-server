@@ -207,24 +207,8 @@ class UserIF:
         return WrappedPickle.dumps(ret)
 
     # get job statistics per site
-    def getJobStatisticsPerSite(
-        self,
-        predefined=False,
-        workingGroup="",
-        countryGroup="",
-        jobType="",
-        minPriority=None,
-        readArchived=True,
-    ):
-        # get job statistics
-        ret = self.taskBuffer.getJobStatistics(
-            readArchived,
-            predefined,
-            workingGroup,
-            countryGroup,
-            jobType,
-            minPriority=minPriority,
-        )
+    def getJobStatisticsPerSite(self):
+        ret = self.taskBuffer.getJobStatistics()
         return WrappedPickle.dumps(ret, convert_to_safe=True)
 
     # get job statistics per site and resource
@@ -845,35 +829,8 @@ def get_job_statistics_per_site_label_resource(req, time_window=None):
 
 
 # get job statistics per site
-def getJobStatisticsPerSite(
-    req,
-    predefined="False",
-    workingGroup="",
-    countryGroup="",
-    jobType="",
-    minPriority=None,
-    readArchived=None,
-):
-    predefined = resolve_true(predefined)
-
-    if minPriority is not None:
-        try:
-            minPriority = int(minPriority)
-        except Exception:
-            minPriority = None
-
-    if readArchived == "True":
-        readArchived = True
-    elif readArchived == "False":
-        readArchived = False
-    else:
-        host = req.get_remote_host()
-        # read jobsArchived for panglia
-        if re.search("panglia.*\.triumf\.ca$", host) is not None or host in ["gridweb.triumf.ca"]:
-            readArchived = True
-        else:
-            readArchived = False
-    return userIF.getJobStatisticsPerSite(predefined, workingGroup, countryGroup, jobType, minPriority, readArchived)
+def getJobStatisticsPerSite(req):
+    return userIF.getJobStatisticsPerSite()
 
 
 # kill jobs
