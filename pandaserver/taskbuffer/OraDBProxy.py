@@ -6525,7 +6525,6 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
     def getJobStatisticsPerProcessingType(self):
         comment = " /* DBProxy.getJobStatisticsPerProcessingType */"
         method_name = comment.split(" ")[-2].split(".")[-1]
-        method_name += f" < useMorePG={useMorePG} >"
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")
 
