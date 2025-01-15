@@ -60,6 +60,9 @@ def retry(
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
+    tmp_logger = LogWrapper(_logger, f"retry < jedi_task_id={jedi_task_id} >")
+    tmp_logger.debug("Start")
+
     user = get_dn(req)
     production_role = has_production_role(req)
 
@@ -68,13 +71,16 @@ def retry(
         try:
             # convert to dict
             new_parameters_dict = PrioUtil.decodeJSON(new_parameters)
-            # get original params
+
+            # get original parameters
             task_params = global_task_buffer.getTaskParamsPanda(jedi_task_id)
             task_params_dict = PrioUtil.decodeJSON(task_params)
+
             # update with new values
             task_params_dict.update(new_parameters_dict)
             task_params = json.dumps(task_params_dict)
-            # retry with new params
+
+            # retry with new parameters
             ret = global_task_buffer.insertTaskParamsPanda(
                 task_params,
                 user,
@@ -106,6 +112,8 @@ def retry(
             properErrorCode=True,
             comQualifier=qualifier,
         )
+    tmp_logger.debug("Done")
+
     data, message = ret
     success = data == 0
     return generate_response(success, message, data)
@@ -130,6 +138,9 @@ def resume(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
+    tmp_logger = LogWrapper(_logger, f"resume < jediTaskID={jedi_task_id} >")
+    tmp_logger.debug("Start")
+
     user = get_dn(req)
     is_production_role = has_production_role(req)
 
@@ -137,11 +148,15 @@ def resume(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
     try:
         jedi_task_id = int(jedi_task_id)
     except ValueError:
+        tmp_logger.error("Failed due to invalid jedi_task_id")
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     ret = global_task_buffer.sendCommandTaskPanda(jedi_task_id, user, is_production_role, "resume", properErrorCode=True)
     data, message = ret
     success = data == 0
+
+    tmp_logger.debug("Done")
+
     return generate_response(success, message, data)
 
 
@@ -164,6 +179,10 @@ def release(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
+
+    tmp_logger = LogWrapper(_logger, f"release < jedi_task_id={jedi_task_id} >")
+    tmp_logger.debug("Start")
+
     user = get_dn(req)
     is_production_role = has_production_role(req)
 
@@ -171,11 +190,15 @@ def release(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
     try:
         jedi_task_id = int(jedi_task_id)
     except ValueError:
+        tmp_logger.error("Failed due to invalid jedi_task_id")
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     ret = global_task_buffer.sendCommandTaskPanda(jedi_task_id, user, is_production_role, "release", properErrorCode=True)
     data, message = ret
     success = data == 0
+
+    tmp_logger.debug("Done")
+
     return generate_response(success, message, data)
 
 
@@ -204,10 +227,14 @@ def reassign(req: PandaRequest, jedi_task_id: int, site: str = None, cloud: str 
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
 
+    tmp_logger = LogWrapper(_logger, f"reassign < jedi_task_id={jedi_task_id} >")
+    tmp_logger.debug("Start")
+
     # check jedi_task_id
     try:
         jedi_task_id = int(jedi_task_id)
     except ValueError:
+        tmp_logger.error("Failed due to invalid jedi_task_id")
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     user = get_dn(req)
@@ -237,6 +264,9 @@ def reassign(req: PandaRequest, jedi_task_id: int, site: str = None, cloud: str 
     )
     data, message = ret
     success = data == 0
+
+    tmp_logger.debug("Done")
+
     return generate_response(success, message, data)
 
 
@@ -259,9 +289,13 @@ def pause(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
 
+    tmp_logger = LogWrapper(_logger, f"pause < jedi_task_id={jedi_task_id} >")
+    tmp_logger.debug("Start")
+
     try:
         jedi_task_id = int(jedi_task_id)
     except ValueError:
+        tmp_logger.error("Failed due to invalid jedi_task_id")
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     user = get_dn(req)
@@ -270,6 +304,9 @@ def pause(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
     ret = global_task_buffer.sendCommandTaskPanda(jedi_task_id, user, is_production_role, "pause", properErrorCode=True)
     data, message = ret
     success = data == 0
+
+    tmp_logger.debug("Done")
+
     return generate_response(success, message, data)
 
 
@@ -292,10 +329,14 @@ def kill(req: PandaRequest, jedi_task_id: int = None, broadcast: bool = False) -
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
+    tmp_logger = LogWrapper(_logger, f"kill < jedi_task_id={jedi_task_id} >")
+    tmp_logger.debug("Start")
+
     # check jedi_task_id
     try:
         jedi_task_id = int(jedi_task_id)
     except ValueError:
+        tmp_logger.error("Failed due to invalid jedi_task_id")
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     user = get_dn(req)
@@ -311,6 +352,9 @@ def kill(req: PandaRequest, jedi_task_id: int = None, broadcast: bool = False) -
     )
     data, message = ret
     success = data == 0
+
+    tmp_logger.debug("Done")
+
     return generate_response(success, message, data)
 
 
@@ -334,6 +378,9 @@ def finish(req: PandaRequest, jedi_task_id: int, soft: bool = False, broadcast: 
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
+    tmp_logger = LogWrapper(_logger, f"finish < jedi_task_id={jedi_task_id} soft={soft} broadcast={broadcast} >")
+    tmp_logger.debug("Start")
+
     qualifier = None
     if soft:
         qualifier = "soft"
@@ -345,6 +392,7 @@ def finish(req: PandaRequest, jedi_task_id: int, soft: bool = False, broadcast: 
     try:
         jedi_task_id = int(jedi_task_id)
     except ValueError:
+        tmp_logger.error("Failed due to invalid jedi_task_id")
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     ret = global_task_buffer.sendCommandTaskPanda(
@@ -358,6 +406,9 @@ def finish(req: PandaRequest, jedi_task_id: int, soft: bool = False, broadcast: 
     )
     data, message = ret
     success = data == 0
+
+    tmp_logger.debug("Done")
+
     return generate_response(success, message, data)
 
 
@@ -382,14 +433,21 @@ def reactivate(req: PandaRequest, jedi_task_id: int, keep_attempt_nr: bool = Fal
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
+    tmp_logger = LogWrapper(_logger, f"reactivate < jedi_task_id={jedi_task_id} >")
+    tmp_logger.debug("Start")
+
     try:
         jedi_task_id = int(jedi_task_id)
     except ValueError:
+        tmp_logger.error("Failed due to invalid jedi_task_id")
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     ret = global_task_buffer.reactivateTask(jedi_task_id, keep_attempt_nr, trigger_job_generation)
     code, message = ret
     success = code == 0
+
+    tmp_logger.debug("Done")
+
     return generate_response(success, message)
 
 
@@ -411,6 +469,9 @@ def avalanche(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
+    tmp_logger = LogWrapper(_logger, f"avalanche < jedi_task_id={jedi_task_id} >")
+    tmp_logger.debug("Start")
+
     user = get_dn(req)
     is_production_role = has_production_role(req)
 
@@ -418,11 +479,15 @@ def avalanche(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
     try:
         jedi_task_id = int(jedi_task_id)
     except ValueError:
+        tmp_logger.error("Failed due to invalid jedi_task_id")
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     ret = global_task_buffer.sendCommandTaskPanda(jedi_task_id, user, is_production_role, "avalanche", properErrorCode=True)
     data, message = ret
     success = data == 0
+
+    tmp_logger.debug("Done")
+
     return generate_response(success, message, data)
 
 
@@ -446,13 +511,21 @@ def reassign_global_share(req: PandaRequest, jedi_task_id_list: List, share: str
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
-    _logger.debug(f"reassignShare: jedi_task_ids: {jedi_task_id_list}, share: {share}, reassign_running: {reassign_running_jobs}")
+
+    tmp_logger = LogWrapper(
+        _logger, f"reassign_global_share < jedi_task_id_list={jedi_task_id_list} share={share} reassign_running_jobs={reassign_running_jobs} >"
+    )
+    tmp_logger.debug("Start")
 
     if not isinstance(jedi_task_id_list, list) or not isinstance(share, str):
+        tmp_logger.error("Failed due to invalid task list")
         return generate_response(False, message="wrong parameters: jedi_task_ids must be list and share must be string")
 
     code, message = global_task_buffer.reassignShare(jedi_task_id_list, share, reassign_running_jobs)
     success = code == 0
+
+    tmp_logger.debug("Done")
+
     return generate_response(success, message, code)
 
 
@@ -483,10 +556,10 @@ def enable_job_cloning(
     Returns:
         dict: The system response. True for success, False for failure, and an error message.
     """
-    tmp_logger = LogWrapper(_logger, f"enable_job_cloning jediTaskID=={jedi_task_id}")
-    tmp_logger.debug(f"Start")
+    tmp_logger = LogWrapper(_logger, f"enable_job_cloning < jedi_task_id={jedi_task_id} >")
+    tmp_logger.debug("Start")
     success, message = global_task_buffer.enable_job_cloning(jedi_task_id, mode, multiplicity, num_sites)
-    tmp_logger.debug(f"Done")
+    tmp_logger.debug("Done")
     return generate_response(success, message)
 
 
@@ -511,10 +584,10 @@ def disable_job_cloning(
     Returns:
         dict: The system response. True for success, False for failure, and an error message.
     """
-    tmp_logger = LogWrapper(_logger, f"disable_job_cloning jediTaskID=={jedi_task_id}")
-    tmp_logger.debug(f"Start")
+    tmp_logger = LogWrapper(_logger, f"disable_job_cloning < jedi_task_id={jedi_task_id} >")
+    tmp_logger.debug("Start")
     success, message = global_task_buffer.disable_job_cloning(jedi_task_id)
-    tmp_logger.debug(f"Done")
+    tmp_logger.debug("Done")
     return generate_response(success, message)
 
 
@@ -536,15 +609,22 @@ def get_status(req, jedi_task_id):
     Returns:
         dict: The system response. True for success, False for failure, and an error message.
     """
+    tmp_logger = LogWrapper(_logger, f"get_status < jedi_task_id={jedi_task_id} >")
+    tmp_logger.debug("Start")
+
     try:
         jedi_task_id = int(jedi_task_id)
     except ValueError:
+        tmp_logger.error("Failed due to invalid jedi_task_id")
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     ret = global_task_buffer.getTaskStatus(jedi_task_id)
     if not ret:
         return generate_response(False, message="Task not found")
     status = ret[0]
+
+    tmp_logger.debug("Done")
+
     return generate_response(True, data=status)
 
 
@@ -568,12 +648,15 @@ def get_details(req: PandaRequest, jedi_task_id: int, include_parameters: bool =
     Returns:
         dict: The system response. True for success, False for failure, and an error message.
     """
-
-    _logger.debug(f"get_details {jedi_task_id} include_parameters:{include_parameters} include_status:{include_status}")
+    tmp_logger = LogWrapper(_logger, f"get_details  < jedi_task_id={jedi_task_id} include_parameters={include_parameters} include_status={include_status} >")
+    tmp_logger.debug("Start")
 
     details = global_task_buffer.getJediTaskDetails(jedi_task_id, include_parameters, include_status)
     if not details:
+        tmp_logger.error("Task not found or error retrieving the details")
         return generate_response(False, message="Task not found or error retrieving the details")
+
+    tmp_logger.debug("Done")
 
     return generate_response(True, data=details)
 
@@ -598,24 +681,32 @@ def change_attribute(req: PandaRequest, jedi_task_id: int, attribute_name: str, 
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
+    tmp_logger = LogWrapper(_logger, f"change_attribute < jedi_task_id={jedi_task_id} attribute_name={attribute_name} value={value} >")
+    tmp_logger.debug("Start")
 
     # check jedi_task_id
     try:
         jedi_task_id = int(jedi_task_id)
     except ValueError:
+        tmp_logger.error("Failed due to invalid jedi_task_id")
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     # check if attribute_name is valid
     valid_attributes = ["ramCount", "wallTime", "cpuTime", "coreCount"]
     if attribute_name not in valid_attributes:
+        tmp_logger.error("Failed due to invalid attribute_name")
         return generate_response(False, message=f"{attribute_name} is not a valid attribute. Valid attributes are {valid_attributes}")
 
     n_tasks_changed = global_task_buffer.changeTaskAttributePanda(jedi_task_id, attribute_name, value)
     if n_tasks_changed is None:  # method excepted
+        tmp_logger.error("Failed due to exception while changing the attribute")
         return generate_response(False, message="Exception while changing the attribute")
+
     if n_tasks_changed == 0:  # no tasks were changed should mean that it doesn't exist
+        tmp_logger.error("Failed due to task not found")
         return generate_response(False, message="Task not found")
 
+    tmp_logger.debug("Done")
     return generate_response(True, message=f"{n_tasks_changed} tasks changed")
 
 
@@ -638,11 +729,14 @@ def change_modification_time(req: PandaRequest, jedi_task_id: int, positive_hour
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
+    tmp_logger = LogWrapper(_logger, f"change_modification_time < jedi_task_id={jedi_task_id} positive_hour_offset={positive_hour_offset} >")
+    tmp_logger.debug("Start")
 
     # check jedi_task_id
     try:
         jedi_task_id = int(jedi_task_id)
     except ValueError:
+        tmp_logger.error("Failed due to invalid jedi_task_id")
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     # check offset
@@ -650,14 +744,19 @@ def change_modification_time(req: PandaRequest, jedi_task_id: int, positive_hour
         positive_hour_offset = int(positive_hour_offset)
         new_modification_time = datetime.datetime.now() + datetime.timedelta(hours=positive_hour_offset)
     except ValueError:
+        tmp_logger.error("Failed due to invalid positive_hour_offset")
         return generate_response(False, message=f"failed to convert {positive_hour_offset} to time")
 
     n_tasks_changed = global_task_buffer.changeTaskAttributePanda(jedi_task_id, "modificationTime", new_modification_time)
     if n_tasks_changed is None:  # method excepted
+        tmp_logger.error("Failed due to exception while changing the attribute")
         return generate_response(False, message="Exception while changing the attribute")
+
     if n_tasks_changed == 0:  # no tasks were changed should mean that it doesn't exist
+        tmp_logger.error("Failed due to task not found")
         return generate_response(False, message="Task not found")
 
+    tmp_logger.debug("Done")
     return generate_response(True, message=f"{n_tasks_changed} tasks changed")
 
 
@@ -680,24 +779,34 @@ def change_priority(req: PandaRequest, jedi_task_id: int, priority: int):
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
+    tmp_logger = LogWrapper(_logger, f"change_priority < jedi_task_id={jedi_task_id} priority={priority} >")
+    tmp_logger.debug("Start")
+
     # check jedi_task_id
     try:
         jedi_task_id = int(jedi_task_id)
     except ValueError:
+        tmp_logger.error("Failed due to invalid jedi_task_id")
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     # check priority
     try:
         priority = int(priority)
     except ValueError:
+        tmp_logger.error("Failed due to invalid priority")
         return generate_response(False, message="priority must be an integer")
 
     n_tasks_changed = global_task_buffer.changeTaskPriorityPanda(jedi_task_id, priority)
 
     if n_tasks_changed is None:  # method excepted
+        tmp_logger.error("Failed due to exception while changing the priority")
         return generate_response(False, message="Exception while changing the priority")
+
     if n_tasks_changed == 0:  # no tasks were changed should mean that it doesn't exist
+        tmp_logger.error("Failed due to task not found")
         return generate_response(False, message="Task not found")
+
+    tmp_logger.debug("Done")
 
     return generate_response(True, message=f"{n_tasks_changed} tasks changed")
 
@@ -722,24 +831,33 @@ def change_split_rule(req: PandaRequest, jedi_task_id: int, attribute_name: str,
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
+    tmp_logger = LogWrapper(_logger, f"change_split_rule < jedi_task_id={jedi_task_id} attribute_name={attribute_name} value={value} >")
+    tmp_logger.debug("Start")
 
     # check jedi_task_id
     try:
         jedi_task_id = int(jedi_task_id)
     except ValueError:
+        tmp_logger.error("Failed due to invalid jedi_task_id")
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     # see what the attributes mean in pandaserver/taskbuffer/task_split_rules.py
     valid_attributes = ["AI", "TW", "EC", "ES", "MF", "NG", "NI", "NF", "NJ", "AV", "IL", "LI", "LC", "CC", "OT", "UZ"]
     # check attribute
     if attribute_name not in valid_attributes:
+        tmp_logger.error("Failed due to invalid attribute_name")
         return generate_response(False, message=f"{attribute_name} is not a valid attribute. Valid attributes are {valid_attributes}", data=2)
 
     n_tasks_changed = global_task_buffer.changeTaskSplitRulePanda(jedi_task_id, attribute_name, value)
     if n_tasks_changed is None:  # method excepted
-        return generate_response(False, message="Exception while changing the priority")
+        tmp_logger.error("Failed due to exception while changing the split rule")
+        return generate_response(False, message="Exception while changing the split rule")
+
     if n_tasks_changed == 0:  # no tasks were changed should mean that it doesn't exist
+        tmp_logger.error("Failed due to task not found")
         return generate_response(False, message="Task not found")
+
+    tmp_logger.debug("Done")
 
     return generate_response(True, message=f"{n_tasks_changed} tasks changed")
 
@@ -766,6 +884,8 @@ def get_tasks_modified_since(req, since: str, dn: str = "", full: bool = False, 
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
+    tmp_logger = LogWrapper(_logger, f"get_tasks_modified_since")
+    tmp_logger.debug("Start")
 
     if not dn:
         dn = get_dn(req)
@@ -775,9 +895,12 @@ def get_tasks_modified_since(req, since: str, dn: str = "", full: bool = False, 
     except ValueError:
         min_task_id = None
 
-    _logger.debug(f"get_tasks_modified_since dn:{dn} since:{since} full:{full} min_task_id:{min_task_id} prod_source_label:{prod_source_label}")
+    tmp_logger.debug(f"parameters dn:{dn} since:{since} full:{full} min_task_id:{min_task_id} prod_source_label:{prod_source_label}")
 
     tasks = global_task_buffer.getJediTasksInTimeRange(dn, since, full, min_task_id, prod_source_label)
+
+    tmp_logger.debug("Done")
+
     return generate_response(True, data=tasks)
 
 
@@ -821,12 +944,19 @@ def get_datasets_and_files(req, jedi_task_id, dataset_types: List = ("input", "p
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
+    tmp_logger = LogWrapper(_logger, f"get_datasets_and_files < jedi_task_id={jedi_task_id} >")
+    tmp_logger.debug("Start")
 
     data = global_task_buffer.get_files_in_datasets(jedi_task_id, dataset_types)
     if data is None:
+        tmp_logger.error("Failed due to exception while gathering files")
         return generate_response(False, message="Database exception while gathering files")
+
     if data == []:
+        tmp_logger.error("Failed due to no data found for the task")
         return generate_response(False, message="No data found for the task")
+
+    tmp_logger.debug("Done")
 
     return generate_response(True, data=data)
 
@@ -849,12 +979,19 @@ def get_job_ids(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
+    tmp_logger = LogWrapper(_logger, f"get_job_ids < jedi_task_id={jedi_task_id} >")
+    tmp_logger.debug("Start")
+
     try:
         jedi_task_id = int(jedi_task_id)
     except ValueError:
+        tmp_logger.error("Failed due to invalid jedi_task_id")
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     job_id_list = global_task_buffer.getPandaIDsWithTaskID(jedi_task_id)
+
+    tmp_logger.debug("Done")
+
     return generate_response(True, data=job_id_list)
 
 
@@ -878,7 +1015,7 @@ def insert_task_parameters(req: PandaRequest, task_parameters: Dict, parent_tid:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
     tmp_log = LogWrapper(_logger, f"insertTaskParams-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
-    tmp_log.debug("start")
+    tmp_log.debug("Start")
 
     user = get_dn(req)
     is_production_role = has_production_role(req)
@@ -898,8 +1035,12 @@ def insert_task_parameters(req: PandaRequest, task_parameters: Dict, parent_tid:
     if match:
         try:
             jedi_task_id = int(match.group(1))  # Convert to an integer
+            tmp_log.debug(f"Created task with jedi_task_id: {jedi_task_id}")
         except ValueError:
+            tmp_log.error("Failed to extract the task ID from the message")
             jedi_task_id = None
+
+    tmp_log.debug("Done")
 
     return generate_response(True, message=message, data=jedi_task_id)
 
@@ -922,22 +1063,29 @@ def get_task_parameters(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
+    tmp_logger = LogWrapper(_logger, f"get_task_parameters < jedi_task_id={jedi_task_id} >")
+    tmp_logger.debug("Start")
 
     # validate the task id
     try:
         jedi_task_id = int(jedi_task_id)
     except Exception:
+        tmp_logger.error("Failed due to invalid jedi_task_id")
         return generate_response(False, message=MESSAGE_TASK_ID)
 
     # get the parameters
     task_parameters_str = global_task_buffer.getTaskParamsMap(jedi_task_id)
     if not task_parameters_str:
+        tmp_logger.error("Failed due to task not found")
         return generate_response(False, message="Task not found")
 
     # decode the parameters
     try:
         task_parameters = json.loads(task_parameters_str)
     except json.JSONDecodeError as e:
+        tmp_logger.error(f"Failed due to error decoding the task parameters")
         return generate_response(False, message=f"Error decoding the task parameters: {str(e)}")
+
+    tmp_logger.debug("Done")
 
     return generate_response(True, data=task_parameters)

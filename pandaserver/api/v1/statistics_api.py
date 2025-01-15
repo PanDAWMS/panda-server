@@ -14,6 +14,8 @@ _logger = PandaLogger().getLogger("statistics_api")
 
 global_task_buffer = None
 
+MAX_TIME_WINDOW = 60 * 24 * 7  # 7 days
+
 
 def init_task_buffer(task_buffer: TaskBuffer) -> None:
     """
@@ -24,159 +26,160 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 
 
 @request_validation(_logger, secure=False, request_method="GET")
-def get_job_stats(req: PandaRequest, sourcetype: str = None) -> Dict[str, Any]:
+def job_stats_by_cloud(req: PandaRequest, type: str = "production") -> Dict[str, Any]:
     """
-    Task retry
+    Job statistics by cloud.
 
-    Retry a given task. Requires a secure connection without a production role to retry own tasks and with a production role to retry others' tasks.
+    Get the job statistics by cloud, which includes the active jobs and jobs in final states modified in the last 12 hours. You have to filter the statistics by type, which can be either "production" or "analysis". Used by panglia monitoring.
 
     API details:
         HTTP Method: GET
-        Path: /task/v1/retry
+        Path: /statistics/v1/job_stats_by_cloud
 
     Args:
         req(PandaRequest): internally generated request object
-        jedi_task_id(int): JEDI Task ID
+        type(str): can be "analysis" or "production". Defaults to "production" when not provided.
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the job statistics by cloud. When unsuccessful, the message field contains the error message.
     """
-    ret = global_task_buffer.getJobStatisticsForExtIF(sourcetype)
-    return WrappedPickle.dumps(ret)
+    tmp_logger = LogWrapper(_logger, f"job_stats_by_cloud < type={type} >")
 
+    tmp_logger.debug("Start")
 
-@request_validation(_logger, secure=False, request_method="GET")
-def getJobStatisticsForBamboo(req: PandaRequest, useMorePG: str = None) -> Dict[str, Any]:
-    """
-    Task retry
+    if type not in ["production", "analysis"]:
+        tmp_logger.error("Invalid type parameter")
+        return generate_response(False, 'Parameter "type" needs to be either "production" or "analysis" ', {})
 
-    Retry a given task. Requires a secure connection without a production role to retry own tasks and with a production role to retry others' tasks.
+    data = global_task_buffer.getJobStatisticsForExtIF(type)
+    success = data != {}
+    message = "" if success else "Database failure getting the job statistics"
+    tmp_logger.debug(f"Done. {message}")
 
-    API details:
-        HTTP Method: GET
-        Path: /task/v1/retry
-
-    Args:
-        req(PandaRequest): internally generated request object
-        jedi_task_id(int): JEDI Task ID
-
-    Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
-    """
-    if useMorePG == "True":
-        useMorePG = pandaserver.taskbuffer.ProcessGroups.extensionLevel_1
-    elif useMorePG in ["False", None]:
-        useMorePG = False
-    else:
-        try:
-            useMorePG = int(useMorePG)
-        except Exception:
-            useMorePG = False
-
-    ret = global_task_buffer.getJobStatisticsForBamboo(useMorePG)
     return generate_response(success, message, data)
 
 
-# get job statistics per site and resource
 @request_validation(_logger, secure=False, request_method="GET")
-def getJobStatisticsPerSiteResource(req: PandaRequest, time_window: int = None) -> Dict[str, Any]:
+def production_job_stats_by_cloud_and_processing_type(req: PandaRequest) -> Dict[str, Any]:
     """
-    Task retry
+    Production job statistics by cloud and processing type.
 
-    Retry a given task. Requires a secure connection without a production role to retry own tasks and with a production role to retry others' tasks.
+    Get the production job statistics by cloud and processing type, which includes the active jobs and jobs in final states modified in the last 12 hours. Used by panglia monitoring.
 
     API details:
         HTTP Method: GET
-        Path: /task/v1/retry
+        Path: /statistics/v1/production_job_stats_by_cloud_and_processing_type
 
     Args:
         req(PandaRequest): internally generated request object
-        jedi_task_id(int): JEDI Task ID
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the job statistics by cloud. When unsuccessful, the message field contains the error message.
     """
-    ret = global_task_buffer.getJobStatisticsPerSiteResource(time_window)
+
+    tmp_logger = LogWrapper(_logger, f"production_job_stats_by_cloud_and_processing_type")
+
+    tmp_logger.debug("Start")
+    data = global_task_buffer.getJobStatisticsForBamboo()
+    success = data != {}
+    message = "" if success else "Database failure getting the job statistics"
+    tmp_logger.debug(f"Done. {message}")
+
     return generate_response(success, message, data)
 
 
-# get job statistics per site and resource
+# get job statistics by site
 @request_validation(_logger, secure=False, request_method="GET")
-def get_job_statistics_per_site_label_resource(req: PandaRequest, time_window: int = None) -> Dict[str, Any]:
+def active_job_stats_by_site(req: PandaRequest) -> Dict[str, Any]:
     """
-    Task retry
+    Active job statistics by site
 
-    Retry a given task. Requires a secure connection without a production role to retry own tasks and with a production role to retry others' tasks.
+    Get the active (not in a final state) job statistics by site. Used by Harvester.
 
     API details:
         HTTP Method: GET
-        Path: /task/v1/retry
+        Path: /statistics/v1/active_job_stats_by_site
 
     Args:
         req(PandaRequest): internally generated request object
-        jedi_task_id(int): JEDI Task ID
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the job statistics by cloud. When unsuccessful, the message field contains the error message.
     """
-    ret = global_task_buffer.get_job_statistics_per_site_label_resource(time_window)
+    tmp_logger = LogWrapper(_logger, f"active_job_stats_by_site")
+
+    tmp_logger.debug("Start")
+    data = global_task_buffer.getJobStatistics()
+    success = data != {}
+    message = "" if success else "Database failure getting the job statistics"
+    tmp_logger.debug(f"Done. {message}")
+
     return generate_response(success, message, data)
 
 
-# get job statistics per site
+# get job statistics by site and resource
 @request_validation(_logger, secure=False, request_method="GET")
-def getJobStatisticsPerSite(
-    req: PandaRequest,
-    predefined: bool = "False",
-    workingGroup: str = "",
-    countryGroup: str = "",
-    jobType: str = "",
-    minPriority: int = None,
-    readArchived: bool = None,
-) -> Dict[str, Any]:
+def job_stats_by_site_and_resource_type(req: PandaRequest, time_window: int = None) -> Dict[str, Any]:
     """
-    Task retry
+    Job statistics by site and resource type
 
-    Retry a given task. Requires a secure connection without a production role to retry own tasks and with a production role to retry others' tasks.
+    Get the job statistics by computing site (PanDA queue) and resource type (SCORE, MCORE, ...). This includes the active jobs and jobs in final states modified in the specified time window (default of 12 hours).
 
     API details:
         HTTP Method: GET
-        Path: /task/v1/retry
+        Path: /statistics/v1/job_stats_by_site_and_resource_type
 
     Args:
         req(PandaRequest): internally generated request object
-        jedi_task_id(int): JEDI Task ID
+        time_window(int): time window in minutes for the statistics (affects only archived jobs)
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the job statistics by cloud. When unsuccessful, the message field contains the error message.
     """
-    predefined = resolve_true(predefined)
+    tmp_logger = LogWrapper(_logger, f"job_stats_by_site_and_resource_type < time_window={time_window} >")
 
-    if minPriority is not None:
-        try:
-            minPriority = int(minPriority)
-        except Exception:
-            minPriority = None
+    tmp_logger.debug("Start")
+    if time_window is not None and (not isinstance(time_window, int) or time_window < 0 or time_window > MAX_TIME_WINDOW):
+        tmp_logger.error("Invalid time_window parameter")
+        return generate_response(False, 'Parameter "time_window" needs to be a positive integer smaller than 10080 min (7 days)', {})
 
-    if readArchived == "True":
-        readArchived = True
-    elif readArchived == "False":
-        readArchived = False
-    else:
-        host = req.get_remote_host()
-        # read jobsArchived for panglia
-        if re.search("panglia.*\.triumf\.ca$", host) is not None or host in ["gridweb.triumf.ca"]:
-            readArchived = True
-        else:
-            readArchived = False
+    data = global_task_buffer.getJobStatisticsPerSiteResource(time_window)
+    success = data != {}
+    message = "" if success else "Database failure getting the job statistics"
+    tmp_logger.debug(f"Done. {message}")
 
-    # get job statistics
-    ret = global_task_buffer.getJobStatistics(
-        readArchived,
-        predefined,
-        workingGroup,
-        countryGroup,
-        jobType,
-        minPriority=minPriority,
-    )
+    return generate_response(success, message, data)
+
+
+# get job statistics by site and resource
+@request_validation(_logger, secure=False, request_method="GET")
+def job_stats_by_site_share_and_resource_type(req: PandaRequest, time_window: int = None) -> Dict[str, Any]:
+    """
+    Job statistics by site, global share and resource type
+
+    Get the job statistics by computing site (PanDA queue), global share and resource type (SCORE, MCORE, ...). This includes the active jobs and jobs in final states modified in the specified time window (default of 12 hours).
+
+    API details:
+        HTTP Method: GET
+        Path: /statistics/v1/retry
+
+    Args:
+        req(PandaRequest): internally generated request object
+        time_window(int): time window in minutes for the statistics (affects only archived jobs)
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the job statistics by cloud. When unsuccessful, the message field contains the error message.
+    """
+    tmp_logger = LogWrapper(_logger, f"job_stats_by_site_share_and_resource_type < time_window={time_window} >")
+
+    tmp_logger.debug("Start")
+    if time_window is not None and (not isinstance(time_window, int) or time_window < 0 or time_window > MAX_TIME_WINDOW):
+        tmp_logger.error("Invalid time_window parameter")
+        return generate_response(False, 'Parameter "time_window" needs to be a positive integer smaller than 10080 min (7 days)', {})
+
+    data = global_task_buffer.get_job_statistics_per_site_label_resource(time_window)
+    success = data != {}
+    message = "" if success else "Database failure getting the job statistics"
+    tmp_logger.debug(f"Done. {message}")
+
     return generate_response(success, message, data)

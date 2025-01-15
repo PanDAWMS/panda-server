@@ -6196,20 +6196,17 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")
 
-        tables = [
-            "ATLAS_PANDA.jobsActive4",
-            "ATLAS_PANDA.jobsDefined4",
-            "ATLAS_PANDA.jobsArchived4",
-        ]
+        tables = ["ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsDefined4", "ATLAS_PANDA.jobsArchived4"]
 
         # basic SQL for active and defined jobs
-        sql = "SELECT computingSite, jobStatus, resource_type, COUNT(*) FROM %s "
-        sql += "GROUP BY computingSite, jobStatus, resource_type "
+        sql = "SELECT computingSite, jobStatus, resource_type, COUNT(*) FROM %s GROUP BY computingSite, jobStatus, resource_type "
 
         # SQL for archived table including time window
-        sql_archive = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ computingSite, jobStatus, resource_type, COUNT(*) "
-        sql_archive += "FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime>:modificationTime "
-        sql_archive += "GROUP BY computingSite, jobStatus, resource_type "
+        sql_archive = (
+            "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ computingSite, jobStatus, resource_type, COUNT(*) "
+            "FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime > :modificationTime "
+            "GROUP BY computingSite, jobStatus, resource_type "
+        )
 
         # sql for materialized view
         sql_mv = re.sub("COUNT\(\*\)", "SUM(njobs)", sql)
@@ -6247,9 +6244,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
 
                 # create map
                 for computing_site, job_status, resource_type, n_jobs in res:
-                    ret.setdefault(computing_site, dict())
-                    ret[computing_site].setdefault(resource_type, dict())
-                    ret[computing_site][resource_type].setdefault(job_status, 0)
+                    ret.setdefault(computing_site, dict()).setdefault(resource_type, dict()).setdefault(job_status, 0)
                     ret[computing_site][resource_type][job_status] += n_jobs
 
             # fill in missing states with 0
