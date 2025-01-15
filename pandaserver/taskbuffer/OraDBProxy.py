@@ -116,7 +116,7 @@ def get_mb_proxy_dict():
             atexit.register(mp_agent.stop_passive_mode)
             # return
             return mb_proxy_dict
-    except Exception as exc:
+    except Exception:
         _logger.error(f"Error on get_mb_proxy_dict : {traceback.format_exc()}")
     return {}
 
@@ -353,8 +353,6 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             self.conn.begin()
             self.cur.arraysize = arraySize
             ret = self.cur.executemany(sql + comment, varMaps)
-            if ret:
-                ret = True
             if sql.startswith("INSERT") or sql.startswith("UPDATE") or sql.startswith("DELETE"):
                 res = self.cur.rowcount
             else:
@@ -402,7 +400,6 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             # roll back
             if use_commit:
                 self._rollback()
-            type, value, traceBack = sys.exc_info()
             _logger.error(f"getClobObj : {sql} {str(varMap)}")
             _logger.error(f"getClobObj : {str(e)}")
             return -1, None
@@ -411,7 +408,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
     @memoize
     def getConfigValue(self, component, key, app="pandaserver", vo=None):
         comment = " /* DBProxy.getConfigValue */"
-        methodName = comment.split(" ")[-2].split(".")[-1]
+        method_name = comment.split(" ")[-2].split(".")[-1]
         varMap = {":component": component, ":key": key, ":app": app}
         sql = """
         SELECT value, value_json, type FROM ATLAS_PANDA.CONFIG
@@ -514,7 +511,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         # compact username
         job.prodUserName = self.cleanUserID(job.prodUserID)
         if job.prodUserName in ["", "NULL"]:
-            # use prodUserID as compact user name
+            # use prodUserID as compact username
             job.prodUserName = job.prodUserID
 
         # VO
@@ -839,11 +836,8 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                         varMap[":esFailed"] = EventServiceUtils.ST_failed
                         tmp_log.debug(sqlJediFEvt + comment + str(varMap))
                         self.cur.execute(sqlJediFEvt + comment, varMap)
-                        # event range with offset
-                        withOffset = False
-                        if "offset" in eventServiceInfo[file.lfn] and eventServiceInfo[file.lfn]["offset"] != -1:
-                            withOffset = True
-                        # get sucessful event ranges
+
+                        # get successful event ranges
                         okRanges = set()
                         if job.notDiscardEvents():
                             sqlJediOks = (
@@ -1248,7 +1242,6 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                         # insert
                         self.cur.execute(sql2 + comment, job.valuesMap())
                         # update files
-                        datasetContentsStat = {}
                         for file in job.Files:
                             sqlF = f"UPDATE ATLAS_PANDA.filesTable4 SET {file.bindUpdateChangesExpression()}" + "WHERE row_ID=:row_ID"
                             varMap = file.valuesMap(onlyChanged=True)
@@ -1638,7 +1631,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                     if retInputStat is None:
                         raise RuntimeError(f"archiveJob : {job.PandaID} failed to check input")
                     if retInputStat is False:
-                        tmpLog.debug("set jobStatus=failed due to inconsisten input")
+                        tmpLog.debug("set jobStatus=failed due to inconsistent input")
                         job.jobStatus = "failed"
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceInconsistentIn
                         job.taskBufferErrorDiag = "inconsistent file status between Panda and JEDI"
@@ -1682,7 +1675,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                     except Exception:
                         tmpLog.error(f"failed calculating gCO2 with {traceback.format_exc()}")
 
-                    # post processing
+                    # post-processing
                     oldJobSubStatus = job.jobSubStatus
                     if oldJobSubStatus == "NULL":
                         oldJobSubStatus = None
@@ -1690,7 +1683,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                     tmpLog.debug(f"ppE -> {retEvS}")
                     # DB error
                     if retEvS is None:
-                        raise RuntimeError("Faied to retry for Event Service")
+                        raise RuntimeError("Failed to retry for Event Service")
                     elif retEvS == 0:
                         # retry event ranges
                         job.jobStatus = "merging"
@@ -1792,7 +1785,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                     retJC = self.checkClonedJob(job, False)
                     # DB error
                     if retJC is None:
-                        raise RuntimeError("Faied to take post-action for cloned job")
+                        raise RuntimeError("Failed to take post-action for cloned job")
                     elif retJC["lock"] is True:
                         # kill other clones if the job done after locking semaphore
                         self.killEventServiceConsumers(job, False, False)
@@ -2573,7 +2566,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                             action_in_downstream = {"action": "get_event", "pandaID": pandaID, "jobsetID": jobsetID, "jediTaskID": jediTaskID}
                             tmp_log.debug(f'take action={action_in_downstream["action"]} in downstream')
                         # try to update the lastupdate column in the harvester_rel_job_worker table to propagate
-                        # changes to Elastic Search
+                        # changes to ElasticSearch
                         sqlJWU = "UPDATE ATLAS_PANDA.Harvester_Rel_Jobs_Workers SET lastUpdate=:lastUpdate "
                         sqlJWU += "WHERE PandaID=:PandaID "
                         varMap = {
@@ -2625,7 +2618,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                     tmp_log.error("recordStatusChange in updateJobStatus")
                 tmp_log.debug("done")
                 return ret, action_in_downstream
-            except Exception as e:
+            except Exception:
                 # roll back
                 self._rollback(True)
                 if iTry + 1 < nTry:
@@ -3064,7 +3057,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                         for attr in job._attributes:
                             if attr.endswith("ErrorCode") or attr.endswith("ErrorDiag"):
                                 setattr(job, attr, None)
-                        # remove flag regarding to pledge-resource handling
+                        # remove flag related to pledge-resource handling
                         if job.specialHandling not in [None, "NULL", ""]:
                             newSpecialHandling = re.sub(",*localpool", "", job.specialHandling)
                             if newSpecialHandling == "":
@@ -3586,14 +3579,19 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                                         )
                                         # insert mapping
                                         sqlJWH = "SELECT 1 FROM ATLAS_PANDA.Harvester_Instances WHERE harvester_ID=:harvesterID "
+
                                         sqlJWC = "SELECT PandaID FROM ATLAS_PANDA.Harvester_Rel_Jobs_Workers "
                                         sqlJWC += "WHERE harvesterID=:harvesterID AND workerID=:workerID AND PandaID=:PandaID "
+
                                         sqlJWI = "INSERT INTO ATLAS_PANDA.Harvester_Rel_Jobs_Workers (harvesterID,workerID,PandaID,lastUpdate) "
                                         sqlJWI += "VALUES (:harvesterID,:workerID,:PandaID,:lastUpdate) "
+
                                         sqlJWU = "UPDATE ATLAS_PANDA.Harvester_Rel_Jobs_Workers SET lastUpdate=:lastUpdate "
                                         sqlJWU += "WHERE harvesterID=:harvesterID AND workerID=:workerID AND PandaID=:PandaID "
+
                                         varMap = dict()
                                         varMap[":harvesterID"] = harvester_id
+
                                         self.cur.execute(sqlJWH + comment, varMap)
                                         resJWH = self.cur.fetchone()
                                         if resJWH is None:
@@ -3727,7 +3725,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                             # add file
                             job.addFile(newFileSpec)
                         continue
-                    # construct input files from event ragnes for event service merge
+                    # construct input files from event ranges for event service merge
                     if EventServiceUtils.isEventServiceMerge(job):
                         # only for input
                         if file.type not in ["output", "log"]:
@@ -4464,7 +4462,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 # error code
                 if job.jobStatus != "failed":
                     currentTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-                    # set status etc for non-failed jobs
+                    # set status etc. for non-failed jobs
                     if job.endTime in [None, "NULL"]:
                         job.endTime = currentTime
                     # reset startTime for aCT where starting jobs don't acutally get started
@@ -4625,7 +4623,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             return None
         # only int
         try:
-            tmpID = int(pandaID)
+            _ = int(pandaID)
         except Exception:
             _logger.debug(f"peekJob : return None for {pandaID}:non-integer")
             return None
@@ -5464,9 +5462,11 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         _logger.debug(f"insertSandboxFileInfo : {userName} {hostName} {fileName} {fileSize} {checkSum}")
         sqlC = "SELECT userName,fileSize,checkSum FROM ATLAS_PANDAMETA.userCacheUsage "
         sqlC += "WHERE hostName=:hostName AND fileName=:fileName FOR UPDATE"
+
         sql = "INSERT INTO ATLAS_PANDAMETA.userCacheUsage "
         sql += "(userName,hostName,fileName,fileSize,checkSum,creationTime,modificationTime) "
         sql += "VALUES (:userName,:hostName,:fileName,:fileSize,:checkSum,CURRENT_DATE,CURRENT_DATE) "
+
         try:
             # begin transaction
             self.conn.begin()
@@ -6116,161 +6116,256 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         return False
 
     # get job statistics
-    def getJobStatistics(
-        self,
-        archived=False,
-        predefined=False,
-        workingGroup="",
-        countryGroup="",
-        jobType="",
-        forAnal=None,
-        minPriority=None,
-    ):
+    def getJobStatistics(self):
         comment = " /* DBProxy.getJobStatistics */"
         method_name = comment.split(" ")[-2].split(".")[-1]
-        method_name += f" < archived={archived} predefined={predefined} workingGroup='{workingGroup}' countryGroup='{countryGroup}' jobType='{jobType}' forAnal={forAnal} minPriority={minPriority} >"
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")
 
-        timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
-        sql0 = "SELECT computingSite,jobStatus,COUNT(*) FROM %s "
-        # processingType
-        tmpJobTypeMap = {}
-        sqlJobType = ""
-        useWhereInSQL = True
-        if forAnal is None or jobType != "":
-            useWhereInSQL = False
-        elif forAnal is True:
-            tmpJobTypeMap[":prodSourceLabel1"] = "user"
-            tmpJobTypeMap[":prodSourceLabel2"] = "panda"
-            sql0 += "WHERE prodSourceLabel IN ("
-            sqlJobType = ":prodSourceLabel1,:prodSourceLabel2) "
-        else:
-            tmpJobTypeMap[":prodSourceLabel1"] = "managed"
-            sql0 += "WHERE prodSourceLabel IN ("
-            sqlJobType = ":prodSourceLabel1) "
-        sql0 += sqlJobType
-        # predefined
-        if predefined:
-            if useWhereInSQL:
-                sql0 += "AND relocationFlag=1 "
-            else:
-                sql0 += "WHERE relocationFlag=1 "
-                useWhereInSQL = True
-        # working group
-        tmpGroupMap = {}
-        sqlGroups = ""
-        if workingGroup != "":
-            if useWhereInSQL:
-                sqlGroups += "AND workingGroup IN ("
-            else:
-                sqlGroups += "WHERE workingGroup IN ("
-                useWhereInSQL = True
-            # loop over all groups
-            idxWG = 1
-            for tmpWG in workingGroup.split(","):
-                tmpWGkey = f":workingGroup{idxWG}"
-                sqlGroups += f"{tmpWGkey},"
-                tmpGroupMap[tmpWGkey] = tmpWG
-                idxWG += 1
-            sqlGroups = sqlGroups[:-1] + ") "
-
-        sql0 += sqlGroups
-        # minimum priority
-        sqlPrio = ""
-        tmpPrioMap = {}
-        if minPriority is not None:
-            if useWhereInSQL:
-                sqlPrio = "AND currentPriority>=:minPriority "
-            else:
-                sqlPrio = "WHERE currentPriority>=:minPriority "
-                useWhereInSQL = True
-            tmpPrioMap[":minPriority"] = minPriority
-        sql0 += sqlPrio
-        sql0 += "GROUP BY computingSite,jobStatus"
-        sqlA = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ computingSite,jobStatus,COUNT(*) "
-        sqlA += f"FROM {panda_config.schemaPANDA}.jobsArchived4 tab WHERE modificationTime>:modificationTime "
-        if sqlJobType != "":
-            sqlA += "AND prodSourceLabel IN ("
-            sqlA += sqlJobType
-        if predefined:
-            sqlA += "AND relocationFlag=1 "
-        sqlA += sqlGroups
-        sqlA += sqlPrio
-        sqlA += "GROUP BY computingSite,jobStatus"
+        # tables to query
         jobs_active_4_table = f"{panda_config.schemaPANDA}.jobsActive4"
         jobs_defined_4_table = f"{panda_config.schemaPANDA}.jobsDefined4"
-        jobs_archived_4_table = f"{panda_config.schemaPANDA}.jobsArchived4"
         tables = [jobs_active_4_table, jobs_defined_4_table]
-        if archived:
-            tables.append(jobs_archived_4_table)
-        # sql for materialized view
-        sqlMV = re.sub("COUNT\(\*\)", "SUM(num_of_jobs)", sql0)
-        sqlMV = re.sub(":minPriority", "TRUNC(:minPriority,-1)", sqlMV)
-        sqlMV = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sqlMV)
+
+        # states that are necessary and irrelevant states
+        included_states = ["assigned", "activated", "running"]
+        excluded_states = ["merging"]
+
+        # sql template for jobs table
+        sql_template = f"SELECT computingSite, jobStatus, COUNT(*) FROM {{table_name}} GROUP BY computingSite, jobStatus"
+        # sql template for statistics table (materialized view)
+        sql_mv_template = sql_template.replace("COUNT(*)", "SUM(num_of_jobs)")
+        sql_mv_template = sql_mv_template.replace("SELECT ", "SELECT /*+ RESULT_CACHE */ ")
         ret = {}
-        nTry = 3
-        for iTry in range(nTry):
+        max_retries = 3
+
+        for retry in range(max_retries):
             try:
                 for table in tables:
                     # start transaction
                     self.conn.begin()
-                    # select
-                    varMap = {}
-                    for tmpJobType in tmpJobTypeMap:
-                        varMap[tmpJobType] = tmpJobTypeMap[tmpJobType]
-                    for tmpGroup in tmpGroupMap:
-                        varMap[tmpGroup] = tmpGroupMap[tmpGroup]
-                    for tmpPrio in tmpPrioMap:
-                        varMap[tmpPrio] = tmpPrioMap[tmpPrio]
-                    if table != jobs_archived_4_table:
-                        self.cur.arraysize = 10000
-                        if table == jobs_active_4_table:
-                            sqlExeTmp = (sqlMV + comment) % f"{panda_config.schemaPANDA}.MV_JOBSACTIVE4_STATS"
-                        else:
-                            sqlExeTmp = (sql0 + comment) % table
-                        tmp_log.debug(f" will execute: {sqlExeTmp} {str(varMap)}")
-                        self.cur.execute(sqlExeTmp, varMap)
+                    var_map = {}
+                    self.cur.arraysize = 10000
+
+                    # for active jobs we will query the summarized materialized view
+                    if table == jobs_active_4_table:
+                        table_name = f"{panda_config.schemaPANDA}.MV_JOBSACTIVE4_STATS"
+                        sql = (sql_mv_template + comment).format(table_name=table_name)
+                    # for defined jobs we will query the actual table
                     else:
-                        varMap[":modificationTime"] = timeLimit
-                        self.cur.arraysize = 10000
-                        self.cur.execute(sqlA + comment, varMap)
+                        table_name = table
+                        sql = (sql_template + comment).format(table_name=table_name)
+                    tmp_log.debug(f"Will execute: {sql} {str(var_map)}")
+
+                    self.cur.execute(sql, var_map)
                     res = self.cur.fetchall()
-                    # commit
                     if not self._commit():
                         raise RuntimeError("Commit error")
+
                     # create map
-                    for computingSite, jobStatus, nJobs in res:
-                        # FIXME
-                        # ignore some job status since they break APF
-                        if jobStatus in ["merging"]:
+                    for computing_site, job_status, n_jobs in res:
+                        if job_status in excluded_states:  # ignore some job status since they break APF
                             continue
-                        if computingSite not in ret:
-                            ret[computingSite] = {}
-                        if jobStatus not in ret[computingSite]:
-                            ret[computingSite][jobStatus] = 0
-                        ret[computingSite][jobStatus] += nJobs
-                # for zero
-                stateList = ["assigned", "activated", "running"]
-                if archived:
-                    stateList += ["finished", "failed"]
+
+                        ret.setdefault(computing_site, {}).setdefault(job_status, 0)
+                        ret[computing_site][job_status] += n_jobs
+
+                # fill in missing states with 0
                 for site in ret:
-                    for state in stateList:
-                        if state not in ret[site]:
-                            ret[site][state] = 0
-                # return
+                    for state in included_states:
+                        ret[site].setdefault(state, 0)
+
                 tmp_log.debug(f"done")
                 return ret
+
             except Exception:
-                # roll back
                 self._rollback()
-                if iTry + 1 < nTry:
-                    tmp_log.debug(f"retry: {iTry}")
+
+                if retry + 1 < max_retries:  # wait 2 seconds before the next retry
+                    tmp_log.debug(f"retry: {retry}")
                     time.sleep(2)
-                    continue
-                type, value, traceBack = sys.exc_info()
-                tmp_log.error(f"excepted: {type} {value}")
-                return {}
+                else:  # reached max retries - leave
+                    error_type, error_value, _ = sys.exc_info()
+                    tmp_log.error(f"excepted: {error_type} {error_value}")
+                    return {}
+
+    # get job statistics per site and resource type (SCORE, MCORE, ...)
+    def getJobStatisticsPerSiteResource(self, time_window):
+        comment = " /* DBProxy.getJobStatisticsPerSiteResource */"
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+
+        tables = [
+            "ATLAS_PANDA.jobsActive4",
+            "ATLAS_PANDA.jobsDefined4",
+            "ATLAS_PANDA.jobsArchived4",
+        ]
+
+        # basic SQL for active and defined jobs
+        sql = "SELECT computingSite, jobStatus, resource_type, COUNT(*) FROM %s "
+        sql += "GROUP BY computingSite, jobStatus, resource_type "
+
+        # SQL for archived table including time window
+        sql_archive = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ computingSite, jobStatus, resource_type, COUNT(*) "
+        sql_archive += "FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime>:modificationTime "
+        sql_archive += "GROUP BY computingSite, jobStatus, resource_type "
+
+        # sql for materialized view
+        sql_mv = re.sub("COUNT\(\*\)", "SUM(njobs)", sql)
+        sql_mv = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sql_mv)
+
+        ret = dict()
+        try:
+            # calculate the time floor based on the window specified by the caller
+            if time_window is None:
+                time_floor = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
+            else:
+                time_floor = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=int(time_window))
+
+            for table in tables:
+                # start transaction
+                self.conn.begin()
+                self.cur.arraysize = 10000
+                # select
+
+                var_map = {}
+                if table == "ATLAS_PANDA.jobsArchived4":
+                    var_map[":modificationTime"] = time_floor
+                    sql_tmp = sql_archive + comment
+                elif table == "ATLAS_PANDA.jobsActive4":
+                    sql_tmp = (sql_mv + comment) % "ATLAS_PANDA.JOBS_SHARE_STATS"
+                else:
+                    sql_tmp = (sql + comment) % table
+
+                self.cur.execute(sql_tmp, var_map)
+                res = self.cur.fetchall()
+
+                # commit
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+
+                # create map
+                for computing_site, job_status, resource_type, n_jobs in res:
+                    ret.setdefault(computing_site, dict())
+                    ret[computing_site].setdefault(resource_type, dict())
+                    ret[computing_site][resource_type].setdefault(job_status, 0)
+                    ret[computing_site][resource_type][job_status] += n_jobs
+
+            # fill in missing states with 0
+            included_states = ["assigned", "activated", "running", "finished", "failed"]
+            for computing_site in ret:
+                for resource_type in ret[computing_site]:
+                    for job_status in included_states:
+                        ret[computing_site][resource_type].setdefault(job_status, 0)
+
+            tmp_log.debug("done")
+            return ret
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return dict()
+
+    # get job statistics per site, prodsourcelabel (managed, user, test...), and resource type (SCORE, MCORE...)
+    def get_job_statistics_per_site_label_resource(self, time_window):
+        comment = " /* DBProxy.get_job_statistics_per_site_label_resource */"
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+
+        sql_defined = (
+            "SELECT computingSite, jobStatus, gshare, resource_type, COUNT(*) FROM ATLAS_PANDA.jobsDefined4 "
+            "GROUP BY computingSite, jobStatus, gshare, resource_type "
+        )
+
+        sql_failed = (
+            "SELECT computingSite, jobStatus, gshare, resource_type, COUNT(*) FROM ATLAS_PANDA.jobsActive4 "
+            "WHERE jobStatus = :jobStatus AND modificationTime > :modificationTime "
+            "GROUP BY computingSite, jobStatus, gshare, resource_type "
+        )
+
+        sql_active_mv = (
+            "SELECT /*+ RESULT_CACHE */ computingSite, jobStatus, gshare, resource_type, SUM(njobs) "
+            "FROM ATLAS_PANDA.JOBS_SHARE_STATS "
+            "WHERE jobStatus <> :jobStatus "
+            "GROUP BY computingSite, jobStatus, gshare, resource_type "
+        )
+
+        sql_archived = (
+            "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ "
+            "computingSite, jobStatus, gshare, resource_type, COUNT(*) "
+            "FROM ATLAS_PANDA.jobsArchived4 tab "
+            "WHERE modificationTime > :modificationTime "
+            "GROUP BY computingSite, jobStatus, gshare, resource_type"
+        )
+
+        ret = dict()
+        try:
+            if time_window is None:
+                time_floor = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
+            else:
+                time_floor = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=int(time_window))
+
+            sql_var_list = [
+                (sql_defined, {}),
+                (sql_failed, {":jobStatus": "failed", ":modificationTime": time_floor}),
+                (sql_active_mv, {":jobStatus": "failed"}),
+                (sql_archived, {":modificationTime": time_floor}),
+            ]
+
+            for sql_tmp, var_map in sql_var_list:
+                # start transaction
+                self.conn.begin()
+                self.cur.arraysize = 10000
+                # select
+                sql_tmp = sql_tmp + comment
+                self.cur.execute(sql_tmp, var_map)
+                res = self.cur.fetchall()
+                # commit
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+                self.__reload_shares()
+
+                # create map
+                share_label_map = dict()
+                for computing_site, job_status, gshare, resource_type, n_jobs in res:
+                    if gshare not in share_label_map:
+                        for share in self.leave_shares:
+                            if gshare == share.name:
+                                prod_source_label = share.prodsourcelabel
+                                if "|" in prod_source_label:
+                                    prod_source_label = prod_source_label.split("|")[0]
+                                    prod_source_label = prod_source_label.replace(".*", "")
+                                share_label_map[gshare] = prod_source_label
+                                break
+                        if gshare not in share_label_map:
+                            share_label_map[gshare] = "unknown"
+                    prod_source_label = share_label_map[gshare]
+                    ret.setdefault(computing_site, dict())
+                    ret[computing_site].setdefault(prod_source_label, dict())
+                    ret[computing_site][prod_source_label].setdefault(resource_type, dict())
+                    ret[computing_site][prod_source_label][resource_type].setdefault(job_status, 0)
+                    ret[computing_site][prod_source_label][resource_type][job_status] += n_jobs
+
+            # for zero
+            state_list = ["assigned", "activated", "running", "finished", "failed"]
+            for computing_site in ret:
+                for prod_source_label in ret[computing_site]:
+                    for resource_type in ret[computing_site][prod_source_label]:
+                        for job_status in state_list:
+                            ret[computing_site][prod_source_label][resource_type].setdefault(job_status, 0)
+
+            # return
+            tmp_log.debug(f"done")
+            return ret
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dumpErrorMessage(_logger, method_name)
+            return dict()
 
     # get the number of job for a user
     def getNumberJobsUser(self, dn, workingGroup=None):
@@ -6322,81 +6417,87 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 _logger.error(f"getNumberJobsUsers : {type} {value}")
                 return 0
 
-    # get job statistics for ExtIF
-    def getJobStatisticsForExtIF(self, sourcetype=None):
+    # get job statistics for ExtIF. Source type is analysis or production
+    def getJobStatisticsForExtIF(self, source_type=None):
         comment = " /* DBProxy.getJobStatisticsForExtIF */"
         method_name = comment.split(" ")[-2].split(".")[-1]
-        method_name += f" < sourcetype={sourcetype} >"
+        method_name += f" < source_type={source_type} >"
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")
 
-        timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
+        time_floor = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
 
         # analysis
-        if sourcetype == "analysis":
-            sql0 = "SELECT jobStatus,COUNT(*), cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1, :prodSourceLabel2) GROUP BY jobStatus, cloud"
+        if source_type == "analysis":
+            sql = "SELECT jobStatus, COUNT(*), cloud FROM %s WHERE prodSourceLabel IN (:prodSourceLabel1, :prodSourceLabel2) GROUP BY jobStatus, cloud"
 
-            sqlA = "SELECT /* use_json_type */ /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus,COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
-            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) AND tab.computingSite=tabS.panda_queue "
+            sql_archived = (
+                "SELECT /* use_json_type */ /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ "
+                "jobStatus, COUNT(*), tabS.data.cloud "
+                "FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
+                "WHERE prodSourceLabel IN (:prodSourceLabel1, :prodSourceLabel2) "
+                "AND tab.computingSite = tabS.panda_queue "
+                "AND modificationTime>:modificationTime GROUP BY tab.jobStatus,tabS.data.cloud"
+            )
+
         # production
         else:
-            sql0 = "SELECT /* use_json_type */ tab.jobStatus, COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
-            sql0 += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
-            for tmpLabel in JobUtils.list_ptest_prod_sources:
-                tmpKey = f":prodSourceLabel_{tmpLabel}"
-                sql0 += tmpKey
-                sql0 += ","
-            sql0 = sql0[:-1]
-            sql0 += ") AND tab.computingSite=tabS.panda_queue GROUP BY tab.jobStatus, tabS.data.cloud"
-            sqlA = "SELECT /* use_json_type */ /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus, COUNT(*), tabS.data.cloud FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
-            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
-            for tmpLabel in JobUtils.list_ptest_prod_sources:
-                tmpKey = f":prodSourceLabel_{tmpLabel}"
-                sqlA += tmpKey
-                sqlA += ","
-            sqlA = sqlA[:-1]
-            sqlA += ") AND tab.computingSite=tabS.panda_queue "
+            prod_source_label_string = ":prodSourceLabel1, " + ", ".join(f":prodSourceLabel_{label}" for label in JobUtils.list_ptest_prod_sources)
+            sql = (
+                "SELECT /* use_json_type */ tab.jobStatus, COUNT(*), tabS.data.cloud "
+                "FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
+                f"WHERE prodSourceLabel IN ({prod_source_label_string}) "
+                "AND tab.computingSite = tabS.panda_queue "
+                "GROUP BY tab.jobStatus, tabS.data.cloud"
+            )
 
-        sqlA += "AND modificationTime>:modificationTime GROUP BY tab.jobStatus,tabS.data.cloud"
+            sql_archived = (
+                "SELECT /* use_json_type */ /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ "
+                "jobStatus, COUNT(*), tabS.data.cloud "
+                "FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
+                f"WHERE prodSourceLabel IN ({prod_source_label_string}) "
+                "AND tab.computingSite = tabS.panda_queue "
+                "AND modificationTime>:modificationTime GROUP BY tab.jobStatus,tabS.data.cloud"
+            )
 
         # sql for materialized view
-        sqlMV = re.sub("COUNT\(\*\)", "SUM(num_of_jobs)", sql0)
-        sqlMV = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sqlMV)
+        sql_active_mv = re.sub("COUNT\(\*\)", "SUM(num_of_jobs)", sql)
+        sql_active_mv = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sql_active_mv)
+
         ret = {}
 
+        tables = ["ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsWaiting4", "ATLAS_PANDA.jobsArchived4", "ATLAS_PANDA.jobsDefined4"]
         try:
-            for table in (
-                "ATLAS_PANDA.jobsActive4",
-                "ATLAS_PANDA.jobsWaiting4",
-                "ATLAS_PANDA.jobsArchived4",
-                "ATLAS_PANDA.jobsDefined4",
-            ):
+            for table in tables:
                 # start transaction
                 self.conn.begin()
+
                 # select
-                varMap = {}
-                if sourcetype == "analysis":
-                    varMap[":prodSourceLabel1"] = "user"
-                    varMap[":prodSourceLabel2"] = "panda"
+                var_map = {}
+                if source_type == "analysis":
+                    var_map[":prodSourceLabel1"] = "user"
+                    var_map[":prodSourceLabel2"] = "panda"
                 else:
-                    varMap[":prodSourceLabel1"] = "managed"
-                    for tmpLabel in JobUtils.list_ptest_prod_sources:
-                        tmpKey = f":prodSourceLabel_{tmpLabel}"
-                        varMap[tmpKey] = tmpLabel
+                    var_map[":prodSourceLabel1"] = "managed"
+                    for tmp_label in JobUtils.list_ptest_prod_sources:
+                        tmp_key = f":prodSourceLabel_{tmp_label}"
+                        var_map[tmp_key] = tmp_label
 
                 if table != "ATLAS_PANDA.jobsArchived4":
                     self.cur.arraysize = 10000
+                    # active uses materialized view
                     if table == "ATLAS_PANDA.jobsActive4":
                         self.cur.execute(
-                            (sqlMV + comment) % "ATLAS_PANDA.MV_JOBSACTIVE4_STATS",
-                            varMap,
+                            (sql_active_mv + comment) % "ATLAS_PANDA.MV_JOBSACTIVE4_STATS",
+                            var_map,
                         )
+                    # defined and waiting tables
                     else:
-                        self.cur.execute((sql0 + comment) % table, varMap)
+                        self.cur.execute((sql + comment) % table, var_map)
                 else:
-                    varMap[":modificationTime"] = timeLimit
+                    var_map[":modificationTime"] = time_floor
                     self.cur.arraysize = 10000
-                    self.cur.execute((sqlA + comment) % table, varMap)
+                    self.cur.execute((sql_archived + comment) % table, var_map)
                 res = self.cur.fetchall()
 
                 # commit
@@ -6404,10 +6505,10 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                     raise RuntimeError("Commit error")
 
                 # create map
-                for jobStatus, count, cloud in res:
+                for job_status, count, cloud in res:
                     ret.setdefault(cloud, dict())
-                    ret[cloud].setdefault(jobStatus, 0)
-                    ret[cloud][jobStatus] += count
+                    ret[cloud].setdefault(job_status, 0)
+                    ret[cloud][job_status] += count
 
             # return
             tmp_log.debug(f"done")
@@ -6561,25 +6662,33 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         comment = " /* DBProxy.updateSiteData */"
         _logger.debug("updateSiteData start")
 
-        sqlDel = "DELETE FROM ATLAS_PANDAMETA.SiteData WHERE LASTMOD<:LASTMOD"
+        sqlDel = "DELETE FROM ATLAS_PANDAMETA.SiteData WHERE LASTMOD < :LASTMOD"
 
-        sqlRst = "UPDATE ATLAS_PANDAMETA.SiteData "
-        sqlRst += "SET GETJOB=:GETJOB,UPDATEJOB=:UPDATEJOB,NOJOB=:NOJOB,GETJOBABS=:GETJOBABS,UPDATEJOBABS=:UPDATEJOBABS,NOJOBABS=:NOJOBABS "
-        sqlRst += "WHERE HOURS=:HOURS AND LASTMOD<:LASTMOD"
+        sqlRst = (
+            "UPDATE ATLAS_PANDAMETA.SiteData "
+            "SET GETJOB = :GETJOB, UPDATEJOB = :UPDATEJOB, NOJOB = :NOJOB, "
+            "GETJOBABS = :GETJOBABS, UPDATEJOBABS = :UPDATEJOBABS, NOJOBABS = :NOJOBABS "
+            "WHERE HOURS = :HOURS AND LASTMOD < :LASTMOD"
+        )
 
-        sqlCh = "SELECT count(*) FROM ATLAS_PANDAMETA.SiteData WHERE FLAG=:FLAG AND HOURS=:HOURS AND SITE=:SITE"
+        sqlCh = "SELECT COUNT(*) FROM ATLAS_PANDAMETA.SiteData WHERE FLAG = :FLAG AND HOURS = :HOURS AND SITE = :SITE"
 
-        sqlIn = "INSERT INTO ATLAS_PANDAMETA.SiteData (SITE,FLAG,HOURS,GETJOB,UPDATEJOB,NOJOB,GETJOBABS,UPDATEJOBABS,NOJOBABS,"
-        sqlIn += "LASTMOD,NSTART,FINISHED,FAILED,DEFINED,ASSIGNED,WAITING,ACTIVATED,HOLDING,RUNNING,TRANSFERRING) "
-        sqlIn += "VALUES (:SITE,:FLAG,:HOURS,:GETJOB,:UPDATEJOB,:NOJOB,:GETJOBABS,:UPDATEJOBABS,:NOJOBABS,CURRENT_DATE,"
-        sqlIn += "0,0,0,0,0,0,0,0,0,0)"
+        sqlIn = (
+            "INSERT INTO ATLAS_PANDAMETA.SiteData "
+            "(SITE, FLAG, HOURS, GETJOB, UPDATEJOB, NOJOB, GETJOBABS, UPDATEJOBABS, NOJOBABS, "
+            "LASTMOD, NSTART, FINISHED, FAILED, DEFINED, ASSIGNED, WAITING, ACTIVATED, HOLDING, RUNNING, TRANSFERRING) "
+            "VALUES (:SITE, :FLAG, :HOURS, :GETJOB, :UPDATEJOB, :NOJOB, :GETJOBABS, :UPDATEJOBABS, :NOJOBABS, CURRENT_DATE, "
+            "0, 0, 0, 0, 0, 0, 0, 0, 0, 0)"
+        )
 
-        sqlUp = "UPDATE ATLAS_PANDAMETA.SiteData SET GETJOB=:GETJOB,UPDATEJOB=:UPDATEJOB,NOJOB=:NOJOB,"
-        sqlUp += "GETJOBABS=:GETJOBABS,UPDATEJOBABS=:UPDATEJOBABS,NOJOBABS=:NOJOBABS,LASTMOD=CURRENT_DATE "
-        sqlUp += "WHERE FLAG=:FLAG AND HOURS=:HOURS AND SITE=:SITE"
+        sqlUp = (
+            "UPDATE ATLAS_PANDAMETA.SiteData "
+            "SET GETJOB = :GETJOB, UPDATEJOB = :UPDATEJOB, NOJOB = :NOJOB, "
+            "GETJOBABS = :GETJOBABS, UPDATEJOBABS = :UPDATEJOBABS, NOJOBABS = :NOJOBABS, LASTMOD = CURRENT_DATE "
+            "WHERE FLAG = :FLAG AND HOURS = :HOURS AND SITE = :SITE"
+        )
 
-        sqlAll = "SELECT getJob,updateJob,noJob,getJobAbs,updateJobAbs,noJobAbs,FLAG "
-        sqlAll += "FROM ATLAS_PANDAMETA.SiteData WHERE HOURS=:HOURS AND SITE=:SITE"
+        sqlAll = "SELECT GETJOB, UPDATEJOB, NOJOB, GETJOBABS, UPDATEJOBABS, NOJOBABS, FLAG FROM ATLAS_PANDAMETA.SiteData WHERE HOURS = :HOURS AND SITE = :SITE"
 
         try:
             timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
@@ -6805,21 +6914,34 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
     def insertnRunningInSiteData(self):
         comment = " /* DBProxy.insertnRunningInSiteData */"
         _logger.debug("insertnRunningInSiteData start")
-        sqlDel = "DELETE FROM ATLAS_PANDAMETA.SiteData WHERE FLAG IN (:FLAG1,:FLAG2) AND LASTMOD<CURRENT_DATE-1"
-        sqlRun = "SELECT COUNT(*),computingSite FROM ATLAS_PANDA.jobsActive4 "
-        sqlRun += "WHERE prodSourceLabel IN (:prodSourceLabel1,:prodSourceLabel2) "
-        sqlRun += "AND jobStatus=:jobStatus GROUP BY computingSite"
-        sqlCh = "SELECT COUNT(*) FROM ATLAS_PANDAMETA.SiteData WHERE FLAG=:FLAG AND HOURS=:HOURS AND SITE=:SITE"
-        sqlIn = "INSERT INTO ATLAS_PANDAMETA.SiteData (SITE,FLAG,HOURS,GETJOB,UPDATEJOB,LASTMOD,"
-        sqlIn += "NSTART,FINISHED,FAILED,DEFINED,ASSIGNED,WAITING,ACTIVATED,HOLDING,RUNNING,TRANSFERRING) "
-        sqlIn += "VALUES (:SITE,:FLAG,:HOURS,0,0,CURRENT_DATE,"
-        sqlIn += "0,0,0,0,0,0,0,0,:RUNNING,0)"
-        sqlUp = "UPDATE ATLAS_PANDAMETA.SiteData SET RUNNING=:RUNNING,LASTMOD=CURRENT_DATE "
-        sqlUp += "WHERE FLAG=:FLAG AND HOURS=:HOURS AND SITE=:SITE"
-        sqlMax = "SELECT SITE,MAX(RUNNING) FROM ATLAS_PANDAMETA.SiteData "
-        sqlMax += "WHERE FLAG=:FLAG GROUP BY SITE"
+
+        sqlDel = "DELETE FROM ATLAS_PANDAMETA.SiteData WHERE FLAG IN (:FLAG1, :FLAG2) AND LASTMOD < CURRENT_DATE - 1"
+
+        sqlRun = (
+            "SELECT COUNT(*), computingSite "
+            "FROM ATLAS_PANDA.jobsActive4 "
+            "WHERE prodSourceLabel IN (:prodSourceLabel1, :prodSourceLabel2) "
+            "AND jobStatus = :jobStatus "
+            "GROUP BY computingSite"
+        )
+
+        sqlCh = "SELECT COUNT(*) FROM ATLAS_PANDAMETA.SiteData WHERE FLAG = :FLAG AND HOURS = :HOURS AND SITE = :SITE"
+
+        sqlIn = (
+            "INSERT INTO ATLAS_PANDAMETA.SiteData "
+            "(SITE, FLAG, HOURS, GETJOB, UPDATEJOB, LASTMOD, "
+            "NSTART, FINISHED, FAILED, DEFINED, ASSIGNED, WAITING, "
+            "ACTIVATED, HOLDING, RUNNING, TRANSFERRING) "
+            "VALUES (:SITE, :FLAG, :HOURS, 0, 0, CURRENT_DATE, "
+            "0, 0, 0, 0, 0, 0, 0, 0, :RUNNING, 0)"
+        )
+
+        sqlUp = "UPDATE ATLAS_PANDAMETA.SiteData SET RUNNING = :RUNNING, LASTMOD = CURRENT_DATE WHERE FLAG = :FLAG AND HOURS = :HOURS AND SITE = :SITE"
+
+        sqlMax = "SELECT SITE, MAX(RUNNING) FROM ATLAS_PANDAMETA.SiteData WHERE FLAG = :FLAG GROUP BY SITE"
+
         try:
-            # use offset(1000)+minites for :HOURS
+            # use offset(1000)+minutes for :HOURS
             timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             nHours = 1000 + timeNow.hour * 60 + timeNow.minute
             # delete old records
@@ -7543,7 +7665,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             self._rollback()
             return 0.0
 
-    # check if super user
+    # check if superuser
     def isSuperUser(self, userName):
         comment = " /* DBProxy.isSuperUser */"
         methodName = comment.split(" ")[-2].split(".")[-1]
@@ -7643,7 +7765,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                         # new jobID = 1 + new jobsetID
                         retJobID = retJobsetID + 1
                     else:
-                        # new jobID = 1 + exsiting jobID
+                        # new jobID = 1 + existing jobID
                         retJobID = dbJobID + 1
                 # update DB
                 varMap = {}
@@ -8251,7 +8373,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 self.cur.execute(sqlDelC + comment, varMap)
                 (tmpAttemptNr,) = self.cur.fetchone()
                 if fileSpec.attemptNr != tmpAttemptNr:
-                    tmpLog.debug(f"skip to set Y for datasetID={fileSpec.datasetID} fileID={fileSpec.fileID} due to attemprNr mismatch")
+                    tmpLog.debug(f"skip to set Y for datasetID={fileSpec.datasetID} fileID={fileSpec.fileID} due to attemptNr mismatch")
                     continue
                 # set del flag
                 varMap = {}
@@ -8755,11 +8877,11 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 if tmpResNumDone is not None:
                     (numDone,) = tmpResNumDone
                     if numDone in [5, 100]:
-                        # reset walltimeUnit to recalcurate task parameters
+                        # reset walltimeUnit to recalculate task parameters
                         varMap = {}
                         varMap[":jediTaskID"] = jobSpec.jediTaskID
                         sqlRecal = "UPDATE ATLAS_PANDA.JEDI_Tasks SET walltimeUnit=NULL WHERE jediTaskId=:jediTaskID "
-                        msgStr = "trigger recalcuration of task parameters "
+                        msgStr = "trigger recalculation of task parameters "
                         msgStr += f"with nDoneJobs={numDone} for jediTaskID={jobSpec.jediTaskID}"
                         tmpLog.debug(msgStr)
                         cur.execute(sqlRecal + comment, varMap)
@@ -9194,7 +9316,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             _logger.debug(f"{methodName} start")
             # decode json
             taskParamsJson = PrioUtil.decodeJSON(taskParams)
-            # set user name
+            # set username
             if not prodRole or "userName" not in taskParamsJson:
                 taskParamsJson["userName"] = compactDN
             # identify parent
@@ -9379,7 +9501,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                         retVal += "You can re-submit the task with new parameters for the same or another input "
                         retVal += "once it goes into finished/failed/done. "
                         retVal += "Or you can retry the task once it goes into running/finished/failed/done. "
-                        retVal += "Note that retry != resubmission accoring to "
+                        retVal += "Note that retry != resubmission according to "
                         retVal += "https://twiki.cern.ch/twiki/bin/view/PanDA/PandaJEDI#Task_retry_and_resubmission "
                         _logger.debug(f"{methodName} skip since old task is not yet finalized")
                         errorCode = 2
@@ -14013,7 +14135,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                     if resLP is not None:
                         (pandaID,) = resLP
                         lostPandaIDs.add(pandaID)
-                        # update the file and coproduced files to lost
+                        # update the file and co-produced files to lost
                         varMap = {}
                         varMap[":jediTaskID"] = jediTaskID
                         varMap[":PandaID"] = pandaID
@@ -15075,7 +15197,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                     else:
                         varMap[":jobSubStatus"] = f"es_ass_{jobStatus}"
                 if forceFailed:
-                    varMap[":errDiag"] = f"{jobStatus} to discard old events to rety in PandaID={job.PandaID}"
+                    varMap[":errDiag"] = f"{jobStatus} to discard old events to retry in PandaID={job.PandaID}"
                 else:
                     varMap[":errDiag"] = f"{jobStatus} since an associated ES or merge job PandaID={job.PandaID} {jobStatus}"
                 isUpdated = False
@@ -15703,7 +15825,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                         resJAL = self.cur.fetchone()
                         if resJAL is None:
                             # no active job
-                            tmpStr = "no assiciated job is in active "
+                            tmpStr = "no associated job is in active "
                             tmpStr += f"for jediTaskID={fileSpec.jediTaskID} datasetID={fileSpec.datasetID} fileID={fileSpec.fileID}"
                             if dumpLog:
                                 tmpLog.debug(tmpStr)
@@ -16161,7 +16283,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 if tmpJediTaskID not in idMap:
                     idMap[tmpJediTaskID] = set()
                 idMap[tmpJediTaskID].add(pandaID)
-            tmpLog.debug(f"got {len(idMap)} taks")
+            tmpLog.debug(f"got {len(idMap)} tasks")
             # sql to check useJumbo
             sqlJ = "SELECT useJumbo FROM ATLAS_PANDA.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
             # loop over all tasks
@@ -18800,157 +18922,6 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             # error
             self.dumpErrorMessage(_logger, method_name)
             return False
-
-    # get job statistics per site and resource
-    def getJobStatisticsPerSiteResource(self, timeWindow):
-        comment = " /* DBProxy.getJobStatisticsPerSiteResource */"
-        method_name = comment.split(" ")[-2].split(".")[-1]
-        tmp_log = LogWrapper(_logger, method_name)
-        tmp_log.debug("start")
-        sql0 = "SELECT computingSite,jobStatus,resource_type,COUNT(*) FROM %s "
-        sql0 += "GROUP BY computingSite,jobStatus,resource_type "
-        sqlA = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ computingSite,jobStatus,resource_type,COUNT(*) "
-        sqlA += "FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime>:modificationTime "
-        sqlA += "GROUP BY computingSite,jobStatus,resource_type "
-        tables = [
-            "ATLAS_PANDA.jobsActive4",
-            "ATLAS_PANDA.jobsDefined4",
-            "ATLAS_PANDA.jobsArchived4",
-        ]
-        # sql for materialized view
-        sqlMV = re.sub("COUNT\(\*\)", "SUM(njobs)", sql0)
-        sqlMV = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sqlMV)
-        ret = dict()
-        try:
-            if timeWindow is None:
-                timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
-            else:
-                timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=int(timeWindow))
-            for table in tables:
-                # start transaction
-                self.conn.begin()
-                self.cur.arraysize = 10000
-                # select
-                varMap = {}
-                if table == "ATLAS_PANDA.jobsArchived4":
-                    varMap[":modificationTime"] = timeLimit
-                    sqlExe = sqlA + comment
-                elif table == "ATLAS_PANDA.jobsActive4":
-                    sqlExe = (sqlMV + comment) % "ATLAS_PANDA.JOBS_SHARE_STATS"
-                else:
-                    sqlExe = (sql0 + comment) % table
-                self.cur.execute(sqlExe, varMap)
-                res = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                # create map
-                for computingSite, jobStatus, resource_type, nJobs in res:
-                    ret.setdefault(computingSite, dict())
-                    ret[computingSite].setdefault(resource_type, dict())
-                    ret[computingSite][resource_type].setdefault(jobStatus, 0)
-                    ret[computingSite][resource_type][jobStatus] += nJobs
-            # for zero
-            stateList = ["assigned", "activated", "running", "finished", "failed"]
-            for computingSite in ret:
-                for resource_type in ret[computingSite]:
-                    for jobStatus in stateList:
-                        ret[computingSite][resource_type].setdefault(jobStatus, 0)
-
-            tmp_log.debug("done")
-            return ret
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, method_name)
-            return dict()
-
-    # get job statistics per site, source label, and resource type
-    def get_job_statistics_per_site_label_resource(self, time_window):
-        comment = " /* DBProxy.get_job_statistics_per_site_label_resource */"
-        method_name = comment.split(" ")[-2].split(".")[-1]
-        tmp_log = LogWrapper(_logger, method_name)
-        tmp_log.debug("start")
-        sqlD = (
-            "SELECT computingSite,jobStatus,gshare,resource_type,COUNT(*) FROM ATLAS_PANDA.jobsDefined4 "
-            "GROUP BY computingSite,jobStatus,gshare,resource_type "
-        )
-        sqlF = (
-            "SELECT computingSite,jobStatus,gshare,resource_type,COUNT(*) FROM ATLAS_PANDA.jobsActive4 "
-            "WHERE jobStatus=:jobStatus AND modificationTime>:modificationTime "
-            "GROUP BY computingSite,jobStatus,gshare,resource_type "
-        )
-        sqlM = (
-            "SELECT /*+ RESULT_CACHE */ computingSite,jobStatus,gshare,resource_type,SUM(njobs) "
-            "FROM ATLAS_PANDA.JOBS_SHARE_STATS "
-            "WHERE jobStatus<>:jobStatus "
-            "GROUP BY computingSite,jobStatus,gshare,resource_type "
-        )
-        sqlA = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ "
-        sqlA += "computingSite,jobStatus,gshare,resource_type,COUNT(*) "
-        sqlA += "FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime>:modificationTime "
-        sqlA += "GROUP BY computingSite,jobStatus,gshare,resource_type "
-        ret = dict()
-        try:
-            if time_window is None:
-                timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
-            else:
-                timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(minutes=int(time_window))
-            sqlVarList = [
-                (sqlD, {}),
-                (sqlF, {":jobStatus": "failed", ":modificationTime": timeLimit}),
-                (sqlM, {":jobStatus": "failed"}),
-                (sqlA, {":modificationTime": timeLimit}),
-            ]
-            for sqlExe, varMap in sqlVarList:
-                # start transaction
-                self.conn.begin()
-                self.cur.arraysize = 10000
-                # select
-                sqlExe = sqlExe + comment
-                self.cur.execute(sqlExe, varMap)
-                res = self.cur.fetchall()
-                # commit
-                if not self._commit():
-                    raise RuntimeError("Commit error")
-                self.__reload_shares()
-                # create map
-                shareLabelMap = dict()
-                for computingSite, jobStatus, gshare, resource_type, nJobs in res:
-                    if gshare not in shareLabelMap:
-                        for share in self.leave_shares:
-                            if gshare == share.name:
-                                prodSourceLabel = share.prodsourcelabel
-                                if "|" in prodSourceLabel:
-                                    prodSourceLabel = prodSourceLabel.split("|")[0]
-                                    prodSourceLabel = prodSourceLabel.replace(".*", "")
-                                shareLabelMap[gshare] = prodSourceLabel
-                                break
-                        if gshare not in shareLabelMap:
-                            shareLabelMap[gshare] = "unknown"
-                    prodSourceLabel = shareLabelMap[gshare]
-                    ret.setdefault(computingSite, dict())
-                    ret[computingSite].setdefault(prodSourceLabel, dict())
-                    ret[computingSite][prodSourceLabel].setdefault(resource_type, dict())
-                    ret[computingSite][prodSourceLabel][resource_type].setdefault(jobStatus, 0)
-                    ret[computingSite][prodSourceLabel][resource_type][jobStatus] += nJobs
-            # for zero
-            stateList = ["assigned", "activated", "running", "finished", "failed"]
-            for computingSite in ret:
-                for prodSourceLabel in ret[computingSite]:
-                    for resource_type in ret[computingSite][prodSourceLabel]:
-                        for jobStatus in stateList:
-                            ret[computingSite][prodSourceLabel][resource_type].setdefault(jobStatus, 0)
-            # return
-            tmp_log.debug(f"done")
-            return ret
-        except Exception:
-            # roll back
-            self._rollback()
-            # error
-            self.dumpErrorMessage(_logger, method_name)
-            return dict()
 
     # set num slots for workload provisioning
     def setNumSlotsForWP(self, pandaQueueName, numSlots, gshare, resourceType, validPeriod):
