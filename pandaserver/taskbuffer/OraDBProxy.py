@@ -6521,140 +6521,88 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             tmp_log.error(f"excepted with : {type} {value}")
             return {}
 
-    # get job statistics per processingType
-    def getJobStatisticsPerProcessingType(self, useMorePG=False):
+    # get statistics for production jobs per processingType
+    def getJobStatisticsPerProcessingType(self):
         comment = " /* DBProxy.getJobStatisticsPerProcessingType */"
         method_name = comment.split(" ")[-2].split(".")[-1]
-        method_name += f" < useMorePG={useMorePG} >"
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")
 
-        timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
-        if useMorePG is False:
-            sqlN = "SELECT /* use_json_type */ jobStatus, COUNT(*), tabS.data.cloud, processingType "
-            sqlN += "FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
-            sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
-            for tmpLabel in JobUtils.list_ptest_prod_sources:
-                tmpKey = f":prodSourceLabel_{tmpLabel}"
-                sqlN += tmpKey
-                sqlN += ","
-            sqlN = sqlN[:-1]
-            sqlN += ") AND computingSite=tabS.panda_queue "
-            sqlN += "GROUP BY jobStatus,tabS.data.cloud,processingType "
+        time_floor = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
 
-            sqlA = (
-                "SELECT /* use_json_type */ /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ jobStatus, COUNT(*), tabS.data.cloud, processingType "
-            )
-            sqlA += "FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
-            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
-            for tmpLabel in JobUtils.list_ptest_prod_sources:
-                tmpKey = f":prodSourceLabel_{tmpLabel}"
-                sqlA += tmpKey
-                sqlA += ","
-            sqlA = sqlA[:-1]
-            sqlA += ") AND modificationTime>:modificationTime "
-            sqlA += "AND computingSite=tabS.panda_queue "
-            sqlA += "GROUP BY jobStatus,tabS.data.cloud,processingType"
+        # Job tables we are going to query
+        tables = ["ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsWaiting4", "ATLAS_PANDA.jobsArchived4", "ATLAS_PANDA.jobsDefined4"]
 
-        else:
-            sqlN = "SELECT jobStatus,COUNT(*), cloud, processingType, coreCount, workingGroup FROM %s "
-            sqlN += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
-            for tmpLabel in JobUtils.list_ptest_prod_sources:
-                tmpKey = f":prodSourceLabel_{tmpLabel}"
-                sqlN += tmpKey
-                sqlN += ","
-            sqlN = sqlN[:-1]
-            sqlN += ") "
-            sqlN += "GROUP BY jobStatus, cloud, processingType, coreCount, workingGroup"
+        # Define the prodSourceLabel list
+        prod_source_labels = ", ".join([f":prodSourceLabel_{label}" for label in JobUtils.list_ptest_prod_sources])
 
-            sqlA = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ "
-            sqlA += "jobStatus, COUNT(*), cloud, processingType, coreCount, workingGroup FROM %s tab "
-            sqlA += "WHERE prodSourceLabel IN (:prodSourceLabel1,"
-            for tmpLabel in JobUtils.list_ptest_prod_sources:
-                tmpKey = f":prodSourceLabel_{tmpLabel}"
-                sqlA += tmpKey
-                sqlA += ","
-            sqlA = sqlA[:-1]
-            sqlA += ") AND modificationTime>:modificationTime "
-            sqlA += "GROUP BY jobStatus, cloud, processingType, coreCount, workingGroup"
+        # Construct the SQL query for active jobs
+        sql_active = (
+            f"SELECT /* use_json_type */ jobStatus, COUNT(*), tabS.data.cloud, processingType "
+            f"FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
+            f"WHERE prodSourceLabel IN (:prodSourceLabelManaged, {prod_source_labels}) "
+            f"AND computingSite=tabS.panda_queue "
+            f"GROUP BY jobStatus, tabS.data.cloud, processingType"
+        )
+
+        # Construct the SQL query for archived jobs
+        sql_archived = (
+            f"SELECT /* use_json_type */ /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ "
+            f"jobStatus, COUNT(*), tabS.data.cloud, processingType "
+            f"FROM %s tab, ATLAS_PANDA.schedconfig_json tabS "
+            f"WHERE prodSourceLabel IN (:prodSourceLabelManaged, {prod_source_labels}) "
+            f"AND modificationTime > :modificationTime "
+            f"AND computingSite = tabS.panda_queue "
+            f"GROUP BY jobStatus, tabS.data.cloud, processingType"
+        )
 
         # sql for materialized view
-        sqlMV = re.sub("COUNT\(\*\)", "SUM(num_of_jobs)", sqlN)
-        sqlMV = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sqlMV)
+        sql_active_mv = re.sub("COUNT\(\*\)", "SUM(num_of_jobs)", sql_active)
+        sql_active_mv = re.sub("SELECT ", "SELECT /*+ RESULT_CACHE */ ", sql_active_mv)
+
         ret = {}
         try:
-            for table in (
-                "ATLAS_PANDA.jobsActive4",
-                "ATLAS_PANDA.jobsWaiting4",
-                "ATLAS_PANDA.jobsArchived4",
-                "ATLAS_PANDA.jobsDefined4",
-            ):
+            for table in tables:
                 # start transaction
                 self.conn.begin()
+
                 # select
                 self.cur.arraysize = 10000
-                # select
-                varMap = {}
-                varMap[":prodSourceLabel1"] = "managed"
-                for tmpLabel in JobUtils.list_ptest_prod_sources:
-                    tmpKey = f":prodSourceLabel_{tmpLabel}"
-                    varMap[tmpKey] = tmpLabel
+                var_map = {":prodSourceLabelManaged": "managed"}
+                var_map.update({f":prodSourceLabel_{label}": label for label in JobUtils.list_ptest_prod_sources})
+
                 if table == "ATLAS_PANDA.jobsArchived4":
-                    varMap[":modificationTime"] = timeLimit
-                    self.cur.execute((sqlA + comment) % table, varMap)
+                    var_map[":modificationTime"] = time_floor
+                    self.cur.execute((sql_archived + comment) % table, var_map)
+
+                elif table == "ATLAS_PANDA.jobsActive4":
+                    self.cur.execute(
+                        (sql_active_mv + comment) % "ATLAS_PANDA.MV_JOBSACTIVE4_STATS",
+                        var_map,
+                    )
                 else:
-                    if table == "ATLAS_PANDA.jobsActive4" and useMorePG is False:
-                        self.cur.execute(
-                            (sqlMV + comment) % "ATLAS_PANDA.MV_JOBSACTIVE4_STATS",
-                            varMap,
-                        )
-                    else:
-                        # use real table since coreCount is unavailable in MatView
-                        self.cur.execute((sqlN + comment) % table, varMap)
-                res = self.cur.fetchall()
-                # commit
+                    # use real table since coreCount is unavailable in MatView
+                    self.cur.execute((sql_active + comment) % table, var_map)
+
+                results = self.cur.fetchall()
+
                 if not self._commit():
                     raise RuntimeError("Commit error")
-                # create map
-                for tmpItem in res:
-                    if useMorePG is False:
-                        jobStatus, count, cloud, processingType = tmpItem
-                    else:
-                        (
-                            jobStatus,
-                            count,
-                            cloud,
-                            processingType,
-                            coreCount,
-                            workingGroup,
-                        ) = tmpItem
-                        # convert cloud and processingType for extended process group
-                        if useMorePG == ProcessGroups.extensionLevel_1:
-                            # extension level 1
-                            cloud, processingType = ProcessGroups.converCPTforEPG(cloud, processingType, coreCount)
-                        else:
-                            # extension level 2
-                            cloud, processingType = ProcessGroups.converCPTforEPG(cloud, processingType, coreCount, workingGroup)
 
-                    # add cloud
-                    if cloud not in ret:
-                        ret[cloud] = {}
-                    # add processingType
-                    if processingType not in ret[cloud]:
-                        ret[cloud][processingType] = {}
-                    # add status
-                    if jobStatus not in ret[cloud][processingType]:
-                        ret[cloud][processingType][jobStatus] = 0
-                    ret[cloud][processingType][jobStatus] += count
-            # return
+                # create map
+                for row in results:
+                    job_status, count, cloud, processing_type = row
+                    ret.setdefault(cloud, {}).setdefault(processing_type, {}).setdefault(job_status, 0)
+                    ret[cloud][processing_type][job_status] += count
+
             tmp_log.debug(f"done")
             return ret
         except Exception:
             # roll back
             self._rollback()
             # error
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"excepted : {type} {value}")
+            error_type, error_value, _ = sys.exc_info()
+            _logger.error(f"excepted : {error_type} {error_value}")
             return {}
 
     # update site data

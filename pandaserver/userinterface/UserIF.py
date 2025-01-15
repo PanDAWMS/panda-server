@@ -202,8 +202,8 @@ class UserIF:
         return WrappedPickle.dumps(ret)
 
     # get job statistics for Bamboo
-    def getJobStatisticsForBamboo(self, useMorePG=False):
-        ret = self.taskBuffer.getJobStatisticsForBamboo(useMorePG)
+    def getJobStatisticsForBamboo(self):
+        ret = self.taskBuffer.getJobStatisticsForBamboo()
         return WrappedPickle.dumps(ret)
 
     # get job statistics per site
@@ -804,18 +804,10 @@ def getJobStatistics(req, sourcetype=None):
     return userIF.getJobStatistics(sourcetype)
 
 
-# get job statistics for Babmoo
+# get statistics for production jobs by processingType
 def getJobStatisticsForBamboo(req, useMorePG=None):
-    if useMorePG == "True":
-        useMorePG = pandaserver.taskbuffer.ProcessGroups.extensionLevel_1
-    elif useMorePG in ["False", None]:
-        useMorePG = False
-    else:
-        try:
-            useMorePG = int(useMorePG)
-        except Exception:
-            useMorePG = False
-    return userIF.getJobStatisticsForBamboo(useMorePG)
+    # useMorePG is an obsoleted parameter that is not used anymore
+    return userIF.getJobStatisticsForBamboo()
 
 
 # get job statistics per site and resource

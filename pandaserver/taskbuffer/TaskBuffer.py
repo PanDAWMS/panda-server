@@ -1566,11 +1566,11 @@ class TaskBuffer:
         return ret
 
     # get job statistics for Bamboo
-    def getJobStatisticsForBamboo(self, useMorePG=False):
+    def getJobStatisticsForBamboo(self):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get serial number
-        ret = proxy.getJobStatisticsPerProcessingType(useMorePG)
+        ret = proxy.getJobStatisticsPerProcessingType()
         # release proxy
         self.proxyPool.putProxy(proxy)
 
