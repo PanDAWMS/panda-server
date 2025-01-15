@@ -124,13 +124,23 @@ try:
                     data_dict[tmp_id] = data
         m = re.search("^(.+)_auth_config.json", os.path.basename(name))
         if m:
+            # Extract the VO group from the filename
             tmp_vo_group = m.group(1)
-            if ":" in tmp_vo_group:
-                tmp_vo, tmp_group = tmp_vo_group.split(":")[:2]
+
+            # Determine tmp_vo and tmp_group based on delimiters
+            if tmp_vo_group.startswith("vo.") and ":" in tmp_vo_group:
+                tmp_vo, tmp_group = tmp_vo_group.split(":", 1)
+            elif ":" in tmp_vo_group:
+                tmp_vo, tmp_group = tmp_vo_group.split(":", 1)
+            elif tmp_vo_group.startswith("vo."):
+                # If it starts with "vo." but has no ":", treat it as a single VO with "user" as the group
+                tmp_vo = tmp_vo_group
+                tmp_group = "user"
             elif "." in tmp_vo_group:
-                tmp_vo, tmp_group = tmp_vo_group.split(".")[:2]
+                tmp_vo, tmp_group = tmp_vo_group.split(".", 1)
             else:
                 tmp_vo, tmp_group = tmp_vo_group, "user"
+
             policy_dict.setdefault(tmp_vo, [])
             policy_dict[tmp_vo].append([tmp_vo, {"group": tmp_group, "role": tmp_group}])
             vo_data_dict[tmp_vo_group.replace(":", ".")] = data
