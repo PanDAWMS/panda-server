@@ -11,10 +11,7 @@ JEDI_TASK_ID = os.environ.get("JEDI_TASK_ID_TEST", -1)
 
 class TestTaskAPI(unittest.TestCase):
     def setUp(self):
-        # Set up a mock TaskBuffer and initialize it
         self.http_client = HttpClient()
-
-    # Add the unit tests for each API method here
 
     def test_retry(self):
         url = f"{api_url_ssl}/task/retry"

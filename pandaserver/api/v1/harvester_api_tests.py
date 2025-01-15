@@ -15,7 +15,6 @@ PANDA_QUEUE = "test_queue"
 
 class TestHarvesterAPI(unittest.TestCase):
     def setUp(self):
-        # Set up a mock TaskBuffer and initialize it
         self.http_client = HttpClient()
 
     def test_update_harvester_service_metrics(self):
