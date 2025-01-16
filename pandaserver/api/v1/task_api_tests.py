@@ -392,7 +392,7 @@ class TestTaskAPI(unittest.TestCase):
         # def insert_task_parameters(req: PandaRequest, task_parameters: Dict, parent_tid: int = None) -> Dict[str, Any]:
         url = f"{api_url_ssl}/task/insert_task_parameters"
         print(f"Testing URL: {url}")
-        data = {"task_parameters": {"test": 1}, "parent_tid": 1}
+        data = {"task_parameters": {"test": 1, "taskName": "test_task"}, "parent_tid": 1}
         status, output = self.http_client.post(url, data)
         print(output)
         output["status"] = status
