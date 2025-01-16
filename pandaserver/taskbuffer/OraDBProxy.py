@@ -9250,8 +9250,6 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             _logger.debug(f"{methodName} start")
 
             # decode json
-            taskParamsJson = PrioUtil.decodeJSON(taskParams)
-            # set username
             if decode:
                 taskParamsJson = PrioUtil.decodeJSON(taskParams)
             else:
