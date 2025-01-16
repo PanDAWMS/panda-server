@@ -24,6 +24,7 @@ from werkzeug.formparser import parse_form_data
 
 import pandaserver.taskbuffer.ErrorCode
 from pandaserver.api.v1 import harvester_api as harvester_api_v1
+from pandaserver.api.v1 import statistics_api as statistics_api_v1
 from pandaserver.api.v1 import task_api as task_api_v1
 from pandaserver.api.v1.common import extract_allowed_methods
 from pandaserver.config import panda_config
@@ -149,6 +150,7 @@ LATEST = "1"
 # excluding functions imported from other modules or the init_task_buffer function
 harvester_api_v1_methods = extract_allowed_methods(harvester_api_v1)
 task_api_v1_methods = extract_allowed_methods(task_api_v1)
+statistics_api_v1_methods = extract_allowed_methods(statistics_api_v1)
 
 # initialize oracledb using dummy connection
 initializer.init()
@@ -322,6 +324,7 @@ def module_mapping(version, api_module):
         "v1": {
             "harvester": {"module": harvester_api_v1, "allowed_methods": harvester_api_v1_methods},
             "task": {"module": task_api_v1, "allowed_methods": task_api_v1_methods},
+            "statistics": {"module": statistics_api_v1, "allowed_methods": statistics_api_v1_methods},
         },
     }
     try:
