@@ -946,6 +946,7 @@ def get_datasets_and_files(req, jedi_task_id, dataset_types: List = ("input", "p
     """
     tmp_logger = LogWrapper(_logger, f"get_datasets_and_files < jedi_task_id={jedi_task_id} dataset_types={dataset_types} >")
     tmp_logger.debug("Start")
+    tmp_logger.debug(f"Type of dataset_types: {type(dataset_types)}")
 
     data = global_task_buffer.get_files_in_datasets(jedi_task_id, dataset_types)
     if data is None:
