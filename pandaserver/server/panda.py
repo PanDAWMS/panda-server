@@ -229,9 +229,6 @@ def parse_qsl_parameters(environ, body, request_method):
 
     # In the case of GET, HEAD methods we need to parse the query string list in the URL looking for parameters
     if request_method in ["GET", "HEAD"]:
-        _logger.debug(environ.get("QUERY_STRING", ""))
-        _logger.debug(parse_qsl(environ.get("QUERY_STRING", ""), keep_blank_values=True))
-
         # Parse the query string list in the URL looking for parameters. Repeated query parameters submitted multiple times will be appended to a list
         results_tmp = defaultdict(list)
         parameter_list = parse_qsl(environ.get("QUERY_STRING", ""), keep_blank_values=True)
