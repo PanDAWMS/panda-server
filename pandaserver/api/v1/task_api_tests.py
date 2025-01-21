@@ -358,7 +358,7 @@ class TestTaskAPI(unittest.TestCase):
         # def get_datasets_and_files(req, jedi_task_id, dataset_types: List = ("input", "pseudo_input")) -> Dict[str, Any]:
         url = f"{api_url_ssl}/task/get_datasets_and_files"
         print(f"Testing URL: {url}")
-        data = {"jedi_task_id": JEDI_TASK_ID}
+        data = {"jedi_task_id": JEDI_TASK_ID, "dataset_types": ["input", "inexisting_type"]}
         status, output = self.http_client.get(url, data)
         print(output)
         output["status"] = status

@@ -944,7 +944,7 @@ def get_datasets_and_files(req, jedi_task_id, dataset_types: List = ("input", "p
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
-    tmp_logger = LogWrapper(_logger, f"get_datasets_and_files < jedi_task_id={jedi_task_id} >")
+    tmp_logger = LogWrapper(_logger, f"get_datasets_and_files < jedi_task_id={jedi_task_id} dataset_types={dataset_types} >")
     tmp_logger.debug("Start")
 
     data = global_task_buffer.get_files_in_datasets(jedi_task_id, dataset_types)
