@@ -14,6 +14,7 @@ import signal
 import sys
 import tempfile
 import traceback
+from collections import defaultdict
 from urllib.parse import parse_qsl
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -230,7 +231,14 @@ def parse_qsl_parameters(environ, body, request_method):
     if request_method in ["GET", "HEAD"]:
         _logger.debug(environ.get("QUERY_STRING", ""))
         _logger.debug(parse_qsl(environ.get("QUERY_STRING", ""), keep_blank_values=True))
-        params = dict(parse_qsl(environ.get("QUERY_STRING", ""), keep_blank_values=True))
+
+        # Parse the query string list in the URL looking for parameters. Repeated query parameters submitted multiple times will be appended to a list
+        results_tmp = defaultdict(list)
+        parameter_list = parse_qsl(environ.get("QUERY_STRING", ""), keep_blank_values=True)
+        for key, value in parameter_list:
+            results_tmp[key].append(value)
+
+        params = {key: values[0] if len(values) == 1 else values for key, values in results_tmp.items()}
 
     # In the case of POST, PUT methods we need to parse the form data
     else:
