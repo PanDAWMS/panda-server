@@ -138,9 +138,14 @@ def request_validation(logger, secure=False, production=False, request_method=No
                 logger.debug(f"Got parameter '{param_name}' with value '{param_value}' and type '{type(param_value)}'")
 
                 expected_type = sig.parameters[param_name].annotation
+                default_value = sig.parameters[param_name].default
 
                 # Skip if no type hint
                 if expected_type is inspect.Parameter.empty:
+                    continue
+
+                # Skip if value is the default value
+                if default_value == param_value:
                     continue
 
                 # Handle generics like List[int]
