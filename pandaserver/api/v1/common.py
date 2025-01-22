@@ -130,10 +130,13 @@ def request_validation(logger, secure=False, production=False, request_method=No
 
             # Get function signature and type hints
             sig = inspect.signature(func)
-            bound_args = sig.bind(*args, **kwargs)
+            args_tmp = req + args
+            bound_args = sig.bind(*args_tmp, **kwargs)
             bound_args.apply_defaults()
 
             for param_name, param_value in bound_args.arguments.items():
+                logger.debug(f"Got parameter '{param_name}' with value '{param_value}' and type '{type(param_value)}'")
+
                 expected_type = sig.parameters[param_name].annotation
 
                 # Skip if no type hint
