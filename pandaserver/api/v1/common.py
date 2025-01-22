@@ -130,7 +130,7 @@ def request_validation(logger, secure=False, production=False, request_method=No
 
             # Get function signature and type hints
             sig = inspect.signature(func)
-            args_tmp = req + args
+            args_tmp = (req,) + args
             bound_args = sig.bind(*args_tmp, **kwargs)
             bound_args.apply_defaults()
 
