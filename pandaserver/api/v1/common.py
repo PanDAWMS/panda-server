@@ -3,6 +3,7 @@ import json
 import re
 from functools import wraps
 from types import ModuleType
+from typing import get_args, get_origin
 
 import pandaserver.jobdispatcher.Protocol as Protocol
 from pandaserver.config import panda_config
@@ -127,50 +128,45 @@ def request_validation(logger, secure=False, production=False, request_method=No
                 logger.error(f"'{func.__name__}': {message}")
                 return generate_response(False, message=message)
 
+            # Get function signature and type hints
+            sig = inspect.signature(func)
+            bound_args = sig.bind(*args, **kwargs)
+            bound_args.apply_defaults()
+
+            for param_name, param_value in bound_args.arguments.items():
+                expected_type = sig.parameters[param_name].annotation
+
+                # Skip if no type hint
+                if expected_type is inspect.Parameter.empty:
+                    continue
+
+                # Handle generics like List[int]
+                origin = get_origin(expected_type)
+                args = get_args(expected_type)
+
+                # Check type
+                if origin:  # Handle generics (e.g., List[int])
+                    if not isinstance(param_value, origin):
+                        message = f"Type error: '{param_name}' must be of type {origin.__name__}, got {type(param_value).__name__}."
+                        logger.error(message)
+                        return generate_response(False, message=message)
+
+                    if args:  # Check inner types for lists, dicts, etc.
+                        if origin is list and not all(isinstance(i, args[0]) for i in param_value):
+                            message = f"Type error: All elements in '{param_name}' must be {args[0].__name__}."
+                            logger.error(message)
+                            return generate_response(False, message=message)
+                else:
+                    if not isinstance(param_value, expected_type):
+                        message = f"Type error: '{param_name}' must be of type {expected_type.__name__}, got {type(param_value).__name__}."
+                        logger.error(message)
+                        return generate_response(False, message=message)
+
             return func(req, *args, **kwargs)
 
         return wrapper
 
     return decorator
-
-
-import inspect
-from functools import wraps
-from typing import get_args, get_origin
-
-
-def enforce_types(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        # Get function signature and type hints
-        sig = inspect.signature(func)
-        bound_args = sig.bind(*args, **kwargs)
-        bound_args.apply_defaults()
-
-        for param_name, param_value in bound_args.arguments.items():
-            expected_type = sig.parameters[param_name].annotation
-
-            if expected_type is inspect.Parameter.empty:
-                continue  # No type hint, skip
-
-            # Handle generics like List[int]
-            origin = get_origin(expected_type)
-            args = get_args(expected_type)
-
-            # Check type
-            if origin:  # Handle generics (e.g., List[int])
-                if not isinstance(param_value, origin):
-                    return f"Type error: '{param_name}' must be of type {origin.__name__}, got {type(param_value).__name__}."
-                if args:  # Check inner types for lists, dicts, etc.
-                    if origin is list and not all(isinstance(i, args[0]) for i in param_value):
-                        return f"Type error: All elements in '{param_name}' must be {args[0].__name__}."
-            else:
-                if not isinstance(param_value, expected_type):
-                    return f"Type error: '{param_name}' must be of type {expected_type.__name__}, got {type(param_value).__name__}."
-
-        return func(*args, **kwargs)  # Call the original function
-
-    return wrapper
 
 
 def validate_types(type_mapping, logger=None):
