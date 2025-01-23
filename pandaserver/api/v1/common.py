@@ -150,6 +150,7 @@ def request_validation(logger, secure=False, production=False, request_method=No
                 # GET methods are URL encoded. Parameters will lose the type and come as string. We need to cast them to the expected type
                 if request_method == "GET":
                     try:
+                        logger.debug(f"Casting '{param_name}' to type {expected_type.__name__}.")
                         param_value = expected_type(param_value)
                     except (ValueError, TypeError):
                         message = f"Type error: '{param_name}' could not be casted to type {expected_type.__name__}."
