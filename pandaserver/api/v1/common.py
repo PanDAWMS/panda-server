@@ -137,6 +137,10 @@ def request_validation(logger, secure=False, production=False, request_method=No
             for param_name, param_value in bound_args.arguments.items():
                 logger.debug(f"Got parameter '{param_name}' with value '{param_value}' and type '{type(param_value)}'")
 
+                # Skip the first argument (req)
+                if param_name == "req":
+                    continue
+
                 # Skip if no type hint
                 expected_type = sig.parameters[param_name].annotation
                 if expected_type is inspect.Parameter.empty:
