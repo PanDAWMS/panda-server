@@ -18,6 +18,26 @@ MESSAGE_DATABASE = "database error in the PanDA server"
 MESSAGE_JSON = "failed to load JSON"
 
 
+def extract_allowed_methods(module: ModuleType) -> list:
+    """
+    Generate the allowed methods dynamically with all function names present in the API module, excluding
+    functions imported from other modules or the init_task_buffer function
+
+    :param module: The module to extract the allowed methods from
+    :return: A list of allowed method names
+    """
+    return [
+        name
+        for name, obj in inspect.getmembers(module, inspect.isfunction)
+        if obj.__module__ == module.__name__ and name != "init_task_buffer" and name.startswith("_") is False
+    ]
+
+
+def generate_response(success, message="", data=None):
+    response = {"success": success, "message": message, "data": data}
+    return response
+
+
 # get FQANs
 def get_fqan(req):
     fqans = []
@@ -193,57 +213,3 @@ def request_validation(logger, secure=False, production=False, request_method=No
         return wrapper
 
     return decorator
-
-
-def validate_types(type_mapping, logger=None):
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            for param, expected_type in type_mapping.items():
-                # Find the argument either in args or kwargs
-                if param in kwargs:
-                    value = kwargs[param]
-                else:
-                    arg_names = func.__code__.co_varnames
-                    param_index = arg_names.index(param)
-                    value = args[param_index]
-
-                try:
-                    converted_value = expected_type(value)
-                except (ValueError, TypeError):
-                    error_message = f"{param} must be {expected_type.__name__}"
-                    if logger:
-                        logger.error(f"'{func.__name__}': {error_message}")
-                    return json.dumps((False, error_message))
-
-                if param in kwargs:
-                    kwargs[param] = converted_value
-                else:
-                    args = list(args)
-                    args[param_index] = converted_value
-
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
-
-
-def extract_allowed_methods(module: ModuleType) -> list:
-    """
-    Generate the allowed methods dynamically with all function names present in the API module, excluding
-    functions imported from other modules or the init_task_buffer function
-
-    :param module: The module to extract the allowed methods from
-    :return: A list of allowed method names
-    """
-    return [
-        name
-        for name, obj in inspect.getmembers(module, inspect.isfunction)
-        if obj.__module__ == module.__name__ and name != "init_task_buffer" and name.startswith("_") is False
-    ]
-
-
-def generate_response(success, message="", data=None):
-    response = {"success": success, "message": message, "data": data}
-    return response
