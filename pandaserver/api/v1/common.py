@@ -208,7 +208,7 @@ def request_validation(logger, secure=False, production=False, request_method=No
                         tmp_logger.error(message)
                         return generate_response(False, message=message)
 
-            return func(req, *args, **kwargs)
+            return func(*bound_args.args, **bound_args.kwargs)
 
         return wrapper
 
