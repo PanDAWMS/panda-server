@@ -1,5 +1,4 @@
 import inspect
-import json
 import re
 from functools import wraps
 from types import ModuleType
