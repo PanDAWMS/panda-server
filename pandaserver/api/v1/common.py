@@ -5,6 +5,8 @@ from functools import wraps
 from types import ModuleType
 from typing import get_args, get_origin
 
+from pandacommon.pandalogger.LogWrapper import LogWrapper
+
 import pandaserver.jobdispatcher.Protocol as Protocol
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
@@ -112,20 +114,23 @@ def request_validation(logger, secure=False, production=False, request_method=No
     def decorator(func):
         @wraps(func)
         def wrapper(req, *args, **kwargs):
+            # Generate a logger with the underlying function name
+            tmp_logger = LogWrapper(_logger, func.__name__)
+
             # check SSL if required
-            if secure and not is_secure(req, logger):
-                logger.error(f"'{func.__name__}': {MESSAGE_SSL}")
+            if secure and not is_secure(req, tmp_logger):
+                tmp_logger.error(f"'{func.__name__}': {MESSAGE_SSL}")
                 return generate_response(False, message=MESSAGE_SSL)
 
             # check production role if required
             if production and not has_production_role(req):
-                logger.error(f"'{func.__name__}': {MESSAGE_PROD_ROLE}")
+                tmp_logger.error(f"'{func.__name__}': {MESSAGE_PROD_ROLE}")
                 return generate_response(False, message=MESSAGE_PROD_ROLE)
 
             # check method if required
             if request_method and not validate_request_method(req, request_method):
                 message = f"expecting {request_method}, received {req.subprocess_env.get('REQUEST_METHOD', None)}"
-                logger.error(f"'{func.__name__}': {message}")
+                tmp_logger.error(f"'{func.__name__}': {message}")
                 return generate_response(False, message=message)
 
             # Get function signature and type hints
@@ -135,7 +140,7 @@ def request_validation(logger, secure=False, production=False, request_method=No
             bound_args.apply_defaults()
 
             for param_name, param_value in bound_args.arguments.items():
-                logger.debug(f"Got parameter '{param_name}' with value '{param_value}' and type '{type(param_value)}'")
+                tmp_logger.debug(f"Got parameter '{param_name}' with value '{param_value}' and type '{type(param_value)}'")
 
                 # Skip the first argument (req)
                 if param_name == "req":
@@ -154,11 +159,11 @@ def request_validation(logger, secure=False, production=False, request_method=No
                 # GET methods are URL encoded. Parameters will lose the type and come as string. We need to cast them to the expected type
                 if request_method == "GET":
                     try:
-                        logger.debug(f"Casting '{param_name}' to type {expected_type.__name__}.")
+                        tmp_logger.debug(f"Casting '{param_name}' to type {expected_type.__name__}.")
                         param_value = expected_type(param_value)
                     except (ValueError, TypeError):
                         message = f"Type error: '{param_name}' could not be casted to type {expected_type.__name__}."
-                        logger.error(message)
+                        tmp_logger.error(message)
                         return generate_response(False, message=message)
 
                 # Handle generics like List[int]
@@ -169,18 +174,18 @@ def request_validation(logger, secure=False, production=False, request_method=No
                 if origin:  # Handle generics (e.g., List[int])
                     if not isinstance(param_value, origin):
                         message = f"Type error: '{param_name}' must be of type {origin.__name__}, got {type(param_value).__name__}."
-                        logger.error(message)
+                        tmp_logger.error(message)
                         return generate_response(False, message=message)
 
                     if args:  # Check inner types for lists, dicts, etc.
                         if origin is list and not all(isinstance(i, args[0]) for i in param_value):
                             message = f"Type error: All elements in '{param_name}' must be {args[0].__name__}."
-                            logger.error(message)
+                            tmp_logger.error(message)
                             return generate_response(False, message=message)
                 else:
                     if not isinstance(param_value, expected_type):
                         message = f"Type error: '{param_name}' must be of type {expected_type.__name__}, got {type(param_value).__name__}."
-                        logger.error(message)
+                        tmp_logger.error(message)
                         return generate_response(False, message=message)
 
             return func(req, *args, **kwargs)
