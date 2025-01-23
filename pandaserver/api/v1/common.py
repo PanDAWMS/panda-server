@@ -115,22 +115,22 @@ def request_validation(logger, secure=False, production=False, request_method=No
         @wraps(func)
         def wrapper(req, *args, **kwargs):
             # Generate a logger with the underlying function name
-            tmp_logger = LogWrapper(_logger, func.__name__)
+            tmp_logger = LogWrapper(logger, func.__name__)
 
             # check SSL if required
             if secure and not is_secure(req, tmp_logger):
-                tmp_logger.error(f"'{func.__name__}': {MESSAGE_SSL}")
+                tmp_logger.error(f"{MESSAGE_SSL}")
                 return generate_response(False, message=MESSAGE_SSL)
 
             # check production role if required
             if production and not has_production_role(req):
-                tmp_logger.error(f"'{func.__name__}': {MESSAGE_PROD_ROLE}")
+                tmp_logger.error(f"{MESSAGE_PROD_ROLE}")
                 return generate_response(False, message=MESSAGE_PROD_ROLE)
 
             # check method if required
             if request_method and not validate_request_method(req, request_method):
                 message = f"expecting {request_method}, received {req.subprocess_env.get('REQUEST_METHOD', None)}"
-                tmp_logger.error(f"'{func.__name__}': {message}")
+                tmp_logger.error(f"{message}")
                 return generate_response(False, message=message)
 
             # Get function signature and type hints
