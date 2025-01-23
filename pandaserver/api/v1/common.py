@@ -137,16 +137,24 @@ def request_validation(logger, secure=False, production=False, request_method=No
             for param_name, param_value in bound_args.arguments.items():
                 logger.debug(f"Got parameter '{param_name}' with value '{param_value}' and type '{type(param_value)}'")
 
-                expected_type = sig.parameters[param_name].annotation
-                default_value = sig.parameters[param_name].default
-
                 # Skip if no type hint
+                expected_type = sig.parameters[param_name].annotation
                 if expected_type is inspect.Parameter.empty:
                     continue
 
                 # Skip if value is the default value
+                default_value = sig.parameters[param_name].default
                 if default_value == param_value:
                     continue
+
+                # GET methods are URL encoded. Parameters will lose the type and come as string. We need to cast them to the expected type
+                if request_method == "GET":
+                    try:
+                        param_value = expected_type(param_value)
+                    except (ValueError, TypeError):
+                        message = f"Type error: '{param_name}' could not be casted to type {expected_type.__name__}."
+                        logger.error(message)
+                        return generate_response(False, message=message)
 
                 # Handle generics like List[int]
                 origin = get_origin(expected_type)
