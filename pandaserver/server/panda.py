@@ -167,11 +167,10 @@ taskBuffer.init(
 )
 
 if panda_config.nDBConnection != 0:
-    # initialize harvester_api_v1
+    # initialize all the API modules
     harvester_api_v1.init_task_buffer(taskBuffer)
-
-    # initialize task_api_v1
     task_api_v1.init_task_buffer(taskBuffer)
+    statistics_api_v1.init_task_buffer(taskBuffer)
 
     # initialize JobDispatcher
     jobDispatcher.init(taskBuffer)

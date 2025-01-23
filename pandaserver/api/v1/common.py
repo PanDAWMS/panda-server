@@ -180,7 +180,7 @@ def request_validation(logger, secure=False, production=False, request_method=No
                     try:
                         tmp_logger.debug(f"Casting '{param_name}' to type {expected_type.__name__}.")
                         param_value = expected_type(param_value)
-                        kwargs[param_name] = param_value  # Ensure the cast value is used
+                        bound_args.arguments[param_name] = param_value  # Ensure the cast value is used
                     except (ValueError, TypeError):
                         message = f"Type error: '{param_name}' could not be casted to type {expected_type.__name__}."
                         tmp_logger.error(message)
@@ -208,7 +208,7 @@ def request_validation(logger, secure=False, production=False, request_method=No
                         tmp_logger.error(message)
                         return generate_response(False, message=message)
 
-            return func(req, *args, **kwargs)
+            return func(*bound_args.args, **bound_args.kwargs)
 
         return wrapper
 
