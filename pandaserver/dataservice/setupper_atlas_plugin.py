@@ -766,10 +766,7 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                             error_type, error_value = sys.exc_info()[:2]
                             tmp_logger.error(f"{error_type} {error_value}")
                             dest_error[dest] = f"setupper.setup_destination() could not get VUID : {name}"
-                # set new destDBlock
-                if dest in newname_list:
-                    file.destinationDBlock = newname_list[dest]
-        # update job status if failed and increment number of files
+        # update job status if failed. set new destDBlock and increment number of files, otherwise
         for job in jobs_list:
             # ignore failed jobs
             if job.jobStatus in ["failed", "cancelled"] or job.isCancelled():
@@ -790,6 +787,9 @@ class SetupperAtlasPlugin(SetupperPluginBase):
                         tmp_logger.debug(f"failed PandaID={job.PandaID} with {job.ddmErrorDiag}")
                     break
                 else:
+                    # set new destDBlock
+                    if dest in newname_list:
+                        file.destinationDBlock = newname_list[dest]
                     new_dest = (
                         file.destinationDBlock,
                         file.destinationSE,
