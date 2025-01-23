@@ -482,21 +482,20 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         tmp_log = LogWrapper(_logger, methodName)
 
         # insert jobs to jobsDefined4 or jobsWaiting4
+        table_name = "jobsDefined4"
         if not toPending:
-            sql1 = f"INSERT INTO ATLAS_PANDA.jobsDefined4 ({JobSpec.columnNames()}) "
-        else:
-            sql1 = f"INSERT INTO ATLAS_PANDA.jobsWaiting4 ({JobSpec.columnNames()}) "
-        sql1 += JobSpec.bindValuesExpression(useSeq=False)
-
-        # job status
-        if not toPending:
+            # direct submission to the PanDA server
             job.jobStatus = "defined"
+        elif job.computingSite == EventServiceUtils.siteIdForWaitingCoJumboJobs:
+            # put waiting co-jumbo jobs to waiting
+            table_name = "jobsWaiting4"
+            job.jobStatus = "waiting"
         else:
-            if job.computingSite == EventServiceUtils.siteIdForWaitingCoJumboJobs:
-                # put waiting co-jumbo jobs to waiting
-                job.jobStatus = "waiting"
-            else:
-                job.jobStatus = "pending"
+            # jobs from JEDI
+            job.jobStatus = "pending"
+
+        sql1 = f"INSERT INTO {panda_config.schemaPANDA}.{table_name} ({JobSpec.columnNames()}) "
+        sql1 += JobSpec.bindValuesExpression(useSeq=False)
 
         # host and time information
         job.modificationHost = self.hostname
@@ -910,7 +909,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                         totalInputEvents += eventServiceInfo[file.lfn]["nEvents"]
             if job.notDiscardEvents() and origEsJob and nEventsToProcess == 0:
                 job.setAllOkEvents()
-                if not toPending:
+                if job.status != "waiting":
                     sqlJediJSH = "UPDATE ATLAS_PANDA.jobsDefined4 "
                 else:
                     sqlJediJSH = "UPDATE ATLAS_PANDA.jobsWaiting4 "
@@ -4119,9 +4118,9 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             except Exception:
                 _logger.error("recordStatusChange in resetJobs")
             self.push_job_status_message(job, job.PandaID, job.jobStatus)
+            tmpLog.debug(f"done with {job is not None}")
             if getOldSubs:
                 return job, oldSubList
-            tmpLog.debug("done")
             return job
         except Exception:
             # roll back
@@ -4132,19 +4131,20 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             return None
 
     # reset jobs in jobsDefined
-    def resetDefinedJob(self, pandaID, keepSite=False, getOldSubs=False):
+    def resetDefinedJob(self, pandaID):
         comment = " /* DBProxy.resetDefinedJob */"
-        _logger.debug(f"resetDefinedJob : {pandaID}")
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        method_name += f" <PandaID={pandaID}>"
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
         sql1 = "UPDATE ATLAS_PANDA.jobsDefined4 SET "
         sql1 += "jobStatus=:newJobStatus,"
         sql1 += "modificationTime=CURRENT_DATE,"
-        sql1 += "dispatchDBlock=NULL,"
-        sql1 += "computingElement=NULL"
-        sql1 += " WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
+        sql1 += "modificationHost=:modificationHost"
+        sql1 += " WHERE PandaID=:PandaID AND jobStatus IN (:oldJobStatus1,:oldJobStatus2,:oldJobStatus3) "
         sql2 = f"SELECT {JobSpec.columnNames()} FROM ATLAS_PANDA.jobsDefined4 "
         sql2 += "WHERE PandaID=:PandaID"
         try:
-            oldSubList = []
             # begin transaction
             self.conn.begin()
             # update
@@ -4153,13 +4153,16 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             varMap[":newJobStatus"] = "defined"
             varMap[":oldJobStatus1"] = "assigned"
             varMap[":oldJobStatus2"] = "defined"
+            varMap[":oldJobStatus3"] = "pending"
+            varMap[":modificationHost"] = self.hostname
             self.cur.execute(sql1 + comment, varMap)
             retU = self.cur.rowcount
             # not found
-            updatedFlag = False
+            updatedFlag = True
             job = None
             if retU == 0:
-                _logger.debug(f"resetDefinedJob : Not found {pandaID}")
+                tmp_log.debug("Not found for UPDATE")
+                updatedFlag = False
             else:
                 # select
                 varMap = {}
@@ -4169,21 +4172,10 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 res = self.cur.fetchone()
                 # not found
                 if res is None:
-                    raise RuntimeError(f"Could not SELECT : PandaID={pandaID}")
+                    raise RuntimeError(f"Not found for SELECT")
                 # instantiate Job
                 job = JobSpec()
                 job.pack(res)
-                # do nothing for analysis jobs
-                if job.prodSourceLabel in ["user", "panda"]:
-                    _logger.debug(f"resetDefinedJob : rollback since PandaID={pandaID} is analysis job")
-                    # roll back
-                    self._rollback()
-                    return None
-                job.dispatchDBlock = None
-                if (not keepSite) and job.relocationFlag not in [1, 2]:
-                    # erase old assignment
-                    job.computingSite = None
-                job.computingElement = None
                 # job parameters
                 sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID"
                 self.cur.execute(sqlJobP + comment, varMap)
@@ -4202,29 +4194,8 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 for resF in resFs:
                     file = FileSpec()
                     file.pack(resF)
-                    # collect old subs
-                    if (
-                        job.prodSourceLabel in ["managed", "test"]
-                        and file.type in ["output", "log"]
-                        and re.search("_sub\d+$", file.destinationDBlock) is not None
-                    ):
-                        if file.destinationDBlock not in oldSubList:
-                            oldSubList.append(file.destinationDBlock)
-                    # reset status, destinationDBlock and dispatchDBlock
-                    if job.lockedby != "jedi":
-                        file.status = "unknown"
-                    file.dispatchDBlock = None
-                    file.destinationDBlock = re.sub("_sub\d+$", "", file.destinationDBlock)
                     # add file
                     job.addFile(file)
-                    # update files
-                    sqlF = f"UPDATE ATLAS_PANDA.filesTable4 SET {file.bindUpdateChangesExpression()}" + "WHERE row_ID=:row_ID"
-                    varMap = file.valuesMap(onlyChanged=True)
-                    if varMap != {}:
-                        varMap[":row_ID"] = file.row_ID
-                        _logger.debug(sqlF + comment + str(varMap))
-                        self.cur.execute(sqlF + comment, varMap)
-                updatedFlag = True
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -4234,14 +4205,11 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                     self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)
                     self.push_job_status_message(job, job.PandaID, job.jobStatus)
             except Exception:
-                _logger.error("recordStatusChange in resetDefinedJobs")
-            if getOldSubs:
-                return job, oldSubList
+                tmp_log.error("recordStatusChange in resetDefinedJobs")
+            tmp_log.debug(f"done with {job is not None}")
             return job
         except Exception:
-            # error report
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"resetDefinedJobs : {type} {value}")
+            self.dumpErrorMessage(_logger, method_name)
             # roll back
             self._rollback()
             return None
@@ -11674,12 +11642,13 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 else:
                     self.updateInputStatusJedi(jobSpec.jediTaskID, jobSpec.PandaID, "queued", checkOthers=True)
                 # insert job with new PandaID
-                if jobSpec.jobStatus in ["defined", "assigned"]:
-                    sql1 = f"INSERT INTO ATLAS_PANDA.jobsDefined4 ({JobSpec.columnNames()}) "
-                elif jobSpec.jobStatus in ["waiting", "pending"]:
-                    sql1 = f"INSERT INTO ATLAS_PANDA.jobsWaiting4 ({JobSpec.columnNames()}) "
+                if jobSpec.jobStatus in ["defined", "assigned", "pending"]:
+                    table_name = "jobsDefined4"
+                elif jobSpec.jobStatus in ["waiting"]:
+                    table_name = "jobsWaiting4"
                 else:
-                    sql1 = f"INSERT INTO ATLAS_PANDA.jobsActive4 ({JobSpec.columnNames()}) "
+                    table_name = "jobsActive4"
+                sql1 = f"INSERT INTO {panda_config.schemaPANDA}.{table_name} ({JobSpec.columnNames()}) "
                 sql1 += JobSpec.bindValuesExpression(useSeq=True)
                 sql1 += " RETURNING PandaID INTO :newPandaID"
                 # set parentID
