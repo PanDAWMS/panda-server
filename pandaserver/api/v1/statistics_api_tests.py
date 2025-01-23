@@ -1,7 +1,7 @@
 # Description: Unit tests for the Statistics API methods
 import unittest
 
-from pandaserver.api.v1.http_client import HttpClient, api_url, api_url_ssl
+from pandaserver.api.v1.http_client import HttpClient, api_url_ssl
 
 
 class TestTaskAPI(unittest.TestCase):
@@ -19,7 +19,7 @@ class TestTaskAPI(unittest.TestCase):
         # Remove the data field from the response for comparison
         del output["data"]
 
-        expected_response = {"success": True, "message": ""}
+        expected_response = {"success": True, "message": "", "status": 0}
 
         self.assertEqual(output, expected_response)
 
@@ -34,7 +34,7 @@ class TestTaskAPI(unittest.TestCase):
         # Remove the data field from the response for comparison
         del output["data"]
 
-        expected_response = {"success": True, "message": ""}
+        expected_response = {"success": True, "message": "", "status": 0}
 
         self.assertEqual(output, expected_response)
 
@@ -49,7 +49,7 @@ class TestTaskAPI(unittest.TestCase):
         # Remove the data field from the response for comparison
         del output["data"]
 
-        expected_response = {"success": True, "message": ""}
+        expected_response = {"success": True, "message": "", "status": 0}
 
         self.assertEqual(output, expected_response)
 
@@ -64,7 +64,7 @@ class TestTaskAPI(unittest.TestCase):
         # Remove the data field from the response for comparison
         del output["data"]
 
-        expected_response = {"success": True, "message": ""}
+        expected_response = {"success": True, "message": "", "status": 0}
 
         self.assertEqual(output, expected_response)
 
@@ -79,7 +79,7 @@ class TestTaskAPI(unittest.TestCase):
         # Remove the data field from the response for comparison
         del output["data"]
 
-        expected_response = {"success": True, "message": ""}
+        expected_response = {"success": True, "message": "", "status": 0}
 
         self.assertEqual(output, expected_response)
 
