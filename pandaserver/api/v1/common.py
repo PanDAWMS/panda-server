@@ -179,7 +179,7 @@ def request_validation(logger, secure=False, production=False, request_method=No
                 if request_method == "GET":
                     try:
                         tmp_logger.debug(f"Casting '{param_name}' to type {expected_type.__name__}.")
-                        param_value = expected_type(param_value)
+                        bound_args.arguments[param_name] = expected_type(param_value)
                     except (ValueError, TypeError):
                         message = f"Type error: '{param_name}' could not be casted to type {expected_type.__name__}."
                         tmp_logger.error(message)
