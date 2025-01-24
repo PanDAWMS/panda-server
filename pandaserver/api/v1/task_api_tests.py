@@ -3,7 +3,7 @@ import os
 import unittest
 from datetime import datetime, timedelta
 
-from pandaserver.api.v1.http_client import HttpClient, api_url, api_url_ssl
+from pandaserver.api.v1.http_client import HttpClient, api_url_ssl
 
 # to run the tests with a real JEDI Task ID by setting the environment variable
 JEDI_TASK_ID = os.environ.get("JEDI_TASK_ID_TEST", -1)

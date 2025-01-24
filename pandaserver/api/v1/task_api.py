@@ -251,7 +251,7 @@ def reassign(req: PandaRequest, jedi_task_id: int, site: str = None, cloud: str 
     # set additional modes
     if mode == "nokill":
         comment += ":nokill reassign"
-    elif mode == "soft" or soft == True:
+    elif mode == "soft" or soft is True:
         comment += ":soft reassign"
 
     ret = global_task_buffer.sendCommandTaskPanda(

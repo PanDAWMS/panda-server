@@ -5,8 +5,8 @@ import traceback
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
-from pandaserver.api.v1.common import generate_response
-from pandaserver.srvcore.CoreUtils import clean_user_id, resolve_bool
+from pandaserver.api.v1.common import generate_response, request_validation
+from pandaserver.srvcore.CoreUtils import clean_user_id
 
 try:
     import idds.common.constants
