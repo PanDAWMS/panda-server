@@ -94,7 +94,7 @@ def relay_idds_command(req, command_name: str, args: str = None, kwargs: str = N
     except Exception as e:
         tmp_str = f"failed to execute command with {str(e)}"
         tmp_log.error(f"{tmp_str} {traceback.format_exc()}")
-        return json.dumps((False, tmp_str))
+        return generate_response(False, tmp_str)
 
 
 # relay iDDS workflow command with ownership check
@@ -126,7 +126,7 @@ def execute_idds_workflow_command(req, command_name: str, kwargs: str = None, js
         else:
             tmp_message = f"{command_name} is unsupported"
             tmp_log.error(tmp_message)
-            return json.dumps((False, tmp_message))
+            return generate_response(False, tmp_message)
 
         # check owner
         c = iDDS_ClientManager(idds_host)
@@ -138,7 +138,7 @@ def execute_idds_workflow_command(req, command_name: str, kwargs: str = None, js
             if not dn:
                 tmp_message = "SSL_CLIENT_S_DN is missing in HTTP request"
                 tmp_log.error(tmp_message)
-                return json.dumps((False, tmp_message))
+                return generate_response(False, tmp_message)
             requester = clean_user_id(dn)
 
             # get request_id
@@ -146,19 +146,20 @@ def execute_idds_workflow_command(req, command_name: str, kwargs: str = None, js
             if request_id is None:
                 tmp_message = "request_id is missing"
                 tmp_log.error(tmp_message)
-                return json.dumps((False, tmp_message))
+                return generate_response(False, tmp_message)
 
             # get request
             req = c.get_requests(request_id=request_id)
             if not req:
                 tmp_message = f"request {request_id} is not found"
                 tmp_log.error(tmp_message)
-                return json.dumps((False, tmp_message))
+                return generate_response(False, tmp_message)
+
             user_name = req[0].get("username")
             if user_name and user_name != requester:
                 tmp_message = f"request {request_id} is not owned by {requester}"
                 tmp_log.error(tmp_message)
-                return json.dumps((False, tmp_message))
+                return generate_response(False, tmp_message)
 
         # set original username
         if dn:
@@ -170,9 +171,10 @@ def execute_idds_workflow_command(req, command_name: str, kwargs: str = None, js
         tmp_log.debug(str(ret))
 
         if isinstance(ret, dict) and "message" in ret:
+            return generate_response()
             return json.dumps((True, [ret["status"], ret["message"]]))
 
         return json.dumps((True, ret))
     except Exception as e:
         tmp_log.error(f"failed with {str(e)} {traceback.format_exc()}")
-        return json.dumps((False, f"server failed with {str(e)}"))
+        return generate_response(False, f"server failed with {str(e)}")
