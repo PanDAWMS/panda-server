@@ -52,10 +52,10 @@ def retry(
     Args:
         req(PandaRequest): internally generated request object
         jedi_task_id(int): JEDI Task ID
-        new_parameters(str): a json string of new parameters the task uses when rerunning
-        no_child_retry(bool): if True, the child tasks are not retried
-        disable_staging_mode(bool): if True, the task skips staging state and directly goes to subsequent state
-        keep_gshare_priority(bool): if True, the task keeps current gshare and priority
+        new_parameters(str, optional): a json string of new parameters the task uses when rerunning
+        no_child_retry(bool, optional): if True, the child tasks are not retried
+        disable_staging_mode(bool, optional): if True, the task skips staging state and directly goes to subsequent state
+        keep_gshare_priority(bool, optional): if True, the task keeps current gshare and priority
 
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
@@ -549,9 +549,9 @@ def enable_job_cloning(
     Args:
         req(PandaRequest): internally generated request object
         jedi_task_id(int): JEDI Task ID
-        mode(str): mode of operation, runonce or storeonce
-        multiplicity(int): number of clones to be created for each target
-        num_sites(int): number of sites to be used for each target
+        mode(str, optional): mode of operation, runonce or storeonce
+        multiplicity(int, optional): number of clones to be created for each target
+        num_sites(int, optional): number of sites to be used for each target
 
     Returns:
         dict: The system response. True for success, False for failure, and an error message.
