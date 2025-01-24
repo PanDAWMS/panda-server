@@ -171,10 +171,9 @@ def execute_idds_workflow_command(req, command_name: str, kwargs: str = None, js
         tmp_log.debug(str(ret))
 
         if isinstance(ret, dict) and "message" in ret:
-            return generate_response()
-            return json.dumps((True, [ret["status"], ret["message"]]))
+            return generate_response(True, ret["message"], ret["status"])
 
-        return json.dumps((True, ret))
+        return generate_response(True, "", ret)
     except Exception as e:
         tmp_log.error(f"failed with {str(e)} {traceback.format_exc()}")
         return generate_response(False, f"server failed with {str(e)}")
