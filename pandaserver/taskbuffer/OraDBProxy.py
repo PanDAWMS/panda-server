@@ -4302,19 +4302,6 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 if res is None:
                     continue
 
-                # owner?
-                def getCN(dn):
-                    distinguishedName = ""
-                    for line in dn.split("/"):
-                        if line.startswith("CN="):
-                            distinguishedName = re.sub("^CN=", "", line)
-                            distinguishedName = re.sub("\d+$", "", distinguishedName)
-                            distinguishedName = distinguishedName.strip()
-                            break
-                    if distinguishedName == "":
-                        distinguishedName = dn
-                    return distinguishedName
-
                 # prevent prod proxy from killing analysis jobs
                 (
                     userProdUserID,
@@ -4361,11 +4348,11 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                     tmpLog.debug(f"using group prod role for workingGroup={workingGroup}")
                     pass
                 else:
-                    cn1 = getCN(res[0])
-                    cn2 = getCN(user)
-                    tmpLog.debug(f"Owner:{cn1}  - Requester:{cn2} ")
+                    cn1 = self.cleanUserID(res[0])
+                    cn2 = self.cleanUserID(user)
+                    tmpLog.debug(f"Owner:{cn1} - Requester:{cn2} ")
                     if cn1 != cn2:
-                        tmpLog.debug("ignored  -> Owner != Requester")
+                        tmpLog.debug("ignored since Owner != Requester")
                         break
                 # event service
                 useEventService = EventServiceUtils.isEventServiceSH(specialHandling) or eventService in [
