@@ -74,7 +74,7 @@ def production_job_stats_by_cloud_and_processing_type(req: PandaRequest) -> Dict
         dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the job statistics by cloud. When unsuccessful, the message field contains the error message.
     """
 
-    tmp_logger = LogWrapper(_logger, f"production_job_stats_by_cloud_and_processing_type")
+    tmp_logger = LogWrapper(_logger, "production_job_stats_by_cloud_and_processing_type")
 
     tmp_logger.debug("Start")
     data = global_task_buffer.getJobStatisticsForBamboo()
@@ -102,7 +102,7 @@ def active_job_stats_by_site(req: PandaRequest) -> Dict[str, Any]:
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the job statistics by cloud. When unsuccessful, the message field contains the error message.
     """
-    tmp_logger = LogWrapper(_logger, f"active_job_stats_by_site")
+    tmp_logger = LogWrapper(_logger, "active_job_stats_by_site")
 
     tmp_logger.debug("Start")
     data = global_task_buffer.getJobStatistics()

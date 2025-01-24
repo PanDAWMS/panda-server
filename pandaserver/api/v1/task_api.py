@@ -884,7 +884,7 @@ def get_tasks_modified_since(req, since: str, dn: str = "", full: bool = False, 
     Returns:
         dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
-    tmp_logger = LogWrapper(_logger, f"get_tasks_modified_since")
+    tmp_logger = LogWrapper(_logger, "get_tasks_modified_since")
     tmp_logger.debug("Start")
 
     if not dn:
@@ -1083,7 +1083,7 @@ def get_task_parameters(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
     try:
         task_parameters = json.loads(task_parameters_str)
     except json.JSONDecodeError as e:
-        tmp_logger.error(f"Failed due to error decoding the task parameters")
+        tmp_logger.error("Failed due to error decoding the task parameters")
         return generate_response(False, message=f"Error decoding the task parameters: {str(e)}")
 
     tmp_logger.debug("Done")
