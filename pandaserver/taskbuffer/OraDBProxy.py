@@ -6151,20 +6151,17 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         tmp_log = LogWrapper(_logger, method_name)
         tmp_log.debug("start")
 
-        tables = [
-            "ATLAS_PANDA.jobsActive4",
-            "ATLAS_PANDA.jobsDefined4",
-            "ATLAS_PANDA.jobsArchived4",
-        ]
+        tables = ["ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsDefined4", "ATLAS_PANDA.jobsArchived4"]
 
         # basic SQL for active and defined jobs
-        sql = "SELECT computingSite, jobStatus, resource_type, COUNT(*) FROM %s "
-        sql += "GROUP BY computingSite, jobStatus, resource_type "
+        sql = "SELECT computingSite, jobStatus, resource_type, COUNT(*) FROM %s GROUP BY computingSite, jobStatus, resource_type "
 
         # SQL for archived table including time window
-        sql_archive = "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ computingSite, jobStatus, resource_type, COUNT(*) "
-        sql_archive += "FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime>:modificationTime "
-        sql_archive += "GROUP BY computingSite, jobStatus, resource_type "
+        sql_archive = (
+            "SELECT /*+ INDEX_RS_ASC(tab (MODIFICATIONTIME PRODSOURCELABEL)) */ computingSite, jobStatus, resource_type, COUNT(*) "
+            "FROM ATLAS_PANDA.jobsArchived4 tab WHERE modificationTime > :modificationTime "
+            "GROUP BY computingSite, jobStatus, resource_type "
+        )
 
         # sql for materialized view
         sql_mv = re.sub("COUNT\(\*\)", "SUM(njobs)", sql)
@@ -6202,9 +6199,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
 
                 # create map
                 for computing_site, job_status, resource_type, n_jobs in res:
-                    ret.setdefault(computing_site, dict())
-                    ret[computing_site].setdefault(resource_type, dict())
-                    ret[computing_site][resource_type].setdefault(job_status, 0)
+                    ret.setdefault(computing_site, dict()).setdefault(resource_type, dict()).setdefault(job_status, 0)
                     ret[computing_site][resource_type][job_status] += n_jobs
 
             # fill in missing states with 0
@@ -9198,16 +9193,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         return None
 
     # insert TaskParams
-    def insertTaskParamsPanda(
-        self,
-        taskParams,
-        dn,
-        prodRole,
-        fqans,
-        parent_tid,
-        properErrorCode=False,
-        allowActiveTask=False,
-    ):
+    def insertTaskParamsPanda(self, taskParams, dn, prodRole, fqans, parent_tid, properErrorCode=False, allowActiveTask=False, decode=True):
         comment = " /* JediDBProxy.insertTaskParamsPanda */"
         try:
             methodName = "insertTaskParamsPanda"
@@ -9217,9 +9203,14 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 compactDN = dn
             methodName += f" <{compactDN}>"
             _logger.debug(f"{methodName} start")
+
             # decode json
-            taskParamsJson = PrioUtil.decodeJSON(taskParams)
-            # set username
+            if decode:
+                taskParamsJson = PrioUtil.decodeJSON(taskParams)
+            else:
+                taskParamsJson = taskParams
+
+            # set user name
             if not prodRole or "userName" not in taskParamsJson:
                 taskParamsJson["userName"] = compactDN
             # identify parent
@@ -21339,7 +21330,12 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             varMap = {}
             varMap[":jediTaskID"] = task_id
             sqlD = f"SELECT datasetName,datasetID FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND type IN ("
-            for tmp_type in dataset_types.split(","):
+
+            # Old API expects comma separated types, while new API is taking directly a tuple of dataset types
+            if type(dataset_types) == str:
+                dataset_types = dataset_types.split(",")
+
+            for tmp_type in dataset_types:
                 sqlD += f":{tmp_type},"
                 varMap[f":{tmp_type}"] = tmp_type
             sqlD = sqlD[:-1]

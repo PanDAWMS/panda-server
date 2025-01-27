@@ -1,19 +1,19 @@
 repos:
 
 -   repo: https://github.com/ikamensh/flynt
-    rev: ''  # Specify a specific version if desired
+    rev: '1.0.1'  # Specify a specific version if desired
     hooks:
     -   id: flynt
         args: [ "--line-length", "160"]  # Flynt does not support pyproject.toml in special locations
 
 -   repo: https://github.com/psf/black
-    rev: 23.9.1
+    rev: 24.10.0
     hooks:
     -   id: black
         types: [python]
 
 -   repo: https://github.com/pycqa/isort
-    rev: 5.12.0
+    rev: 5.13.2
     hooks:
     -   id: isort
         name: isort (python)

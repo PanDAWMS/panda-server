@@ -1692,31 +1692,14 @@ class TaskBuffer:
         return ret
 
     # insert TaskParams
-    def insertTaskParamsPanda(
-        self,
-        taskParams,
-        user,
-        prodRole,
-        fqans=[],
-        parent_tid=None,
-        properErrorCode=False,
-        allowActiveTask=False,
-    ):
+    def insertTaskParamsPanda(self, taskParams, user, prodRole, fqans=[], parent_tid=None, properErrorCode=False, allowActiveTask=False, decode=True):
         # query an SQL return Status
         proxy = self.proxyPool.getProxy()
         # check user status
         tmpStatus = proxy.checkBanUser(user, None, True)
         if tmpStatus is True:
             # exec
-            ret = proxy.insertTaskParamsPanda(
-                taskParams,
-                user,
-                prodRole,
-                fqans,
-                parent_tid,
-                properErrorCode,
-                allowActiveTask,
-            )
+            ret = proxy.insertTaskParamsPanda(taskParams, user, prodRole, fqans, parent_tid, properErrorCode, allowActiveTask, decode)
         elif tmpStatus == 1:
             ret = False, "Failed to update DN in PandaDB"
         elif tmpStatus == 2:

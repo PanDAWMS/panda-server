@@ -1,5 +1,5 @@
 import datetime
-from typing import List, Tuple
+from typing import Any, Dict, List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -27,7 +27,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
     global_task_buffer = task_buffer
 
 
-@request_validation(_logger, secure=True)
+@request_validation(_logger, secure=True, request_method="POST")
 def update_workers(req: PandaRequest, harvester_id: str, workers: List) -> dict:
     """
     Update workers.
@@ -57,7 +57,7 @@ def update_workers(req: PandaRequest, harvester_id: str, workers: List) -> dict:
 
     """
     tmp_logger = LogWrapper(_logger, f"update_workers harvester_id={harvester_id}")
-    tmp_logger.debug(f"Start")
+    tmp_logger.debug("Start")
     success, message, data = False, "", None
     time_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
 
@@ -74,8 +74,8 @@ def update_workers(req: PandaRequest, harvester_id: str, workers: List) -> dict:
     return generate_response(success, message, data)
 
 
-@request_validation(_logger, secure=True)
-def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metrics: str) -> dict:
+@request_validation(_logger, secure=True, request_method="POST")
+def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metrics: str) -> Dict[str, Any]:
     """
     Update harvester service metrics.
 
@@ -113,7 +113,7 @@ def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metri
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
     tmp_logger = LogWrapper(_logger, f"update_harvester_service_metrics harvester_id={harvester_id}")
-    tmp_logger.debug(f"Start")
+    tmp_logger.debug("Start")
     success, message, data = False, "", None
 
     # update the metrics in the database
@@ -132,8 +132,8 @@ def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metri
     return generate_response(success, message, data)
 
 
-@request_validation(_logger, secure=True)
-def add_harvester_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) -> dict:
+@request_validation(_logger, secure=True, request_method="POST")
+def add_harvester_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) -> Dict[str, Any]:
     """
     Add harvester dialog messages.
 
@@ -162,19 +162,19 @@ def add_harvester_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) ->
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
     tmp_logger = LogWrapper(_logger, f"add_harvester_dialogs harvester_id={harvester_id}")
-    tmp_logger.debug(f"Start")
+    tmp_logger.debug("Start")
 
     ret = global_task_buffer.addHarvesterDialogs(harvester_id, dialogs)
     if not ret:
         tmp_logger.error(f"Error updating database: {dialogs}")
         return generate_response(False, message=MESSAGE_DATABASE)
 
-    tmp_logger.debug(f"Done")
+    tmp_logger.debug("Done")
     return generate_response(True)
 
 
-@request_validation(_logger, secure=True)
-def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) -> dict:
+@request_validation(_logger, secure=True, request_method="POST")
+def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) -> Dict[str, Any]:
     """
     Heartbeat for harvester.
 
@@ -193,7 +193,7 @@ def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) 
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
     tmp_logger = LogWrapper(_logger, f"harvester_heartbeat harvester_id={harvester_id}")
-    tmp_logger.debug(f"Start")
+    tmp_logger.debug("Start")
 
     # get user and hostname to record in harvester metadata
     user = get_dn(req)
@@ -204,11 +204,12 @@ def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) 
         tmp_logger.error(f"Error updating database: {data}")
         return generate_response(False, message=MESSAGE_DATABASE)
 
-    tmp_logger.debug(f"Done")
+    tmp_logger.debug("Done")
     return generate_response(True)
 
 
-def get_current_worker_id(req: PandaRequest, harvester_id: str) -> dict:
+@request_validation(_logger, request_method="GET")
+def get_current_worker_id(req: PandaRequest, harvester_id: str) -> Dict[str, Any]:
     """
     Get the current worker ID.
 
@@ -225,10 +226,10 @@ def get_current_worker_id(req: PandaRequest, harvester_id: str) -> dict:
     Returns:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
-    tmp_logger = LogWrapper(_logger, f"get_current_worker_id")
-    tmp_logger.debug(f"Start")
+    tmp_logger = LogWrapper(_logger, "get_current_worker_id")
+    tmp_logger.debug("Start")
     current_worker_id = global_task_buffer.get_max_worker_id(harvester_id)
-    tmp_logger.debug(f"Done")
+    tmp_logger.debug("Done")
 
     if current_worker_id is None:
         return generate_response(False, message=MESSAGE_DATABASE)
@@ -236,7 +237,8 @@ def get_current_worker_id(req: PandaRequest, harvester_id: str) -> dict:
     return generate_response(True, data=current_worker_id)
 
 
-def get_worker_statistics(req: PandaRequest) -> dict:
+@request_validation(_logger, request_method="GET")
+def get_worker_statistics(req: PandaRequest) -> Dict[str, Any]:
     """
     Get worker statistics.
 
@@ -252,15 +254,15 @@ def get_worker_statistics(req: PandaRequest) -> dict:
     Returns:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
-    tmp_logger = LogWrapper(_logger, f"get_worker_statistics")
-    tmp_logger.debug(f"Start")
+    tmp_logger = LogWrapper(_logger, "get_worker_statistics")
+    tmp_logger.debug("Start")
     worker_stats = global_task_buffer.getWorkerStats()
-    tmp_logger.debug(f"Done")
+    tmp_logger.debug("Done")
     return generate_response(True, data=worker_stats)
 
 
-@request_validation(_logger, secure=True)
-def report_worker_statistics(req: PandaRequest, harvester_id: str, panda_queue: str, statistics: str) -> dict:
+@request_validation(_logger, secure=True, request_method="POST")
+def report_worker_statistics(req: PandaRequest, harvester_id: str, panda_queue: str, statistics: str) -> Dict[str, Any]:
     """
     Report worker statistics.
 
@@ -283,14 +285,14 @@ def report_worker_statistics(req: PandaRequest, harvester_id: str, panda_queue: 
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
     tmp_logger = LogWrapper(_logger, f"report_worker_statistics harvester_id={harvester_id}")
-    tmp_logger.debug(f"Start")
+    tmp_logger.debug("Start")
     success, message = global_task_buffer.reportWorkerStats_jobtype(harvester_id, panda_queue, statistics)
-    tmp_logger.debug(f"Done")
+    tmp_logger.debug("Done")
     return generate_response(success, message=message)
 
 
-@request_validation(_logger, secure=True, production=True)
-def get_harvester_commands(req: PandaRequest, harvester_id: str, n_commands: int, timeout: int = 30) -> dict:
+@request_validation(_logger, secure=True, production=True, request_method="GET")
+def get_harvester_commands(req: PandaRequest, harvester_id: str, n_commands: int, timeout: int = 30) -> Dict[str, Any]:
     """
     Get harvester commands.
 
@@ -309,13 +311,13 @@ def get_harvester_commands(req: PandaRequest, harvester_id: str, n_commands: int
     Returns:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
-    tmp_logger = LogWrapper(_logger, f"get_harvester_commands")
-    tmp_logger.debug(f"Start")
+    tmp_logger = LogWrapper(_logger, "get_harvester_commands")
+    tmp_logger.debug("Start")
 
     timed_method = TimedMethod(global_task_buffer.getCommands, timeout)
     timed_method.run(harvester_id, n_commands)
 
-    tmp_logger.debug(f"Done")
+    tmp_logger.debug("Done")
 
     # Getting the commands timed out
     if timed_method.result == TIME_OUT:
@@ -331,15 +333,15 @@ def get_harvester_commands(req: PandaRequest, harvester_id: str, n_commands: int
     return generate_response(True, data=commands)
 
 
-@request_validation(_logger, secure=True, production=True)
-def acknowledge_harvester_commands(req: PandaRequest, command_ids: List, timeout: int = 30) -> dict:
+@request_validation(_logger, secure=True, production=True, request_method="POST")
+def acknowledge_harvester_commands(req: PandaRequest, command_ids: List, timeout: int = 30) -> Dict[str, Any]:
     """
     Acknowledge harvester commands.
 
     Acknowledges the list of command IDs in the PanDA database. Requires a secure connection and production role.
 
     API details:
-        HTTP Method: GET
+        HTTP Method: POST
         Path: /v1/harvester/acknowledge_harvester_commands
 
     Args:
@@ -350,13 +352,13 @@ def acknowledge_harvester_commands(req: PandaRequest, command_ids: List, timeout
     Returns:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
-    tmp_logger = LogWrapper(_logger, f"acknowledge_harvester_commands")
-    tmp_logger.debug(f"Start")
+    tmp_logger = LogWrapper(_logger, "acknowledge_harvester_commands")
+    tmp_logger.debug("Start")
 
     timed_method = TimedMethod(global_task_buffer.ackCommands, timeout)
     timed_method.run(command_ids)
 
-    tmp_logger.debug(f"Done")
+    tmp_logger.debug("Done")
 
     # Make response
     if timed_method.result == TIME_OUT:
@@ -372,8 +374,10 @@ def acknowledge_harvester_commands(req: PandaRequest, command_ids: List, timeout
     return generate_response(True)
 
 
-@request_validation(_logger, secure=True, production=True)
-def add_sweep_harvester_command(req: PandaRequest, panda_queue: str, status_list: List[str], ce_list: List[str], submission_host_list: List[str]) -> dict:
+@request_validation(_logger, secure=True, production=True, request_method="POST")
+def add_sweep_harvester_command(
+    req: PandaRequest, panda_queue: str, status_list: List[str], ce_list: List[str], submission_host_list: List[str]
+) -> Dict[str, Any]:
     """
     Add sweep command for harvester.
 
@@ -395,17 +399,17 @@ def add_sweep_harvester_command(req: PandaRequest, panda_queue: str, status_list
     """
 
     tmp_logger = LogWrapper(_logger, f"add_sweep_harvester_command panda_queue={panda_queue}")
-    tmp_logger.debug(f"Start")
+    tmp_logger.debug("Start")
     return_message = global_task_buffer.sweepPQ(panda_queue, status_list, ce_list, submission_host_list)
     if return_message == "OK":
         success, message = True, ""
     else:
         success, message = False, return_message
-    tmp_logger.debug(f"Done")
+    tmp_logger.debug("Done")
     return generate_response(success, message=message)
 
 
-@request_validation(_logger, secure=True, production=True)
+@request_validation(_logger, secure=True, production=True, request_method="POST")
 def add_target_slots(req, panda_queue: str, slots: int, global_share: str = None, resource_type: str = None, expiration_date: str = None):
     """
     Set target slots.
@@ -436,5 +440,5 @@ def add_target_slots(req, panda_queue: str, slots: int, global_share: str = None
     else:
         success, message = False, return_message
 
-    tmp_logger.debug(f"Done")
+    tmp_logger.debug("Done")
     return generate_response(success, message=message)
