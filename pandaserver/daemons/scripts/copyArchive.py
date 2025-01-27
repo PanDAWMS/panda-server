@@ -727,23 +727,13 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         [],
         True,
     )
-    jobs = []
     jediJobs = []
     if res is not None:
         for id, lockedby in res:
             if lockedby == "jedi":
                 jediJobs.append(id)
-            else:
-                jobs.append(id)
+
     # reassign
-    _logger.debug(f"reassignJobs for defined jobs with timeout {timeoutValue}min -> {len(jobs)} jobs")
-    if len(jobs) > 0:
-        nJob = 100
-        iJob = 0
-        while iJob < len(jobs):
-            _logger.debug(f"reassignJobs for defined jobs ({jobs[iJob:iJob + nJob]})")
-            taskBuffer.reassignJobs(jobs[iJob : iJob + nJob], joinThr=True)
-            iJob += nJob
     _logger.debug(f"reassignJobs for JEDI defined jobs -> #{len(jediJobs)}")
     if len(jediJobs) != 0:
         nJob = 100
@@ -776,7 +766,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # reassign long-waiting jobs in defined table
     timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
     status, res = taskBuffer.lockJobsForReassign("ATLAS_PANDA.jobsDefined4", timeLimit, [], ["managed"], [], [], [], True)
-    jobs = []
     jediJobs = []
     if res is not None:
         for id, lockedby in res:
@@ -785,14 +774,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             else:
                 jobs.append(id)
     # reassign
-    _logger.debug(f"reassignJobs for long in defined table -> #{len(jobs)}")
-    if len(jobs) > 0:
-        nJob = 100
-        iJob = 0
-        while iJob < len(jobs):
-            _logger.debug(f"reassignJobs for long in defined table ({jobs[iJob:iJob + nJob]})")
-            taskBuffer.reassignJobs(jobs[iJob : iJob + nJob], joinThr=True)
-            iJob += nJob
     _logger.debug(f"reassignJobs for long JEDI in defined table -> #{len(jediJobs)}")
     if len(jediJobs) != 0:
         nJob = 100
@@ -816,7 +797,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         onlyReassignable=True,
         getEventService=True,
     )
-    jobs = []
     jediJobs = []
     if res is not None:
         for pandaID, lockedby, eventService, attemptNr, computingSite in res:
@@ -834,16 +814,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         recoverableEsMerge=True,
                     )
                 jediJobs.append(pandaID)
-            else:
-                jobs.append(pandaID)
-    _logger.debug(f"reassignJobs for long activated in active table -> #{len(jobs)}")
-    if len(jobs) != 0:
-        nJob = 100
-        iJob = 0
-        while iJob < len(jobs):
-            _logger.debug(f"reassignJobs for long activated in active table ({jobs[iJob:iJob + nJob]})")
-            taskBuffer.reassignJobs(jobs[iJob : iJob + nJob], joinThr=True)
-            iJob += nJob
+
     _logger.debug(f"reassignJobs for long activated JEDI in active table -> #{len(jediJobs)}")
     if len(jediJobs) != 0:
         nJob = 100
@@ -868,7 +839,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         useStateChangeTime=True,
         getEventService=True,
     )
-    jobs = []
     jediJobs = []
     if res is not None:
         for pandaID, lockedby, eventService, attemptNr, computingSite in res:
@@ -877,16 +847,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                 continue
             if lockedby == "jedi":
                 jediJobs.append(pandaID)
-            else:
-                jobs.append(pandaID)
-    _logger.debug(f"reassignJobs for long starting in active table -> #{len(jobs)}")
-    if len(jobs) != 0:
-        nJob = 100
-        iJob = 0
-        while iJob < len(jobs):
-            _logger.debug(f"reassignJobs for long starting in active table ({jobs[iJob:iJob + nJob]})")
-            taskBuffer.reassignJobs(jobs[iJob : iJob + nJob], joinThr=True)
-            iJob += nJob
+
     _logger.debug(f"reassignJobs for long starting JEDI in active table -> #{len(jediJobs)}")
     if len(jediJobs) != 0:
         nJob = 100
@@ -922,7 +883,9 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     var_map[":jobStatus"] = "pending"
     var_map[":creationTime"] = timeLimit
     status, res = taskBuffer.querySQLS(
-        "SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime",
+        "SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime "
+        "UNION "
+        "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime ",
         var_map,
     )
     jobs = []
@@ -962,9 +925,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             iJob = 0
             while iJob < len(jobs):
                 _logger.debug(f"kick waiting ES merge ({str(jobs[iJob:iJob + nJob])})")
-                Client.reassignJobs(
-                    jobs[iJob : iJob + nJob],
-                )
+                Client.killJobs(jobs[iJob : iJob + nJob], 2)
                 iJob += nJob
 
     # kill too long waiting jobs
