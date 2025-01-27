@@ -1152,6 +1152,8 @@ class TaskBuffer:
 
     # kill jobs
     def killJobs(self, ids, user, code, prodManager, wgProdRole=[], killOptions=[]):
+        tmp_log = LogWrapper(_logger, "killJobs")
+        tmp_log.debug(f"start for {len(ids)} IDs")
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         rets = []
@@ -1216,12 +1218,11 @@ class TaskBuffer:
                                 if tmpFile.destinationDBlock not in tmpDestDBlocks:
                                     tmpDestDBlocks.append(tmpFile.destinationDBlock)
                         # run
-                        cThr = Closer(self, tmpDestDBlocks, tmpJob)
-                        cThr.start()
-                        cThr.join()
-        except Exception:
-            pass
-
+                        closer_process = Closer(self, tmpDestDBlocks, tmpJob)
+                        closer_process.run()
+        except Exception as e:
+            tmp_log.error(f"failed with {str(e)} {traceback.format_exc()}")
+        tmp_log.debug("done")
         return rets
 
     # reassign jobs
@@ -1233,73 +1234,40 @@ class TaskBuffer:
         forPending=False,
         firstSubmission=True,
     ):
-        tmpLog = LogWrapper(_logger, "reassignJobs")
-        tmpLog.debug(f"start for {len(ids)} IDs")
+        tmp_log = LogWrapper(_logger, "reassignJobs")
+        tmp_log.debug(f"start for {len(ids)} IDs")
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         jobs = []
-        oldSubMap = {}
-        # keep old assignment
-        keepSiteFlag = False
-        if (attempt % 2) != 0:
-            keepSiteFlag = True
         # reset jobs
-        for id in ids:
+        n_reset_waiting = 0
+        n_reset_defined = 0
+        for tmp_id in ids:
             try:
-                # try to reset active job
-                if not forPending:
-                    tmpRet = proxy.resetJob(id, keepSite=keepSiteFlag, getOldSubs=True)
-                    if isinstance(tmpRet, tuple):
-                        ret, tmpOldSubList = tmpRet
-                    else:
-                        ret, tmpOldSubList = tmpRet, []
-                    if ret is not None:
-                        jobs.append(ret)
-                        for tmpOldSub in tmpOldSubList:
-                            oldSubMap.setdefault(tmpOldSub, ret)
-                        continue
-                # try to reset waiting job
-                tmpRet = proxy.resetJob(
-                    id,
-                    False,
-                    keepSite=keepSiteFlag,
-                    getOldSubs=False,
-                    forPending=forPending,
+                # try to reset a job in waiting table
+                ret = proxy.resetJob(
+                    tmp_id,
+                    activeTable=False,
+                    forPending=True,
                 )
-                if isinstance(tmpRet, tuple):
-                    ret, tmpOldSubList = tmpRet
-                else:
-                    ret, tmpOldSubList = tmpRet, []
                 if ret is not None:
                     jobs.append(ret)
+                    n_reset_waiting += 1
                     # waiting jobs don't create sub or dis
                     continue
-                # try to reset defined job
-                if not forPending:
-                    tmpRet = proxy.resetDefinedJob(id, keepSite=keepSiteFlag, getOldSubs=True)
-                    if isinstance(tmpRet, tuple):
-                        ret, tmpOldSubList = tmpRet
-                    else:
-                        ret, tmpOldSubList = tmpRet, []
-                    if ret is not None:
-                        jobs.append(ret)
-                        for tmpOldSub in tmpOldSubList:
-                            oldSubMap.setdefault(tmpOldSub, ret)
-                        continue
+                # try to reset a job in defined table
+                ret = proxy.resetDefinedJob(tmp_id)
+                if ret is not None:
+                    jobs.append(ret)
+                    n_reset_defined += 1
+                    continue
             except Exception as e:
-                tmpLog.error(f"failed with {str(e)} {traceback.format_exc()}")
+                tmp_log.error(f"failed with {str(e)} {traceback.format_exc()}")
         # release DB proxy
         self.proxyPool.putProxy(proxy)
-        # run Closer for old sub datasets
-        if not forPending:
-            for tmpOldSub in oldSubMap:
-                tmpJob = oldSubMap[tmpOldSub]
-                cThr = Closer(self, [tmpOldSub], tmpJob)
-                cThr.start()
-                cThr.join()
-        tmpLog.debug(f"got {len(jobs)} IDs")
-        # setup dataset
-        if jobs != []:
+        tmp_log.debug(f"got {len(jobs)} IDs in total: {n_reset_waiting} from Waiting, {n_reset_defined} from Defined")
+        # trigger subsequent agent
+        if jobs:
             if joinThr:
                 thr = Setupper(
                     self,
@@ -1310,32 +1278,14 @@ class TaskBuffer:
                 thr.start()
                 thr.join()
             else:
-                # cannot use 'thr =' because it may trigger garbage collector
+                # cannot use 'thr =' because it may trigger a garbage collector
                 Setupper(
                     self,
                     jobs,
                     resubmit=True,
                     first_submission=firstSubmission,
                 ).start()
-        tmpLog.debug("done")
-
-        return True
-
-    # awake jobs in jobsWaiting
-    def awakeJobs(self, ids):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        jobs = []
-        # reset jobs
-        for id in ids:
-            # try to reset waiting job
-            ret = proxy.resetJob(id, False)
-            if ret is not None:
-                jobs.append(ret)
-        # release DB proxy
-        self.proxyPool.putProxy(proxy)
-        # setup dataset
-        Setupper(self, jobs).start()
+        tmp_log.debug("done")
 
         return True
 
