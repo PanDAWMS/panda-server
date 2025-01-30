@@ -32,7 +32,7 @@ def decode_token(serialized_token, env, tmp_log):
                 vo = None
             # only vo.role for auth filename which is a key of auth_vo_dict
             vo_role = vo.replace(":", ".")
-            token = token_decoder.deserialize_token(serialized_token, panda_config.auth_config, vo, tmp_log)
+            token = token_decoder.deserialize_token(serialized_token, panda_config.auth_config, vo, tmp_log, panda_config.legacy_token_issuers)
             # extract role
             if "vo" in token:
                 vo_raw = token["vo"]  # Original input value of vo

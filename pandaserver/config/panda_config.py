@@ -107,6 +107,12 @@ if "token_audience" not in tmpSelf.__dict__:
     tmpSelf.__dict__["token_audience"] = "https://pandaserver.cern.ch"
 if "token_issuers" not in tmpSelf.__dict__:
     tmpSelf.__dict__["token_issuers"] = ""
+if "legacy_token_issuers" not in tmpSelf.__dict__:
+    tmpSelf.__dict__["legacy_token_issuers"] = "https://atlas-auth.cern.ch/,https://atlas-auth.web.cern.ch/"
+if tmpSelf.__dict__["legacy_token_issuers"]:
+    tmpSelf.__dict__["legacy_token_issuers"] = tmpSelf.__dict__["legacy_token_issuers"].split(",")
+else:
+    tmpSelf.__dict__["legacy_token_issuers"] = None
 tmpSelf.__dict__["production_dns"] = [x for x in tmpSelf.__dict__.get("production_dns", "").split(",") if x]
 tmpSelf.__dict__["pilot_owners"] = [x for x in tmpSelf.__dict__.get("pilot_owners", "").split(",") if x]
 tmpSelf.__dict__["auth_policies"] = {}
