@@ -6,8 +6,10 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.api.v1.common import generate_response, get_dn, request_validation
+from pandaserver.config import panda_config
+from pandaserver.proxycache import panda_proxy_cache, token_cache
 from pandaserver.srvcore import CoreUtils
-from pandaserver.srvcore.CoreUtils import clean_user_id
+from pandaserver.srvcore.CoreUtils import clean_user_id, get_bare_dn
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
@@ -15,17 +17,41 @@ _logger = PandaLogger().getLogger("secret_management_api")
 
 global_task_buffer = None
 global_dispatch_parameter_cache = None
+global_proxy_cache = None
+global_token_cache = None
+global_token_cache_config = None
 
 
 def init_task_buffer(task_buffer: TaskBuffer) -> None:
     """
     Initialize the task buffer. This method needs to be called before any other method in this module.
     """
+
+    # TODO: JobDispatcher is using a lock around certain initialization methods. Discuss with Tadashi if needed and think how to implement.
+
     global global_task_buffer
     global_task_buffer = task_buffer
 
     global global_dispatch_parameter_cache
     global_dispatch_parameter_cache = CoreUtils.CachedObject("dispatcher_params", 60 * 10, get_dispatch_parameters, _logger)
+
+    global global_proxy_cache
+    global_proxy_cache = panda_proxy_cache.MyProxyInterface()
+
+    global global_token_cache
+    global_token_cache = token_cache.TokenCache()
+
+    global global_token_cache_config
+    global_token_cache_config = read_token_cache_configuration()
+
+
+def read_token_cache_configuration():
+    # config of token cacher
+    try:
+        with open(panda_config.token_cache_config) as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
 
 def get_dispatch_parameters():
@@ -196,29 +222,29 @@ def validate_user_permissions(compact_name, tokenized=False):
     return False, tmp_msg
 
 
-def get_proxy(real_distinguished_name: str, role: str | None, target_distinguished_name: str | None, tokenized: bool, token_key: str | None) -> dict:
+def get_proxy(real_dn: str, role: str | None, target_dn: str | None, tokenized: bool, token_key: str | None) -> dict:
     # TODO: this needs to be reviewed further
     """
     Get proxy for a user with a role
 
-    :param real_distinguished_name: actual distinguished name of the user
+    :param real_dn: actual distinguished name of the user
     :param role: role of the user
-    :param target_distinguished_name: target distinguished name if the user wants to get proxy for someone else.
+    :param target_dn: target distinguished name if the user wants to get proxy for someone else.
                                       This is one of client_name defined in token_cache_config when getting a token
     :param tokenized: whether the response should contain a token instead of a proxy
     :param token_key: key to get the token from the token cache
 
     :return: response in dictionary
     """
-    if target_distinguished_name is None:
-        target_distinguished_name = real_distinguished_name
+    if target_dn is None:
+        target_dn = real_dn
 
     tmp_log = LogWrapper(_logger, f"get_proxy PID={os.getpid()}")
-    tmp_msg = f"""start DN="{real_distinguished_name}" role={role} target="{target_distinguished_name}" tokenized={tokenized} token_key={token_key}"""
+    tmp_msg = f"""start DN="{real_dn}" role={role} target="{target_dn}" tokenized={tokenized} token_key={token_key}"""
     tmp_log.debug(tmp_msg)
 
     # get compact DN
-    compact_name = clean_user_id(real_distinguished_name)
+    compact_name = clean_user_id(real_dn)
 
     # check permission
     global_dispatch_parameter_cache.update()
@@ -230,24 +256,30 @@ def get_proxy(real_distinguished_name: str, role: str | None, target_distinguish
     # check if the token key is valid
     if (
         tokenized
-        and target_distinguished_name in self.token_cache_config
-        and self.token_cache_config[target_distinguished_name].get("use_token_key") is True
+        and target_dn in global_token_cache_config
+        and global_token_cache_config[target_dn].get("use_token_key") is True
         and (
-            target_distinguished_name not in global_dispatch_parameter_cache["tokenKeys"]
-            or token_key not in global_dispatch_parameter_cache["tokenKeys"][target_distinguished_name]["fullList"]
+            target_dn not in global_dispatch_parameter_cache["tokenKeys"]
+            or token_key not in global_dispatch_parameter_cache["tokenKeys"][target_dn]["fullList"]
         )
     ):
-        tmp_msg = f"failed since token key is invalid for {target_distinguished_name}"
+        tmp_msg = f"failed since token key is invalid for {target_dn}"
         tmp_log.debug(tmp_msg)
         return generate_response(False, tmp_msg)
 
-    # get proxy
-    tmp_status, tmp_msg = self.set_user_proxy(response, target_distinguished_name, role, tokenized)
-    if not tmp_status:
-        tmp_log.debug(tmp_msg)
-        response.appendNode("StatusCode", Protocol.SC_ProxyError)
-    else:
-        tmp_msg = "successfully sent proxy"
-        tmp_log.debug(tmp_msg)
+    # remove redundant extensions
+    distinguished_name = get_bare_dn(target_dn, keep_digits=False)
+    if not tokenized:  # get proxy
+        output = global_proxy_cache.retrieve(distinguished_name, role=role)
+    else:  # get token
+        output = global_token_cache.get_access_token(distinguished_name)
 
-    return generate_response(True, tmp_msg)
+    # token/proxy not found
+    if output is None:
+        tmp_msg = f"{'token' if tokenized else 'proxy'} not found for {distinguished_name}"
+        tmp_log.debug(tmp_msg)
+        return generate_response(False, tmp_msg)
+
+    data = {"user_proxy": output}
+
+    return generate_response(True, data=data)

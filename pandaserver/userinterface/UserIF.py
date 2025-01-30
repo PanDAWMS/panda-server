@@ -14,7 +14,6 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 import pandaserver.jobdispatcher.Protocol as Protocol
-import pandaserver.taskbuffer.ProcessGroups
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice.ddm import rucioAPI
