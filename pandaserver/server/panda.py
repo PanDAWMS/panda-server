@@ -24,6 +24,7 @@ from werkzeug.datastructures import CombinedMultiDict, EnvironHeaders
 from werkzeug.formparser import parse_form_data
 
 import pandaserver.taskbuffer.ErrorCode
+from pandaserver.api.v1 import credential_management_api as cred_api_v1
 from pandaserver.api.v1 import harvester_api as harvester_api_v1
 from pandaserver.api.v1 import statistics_api as statistics_api_v1
 from pandaserver.api.v1 import task_api as task_api_v1
@@ -152,6 +153,7 @@ LATEST = "1"
 harvester_api_v1_methods = extract_allowed_methods(harvester_api_v1)
 task_api_v1_methods = extract_allowed_methods(task_api_v1)
 statistics_api_v1_methods = extract_allowed_methods(statistics_api_v1)
+cred_api_v1_methods = extract_allowed_methods(cred_api_v1)
 
 # initialize oracledb using dummy connection
 initializer.init()
@@ -171,6 +173,7 @@ if panda_config.nDBConnection != 0:
     harvester_api_v1.init_task_buffer(taskBuffer)
     task_api_v1.init_task_buffer(taskBuffer)
     statistics_api_v1.init_task_buffer(taskBuffer)
+    cred_api_v1.init_task_buffer(taskBuffer)
 
     # initialize JobDispatcher
     jobDispatcher.init(taskBuffer)
@@ -331,6 +334,7 @@ def module_mapping(version, api_module):
             "harvester": {"module": harvester_api_v1, "allowed_methods": harvester_api_v1_methods},
             "task": {"module": task_api_v1, "allowed_methods": task_api_v1_methods},
             "statistics": {"module": statistics_api_v1, "allowed_methods": statistics_api_v1_methods},
+            "creds": {"module": cred_api_v1, "allowed_methods": cred_api_v1_methods},
         },
     }
     try:
