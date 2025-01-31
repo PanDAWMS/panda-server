@@ -66,7 +66,7 @@ def retry(
     user = get_dn(req)
     production_role = has_production_role(req)
 
-    # retry with new params
+    # retry with new parameters
     if new_parameters:
         try:
             # convert to dict
