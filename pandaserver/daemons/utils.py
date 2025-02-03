@@ -414,6 +414,8 @@ class DaemonMaster(object):
         # map of run status of daemons
         self.dem_run_map = {}
         self._make_dem_run_map()
+        # map to store global states
+        self.global_state_map = {}
         # shared taskBufferIF
         self.tbif = None
         self._make_tbif()
@@ -645,8 +647,13 @@ class DaemonMaster(object):
                         dem_run_attrs["msg_ongoing"] = True
                         # dem_run_attrs['last_run_start_ts'] = now_ts
         # warning about delayed scripts
-        if n_super_delayed_dems:
+        if n_super_delayed_dems > 0 and (
+            ((last_warn_super_delayed_ts := self.global_state_map.get("last_warn_super_delayed_ts")) is None or now_ts - last_warn_super_delayed_ts >= 300)
+            or n_super_delayed_dems != (last_n_super_delayed_dems := self.global_state_map.get("last_n_super_delayed_dems"))
+        ):
             self.logger.warning(f"{n_super_delayed_dems} delayed scripts")
+            self.global_state_map["last_warn_super_delayed_ts"] = now_ts
+            self.global_state_map["last_n_super_delayed_dems"] = n_super_delayed_dems
         # call revive if too many daemons are delayed too much (probably the queue is stuck)
         if n_super_delayed_dems >= min(4, int(len(self.dem_config) * 0.667)):
             self.logger.warning(f"found {n_super_delayed_dems} daemons delayed too much; start to revive")
@@ -708,6 +715,8 @@ class DaemonMaster(object):
         self.msg_queue.close()
         # reset message queue
         self._reset_msg_queue()
+        # reset map of run status of daemons
+        self._make_dem_run_map()
         # spawn new workers with new queues
         self._spawn_workers(self.n_workers, auto_start=True)
         # done
