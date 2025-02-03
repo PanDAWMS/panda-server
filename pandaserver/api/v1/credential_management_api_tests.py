@@ -20,8 +20,10 @@ class TestSecretManagementAPI(unittest.TestCase):
         for url in self.urls:
             with self.subTest(base_url=url):
                 full_url = f"{url}/set_user_secrets"
+                print(f"Testing URL: {full_url}")
                 data = {"key": KEY, "value": VALUE}
                 status, output = self.http_client.post(full_url, data)
+                print(output)
                 expected_response = [True, "OK"]
                 self.assertEqual(output, expected_response)
 
@@ -29,8 +31,10 @@ class TestSecretManagementAPI(unittest.TestCase):
         for url in self.urls:
             with self.subTest(base_url=url):
                 full_url = f"{url}/get_user_secrets"
+                print(f"Testing URL: {full_url}")
                 data = {"keys": KEY}
                 status, output = self.http_client.post(full_url, data)
+                print(output)
                 expected_response = [True, {KEY: VALUE}]
                 self.assertEqual(output, expected_response)
 
@@ -38,8 +42,10 @@ class TestSecretManagementAPI(unittest.TestCase):
         for url in self.urls:
             with self.subTest(base_url=url):
                 full_url = f"{url}/get_key_pair"
+                print(f"Testing URL: {full_url}")
                 data = {"public_key_name": "a", "private_key_name": "b"}
                 status, output = self.http_client.post(full_url, data)
+                print(output)
                 expected_response = [True, {KEY: VALUE}]
                 self.assertEqual(output, expected_response)
 
@@ -47,8 +53,10 @@ class TestSecretManagementAPI(unittest.TestCase):
         for url in self.urls:
             with self.subTest(base_url=url):
                 full_url = f"{url}/get_proxy"
+                print(f"Testing URL: {full_url}")
                 data = {"role": "atlas", "dn": "atlpilo2"}
                 status, output = self.http_client.post(full_url, data)
+                print(output)
                 expected_response = [True, {KEY: VALUE}]
                 self.assertEqual(output, expected_response)
 
@@ -56,8 +64,10 @@ class TestSecretManagementAPI(unittest.TestCase):
         for url in self.urls:
             with self.subTest(base_url=url):
                 full_url = f"{url}/get_access_token"
+                print(f"Testing URL: {full_url}")
                 data = {"client_name": "pilot_server"}
                 status, output = self.http_client.post(full_url, data)
+                print(output)
                 expected_response = [True, {KEY: VALUE}]
                 self.assertEqual(output, expected_response)
 
@@ -65,8 +75,10 @@ class TestSecretManagementAPI(unittest.TestCase):
         for url in self.urls:
             with self.subTest(base_url=url):
                 full_url = f"{url}/get_token_key"
+                print(f"Testing URL: {full_url}")
                 data = {"client_name": "pilot_server"}
                 status, output = self.http_client.post(full_url, data)
+                print(output)
                 expected_response = [True, {KEY: VALUE}]
                 self.assertEqual(output, expected_response)
 
