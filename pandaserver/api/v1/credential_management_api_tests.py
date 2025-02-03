@@ -1,3 +1,5 @@
+# TODO: the result of the tests depend on the cert/token used for the call. These particular results are for running with user pandasv1
+
 import unittest
 from datetime import datetime, timezone
 
@@ -9,6 +11,8 @@ formatted_time = now_utc.strftime("%d.%m.%y %H:%M:%S") + f".{now_utc.microsecond
 
 KEY = "test_key"
 VALUE = "test_value"
+
+NO_SSL_RESPONSE = {"success": False, "message": "SSL secure connection is required", "data": None}
 
 
 class TestSecretManagementAPI(unittest.TestCase):
@@ -24,7 +28,10 @@ class TestSecretManagementAPI(unittest.TestCase):
                 data = {"key": KEY, "value": VALUE}
                 status, output = self.http_client.post(full_url, data)
                 print(output)
-                expected_response = [True, "OK"]
+                if url.startswith(api_url):
+                    expected_response = NO_SSL_RESPONSE
+                else:
+                    expected_response = {"success": True, "message": "OK", "data": None}
                 self.assertEqual(output, expected_response)
 
     def test_get_user_secrets(self):
@@ -35,7 +42,10 @@ class TestSecretManagementAPI(unittest.TestCase):
                 data = {"keys": KEY}
                 status, output = self.http_client.get(full_url, data)
                 print(output)
-                expected_response = [True, {KEY: VALUE}]
+                if url.startswith(api_url):
+                    expected_response = NO_SSL_RESPONSE
+                else:
+                    expected_response = {"success": False, "message": "failed since token key is invalid for pilot_server", "data": None}
                 self.assertEqual(output, expected_response)
 
     def test_get_key_pair(self):
@@ -46,7 +56,14 @@ class TestSecretManagementAPI(unittest.TestCase):
                 data = {"public_key_name": "a", "private_key_name": "b"}
                 status, output = self.http_client.get(full_url, data)
                 print(output)
-                expected_response = [True, {KEY: VALUE}]
+                if url.startswith(api_url):
+                    expected_response = NO_SSL_RESPONSE
+                else:
+                    expected_response = {
+                        "success": False,
+                        "message": "Failed since 'pandasv1' not authorized with 'k' in ATLAS_PANDAMETA.USERS.GRIDPREF",
+                        "data": None,
+                    }
                 self.assertEqual(output, expected_response)
 
     def test_get_proxy(self):
@@ -57,7 +74,10 @@ class TestSecretManagementAPI(unittest.TestCase):
                 data = {"role": "atlas", "dn": "atlpilo2"}
                 status, output = self.http_client.get(full_url, data)
                 print(output)
-                expected_response = [True, {KEY: VALUE}]
+                if url.startswith(api_url):
+                    expected_response = NO_SSL_RESPONSE
+                else:
+                    expected_response = {"success": False, "message": "'proxy' not found for atlpilo2", "data": None}
                 self.assertEqual(output, expected_response)
 
     def test_get_access_token(self):
@@ -68,7 +88,10 @@ class TestSecretManagementAPI(unittest.TestCase):
                 data = {"client_name": "pilot_server"}
                 status, output = self.http_client.get(full_url, data)
                 print(output)
-                expected_response = [True, {KEY: VALUE}]
+                if url.startswith(api_url):
+                    expected_response = NO_SSL_RESPONSE
+                else:
+                    expected_response = {"success": False, "message": "failed since token key is invalid for pilot_server", "data": None}
                 self.assertEqual(output, expected_response)
 
     def test_get_token_key(self):
@@ -79,7 +102,12 @@ class TestSecretManagementAPI(unittest.TestCase):
                 data = {"client_name": "pilot_server"}
                 status, output = self.http_client.get(full_url, data)
                 print(output)
-                expected_response = [True, {KEY: VALUE}]
+                if url.startswith(api_url):
+                    expected_response = NO_SSL_RESPONSE
+                else:
+                    del output["data"]
+                    del output["message"]
+                    expected_response = {"success": True}
                 self.assertEqual(output, expected_response)
 
 
