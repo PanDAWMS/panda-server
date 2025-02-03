@@ -2,6 +2,7 @@
 proxy for database connection
 
 """
+
 import atexit
 import copy
 import datetime
@@ -4263,7 +4264,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         sql2 = f"SELECT {JobSpec.columnNames()} "
         sql2 += "FROM %s WHERE PandaID=:PandaID AND jobStatus<>:jobStatus"
         sql3 = "DELETE FROM %s WHERE PandaID=:PandaID"
-        sqlU = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
+        sqlU = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID AND jobStatus IN (:oldJobStatus1,:oldJobStatus2,:oldJobStatus3) "
         sql4 = f"INSERT INTO ATLAS_PANDA.jobsArchived4 ({JobSpec.columnNames()}) "
         sql4 += JobSpec.bindValuesExpression()
         sqlF = "UPDATE ATLAS_PANDA.filesTable4 SET status=:status WHERE PandaID=:PandaID AND type IN (:type1,:type2)"
@@ -4405,6 +4406,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                     varMap[":PandaID"] = pandaID
                     varMap[":oldJobStatus1"] = "assigned"
                     varMap[":oldJobStatus2"] = "defined"
+                    varMap[":oldJobStatus3"] = "pending"
                     self.cur.execute(sqlU + comment, varMap)
                 else:
                     varMap = {}
