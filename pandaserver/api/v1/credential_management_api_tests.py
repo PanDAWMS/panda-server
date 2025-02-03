@@ -45,7 +45,7 @@ class TestSecretManagementAPI(unittest.TestCase):
                 if url.startswith(api_url):
                     expected_response = NO_SSL_RESPONSE
                 else:
-                    expected_response = {"success": False, "message": "failed since token key is invalid for pilot_server", "data": None}
+                    expected_response = {"success": True, "message": "", "data": '{"test_key": "test_value"}'}
                 self.assertEqual(output, expected_response)
 
     def test_get_key_pair(self):
