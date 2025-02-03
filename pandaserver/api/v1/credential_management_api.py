@@ -129,7 +129,7 @@ def get_user_secrets(req: PandaRequest, keys: str = None) -> dict:
     return generate_response(success, message, data)
 
 
-@request_validation(_logger, secure=True, request_method="POST")
+@request_validation(_logger, secure=True, request_method="GET")
 def get_key_pair(req: PandaRequest, public_key_name: str, private_key_name: str) -> dict:
     """
     Get key pair
