@@ -18260,7 +18260,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 "    WHERE lastupdate > CAST(SYSTIMESTAMP AT TIME ZONE 'UTC' - INTERVAL '1' HOUR AS DATE) "
                 "      AND status IN ('running', 'submitted', 'to_submit') "
                 "      AND computingsite=:queue AND harvester_id=:harvester_id"
-                ")GROUP BY computingsite, harvester_id "
+                ") GROUP BY computingsite, harvester_id "
             )
 
             sql_running = (
@@ -18277,7 +18277,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 "    WHERE lastupdate > CAST(SYSTIMESTAMP AT TIME ZONE 'UTC' - INTERVAL '1' HOUR AS DATE) "
                 "      AND status = 'running' "
                 "      AND computingsite=:queue AND harvester_id=:harvester_id"
-                ")GROUP BY computingsite, harvester_id "
+                ") GROUP BY computingsite, harvester_id "
             )
 
             var_map = {":queue": queue, ":harvester_id": harvester_id}
