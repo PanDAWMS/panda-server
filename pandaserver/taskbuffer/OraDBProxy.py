@@ -18247,7 +18247,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         try:
             # sql to calculate the average memory for the queue - harvester_id combination
             sql_running_and_submitted = (
-                "SELECT /*+ RESULT_CACHE */ sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) "
+                "SELECT /*+ RESULT_CACHE */ /* use_json_type */ sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) "
                 "FROM ( "
                 "    SELECT hws.computingsite, "
                 "           hws.harvester_id, "
@@ -18264,7 +18264,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             )
 
             sql_running = (
-                "SELECT /*+ RESULT_CACHE */ sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) "
+                "SELECT /*+ RESULT_CACHE */ /* use_json_type */ sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) "
                 "FROM ( "
                 "    SELECT hws.computingsite, "
                 "           hws.harvester_id, "
