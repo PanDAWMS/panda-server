@@ -17900,9 +17900,9 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             # insert
             if not toSkip:
                 varMap = dict()
-                varMap[":harvester_ID"] = harvester_ID
+                varMap[":harvester_id"] = harvester_ID
                 varMap[":command"] = command
-                varMap[":ack_requested"] = ack_requested
+                varMap[":ack_requested"] = 1 if ack_requested else 0
                 varMap[":status"] = status
                 sqlI = "INSERT INTO ATLAS_PANDA.HARVESTER_COMMANDS "
                 sqlI += "(command_id,creation_date,status_date,command,harvester_id,ack_requested,status"
