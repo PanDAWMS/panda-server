@@ -16,6 +16,18 @@ warnings.filterwarnings("ignore")
 _logger = PandaLogger().getLogger("WrappedCursor")
 
 
+# extract table names from sql query
+def extract_table_names(sql):
+    table_names = []
+    for item in re.findall(r" FROM (.+?)(WHERE|$)", sql, flags=re.IGNORECASE):
+        if "FROM" in item[0]:
+            table_names += extract_table_names(item[0])
+        else:
+            table_strs = item[0].split(",")
+            table_names += [re.sub(r"\(|\)", "", t.strip().lower()) for table_str in table_strs for t in table_str.split() if t.strip()]
+    return table_names
+
+
 # convert SQL and parameters in_printf format
 def convert_query_in_printf_format(sql, var_dict_list, sql_conv_map):
     if sql in sql_conv_map:
@@ -39,7 +51,7 @@ def convert_query_in_printf_format(sql, var_dict_list, sql_conv_map):
         # sub query + rownum
         sql = re.sub(r"\)\s+WHERE\s+rownum", r") tmp_sub WHERE rownum", sql, flags=re.IGNORECASE)
         # sub query + GROUP BY
-        if re.search(r"FROM\s+\(SELECT", sql, flags=re.IGNORECASE):
+        if re.search(r"FROM\s+\(\s*SELECT", sql, flags=re.IGNORECASE):
             sql = re.sub(r"\)\s+GROUP\s+BY", r") tmp_sub GROUP BY", sql, flags=re.IGNORECASE)
         # rownum
         sql = re.sub(
@@ -68,10 +80,7 @@ def convert_query_in_printf_format(sql, var_dict_list, sql_conv_map):
             # remove \n to make regexp easier
             sql = re.sub(r"\n", r" ", sql)
             # collect table names
-            table_names = set()
-            for item in re.findall(r" FROM ([^\(]+?)(WHERE|$)", sql, flags=re.IGNORECASE):
-                table_strs = item[0].split(",")
-                table_names.update([re.sub(r"\(|\)", "", t.strip().lower()) for table_str in table_strs for t in table_str.split() if t.strip()])
+            table_names = set(extract_table_names(sql))
             # look for a.b(.c)*
             for item in re.findall(r"(\w+\.\w+\.*\w*)", sql):
                 item_l = item.lower()
