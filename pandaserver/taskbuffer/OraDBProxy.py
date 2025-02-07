@@ -24,6 +24,7 @@ from json.decoder import JSONDecodeError
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils, srv_msg_utils
@@ -18252,12 +18253,12 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 "    SELECT hws.computingsite, "
                 "           hws.harvester_id, "
                 "           hws.n_workers, "
-                "           hws.n_workers * NVL(rt.maxcore, NVL(sj.data.corecount, 1)) * NVL(rt.maxrampercore, sj.data.maxrss / NVL(sj.data.corecount, 1)) as total_memory, "
+                "           hws.n_workers * NVL(rt.maxcore, NVL(sj.data.corecount * 1, 1)) * NVL(rt.maxrampercore, sj.data.maxrss * 1 / NVL(sj.data.corecount, 1)) as total_memory, "
                 "           NVL(rt.maxcore, NVL(sj.data.corecount, 1)) as corecount "
                 "    FROM ATLAS_PANDA.harvester_worker_stats hws "
                 "    JOIN ATLAS_PANDA.resource_types rt ON hws.resourcetype = rt.resource_name "
                 "    JOIN ATLAS_PANDA.schedconfig_json sj ON hws.computingsite = sj.panda_queue "
-                "    WHERE lastupdate > CAST(SYSTIMESTAMP AT TIME ZONE 'UTC' - INTERVAL '1' HOUR AS DATE) "
+                "    WHERE lastupdate > :time_limit "
                 "      AND status IN ('running', 'submitted', 'to_submit') "
                 "      AND computingsite=:queue AND harvester_id=:harvester_id"
                 ") GROUP BY computingsite, harvester_id "
@@ -18269,18 +18270,22 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 "    SELECT hws.computingsite, "
                 "           hws.harvester_id, "
                 "           hws.n_workers, "
-                "           hws.n_workers * NVL(rt.maxcore, NVL(sj.data.corecount, 1)) * NVL(rt.maxrampercore, sj.data.maxrss / NVL(sj.data.corecount, 1)) as total_memory, "
+                "           hws.n_workers * NVL(rt.maxcore, NVL(sj.data.corecount * 1, 1)) * NVL(rt.maxrampercore, sj.data.maxrss * 1 / NVL(sj.data.corecount, 1)) as total_memory, "
                 "           NVL(rt.maxcore, NVL(sj.data.corecount, 1)) as corecount "
                 "    FROM ATLAS_PANDA.harvester_worker_stats hws "
                 "    JOIN ATLAS_PANDA.resource_types rt ON hws.resourcetype = rt.resource_name "
                 "    JOIN ATLAS_PANDA.schedconfig_json sj ON hws.computingsite = sj.panda_queue "
-                "    WHERE lastupdate > CAST(SYSTIMESTAMP AT TIME ZONE 'UTC' - INTERVAL '1' HOUR AS DATE) "
+                "    WHERE lastupdate > :time_limit "
                 "      AND status = 'running' "
                 "      AND computingsite=:queue AND harvester_id=:harvester_id"
                 ") GROUP BY computingsite, harvester_id "
             )
 
-            var_map = {":queue": queue, ":harvester_id": harvester_id}
+            var_map = {
+                ":queue": queue,
+                ":harvester_id": harvester_id,
+                ":time_limit": (naive_utcnow() - datetime.timedelta(hours=1)).replace(second=0, microsecond=0),
+            }
 
             self.cur.execute(sql_running_and_submitted + comment, var_map)
             results = self.cur.fetchone()

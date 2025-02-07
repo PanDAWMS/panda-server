@@ -81,8 +81,13 @@ def convert_query_in_printf_format(sql, var_dict_list, sql_conv_map):
             sql = re.sub(r"\n", r" ", sql)
             # collect table names
             table_names = set(extract_table_names(sql))
+            checked_items = set()
             # look for a.b(.c)*
             for item in re.findall(r"(\w+\.\w+\.*\w*)", sql):
+                # skip if already checked
+                if item in checked_items:
+                    continue
+                checked_items.add(item)
                 item_l = item.lower()
                 # ignore tables
                 if item_l in table_names:
@@ -113,7 +118,7 @@ def convert_query_in_printf_format(sql, var_dict_list, sql_conv_map):
                 if not new_pat:
                     new_pat = re.sub(r"\.(?P<pat>\w+)", r"->>'\1'", item)
                 # guess type
-                right_vals = re.findall(old_pat + r"\s*[=<>!]+\s*([\w:\']+)", sql)
+                right_vals = re.findall(old_pat + r"\s*[=<>!*]+\s*([\w:\']+)", sql)
                 for right_val in right_vals:
                     # string
                     if "'" in right_val:
@@ -137,6 +142,7 @@ def convert_query_in_printf_format(sql, var_dict_list, sql_conv_map):
                             new_pat = f"CAST({new_pat} AS float)"
                             break
                 # replace
+                print(old_pat, new_pat)
                 sql = sql.replace(old_pat, new_pat)
             # cache
             sql_conv_map[old_sql] = sql
