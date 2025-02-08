@@ -18247,6 +18247,8 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         tmp_logger.debug("start")
         try:
             # sql to calculate the average memory for the queue - harvester_id combination
+            # "* 1" in sj.data.blah * 1 is required to notify postgres the data type is an int since json element is
+            # treated as text otherwise. This is needed only for the first occurrence of each element in the query
             sql_running_and_submitted = (
                 "SELECT /*+ RESULT_CACHE */ /* use_json_type */ sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) "
                 "FROM ( "
@@ -18281,6 +18283,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 ") GROUP BY computingsite, harvester_id "
             )
 
+            # bind variables including truncated time_limit for result cache
             var_map = {
                 ":queue": queue,
                 ":harvester_id": harvester_id,
