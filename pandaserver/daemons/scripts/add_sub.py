@@ -48,27 +48,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # instantiate sitemapper
     aSiteMapper = SiteMapper(taskBuffer)
 
-    # delete
-    tmp_log.debug("Del session")
-    status, retSel = taskBuffer.querySQLS("SELECT MAX(PandaID) FROM ATLAS_PANDA.jobsDefined4", {})
-    if retSel is not None:
-        try:
-            maxID = retSel[0][0]
-            tmp_log.debug(f"maxID : {maxID}")
-            if maxID is not None:
-                varMap = {}
-                varMap[":maxID"] = maxID
-                varMap[":jobStatus1"] = "activated"
-                varMap[":jobStatus2"] = "waiting"
-                varMap[":jobStatus3"] = "failed"
-                varMap[":jobStatus4"] = "cancelled"
-                status, retDel = taskBuffer.querySQLS(
-                    "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID<:maxID AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4)",
-                    varMap,
-                )
-        except Exception:
-            pass
-
     # count # of getJob/updateJob in dispatcher's log
     try:
         # don't update when logrotate is running
