@@ -23,7 +23,6 @@ varMap[":prio"] = sys.argv[2]
 sql = "UPDATE %s SET currentPriority=:prio WHERE prodSourceLabel=:prodSourceLabel AND taskID=:taskID"
 for table in [
     "ATLAS_PANDA.jobsActive4",
-    "ATLAS_PANDA.jobsWaiting4",
     "ATLAS_PANDA.jobsDefined4",
 ]:
     status, res = proxyS.querySQLS(sql % table, varMap)

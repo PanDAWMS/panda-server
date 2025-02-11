@@ -85,7 +85,7 @@ varMap = {}
 varMap[":jobStatus"] = "waiting"
 varMap[":modificationTime"] = timeLimit
 varMap[":taskID"] = taskid
-sql = "SELECT PandaID,lockedby FROM ATLAS_PANDA.jobsWaiting4 WHERE jobStatus=:jobStatus AND taskID=:taskID AND modificationTime<:modificationTime "
+sql = "SELECT PandaID,lockedby FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND taskID=:taskID AND modificationTime<:modificationTime "
 status, res = proxyS.querySQLS(sql, varMap)
 if res is not None:
     for id, lockedby in res:

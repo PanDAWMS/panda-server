@@ -883,8 +883,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     var_map[":jobStatus"] = "pending"
     var_map[":creationTime"] = timeLimit
     status, res = taskBuffer.querySQLS(
-        "SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime "
-        "UNION "
         "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime ",
         var_map,
     )
@@ -908,7 +906,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     var_map[":jobStatus"] = "waiting"
     var_map[":creationTime"] = timeLimit
     var_map[":esMerge"] = EventServiceUtils.esMergeJobFlagNumber
-    sql = "SELECT PandaID,computingSite FROM ATLAS_PANDA.jobsWaiting4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime "
+    sql = "SELECT PandaID,computingSite FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime "
     sql += "AND eventService=:esMerge ORDER BY jediTaskID "
     status, res = taskBuffer.querySQLS(sql, var_map)
     jobsMap = {}
@@ -934,7 +932,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     var_map[":jobStatus"] = "waiting"
     var_map[":creationTime"] = timeLimit
     var_map[":coJumbo"] = EventServiceUtils.coJumboJobFlagNumber
-    sql = "SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime "
+    sql = "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE jobStatus=:jobStatus AND creationTime<:creationTime "
     sql += "AND (eventService IS NULL OR eventService<>:coJumbo) "
     status, res = taskBuffer.querySQLS(sql, var_map)
     jobs = []
@@ -1002,23 +1000,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
             _logger.debug(f"killJobs for long running ES merge jobs ({str(jobs[iJob:iJob + nJob])})")
             Client.killJobs(jobs[iJob : iJob + nJob], 2)
             iJob += nJob
-
-    # kill too long waiting jobs
-    timeLimit = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=7)
-    sql = "SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE ((creationTime<:timeLimit AND (eventService IS NULL OR eventService<>:coJumbo)) "
-    sql += "OR modificationTime<:timeLimit) "
-    var_map = {}
-    var_map[":timeLimit"] = timeLimit
-    var_map[":coJumbo"] = EventServiceUtils.coJumboJobFlagNumber
-    status, res = taskBuffer.querySQLS(sql, var_map)
-    jobs = []
-    if res is not None:
-        for (id,) in res:
-            jobs.append(id)
-    # kill
-    if len(jobs):
-        Client.killJobs(jobs, 4)
-        _logger.debug(f"killJobs in jobsWaiting ({str(jobs)})")
 
     # rebrokerage
     _logger.debug("Rebrokerage start")
