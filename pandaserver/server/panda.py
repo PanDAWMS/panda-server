@@ -154,6 +154,7 @@ harvester_api_v1_methods = extract_allowed_methods(harvester_api_v1)
 task_api_v1_methods = extract_allowed_methods(task_api_v1)
 statistics_api_v1_methods = extract_allowed_methods(statistics_api_v1)
 cred_api_v1_methods = extract_allowed_methods(cred_api_v1)
+pilot_api_v1_methods = extract_allowed_methods(pilot_api_v1)
 
 # initialize oracledb using dummy connection
 initializer.init()
@@ -335,6 +336,7 @@ def module_mapping(version, api_module):
             "task": {"module": task_api_v1, "allowed_methods": task_api_v1_methods},
             "statistics": {"module": statistics_api_v1, "allowed_methods": statistics_api_v1_methods},
             "creds": {"module": cred_api_v1, "allowed_methods": cred_api_v1_methods},
+            "pilot": {"module": pilot_api_v1, "allowed_methods": pilot_api_v1_methods},
         },
     }
     try:
