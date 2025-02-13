@@ -8,7 +8,6 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.api.v1.common import (
-    MESSAGE_DATABASE,
     generate_response,
     get_dn,
     get_fqan,
@@ -21,7 +20,6 @@ from pandaserver.config import panda_config
 from pandaserver.dataservice.adder_gen import AdderGen
 from pandaserver.jobdispatcher import Protocol
 from pandaserver.srvcore import CoreUtils
-from pandaserver.srvcore.CoreUtils import resolve_bool
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
@@ -64,13 +62,13 @@ def acquire_jobs(
     get_proxy_key: str = None,
     task_id: int = None,
     n_jobs: int = None,
-    background: str = None,
+    background: bool = None,
     resource_type: str = None,
     harvester_id: str = None,
     worker_id: int = None,
     scheduler_id: str = None,
     job_type: str = None,
-    via_topic: str = None,
+    via_topic: bool = None,
 ) -> dict:
 
     tmp_logger = LogWrapper(_logger, f"acquire_jobs {datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
@@ -115,9 +113,6 @@ def acquire_jobs(
         disk_space = max(0, int(disk_space))
     except (ValueError, TypeError):
         disk_space = 0
-
-    background = resolve_bool(background)
-    via_topic = resolve_bool(via_topic)
 
     try:
         n_jobs = int(n_jobs)

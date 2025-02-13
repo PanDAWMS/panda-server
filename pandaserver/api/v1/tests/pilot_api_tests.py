@@ -37,7 +37,6 @@ class TestTaskAPI(unittest.TestCase):
         status, output = self.http_client.post(url, data)
         print(output)
         output["status"] = status
-        output["message"] = ""
 
         expected_response = {"status": 0, "success": False, "data": 2, "message": ""}
         self.assertEqual(output, expected_response)
