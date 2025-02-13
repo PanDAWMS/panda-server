@@ -76,15 +76,11 @@ def acquire_jobs(
 
     # get DN and FQANs
     real_dn = get_dn(req)
-    fqans = get_fqan(req)
 
     # check production role
     # TODO: this is a bit tricky, there are multiple versions of checking for production role
     #       and the logic is not clear.
-    if get_proxy_key == "True":  # don't use /atlas to prevent normal proxy getting credname
-        is_production_manager = has_production_role(fqans, real_dn, False)
-    else:
-        is_production_manager = has_production_role(fqans, real_dn)
+    is_production_manager = has_production_role(req)
 
     # production jobs should only be retrieved with production role
     if not is_production_manager and prod_source_label not in ["user"]:
@@ -92,7 +88,7 @@ def acquire_jobs(
         tmp_msg = "no production/pilot role in VOMS FQANs or non pilot owner"
         return generate_response(False, message=tmp_msg)
 
-    # set DN for non-production user
+    # set DN for non-production user, the user can only get their own jobs
     if not is_production_manager:
         prod_user_id = real_dn
 
@@ -104,25 +100,20 @@ def acquire_jobs(
 
     # convert memory
     try:
-        memory = max(0, int(memory))
+        memory = max(0, memory)
     except (ValueError, TypeError):
         memory = 0
 
     # convert disk_space
     try:
-        disk_space = max(0, int(disk_space))
+        disk_space = max(0, disk_space)
     except (ValueError, TypeError):
         disk_space = 0
-
-    try:
-        n_jobs = int(n_jobs)
-    except (ValueError, TypeError):
-        n_jobs = 1
 
     tmp_logger.debug(
         f"{site_name}, n_jobs={n_jobs}, memory={memory}, disk={disk_space}, source_label={prod_source_label}, "
         f"node={node}, ce={computing_element}, user={prod_user_id}, proxy={get_proxy_key}, "
-        f"task_id={task_id}, DN={real_dn}, role={is_production_manager}, FQAN={str(fqans)}, "
+        f"task_id={task_id}, DN={real_dn}, role={is_production_manager}, "
         f"bg={background}, rt={resource_type}, harvester_id={harvester_id}, worker_id={worker_id}, "
         f"scheduler_id={scheduler_id}, job_type={job_type}, via_topic={via_topic}"
     )
