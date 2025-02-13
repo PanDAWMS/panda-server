@@ -1,8 +1,9 @@
 import datetime
 import os
+import sys
 import time
 import traceback
-from typing import Any, Dict, List
+from typing import List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -10,11 +11,10 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.api.v1.common import (
     generate_response,
     get_dn,
-    get_fqan,
     has_production_role,
     request_validation,
 )
-from pandaserver.api.v1.timed_method import TIME_OUT, TimedMethod
+from pandaserver.api.v1.timed_method import TimedMethod
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice.adder_gen import AdderGen
@@ -160,14 +160,14 @@ def acquire_jobs(
 
     jobs = []
     if isinstance(timed_method.result, list):
-        jobs = timed_method.result
+        result = timed_method.result
+        secrets_map = result.pop()
+        proxy_key = result[-1]
+        n_sent = result[-2]
+        jobs = result[:-2]
 
     # we retrieved jobs
     if len(jobs) > 0:
-        secrets_map = jobs.pop()
-        proxy_key = jobs[-1]
-        n_sent = jobs[-2]
-        jobs = jobs[:-2]
 
         # we will append each job as a response to the response list
         response_list = []
@@ -210,12 +210,11 @@ def acquire_jobs(
                 raise
 
     # we didn't retrieve jobs, either because of time out or because there were no jobs
+    elif timed_method.result == Protocol.TimeOutToken:
+        response = Protocol.Response(Protocol.SC_TimeOut, "database timeout")
     else:
-        if timed_method.result == Protocol.TimeOutToken:
-            response = Protocol.Response(Protocol.SC_TimeOut, "database timeout")
-        else:
-            response = Protocol.Response(Protocol.SC_NoJobs, "no jobs in PanDA")
-            pilot_logger.info(f"method=noJob, site={site_name}, node={node}, type={prod_source_label}")
+        response = Protocol.Response(Protocol.SC_NoJobs, "no jobs in PanDA")
+        pilot_logger.info(f"method=noJob, site={site_name}, node={node}, type={prod_source_label}")
 
     tmp_logger.debug(f"{site_name} {node} ret -> {response.encode(acceptJson=True)}")
 
@@ -526,7 +525,7 @@ def update_jobs_bulk(req, job_list: List, harvester_id: str = None):
         err_type, err_value = sys.exc_info()[:2]
         message = f"failed with {err_type.__name__} {err_value}"
         data = []
-        tmp_logger.error(f"{tmp_msg}\n{traceback.format_exc()}")
+        tmp_logger.error(f"{message}\n{traceback.format_exc()}")
 
     t_delta = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - t_start
     tmp_logger.debug(f"Done. Took {t_delta.seconds}.{t_delta.microseconds // 1000:03d} sec")
