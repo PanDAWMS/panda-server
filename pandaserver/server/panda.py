@@ -26,6 +26,7 @@ from werkzeug.formparser import parse_form_data
 import pandaserver.taskbuffer.ErrorCode
 from pandaserver.api.v1 import credential_management_api as cred_api_v1
 from pandaserver.api.v1 import harvester_api as harvester_api_v1
+from pandaserver.api.v1 import pilot_api as pilot_api_v1
 from pandaserver.api.v1 import statistics_api as statistics_api_v1
 from pandaserver.api.v1 import task_api as task_api_v1
 from pandaserver.api.v1.common import extract_allowed_methods
