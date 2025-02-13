@@ -14,7 +14,7 @@ class TestTaskAPI(unittest.TestCase):
         url = f"{api_url_ssl}/pilot/acquire_jobs"
         print(f"Testing URL: {url}")
         data = {
-            "site_name": str,
+            "site_name": "CERN",
             "timeout": 60,
             "memory": 999999999,
             "disk_space": 999999999,
