@@ -31,7 +31,7 @@ class TestTaskAPI(unittest.TestCase):
             "worker_id": 12345,
             "scheduler_id": "imaginary_scheduler",
             "job_type": "user",
-            "via_topic": "False",
+            "via_topic": False,
         }
 
         status, output = self.http_client.post(url, data)
