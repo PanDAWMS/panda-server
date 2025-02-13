@@ -10,8 +10,8 @@ class TestTaskAPI(unittest.TestCase):
     def setUp(self):
         self.http_client = HttpClient()
 
-    def test_get_jobs(self):
-        url = f"{api_url_ssl}/pilot/get_jobs"
+    def test_acquire_jobs(self):
+        url = f"{api_url_ssl}/pilot/acquire_jobs"
         print(f"Testing URL: {url}")
         data = {
             "site_name": str,
@@ -34,7 +34,7 @@ class TestTaskAPI(unittest.TestCase):
             "via_topic": "False",
         }
 
-        status, output = self.http_client.get(url, data)
+        status, output = self.http_client.post(url, data)
         print(output)
         output["status"] = status
         output["message"] = ""
