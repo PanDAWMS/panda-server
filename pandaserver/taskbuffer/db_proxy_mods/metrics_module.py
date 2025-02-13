@@ -2,7 +2,7 @@ import datetime
 import json
 import sys
 
-from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandalogger.LogWrapper import LogWrapper
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
@@ -13,7 +13,7 @@ from pandaserver.taskbuffer.JobSpec import JobSpec, get_task_queued_time
 # Module class to define metrics related methods
 class MetricsModule(BaseModule):
     # constructor
-    def __init__(self, log_stream: PandaLogger):
+    def __init__(self, log_stream: LogWrapper):
         super().__init__(log_stream)
 
     # set job or task metrics
@@ -29,9 +29,9 @@ class MetricsModule(BaseModule):
         """
         comment = " /* DBProxy.set_workload_metrics */"
         if panda_id is not None:
-            method_name, tmp_log = self.create_method_name_logger(comment, f"jediTaskID={jedi_task_id} PandaID={panda_id}")
+            tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id} PandaID={panda_id}")
         else:
-            method_name, tmp_log = self.create_method_name_logger(comment, f"jediTaskID={jedi_task_id}")
+            tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
         tmp_log.debug("start")
         try:
             if panda_id is not None:
@@ -103,9 +103,9 @@ class MetricsModule(BaseModule):
         """
         comment = " /* DBProxy.get_workload_metrics */"
         if panda_id is not None:
-            method_name, tmp_log = self.create_method_name_logger(comment, f"jediTaskID={jedi_task_id} PandaID={panda_id}")
+            tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id} PandaID={panda_id}")
         else:
-            method_name, tmp_log = self.create_method_name_logger(comment, f"jediTaskID={jedi_task_id}")
+            tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
         tmp_log.debug("start")
         try:
             if panda_id is not None:
@@ -147,7 +147,7 @@ class MetricsModule(BaseModule):
         :return: (False, None) if failed, otherwise (True, list of [PandaID, metrics])
         """
         comment = " /* DBProxy.get_jobs_metrics_in_task */"
-        method_name, tmp_log = self.create_method_name_logger(comment, f"jediTaskID={jedi_task_id}")
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
         tmp_log.debug("start")
         try:
             var_map = {":jediTaskID": jedi_task_id}
@@ -178,7 +178,7 @@ class MetricsModule(BaseModule):
         :param jedi_task_id: task's jediTaskID
         """
         comment = " /* DBProxy.update_task_queued_activated_times */"
-        method_name, tmp_log = self.create_method_name_logger(comment, f"jediTaskID={jedi_task_id}")
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
         tmp_log.debug("start")
         # check if the task is queued
         sql_check = (
@@ -262,7 +262,7 @@ class MetricsModule(BaseModule):
         :return: True if success. False if failed. None if skipped
         """
         comment = " /* DBProxy.record_job_queuing_period */"
-        method_name, tmp_log = self.create_method_name_logger(comment, f"PandaID={panda_id}")
+        tmp_log = self.create_tagged_logger(comment, f"PandaID={panda_id}")
         tmp_log.debug(f"start with job spec: {job_spec is None}")
         # get task queued time
         if job_spec is None:
@@ -326,7 +326,7 @@ class MetricsModule(BaseModule):
         if task_status is not None and task_status not in frozen_status_list:
             return None
         comment = " /* DBProxy.record_task_active_period */"
-        method_name, tmp_log = self.create_method_name_logger(comment, f"JediTaskID={jedi_task_id}")
+        tmp_log = self.create_tagged_logger(comment, f"JediTaskID={jedi_task_id}")
         tmp_log.debug(f"start")
         # get activated time
         sql_check = f"SELECT status,activatedTime FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
@@ -371,3 +371,27 @@ class MetricsModule(BaseModule):
             self.cur.execute(sql_update + comment, var_map)
         tmp_log.debug(f"done in {task_status}")
         return True
+
+    # check failure count due to corrupted files
+    def checkFailureCountWithCorruptedFiles(self, jediTaskID, pandaID):
+        comment = " /* DBProxy.checkFailureCountWithCorruptedFiles */"
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} pandaID={pandaID}")
+        # sql to failure counts
+        sqlBD = "SELECT f2.lfn,COUNT(*) FROM ATLAS_PANDA.filesTable4 f1, ATLAS_PANDA.filesTable4 f2 "
+        sqlBD += "WHERE f1.PandaID=:PandaID AND f1.type=:type AND f1.status=:status "
+        sqlBD += "AND f2.lfn=f1.lfn AND f2.type=:type AND f2.status=:status AND f2.jediTaskID=:jediTaskID "
+        sqlBD += "GROUP BY f2.lfn "
+        varMap = {}
+        varMap[":jediTaskID"] = jediTaskID
+        varMap[":PandaID"] = pandaID
+        varMap[":status"] = "corrupted"
+        varMap[":type"] = "zipinput"
+        self.cur.execute(sqlBD + comment, varMap)
+        resBD = self.cur.fetchall()
+        tooMany = False
+        for lfn, nFailed in resBD:
+            tmp_log.debug(f"{nFailed} failures with {lfn}")
+            if nFailed >= 3:
+                tooMany = True
+        tmp_log.debug(f"too many failures : {tooMany}")
+        return tooMany

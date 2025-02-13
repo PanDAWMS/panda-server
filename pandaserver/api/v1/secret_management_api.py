@@ -5,6 +5,7 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.api.v1.common import request_validation
+from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.CoreUtils import clean_user_id
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
@@ -76,7 +77,7 @@ def get_proxy(real_distinguished_name: str, role: str | None, target_distinguish
         response = Protocol.Response(Protocol.SC_Perms, "Cannot extract DN from proxy. not HTTPS?")
     else:
         # get compact DN
-        compact_name = global_task_buffer.cleanUserID(real_distinguished_name)
+        compact_name = CoreUtils.clean_user_id(real_distinguished_name)
         # check permission
         self.specialDispatchParams.update()
         if "allowProxy" not in self.specialDispatchParams:

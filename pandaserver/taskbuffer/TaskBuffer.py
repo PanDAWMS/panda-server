@@ -132,7 +132,7 @@ class TaskBuffer:
                 # get users and groups to boost job priorities
                 boost_dict = proxy.get_dict_to_boost_job_prio(jobs[-1].VO)
                 if boost_dict:
-                    prodUserName = proxy.cleanUserID(user)
+                    prodUserName = CoreUtils.clean_user_id(user)
                     # check boost list
                     if userDefinedWG and validWorkingGroup:
                         if "group" in boost_dict and jobs[-1].workingGroup in boost_dict["group"]:
@@ -1425,17 +1425,6 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # add
         ret = proxy.addStdOut(id, stdout)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
-    # extract name from DN
-    def cleanUserID(self, id):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.cleanUserID(id)
         # release proxy
         self.proxyPool.putProxy(proxy)
 

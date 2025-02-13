@@ -320,9 +320,9 @@ class JobDispatcher:
             updateStateChange = True
             param["jobDispatcherErrorDiag"] = None
         elif jobStatus in ["holding", "transferring"]:
-            param[
-                "jobDispatcherErrorDiag"
-            ] = f"set to {jobStatus} by the pilot at {datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime('%Y-%m-%d %H:%M:%S')}"
+            param["jobDispatcherErrorDiag"] = (
+                f"set to {jobStatus} by the pilot at {datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime('%Y-%m-%d %H:%M:%S')}"
+            )
         if tmpStatus == "holding":
             tmpWrapper = _TimedMethod(self.taskBuffer.updateJobStatus, None)
         else:
@@ -524,7 +524,7 @@ class JobDispatcher:
             response = Protocol.Response(Protocol.SC_Perms, "Cannot extract DN from proxy. not HTTPS?")
         else:
             # get compact DN
-            compactDN = self.taskBuffer.cleanUserID(realDN)
+            compactDN = CoreUtils.clean_user_id(realDN)
             # check permission
             self.specialDispatchParams.update()
             allowKey = self.specialDispatchParams.get("allowKeyPair", [])
@@ -572,7 +572,7 @@ class JobDispatcher:
             response = Protocol.Response(Protocol.SC_Perms, tmp_msg)
         else:
             # get compact DN
-            compact_name = self.taskBuffer.cleanUserID(distinguished_name)
+            compact_name = CoreUtils.clean_user_id(distinguished_name)
             # check permission
             self.specialDispatchParams.update()
             allowed_users = self.specialDispatchParams.get("allowTokenKey", [])
@@ -687,7 +687,7 @@ class JobDispatcher:
             response = Protocol.Response(Protocol.SC_Perms, "Cannot extract DN from proxy. not HTTPS?")
         else:
             # get compact DN
-            compact_name = self.taskBuffer.cleanUserID(real_distinguished_name)
+            compact_name = CoreUtils.clean_user_id(real_distinguished_name)
             # check permission
             self.specialDispatchParams.update()
             if "allowProxy" not in self.specialDispatchParams:
