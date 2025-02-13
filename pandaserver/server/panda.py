@@ -176,6 +176,7 @@ if panda_config.nDBConnection != 0:
     task_api_v1.init_task_buffer(taskBuffer)
     statistics_api_v1.init_task_buffer(taskBuffer)
     cred_api_v1.init_task_buffer(taskBuffer)
+    pilot_api_v1.init_task_buffer(taskBuffer)
 
     # initialize JobDispatcher
     jobDispatcher.init(taskBuffer)
