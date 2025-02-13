@@ -320,9 +320,9 @@ class JobDispatcher:
             updateStateChange = True
             param["jobDispatcherErrorDiag"] = None
         elif jobStatus in ["holding", "transferring"]:
-            param[
-                "jobDispatcherErrorDiag"
-            ] = f"set to {jobStatus} by the pilot at {datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime('%Y-%m-%d %H:%M:%S')}"
+            param["jobDispatcherErrorDiag"] = (
+                f"set to {jobStatus} by the pilot at {datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime('%Y-%m-%d %H:%M:%S')}"
+            )
         if tmpStatus == "holding":
             tmpWrapper = _TimedMethod(self.taskBuffer.updateJobStatus, None)
         else:
@@ -1263,7 +1263,7 @@ def getEventRanges(
     segment_id=None,
 ):
     """
-    Check the permissions and eetrieve a list of event ranges for a given PandaID.
+    Check the permissions and retrieve a list of event ranges for a given PandaID.
 
     Args:
         req: The request object containing the environment variables.
