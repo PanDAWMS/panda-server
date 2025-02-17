@@ -159,7 +159,7 @@ def request_validation(logger, secure=False, production=False, request_method=No
             bound_args.apply_defaults()
 
             for param_name, param_value in bound_args.arguments.items():
-                tmp_logger.debug(f"Got parameter '{param_name}' with value '{param_value}' and type '{type(param_value)}'")
+                # tmp_logger.debug(f"Got parameter '{param_name}' with value '{param_value}' and type '{type(param_value)}'")
 
                 # Skip the first argument (req)
                 if param_name == "req":
