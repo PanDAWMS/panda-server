@@ -182,6 +182,7 @@ def acquire_jobs(
                 raise
 
             # append n_sent
+            # TODO: ask Tadashi/Paul why we need to send n_sent?
             response.appendNode("nSent", n_sent)
 
             # set proxy key
