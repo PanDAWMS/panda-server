@@ -11,7 +11,7 @@ class TimedMethod:
         self.result = TIME_OUT
 
     # method emulation
-    def __call__(self, *var):
+    def __call__(self, *var, **kwargs):
         self.result = self.method(*var, **kwargs)
 
     # run
