@@ -12,10 +12,10 @@ class TimedMethod:
 
     # method emulation
     def __call__(self, *var):
-        self.result = self.method(*var)
+        self.result = self.method(*var, **kwargs)
 
     # run
-    def run(self, *var):
-        thr = threading.Thread(target=self, args=var)
+    def run(self, *var, **kwargs):
+        thr = threading.Thread(target=self, args=var, kwargs=kwargs)
         thr.start()
         thr.join()
