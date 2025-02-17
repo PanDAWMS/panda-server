@@ -6,11 +6,12 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.api.v1.common import (
     MESSAGE_DATABASE,
+    TIME_OUT,
+    TimedMethod,
     generate_response,
     get_dn,
     request_validation,
 )
-from pandaserver.api.v1.timed_method import TIME_OUT, TimedMethod
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 

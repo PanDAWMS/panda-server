@@ -9,12 +9,12 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.api.v1.common import (
+    TimedMethod,
     generate_response,
     get_dn,
     has_production_role,
     request_validation,
 )
-from pandaserver.api.v1.timed_method import TimedMethod
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice.adder_gen import AdderGen

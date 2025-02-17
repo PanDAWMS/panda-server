@@ -1,5 +1,6 @@
 import inspect
 import re
+import threading
 from functools import wraps
 from types import ModuleType
 from typing import get_args, get_origin
@@ -9,6 +10,8 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 import pandaserver.jobdispatcher.Protocol as Protocol
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
+
+TIME_OUT = "TimeOut"
 
 MESSAGE_SSL = "SSL secure connection is required"
 MESSAGE_PROD_ROLE = "production or pilot role required"
@@ -213,3 +216,21 @@ def request_validation(logger, secure=False, production=False, request_method=No
         return wrapper
 
     return decorator
+
+
+# a wrapper to install timeout into a method
+class TimedMethod:
+    def __init__(self, method, timeout):
+        self.method = method
+        self.timeout = timeout
+        self.result = TIME_OUT
+
+    # method emulation
+    def __call__(self, *var, **kwargs):
+        self.result = self.method(*var, **kwargs)
+
+    # run
+    def run(self, *var, **kwargs):
+        thr = threading.Thread(target=self, args=var, kwargs=kwargs)
+        thr.start()
+        thr.join()
