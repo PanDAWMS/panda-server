@@ -1,6 +1,8 @@
 import inspect
 import re
+import sys
 import threading
+import time
 from functools import wraps
 from types import ModuleType
 from typing import get_args, get_origin
@@ -9,6 +11,7 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 
 import pandaserver.jobdispatcher.Protocol as Protocol
 from pandaserver.config import panda_config
+from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.srvcore import CoreUtils
 
 TIME_OUT = "TimeOut"
@@ -58,6 +61,55 @@ def get_fqan(req):
                 fqans.append(tmp_items[-1])
 
     return fqans
+
+
+def extract_production_working_groups(fqans):
+    # Extract working groups with production role from FQANs
+    wg_prod_roles = []
+    for fqan in fqans:
+        # Match FQANs with 'Role=production' and extract the working group
+        match = re.search(r"/atlas/([^/]+)/Role=production", fqan)
+        if match:
+            working_group = match.group(1)
+            # Exclude 'usatlas' and ensure uniqueness
+            if working_group and working_group not in ["usatlas"] + wg_prod_roles:
+                wg_prod_roles.extend([working_group, f"gr_{working_group}"])  # Add group and prefixed variant
+
+    return wg_prod_roles
+
+
+def extract_primary_production_working_group(fqans):
+    working_group = None
+    for fqan in fqans:
+        match = re.search("/[^/]+/([^/]+)/Role=production", fqan)
+        if match:
+            # ignore usatlas since it is used as atlas prod role
+            tmp_working_group = match.group(1)
+            if tmp_working_group not in ["", "usatlas"]:
+                working_group = tmp_working_group.split("-")[-1].lower()
+
+    return working_group
+
+
+def get_email_address(user, tmp_logger):
+    tmp_logger.debug(f"Getting mail address for {user}")
+    n_tries = 3
+    email = None
+    try:
+        for attempt in range(n_tries):
+            status, user_info = rucioAPI.finger(user)
+            if status:
+                email = user_info["email"]
+                tmp_logger.debug(f"User {user} got email {email}")
+                break
+            else:
+                tmp_logger.debug(f"Attempt {attempt + 1} of {n_tries} failed. Retrying...")
+            time.sleep(1)
+    except Exception:
+        error_type, error_value = sys.exc_info()[:2]
+        tmp_logger.error(f"Failed to convert email address {user} : {error_type} {error_value}")
+
+    return email
 
 
 def validate_request_method(req, expected_method):

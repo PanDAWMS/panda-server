@@ -273,7 +273,7 @@ def parse_json_parameters(body, content_encoding):
     if content_encoding == "gzip":
         body = gzip.decompress(body)
 
-    # de-serialize the body and patch for True/False
+    # de-serialize the body
     params = json.loads(body)
 
     return params
