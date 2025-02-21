@@ -38,13 +38,17 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 @request_validation(_logger, secure=False, request_method="GET")
 def get_status(req: PandaRequest, panda_ids: str, timeout: int = 60) -> Dict:
     """
-    Update the status of a worker according to the pilot.
+    Get status of a job.
 
-    This function validates the pilot permissions and the state passed by the pilot, then updates the worker status.
+    Gets the status for a job and command to the pilot if any.
+
+    API details:
+        HTTP Method: GET
+        Path: /job/v1/get_status
 
     Args:
         req: The request object containing the environment variables.
-        panda_ids (str): Comma separated list of PanDA job IDs
+        panda_ids (str): Comma separated list of PanDA job IDs.
         timeout (int, optional): The timeout value. Defaults to 60.
 
     Returns:
@@ -74,6 +78,23 @@ def get_status(req: PandaRequest, panda_ids: str, timeout: int = 60) -> Dict:
 
 @request_validation(_logger, secure=False, request_method="GET")
 def get_description(self, panda_ids: str) -> Dict:
+    """
+    Get description of a job.
+
+    Gets the description of a job from the main/active schema. The description includes job attributes, job parameters and related file attributes
+
+    API details:
+        HTTP Method: GET
+        Path: /job/v1/get_description
+
+    Args:
+        req: The request object containing the environment variables.
+        panda_ids (str): List of PanDA job IDs in a json string. TODO: See if we should unify the panda-ids format across the API.
+        timeout (int, optional): The timeout value. Defaults to 60.
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains a list with job descriptions. When unsuccessful, the message field contains the error message and data an error code.
+    """
     tmp_logger = LogWrapper(_logger, f"get_description")
     tmp_logger.debug("Start")
 
@@ -98,6 +119,23 @@ def get_description(self, panda_ids: str) -> Dict:
 
 @request_validation(_logger, secure=True, request_method="GET")
 def get_description_incl_archive(req: PandaRequest, panda_ids: str) -> Dict:
+    """
+    Get description of a job.
+
+    Gets the description of a job, also looking into the secondary/archive schema. The description includes job attributes, job parameters and related file attributes
+
+    API details:
+        HTTP Method: GET
+        Path: /job/v1/get_description_incl_archive
+
+    Args:
+        req: The request object containing the environment variables.
+        panda_ids (str): List of PanDA job IDs in a json string. TODO: See if we should unify the panda-ids format across the API.
+        timeout (int, optional): The timeout value. Defaults to 60.
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains a list with job descriptions. When unsuccessful, the message field contains the error message and data an error code.
+    """
     tmp_logger = LogWrapper(_logger, f"get_description_including_archive")
     tmp_logger.debug("Start")
 
@@ -121,41 +159,105 @@ def get_description_incl_archive(req: PandaRequest, panda_ids: str) -> Dict:
 
 
 @request_validation(_logger, secure=False, request_method="GET")
-def get_offline_execution_script(req: PandaRequest, panda_id: int, days: int = None) -> Dict:
+def generate_offline_execution_script(req: PandaRequest, panda_id: int, days: int = None) -> Dict:
+    """
+    Get execution script for a job.
+
+    Gets the execution script for a job, including Rucio download of input, ALRB setup, downloading transformation script and running the script.
+
+    API details:
+        HTTP Method: GET
+        Path: /job/v1/generate_offline_execution_script
+
+    Args:
+        req: The request object containing the environment variables.
+        panda_id (int): PanDA job ID
+        timeout (int, optional): The timeout value. Defaults to 60.
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field will contain `{"script": script}`. When unsuccessful, the message field contains the error message and data an error code.
+    """
+    tmp_logger = LogWrapper(_logger, f"generate_offline_execution_script panda_id={panda_id} days={days}")
+    tmp_logger.debug("Start")
     script = global_task_buffer.getScriptOfflineRunning(panda_id, days)
+
     if script.startswith("ERROR"):
+        tmp_logger.debug("Failed to generate script")
         return generate_response(False, message=script)
 
+    tmp_logger.debug("Done")
     return generate_response(True, data={"script": script})
 
 
 @request_validation(_logger, secure=False, request_method="GET")
 def get_metadata_for_analysis_jobs(req: PandaRequest, jedi_task_id: int) -> Dict:
-    # returns the metadata for finished analysis jobs
+    """
+    Get metadata for analysis jobs
+
+    Gets the metadata from the metatable for analysis jobs in `finished` status.
+
+    API details:
+        HTTP Method: GET
+        Path: /job/v1/get_metadata_for_analysis_jobs
+
+    Args:
+        req: The request object containing the environment variables.
+        jedi_task_id (int): JEDI task ID
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the medata. When unsuccessful, the message field contains the error message and data an error code.
+    """
+
+    tmp_logger = LogWrapper(_logger, f"get_metadata_for_analysis_jobs jedi_task_id={jedi_task_id}")
+    tmp_logger.debug("Start")
+
     metadata = global_task_buffer.getUserJobMetadata(jedi_task_id)
     if not metadata:
+        tmp_logger.debug("No metadata found")
         return generate_response(False, message="No metadata found")
 
+    tmp_logger.debug("Done")
     return generate_response(True, data=metadata)
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def kill(req, panda_ids: List, code: int = None, use_email_as_id: bool = None, kill_options: List = []):
-    # code
-    # 2  : expire
-    # 3  : aborted
-    # 4  : expire in waiting
-    # 7  : retry by server
-    # 8  : rebrokerage
-    # 9  : force kill
-    # 10 : fast rebrokerage in overloaded PQ
-    # 50 : kill by JEDI
-    # 51 : reassigned by JEDI
-    # 52 : force kill by JEDI
-    # 55 : killed since task is (almost) done
-    # 60 : workload was terminated by the pilot without actual work
-    # 91 : kill user jobs with prod role
-    # 99 : force kill user jobs with prod role
+def kill(req, panda_ids: List, code: int = None, use_email_as_id: bool = False, kill_options: List = []):
+    """
+    Kill the jobs
+
+    Kills the jobs with the given PanDA IDs.
+
+    API details:
+        HTTP Method: POST
+        Path: /job/v1/kill
+
+    Args:
+        req: The request object containing the environment variables.
+        panda_ids (List): List of PanDA job IDs
+        code (int, optional): The kill code. Defaults to None.
+        ```
+        code
+        2: expire
+        3: aborted
+        4: expire in waiting
+        7: retry by server
+        8: rebrokerage
+        9: force kill
+        10: fast rebrokerage in overloaded PQ
+        50: kill by JEDI
+        51: reassigned by JEDI
+        52: force kill by JEDI
+        55: killed since task is (almost) done
+        60: workload was terminated by the pilot without actual work
+        91: kill user jobs with prod role
+        99: force kill user jobs with prod role
+        ```
+        use_email_as_id (bool, optional): Use the email as ID. Defaults to False.
+        kill_options (List, optional): Defaults to []. Possible options are: `keepUnmerged`, `jobSubStatus=xyz`
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`. The data field contains a list of bools indicating the success of the kill operations.
+    """
 
     # retrieve the user information
     user = get_dn(req)
@@ -182,7 +284,41 @@ def kill(req, panda_ids: List, code: int = None, use_email_as_id: bool = None, k
 
 @request_validation(_logger, secure=True, request_method="POST")
 def kill_unfinished_jobs(req: PandaRequest, jedi_task_id: int, code: int = None, use_email_as_id: bool = False):
-    # kills the unfinished jobs for a task
+    """
+    Kill all unfinished jobs in a task
+
+    Kills all unfinished jobs in a task.
+
+    API details:
+        HTTP Method: POST
+        Path: /job/v1/kill_unfinished_jobs
+
+    Args:
+        req: The request object containing the environment variables.
+        jedi_task_id (int): JEDI task ID
+        code (int, optional): The kill code. Defaults to None.
+        ```
+        code
+        2: expire
+        3: aborted
+        4: expire in waiting
+        7: retry by server
+        8: rebrokerage
+        9: force kill
+        10: fast rebrokerage in overloaded PQ
+        50: kill by JEDI
+        51: reassigned by JEDI
+        52: force kill by JEDI
+        55: killed since task is (almost) done
+        60: workload was terminated by the pilot without actual work
+        91: kill user jobs with prod role
+        99: force kill user jobs with prod role
+        ```
+        use_email_as_id (bool, optional): Use the email as ID. Defaults to False.
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`. The data field contains a list of bools indicating the success of the kill operations.
+    """
 
     tmp_logger = LogWrapper(_logger, f"kill_unfinished_jobs")
 
@@ -192,10 +328,11 @@ def kill_unfinished_jobs(req: PandaRequest, jedi_task_id: int, code: int = None,
     is_production_manager = has_production_role(req)
 
     if use_email_as_id:
-        email = get_email_address(user)
+        email = get_email_address(user, tmp_logger)
         if email:
             user = email
-    tmp_logger.debug(f"Start user: {user} code: {code} is_production_manager: {is_production_manager} fqans: {fqans} panda_ids: {panda_ids}")
+
+    tmp_logger.debug(f"Start user: {user} code: {code} is_production_manager: {is_production_manager} fqans: {fqans} jedi_task_id: {jedi_task_id}")
 
     # Extract working groups with production role from FQANs
     wg_prod_roles = extract_production_working_groups(fqans)
@@ -210,18 +347,53 @@ def kill_unfinished_jobs(req: PandaRequest, jedi_task_id: int, code: int = None,
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def reassign(req: PandaRequest, panda_ids: List, for_pending: bool = False, first_submission: bool = True):
+def reassign(req: PandaRequest, panda_ids: List, first_submission: bool = True):
+    """
+    Kill all unfinished jobs in a task
+
+    Kills all unfinished jobs in a task.
+
+    API details:
+        HTTP Method: POST
+        Path: /job/v1/reassign
+
+    Args:
+        req: The request object containing the environment variables.
+        panda_ids (List): List of PanDA job IDs
+        first_submission (bool, optional): TODO: figure out what this is. Set True if first jobs are submitted for a task, or False if not. Defaults to True.
+
+    Returns:
+        dict: The system response `{"success": True}`.
+    """
     # TODO: think about the default values for for_pending and first_submission. The resolve_true and resolve_false functions are confusing me.
 
     tmp_logger = LogWrapper(_logger, f"reassign panda_ids={panda_ids}")
     tmp_logger.debug("Start")
-    ret = global_task_buffer.reassignJobs(panda_ids, forPending=for_pending, firstSubmission=first_submission)
+    # taskBuffer.reassignJobs always returns True
+    global_task_buffer.reassignJobs(panda_ids, firstSubmission=first_submission)
     tmp_logger.debug(f"Done with {ret}")
-    return generate_response(True, data=ret)
+    return generate_response(True)
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
 def set_command(req: PandaRequest, panda_id: int, command: str):
+    """
+    Set a pilot command
+
+    Sets a command to the pilot for a job.
+
+    API details:
+        HTTP Method: POST
+        Path: /job/v1/set_command
+
+    Args:
+        req: The request object containing the environment variables.
+        panda_id (int): PanDA job ID
+        command (str): The command for the pilot, e.g. `tobekilled`
+
+    Returns:
+        dict: The system response `{"success": success, "message": message}`.
+    """
     tmp_logger = LogWrapper(_logger, f"set_command panda_id={panda_id} command={command}")
     tmp_logger.debug("Start")
     success, message = global_task_buffer.send_command_to_job(panda_id, command)
@@ -231,6 +403,24 @@ def set_command(req: PandaRequest, panda_id: int, command: str):
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
 def set_debug_mode(req: PandaRequest, panda_id: int, mode: bool):
+    """
+    Set the debug mode
+
+    Sets the debug mode for a job
+
+    API details:
+        HTTP Method: POST
+        Path: /job/v1/set_debug_mode
+
+    Args:
+        req: The request object containing the environment variables.
+        panda_id (int): PanDA job ID
+        mode (bool): True to set debug mode, False to unset debug mode
+
+    Returns:
+        dict: The system response `{"success": success, "message": message}`.
+    """
+
     tmp_logger = LogWrapper(_logger, f"set_debug_mode panda_id={panda_id}")
 
     user = get_dn(req)
@@ -253,7 +443,23 @@ def set_debug_mode(req: PandaRequest, panda_id: int, mode: bool):
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
 def submit(req: PandaRequest, jobs: str, to_pending: bool = False):
+    """
+    Set the debug mode
 
+    Sets the debug mode for a job
+
+    API details:
+        HTTP Method: POST
+        Path: /job/v1/set_debug_mode
+
+    Args:
+        req: The request object containing the environment variables.
+        panda_id (int): PanDA job ID
+        mode (bool): True to set debug mode, False to unset debug mode
+
+    Returns:
+        dict: The system response `{"success": success, "message": message}`.
+    """
     tmp_logger = LogWrapper(_logger, f"submit")
     user = get_dn(req)
     fqans = get_fqan(req)
