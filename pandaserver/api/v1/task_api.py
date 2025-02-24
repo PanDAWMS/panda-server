@@ -491,6 +491,46 @@ def avalanche(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
     return generate_response(success, message, data)
 
 
+@request_validation(_logger, secure=True, request_method="POST")
+def reload_input(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
+    """
+    Reload input
+
+    Request to reload the input for a given task. Requires a secure connection and production role.
+
+    API details:
+        HTTP Method: POST
+        Path: /task/v1/reload_input
+
+    Args:
+        req(PandaRequest): internally generated request object
+        jedi_task_id(int): JEDI Task ID
+
+    Returns:
+        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+    """
+    tmp_logger = LogWrapper(_logger, f"reload_input < jedi_task_id={jedi_task_id} >")
+    tmp_logger.debug("Start")
+
+    user = get_dn(req)
+    is_production_role = has_production_role(req)
+
+    # check jedi_task_id
+    try:
+        jedi_task_id = int(jedi_task_id)
+    except ValueError:
+        tmp_logger.error("Failed due to invalid jedi_task_id")
+        return generate_response(False, message=MESSAGE_TASK_ID)
+
+    ret = global_task_buffer.sendCommandTaskPanda(jedi_task_id, user, is_production_role, "incexec", comComment="{}", propeErrorCode=True)
+    data, message = ret
+    success = data == 0
+
+    tmp_logger.debug("Done")
+
+    return generate_response(success, message, data)
+
+
 @request_validation(_logger, secure=True, production=True, request_method="POST")
 def reassign_global_share(req: PandaRequest, jedi_task_id_list: List, share: str, reassign_running_jobs: bool) -> Dict[str, Any]:
     """
