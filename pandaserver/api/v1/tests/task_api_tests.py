@@ -66,6 +66,24 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
+    def test_increase_attempts(self):
+        url = f"{api_url_ssl}/task/increase_attempts"
+        print(f"Testing URL: {url}")
+        data = {"jedi_task_id": JEDI_TASK_ID}
+        status, output = self.http_client.post(url, data)
+        print(output)
+        output["status"] = status
+        del output["data"]
+        del output["message"]
+
+        if JEDI_TASK_ID == -1:
+            # Fake task should not be found
+            expected_response = {"status": 0, "success": False}
+        else:
+            # Real task
+            expected_response = {"status": 0, "success": True}
+        self.assertEqual(output, expected_response)
+
     def test_resume(self):
         url = f"{api_url_ssl}/task/resume"
         print(f"Testing URL: {url}")

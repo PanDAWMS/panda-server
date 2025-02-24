@@ -604,10 +604,7 @@ def enable_job_cloning(
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def disable_job_cloning(
-    req: PandaRequest,
-    jedi_task_id: int,
-) -> Dict[str, Any]:
+def disable_job_cloning(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
     """
     Disable job cloning
 
@@ -629,6 +626,52 @@ def disable_job_cloning(
     success, message = global_task_buffer.disable_job_cloning(jedi_task_id)
     tmp_logger.debug("Done")
     return generate_response(success, message)
+
+
+@request_validation(_logger, secure=True, production=True, request_method="POST")
+def increase_attempts(req: PandaRequest, jedi_task_id: int, increase: int) -> Dict[str, Any]:
+    """
+    Increase possible task attempts
+
+    Increase possible task attempts. Requires secure connection and production role.
+
+    API details:
+        HTTP Method: POST
+        Path: /task/v1/increase_attempts
+
+    Args:
+        req(PandaRequest): internally generated request object
+        jedi_task_id(int): JEDI Task ID
+        increase(int): number of attempts to increase
+
+    Returns:
+        dict: The system response. True for success, False for failure, and an error message.
+    """
+    tmp_logger = LogWrapper(_logger, f"increase_attempt_number jedi_task_id={jedi_task_id}")
+    tmp_logger.debug("Start")
+
+    try:
+        jedi_task_id = int(jedi_task_id)
+    except Exception:
+        tmp_logger.error("Failed due to invalid jedi_task_id")
+        return generate_response(False, message=MESSAGE_TASK_ID)
+
+    # check value for increase
+    try:
+        increase = int(increase)
+        if increase < 0:
+            raise ValueError
+    except Exception:
+        message = f"increase must be a positive integer, got {increase}"
+        tmp_logger.error(message)
+        return generate_response(False, message=message)
+
+    code, message = global_task_buffer.increaseAttemptNrPanda(jedi_task_id, increase)
+    success = code == 0
+
+    tmp_logger.debug("Done")
+
+    return generate_response(success, message, code)
 
 
 @request_validation(_logger, request_method="GET")
