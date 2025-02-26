@@ -47,7 +47,7 @@ def get_status(req: PandaRequest, panda_ids: str, timeout: int = 60) -> Dict:
         Path: /job/v1/get_status
 
     Args:
-        req: The request object containing the environment variables.
+        req(PandaRequest): internally generated request object containing the env variables
         panda_ids (str): Comma separated list of PanDA job IDs.
         timeout (int, optional): The timeout value. Defaults to 60.
 
@@ -88,7 +88,7 @@ def get_description(self, panda_ids: str) -> Dict:
         Path: /job/v1/get_description
 
     Args:
-        req: The request object containing the environment variables.
+        req(PandaRequest): internally generated request object containing the env variables
         panda_ids (str): List of PanDA job IDs in a json string. TODO: See if we should unify the panda-ids format across the API.
         timeout (int, optional): The timeout value. Defaults to 60.
 
@@ -129,7 +129,7 @@ def get_description_incl_archive(req: PandaRequest, panda_ids: str) -> Dict:
         Path: /job/v1/get_description_incl_archive
 
     Args:
-        req: The request object containing the environment variables.
+        req(PandaRequest): internally generated request object containing the env variables
         panda_ids (str): List of PanDA job IDs in a json string. TODO: See if we should unify the panda-ids format across the API.
         timeout (int, optional): The timeout value. Defaults to 60.
 
@@ -170,7 +170,7 @@ def generate_offline_execution_script(req: PandaRequest, panda_id: int, days: in
         Path: /job/v1/generate_offline_execution_script
 
     Args:
-        req: The request object containing the environment variables.
+        req(PandaRequest): internally generated request object containing the env variables
         panda_id (int): PanDA job ID
         timeout (int, optional): The timeout value. Defaults to 60.
 
@@ -201,7 +201,7 @@ def get_metadata_for_analysis_jobs(req: PandaRequest, jedi_task_id: int) -> Dict
         Path: /job/v1/get_metadata_for_analysis_jobs
 
     Args:
-        req: The request object containing the environment variables.
+        req(PandaRequest): internally generated request object containing the env variables
         jedi_task_id (int): JEDI task ID
 
     Returns:
@@ -232,7 +232,7 @@ def kill(req, panda_ids: List, code: int = None, use_email_as_id: bool = False, 
         Path: /job/v1/kill
 
     Args:
-        req: The request object containing the environment variables.
+        req(PandaRequest): internally generated request object containing the env variables
         panda_ids (List): List of PanDA job IDs
         code (int, optional): The kill code. Defaults to None.
         ```
@@ -294,7 +294,7 @@ def kill_unfinished_jobs(req: PandaRequest, jedi_task_id: int, code: int = None,
         Path: /job/v1/kill_unfinished_jobs
 
     Args:
-        req: The request object containing the environment variables.
+        req(PandaRequest): internally generated request object containing the env variables
         jedi_task_id (int): JEDI task ID
         code (int, optional): The kill code. Defaults to None.
         ```
@@ -358,7 +358,7 @@ def reassign(req: PandaRequest, panda_ids: List, first_submission: bool = True):
         Path: /job/v1/reassign
 
     Args:
-        req: The request object containing the environment variables.
+        req(PandaRequest): internally generated request object containing the env variables
         panda_ids (List): List of PanDA job IDs
         first_submission (bool, optional): TODO: figure out what this is. Set True if first jobs are submitted for a task, or False if not. Defaults to True.
 
@@ -371,7 +371,7 @@ def reassign(req: PandaRequest, panda_ids: List, first_submission: bool = True):
     tmp_logger.debug("Start")
     # taskBuffer.reassignJobs always returns True
     global_task_buffer.reassignJobs(panda_ids, firstSubmission=first_submission)
-    tmp_logger.debug(f"Done with {ret}")
+    tmp_logger.debug(f"Done")
     return generate_response(True)
 
 
@@ -387,7 +387,7 @@ def set_command(req: PandaRequest, panda_id: int, command: str):
         Path: /job/v1/set_command
 
     Args:
-        req: The request object containing the environment variables.
+        req(PandaRequest): internally generated request object containing the env variables
         panda_id (int): PanDA job ID
         command (str): The command for the pilot, e.g. `tobekilled`
 
@@ -413,7 +413,7 @@ def set_debug_mode(req: PandaRequest, panda_id: int, mode: bool):
         Path: /job/v1/set_debug_mode
 
     Args:
-        req: The request object containing the environment variables.
+        req(PandaRequest): internally generated request object containing the env variables
         panda_id (int): PanDA job ID
         mode (bool): True to set debug mode, False to unset debug mode
 
@@ -453,7 +453,7 @@ def submit(req: PandaRequest, jobs: str, to_pending: bool = False):
         Path: /job/v1/set_debug_mode
 
     Args:
-        req: The request object containing the environment variables.
+        req(PandaRequest): internally generated request object containing the env variables
         panda_id (int): PanDA job ID
         mode (bool): True to set debug mode, False to unset debug mode
 
