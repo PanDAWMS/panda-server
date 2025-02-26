@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
