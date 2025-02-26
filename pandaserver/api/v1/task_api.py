@@ -570,6 +570,47 @@ def reassign_global_share(req: PandaRequest, jedi_task_id_list: List, share: str
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
+def enable_jumbo_jobs(req: PandaRequest, jedi_task_id: int, jumbo_jobs_total: int, jumbo_jobs_per_site: int = None):
+    """
+    Enable Jumbo jobs
+
+    Enables the Jumbo jobs for a given task ID. Requires a secure connection and production role.
+
+    API details:
+        HTTP Method: POST
+        Path: /task/v1/reassign_global_share
+
+    Args:
+        req(PandaRequest): internally generated request object
+        jedi_task_id(int): JEDI task ID
+        jumbo_jobs_total(int): Total number of jumbo jobs
+        jumbo_jobs_per_site(int): Number of jumbo jobs per site. Defaults to `jumbo_jobs_total`.
+
+    Returns:
+        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+    """
+
+    tmp_logger = LogWrapper(
+        _logger, f"enable_jumbo_jobs < jedi_task_id={jedi_task_id} jumbo_jobs_total={jumbo_jobs_total} n_jumbo_jobs_per_site={jumbo_jobs_per_site} >"
+    )
+    tmp_logger.debug("Start")
+
+    if not jumbo_jobs_per_site:
+        jumbo_jobs_per_site = jumbo_jobs_total
+
+    code, message = global_task_buffer.enableJumboJobs(jedi_task_id, jumbo_jobs_total, jumbo_jobs_per_site)
+    if jumbo_jobs_total > 0 and code == 0:
+        tmp_logger.debug("Calling task avalanche")
+        avalanche(jedi_task_id)
+
+    success = code == 0
+
+    tmp_logger.debug("Start")
+
+    return generate_response(success, message, code)
+
+
+@request_validation(_logger, secure=True, production=True, request_method="POST")
 def enable_job_cloning(
     req: PandaRequest,
     jedi_task_id: int,

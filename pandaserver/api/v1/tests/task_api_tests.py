@@ -30,6 +30,24 @@ class TestTaskAPI(unittest.TestCase):
             expected_response = {"status": 0, "success": True, "data": 0, "message": ""}
         self.assertEqual(output, expected_response)
 
+    def test_enable_jumbo_jobs(self):
+        url = f"{api_url_ssl}/task/enable_jumbo_jobs"
+        print(f"Testing URL: {url}")
+        data = {"jedi_task_id": JEDI_TASK_ID, "jumbo_jobs_total": 1}
+        status, output = self.http_client.post(url, data)
+        print(output)
+        output["status"] = status
+        del output["data"]
+        del output["message"]
+
+        if JEDI_TASK_ID == -1:
+            # Fake task should not be found
+            expected_response = {"status": 0, "success": False}
+        else:
+            # Real task
+            expected_response = {"status": 0, "success": True}
+        self.assertEqual(output, expected_response)
+
     def test_enable_job_cloning(self):
         url = f"{api_url_ssl}/task/enable_job_cloning"
         print(f"Testing URL: {url}")
