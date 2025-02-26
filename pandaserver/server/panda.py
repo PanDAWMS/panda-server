@@ -28,6 +28,7 @@ from pandaserver.api.v1 import credential_management_api as cred_api_v1
 from pandaserver.api.v1 import harvester_api as harvester_api_v1
 from pandaserver.api.v1 import pilot_api as pilot_api_v1
 from pandaserver.api.v1 import statistics_api as statistics_api_v1
+from pandaserver.api.v1 import sytem_api as system_api_v1
 from pandaserver.api.v1 import task_api as task_api_v1
 from pandaserver.api.v1.common import extract_allowed_methods
 from pandaserver.config import panda_config
@@ -151,11 +152,12 @@ LATEST = "1"
 
 # generate the allowed methods dynamically with all function names present in the API modules,
 # excluding functions imported from other modules or the init_task_buffer function
-harvester_api_v1_methods = extract_allowed_methods(harvester_api_v1)
-task_api_v1_methods = extract_allowed_methods(task_api_v1)
-statistics_api_v1_methods = extract_allowed_methods(statistics_api_v1)
 cred_api_v1_methods = extract_allowed_methods(cred_api_v1)
+harvester_api_v1_methods = extract_allowed_methods(harvester_api_v1)
 pilot_api_v1_methods = extract_allowed_methods(pilot_api_v1)
+statistics_api_v1_methods = extract_allowed_methods(statistics_api_v1)
+system_api_v1_methods = extract_allowed_methods(system_api_v1)
+task_api_v1_methods = extract_allowed_methods(task_api_v1)
 
 # initialize oracledb using dummy connection
 initializer.init()
@@ -172,11 +174,12 @@ taskBuffer.init(
 
 if panda_config.nDBConnection != 0:
     # initialize all the API modules
-    harvester_api_v1.init_task_buffer(taskBuffer)
-    task_api_v1.init_task_buffer(taskBuffer)
-    statistics_api_v1.init_task_buffer(taskBuffer)
     cred_api_v1.init_task_buffer(taskBuffer)
+    harvester_api_v1.init_task_buffer(taskBuffer)
     pilot_api_v1.init_task_buffer(taskBuffer)
+    statistics_api_v1.init_task_buffer(taskBuffer)
+    # System API does not need to be initialized. system_api_v1.init_task_buffer(taskBuffer)
+    task_api_v1.init_task_buffer(taskBuffer)
 
     # initialize JobDispatcher
     jobDispatcher.init(taskBuffer)
@@ -334,11 +337,12 @@ def module_mapping(version, api_module):
     mapping = {
         "v0": {"panda": {"module": None, "allowed_methods": allowed_methods}},  # legacy API uses globals instead of a particular module
         "v1": {
-            "harvester": {"module": harvester_api_v1, "allowed_methods": harvester_api_v1_methods},
-            "task": {"module": task_api_v1, "allowed_methods": task_api_v1_methods},
-            "statistics": {"module": statistics_api_v1, "allowed_methods": statistics_api_v1_methods},
             "creds": {"module": cred_api_v1, "allowed_methods": cred_api_v1_methods},
+            "harvester": {"module": harvester_api_v1, "allowed_methods": harvester_api_v1_methods},
             "pilot": {"module": pilot_api_v1, "allowed_methods": pilot_api_v1_methods},
+            "statistics": {"module": statistics_api_v1, "allowed_methods": statistics_api_v1_methods},
+            "system": {"module": sytem_api_v1, "allowed_methods": system_api_v1_methods},
+            "task": {"module": task_api_v1, "allowed_methods": task_api_v1_methods},
         },
     }
     try:
