@@ -30,6 +30,8 @@ def get_attributes(req: PandaRequest, **kwargs: dict) -> Dict:
               When successful, the message field contains a string with all the attributes,
               and the data field contains the dictionary representation.
     """
+    tmp_logger = LogWrapper(_logger, "get_attributes")
+    tmp_logger.debug("Start")
 
     # Add the parameters
     parameter_dictionary = {key: value for key, value in sorted(kwargs.items())}
@@ -45,6 +47,7 @@ def get_attributes(req: PandaRequest, **kwargs: dict) -> Dict:
     # Combine data in dictionary form
     combined_data = {"parameters": parameter_dictionary, "environment": environment_dictionary}
 
+    tmp_logger.debug("Done")
     return generate_response(True, text_representation, combined_data)
 
 
@@ -87,7 +90,7 @@ def get_https_endpoint(req: PandaRequest) -> Dict:
     """
     Get the HTTPS endpoint
 
-    Gets the server name and port for HTTPS.
+    Gets the server name (not the load balanced service name!) and port for HTTPS.
 
     API details:
         HTTP Method: GET
@@ -118,7 +121,7 @@ def get_http_endpoint(req: PandaRequest) -> Dict:
     """
     Get the HTTP endpoint
 
-    Gets the server name and port for HTTP.
+    Gets the server name (not the load balanced service name!) and port for HTTP.
 
     API details:
         HTTP Method: GET
