@@ -17,7 +17,6 @@ from pandaserver.dataservice.setupper import Setupper
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import ErrorCode, EventServiceUtils, JobUtils, ProcessGroups
 from pandaserver.taskbuffer.DBProxyPool import DBProxyPool
-from pandaserver.taskbuffer.JobSpec import get_task_queued_time
 
 _logger = PandaLogger().getLogger("TaskBuffer")
 
@@ -1068,7 +1067,7 @@ class TaskBuffer:
             for tmpIdx, tmpRel in enumerate(tmpRels):
                 # asetup
                 atlRel = re.sub("Atlas-", "", tmpAtls[tmpIdx])
-                atlTags = re.split("/|_", tmpRel)
+                atlTags = re.split("[/_]", tmpRel)
                 if "" in atlTags:
                     atlTags.remove("")
                 if atlRel != "" and atlRel not in atlTags and (re.search("^\d+\.\d+\.\d+$", atlRel) is None or isUser):

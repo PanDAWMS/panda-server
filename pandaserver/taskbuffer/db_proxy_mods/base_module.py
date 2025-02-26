@@ -1,6 +1,7 @@
 import atexit
 import datetime
 import json
+import socket
 import sys
 import time
 import traceback
@@ -56,6 +57,13 @@ class BaseModule:
         self.mb_proxy_dict = None
         self.useOtherError = False
         self.backend = panda_config.backend
+        # retry count
+        self.nTry = 5
+        # hostname
+        self.myHostName = socket.getfqdn()
+        self.backend = panda_config.backend
+        # host name
+        self.hostname = None
 
     # abstract method to commit
     def connect(self, **kwargs):

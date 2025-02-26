@@ -3638,7 +3638,7 @@ class TaskEventModule(EntityModule):
                                 if tmpKey == "priority":
                                     tmpKey = "currentPriority"
                                 if tmpKey == "loopingCheck":
-                                    tmpKey == "noLoopingCheck"
+                                    tmpKey = "noLoopingCheck"
                                     if tmpVal:
                                         tmpVal = False
                                     else:

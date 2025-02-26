@@ -18,7 +18,6 @@ from pandaserver.taskbuffer import (
     SupErrors,
 )
 from pandaserver.taskbuffer.db_proxy_mods import (
-    entity_module,
     metrics_module,
     task_event_module,
     worker_module,
@@ -32,7 +31,7 @@ from pandaserver.taskbuffer.JobSpec import JobSpec, get_task_queued_time
 
 
 # Module class to define job-related methods that use another module's methods or serve as their dependencies
-class JobComplexModule(entity_module.EntityModule, metrics_module.MetricsModule, task_event_module.TaskEventModule, worker_module.WorkerModule):
+class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEventModule, worker_module.WorkerModule):
     # constructor
     def __init__(self, log_stream: LogWrapper):
         super().__init__(log_stream)
@@ -40,7 +39,7 @@ class JobComplexModule(entity_module.EntityModule, metrics_module.MetricsModule,
     # update Job status in jobsActive
     def updateJobStatus(self, pandaID, jobStatus, param, updateStateChange=False, attemptNr=None):
         comment = " /* DBProxy.updateJobStatus */"
-        tmp_log = self.create_taggedtmp_log(comment, f"PandaID={pandaID}")
+        tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
         tmp_log.debug(f"attemptNr={attemptNr} status={jobStatus}")
         sql0 = "SELECT commandToPilot,endTime,specialHandling,jobStatus,computingSite,cloud,prodSourceLabel,lockedby,jediTaskID,"
         sql0 += "jobsetID,jobDispatcherErrorDiag,supErrorCode,eventService,batchID "
@@ -502,7 +501,7 @@ class JobComplexModule(entity_module.EntityModule, metrics_module.MetricsModule,
     # update job information in jobsActive or jobsDefined
     def updateJob(self, job, inJobsDefined, oldJobStatus=None, extraInfo=None):
         comment = " /* DBProxy.updateJob */"
-        tmp_log = self.create_taggedtmp_log(comment, f"PandaID={job.PandaID}")
+        tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
         updatedFlag = False
         nTry = 3
         for iTry in range(nTry):
@@ -732,7 +731,7 @@ class JobComplexModule(entity_module.EntityModule, metrics_module.MetricsModule,
     # cleanup jumbo jobs
     def cleanupJumboJobs(self, jediTaskID=None):
         comment = " /* DBProxy.cleanupJumboJobs */"
-        tmp_log = self.create_taggedtmp_log(comment, f"jediTaskID={jediTaskID}")
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
         tmp_log.debug("start")
         try:
             # sql to get jumbo jobs
@@ -820,7 +819,7 @@ class JobComplexModule(entity_module.EntityModule, metrics_module.MetricsModule,
         # 91 : kill user jobs with prod role
         # 99 : force kill user jobs with prod role
         comment = " /* DBProxy.killJob */"
-        tmp_log = self.create_taggedtmp_log(comment, f"PandaID={pandaID}")
+        tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
 
         tmp_log.debug(f"code={code} role={prodManager} user={user} wg={wgProdRole} opts={killOpts}")
         timeStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
@@ -1151,7 +1150,7 @@ class JobComplexModule(entity_module.EntityModule, metrics_module.MetricsModule,
     # update unmerged jobs
     def updateUnmergedJobs(self, job, fileIDs=None, async_params=None):
         comment = " /* JediDBProxy.updateUnmergedJobs */"
-        tmp_log = self.create_taggedtmp_log(comment, f"PandaID={job.PandaID}")
+        tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
         tmp_log.debug(f"start with {async_params}")
         # get PandaID which produced unmerged files
         umPandaIDs = []
@@ -1241,7 +1240,7 @@ class JobComplexModule(entity_module.EntityModule, metrics_module.MetricsModule,
         async_params=None,
     ):
         comment = " /* DBProxy.archiveJob */"
-        tmp_log = self.create_taggedtmp_log(comment, f"PandaID={job.PandaID} jediTaskID={job.jediTaskID}")
+        tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID} jediTaskID={job.jediTaskID}")
         tmp_log.debug(f"start status={job.jobStatus} label={job.prodSourceLabel} " f"type={job.processingType} async_params={async_params}")
         start_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         if fromJobsDefined or fromJobsWaiting:
@@ -1878,7 +1877,7 @@ class JobComplexModule(entity_module.EntityModule, metrics_module.MetricsModule,
     # check fine-grained job
     def check_fine_grained_processing(self, job_spec):
         comment = " /* DBProxy.check_fine_grained_processing */"
-        tmp_log = self.create_taggedtmp_log(comment, f"PandaID={job_spec.PandaID} jediTaskID={job_spec.jediTaskID}")
+        tmp_log = self.create_tagged_logger(comment, f"PandaID={job_spec.PandaID} jediTaskID={job_spec.jediTaskID}")
         try:
             # sql to release events
             sqlW = f"UPDATE {panda_config.schemaJEDI}.JEDI_Events "
@@ -1925,7 +1924,7 @@ class JobComplexModule(entity_module.EntityModule, metrics_module.MetricsModule,
     # check for cloned jobs
     def checkClonedJob(self, jobSpec, useCommit=True):
         comment = " /* DBProxy.checkClonedJob */"
-        tmp_log = self.create_taggedtmp_log(comment, f"PandaID={jobSpec.PandaID}")
+        tmp_log = self.create_tagged_logger(comment, f"PandaID={jobSpec.PandaID}")
         tmp_log.debug("start")
         try:
             # return value {'lock': True if the job locked the semaphore,
@@ -2008,7 +2007,7 @@ class JobComplexModule(entity_module.EntityModule, metrics_module.MetricsModule,
         """
 
         comment = " /* DBProxy.get_average_memory_jobs */"
-        tmp_log = self.create_taggedtmp_log(comment)
+        tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
         try:
             sql_running_and_submitted = (
@@ -2171,7 +2170,7 @@ class JobComplexModule(entity_module.EntityModule, metrics_module.MetricsModule,
         """
         comment = " /* DBProxy.getJobs */"
         timeStart = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-        tmp_log = self.create_taggedtmp_log(comment, f"{siteName} {datetime.datetime.isoformat(timeStart)}")
+        tmp_log = self.create_tagged_logger(comment, f"{siteName} {datetime.datetime.isoformat(timeStart)}")
         tmp_log.debug("Start")
 
         # Number of PanDAIDs that will be tried
@@ -2758,7 +2757,7 @@ class JobComplexModule(entity_module.EntityModule, metrics_module.MetricsModule,
     # record retry history
     def recordRetryHistoryJEDI(self, jediTaskID, newPandaID, oldPandaIDs, relationType, no_late_bulk_exec=True, extracted_sqls=None):
         comment = " /* DBProxy.recordRetryHistoryJEDI */"
-        tmp_log = self.create_taggedtmp_log(comment, f"PandaID={newPandaID}")
+        tmp_log = self.create_tagged_logger(comment, f"PandaID={newPandaID}")
         tmp_log.debug("start")
         # sql to check record
         sqlCK = f"SELECT jediTaskID FROM {panda_config.schemaJEDI}.JEDI_Job_Retry_History "
@@ -2835,7 +2834,7 @@ class JobComplexModule(entity_module.EntityModule, metrics_module.MetricsModule,
         new_jobset_id=None,
     ):
         comment = " /* DBProxy.insertNewJob */"
-        tmp_log = self.create_taggedtmp_log(comment, f"<JediTaskID={job.jediTaskID} idPool={len(fileIDPool)}")
+        tmp_log = self.create_tagged_logger(comment, f"<JediTaskID={job.jediTaskID} idPool={len(fileIDPool)}")
 
         # insert jobs to jobsDefined4
         table_name = "jobsDefined4"
@@ -3453,7 +3452,7 @@ class JobComplexModule(entity_module.EntityModule, metrics_module.MetricsModule,
     # bulk insert new jobs
     def bulk_insert_new_jobs(self, jedi_task_id, arg_list, new_jobset_id_list, special_handling_list):
         comment = " /* DBProxy.bulk_insert_new_jobs */"
-        tmp_log = self.create_taggedtmp_log(comment, f"jediTaskID={jedi_task_id}")
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
         try:
             start_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             tmp_log.debug("start")
@@ -3583,7 +3582,7 @@ class JobComplexModule(entity_module.EntityModule, metrics_module.MetricsModule,
     # update JEDI for pilot retry
     def updateForPilotRetryJEDI(self, job, cur, onlyHistory=False, relationType=None):
         comment = " /* DBProxy.updateForPilotRetryJEDI */"
-        tmp_log = self.create_taggedtmp_log(comment, f"PandaID={job.PandaID}")
+        tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
         # sql to update file
         sqlFJI = f"UPDATE {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
         sqlFJI += "SET attemptNr=attemptNr+1,failedAttempt=failedAttempt+1,PandaID=:PandaID "
@@ -3653,7 +3652,7 @@ class JobComplexModule(entity_module.EntityModule, metrics_module.MetricsModule,
     # check attemptNr for more retry
     def checkMoreRetryJEDI(self, job):
         comment = " /* DBProxy.self.checkMoreRetryJEDI */"
-        tmp_log = self.create_taggedtmp_log(comment, f"PandaID={job.PandaID}")
+        tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
         tmp_log.debug(f"start")
         # sql to get files
         sqlGF = "SELECT datasetID,fileID,attemptNr FROM ATLAS_PANDA.filesTable4 "
@@ -3709,7 +3708,7 @@ class JobComplexModule(entity_module.EntityModule, metrics_module.MetricsModule,
         recoverableEsMerge=False,
     ):
         comment = " /* DBProxy.retryJob */"
-        tmp_log = self.create_taggedtmp_log(comment, f"PandaID={pandaID}")
+        tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
         tmp_log.debug(f"inActive={failedInActive}")
         sql1 = f"SELECT {JobSpec.columnNames()} FROM ATLAS_PANDA.jobsActive4 "
         sql1 += "WHERE PandaID=:PandaID "
@@ -4066,7 +4065,7 @@ class JobComplexModule(entity_module.EntityModule, metrics_module.MetricsModule,
         async_params=None,
     ):
         comment = " /* DBProxy.propagateResultToJEDI */"
-        tmp_log = self.create_taggedtmp_log(comment, f"PandaID={jobSpec.PandaID} jediTaskID={jobSpec.jediTaskID}")
+        tmp_log = self.create_tagged_logger(comment, f"PandaID={jobSpec.PandaID} jediTaskID={jobSpec.jediTaskID}")
         datasetContentsStat = {}
         # loop over all files
         finishUnmerge = set()
@@ -4646,7 +4645,7 @@ class JobComplexModule(entity_module.EntityModule, metrics_module.MetricsModule,
     # finalize pending jobs
     def finalizePendingJobs(self, prodUserName, jobDefinitionID, waitLock=False):
         comment = " /* DBProxy.finalizePendingJobs */"
-        tmp_log = self.create_taggedtmp_log(comment, f"user={prodUserName} jobdefID={jobDefinitionID}")
+        tmp_log = self.create_tagged_logger(comment, f"user={prodUserName} jobdefID={jobDefinitionID}")
         tmp_log.debug("start")
         sql0 = "SELECT PandaID,lockedBy,jediTaskID FROM ATLAS_PANDA.jobsActive4 "
         sql0 += "WHERE prodUserName=:prodUserName AND jobDefinitionID=:jobDefinitionID "
@@ -4769,7 +4768,7 @@ class JobComplexModule(entity_module.EntityModule, metrics_module.MetricsModule,
     # get job statistics per site, prodsourcelabel (managed, user, test...), and resource type (SCORE, MCORE...)
     def get_job_statistics_per_site_label_resource(self, time_window):
         comment = " /* DBProxy.get_job_statistics_per_site_label_resource */"
-        tmp_log = self.create_taggedtmp_log(comment)
+        tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
 
         sql_defined = (
@@ -4867,7 +4866,7 @@ class JobComplexModule(entity_module.EntityModule, metrics_module.MetricsModule,
     # post-process for event service job
     def ppEventServiceJob(self, job, currentJobStatus, useCommit=True):
         comment = " /* DBProxy.ppEventServiceJob */"
-        tmp_log = self.create_taggedtmp_log(comment, f"PandaID={job.PandaID}")
+        tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
         pandaID = job.PandaID
         attemptNr = job.attemptNr
         tmp_log.debug(f"start attemptNr={attemptNr}")
