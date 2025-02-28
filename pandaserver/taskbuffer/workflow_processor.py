@@ -38,7 +38,6 @@ class WorkflowProcessor(object):
         dump_workflow=False,
     ):
         is_fatal = False
-        is_OK = True
         request_id = None
         dump_str = None
         try:
