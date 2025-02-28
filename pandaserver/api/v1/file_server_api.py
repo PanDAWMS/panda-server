@@ -90,14 +90,12 @@ def upload_jedi_log(req: PandaRequest, file: FileStorage) -> Dict:
         Path: /file_server/v1/upload_jedi_log
 
     Args:
-        req (PandaRequest): PanDA request object.
-        file (FileStorage): werkzeug.FileStorage object to be uploaded.
+        req(PandaRequest): internally generated request object containing the env variables
+        file(FileStorage): werkzeug.FileStorage object to be uploaded.
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When successful, the message field contains a string with all the attributes,
-              and the data field contains the dictionary representation.
-
+              When successful, the data field will contain the URL to the file. Otherwise the message field will indicate the issue.
     """
 
     tmp_logger = LogWrapper(_logger, f"upload_jedi_log <{file.filename}>")
@@ -151,19 +149,22 @@ def upload_jedi_log(req: PandaRequest, file: FileStorage) -> Dict:
 @request_validation(_logger, secure=True, production=True, request_method="POST")
 def update_jedi_log(req: PandaRequest, file: FileStorage) -> Dict:
     """
-    Update the log file, appending more content at the end of the file.
+    Update a JEDI log file
+
+    Updates a JEDI log file, appending more content at the end of the file.
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/upload_jedi_log
+        Path: /file_server/v1/update_jedi_log
 
     Args:
-        req (PandaRequest): PanDA request object.
-        file (FileStorage): werkzeug.FileStorage object to be updated.
+        req(PandaRequest): internally generated request object containing the env variables
+        file(FileStorage): werkzeug.FileStorage object to be updated.
 
     Returns:
-        string: String with "True" or error message
+        dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
     """
+
     tmp_logger = LogWrapper(_logger, f"update_jedi_log < {file.filename} >")
     tmp_logger.debug("Start")
 
@@ -189,21 +190,23 @@ def update_jedi_log(req: PandaRequest, file: FileStorage) -> Dict:
 
 
 @request_validation(_logger, request_method="GET")
-def download_jedi_log(panda_request: PandaRequest, log_name: str, offset: int = 0) -> Dict:
+def download_jedi_log(req: PandaRequest, log_name: str, offset: int = 0) -> str:
     """
-    Fetch the log file, if required at a particular offset.
+    Download JEDI log file
+
+    Downloads the JEDI log file, if required at a particular offset.
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/upload_jedi_log
+        Path: /file_server/v1/download_jedi_log
 
     Args:
-        panda_request (PandaRequest): PanDA request object.
-        log_name (string): log file name
-        offset (int): offset in the file
+        req(PandaRequest): internally generated request object containing the env variables
+        log_name(string): log file name
+        offset(int): offset in the file
 
     Returns:
-        string: String with the log content
+        str: The content of the log file or an error message.
     """
 
     tmp_logger = LogWrapper(_logger, f"download_jedi_log <{log_name}>")
@@ -232,18 +235,22 @@ def download_jedi_log(panda_request: PandaRequest, log_name: str, offset: int = 
 @request_validation(_logger, request_method="POST")
 def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
     """
-    Upload a file to the server.
+    Upload a cache file
+
+    Uploads a file to the cache. When not touched, cache files are expired after some time.
+    User caches will get registered in the PanDA database and will account towards user limits.
+    PanDA log files will be stored in gzip format.
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/upload_jedi_log
+        Path: /file_server/v1/upload_cache_file
 
     Args:
-        req (PandaRequest): PanDA request object.
-        file (FileStorage): werkzeug.FileStorage object to be uploaded.
+        req(PandaRequest): internally generated request object containing the env variables
+        file(FileStorage): werkzeug.FileStorage object to be uploaded.
 
     Returns:
-        string: "True" if the upload was successful, otherwise an error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
     """
 
     tmp_logger = LogWrapper(_logger, f"upload_cache_file-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
@@ -338,7 +345,7 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
     file_size = len(file_content)
 
     # log the full file information
-    tmp_logger.debug(f"written dn={user_name} file={full_path} size={file_size} crc={checksum}")
+    tmp_logger.debug(f"Written dn={user_name} file={full_path} size={file_size} crc={checksum}")
 
     # record the file information to DB
     if panda_config.record_sandbox_info:
@@ -369,53 +376,57 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def touch_cache_file(req: PandaRequest, filename: str) -> Dict:
+def touch_cache_file(req: PandaRequest, file_name: str) -> Dict:
     """
     Touch file in the cache directory.
 
-    Touches a file in the cache directory. It avoids the file to expire and being deleted by the server clean up.
+    Touches a file in the cache directory. It avoids the file to expire and being deleted by server clean up processes.
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/upload_jedi_log
+        Path: /file_server/v1/touch_cache_file
 
     Args:
-        req (PandaRequest): PanDA request object.
-        filename (string): file name to be deleted
+        req(PandaRequest): internally generated request object containing the env variables
+        file_name(string): file name to be deleted
 
     Returns:
-        string: String with "True" or "False"
+        dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
     """
 
-    tmp_logger = LogWrapper(_logger, f"touch_cache_file < {filename} >")
+    tmp_logger = LogWrapper(_logger, f"touch_cache_file < {file_name} >")
     tmp_logger.debug(f"Start")
 
     try:
-        os.utime(f"{panda_config.cache_dir}/{filename.split('/')[-1]}", None)
+        os.utime(f"{panda_config.cache_dir}/{file_name.split('/')[-1]}", None)
         tmp_logger.debug(f"Done")
         return generate_response(True)
     except Exception:
         error_type, error_value = sys.exc_info()[:2]
-        _logger.error(f"Failed to touch file with: {error_type} {error_value}")
-        return generate_response(False)
+        message = f"Failed to touch file with: {error_type} {error_value}"
+        _logger.error(message)
+        return generate_response(False, message)
 
 
 @request_validation(_logger, secure=True, request_method="POST")
 def delete_cache_file(req: PandaRequest, file_name: str) -> Dict:
     """
-    Delete a file from the cache directory.
+    Delete cache file
+
+    Deletes a file from the cache directory. Currently a dummy method.
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/upload_jedi_log
+        Path: /file_server/v1/delete_cache_file
 
     Args:
-        req (PandaRequest): PanDA request object.
-        file (string): file name to be deleted
+        req(PandaRequest): internally generated request object containing the env variables
+        file_name(string): file name to be deleted
 
     Returns:
-        string: String with "True" or "False"
+        dict: The system response `{"success": success, "message": message, "data": data}`.
     """
+
     tmp_logger = LogWrapper(_logger, f"delete_cache_file <{file_name}>")
     tmp_logger.debug(f"Start")
 
@@ -428,7 +439,26 @@ def delete_cache_file(req: PandaRequest, file_name: str) -> Dict:
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def register_cache_file(req: PandaRequest, user_name: str, file_name: str, file_size: int, checksum: str):
+def register_cache_file(req: PandaRequest, user_name: str, file_name: str, file_size: int, checksum: str) -> Dict:
+    """
+    Register cache file
+
+    Registers a file from the cache directory into the PanDA database, so that PanDA knows the server it's on. Requires production role.
+
+    API details:
+        HTTP Method: POST
+        Path: /file_server/v1/register_cache_file
+
+    Args:
+        req(PandaRequest): internally generated request object containing the env variables
+        user_name(string): user that uploaded the file
+        file_name(string): file name
+        file_size(int): file size
+        checksum(string): checksum
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
+    """
 
     tmp_logger = LogWrapper(_logger, f"register_cache_file {user_name} {file_name}")
     tmp_logger.debug("Start")
@@ -448,8 +478,25 @@ def register_cache_file(req: PandaRequest, user_name: str, file_name: str, file_
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def validate_cache_file(req: PandaRequest, file_size: int, checksum: str):
+def validate_cache_file(req: PandaRequest, file_size: int, checksum: str) -> Dict:
+    """
+    Validate cache file
 
+    Validates a cache file owned by the caller by checking the file metadata that was registered in the database.
+
+    API details:
+        HTTP Method: POST
+        Path: /file_server/v1/validate_cache_file
+
+    Args:
+        req(PandaRequest): internally generated request object containing the env variables
+        file_size(int): file size
+        checksum(string): checksum
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`. When successful the message will return the host and file name.
+              When unsuccessful, the message field will indicate the issue.
+    """
     user = get_dn(req)
     message = global_task_buffer.checkSandboxFile(user, file_size, checksum)
 
@@ -478,18 +525,20 @@ def _get_checkpoint_filename(jedi_task_id: str, sub_id: str) -> Dict:
 @request_validation(_logger, secure=True, request_method="POST")
 def upload_hpo_checkpoint(req: PandaRequest, file: FileStorage) -> Dict:
     """
-    Upload a HPO checkpoint file to the server.
+    Upload a HPO checkpoint file
+
+    Uploads a HPO checkpoint file to the server.
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/upload_jedi_log
+        Path: /file_server/v1/upload_hpo_checkpoint
 
     Args:
-        req (PandaRequest): PanDA request object.
-        file (FileStorage): werkzeug.FileStorage object to be uploaded.
+        req(PandaRequest): internally generated request object containing the env variables
+        file(FileStorage): werkzeug.FileStorage object to be uploaded.
 
     Returns:
-        string: json formatted string with status and message.
+        dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
     """
 
     tmp_logger = LogWrapper(_logger, f"upload_hpo_checkpoint <jediTaskID_subID={file.filename}>")
@@ -524,7 +573,7 @@ def upload_hpo_checkpoint(req: PandaRequest, file: FileStorage) -> Dict:
         with open(full_path, "wb") as file_object:
             file_object.write(file.read())
     except Exception as exc:
-        error_message = f"cannot write file due to {str(exc)}"
+        error_message = f"Cannot write file due to {str(exc)}"
         tmp_logger.error(error_message)
         return generate_response(False, error_message)
 
@@ -537,19 +586,21 @@ def upload_hpo_checkpoint(req: PandaRequest, file: FileStorage) -> Dict:
 @request_validation(_logger, secure=True, request_method="POST")
 def delete_hpo_checkpoint(req: PandaRequest, jedi_task_id: str, sub_id: str) -> Dict:
     """
-    Delete a HPO checkpoint file from the server.
+    Delete a HPO checkpoint file.
+
+    Deletes a HPO checkpoint file from the server.
 
     API details:
         HTTP Method: POST
-        Path: /file_server/v1/upload_jedi_log
+        Path: /file_server/v1/delete_hpo_checkpoint
 
     Args:
-        req (PandaRequest): PanDA request object.
-        jedi_task_id (str): task ID.
-        sub_id (str): sub ID.
+        req(PandaRequest): internally generated request object containing the env variables
+        jedi_task_id(str): JEDI task ID
+        sub_id(str): sub ID.
 
     Returns:
-        string: json formatted string with status and message.
+        dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
     """
 
     tmp_logger = LogWrapper(_logger, f"delete_hpo_checkpoint <jediTaskID={jedi_task_id} ID={sub_id}>")
@@ -577,9 +628,9 @@ def upload_file_recovery_request(req: PandaRequest, jedi_task_id: int, dry_run: 
         Path: /file_server/v1/upload_jedi_log
 
     Args:
-        req (PandaRequest): PanDA request object.
-        jedi_task_id (string): task ID.
-        dryRun (bool): dry run flag.
+        req(PandaRequest): internally generated request object containing the env variables
+        jedi_task_id (string): JEDI task ID.
+        dry_run (bool): dry run flag.
 
     Returns:
         string: String in json format with (boolean, message)
@@ -626,10 +677,10 @@ def upload_workflow_request(req: PandaRequest, data: str, check: bool = False, s
         Path: /file_server/v1/upload_jedi_log
 
     Args:
-        req (PandaRequest): PanDA request object
-        data (string): workflow request data
-        check (bool): check flag
-        sync (bool): requests the workflow to be processed synchronously
+        req(PandaRequest): internally generated request object containing the env variables
+        data(string): workflow request data
+        check(bool): check flag
+        sync(bool): requests the workflow to be processed synchronously
     Returns:
         string: String in json format with (boolean, message)
     """
@@ -708,20 +759,20 @@ def upload_event_picking_request(
         Path: /file_server/v1/upload_jedi_log
 
     Args:
-        req (PandaRequest): PanDA request object.
-        run_event_list (str): run and event list.
-        data_type (str): data type.
-        stream_name (str): stream name.
-        dataset_name (str): dataset name.
-        ami_tag (str): AMI tag.
-        user_dataset_name (str): user dataset name.
-        locked_by (str): locking agent.
-        parameters (str): parameters.
-        input_file_list (str): input file list.
-        n_sites (str): number of sites.
-        user_task_name (str): user task name.
-        ei_api (str): event index API.
-        include_guids (bool): flag to indicate if GUIDs are included with the run-event list
+        req(PandaRequest): internally generated request object containing the env variables
+        run_event_list(str): run and event list.
+        data_type(str): data type.
+        stream_name(str): stream name.
+        dataset_name(str): dataset name.
+        ami_tag(str): AMI tag.
+        user_dataset_name(str): user dataset name.
+        locked_by(str): locking agent.
+        parameters(str): parameters.
+        input_file_list(str): input file list.
+        n_sites(str): number of sites.
+        user_task_name(str): user task name.
+        ei_api(str): event index API.
+        include_guids(bool): flag to indicate if GUIDs are included with the run-event list
 
     Returns:
         string: "True" if the upload was successful, otherwise an error message.
