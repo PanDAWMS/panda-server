@@ -9,7 +9,7 @@ import sys
 import traceback
 import uuid
 import zlib
-from typing import Dict, Generator
+from typing import Dict
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -20,7 +20,6 @@ from pandaserver.api.v1.system_api import get_http_endpoint, get_https_endpoint
 from pandaserver.config import panda_config
 from pandaserver.jobdispatcher import Protocol
 from pandaserver.srvcore import CoreUtils
-from pandaserver.srvcore.CoreUtils import get_bare_dn
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 from pandaserver.userinterface import Client
@@ -60,8 +59,8 @@ def _get_content_length(req: PandaRequest, tmp_logger: LogWrapper) -> int:
     Get the content length of the request.
 
     Args:
-        req (PandaRequest): PanDA request object.
-        tmp_logger (LogWrapper): logger object of the calling function.
+        req(PandaRequest): internally generated request object containing the env variables
+        tmp_logger(LogWrapper): logger object of the calling function.
 
     Returns:
         int: content length of the request.
@@ -71,41 +70,41 @@ def _get_content_length(req: PandaRequest, tmp_logger: LogWrapper) -> int:
         content_length = int(req.headers_in["content-length"])
     except Exception:
         if "content-length" in req.headers_in:
-            tmp_logger.error(f"cannot get content_length: {req.headers_in['content-length']}")
+            tmp_logger.error(f"Cannot get content_length: {req.headers_in['content-length']}")
         else:
-            tmp_logger.error("no content_length for {method_name}")
+            tmp_logger.error("No content_length for {method_name}")
 
-    tmp_logger.debug(f"size {content_length}")
+    tmp_logger.debug(f"Size: {content_length}")
     return content_length
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def upload_jedi_log(req: PandaRequest, file: FileStorage) -> str:
+def upload_jedi_log(req: PandaRequest, file: FileStorage) -> Dict:
     """
     Upload a JEDI log file
 
     Uploads a JEDI log file and returns the URL to the file. If there is already a log file for the task, it will be overwritten.
+
+    API details:
+        HTTP Method: POST
+        Path: /file_server/v1/upload_jedi_log
 
     Args:
         req (PandaRequest): PanDA request object.
         file (FileStorage): werkzeug.FileStorage object to be uploaded.
 
     Returns:
-        string: String with the URL to the file
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+              When successful, the message field contains a string with all the attributes,
+              and the data field contains the dictionary representation.
+
     """
+
     tmp_logger = LogWrapper(_logger, f"upload_jedi_log <{file.filename}>")
     tmp_logger.debug(f"start {req.subprocess_env['SSL_CLIENT_S_DN']}")
 
     # get file size
-    content_length = 0
-    try:
-        content_length = int(req.headers_in["content-length"])
-    except Exception:
-        if "content-length" in req.headers_in:
-            tmp_logger.error(f"cannot get CL : {req.headers_in['content-length']}")
-        else:
-            tmp_logger.error("no CL")
-    tmp_logger.debug(f"size {content_length}")
+    content_length = _get_content_length(req, tmp_logger)
 
     # check against the size limit for logs
     if content_length > LOG_LIMIT:
@@ -150,9 +149,14 @@ def upload_jedi_log(req: PandaRequest, file: FileStorage) -> str:
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def update_jedi_log(req: PandaRequest, file: FileStorage) -> str:
+def update_jedi_log(req: PandaRequest, file: FileStorage) -> Dict:
     """
     Update the log file, appending more content at the end of the file.
+
+    API details:
+        HTTP Method: POST
+        Path: /file_server/v1/upload_jedi_log
+
     Args:
         req (PandaRequest): PanDA request object.
         file (FileStorage): werkzeug.FileStorage object to be updated.
@@ -185,9 +189,14 @@ def update_jedi_log(req: PandaRequest, file: FileStorage) -> str:
 
 
 @request_validation(_logger, request_method="GET")
-def download_jedi_log(panda_request: PandaRequest, log_name: str, offset: int = 0) -> str:
+def download_jedi_log(panda_request: PandaRequest, log_name: str, offset: int = 0) -> Dict:
     """
     Fetch the log file, if required at a particular offset.
+
+    API details:
+        HTTP Method: POST
+        Path: /file_server/v1/upload_jedi_log
+
     Args:
         panda_request (PandaRequest): PanDA request object.
         log_name (string): log file name
@@ -221,9 +230,13 @@ def download_jedi_log(panda_request: PandaRequest, log_name: str, offset: int = 
 
 
 @request_validation(_logger, request_method="POST")
-def upload_cache_file(req: PandaRequest, file: FileStorage) -> str:
+def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
     """
     Upload a file to the server.
+
+    API details:
+        HTTP Method: POST
+        Path: /file_server/v1/upload_jedi_log
 
     Args:
         req (PandaRequest): PanDA request object.
@@ -356,11 +369,15 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> str:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def touch_cache_file(req: PandaRequest, filename: str) -> str:
+def touch_cache_file(req: PandaRequest, filename: str) -> Dict:
     """
     Touch file in the cache directory.
 
     Touches a file in the cache directory. It avoids the file to expire and being deleted by the server clean up.
+
+    API details:
+        HTTP Method: POST
+        Path: /file_server/v1/upload_jedi_log
 
     Args:
         req (PandaRequest): PanDA request object.
@@ -384,9 +401,13 @@ def touch_cache_file(req: PandaRequest, filename: str) -> str:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def delete_cache_file(req: PandaRequest, file_name: str) -> str:
+def delete_cache_file(req: PandaRequest, file_name: str) -> Dict:
     """
     Delete a file from the cache directory.
+
+    API details:
+        HTTP Method: POST
+        Path: /file_server/v1/upload_jedi_log
 
     Args:
         req (PandaRequest): PanDA request object.
@@ -440,7 +461,7 @@ def validate_cache_file(req: PandaRequest, file_size: int, checksum: str):
     return generate_response(True, message)
 
 
-def _get_checkpoint_filename(jedi_task_id: str, sub_id: str) -> str:
+def _get_checkpoint_filename(jedi_task_id: str, sub_id: str) -> Dict:
     """
     Get the checkpoint file name.
 
@@ -455,9 +476,13 @@ def _get_checkpoint_filename(jedi_task_id: str, sub_id: str) -> str:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def upload_hpo_checkpoint(req: PandaRequest, file: FileStorage) -> str:
+def upload_hpo_checkpoint(req: PandaRequest, file: FileStorage) -> Dict:
     """
     Upload a HPO checkpoint file to the server.
+
+    API details:
+        HTTP Method: POST
+        Path: /file_server/v1/upload_jedi_log
 
     Args:
         req (PandaRequest): PanDA request object.
@@ -480,11 +505,9 @@ def upload_hpo_checkpoint(req: PandaRequest, file: FileStorage) -> str:
         return generate_response(False, error_message)
 
     # get the file size
-    try:
-        content_length = int(req.headers_in["content-length"])
-        tmp_logger.debug(f"Size {content_length}")
-    except Exception as exc:
-        error_message = f"Cannot get int(content-length) due to {str(exc)}"
+    content_length = _get_content_length(req, tmp_logger)
+    if not content_length:
+        error_message = f"Cannot get content-length"
         tmp_logger.error(error_message)
         return generate_response(False, error_message)
 
@@ -512,9 +535,13 @@ def upload_hpo_checkpoint(req: PandaRequest, file: FileStorage) -> str:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def delete_hpo_checkpoint(req: PandaRequest, jedi_task_id: str, sub_id: str) -> str:
+def delete_hpo_checkpoint(req: PandaRequest, jedi_task_id: str, sub_id: str) -> Dict:
     """
     Delete a HPO checkpoint file from the server.
+
+    API details:
+        HTTP Method: POST
+        Path: /file_server/v1/upload_jedi_log
 
     Args:
         req (PandaRequest): PanDA request object.
@@ -541,9 +568,13 @@ def delete_hpo_checkpoint(req: PandaRequest, jedi_task_id: str, sub_id: str) -> 
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def upload_file_recovery_request(req: PandaRequest, jedi_task_id: int, dry_run: bool = None) -> str:
+def upload_file_recovery_request(req: PandaRequest, jedi_task_id: int, dry_run: bool = None) -> Dict:
     """
     Upload lost file recovery request to the server.
+
+    API details:
+        HTTP Method: POST
+        Path: /file_server/v1/upload_jedi_log
 
     Args:
         req (PandaRequest): PanDA request object.
@@ -586,9 +617,14 @@ def upload_file_recovery_request(req: PandaRequest, jedi_task_id: int, dry_run: 
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def upload_workflow_request(req: PandaRequest, data: str, check: bool = False, sync: bool = False) -> str:
+def upload_workflow_request(req: PandaRequest, data: str, check: bool = False, sync: bool = False) -> Dict:
     """
     Upload workflow request to the server.
+
+    API details:
+        HTTP Method: POST
+        Path: /file_server/v1/upload_jedi_log
+
     Args:
         req (PandaRequest): PanDA request object
         data (string): workflow request data
@@ -663,9 +699,13 @@ def upload_event_picking_request(
     user_task_name: str = "",
     ei_api: str = "",
     include_guids: bool = False,
-) -> str:
+) -> Dict:
     """
     Upload event picking request to the server.
+
+    API details:
+        HTTP Method: POST
+        Path: /file_server/v1/upload_jedi_log
 
     Args:
         req (PandaRequest): PanDA request object.
@@ -696,20 +736,15 @@ def upload_event_picking_request(
     creation_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
 
     # get total size
-    try:
-        content_length = int(req.headers_in["content-length"])
-    except Exception:
+    content_length = _get_content_length(req, tmp_logger)
+    if not content_length:
         error_message = "Cannot get content-length from HTTP request."
         tmp_logger.error(f"{error_message}")
-        tmp_logger.debug("end")
         return generate_response(False, f"ERROR: {error_message}")
-
-    tmp_logger.debug(f"Size {content_length}")
 
     if content_length > EVENT_PICKING_LIMIT:
         error_message = f"Run/event list is too large. Exceeded size limit {content_length}>{EVENT_PICKING_LIMIT}."
         tmp_logger.error(f"{error_message} ")
-        tmp_logger.debug("end")
         return generate_response(False, f"ERROR: {error_message}")
 
     try:
