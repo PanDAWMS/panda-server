@@ -49,13 +49,13 @@ global_task_buffer = None
 
 def init_task_buffer(task_buffer: TaskBuffer) -> None:
     """
-    Initialize the task buffer. This method needs to be called before any other method in this module.
+    Initialize the task buffer. This method needs to be called before any other method with DB access in this module.
     """
     global global_task_buffer
     global_task_buffer = task_buffer
 
 
-def get_content_length(req: PandaRequest, tmp_logger: LogWrapper) -> int:
+def _get_content_length(req: PandaRequest, tmp_logger: LogWrapper) -> int:
     """
     Get the content length of the request.
 
@@ -184,6 +184,7 @@ def update_jedi_log(req: PandaRequest, file: FileStorage) -> str:
     return generate_response(True)
 
 
+@request_validation(_logger, request_method="GET")
 def download_jedi_log(panda_request: PandaRequest, log_name: str, offset: int = 0) -> str:
     """
     Fetch the log file, if required at a particular offset.
@@ -262,7 +263,7 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> str:
         size_limit = SANDBOX_LIMIT
 
     # get actual file size
-    content_length = get_content_length(req, tmp_logger)
+    content_length = _get_content_length(req, tmp_logger)
 
     # check if we are above the size limit
     if content_length > size_limit:
@@ -439,7 +440,7 @@ def validate_cache_file(req: PandaRequest, file_size: int, checksum: str):
     return generate_response(True, message)
 
 
-def get_checkpoint_filename(jedi_task_id: str, sub_id: str) -> str:
+def _get_checkpoint_filename(jedi_task_id: str, sub_id: str) -> str:
     """
     Get the checkpoint file name.
 
@@ -495,7 +496,7 @@ def upload_hpo_checkpoint(req: PandaRequest, file: FileStorage) -> str:
 
     # write the file to the cache directory
     try:
-        full_path = os.path.join(panda_config.cache_dir, get_checkpoint_filename(task_id, sub_id))
+        full_path = os.path.join(panda_config.cache_dir, _get_checkpoint_filename(task_id, sub_id))
         # write
         with open(full_path, "wb") as file_object:
             file_object.write(file.read())
@@ -529,7 +530,7 @@ def delete_hpo_checkpoint(req: PandaRequest, jedi_task_id: str, sub_id: str) -> 
     tmp_logger.debug(f"Start {req.subprocess_env['SSL_CLIENT_S_DN']}")
 
     try:
-        full_path = os.path.join(panda_config.cache_dir, get_checkpoint_filename(jedi_task_id, sub_id))
+        full_path = os.path.join(panda_config.cache_dir, _get_checkpoint_filename(jedi_task_id, sub_id))
         os.remove(full_path)
         tmp_logger.debug("Done")
         return generate_response(True)
