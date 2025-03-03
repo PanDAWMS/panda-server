@@ -39,13 +39,13 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 
         # This variable depends on having an initialized task buffer
         global global_dispatch_parameter_cache
-        global_dispatch_parameter_cache = CoreUtils.CachedObject("dispatcher_params", 60 * 10, get_dispatch_parameters, _logger)
+        global_dispatch_parameter_cache = CoreUtils.CachedObject("dispatcher_params", 60 * 10, _get_dispatch_parameters, _logger)
 
         global global_token_cache_config
-        global_token_cache_config = read_token_cache_configuration()
+        global_token_cache_config = _read_token_cache_configuration()
 
 
-def read_token_cache_configuration():
+def _read_token_cache_configuration():
     # config of token cacher
     try:
         with open(panda_config.token_cache_config) as f:
@@ -54,7 +54,7 @@ def read_token_cache_configuration():
         return {}
 
 
-def get_dispatch_parameters():
+def _get_dispatch_parameters():
     """
     Wrapper function around taskBuffer.get_special_dispatch_params to convert list to set since task buffer cannot return set
     """
@@ -85,12 +85,12 @@ def set_user_secrets(req: PandaRequest, key: str = None, value: str = None) -> d
         dict: The system response. True for success, False for failure, and an error message.
     """
 
-    tmp_log = LogWrapper(_logger, f"set_user_secret-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+    tmp_logger = LogWrapper(_logger, f"set_user_secret-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
 
     # Get client DN and clean it. The request validation has already verified that the DN is present.
     dn = get_dn(req)
     owner = clean_user_id(dn)
-    tmp_log.debug(f"Setting secret for client={owner}")
+    tmp_logger.debug(f"Setting secret for client={owner}")
     success, message = global_task_buffer.set_user_secret(owner, key, value)
     return generate_response(success, message)
 
@@ -104,7 +104,7 @@ def get_user_secrets(req: PandaRequest, keys: str = None) -> dict:
 
     API details:
         HTTP Method: POST
-        Path: /secrets/v1/set_user_secrets
+        Path: /creds/v1/set_user_secrets
 
     Args:
         req(PandaRequest): internally generated request object
@@ -113,19 +113,19 @@ def get_user_secrets(req: PandaRequest, keys: str = None) -> dict:
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the user secrets. When unsuccessful, the message field contains the error message.
     """
-    tmp_log = LogWrapper(_logger, f"get_user_secrets-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+    tmp_logger = LogWrapper(_logger, f"get_user_secrets-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
 
     # Get client DN and clean it. The request validation has already verified that the DN is present.
     dn = get_dn(req)
     owner = clean_user_id(dn)
-    tmp_log.debug(f"Start for client={owner}")
+    tmp_logger.debug(f"Start for client={owner}")
     success, data_or_message = global_task_buffer.get_user_secrets(owner, keys)
     message, data = "", {}
     if success:
         data = data_or_message
     else:
         message = data_or_message
-    tmp_log.debug(f"Done for client={owner}")
+    tmp_logger.debug(f"Done for client={owner}")
     return generate_response(success, message, data)
 
 
@@ -135,6 +135,10 @@ def get_key_pair(req: PandaRequest, public_key_name: str, private_key_name: str)
     Get key pair
 
     This function retrieves the distinguished name (DN) from the request and uses it to get a key pair. Requires a secure connection.
+
+    API details:
+        HTTP Method: GET
+        Path: /creds/v1/get_key_pair
 
     Args:
         req(PandaRequest): internally generated request object
@@ -202,6 +206,10 @@ def get_proxy(req: PandaRequest, role: str = None, dn: str = None) -> dict:
 
     Get the x509 proxy certificate for a user with a role.
 
+    API details:
+        HTTP Method: GET
+        Path: /creds/v1/get_proxy
+
     Args:
         req(PandaRequest): internally generated request object
         role(str, optional): The role of the user. Defaults to None.
@@ -210,7 +218,7 @@ def get_proxy(req: PandaRequest, role: str = None, dn: str = None) -> dict:
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the x509 proxy. When unsuccessful, the message field contains the error message.
     """
-    tmp_log = LogWrapper(_logger, f"get_proxy PID={os.getpid()}")
+    tmp_logger = LogWrapper(_logger, f"get_proxy PID={os.getpid()}")
 
     # Set the requested DN or, if not set, the requestor DN
     real_dn = get_dn(req)
@@ -220,14 +228,14 @@ def get_proxy(req: PandaRequest, role: str = None, dn: str = None) -> dict:
     if role == "":
         role = None
 
-    tmp_log.debug(f"Start for DN='{real_dn}' role={role}")
+    tmp_logger.debug(f"Start for DN='{real_dn}' role={role}")
 
     # check permission
     global_dispatch_parameter_cache.update()
     real_dn_compact = clean_user_id(real_dn)
     allowed, tmp_msg = validate_user_permissions(real_dn_compact, tokenized=False)
     if not allowed:
-        tmp_log.debug(tmp_msg)
+        tmp_logger.debug(tmp_msg)
         return generate_response(False, tmp_msg)
 
     # remove redundant extensions and retrieve the proxy
@@ -237,11 +245,11 @@ def get_proxy(req: PandaRequest, role: str = None, dn: str = None) -> dict:
     # proxy not found
     if output is None:
         tmp_msg = f"'proxy' not found for {target_dn_bare}"
-        tmp_log.debug(tmp_msg)
+        tmp_logger.debug(tmp_msg)
         return generate_response(False, tmp_msg)
 
     data = {"user_proxy": output}
-    tmp_log.debug(f"Done")
+    tmp_logger.debug(f"Done")
     return generate_response(True, data=data)
 
 
@@ -252,6 +260,10 @@ def get_access_token(req: PandaRequest, client_name: str, token_key: str = None)
 
     Get the OAuth access token for the specified client.
 
+    API details:
+        HTTP Method: GET
+        Path: /creds/v1/get_access_token
+
     Args:
         req(PandaRequest): internally generated request object
         client_name(str): client_name for the token as defined in token_cache_config
@@ -261,20 +273,20 @@ def get_access_token(req: PandaRequest, client_name: str, token_key: str = None)
         dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the access token. When unsuccessful, the message field contains the error message.
     """
 
-    tmp_log = LogWrapper(_logger, f"get_proxy PID={os.getpid()}")
+    tmp_logger = LogWrapper(_logger, f"get_proxy PID={os.getpid()}")
 
     # Set the requested DN or, if not set, the requestor DN
     real_dn = get_dn(req)
     target_dn = client_name if client_name else real_dn
 
-    tmp_log.debug(f"Start for DN='{real_dn}' target_dn='{target_dn}' token_key={token_key}")
+    tmp_logger.debug(f"Start for DN='{real_dn}' target_dn='{target_dn}' token_key={token_key}")
 
     # check permission
     global_dispatch_parameter_cache.update()
     real_dn_compact = clean_user_id(real_dn)
     allowed, tmp_msg = validate_user_permissions(real_dn_compact, tokenized=True)
     if not allowed:
-        tmp_log.debug(tmp_msg)
+        tmp_logger.debug(tmp_msg)
         return generate_response(False, tmp_msg)
 
     # check if the token key is valid
@@ -284,7 +296,7 @@ def get_access_token(req: PandaRequest, client_name: str, token_key: str = None)
             or token_key not in global_dispatch_parameter_cache["tokenKeys"][target_dn]["fullList"]
         ):
             tmp_msg = f"failed since token key is invalid for {target_dn}"
-            tmp_log.debug(tmp_msg)
+            tmp_logger.debug(tmp_msg)
             return generate_response(False, tmp_msg)
 
     # remove redundant extensions
@@ -296,11 +308,11 @@ def get_access_token(req: PandaRequest, client_name: str, token_key: str = None)
     # access token not found
     if output is None:
         tmp_msg = f"'token' not found for {target_dn_bare}"
-        tmp_log.debug(tmp_msg)
+        tmp_logger.debug(tmp_msg)
         return generate_response(False, tmp_msg)
 
     data = {"user_proxy": output}
-    tmp_log.debug("Done")
+    tmp_logger.debug("Done")
     return generate_response(True, data=data)
 
 
@@ -311,6 +323,10 @@ def get_token_key(req: PandaRequest, client_name: str) -> dict:
 
     This function retrieves the distinguished name (DN) from the request and uses it to get a token key for the specified client.
 
+    API details:
+        HTTP Method: GET
+        Path: /creds/v1/get_token_key
+
     Args:
         req(PandaRequest): internally generated request object
         client_name (str): The name of the client requesting the token key
@@ -318,8 +334,8 @@ def get_token_key(req: PandaRequest, client_name: str) -> dict:
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the token key. When unsuccessful, the message field contains the error message.
     """
-    tmp_log = LogWrapper(_logger, f"get_token_key client={client_name} PID={os.getpid()}")
-    tmp_log.debug("Start")
+    tmp_logger = LogWrapper(_logger, f"get_token_key client={client_name} PID={os.getpid()}")
+    tmp_logger.debug("Start")
 
     # get DN and clean it
     real_dn = get_dn(req)
@@ -332,38 +348,17 @@ def get_token_key(req: PandaRequest, client_name: str) -> dict:
     if compact_name not in allowed_users:
         # permission denied
         tmp_msg = f"Denied since '{compact_name}' not authorized with 't' in {panda_config.schemaMETA}.USERS.GRIDPREF"
-        tmp_log.debug(tmp_msg)
+        tmp_logger.debug(tmp_msg)
         return generate_response(False, tmp_msg)
 
     # token key is missing
     if client_name not in global_dispatch_parameter_cache["tokenKeys"]:
         tmp_msg = f"Token key is missing for '{client_name}"
-        tmp_log.debug(tmp_msg)
+        tmp_logger.debug(tmp_msg)
         return generate_response(False, tmp_msg)
 
     # send token key
     data = {"tokenKey": global_dispatch_parameter_cache["tokenKeys"][client_name]["latest"]}
-    tmp_log.debug(f"Done getting token key for '{compact_name}'")
+    tmp_logger.debug(f"Done getting token key for '{compact_name}'")
 
     return generate_response(True, data=data)
-
-
-def get_banned_users(req: PandaRequest) -> dict:
-    """
-    Get banned users
-
-    Gets the list of banned users from the system (users with `status=disabled` in ATLAS_PANDAMETA.users).
-
-    Args:
-        req(PandaRequest): internally generated request object
-
-    Returns:
-        dict: The system response `{"success": success, "message": message, "data": data}`.
-              When successful, the data field contains the banned users in the format `{"user1": False, "user2": False}`
-    """
-    tmp_log = LogWrapper(_logger, f"get_banned_users")
-
-    tmp_log.debug("Start")
-    success, users = global_task_buffer.get_ban_users()
-    tmp_log.debug("Done")
-    return generate_response(success, data=users)
