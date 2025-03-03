@@ -28,7 +28,7 @@ from pandaserver.api.v1 import credential_management_api as cred_api_v1
 from pandaserver.api.v1 import harvester_api as harvester_api_v1
 from pandaserver.api.v1 import pilot_api as pilot_api_v1
 from pandaserver.api.v1 import statistics_api as statistics_api_v1
-from pandaserver.api.v1 import sytem_api as system_api_v1
+from pandaserver.api.v1 import system_api as system_api_v1
 from pandaserver.api.v1 import task_api as task_api_v1
 from pandaserver.api.v1.common import extract_allowed_methods
 from pandaserver.config import panda_config
@@ -341,7 +341,7 @@ def module_mapping(version, api_module):
             "harvester": {"module": harvester_api_v1, "allowed_methods": harvester_api_v1_methods},
             "pilot": {"module": pilot_api_v1, "allowed_methods": pilot_api_v1_methods},
             "statistics": {"module": statistics_api_v1, "allowed_methods": statistics_api_v1_methods},
-            "system": {"module": sytem_api_v1, "allowed_methods": system_api_v1_methods},
+            "system": {"module": system_api_v1, "allowed_methods": system_api_v1_methods},
             "task": {"module": task_api_v1, "allowed_methods": task_api_v1_methods},
         },
     }
