@@ -26,6 +26,7 @@ from pandaserver.userinterface import Client
 
 _logger = PandaLogger().getLogger("file_server")
 
+# Skip registration for files with these suffixes
 IGNORED_SUFFIX = [".out"]
 
 # File size limits
