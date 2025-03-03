@@ -513,8 +513,8 @@ def _get_checkpoint_filename(jedi_task_id: str, sub_id: str) -> Dict:
     Get the checkpoint file name.
 
     Args:
-        jedi_task_id (str): task ID.
-        sub_id (str): sub ID.
+        jedi_task_id(string): task ID.
+        sub_id(string): sub ID.
 
     Returns:
         string: checkpoint file name.
@@ -596,8 +596,8 @@ def delete_hpo_checkpoint(req: PandaRequest, jedi_task_id: str, sub_id: str) -> 
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        jedi_task_id(str): JEDI task ID
-        sub_id(str): sub ID.
+        jedi_task_id(string): JEDI task ID
+        sub_id(string): sub ID.
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
@@ -621,7 +621,9 @@ def delete_hpo_checkpoint(req: PandaRequest, jedi_task_id: str, sub_id: str) -> 
 @request_validation(_logger, secure=True, request_method="POST")
 def upload_file_recovery_request(req: PandaRequest, jedi_task_id: int, dry_run: bool = None) -> Dict:
     """
-    Upload lost file recovery request to the server.
+    Upload file recovery request
+
+    Upload request to recover lost files.
 
     API details:
         HTTP Method: POST
@@ -629,11 +631,11 @@ def upload_file_recovery_request(req: PandaRequest, jedi_task_id: int, dry_run: 
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        jedi_task_id (string): JEDI task ID.
-        dry_run (bool): dry run flag.
+        jedi_task_id(int): JEDI task ID.
+        dry_run(bool): dry run flag.
 
     Returns:
-        string: String in json format with (boolean, message)
+        dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
     """
 
     user_name = req.subprocess_env["SSL_CLIENT_S_DN"]
@@ -672,6 +674,8 @@ def upload_workflow_request(req: PandaRequest, data: str, check: bool = False, s
     """
     Upload workflow request to the server.
 
+    Uploads a workflow request to the server. The request can be processed synchronously or asynchronously.
+
     API details:
         HTTP Method: POST
         Path: /file_server/v1/upload_jedi_log
@@ -682,7 +686,9 @@ def upload_workflow_request(req: PandaRequest, data: str, check: bool = False, s
         check(bool): check flag
         sync(bool): requests the workflow to be processed synchronously
     Returns:
-        string: String in json format with (boolean, message)
+        dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
+              When the request asked to process the workflow synchronously or with the check file, the data field will contain the response.
+
     """
 
     user_name = req.subprocess_env["SSL_CLIENT_S_DN"]
@@ -754,28 +760,30 @@ def upload_event_picking_request(
     """
     Upload event picking request to the server.
 
+    Uploads an event picking request to the server.
+
     API details:
         HTTP Method: POST
         Path: /file_server/v1/upload_jedi_log
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        run_event_list(str): run and event list.
-        data_type(str): data type.
-        stream_name(str): stream name.
-        dataset_name(str): dataset name.
-        ami_tag(str): AMI tag.
-        user_dataset_name(str): user dataset name.
-        locked_by(str): locking agent.
-        parameters(str): parameters.
-        input_file_list(str): input file list.
-        n_sites(str): number of sites.
-        user_task_name(str): user task name.
-        ei_api(str): event index API.
+        run_event_list(string): run and event list.
+        data_type(string): data type.
+        stream_name(string): stream name.
+        dataset_name(string): dataset name.
+        ami_tag(string): AMI tag.
+        user_dataset_name(string): user dataset name.
+        locked_by(string): locking agent.
+        parameters(string): parameters.
+        input_file_list(string): input file list.
+        n_sites(string): number of sites.
+        user_task_name(string): user task name.
+        ei_api(string): event index API.
         include_guids(bool): flag to indicate if GUIDs are included with the run-event list
 
     Returns:
-        string: "True" if the upload was successful, otherwise an error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
 
     """
 
