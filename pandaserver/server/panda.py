@@ -25,7 +25,11 @@ from werkzeug.formparser import parse_form_data
 
 import pandaserver.taskbuffer.ErrorCode
 from pandaserver.api.v1 import credential_management_api as cred_api_v1
+from pandaserver.api.v1 import file_server_api as file_server_api_v1
 from pandaserver.api.v1 import harvester_api as harvester_api_v1
+from pandaserver.api.v1 import idds_api as idds_api_v1
+from pandaserver.api.v1 import job_api as job_api_v1
+from pandaserver.api.v1 import metaconfig_api as metaconfig_api_v1
 from pandaserver.api.v1 import pilot_api as pilot_api_v1
 from pandaserver.api.v1 import statistics_api as statistics_api_v1
 from pandaserver.api.v1 import system_api as system_api_v1
@@ -153,7 +157,11 @@ LATEST = "1"
 # generate the allowed methods dynamically with all function names present in the API modules,
 # excluding functions imported from other modules or the init_task_buffer function
 cred_api_v1_methods = extract_allowed_methods(cred_api_v1)
+file_server_api_v1_methods = extract_allowed_methods(file_server_api_v1)
 harvester_api_v1_methods = extract_allowed_methods(harvester_api_v1)
+idds_api_v1_methods = extract_allowed_methods(idds_api_v1)
+job_api_v1_methods = extract_allowed_methods(job_api_v1)
+metaconfig_api_v1_methods = extract_allowed_methods(metaconfig_api_v1)
 pilot_api_v1_methods = extract_allowed_methods(pilot_api_v1)
 statistics_api_v1_methods = extract_allowed_methods(statistics_api_v1)
 system_api_v1_methods = extract_allowed_methods(system_api_v1)
@@ -175,7 +183,11 @@ taskBuffer.init(
 if panda_config.nDBConnection != 0:
     # initialize all the API modules
     cred_api_v1.init_task_buffer(taskBuffer)
+    file_server_api_v1.init_task_buffer(taskBuffer)
     harvester_api_v1.init_task_buffer(taskBuffer)
+    # IDDS API does not need to be initialized. idds_server_api_v1.init_task_buffer(taskBuffer)
+    job_api_v1.init_task_buffer(taskBuffer)
+    metaconfig_api_v1.init_task_buffer(taskBuffer)
     pilot_api_v1.init_task_buffer(taskBuffer)
     statistics_api_v1.init_task_buffer(taskBuffer)
     # System API does not need to be initialized. system_api_v1.init_task_buffer(taskBuffer)
@@ -338,7 +350,11 @@ def module_mapping(version, api_module):
         "v0": {"panda": {"module": None, "allowed_methods": allowed_methods}},  # legacy API uses globals instead of a particular module
         "v1": {
             "creds": {"module": cred_api_v1, "allowed_methods": cred_api_v1_methods},
+            "file_server": {"module": file_server_api_v1, "allowed_methods": file_server_api_v1_methods},
             "harvester": {"module": harvester_api_v1, "allowed_methods": harvester_api_v1_methods},
+            "idds": {"module": idds_api_v1, "allowed_methods": idds_api_v1_methods},
+            "job": {"module": job_api_v1, "allowed_methods": job_api_v1_methods},
+            "metaconfig": {"module": metaconfig_api_v1, "allowed_methods": metaconfig_api_v1_methods},
             "pilot": {"module": pilot_api_v1, "allowed_methods": pilot_api_v1_methods},
             "statistics": {"module": statistics_api_v1, "allowed_methods": statistics_api_v1_methods},
             "system": {"module": system_api_v1, "allowed_methods": system_api_v1_methods},
