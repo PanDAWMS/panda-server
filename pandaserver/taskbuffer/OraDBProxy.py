@@ -2,6 +2,7 @@
 proxy for database connection
 
 """
+
 import atexit
 import copy
 import datetime
@@ -21415,7 +21416,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         comment = " /* DBProxy.get_events_status */"
         methodName = comment.split(" ")[-2].split(".")[-1]
         tmpLog = LogWrapper(_logger, methodName)
-        tmpLog.debug("start")
+        tmpLog.debug("Start")
         try:
             ids = json.loads(ids)
             # sql to get event stats
