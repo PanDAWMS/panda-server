@@ -51,7 +51,7 @@ def get_banned_users(req: PandaRequest) -> dict:
 
 
 @request_validation(_logger, secure=False, request_method="GET")
-def get_site_specs(req: PandaRequest, site_type: str = "analysis") -> dict:
+def get_site_specs(req: PandaRequest, type: str = "analysis") -> dict:
     """
     Get site specs
 
@@ -63,7 +63,7 @@ def get_site_specs(req: PandaRequest, site_type: str = "analysis") -> dict:
 
     Args:
         req(PandaRequest): internally generated request object
-        site_type(str): type of site as defined in CRIC (currently `unified`, `production`, `analysis`, `all`)
+        type(str): type of site as defined in CRIC (currently `unified`, `production`, `analysis`, `all`)
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
@@ -80,7 +80,7 @@ def get_site_specs(req: PandaRequest, site_type: str = "analysis") -> dict:
     excluded_attrs = {"ddm_endpoints_input", "ddm_endpoints_output", "ddm_input", "ddm_output", "setokens_input", "num_slots_map"}
 
     for site_id, site_spec in site_mapper.site_specs.items():
-        if site_type == "all" or site_spec.type == site_type:
+        if type == "all" or site_spec.type == type:
             # Convert site_spec attributes to a dictionary, excluding specific attributes
             site_specs[site_id] = {attr: value for attr, value in vars(site_spec).items() if attr not in excluded_attrs}
 
