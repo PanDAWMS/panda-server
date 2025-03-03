@@ -103,7 +103,8 @@ def get_resource_types(req: PandaRequest):
         req(PandaRequest): Internally generated request object containing the environment variables.
 
     Returns:
-        dict: The resource types and their definitions.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+              When successful, the data field contains a list of resource types.
     """
 
     tmp_logger = LogWrapper(_logger, f"get_resource_types")

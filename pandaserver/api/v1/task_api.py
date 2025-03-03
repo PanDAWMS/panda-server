@@ -605,9 +605,37 @@ def enable_jumbo_jobs(req: PandaRequest, jedi_task_id: int, jumbo_jobs_total: in
 
     success = code == 0
 
-    tmp_logger.debug("Start")
-
+    tmp_logger.debug("Done")
     return generate_response(success, message, code)
+
+
+@request_validation(_logger, request_method="GET")
+def get_jumbo_job_datasets(req: PandaRequest, from_offset: int, to_offset: int = 0) -> Dict:
+    """
+    Get jumbo job datasets
+
+    Gets a map of the jumbo-job-enabled tasks to their datasets, filtering by the last modification time (now - from_offset to now - to_offset).
+
+    API details:
+        HTTP Method: GET
+        Path: /task/v1/get_jumbo_job_datasets
+
+    Args:
+        req(PandaRequest): internally generated request object
+        from_offset(int): `now - from_offset` in days will serve as the floor for modification time (Previously called n_days)
+        to_offset(int, optional): `now - to_offset` in days will serve as the ceiling for modification time. Defaults to 0. (Previously called grace_period)
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+              When successful, the data field contains the dictionary of JEDI task IDs to datasets.
+    """
+    tmp_logger = LogWrapper(_logger, f"get_jumbo_job_datasets")
+
+    tmp_logger.debug("Start")
+    jumbo_datasets = global_task_buffer.getJumboJobDatasets(from_offset, to_offset)
+    tmp_logger.debug("Done")
+
+    return generate_response(True, data=jumbo_datasets)
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
