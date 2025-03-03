@@ -346,3 +346,24 @@ def get_token_key(req: PandaRequest, client_name: str) -> dict:
     tmp_log.debug(f"Done getting token key for '{compact_name}'")
 
     return generate_response(True, data=data)
+
+
+def get_banned_users(req: PandaRequest) -> dict:
+    """
+    Get banned users
+
+    Gets the list of banned users from the system (users with `status=disabled` in ATLAS_PANDAMETA.users).
+
+    Args:
+        req(PandaRequest): internally generated request object
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+              When successful, the data field contains the banned users in the format `{"user1": False, "user2": False}`
+    """
+    tmp_log = LogWrapper(_logger, f"get_banned_users")
+
+    tmp_log.debug("Start")
+    success, users = global_task_buffer.get_ban_users()
+    tmp_log.debug("Done")
+    return generate_response(success, data=users)
