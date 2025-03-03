@@ -6,6 +6,7 @@ from pandaserver.api.v1.common import (
     generate_response,
     request_validation,
 )
+from pandaserver.brokerage import SiteMapper
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
