@@ -64,6 +64,8 @@ class BaseModule:
         self.backend = panda_config.backend
         # host name
         self.hostname = None
+        # composite modules
+        self.composite_modules = {}
 
     # abstract method to commit
     def connect(self, **kwargs):
@@ -172,6 +174,14 @@ class BaseModule:
             pass
         # return
         return return_value
+
+    # add composite module
+    def add_composite_module(self, module_name, module):
+        self.composite_modules[module_name] = module
+
+    # get composite module
+    def get_composite_module(self, module_name):
+        return self.composite_modules.get(module_name, None)
 
     # dump error message
     def dump_error_message(self, tmp_log: LogWrapper):

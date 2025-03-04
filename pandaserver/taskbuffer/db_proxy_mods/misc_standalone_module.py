@@ -6,7 +6,6 @@ import os
 import random
 import re
 import time
-import uuid
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 
@@ -18,7 +17,6 @@ from pandaserver.taskbuffer.db_proxy_mods.base_module import (
     BaseModule,
     SQL_QUEUE_TOPIC_async_dataset_update,
     memoize,
-    varNUMBER,
 )
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
@@ -2676,126 +2674,6 @@ class MiscStandaloneModule(BaseModule):
             # error
             self.dump_error_message(tmp_log)
             return None
-
-    # make fake co-jumbo
-    def makeFakeCoJumbo(self, oldJobSpec):
-        comment = " /* DBProxy.self.makeFakeCoJumbo */"
-        tmp_log = self.create_tagged_logger(comment, f"PandaID={oldJobSpec.PandaID}")
-        tmp_log.debug("start")
-        try:
-            # make a new job
-            jobSpec = copy.copy(oldJobSpec)
-            jobSpec.Files = []
-            # reset job attributes
-            jobSpec.startTime = None
-            jobSpec.creationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-            jobSpec.modificationTime = jobSpec.creationTime
-            jobSpec.stateChangeTime = jobSpec.creationTime
-            jobSpec.batchID = None
-            jobSpec.schedulerID = None
-            jobSpec.pilotID = None
-            jobSpec.endTime = None
-            jobSpec.transExitCode = None
-            jobSpec.jobMetrics = None
-            jobSpec.jobSubStatus = None
-            jobSpec.actualCoreCount = None
-            jobSpec.hs06sec = None
-            jobSpec.nEvents = None
-            jobSpec.cpuConsumptionTime = None
-            jobSpec.computingSite = EventServiceUtils.siteIdForWaitingCoJumboJobs
-            jobSpec.jobExecutionID = 0
-            jobSpec.jobStatus = "waiting"
-            jobSpec.jobSubStatus = None
-            for attr in jobSpec._attributes:
-                for patt in [
-                    "ErrorCode",
-                    "ErrorDiag",
-                    "CHAR",
-                    "BYTES",
-                    "RSS",
-                    "PSS",
-                    "VMEM",
-                    "SWAP",
-                ]:
-                    if attr.endswith(patt):
-                        setattr(jobSpec, attr, None)
-                        break
-            # read files
-            varMap = {}
-            varMap[":PandaID"] = oldJobSpec.PandaID
-            sqlFile = f"SELECT {FileSpec.columnNames()} FROM ATLAS_PANDA.filesTable4 "
-            sqlFile += "WHERE PandaID=:PandaID "
-            self.cur.arraysize = 100000
-            self.cur.execute(sqlFile + comment, varMap)
-            resFs = self.cur.fetchall()
-            # loop over all files
-            for resF in resFs:
-                # add
-                fileSpec = FileSpec()
-                fileSpec.pack(resF)
-                # skip zip
-                if fileSpec.type.startswith("zip"):
-                    continue
-                jobSpec.addFile(fileSpec)
-                # reset file status
-                if fileSpec.type in ["output", "log"]:
-                    fileSpec.status = "unknown"
-            # read job parameters
-            sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID "
-            varMap = {}
-            varMap[":PandaID"] = oldJobSpec.PandaID
-            self.cur.execute(sqlJobP + comment, varMap)
-            for (clobJobP,) in self.cur:
-                try:
-                    jobSpec.jobParameters = clobJobP.read()
-                except AttributeError:
-                    jobSpec.jobParameters = str(clobJobP)
-                break
-            # insert job with new PandaID
-            sql1 = f"INSERT INTO ATLAS_PANDA.jobsDefined4 ({JobSpec.columnNames()}) "
-            sql1 += JobSpec.bindValuesExpression(useSeq=True)
-            sql1 += " RETURNING PandaID INTO :newPandaID"
-            varMap = jobSpec.valuesMap(useSeq=True)
-            varMap[":newPandaID"] = self.cur.var(varNUMBER)
-            # insert
-            retI = self.cur.execute(sql1 + comment, varMap)
-            # set PandaID
-            val = self.getvalue_corrector(self.cur.getvalue(varMap[":newPandaID"]))
-            jobSpec.PandaID = int(val)
-            msgStr = f"Generate a fake co-jumbo new PandaID={jobSpec.PandaID} at {jobSpec.computingSite} "
-            tmp_log.debug(msgStr)
-            # insert files
-            sqlFile = f"INSERT INTO ATLAS_PANDA.filesTable4 ({FileSpec.columnNames()}) "
-            sqlFile += FileSpec.bindValuesExpression(useSeq=True)
-            sqlFile += " RETURNING row_ID INTO :newRowID"
-            for fileSpec in jobSpec.Files:
-                # reset rowID
-                fileSpec.row_ID = None
-                # change GUID and LFN for log
-                if fileSpec.type == "log":
-                    fileSpec.GUID = str(uuid.uuid4())
-                    fileSpec.lfn = re.sub(f"\\.{oldJobSpec.PandaID}$", "", fileSpec.lfn)
-                # insert
-                varMap = fileSpec.valuesMap(useSeq=True)
-                varMap[":newRowID"] = self.cur.var(varNUMBER)
-                self.cur.execute(sqlFile + comment, varMap)
-                val = self.getvalue_corrector(self.cur.getvalue(varMap[":newRowID"]))
-                fileSpec.row_ID = int(val)
-            # insert job parameters
-            sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param) "
-            varMap = {}
-            varMap[":PandaID"] = jobSpec.PandaID
-            varMap[":param"] = jobSpec.jobParameters
-            self.cur.execute(sqlJob + comment, varMap)
-            self.recordStatusChange(jobSpec.PandaID, jobSpec.jobStatus, jobInfo=jobSpec, useCommit=False)
-            self.push_job_status_message(jobSpec, jobSpec.PandaID, jobSpec.jobStatus)
-            # return
-            tmp_log.debug("done")
-            return 1
-        except Exception:
-            # error
-            self.dump_error_message(tmp_log)
-            return 0
 
     # get JEDI file attributes
     def getJediFileAttributes(self, PandaID, jediTaskID, datasetID, fileID, attrs):

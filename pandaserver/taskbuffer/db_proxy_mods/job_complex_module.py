@@ -17,21 +17,21 @@ from pandaserver.taskbuffer import (
     PrioUtil,
     SupErrors,
 )
-from pandaserver.taskbuffer.db_proxy_mods import (
-    metrics_module,
-    task_event_module,
-    worker_module,
-)
 from pandaserver.taskbuffer.db_proxy_mods.base_module import (
+    BaseModule,
     SQL_QUEUE_TOPIC_async_dataset_update,
     varNUMBER,
 )
+from pandaserver.taskbuffer.db_proxy_mods.entity_module import get_entity_module
+from pandaserver.taskbuffer.db_proxy_mods.metrics_module import get_metrics_module
+from pandaserver.taskbuffer.db_proxy_mods.task_event_module import get_task_event_module
+from pandaserver.taskbuffer.db_proxy_mods.worker_module import get_worker_module
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec, get_task_queued_time
 
 
 # Module class to define job-related methods that use another module's methods or serve as their dependencies
-class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEventModule, worker_module.WorkerModule):
+class JobComplexModule(BaseModule):
     # constructor
     def __init__(self, log_stream: LogWrapper):
         super().__init__(log_stream)
@@ -300,7 +300,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                             and hasattr(panda_config, "useJEDI")
                             and panda_config.useJEDI is True
                             and lockedby == "jedi"
-                            and self.checkTaskStatusJEDI(jediTaskID, self.cur)
+                            and get_task_event_module(self).checkTaskStatusJEDI(jediTaskID, self.cur)
                         ):
                             # SQL to get file list from Panda
                             sqlJediFP = "SELECT datasetID,fileID,attemptNr FROM ATLAS_PANDA.filesTable4 "
@@ -394,12 +394,12 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                                 tmp_log.debug("skip to update lastStart")
                             # record queuing period
                             if jediTaskID and get_task_queued_time(specialHandling):
-                                tmp_success = self.record_job_queuing_period(pandaID)
+                                tmp_success = get_metrics_module(self).record_job_queuing_period(pandaID)
                                 if tmp_success is True:
                                     tmp_log.debug("recorded queuing period")
                         # update input
                         if updatedFlag and jediTaskID is not None and jobStatus == "running" and oldJobStatus != jobStatus:
-                            self.updateInputStatusJedi(jediTaskID, pandaID, jobStatus)
+                            get_task_event_module(self).updateInputStatusJedi(jediTaskID, pandaID, jobStatus)
                         # register corrupted zip files
                         if updatedFlag and "corruptedFiles" in param and eventService == EventServiceUtils.esMergeJobFlagNumber:
                             # get exiting files
@@ -553,7 +553,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                         and hasattr(panda_config, "useJEDI")
                         and panda_config.useJEDI is True
                         and job.lockedby == "jedi"
-                        and self.checkTaskStatusJEDI(job.jediTaskID, self.cur)
+                        and get_task_event_module(self).checkTaskStatusJEDI(job.jediTaskID, self.cur)
                     ):
                         useJEDI = True
                     # SQL to check JEDI files
@@ -706,7 +706,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                     updatedFlag = True
                     # update input
                     if useJEDI and job.jobStatus in ["transferring"]:
-                        self.updateInputStatusJedi(job.jediTaskID, job.PandaID, job.jobStatus)
+                        get_task_event_module(self).updateInputStatusJedi(job.jediTaskID, job.PandaID, job.jobStatus)
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
@@ -779,7 +779,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                     disabledFlag = False
                 if not self._commit():
                     raise RuntimeError("Commit error")
-                if jediTaskID is not None or not self.isApplicableTaskForJumbo(tmpJediTaskID) or disabledFlag:
+                if jediTaskID is not None or not get_task_event_module(self).isApplicableTaskForJumbo(tmpJediTaskID) or disabledFlag:
                     for pandaID in pandaIDs:
                         self.killJob(pandaID, "", "55", True)
                     tmp_log.debug(f"killed {len(pandaIDs)} jobs for jediTaskID={tmpJediTaskID}")
@@ -1081,7 +1081,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                     hasattr(panda_config, "useJEDI")
                     and panda_config.useJEDI is True
                     and job.lockedby == "jedi"
-                    and self.checkTaskStatusJEDI(job.jediTaskID, self.cur)
+                    and get_task_event_module(self).checkTaskStatusJEDI(job.jediTaskID, self.cur)
                 ):
                     # read files
                     varMap = {}
@@ -1101,19 +1101,19 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                     ]:
                         # kill associated consumers for event service
                         if useEventService:
-                            self.killEventServiceConsumers(job, True, False)
+                            get_task_event_module(self).killEventServiceConsumers(job, True, False)
                             if job.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs:
-                                self.killUnusedEventServiceConsumers(job, False, killAll=True, checkAttemptNr=True)
-                            self.updateRelatedEventServiceJobs(job, True)
+                                get_task_event_module(self).killUnusedEventServiceConsumers(job, False, killAll=True, checkAttemptNr=True)
+                            get_task_event_module(self).updateRelatedEventServiceJobs(job, True)
                             if not job.notDiscardEvents():
-                                self.killUnusedEventRanges(job.jediTaskID, job.jobsetID)
+                                get_task_event_module(self).killUnusedEventRanges(job.jediTaskID, job.jobsetID)
                             if eventService == EventServiceUtils.jumboJobFlagNumber:
-                                self.hasDoneEvents(job.jediTaskID, job.PandaID, job, False)
+                                get_task_event_module(self).hasDoneEvents(job.jediTaskID, job.PandaID, job, False)
                         elif useEventServiceMerge:
-                            self.updateRelatedEventServiceJobs(job, True)
+                            get_task_event_module(self).updateRelatedEventServiceJobs(job, True)
                     # disable reattempt
                     if job.processingType == "pmerge" and "keepUnmerged" not in killOpts and code != "51":
-                        self.disableFurtherReattempt(job)
+                        get_task_event_module(self).disableFurtherReattempt(job)
                     # update JEDI
                     self.propagateResultToJEDI(job, self.cur, oldJobStatus)
                 break
@@ -1264,7 +1264,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                     hasattr(panda_config, "useJEDI")
                     and panda_config.useJEDI is True
                     and job.lockedby == "jedi"
-                    and self.checkTaskStatusJEDI(job.jediTaskID, self.cur)
+                    and get_task_event_module(self).checkTaskStatusJEDI(job.jediTaskID, self.cur)
                 ):
                     useJEDI = True
                 if useCommit:
@@ -1462,7 +1462,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                     res0 = self.cur.fetchone()
                 # check input status for ES merge
                 if useJEDI and EventServiceUtils.isEventServiceMerge(job) and job.jobStatus == "finished":
-                    retInputStat = self.checkInputFileStatusInJEDI(job, useCommit=False, withLock=True)
+                    retInputStat = get_task_event_module(self).checkInputFileStatusInJEDI(job, useCommit=False, withLock=True)
                     tmp_log.debug(f"checkInput for ES merge -> {retInputStat}")
                     if retInputStat is None:
                         raise RuntimeError(f"archiveJob : {job.PandaID} failed to check input")
@@ -1477,14 +1477,14 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                 # actions for jobs without tasks
                 if not useJEDI:
                     # update HS06sec for non-JEDI jobs (e.g. HC)
-                    hs06sec = self.setHS06sec(job.PandaID, inActive=True)
+                    hs06sec = get_entity_module(self).setHS06sec(job.PandaID, inActive=True)
                     tmp_log.debug(f"calculated hs06sec {hs06sec}")
                     if hs06sec is not None:
                         job.hs06sec = hs06sec
 
                     # update the g of CO2 emitted by the job
                     try:
-                        gco2_regional, gco2_global = self.set_co2_emissions(job.PandaID, in_active=True)
+                        gco2_regional, gco2_global = get_entity_module(self).set_co2_emissions(job.PandaID, in_active=True)
                         tmp_log.debug(f"calculated gCO2 regional {gco2_regional} and global {gco2_global}")
                         if gco2_regional is not None:
                             job.gco2_regional = gco2_regional
@@ -1496,13 +1496,13 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                 # actions for successful normal ES jobs
                 if useJEDI and EventServiceUtils.isEventServiceJob(job) and not EventServiceUtils.isJobCloningJob(job):
                     # update some job attributes
-                    hs06sec = self.setHS06sec(job.PandaID, inActive=True)
+                    hs06sec = get_entity_module(self).setHS06sec(job.PandaID, inActive=True)
                     if hs06sec is not None:
                         job.hs06sec = hs06sec
 
                     # update the g of CO2 emitted by the job
                     try:
-                        gco2_regional, gco2_global = self.set_co2_emissions(job.PandaID, in_active=True)
+                        gco2_regional, gco2_global = get_entity_module(self).set_co2_emissions(job.PandaID, in_active=True)
                         tmp_log.debug(f"calculated gCO2 regional {gco2_regional} and global {gco2_global}")
                         if gco2_regional is not None:
                             job.gco2_regional = gco2_regional
@@ -1536,15 +1536,15 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceMerge
                         job.taskBufferErrorDiag = f"closed to merge pre-merged files in PandaID={retNewPandaID}"
                         # kill unused event service consumers
-                        self.killUnusedEventServiceConsumers(job, False, killAll=True)
+                        get_task_event_module(self).killUnusedEventServiceConsumers(job, False, killAll=True)
                     elif retEvS == 3:
                         # maximum attempts reached
                         job.jobStatus = "failed"
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceMaxAttempt
                         job.taskBufferErrorDiag = "maximum event attempts reached"
                         # kill other consumers
-                        self.killEventServiceConsumers(job, False, False)
-                        self.killUnusedEventServiceConsumers(job, False, killAll=True, checkAttemptNr=True)
+                        get_task_event_module(self).killEventServiceConsumers(job, False, False)
+                        get_task_event_module(self).killUnusedEventServiceConsumers(job, False, killAll=True, checkAttemptNr=True)
                     elif retEvS == 4:
                         # other consumers are running
                         job.jobStatus = "merging"
@@ -1596,7 +1596,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                         tmp_log.debug(f"useJumbo={useJumbo}")
                         # no new jobs
                         if retNewPandaID is None and (retEvS != 4 or EventServiceUtils.isCoJumboJob(job) or useJumbo is not None):
-                            nActiveConsumers = self.getActiveConsumers(job.jediTaskID, job.jobsetID, job.PandaID)
+                            nActiveConsumers = get_task_event_module(self).getActiveConsumers(job.jediTaskID, job.jobsetID, job.PandaID)
                             # create a fake cojumbo
                             if (
                                 nActiveConsumers == 0
@@ -1604,7 +1604,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                                 and (EventServiceUtils.isCoJumboJob(job) or useJumbo is not None)
                                 and job.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs
                             ):
-                                nActiveConsumers = self.makeFakeCoJumbo(job)
+                                nActiveConsumers = get_task_event_module(self).makeFakeCoJumbo(job)
                             # no ES queues for retry
                             if nActiveConsumers == 0:
                                 job.jobStatus = "failed"
@@ -1614,8 +1614,8 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                     # kill unused event ranges
                     if job.jobStatus == "failed":
                         if not job.notDiscardEvents():
-                            self.killUnusedEventRanges(job.jediTaskID, job.jobsetID)
-                        self.updateRelatedEventServiceJobs(job, True)
+                            get_task_event_module(self).killUnusedEventRanges(job.jediTaskID, job.jobsetID)
+                        get_task_event_module(self).updateRelatedEventServiceJobs(job, True)
                 elif useJEDI and EventServiceUtils.isEventServiceJob(job) and EventServiceUtils.isJobCloningJob(job):
                     # check for cloned jobs
                     retJC = self.checkClonedJob(job, False)
@@ -1624,8 +1624,8 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                         raise RuntimeError("Failed to take post-action for cloned job")
                     elif retJC["lock"] is True:
                         # kill other clones if the job done after locking semaphore
-                        self.killEventServiceConsumers(job, False, False)
-                        self.killUnusedEventServiceConsumers(job, False, killAll=True)
+                        get_task_event_module(self).killEventServiceConsumers(job, False, False)
+                        get_task_event_module(self).killUnusedEventServiceConsumers(job, False, killAll=True)
                     else:
                         # failed to lock semaphore
                         if retJC["last"] is False:
@@ -1650,7 +1650,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                         job.jobSubStatus = "fg_stumble"
                 # release unprocessed samples for HPO
                 if job.is_hpo_workflow():
-                    self.release_unprocessed_events(job.jediTaskID, job.PandaID)
+                    get_task_event_module(self).release_unprocessed_events(job.jediTaskID, job.PandaID)
                 # delete from jobsDefined/Active
                 varMap = {}
                 varMap[":PandaID"] = job.PandaID
@@ -1751,9 +1751,9 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                         and not job.isCancelled()
                     ):
                         if job.jobStatus == "failed":
-                            self.updateRelatedEventServiceJobs(job, True)
+                            get_task_event_module(self).updateRelatedEventServiceJobs(job, True)
                         else:
-                            self.updateRelatedEventServiceJobs(job)
+                            get_task_event_module(self).updateRelatedEventServiceJobs(job)
                 # propagate successful result to unmerge job
                 if useJEDI and job.processingType == "pmerge" and job.jobStatus == "finished":
                     self.updateUnmergedJobs(job, async_params=async_params)
@@ -2183,7 +2183,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
         is_push_queue = False
         average_memory_target = None
         average_memory_limit = None
-        pq_data_des = self.get_config_for_pq(siteName)
+        pq_data_des = get_entity_module(self).get_config_for_pq(siteName)
         if not pq_data_des:
             tmp_log.debug("Error retrieving queue configuration from DB, limits can not be applied")
         else:
@@ -2222,7 +2222,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
         )
 
         # get the sorting criteria (global shares, age, etc.)
-        sorting_sql, sorting_varmap = self.getSortingCriteria(siteName, maxAttemptIDx)
+        sorting_sql, sorting_varmap = get_entity_module(self).getSortingCriteria(siteName, maxAttemptIDx)
         if sorting_varmap:  # copy the var map, but not the sql, since it has to be at the very end
             for tmp_key in sorting_varmap:
                 getValMap[tmp_key] = sorting_varmap[tmp_key]
@@ -2353,7 +2353,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                                     # insert job and worker mapping
                                     if harvester_id is not None and worker_id is not None:
                                         # insert worker if missing
-                                        self.updateWorkers(
+                                        get_worker_module(self).updateWorkers(
                                             harvester_id,
                                             [
                                                 {
@@ -2533,7 +2533,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                                 zipRow_ID,
                                 pathConvention,
                             ) in resRR:
-                                tmpEventRangeID = self.makeEventRangeID(
+                                tmpEventRangeID = get_task_event_module(self).makeEventRangeID(
                                     file.jediTaskID,
                                     esPandaID,
                                     file.fileID,
@@ -2916,12 +2916,12 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
 
         # obtain the share and resource type
         if job.gshare in ("NULL", None, ""):
-            job.gshare = self.get_share_for_job(job)
+            job.gshare = get_entity_module(self).get_share_for_job(job)
         tmp_log.debug(f"resource_type is set to {job.resource_type}")
         tmp_log.debug(f"jediTaskID={job.jediTaskID} SH={origSpecialHandling} origEsJob={origEsJob} eInfo={eventServiceInfo}")
         if job.resource_type in ("NULL", None, ""):
             try:
-                job.resource_type = self.get_resource_type_job(job)
+                job.resource_type = get_entity_module(self).get_resource_type_job(job)
                 tmp_log.debug(f"reset resource_type to {job.resource_type}")
             except Exception:
                 job.resource_type = "Undefined"
@@ -3024,7 +3024,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
 
             # failed related ES jobs
             if origEsJob and eventServiceInfo is not None and not job.notDiscardEvents():
-                self.updateRelatedEventServiceJobs(job, killEvents=False, forceFailed=True)
+                get_task_event_module(self).updateRelatedEventServiceJobs(job, killEvents=False, forceFailed=True)
             for file in job.Files:
                 file.row_ID = None
                 if file.status not in ["ready", "cached"]:
@@ -3278,7 +3278,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                     if minUnprocessed is not None:
                         minUnprocessed = max(minUnprocessed, job.coreCount)
                         if unprocessedMap[job.jobsetID] < minUnprocessed and unprocessedMap[job.jobsetID] > 0:
-                            self.setScoreSiteToEs(job, f"insertNewJob : {job.PandaID}", comment)
+                            get_task_event_module(self).setScoreSiteToEs(job, f"insertNewJob : {job.PandaID}", comment)
             # bulk insert files
             if len(varMapsForFile) > 0:
                 tmp_log.debug(f"{job.PandaID} bulk insert {len(varMapsForFile)} files for jediTaskID:{job.jediTaskID}")
@@ -3383,7 +3383,9 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                 and job.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs
                 and not (EventServiceUtils.isEventServiceJob(job) and not origEsJob)
             ):
-                self.updateInputStatusJedi(job.jediTaskID, job.PandaID, "queued", no_late_bulk_exec=no_late_bulk_exec, extracted_sqls=extracted_sqls)
+                get_task_event_module(self).updateInputStatusJedi(
+                    job.jediTaskID, job.PandaID, "queued", no_late_bulk_exec=no_late_bulk_exec, extracted_sqls=extracted_sqls
+                )
             # record retry history
             if oldPandaIDs is not None and len(oldPandaIDs) > 0:
                 tmp_log.debug(f"{job.PandaID} recording history nOld={len(oldPandaIDs)} jediTaskID:{job.jediTaskID}")
@@ -3781,7 +3783,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                     hasattr(panda_config, "useJEDI")
                     and panda_config.useJEDI is True
                     and job.lockedby == "jedi"
-                    and self.checkTaskStatusJEDI(job.jediTaskID, self.cur)
+                    and get_task_event_module(self).checkTaskStatusJEDI(job.jediTaskID, self.cur)
                 ):
                     useJEDI = True
                 # check pilot retry
@@ -3953,7 +3955,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                                     self.cur.execute(sqlFup + comment, varMap)
                         # set site to ES merger job
                         if recoverableEsMerge and EventServiceUtils.isEventServiceMerge(job):
-                            self.setSiteForEsMerge(job, False, comment, comment)
+                            get_task_event_module(self).setSiteForEsMerge(job, False, comment, comment)
                         if not changeJobInMem:
                             # reuse original PandaID
                             if not getNewPandaID:
@@ -4073,7 +4075,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
         tmp_log.debug(f"waitLock={waitLock} async_params={async_params}")
         # make pseudo files for dynamic number of events
         if EventServiceUtils.isDynNumEventsSH(jobSpec.specialHandling):
-            pseudoFiles = self.create_pseudo_files_for_dyn_num_events(jobSpec, tmp_log)
+            pseudoFiles = get_task_event_module(self).create_pseudo_files_for_dyn_num_events(jobSpec, tmp_log)
         else:
             pseudoFiles = []
         # flag for job cloning
@@ -4510,9 +4512,9 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                         toSet = True
                         if jobSpec.pilotErrorCode in EventServiceUtils.PEC_corruptedInputFilesTmp:
                             # check failure count for temporary errors
-                            toSet = self.checkFailureCountWithCorruptedFiles(jobSpec.jediTaskID, jobSpec.PandaID)
+                            toSet = get_metrics_module(self).checkFailureCountWithCorruptedFiles(jobSpec.jediTaskID, jobSpec.PandaID)
                         if toSet:
-                            self.setCorruptedEventRanges(jobSpec.jediTaskID, jobSpec.PandaID)
+                            get_task_event_module(self).setCorruptedEventRanges(jobSpec.jediTaskID, jobSpec.PandaID)
         # update task queued time
         if trigger_reattempt and get_task_queued_time(jobSpec.specialHandling):
             sql_update_tq = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks SET queuedTime=CURRENT_DATE WHERE jediTaskID=:jediTaskID AND queuedTime IS NULL "
@@ -4582,7 +4584,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
             and not (jobSpec.computingSite == EventServiceUtils.siteIdForWaitingCoJumboJobs and not jobSpec.isCancelled())
             and jobSpec.taskBufferErrorCode not in [ErrorCode.EC_PilotRetried]
         ):
-            self.updateInputStatusJedi(jobSpec.jediTaskID, jobSpec.PandaID, jobSpec.jobStatus)
+            get_task_event_module(self).updateInputStatusJedi(jobSpec.jediTaskID, jobSpec.PandaID, jobSpec.jobStatus)
         # update t_task
         if jobSpec.jobStatus == "finished" and jobSpec.prodSourceLabel not in ["panda"]:
             varMap = {}
@@ -4623,11 +4625,11 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
         if len(finishUnmerge) > 0:
             self.updateUnmergedJobs(jobSpec, finishUnmerge, async_params=async_params)
         # update some job attributes
-        self.setHS06sec(jobSpec.PandaID)
+        get_entity_module(self).setHS06sec(jobSpec.PandaID)
 
         # update the g of CO2 emitted by the job
         try:
-            gco2_regional, gco2_global = self.set_co2_emissions(jobSpec.PandaID)
+            gco2_regional, gco2_global = get_entity_module(self).set_co2_emissions(jobSpec.PandaID)
             tmp_log.debug(f"calculated gCO2 regional {gco2_regional} and global {gco2_global}")
         except Exception:
             tmp_log.error(f"failed calculating gCO2 with {traceback.format_exc()}")
@@ -4635,9 +4637,9 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
         # task and job metrics
         if get_task_queued_time(jobSpec.specialHandling):
             # update task queued time
-            self.update_task_queued_activated_times(jobSpec.jediTaskID)
+            get_metrics_module(self).update_task_queued_activated_times(jobSpec.jediTaskID)
             # record job queuing time if the job didn't start running
-            self.record_job_queuing_period(jobSpec.PandaID, jobSpec)
+            get_metrics_module(self).record_job_queuing_period(jobSpec.PandaID, jobSpec)
 
         # return
         return True
@@ -4687,7 +4689,12 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                 pPandaIDs.append(pandaID)
             # check if JEDI is used
             useJEDI = False
-            if hasattr(panda_config, "useJEDI") and panda_config.useJEDI is True and lockedBy == "jedi" and self.checkTaskStatusJEDI(jediTaskID, self.cur):
+            if (
+                hasattr(panda_config, "useJEDI")
+                and panda_config.useJEDI is True
+                and lockedBy == "jedi"
+                and get_task_event_module(self).checkTaskStatusJEDI(jediTaskID, self.cur)
+            ):
                 useJEDI = True
             # loop over all PandaIDs
             for pandaID in pPandaIDs:
@@ -4822,13 +4829,13 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
-                self.__reload_shares()
+                get_entity_module(self).reload_shares()
 
                 # create map
                 share_label_map = dict()
                 for computing_site, job_status, gshare, resource_type, n_jobs in res:
                     if gshare not in share_label_map:
-                        for share in self.leave_shares:
+                        for share in get_entity_module(self).leave_shares:
                             if gshare == share.name:
                                 prod_source_label = share.prodsourcelabel
                                 if "|" in prod_source_label:
@@ -4918,7 +4925,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                 hasattr(panda_config, "useJEDI")
                 and panda_config.useJEDI is True
                 and jobSpec.lockedby == "jedi"
-                and self.checkTaskStatusJEDI(jobSpec.jediTaskID, self.cur)
+                and get_task_event_module(self).checkTaskStatusJEDI(jobSpec.jediTaskID, self.cur)
             ):
                 pass
             else:
@@ -5408,7 +5415,7 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                     if tmpState not in ["online", "brokeroff"] or tmpJobSeed == "std":
                         noNewJob = True
                 if jobSpec.coreCount > 1 and minUnprocessed is not None and minUnprocessed > nRow:
-                    self.setScoreSiteToEs(jobSpec, comment, comment)
+                    get_task_event_module(self).setScoreSiteToEs(jobSpec, comment, comment)
                 # not to repeat useless consumers
                 if currentJobStatus in ["defined", "pending"]:
                     noNewJob = True
@@ -5478,12 +5485,12 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
                 # change special handling and set the share to express for merge jobs
                 EventServiceUtils.setEventServiceMerge(jobSpec)
                 # set site
-                self.setSiteForEsMerge(jobSpec, isFakeCJ, comment, comment)
+                get_task_event_module(self).setSiteForEsMerge(jobSpec, isFakeCJ, comment, comment)
                 jobSpec.coreCount = None
                 jobSpec.minRamCount = 2000
 
             # reset resource type
-            jobSpec.resource_type = self.get_resource_type_job(jobSpec)
+            jobSpec.resource_type = get_entity_module(self).get_resource_type_job(jobSpec)
 
             # no new job since ES is disabled
             if noNewJob:
@@ -5493,9 +5500,9 @@ class JobComplexModule(metrics_module.MetricsModule, task_event_module.TaskEvent
             else:
                 # update input
                 if doMerging:
-                    self.updateInputStatusJedi(jobSpec.jediTaskID, jobSpec.PandaID, "merging")
+                    get_task_event_module(self).updateInputStatusJedi(jobSpec.jediTaskID, jobSpec.PandaID, "merging")
                 else:
-                    self.updateInputStatusJedi(jobSpec.jediTaskID, jobSpec.PandaID, "queued", checkOthers=True)
+                    get_task_event_module(self).updateInputStatusJedi(jobSpec.jediTaskID, jobSpec.PandaID, "queued", checkOthers=True)
                 # insert job with new PandaID
                 if jobSpec.jobStatus in ["defined", "assigned", "pending", "waiting"]:
                     table_name = "jobsDefined4"

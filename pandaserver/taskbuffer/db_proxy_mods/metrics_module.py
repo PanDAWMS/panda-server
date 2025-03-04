@@ -395,3 +395,8 @@ class MetricsModule(BaseModule):
                 tooMany = True
         tmp_log.debug(f"too many failures : {tooMany}")
         return tooMany
+
+
+# get metrics module
+def get_metrics_module(base_mod) -> MetricsModule:
+    return base_mod.get_composite_module("metrics")

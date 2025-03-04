@@ -41,8 +41,8 @@ class EntityModule(BaseModule):
         self.__t_update_distribution = None  # Timestamp when the HS06s distribution was last updated
 
         # resource type mapper
-        # if you want to use it, you need to call __reload_resource_spec_mapper first
-        self.__resource_spec_mapper = None
+        # if you want to use it, you need to call reload_resource_spec_mapper first
+        self.resource_spec_mapper = None
         self.__t_update_resource_type_mapper = None
 
         # priority boost
@@ -158,11 +158,11 @@ class EntityModule(BaseModule):
         tmp_log.debug("done")
         return resList
 
-    def __reload_shares(self, force=False):
+    def reload_shares(self, force=False):
         """
         Reloads the shares from the DB and recalculates distributions
         """
-        comment = " /* DBProxy.__reload_shares */"
+        comment = " /* DBProxy.reload_shares */"
         # Don't reload shares every time
         if (self.__t_update_shares is not None and self.__t_update_shares > datetime.datetime.now() - datetime.timedelta(hours=1)) or force:
             return
@@ -284,7 +284,7 @@ class EntityModule(BaseModule):
         """
         Re-loads the shares, then returns the leaves sorted by under usage
         """
-        self.__reload_shares()
+        self.reload_shares()
         self.__reload_hs_distribution()
         return self.tree.sort_branch_by_current_hs_distribution(self.__hs_distribution)
 
@@ -372,7 +372,7 @@ class EntityModule(BaseModule):
         tmp_log = self.create_tagged_logger(comment)
         tmp_log.debug("start")
 
-        self.__reload_shares()
+        self.reload_shares()
         self.__reload_hs_distribution()
         sorted_shares = self.tree.sort_branch_by_current_hs_distribution(self.__hs_distribution)
 
@@ -392,7 +392,7 @@ class EntityModule(BaseModule):
         """
         Checks whether the share is a valid leave share
         """
-        self.__reload_shares()
+        self.reload_shares()
         for share in self.leave_shares:
             if share_name == share.name:
                 # Share found
@@ -509,7 +509,7 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmp_log)
             return -1, None
 
-    def __reload_resource_spec_mapper(self):
+    def reload_resource_spec_mapper(self):
         # update once per hour only
         if self.__t_update_resource_type_mapper and self.__t_update_resource_type_mapper > datetime.datetime.now() - datetime.timedelta(hours=1):
             return
@@ -517,7 +517,7 @@ class EntityModule(BaseModule):
         # get the resource types from the DB and make the ResourceSpecMapper object
         resource_types = self.load_resource_types()
         if resource_types:
-            self.__resource_spec_mapper = ResourceSpecMapper(resource_types)
+            self.resource_spec_mapper = ResourceSpecMapper(resource_types)
             self.__t_update_resource_type_mapper = datetime.datetime.now()
         return
 
@@ -749,7 +749,7 @@ class EntityModule(BaseModule):
         """
         Return the share based on a task specification
         """
-        self.__reload_shares()
+        self.reload_shares()
         selected_share_name = "Undefined"
 
         for share in self.leave_shares:
@@ -779,7 +779,7 @@ class EntityModule(BaseModule):
         if job.eventService == EventServiceUtils.esMergeJobFlagNumber:
             return "Express"
 
-        self.__reload_shares()
+        self.reload_shares()
         selected_share_name = "Undefined"
 
         for share in self.leave_shares:
@@ -3291,3 +3291,8 @@ class EntityModule(BaseModule):
 
         tmp_log.debug("done")
         return ups_queues
+
+
+# get entity module
+def get_entity_module(base_mod) -> EntityModule:
+    return base_mod.get_composite_module("entity")

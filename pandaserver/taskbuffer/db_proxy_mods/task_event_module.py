@@ -7,13 +7,6 @@ import re
 import traceback
 import uuid
 
-try:
-    import idds.common.constants
-    import idds.common.utils
-    from idds.client.client import Client as iDDS_Client
-except ImportError:
-    pass
-
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 
 from pandaserver.config import panda_config
@@ -25,8 +18,8 @@ from pandaserver.taskbuffer import (
     PrioUtil,
     task_split_rules,
 )
-from pandaserver.taskbuffer.db_proxy_mods.base_module import varNUMBER
-from pandaserver.taskbuffer.db_proxy_mods.entity_module import EntityModule
+from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule, varNUMBER
+from pandaserver.taskbuffer.db_proxy_mods.entity_module import get_entity_module
 from pandaserver.taskbuffer.FileSpec import FileSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
 
@@ -39,7 +32,7 @@ except ImportError:
 
 
 # Module class to define methods related to tasks and events, being merged into a single module due to their cross-references
-class TaskEventModule(EntityModule):
+class TaskEventModule(BaseModule):
     # constructor
     def __init__(self, log_stream: LogWrapper):
         super().__init__(log_stream)
@@ -2481,7 +2474,7 @@ class TaskEventModule(EntityModule):
             # reset the tasks resource type, since it could have jumped to HIMEM
             if increased:
                 try:
-                    self.reset_resource_type_task(jediTaskID)
+                    get_entity_module(self).reset_resource_type_task(jediTaskID)
                 except Exception:
                     tmp_log.error(f"reset_resource_type excepted with {traceback.format_exc()}")
 
@@ -3121,7 +3114,7 @@ class TaskEventModule(EntityModule):
                     resOST = self.cur.fetchone()
                     tmpFsize, tmpDestSE = resOST
                     totalZipSize += tmpFsize
-                    tmpRSE = self.convertObjIDtoEndPoint(panda_config.endpoint_mapfile, int(tmpDestSE.split("/")[0]))
+                    tmpRSE = get_entity_module(self).convertObjIDtoEndPoint(panda_config.endpoint_mapfile, int(tmpDestSE.split("/")[0]))
                     if tmpRSE is not None:
                         objStoreZipMap.setdefault(tmpRSE["name"], 0)
                         objStoreZipMap[tmpRSE["name"]] += tmpFsize
@@ -3360,7 +3353,7 @@ class TaskEventModule(EntityModule):
                 jobSpec.computingSite = tmp_panda_site_name
                 jobSpec.coreCount = 1
                 jobSpec.minRamCount = 0
-                jobSpec.resource_type = self.get_resource_type_job(jobSpec)
+                jobSpec.resource_type = get_entity_module(self).get_resource_type_job(jobSpec)
                 newSiteName = jobSpec.computingSite
         if newSiteName is not None:
             tmp_log.info(f"{methodName} set single-core site to {newSiteName}")
@@ -3433,7 +3426,7 @@ class TaskEventModule(EntityModule):
                 taskParamsJson["taskPriority"] = 1000
                 # extract working group
                 if "official" in taskParamsJson and taskParamsJson["official"] is True:
-                    workingGroup = self.getWorkingGroup(fqans)
+                    workingGroup = get_entity_module(self).getWorkingGroup(fqans)
                     if workingGroup is not None:
                         taskParamsJson["workingGroup"] = workingGroup
 
@@ -4335,7 +4328,7 @@ class TaskEventModule(EntityModule):
             self.cur.execute(sqlT + comment, varMap)
             nRow = self.cur.rowcount
             if nRow:
-                self.reset_resource_type_task(jediTaskID, use_commit=False)
+                get_entity_module(self).reset_resource_type_task(jediTaskID, use_commit=False)
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
@@ -4347,3 +4340,128 @@ class TaskEventModule(EntityModule):
             # error
             self.dump_error_message(tmp_log)
             return None
+
+    # make fake co-jumbo
+    def makeFakeCoJumbo(self, oldJobSpec):
+        comment = " /* DBProxy.self.makeFakeCoJumbo */"
+        tmp_log = self.create_tagged_logger(comment, f"PandaID={oldJobSpec.PandaID}")
+        tmp_log.debug("start")
+        try:
+            # make a new job
+            jobSpec = copy.copy(oldJobSpec)
+            jobSpec.Files = []
+            # reset job attributes
+            jobSpec.startTime = None
+            jobSpec.creationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            jobSpec.modificationTime = jobSpec.creationTime
+            jobSpec.stateChangeTime = jobSpec.creationTime
+            jobSpec.batchID = None
+            jobSpec.schedulerID = None
+            jobSpec.pilotID = None
+            jobSpec.endTime = None
+            jobSpec.transExitCode = None
+            jobSpec.jobMetrics = None
+            jobSpec.jobSubStatus = None
+            jobSpec.actualCoreCount = None
+            jobSpec.hs06sec = None
+            jobSpec.nEvents = None
+            jobSpec.cpuConsumptionTime = None
+            jobSpec.computingSite = EventServiceUtils.siteIdForWaitingCoJumboJobs
+            jobSpec.jobExecutionID = 0
+            jobSpec.jobStatus = "waiting"
+            jobSpec.jobSubStatus = None
+            for attr in jobSpec._attributes:
+                for patt in [
+                    "ErrorCode",
+                    "ErrorDiag",
+                    "CHAR",
+                    "BYTES",
+                    "RSS",
+                    "PSS",
+                    "VMEM",
+                    "SWAP",
+                ]:
+                    if attr.endswith(patt):
+                        setattr(jobSpec, attr, None)
+                        break
+            # read files
+            varMap = {}
+            varMap[":PandaID"] = oldJobSpec.PandaID
+            sqlFile = f"SELECT {FileSpec.columnNames()} FROM ATLAS_PANDA.filesTable4 "
+            sqlFile += "WHERE PandaID=:PandaID "
+            self.cur.arraysize = 100000
+            self.cur.execute(sqlFile + comment, varMap)
+            resFs = self.cur.fetchall()
+            # loop over all files
+            for resF in resFs:
+                # add
+                fileSpec = FileSpec()
+                fileSpec.pack(resF)
+                # skip zip
+                if fileSpec.type.startswith("zip"):
+                    continue
+                jobSpec.addFile(fileSpec)
+                # reset file status
+                if fileSpec.type in ["output", "log"]:
+                    fileSpec.status = "unknown"
+            # read job parameters
+            sqlJobP = "SELECT jobParameters FROM ATLAS_PANDA.jobParamsTable WHERE PandaID=:PandaID "
+            varMap = {}
+            varMap[":PandaID"] = oldJobSpec.PandaID
+            self.cur.execute(sqlJobP + comment, varMap)
+            for (clobJobP,) in self.cur:
+                try:
+                    jobSpec.jobParameters = clobJobP.read()
+                except AttributeError:
+                    jobSpec.jobParameters = str(clobJobP)
+                break
+            # insert job with new PandaID
+            sql1 = f"INSERT INTO ATLAS_PANDA.jobsDefined4 ({JobSpec.columnNames()}) "
+            sql1 += JobSpec.bindValuesExpression(useSeq=True)
+            sql1 += " RETURNING PandaID INTO :newPandaID"
+            varMap = jobSpec.valuesMap(useSeq=True)
+            varMap[":newPandaID"] = self.cur.var(varNUMBER)
+            # insert
+            retI = self.cur.execute(sql1 + comment, varMap)
+            # set PandaID
+            val = self.getvalue_corrector(self.cur.getvalue(varMap[":newPandaID"]))
+            jobSpec.PandaID = int(val)
+            msgStr = f"Generate a fake co-jumbo new PandaID={jobSpec.PandaID} at {jobSpec.computingSite} "
+            tmp_log.debug(msgStr)
+            # insert files
+            sqlFile = f"INSERT INTO ATLAS_PANDA.filesTable4 ({FileSpec.columnNames()}) "
+            sqlFile += FileSpec.bindValuesExpression(useSeq=True)
+            sqlFile += " RETURNING row_ID INTO :newRowID"
+            for fileSpec in jobSpec.Files:
+                # reset rowID
+                fileSpec.row_ID = None
+                # change GUID and LFN for log
+                if fileSpec.type == "log":
+                    fileSpec.GUID = str(uuid.uuid4())
+                    fileSpec.lfn = re.sub(f"\\.{oldJobSpec.PandaID}$", "", fileSpec.lfn)
+                # insert
+                varMap = fileSpec.valuesMap(useSeq=True)
+                varMap[":newRowID"] = self.cur.var(varNUMBER)
+                self.cur.execute(sqlFile + comment, varMap)
+                val = self.getvalue_corrector(self.cur.getvalue(varMap[":newRowID"]))
+                fileSpec.row_ID = int(val)
+            # insert job parameters
+            sqlJob = "INSERT INTO ATLAS_PANDA.jobParamsTable (PandaID,jobParameters) VALUES (:PandaID,:param) "
+            varMap = {}
+            varMap[":PandaID"] = jobSpec.PandaID
+            varMap[":param"] = jobSpec.jobParameters
+            self.cur.execute(sqlJob + comment, varMap)
+            self.recordStatusChange(jobSpec.PandaID, jobSpec.jobStatus, jobInfo=jobSpec, useCommit=False)
+            self.push_job_status_message(jobSpec, jobSpec.PandaID, jobSpec.jobStatus)
+            # return
+            tmp_log.debug("done")
+            return 1
+        except Exception:
+            # error
+            self.dump_error_message(tmp_log)
+            return 0
+
+
+# get task event module
+def get_task_event_module(base_mod) -> TaskEventModule:
+    return base_mod.get_composite_module("task_event")

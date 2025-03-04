@@ -8,7 +8,8 @@ from pandacommon.pandautils.PandaUtils import naive_utcnow
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import ErrorCode, JobUtils
-from pandaserver.taskbuffer.db_proxy_mods import entity_module
+from pandaserver.taskbuffer.db_proxy_mods.base_module import BaseModule
+from pandaserver.taskbuffer.db_proxy_mods.entity_module import get_entity_module
 from pandaserver.taskbuffer.HarvesterMetricsSpec import HarvesterMetricsSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
 from pandaserver.taskbuffer.ResourceSpec import BASIC_RESOURCE_TYPE
@@ -16,7 +17,7 @@ from pandaserver.taskbuffer.WorkerSpec import WorkerSpec
 
 
 # Module class to define methods related to worker and harvester
-class WorkerModule(entity_module.EntityModule):
+class WorkerModule(BaseModule):
     # constructor
     def __init__(self, log_stream: LogWrapper):
         super().__init__(log_stream)
@@ -231,7 +232,7 @@ class WorkerModule(entity_module.EntityModule):
         tmp_log.debug("start")
         try:
             # Figure out the harvester instance serving the queues and check the CEs match
-            pq_data_des = self.get_config_for_pq(panda_queue_des)
+            pq_data_des = get_entity_module(self).get_config_for_pq(panda_queue_des)
             if not pq_data_des:
                 return "Error retrieving queue configuration from DB"
 
@@ -382,10 +383,10 @@ class WorkerModule(entity_module.EntityModule):
         harvester_ids_temp = list(worker_stats)
 
         HIMEM = "HIMEM"
-        self.__reload_resource_spec_mapper()
+        get_entity_module(self).reload_resource_spec_mapper()
 
         # get the configuration for maximum workers of each type
-        pq_data_des = self.get_config_for_pq(queue)
+        pq_data_des = get_entity_module(self).get_config_for_pq(queue)
         resource_type_limits = {}
         queue_type = "production"
         cores_queue = 1
@@ -441,7 +442,9 @@ class WorkerModule(entity_module.EntityModule):
             )
             # if the queue is over memory, we will only submit lower workers in the next cycle
             if average_memory_target < max(average_memory_workers_running_submitted, average_memory_workers_running):
-                resource_types_under_target = self.__resource_spec_mapper.filter_out_high_memory_resourcetypes(memory_threshold=average_memory_target)
+                resource_types_under_target = get_entity_module(self).resource_spec_mapper.filter_out_high_memory_resourcetypes(
+                    memory_threshold=average_memory_target
+                )
                 tmp_log.debug(f"Accepting {resource_types_under_target} resource types to respect mean memory target")
             else:
                 tmp_log.debug(f"Accepting all resource types as under memory target")
@@ -449,7 +452,7 @@ class WorkerModule(entity_module.EntityModule):
         for job_type in worker_stats[harvester_id]:
             workers_queued.setdefault(job_type, {})
             for resource_type in worker_stats[harvester_id][job_type]:
-                core_factor = self.__resource_spec_mapper.translate_resourcetype_to_cores(resource_type, cores_queue)
+                core_factor = get_entity_module(self).resource_spec_mapper.translate_resourcetype_to_cores(resource_type, cores_queue)
                 try:
                     n_cores_running = n_cores_running + worker_stats[harvester_id][job_type][resource_type]["running"] * core_factor
 
@@ -461,7 +464,7 @@ class WorkerModule(entity_module.EntityModule):
                         tmp_log.debug(f"Limit for rt {resource_type} down to {resource_type_limits[resource_type]}")
 
                     # This limit is in #CORES, since it mixes single and multi core jobs
-                    if self.__resource_spec_mapper.is_high_memory(resource_type) and HIMEM in resource_type_limits:
+                    if get_entity_module(self).resource_spec_mapper.is_high_memory(resource_type) and HIMEM in resource_type_limits:
                         resource_type_limits[HIMEM] = resource_type_limits[HIMEM] - worker_stats[harvester_id][job_type][resource_type]["running"] * core_factor
                         tmp_log.debug(f"Limit for rt group {HIMEM} down to {resource_type_limits[HIMEM]}")
 
@@ -507,7 +510,7 @@ class WorkerModule(entity_module.EntityModule):
         tmp_log.debug(f"IN CORES: nrunning {n_cores_running}, ntarget {n_cores_target}, nqueued {n_cores_queued}. We need to process {n_cores_to_submit} cores")
 
         # Get the sorted global shares
-        sorted_shares = self.get_sorted_leaves()
+        sorted_shares = get_entity_module(self).get_sorted_leaves()
 
         # Run over the activated jobs by gshare & priority, and subtract them from the queued
         # A negative value for queued will mean more pilots of that resource type are missing
@@ -532,7 +535,7 @@ class WorkerModule(entity_module.EntityModule):
 
             tmp_log.debug(f"Processing share: {share.name}. Got {len(activated_jobs)} activated jobs")
             for gshare, prodsourcelabel, resource_type in activated_jobs:
-                core_factor = self.__resource_spec_mapper.translate_resourcetype_to_cores(resource_type, cores_queue)
+                core_factor = get_entity_module(self).resource_spec_mapper.translate_resourcetype_to_cores(resource_type, cores_queue)
 
                 # translate prodsourcelabel to a subset of job types, typically 'user' and 'managed'
                 job_type = JobUtils.translate_prodsourcelabel_to_jobtype(queue_type, prodsourcelabel)
@@ -542,7 +545,11 @@ class WorkerModule(entity_module.EntityModule):
                     continue
 
                 # if we reached the limit for the HIMEM resource type group, skip the job
-                if self.__resource_spec_mapper.is_high_memory(resource_type) and HIMEM in resource_type_limits and resource_type_limits[HIMEM] <= 0:
+                if (
+                    get_entity_module(self).resource_spec_mapper.is_high_memory(resource_type)
+                    and HIMEM in resource_type_limits
+                    and resource_type_limits[HIMEM] <= 0
+                ):
                     # tmp_log.debug('Reached resource type limit for {0}'.format(resource_type))
                     continue
 
@@ -1554,3 +1561,8 @@ class WorkerModule(entity_module.EntityModule):
 
         tmp_log.debug("done")
         return worker_stats_dict
+
+
+# get worker module
+def get_worker_module(base_mod) -> WorkerModule:
+    return base_mod.get_composite_module("worker")

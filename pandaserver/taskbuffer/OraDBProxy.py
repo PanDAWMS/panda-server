@@ -11,9 +11,13 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.db_proxy_mods import (
+    entity_module,
     job_complex_module,
     job_standalone_module,
+    metrics_module,
     misc_standalone_module,
+    task_event_module,
+    worker_module,
 )
 from pandaserver.taskbuffer.WrappedCursor import WrappedCursor
 
@@ -53,7 +57,15 @@ for handler in _loggerFiltered.handlers:
 
 
 # proxy
-class DBProxy(job_complex_module.JobComplexModule, job_standalone_module.JobStandaloneModule, misc_standalone_module.MiscStandaloneModule):
+class DBProxy(
+    entity_module.EntityModule,
+    metrics_module.MetricsModule,
+    worker_module.WorkerModule,
+    task_event_module.TaskEventModule,
+    job_complex_module.JobComplexModule,
+    job_standalone_module.JobStandaloneModule,
+    misc_standalone_module.MiscStandaloneModule,
+):
     # constructor
     def __init__(self, useOtherError=False):
         # init modules
@@ -65,6 +77,12 @@ class DBProxy(job_complex_module.JobComplexModule, job_standalone_module.JobStan
 
         # use special error codes for reconnection in querySQL
         self.useOtherError = useOtherError
+
+        # set composite modules. use self to share a single database connection
+        self.add_composite_module("entity", self)
+        self.add_composite_module("metrics", self)
+        self.add_composite_module("worker", self)
+        self.add_composite_module("task_event", self)
 
     # connect to DB
     def connect(
