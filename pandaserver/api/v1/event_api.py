@@ -12,7 +12,7 @@ from pandaserver.jobdispatcher import Protocol
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
-_logger = PandaLogger().getLogger("secret_management_api")
+_logger = PandaLogger().getLogger("event_api")
 
 # These global variables are initialized in the init_task_buffer method
 global_task_buffer = None
@@ -59,7 +59,7 @@ def get_available_event_range_count(req: PandaRequest, panda_id: int, jobset_id:
 
     # Case of time out
     if timed_method.result == Protocol.TimeOutToken:
-        tmp_logger.debug("Timed out")
+        tmp_logger.error("Timed out")
         return generate_response(False, TIME_OUT)
 
     # Case of failure
@@ -120,28 +120,30 @@ def acquire_event_ranges(
     """
     Acquire event ranges
 
-    Acquires a list of event ranges for a given PandaID.
+    Acquires a list of event ranges with a given PandaID for execution.
 
     API details:
         HTTP Method: POST
         Path: /event/v1/acquire_event_ranges
 
     Args:
-        req: Internally generated request object containing the environment.
+        req(PandaRequest): Internally generated request object containing the environment.
         panda_id(str): PanDa job ID.
         jobset_id(str): Jobset ID.
-        task_id(str, optional): JEDI task ID. Defaults to None.
+        task_id(int, optional): JEDI task ID. Defaults to None.
         n_ranges(int, optional): The number of event ranges to retrieve. Defaults to 10.
         timeout(int, optional): The timeout value. Defaults to 60.
-        scattered(str, optional): Whether the event ranges are scattered. Defaults to None.
+        scattered(bool, optional): Whether the event ranges are scattered. Defaults to None.
         segment_id(int, optional): The segment ID. Defaults to None.
 
     Returns:
-        dict: The response from the job dispatcher.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+              When successful, the data field contains the event ranges. When unsuccessful, the message field contains the error message.
+
     """
 
     tmp_logger = LogWrapper(
-        _logger, f"acquire_event_ranges < PandaID={panda_id} jobset_id={jobset_id} task_id={task_id},n_ranges={n_ranges},segment={segment_id} >"
+        _logger, f"acquire_event_ranges < panda_id={panda_id} jobset_id={jobset_id} task_id={task_id} n_ranges={n_ranges} segment_id={segment_id} >"
     )
     tmp_logger.debug("Start")
 
@@ -152,7 +154,7 @@ def acquire_event_ranges(
 
     # Case of time out
     if timed_method.result == Protocol.TimeOutToken:
-        tmp_logger.debug("Timed out")
+        tmp_logger.error("Timed out")
         return generate_response(False, TIME_OUT)
 
     # Case of failure
@@ -164,3 +166,104 @@ def acquire_event_ranges(
 
     tmp_logger.debug(f"Done: {event_ranges}")
     return generate_response(True, data=event_ranges)
+
+
+@request_validation(_logger, secure=True, production=True, request_method="POST")
+def update_single_event_range(
+    req: PandaRequest,
+    event_range_id: str,
+    event_range_status: str,
+    core_count: int = None,
+    cpu_consumption_time: float = None,
+    object_store_id: id = None,
+    timeout: int = 60,
+):
+    """
+    Update single event range
+
+    Updates the status of a specific event range.
+
+    API details:
+        HTTP Method: POST
+        Path: /event/v1/update_single_event_range
+
+    Args:
+        req(PandaRequest): The request object containing the environment variables.
+        event_range_id(str): The ID of the event range to update.
+        event_range_status(str): The new status of the event range.
+        core_count(int, optional): The number of cores used. Defaults to None.
+        cpu_consumption_time(float, optional): The CPU consumption time. Defaults to None.
+        object_store_id(int, optional): The object store ID. Defaults to None.
+        timeout(int, optional): The timeout value. Defaults to 60.
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+              When successful, the data field can contain a command for the pilot. When unsuccessful, the message field contains the error message.
+    """
+    tmp_logger = LogWrapper(
+        _logger,
+        f"update_single_event_range < {event_range_id} status={event_range_status} core_count={core_count} cpu_consumption_time={cpu_consumption_time} object_store_id={object_store_id} >",
+    )
+    tmp_logger.debug("Start")
+
+    timed_method = TimedMethod(global_task_buffer.updateEventRange, timeout)
+    timed_method.run(event_range_id, event_range_status, core_count, cpu_consumption_time, object_store_id)
+
+    # Case of time out
+    if timed_method.result == Protocol.TimeOutToken:
+        tmp_logger.error("Timed out")
+        return generate_response(False, TIME_OUT)
+
+    if not timed_method.result or timed_method.result[0] is False:
+        tmp_logger.debug(MESSAGE_DATABASE)
+        return generate_response(False, MESSAGE_DATABASE)
+
+    success = timed_method.result[0]
+    command = timed_method.result[1]
+
+    _logger.debug(f"Done with command: {command}")
+    return generate_response(success, data={"Command": command})
+
+
+@request_validation(_logger, secure=True, production=True, request_method="POST")
+def update_event_ranges(req: PandaRequest, event_ranges: str, timeout: int = 120, version: int = 0):
+    """
+    Update event ranges
+
+    Updates the event ranges in bulk.
+
+    API details:
+        HTTP Method: POST
+        Path: /event/v1/update_event_ranges
+
+    Args:
+        req (PandaRequest): Internally generated request object containing the environment.
+        event_ranges (str): JSON-encoded string containing the list of event ranges to update.
+        timeout (int, optional): The timeout value. Defaults to 120.
+        version (int, optional): The version of the event ranges.  Defaults to 0.
+                                 Version 0: normal event service
+                                 Version 1: jumbo jobs with zip file support
+                                 Version 2: fine-grained processing where events can be updated before being dispatched
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+              When successful, the data field will contain a dictionary `{"Returns": [], "Commands":{<PanDA ID>: <Command>, ...}}`. `Returns` is list with a status for each event range
+              and `Commands` is a dictionary with a possible command per PanDA job ID.
+              When unsuccessful, the message field contains the error message.
+    """
+
+    tmp_logger = LogWrapper(_logger, f"update_event_ranges({event_ranges})")
+    tmp_logger.debug("Start")
+
+    timed_method = TimedMethod(global_task_buffer.updateEventRanges, timeout)
+    timed_method.run(event_ranges, version)
+
+    # Case of time out
+    if timed_method.result == Protocol.TimeOutToken:
+        tmp_logger.error("Timed out")
+        return generate_response(False, TIME_OUT)
+
+    data = {"Returns", timed_method.result[0], "Commands", timed_method.result[1]}
+
+    _logger.debug(f"Done with: {data}")
+    return generate_response(True, data=data)

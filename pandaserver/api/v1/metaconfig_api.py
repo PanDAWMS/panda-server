@@ -10,7 +10,7 @@ from pandaserver.brokerage import SiteMapper
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
-_logger = PandaLogger().getLogger("secret_management_api")
+_logger = PandaLogger().getLogger("metaconfig_api")
 
 # These global variables are initialized in the init_task_buffer method
 global_task_buffer = None
