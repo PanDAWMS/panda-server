@@ -1,3 +1,5 @@
+# See the task state diagram for a better understanding of some of the actions https://panda-wms.readthedocs.io/en/latest/terminology/terminology.html#task
+
 import datetime
 import json
 import re
@@ -8,6 +10,7 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.api.v1.common import (
     MESSAGE_TASK_ID,
+    extract_production_working_groups,
     generate_response,
     get_dn,
     get_email_address,
@@ -44,7 +47,7 @@ def retry(
     """
     Task retry
 
-    Retry a given task. Requires a secure connection without a production role to retry own tasks and with a production role to retry others' tasks.
+    Retry a given task e.g. in exhausted state. Requires a secure connection without a production role to retry own tasks and with a production role to retry others' tasks.
 
     API details:
         HTTP Method: POST
