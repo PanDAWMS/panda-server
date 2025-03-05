@@ -5,11 +5,11 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.api.v1.common import (
     extract_primary_production_working_group,
+    extract_production_working_groups,
     generate_response,
     get_dn,
     get_email_address,
     get_fqan,
-    get_production_working_groups,
     has_production_role,
     request_validation,
 )
@@ -132,10 +132,10 @@ def get_user_attributes(req: PandaRequest) -> Dict:
     is_production_user = has_production_role(req)
 
     # Production working groups
-    production_working_groups = get_production_working_groups(req)
+    production_working_groups = extract_production_working_groups(fqans)
 
     # Primary production working group
-    primary_working_group = extract_primary_production_working_group(req)
+    primary_working_group = extract_primary_production_working_group(fqans)
 
     # Combine sections
     text_representation = (

@@ -63,34 +63,6 @@ def get_fqan(req):
     return fqans
 
 
-def extract_production_working_groups(fqans):
-    # Extract working groups with production role from FQANs
-    wg_prod_roles = []
-    for fqan in fqans:
-        # Match FQANs with 'Role=production' and extract the working group
-        match = re.search(r"/atlas/([^/]+)/Role=production", fqan)
-        if match:
-            working_group = match.group(1)
-            # Exclude 'usatlas' and ensure uniqueness
-            if working_group and working_group not in ["usatlas"] + wg_prod_roles:
-                wg_prod_roles.extend([working_group, f"gr_{working_group}"])  # Add group and prefixed variant
-
-    return wg_prod_roles
-
-
-def extract_primary_production_working_group(fqans):
-    working_group = None
-    for fqan in fqans:
-        match = re.search("/[^/]+/([^/]+)/Role=production", fqan)
-        if match:
-            # ignore usatlas since it is used as atlas prod role
-            tmp_working_group = match.group(1)
-            if tmp_working_group not in ["", "usatlas"]:
-                working_group = tmp_working_group.split("-")[-1].lower()
-
-    return working_group
-
-
 def get_email_address(user, tmp_logger):
     tmp_logger.debug(f"Getting mail address for {user}")
     n_tries = 3
@@ -153,20 +125,32 @@ def has_production_role(req):
     return False
 
 
-# get primary working group with prod role
-def get_production_working_groups(req):
-    try:
-        fqans = get_fqan(req)
-        for fqan in fqans:
-            tmp_match = re.search("/[^/]+/([^/]+)/Role=production", fqan)
-            if tmp_match is not None:
-                # ignore usatlas since it is used as atlas prod role
-                tmp_working_group = tmp_match.group(1)
-                if tmp_working_group not in ["", "usatlas"]:
-                    return tmp_working_group.split("-")[-1].lower()
-    except Exception:
-        pass
-    return None
+def extract_production_working_groups(fqans):
+    # Extract working groups with production role from FQANs
+    wg_prod_roles = []
+    for fqan in fqans:
+        # Match FQANs with 'Role=production' and extract the working group
+        match = re.search(r"/atlas/([^/]+)/Role=production", fqan)
+        if match:
+            working_group = match.group(1)
+            # Exclude 'usatlas' and ensure uniqueness
+            if working_group and working_group not in ["usatlas"] + wg_prod_roles:
+                wg_prod_roles.extend([working_group, f"gr_{working_group}"])  # Add group and prefixed variant
+
+    return wg_prod_roles
+
+
+def extract_primary_production_working_group(fqans):
+    working_group = None
+    for fqan in fqans:
+        match = re.search("/[^/]+/([^/]+)/Role=production", fqan)
+        if match:
+            # ignore usatlas since it is used as atlas prod role
+            tmp_working_group = match.group(1)
+            if tmp_working_group not in ["", "usatlas"]:
+                working_group = tmp_working_group.split("-")[-1].lower()
+
+    return working_group
 
 
 # security check
