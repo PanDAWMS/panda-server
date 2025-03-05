@@ -10,6 +10,7 @@ from pandaserver.api.v1.common import (
     MESSAGE_TASK_ID,
     generate_response,
     get_dn,
+    get_email_address,
     get_fqan,
     has_production_role,
     request_validation,
@@ -356,6 +357,70 @@ def kill(req: PandaRequest, jedi_task_id: int = None, broadcast: bool = False) -
     tmp_logger.debug("Done")
 
     return generate_response(success, message, data)
+
+
+@request_validation(_logger, secure=True, request_method="POST")
+def kill_unfinished_jobs(req: PandaRequest, jedi_task_id: int, code: int = None, use_email_as_id: bool = False):
+    """
+    Kill all unfinished jobs in a task
+
+    Kills all unfinished jobs in a task.
+
+    API details:
+        HTTP Method: POST
+        Path: /task/v1/kill_unfinished_jobs
+
+    Args:
+        req(PandaRequest): internally generated request object containing the env variables
+        jedi_task_id (int): JEDI task ID
+        code (int, optional): The kill code. Defaults to None.
+        ```
+        code
+        2: expire
+        3: aborted
+        4: expire in waiting
+        7: retry by server
+        8: rebrokerage
+        9: force kill
+        10: fast rebrokerage in overloaded PQ
+        50: kill by JEDI
+        51: reassigned by JEDI
+        52: force kill by JEDI
+        55: killed since task is (almost) done
+        60: workload was terminated by the pilot without actual work
+        91: kill user jobs with prod role
+        99: force kill user jobs with prod role
+        ```
+        use_email_as_id (bool, optional): Use the email as ID. Defaults to False.
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`. The data field contains a list of bools indicating the success of the kill operations.
+    """
+
+    tmp_logger = LogWrapper(_logger, f"kill_unfinished_jobs")
+
+    # retrieve the user information
+    user = get_dn(req)
+    fqans = get_fqan(req)
+    is_production_manager = has_production_role(req)
+
+    if use_email_as_id:
+        email = get_email_address(user, tmp_logger)
+        if email:
+            user = email
+
+    tmp_logger.debug(f"Start user: {user} code: {code} is_production_manager: {is_production_manager} fqans: {fqans} jedi_task_id: {jedi_task_id}")
+
+    # Extract working groups with production role from FQANs
+    wg_prod_roles = extract_production_working_groups(fqans)
+
+    # get PandaIDs
+    panda_ids = global_task_buffer.getPandaIDsWithTaskID(jedi_task_id)
+
+    # kill jobs
+    ret = global_task_buffer.killJobs(panda_ids, user, code, is_production_manager, wg_prod_roles, [])
+    tmp_logger.debug(f"Done with ret: {ret}")
+    return generate_response(True, data=ret)
 
 
 @request_validation(_logger, secure=True, request_method="POST")
