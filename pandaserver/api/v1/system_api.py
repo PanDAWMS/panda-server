@@ -45,11 +45,11 @@ def get_attributes(req: PandaRequest, **kwargs: dict) -> Dict:
     tmp_logger.debug("Start")
 
     # Add the parameters
-    parameter_dictionary = {key: value for key, value in sorted(kwargs.items())}
+    parameter_dictionary = {key: str(value) for key, value in sorted(kwargs.items())}
     parameter_section = "===== param =====\n" + "\n".join(f"{key} = {value}" for key, value in parameter_dictionary.items())
 
     # Add the environment variables
-    environment_dictionary = {key: req.subprocess_env[key] for key in sorted(req.subprocess_env)}
+    environment_dictionary = {key: str(req.subprocess_env[key]) for key in sorted(req.subprocess_env)}
     environment_section = "\n====== env ======\n" + "\n".join(f"{key} : {value}" for key, value in environment_dictionary.items())
 
     # Combine sections
