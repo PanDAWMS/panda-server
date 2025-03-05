@@ -1,7 +1,5 @@
 # Description: Unit tests for the System API methods
-import os
 import unittest
-from datetime import datetime, timedelta
 
 from pandaserver.api.v1.http_client import HttpClient, api_url_ssl
 

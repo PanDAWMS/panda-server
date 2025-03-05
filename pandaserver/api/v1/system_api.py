@@ -14,6 +14,7 @@ from pandaserver.api.v1.common import (
     request_validation,
 )
 from pandaserver.config import panda_config
+from pandaserver.srvcore.CoreUtils import clean_user_id
 from pandaserver.srvcore.panda_request import PandaRequest
 
 _logger = PandaLogger().getLogger("system_api")
@@ -119,8 +120,11 @@ def get_user_attributes(req: PandaRequest) -> Dict:
     # Raw user DN
     user_raw = req.subprocess_env["SSL_CLIENT_S_DN"]
 
+    # Bare user DN
+    user_bare = get_dn(req)
+
     # Clean user DN
-    user_clean = get_dn(req)
+    user_clean = clean_user_id(user_raw)
 
     # FQANs
     fqans = get_fqan(req)
@@ -139,7 +143,8 @@ def get_user_attributes(req: PandaRequest) -> Dict:
 
     # Combine sections
     text_representation = (
-        f"User DN (raw): {user_raw}\nUser DN (clean): {user_clean}\n Email address: {email_address}\n"
+        f"User DN (raw): {user_raw}\nUser DN (bare): {user_bare}\nUser DN (clean): {user_clean}\n"
+        f"Email address: {email_address}\n"
         f"FQANs: {fqans}\nProduction user: {is_production_user}\n"
         f"Production working groups: {production_working_groups}\nPrimary production working group: {primary_working_group}\n"
     )
