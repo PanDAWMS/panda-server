@@ -1,4 +1,3 @@
-import json
 from typing import Dict
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -38,8 +37,7 @@ def get_attributes(req: PandaRequest, **kwargs: dict) -> Dict:
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When successful, the message field contains a string with all the attributes,
-              and the data field contains the dictionary representation.
+              When successful, the message field contains a string with all the attributes.
     """
     tmp_logger = LogWrapper(_logger, "get_attributes")
     tmp_logger.debug("Start")
@@ -56,13 +54,9 @@ def get_attributes(req: PandaRequest, **kwargs: dict) -> Dict:
     text_representation = parameter_section + "\n" + environment_section + "\n"
 
     # Combine data in dictionary form
-    combined_data = {"parameters": parameter_dictionary, "environment": environment_dictionary}
-    response = generate_response(True, text_representation, combined_data)
-    tmp_logger.debug(response)
-    tmp_logger.debug(json.dumps(response))
-
+    # combined_data = {"parameters": parameter_dictionary, "environment": environment_dictionary}
     tmp_logger.debug("Done")
-    return generate_response(True, text_representation, combined_data)
+    return generate_response(True, text_representation)
 
 
 @request_validation(_logger, request_method="GET")
