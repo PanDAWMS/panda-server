@@ -62,7 +62,7 @@ def retry(
         keep_gshare_priority(bool, optional): if True, the task keeps current gshare and priority
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
     tmp_logger = LogWrapper(_logger, f"retry < jedi_task_id={jedi_task_id} >")
     tmp_logger.debug("Start")
@@ -140,7 +140,7 @@ def resume(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
         jedi_task_id(int): JEDI Task ID
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
     tmp_logger = LogWrapper(_logger, f"resume < jediTaskID={jedi_task_id} >")
     tmp_logger.debug("Start")
@@ -181,7 +181,7 @@ def release(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
         jedi_task_id(int): JEDI Task ID
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
 
     tmp_logger = LogWrapper(_logger, f"release < jedi_task_id={jedi_task_id} >")
@@ -228,7 +228,7 @@ def reassign(req: PandaRequest, jedi_task_id: int, site: str = None, cloud: str 
         mode(str, optional): soft/nokill reassign
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
 
     tmp_logger = LogWrapper(_logger, f"reassign < jedi_task_id={jedi_task_id} >")
@@ -290,7 +290,7 @@ def pause(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
         jedi_task_id(int): JEDI Task ID
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
 
     tmp_logger = LogWrapper(_logger, f"pause < jedi_task_id={jedi_task_id} >")
@@ -331,7 +331,7 @@ def kill(req: PandaRequest, jedi_task_id: int = None, broadcast: bool = False) -
         broadcast(bool, optional): broadcast kill command to pilots to kill the jobs
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
     tmp_logger = LogWrapper(_logger, f"kill < jedi_task_id={jedi_task_id} >")
     tmp_logger.debug("Start")

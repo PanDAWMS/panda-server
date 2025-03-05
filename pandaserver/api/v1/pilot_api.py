@@ -230,14 +230,17 @@ def get_job_status(req: PandaRequest, job_ids: str, timeout: int = 60) -> dict:
     """
     Get the status of a list of jobs
 
-    :param req:
-    :param job_ids: space separated jobs
-    :param timeout:
-    :return:
+    Args:
+        req(PandaRequest): Internally generated request object containing the environment variables.
+        job_ids(str): space separated jobs
+        timeout(int, optional): The timeout value. Defaults to 60.
+
+    Returns:
+
     """
     tmp_logger = LogWrapper(_logger, f"get_job_status {job_ids}")
 
-    # split the list of
+    # split the list of jobs
     job_ids = job_ids.split()
 
     # peek jobs
@@ -323,7 +326,7 @@ def update_job(
     cpu_architecture_level: int = None,
 ):
     tmp_logger = LogWrapper(_logger, f"update_job PandaID={job_id} PID={os.getpid()}")
-    tmp_logger.debug("start")
+    tmp_logger.debug("Start")
 
     _logger.debug(
         f"update_job({job_id}, {job_status}, {trans_exit_code}, {pilot_error_code}, {pilot_error_diag}, {node},"
@@ -534,14 +537,18 @@ def update_jobs_bulk(req, job_list: List, harvester_id: str = None):
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def update_worker_status(req, worker_id, harvester_id, status, timeout=60, node_id=None):
+def update_worker_status(req: PandaRequest, worker_id, harvester_id, status, timeout=60, node_id=None):
     """
     Update the status of a worker according to the pilot.
 
     This function validates the pilot permissions and the state passed by the pilot, then updates the worker status.
 
+    API details:
+        HTTP Method: POST
+        Path: /pilot/v1/update_worker_status
+
     Args:
-        req: The request object containing the environment variables.
+        req(PandaRequest): Internally generated request object containing the environment variables.
         worker_id (str): The worker ID.
         harvester_id (str): The harvester ID.
         status (str): The status of the worker. Must be either 'started' or 'finished'.
@@ -555,7 +562,7 @@ def update_worker_status(req, worker_id, harvester_id, status, timeout=60, node_
         _logger,
         f"updateWorkerPilotStatus worker_id={worker_id} harvester_id={harvester_id} status={status} node_id={node_id} PID={os.getpid()}",
     )
-    tmp_logger.debug("start")
+    tmp_logger.debug("Start")
 
     # validate the state passed by the pilot
     valid_worker_states = ("started", "finished")
@@ -569,14 +576,86 @@ def update_worker_status(req, worker_id, harvester_id, status, timeout=60, node_
 
     # generate the response
     if not timed_method.result:  # failure
-        success = False
         message = "Failed to update worker status"
-    elif timed_method.result == Protocol.TimeOutToken:  # timeout
-        success = False
-        message = "Updating worker status timed out"
-    else:  # success
-        success = True
-        message = ""
+        tmp_logger.error(message)
+        return generate_response(False, message)
 
-    tmp_logger.debug(f"ret -> {success} {message}")
-    return generate_response(success, message=message)
+    if timed_method.result == Protocol.TimeOutToken:  # timeout
+        message = "Updating worker status timed out"
+        tmp_logger.error(message)
+        return generate_response(False, message)
+
+    tmp_logger.debug(f"Done")
+    return generate_response(True)
+
+
+@request_validation(_logger, secure=True, production=True, request_method="POST")
+def update_worker_node(
+    req: PandaRequest,
+    atlas_site: str,
+    host_name: str,
+    cpu_model: str,
+    n_logical_cpus: int,
+    n_sockets: int,
+    cores_per_socket: int,
+    threads_per_core: int,
+    cpu_architecture: str,
+    cpu_architecture_level: str,
+    clock_speed: float,
+    total_memory: int,
+    timeout: int = 60,
+):
+    """
+    Update worker node
+
+    Updates a worker node in the worker node map. When already found, it updates the `last_seen` time. When not found, it adds the worker node.
+
+    API details:
+        HTTP Method: POST
+        Path: /pilot/v1/update_worker_node
+
+    Args:
+        req(PandaRequest): Internally generated request object containing the environment variables.
+        atlas_site(str): ATLAS site name.
+        host_name(str): Host name. In the case of reporting in format `slot@worker_node.example.com`, the slot ID will be parsed out.
+        cpu_model(str): CPU model, e.g. `AMD EPYC 7351`
+        n_logical_cpus(int): Number of logical CPUs. When SMT is enabled, this is the number of threads. Otherwise it is the number of cores.
+        n_sockets(int): Number of sockets.
+        cores_per_socket(int): Number of cores per socket.
+        threads_per_core(int): Number of threads per core. When SMT is disabled, this is 1. Otherwise a number > 1.
+        cpu_architecture(str): CPU architecture, e.g. `x86_64`
+        cpu_architecture_level(str): CPU architecture level, e.g. `x86-64-v3`
+        clock_speed(float): Clock speed in GHz.
+        total_memory(int): Total memory in MB.
+        timeout: int = 60: The timeout value. Defaults to 60.
+
+    Returns:
+        dict: The system response  `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
+    """
+    tmp_logger = LogWrapper(_logger, f"update_worker_node atlas_site={atlas_site} host_name={host_name} cpu_model={cpu_model}")
+    tmp_logger.debug("Start")
+
+    timed_method = TimedMethod(global_task_buffer.update_worker_node, timeout)
+    timed_method.run(
+        atlas_site,
+        host_name,
+        cpu_model,
+        n_logical_cpus,
+        n_sockets,
+        cores_per_socket,
+        threads_per_core,
+        cpu_architecture,
+        cpu_architecture_level,
+        clock_speed,
+        total_memory,
+    )
+
+    if timed_method.result == Protocol.TimeOutToken:  # timeout
+        message = "Updating worker node timed out"
+        tmp_logger.error(message)
+        return generate_response(False, message)
+
+    success, message = timed_method.result
+
+    tmp_logger.debug(f"Done")
+    return generate_response(success, message)
