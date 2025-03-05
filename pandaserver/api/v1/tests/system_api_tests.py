@@ -21,6 +21,17 @@ class TestSystemAPI(unittest.TestCase):
         expected_response = {"status": 0, "success": True}
         self.assertEqual(output, expected_response)
 
+    def test_get_user_attributes(self):
+        url = f"{api_url_ssl}/system/get_user_attributes"
+        print(f"Testing URL: {url}")
+        data = {}
+        status, output = self.http_client.get(url, data)
+        print(output)
+        output["status"] = status
+
+        expected_response = {"status": 0, "success": True}
+        self.assertEqual(output, expected_response)
+
     def test_get_voms_attributes(self):
         url = f"{api_url_ssl}/system/get_voms_attributes"
         print(f"Testing URL: {url}")

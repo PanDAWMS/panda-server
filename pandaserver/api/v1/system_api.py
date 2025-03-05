@@ -3,7 +3,16 @@ from typing import Dict
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
-from pandaserver.api.v1.common import generate_response, request_validation
+from pandaserver.api.v1.common import (
+    extract_primary_production_working_group,
+    generate_response,
+    get_dn,
+    get_email_address,
+    get_fqan,
+    get_production_working_groups,
+    has_production_role,
+    request_validation,
+)
 from pandaserver.config import panda_config
 from pandaserver.srvcore.panda_request import PandaRequest
 
@@ -83,6 +92,70 @@ def get_voms_attributes(req: PandaRequest) -> Dict:
 
     tmp_logger.debug("Done")
     return generate_response(True, text_representation, attributes)
+
+
+@request_validation(_logger, request_method="GET")
+def get_user_attributes(req: PandaRequest) -> Dict:
+    """
+    Get user attributes
+
+    Gets user attributes as seen by PanDA for debug purposes
+
+    API details:
+        HTTP Method: GET
+        Path: /system/v1/get_user_attributes
+
+    Args:
+        req(PandaRequest): internally generated request object containing the env variables
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+              When successful, the message field contains a string with the user attributes,
+              and the data field contains the dictionary representation.
+    """
+    tmp_logger = LogWrapper(_logger, "get_user_attributes")
+    tmp_logger.debug("Start")
+
+    # Raw user DN
+    user_raw = req.subprocess_env["SSL_CLIENT_S_DN"]
+
+    # Clean user DN
+    user_clean = get_dn(req)
+
+    # FQANs
+    fqans = get_fqan(req)
+
+    # Email address
+    email_address = get_email_address(user_clean, tmp_logger)
+
+    # Has production role
+    is_production_user = has_production_role(req)
+
+    # Production working groups
+    production_working_groups = get_production_working_groups(req)
+
+    # Primary production working group
+    primary_working_group = extract_primary_production_working_group(req)
+
+    # Combine sections
+    text_representation = (
+        f"User DN (raw): {user_raw}\nUser DN (clean): {user_clean}\n Email address: {email_address}\n"
+        f"FQANs: {fqans}\nProduction user: {is_production_user}\n"
+        f"Production working groups: {production_working_groups}\nPrimary production working group: {primary_working_group}\n"
+    )
+    dictionary_representation = {
+        "user_dn_raw": user_raw,
+        "user_dn_clean": user_clean,
+        "fqans": fqans,
+        "is_production_user": is_production_user,
+        "production_working_groups": production_working_groups,
+        "primary_working_group": primary_working_group,
+    }
+
+    tmp_logger.debug(text_representation)
+
+    tmp_logger.debug("Done")
+    return generate_response(True, text_representation, dictionary_representation)
 
 
 @request_validation(_logger, request_method="GET")
