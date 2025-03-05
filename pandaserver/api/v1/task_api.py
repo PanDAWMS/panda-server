@@ -728,7 +728,8 @@ def enable_job_cloning(
         num_sites(int, optional): number of sites to be used for each target
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+              When there was an error, the message field contains the description.
     """
     tmp_logger = LogWrapper(_logger, f"enable_job_cloning < jedi_task_id={jedi_task_id} >")
     tmp_logger.debug("Start")
@@ -753,7 +754,8 @@ def disable_job_cloning(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
         jedi_task_id(int): JEDI Task ID
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+              When there was an error, the message field contains the description.
     """
     tmp_logger = LogWrapper(_logger, f"disable_job_cloning < jedi_task_id={jedi_task_id} >")
     tmp_logger.debug("Start")
@@ -779,7 +781,8 @@ def increase_attempts(req: PandaRequest, jedi_task_id: int, increase: int) -> Di
         increase(int): number of attempts to increase
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+              When there was an error, the message field contains the description and the data field contains the code.
     """
     tmp_logger = LogWrapper(_logger, f"increase_attempt_number jedi_task_id={jedi_task_id}")
     tmp_logger.debug("Start")
@@ -824,7 +827,9 @@ def get_status(req, jedi_task_id):
         jedi_task_id(int): JEDI Task ID
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+              When successful, the data field contains the status of the task.
+              When there was an error, the message field contains the description.
     """
     tmp_logger = LogWrapper(_logger, f"get_status < jedi_task_id={jedi_task_id} >")
     tmp_logger.debug("Start")
@@ -863,7 +868,9 @@ def get_details(req: PandaRequest, jedi_task_id: int, include_parameters: bool =
         include_status(bool, optional): flag to include status information (Previously withTaskInfo)
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+              When succesful, there data field contains the task details.
+              When there was an error, the message field contains the description.
     """
     tmp_logger = LogWrapper(_logger, f"get_details  < jedi_task_id={jedi_task_id} include_parameters={include_parameters} include_status={include_status} >")
     tmp_logger.debug("Start")
@@ -896,7 +903,8 @@ def change_attribute(req: PandaRequest, jedi_task_id: int, attribute_name: str, 
         value(int): value to set to the attribute
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
+              Return code in the data field, 0 for success, others for failure.
     """
     tmp_logger = LogWrapper(_logger, f"change_attribute < jedi_task_id={jedi_task_id} attribute_name={attribute_name} value={value} >")
     tmp_logger.debug("Start")
@@ -944,7 +952,7 @@ def change_modification_time(req: PandaRequest, jedi_task_id: int, positive_hour
         positive_hour_offset(int): number of hours to add to the current time
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
     tmp_logger = LogWrapper(_logger, f"change_modification_time < jedi_task_id={jedi_task_id} positive_hour_offset={positive_hour_offset} >")
     tmp_logger.debug("Start")
@@ -994,7 +1002,8 @@ def change_priority(req: PandaRequest, jedi_task_id: int, priority: int):
         priority(int): new priority for the task
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`.
+              True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
     tmp_logger = LogWrapper(_logger, f"change_priority < jedi_task_id={jedi_task_id} priority={priority} >")
     tmp_logger.debug("Start")
@@ -1046,7 +1055,8 @@ def change_split_rule(req: PandaRequest, jedi_task_id: int, attribute_name: str,
         value(int): value to set to the attribute
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
+              Return code in the data field, 0 for success, others for failure.
     """
     tmp_logger = LogWrapper(_logger, f"change_split_rule < jedi_task_id={jedi_task_id} attribute_name={attribute_name} value={value} >")
     tmp_logger.debug("Start")
@@ -1099,7 +1109,7 @@ def get_tasks_modified_since(req, since: str, dn: str = "", full: bool = False, 
         prod_source_label(str, optional): task type (e.g. `user`, `managed`, `test`, etc.)
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
     tmp_logger = LogWrapper(_logger, "get_tasks_modified_since")
     tmp_logger.debug("Start")
@@ -1159,7 +1169,7 @@ def get_datasets_and_files(req, jedi_task_id, dataset_types: List = ("input", "p
         dataset_types(List, optional): list of dataset types, defaults to `["input", "pseudo_input"]`
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
     tmp_logger = LogWrapper(_logger, f"get_datasets_and_files < jedi_task_id={jedi_task_id} dataset_types={dataset_types} >")
     tmp_logger.debug("Start")
@@ -1194,7 +1204,7 @@ def get_job_ids(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
         jedi_task_id(int): JEDI task ID
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
     """
     tmp_logger = LogWrapper(_logger, f"get_job_ids < jedi_task_id={jedi_task_id} >")
     tmp_logger.debug("Start")
@@ -1229,7 +1239,8 @@ def insert_task_parameters(req: PandaRequest, task_parameters: Dict, parent_tid:
         parent_tid(int, optional): Parent task ID
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
+              Return code in the data field, 0 for success, others for failure.
     """
     tmp_log = LogWrapper(_logger, f"insertTaskParams-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
     tmp_log.debug("Start")
@@ -1278,7 +1289,8 @@ def get_task_parameters(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
         jedi_task_id(int): JEDI task ID
 
     Returns:
-        dict: The system response. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+        dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message. Return code in the data field, 0 for success, others for failure.
+
     """
     tmp_logger = LogWrapper(_logger, f"get_task_parameters < jedi_task_id={jedi_task_id} >")
     tmp_logger.debug("Start")
