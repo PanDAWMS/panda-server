@@ -1,3 +1,4 @@
+import json
 from typing import Dict
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -56,6 +57,9 @@ def get_attributes(req: PandaRequest, **kwargs: dict) -> Dict:
 
     # Combine data in dictionary form
     combined_data = {"parameters": parameter_dictionary, "environment": environment_dictionary}
+    response = generate_response(True, text_representation, combined_data)
+    tmp_logger.debug(response)
+    tmp_logger.debug(json.dumps(response))
 
     tmp_logger.debug("Done")
     return generate_response(True, text_representation, combined_data)
