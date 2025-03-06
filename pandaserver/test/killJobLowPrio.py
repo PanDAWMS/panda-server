@@ -66,7 +66,6 @@ if options.site is not None:
     varMap[":site"] = options.site
 for table in [
     "ATLAS_PANDA.jobsActive4",
-    "ATLAS_PANDA.jobsWaiting4",
     "ATLAS_PANDA.jobsDefined4",
 ]:
     status, res = proxyS.querySQLS(sql % table, varMap)

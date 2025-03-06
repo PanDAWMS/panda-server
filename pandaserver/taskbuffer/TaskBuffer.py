@@ -328,7 +328,6 @@ class TaskBuffer:
             # loop over all jobs
             ret = []
             newJobs = []
-            nRunJob = 0
             if esJobsetMap is None:
                 esJobsetMap = {}
             try:
@@ -353,47 +352,6 @@ class TaskBuffer:
                 # set jobsetID
                 if job.prodSourceLabel in JobUtils.analy_sources + JobUtils.list_ptest_prod_sources:
                     job.jobsetID = userJobsetID
-                # set specialHandling
-                if job.prodSourceLabel in JobUtils.analy_sources:
-                    if checkSpecialHandling:
-                        specialHandling = ""
-                        # debug mode
-                        if useDebugMode and job.prodSourceLabel == "user":
-                            specialHandling += "debug,"
-                        # express mode
-                        if useExpress and (nRunJob < nExpressJobs or job.prodSourceLabel == "panda"):
-                            specialHandling += "express,"
-                        # keep original attributes
-                        ddmBackEnd = job.getDdmBackEnd()
-                        isHPO = job.is_hpo_workflow()
-                        isScout = job.isScoutJob()
-                        no_looping_check = job.is_no_looping_check()
-                        use_secrets = job.use_secrets()
-                        push_changes = job.push_status_changes()
-                        is_push_job = job.is_push_job()
-                        task_queued_time = get_task_queued_time(job.specialHandling)
-                        # reset specialHandling
-                        specialHandling = specialHandling[:-1]
-                        job.specialHandling = specialHandling
-                        if isScout:
-                            job.setScoutJobFlag()
-                        if isHPO:
-                            job.set_hpo_workflow()
-                        if no_looping_check:
-                            job.disable_looping_check()
-                        if use_secrets:
-                            job.set_use_secrets()
-                        if push_changes:
-                            job.set_push_status_changes()
-                        if is_push_job:
-                            job.set_push_job()
-                        if task_queued_time:
-                            job.set_task_queued_time(task_queued_time.timestamp())
-                        # set DDM backend
-                        if ddmBackEnd is not None:
-                            job.setDdmBackEnd(ddmBackEnd)
-                    if job.prodSourceLabel != "panda":
-                        nRunJob += 1
                 # set relocation flag
                 if job.computingSite != "NULL" and job.relocationFlag != 2:
                     job.relocationFlag = 1

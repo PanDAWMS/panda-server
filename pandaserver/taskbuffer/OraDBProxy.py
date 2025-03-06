@@ -24,6 +24,7 @@ from json.decoder import JSONDecodeError
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils, srv_msg_utils
@@ -482,14 +483,13 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         methodName += f" <JediTaskID={job.jediTaskID} idPool={len(fileIDPool)}>"
         tmp_log = LogWrapper(_logger, methodName)
 
-        # insert jobs to jobsDefined4 or jobsWaiting4
+        # insert jobs to jobsDefined4
         table_name = "jobsDefined4"
         if not toPending:
             # direct submission to the PanDA server
             job.jobStatus = "defined"
         elif job.computingSite == EventServiceUtils.siteIdForWaitingCoJumboJobs:
-            # put waiting co-jumbo jobs to waiting
-            table_name = "jobsWaiting4"
+            # put co-jumbo jobs in waiting
             job.jobStatus = "waiting"
         else:
             # jobs from JEDI
@@ -910,10 +910,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                         totalInputEvents += eventServiceInfo[file.lfn]["nEvents"]
             if job.notDiscardEvents() and origEsJob and nEventsToProcess == 0:
                 job.setAllOkEvents()
-                if job.status != "waiting":
-                    sqlJediJSH = "UPDATE ATLAS_PANDA.jobsDefined4 "
-                else:
-                    sqlJediJSH = "UPDATE ATLAS_PANDA.jobsWaiting4 "
+                sqlJediJSH = "UPDATE ATLAS_PANDA.jobsDefined4 "
                 sqlJediJSH += "SET specialHandling=:specialHandling WHERE PandaID=:PandaID "
                 varMap = dict()
                 varMap[":specialHandling"] = job.specialHandling
@@ -1322,11 +1319,14 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
     # send job to jobsWaiting
     def keepJob(self, job):
         comment = " /* DBProxy.keepJob */"
-        _logger.debug(f"keepJob : {job.PandaID}")
-        sql1 = "DELETE FROM ATLAS_PANDA.jobsDefined4 "
+        method_name = comment.split(" ")[-2].split(".")[-1]
+        method_name += f" <PandaID={job.PandaID}> "
+        tmp_log = LogWrapper(_logger, method_name)
+        tmp_log.debug("start")
+        # set status
+        job.jobStatus = "waiting"
+        sql1 = f"UPDATE ATLAS_PANDA.jobsDefined4 SET {job.bindUpdateChangesExpression()} "
         sql1 += "WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2) AND commandToPilot IS NULL"
-        sql2 = f"INSERT INTO ATLAS_PANDA.jobsWaiting4 ({JobSpec.columnNames()}) "
-        sql2 += JobSpec.bindValuesExpression()
         # time information
         job.modificationTime = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         job.stateChangeTime = job.modificationTime
@@ -1336,8 +1336,8 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             try:
                 # begin transaction
                 self.conn.begin()
-                # delete
-                varMap = {}
+                # update
+                varMap = job.valuesMap(onlyChanged=True)
                 varMap[":PandaID"] = job.PandaID
                 varMap[":oldJobStatus1"] = "assigned"
                 varMap[":oldJobStatus2"] = "defined"
@@ -1345,19 +1345,14 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 n = self.cur.rowcount
                 if n == 0:
                     # already killed
-                    _logger.debug(f"keepJob : Not found {job.PandaID}")
+                    tmp_log.debug(f"Not found")
                 else:
-                    # set status
-                    job.jobStatus = "waiting"
-                    # insert
-                    self.cur.execute(sql2 + comment, job.valuesMap())
                     # update files
                     for file in job.Files:
                         sqlF = f"UPDATE ATLAS_PANDA.filesTable4 SET {file.bindUpdateChangesExpression()}" + "WHERE row_ID=:row_ID"
                         varMap = file.valuesMap(onlyChanged=True)
                         if varMap != {}:
                             varMap[":row_ID"] = file.row_ID
-                            _logger.debug(sqlF + comment + str(varMap))
                             self.cur.execute(sqlF + comment, varMap)
                     # update parameters
                     sqlJob = "UPDATE ATLAS_PANDA.jobParamsTable SET jobParameters=:param WHERE PandaID=:PandaID"
@@ -1375,17 +1370,17 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                         self.recordStatusChange(job.PandaID, job.jobStatus, jobInfo=job)
                         self.push_job_status_message(job, job.PandaID, job.jobStatus)
                 except Exception:
-                    _logger.error("recordStatusChange in keepJob")
+                    tmp_log.error("recordStatusChange in keepJob")
                 return True
             except Exception:
                 # roll back
                 self._rollback()
                 if iTry + 1 < nTry:
-                    _logger.debug(f"keepJob : {job.PandaID} retry : {iTry}")
+                    tmp_log.debug(f"retry : {iTry}")
                     time.sleep(random.randint(10, 20))
                     continue
-                type, value, traceBack = sys.exc_info()
-                _logger.error(f"keepJob : {type} {value}")
+                # dump error
+                self.dumpErrorMessage(_logger, method_name)
                 return False
 
     # archive job to jobArchived and remove the job from jobsActive or jobsDefined
@@ -1404,12 +1399,9 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         tmpLog = LogWrapper(_logger, methodName)
         tmpLog.debug(f"start status={job.jobStatus} label={job.prodSourceLabel} " f"type={job.processingType} async_params={async_params}")
         start_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-        if fromJobsDefined:
+        if fromJobsDefined or fromJobsWaiting:
             sql0 = "SELECT jobStatus FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID "
             sql1 = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
-        elif fromJobsWaiting:
-            sql0 = "SELECT jobStatus FROM ATLAS_PANDA.jobsWaiting4 WHERE PandaID=:PandaID "
-            sql1 = "DELETE FROM ATLAS_PANDA.jobsWaiting4 WHERE PandaID=:PandaID"
         else:
             sql0 = "SELECT jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID FOR UPDATE "
             sql1 = "DELETE FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID"
@@ -2405,10 +2397,10 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                         # update fake co-jumbo jobs
                         if updatedFlag and eventService == EventServiceUtils.jumboJobFlagNumber:
                             # sql to update fake co-jumbo
-                            sqlIFL = "SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 "
+                            sqlIFL = "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 "
                             sqlIFL += "WHERE jediTaskID=:jediTaskID AND eventService=:eventService AND jobStatus=:jobStatus "
                             sqlIFL += "FOR UPDATE NOWAIT "
-                            sqlIF = "UPDATE ATLAS_PANDA.jobsWaiting4 SET modificationTime=CURRENT_DATE "
+                            sqlIF = "UPDATE ATLAS_PANDA.jobsDefined4 SET modificationTime=CURRENT_DATE "
                             sqlIF += "WHERE jediTaskID=:jediTaskID AND eventService=:eventService AND jobStatus=:jobStatus "
                             varMap = {}
                             varMap[":jediTaskID"] = jediTaskID
@@ -4081,7 +4073,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             self._rollback()
             return [], 0
 
-    # reset job in jobsActive or jobsWaiting
+    # reset job in jobsActive
     def resetJob(
         self,
         pandaID,
@@ -4096,9 +4088,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         tmpLog = LogWrapper(_logger, methodName)
         tmpLog.debug(f"activeTable={activeTable}")
         # select table
-        table = "ATLAS_PANDA.jobsWaiting4"
-        if activeTable:
-            table = "ATLAS_PANDA.jobsActive4"
+        table = "ATLAS_PANDA.jobsActive4"
         sql1 = f"SELECT {JobSpec.columnNames()} FROM {table} "
         sql1 += "WHERE PandaID=:PandaID"
         sql2 = f"DELETE FROM {table} "
@@ -4375,7 +4365,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         sql2 = f"SELECT {JobSpec.columnNames()} "
         sql2 += "FROM %s WHERE PandaID=:PandaID AND jobStatus<>:jobStatus"
         sql3 = "DELETE FROM %s WHERE PandaID=:PandaID"
-        sqlU = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID AND (jobStatus=:oldJobStatus1 OR jobStatus=:oldJobStatus2)"
+        sqlU = "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID AND jobStatus IN (:oldJobStatus1,:oldJobStatus2,:oldJobStatus3,:oldJobStatus4) "
         sql4 = f"INSERT INTO ATLAS_PANDA.jobsArchived4 ({JobSpec.columnNames()}) "
         sql4 += JobSpec.bindValuesExpression()
         sqlF = "UPDATE ATLAS_PANDA.filesTable4 SET status=:status WHERE PandaID=:PandaID AND type IN (:type1,:type2)"
@@ -4397,7 +4387,6 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             for table in (
                 "ATLAS_PANDA.jobsDefined4",
                 "ATLAS_PANDA.jobsActive4",
-                "ATLAS_PANDA.jobsWaiting4",
             ):
                 # commit
                 if not self._commit():
@@ -4517,6 +4506,8 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                     varMap[":PandaID"] = pandaID
                     varMap[":oldJobStatus1"] = "assigned"
                     varMap[":oldJobStatus2"] = "defined"
+                    varMap[":oldJobStatus3"] = "pending"
+                    varMap[":oldJobStatus4"] = "waiting"
                     self.cur.execute(sqlU + comment, varMap)
                 else:
                     varMap = {}
@@ -4700,14 +4691,12 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         for iTry in range(nTry):
             try:
                 tables = []
-                if fromDefined:
+                if fromDefined or fromWaiting:
                     tables.append("ATLAS_PANDA.jobsDefined4")
                 if fromActive:
                     tables.append("ATLAS_PANDA.jobsActive4")
                 if fromArchived:
                     tables.append("ATLAS_PANDA.jobsArchived4")
-                if fromWaiting:
-                    tables.append("ATLAS_PANDA.jobsWaiting4")
                 if fromDefined:
                     # for jobs which are just reset
                     tables.append("ATLAS_PANDA.jobsDefined4")
@@ -4802,10 +4791,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         tmpLog = LogWrapper(_logger, methodName + f" <jediTaskID={jediTaskID}>")
         tmpLog.debug("start")
         # SQL
-        sql = "SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 "
-        sql += "WHERE jediTaskID=:jediTaskID "
-        sql += "UNION "
-        sql += "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 "
+        sql = "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 "
         sql += "WHERE jediTaskID=:jediTaskID "
         sql += "UNION "
         sql += "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
@@ -6528,7 +6514,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
 
         ret = {}
 
-        tables = ["ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsWaiting4", "ATLAS_PANDA.jobsArchived4", "ATLAS_PANDA.jobsDefined4"]
+        tables = ["ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsArchived4", "ATLAS_PANDA.jobsDefined4"]
         try:
             for table in tables:
                 # start transaction
@@ -6593,7 +6579,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         time_floor = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12)
 
         # Job tables we are going to query
-        tables = ["ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsWaiting4", "ATLAS_PANDA.jobsArchived4", "ATLAS_PANDA.jobsDefined4"]
+        tables = ["ATLAS_PANDA.jobsActive4", "ATLAS_PANDA.jobsArchived4", "ATLAS_PANDA.jobsDefined4"]
 
         # Define the prodSourceLabel list
         prod_source_labels = ", ".join([f":prodSourceLabel_{label}" for label in JobUtils.list_ptest_prod_sources])
@@ -11703,10 +11689,8 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 else:
                     self.updateInputStatusJedi(jobSpec.jediTaskID, jobSpec.PandaID, "queued", checkOthers=True)
                 # insert job with new PandaID
-                if jobSpec.jobStatus in ["defined", "assigned", "pending"]:
+                if jobSpec.jobStatus in ["defined", "assigned", "pending", "waiting"]:
                     table_name = "jobsDefined4"
-                elif jobSpec.jobStatus in ["waiting"]:
-                    table_name = "jobsWaiting4"
                 else:
                     table_name = "jobsActive4"
                 sql1 = f"INSERT INTO {panda_config.schemaPANDA}.{table_name} ({JobSpec.columnNames()}) "
@@ -12170,7 +12154,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             nRow = self.cur.rowcount
             if nRow == 1:
                 # update jobs
-                for tableName in ["jobsActive4", "jobsDefined4", "jobsWaiting4"]:
+                for tableName in ["jobsActive4", "jobsDefined4"]:
                     self.cur.execute(sqlJ.format(tableName) + comment, varMap)
             # update DEFT
             self.cur.execute(sqlD + comment, varMap)
@@ -12671,7 +12655,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 self.cur.arraysize = 10
                 deletedFlag = False
                 notToDelete = False
-                for tableName in ["jobsActive4", "jobsDefined4", "jobsWaiting4"]:
+                for tableName in ["jobsActive4", "jobsDefined4"]:
                     # check attemptNr
                     if checkAttemptNr and attemptNr != myAttemptNr:
                         _logger.debug(f"{methodName} : skip to kill {pandaID} since attemptNr:{attemptNr} is different from mine={myAttemptNr}")
@@ -15493,9 +15477,6 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             sqlCP += "UNION "
             sqlCP += "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 "
             sqlCP += "WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
-            sqlCP += "UNION "
-            sqlCP += "SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 "
-            sqlCP += "WHERE jediTaskID=:jediTaskID AND jobsetID=:jobsetID "
             varMap = {}
             varMap[":jediTaskID"] = jobSpec.jediTaskID
             varMap[":jobsetID"] = jobSpec.jobsetID
@@ -15932,7 +15913,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             # get jobs
             coJumboTobeKilled = set()
             useJumbos = dict()
-            for tableName in ["jobsActive4", "jobsDefined4", "jobsWaiting4"]:
+            for tableName in ["jobsActive4", "jobsDefined4"]:
                 self.conn.begin()
                 varMap = {}
                 varMap[":eventService"] = EventServiceUtils.coJumboJobFlagNumber
@@ -16237,10 +16218,6 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 sql += "AND jediTaskID=:jediTaskID "
             sql += "UNION "
             sql += "SELECT PandaID,jediTaskID,jobStatus FROM ATLAS_PANDA.jobsActive4 WHERE eventService=:eventService "
-            if jediTaskID is not None:
-                sql += "AND jediTaskID=:jediTaskID "
-            sql += "UNION "
-            sql += "SELECT PandaID,jediTaskID,jobStatus FROM ATLAS_PANDA.jobsWaiting4 WHERE eventService=:eventService "
             if jediTaskID is not None:
                 sql += "AND jediTaskID=:jediTaskID "
             # begin transaction
@@ -17122,7 +17099,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                        AND jobstatus IN ({2})
                        """
 
-                for table in ["jobsactive4", "jobswaiting4", "jobsdefined4"]:
+                for table in ["jobsactive4", "jobsdefined4"]:
                     self.cur.execute(
                         sql_jobs.format(table, jtid_bindings, jobstatus) + comment,
                         var_map,
@@ -17981,9 +17958,9 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             # insert
             if not toSkip:
                 varMap = dict()
-                varMap[":harvester_ID"] = harvester_ID
+                varMap[":harvester_id"] = harvester_ID
                 varMap[":command"] = command
-                varMap[":ack_requested"] = ack_requested
+                varMap[":ack_requested"] = 1 if ack_requested else 0
                 varMap[":status"] = status
                 sqlI = "INSERT INTO ATLAS_PANDA.HARVESTER_COMMANDS "
                 sqlI += "(command_id,creation_date,status_date,command,harvester_id,ack_requested,status"
@@ -18327,41 +18304,48 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
         tmp_logger.debug("start")
         try:
             # sql to calculate the average memory for the queue - harvester_id combination
+            # "* 1" in sj.data.blah * 1 is required to notify postgres the data type is an int since json element is
+            # treated as text otherwise. This is needed only for the first occurrence of each element in the query
             sql_running_and_submitted = (
-                "SELECT /*+ RESULT_CACHE */ sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) "
+                "SELECT /*+ RESULT_CACHE */ /* use_json_type */ sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) "
                 "FROM ( "
                 "    SELECT hws.computingsite, "
                 "           hws.harvester_id, "
                 "           hws.n_workers, "
-                "           hws.n_workers * NVL(rt.maxcore, NVL(sj.data.corecount, 1)) * NVL(rt.maxrampercore, sj.data.maxrss / NVL(sj.data.corecount, 1)) as total_memory, "
+                "           hws.n_workers * NVL(rt.maxcore, NVL(sj.data.corecount * 1, 1)) * NVL(rt.maxrampercore, sj.data.maxrss * 1 / NVL(sj.data.corecount, 1)) as total_memory, "
                 "           NVL(rt.maxcore, NVL(sj.data.corecount, 1)) as corecount "
                 "    FROM ATLAS_PANDA.harvester_worker_stats hws "
                 "    JOIN ATLAS_PANDA.resource_types rt ON hws.resourcetype = rt.resource_name "
                 "    JOIN ATLAS_PANDA.schedconfig_json sj ON hws.computingsite = sj.panda_queue "
-                "    WHERE lastupdate > CAST(SYSTIMESTAMP AT TIME ZONE 'UTC' - INTERVAL '1' HOUR AS DATE) "
+                "    WHERE lastupdate > :time_limit "
                 "      AND status IN ('running', 'submitted', 'to_submit') "
                 "      AND computingsite=:queue AND harvester_id=:harvester_id"
-                ")GROUP BY computingsite, harvester_id "
+                ") GROUP BY computingsite, harvester_id "
             )
 
             sql_running = (
-                "SELECT /*+ RESULT_CACHE */ sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) "
+                "SELECT /*+ RESULT_CACHE */ /* use_json_type */ sum(total_memory) / NULLIF(sum(n_workers * corecount), 0) "
                 "FROM ( "
                 "    SELECT hws.computingsite, "
                 "           hws.harvester_id, "
                 "           hws.n_workers, "
-                "           hws.n_workers * NVL(rt.maxcore, NVL(sj.data.corecount, 1)) * NVL(rt.maxrampercore, sj.data.maxrss / NVL(sj.data.corecount, 1)) as total_memory, "
+                "           hws.n_workers * NVL(rt.maxcore, NVL(sj.data.corecount * 1, 1)) * NVL(rt.maxrampercore, sj.data.maxrss * 1 / NVL(sj.data.corecount, 1)) as total_memory, "
                 "           NVL(rt.maxcore, NVL(sj.data.corecount, 1)) as corecount "
                 "    FROM ATLAS_PANDA.harvester_worker_stats hws "
                 "    JOIN ATLAS_PANDA.resource_types rt ON hws.resourcetype = rt.resource_name "
                 "    JOIN ATLAS_PANDA.schedconfig_json sj ON hws.computingsite = sj.panda_queue "
-                "    WHERE lastupdate > CAST(SYSTIMESTAMP AT TIME ZONE 'UTC' - INTERVAL '1' HOUR AS DATE) "
+                "    WHERE lastupdate > :time_limit "
                 "      AND status = 'running' "
                 "      AND computingsite=:queue AND harvester_id=:harvester_id"
-                ")GROUP BY computingsite, harvester_id "
+                ") GROUP BY computingsite, harvester_id "
             )
 
-            var_map = {":queue": queue, ":harvester_id": harvester_id}
+            # bind variables including truncated time_limit for result cache
+            var_map = {
+                ":queue": queue,
+                ":harvester_id": harvester_id,
+                ":time_limit": (naive_utcnow() - datetime.timedelta(hours=1)).replace(second=0, microsecond=0),
+            }
 
             self.cur.execute(sql_running_and_submitted + comment, var_map)
             results = self.cur.fetchone()
@@ -18662,7 +18646,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                 idAttrMap = dict()
                 sqlCP = "SELECT PandaID,attemptNr FROM ATLAS_PANDA.filesTable4 "
                 sqlCP += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND fileID=:fileID "
-                sqlWP = "SELECT 1 FROM ATLAS_PANDA.jobsWaiting4 WHERE PandaID=:PandaID AND computingSite=:computingSite "
+                sqlWP = "SELECT 1 FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID=:PandaID AND computingSite=:computingSite "
                 for datasetID, fileID in resPD:
                     if fileID is None:
                         continue
@@ -19233,7 +19217,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
                     jobSpec.jobParameters = str(clobJobP)
                 break
             # insert job with new PandaID
-            sql1 = f"INSERT INTO ATLAS_PANDA.jobsWaiting4 ({JobSpec.columnNames()}) "
+            sql1 = f"INSERT INTO ATLAS_PANDA.jobsDefined4 ({JobSpec.columnNames()}) "
             sql1 += JobSpec.bindValuesExpression(useSeq=True)
             sql1 += " RETURNING PandaID INTO :newPandaID"
             varMap = jobSpec.valuesMap(useSeq=True)

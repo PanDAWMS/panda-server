@@ -37,7 +37,6 @@ varMap[":pandaIDu"] = args[2]
 sql = "SELECT PandaID FROM %s WHERE prodSourceLabel=:prodSourceLabel AND taskID=:taskID AND PandaID BETWEEN :pandaIDl AND :pandaIDu ORDER BY PandaID"
 for table in [
     "ATLAS_PANDA.jobsActive4",
-    "ATLAS_PANDA.jobsWaiting4",
     "ATLAS_PANDA.jobsDefined4",
 ]:
     status, res = proxyS.querySQLS(sql % table, varMap)

@@ -265,7 +265,8 @@ token_audience = https://pandaserver.cern.ch
 # directory where OIDC authentication config files are placed
 auth_config = /opt/panda/etc/panda/auth/
 
-
+# a comma-concatenated list of legacy token issuers during transition of token issuer migration
+legacy_token_issuers = None
 
 
 ##########################

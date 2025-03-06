@@ -62,7 +62,7 @@ class TokenDecoder:
             raise
 
     # decode and verify JWT token
-    def deserialize_token(self, token, auth_config, vo, log_stream):
+    def deserialize_token(self, token, auth_config, vo, log_stream, legacy_token_issuers):
         try:
             # check audience
             unverified = jwt.decode(token, verify=False, options={"verify_signature": False})
@@ -94,14 +94,27 @@ class TokenDecoder:
                 issuer = unverified["iss"]
             else:
                 issuer = oidc_config["issuer"]
-            decoded = jwt.decode(
-                token,
-                public_key,
-                verify=True,
-                algorithms="RS256",
-                audience=audience,
-                issuer=issuer,
-            )
+            if legacy_token_issuers:
+                issuers = list(dict.fromkeys([issuer] + legacy_token_issuers))
+            else:
+                issuers = [issuer]
+            decoded = None
+            err_msg = None
+            for tmp_issuer in issuers:
+                try:
+                    decoded = jwt.decode(
+                        token,
+                        public_key,
+                        verify=True,
+                        algorithms="RS256",
+                        audience=audience,
+                        issuer=tmp_issuer,
+                    )
+                    break
+                except jwt.exceptions.InvalidIssuerError as e:
+                    err_msg = str(e)
+            if not decoded:
+                raise jwt.exceptions.InvalidTokenError(f"failed to decode: {err_msg}")
             if vo is not None:
                 decoded["vo"] = vo
             else:
