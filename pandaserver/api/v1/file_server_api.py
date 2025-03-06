@@ -671,7 +671,7 @@ def upload_file_recovery_request(req: PandaRequest, jedi_task_id: int, dry_run: 
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def upload_workflow_request(req: PandaRequest, data: str, check: bool = False, sync: bool = False) -> Dict:
+def upload_workflow_request(req: PandaRequest, data: str, dry_run: bool = False, sync: bool = False) -> Dict:
     """
     Upload workflow request to the server.
 
@@ -684,7 +684,7 @@ def upload_workflow_request(req: PandaRequest, data: str, check: bool = False, s
     Args:
         req(PandaRequest): internally generated request object containing the env variables
         data(string): workflow request data
-        check(bool): check flag
+        dry_run(bool): requests the workflow to be executed synchronously in dry_run mode
         sync(bool): requests the workflow to be processed synchronously
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
@@ -714,15 +714,17 @@ def upload_workflow_request(req: PandaRequest, data: str, check: bool = False, s
             json.dump(data_dict, file_object)
 
         # Submitter requested synchronous processing
-        if sync or check:
+        if sync or dry_run:
             tmp_logger.debug("Starting synchronous processing of the workflow")
             from pandaserver.taskbuffer.workflow_processor import WorkflowProcessor
 
             processor = WorkflowProcessor(log_stream=_logger)
-            if check:
+            if dry_run:
                 ret = processor.process(file_name, True, True, True, True)
             else:
                 ret = processor.process(file_name, True, False, True, False)
+
+            # Delete the file to prevent it being processed again
             if os.path.exists(file_name):
                 try:
                     os.remove(file_name)

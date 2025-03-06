@@ -283,11 +283,11 @@ def kill(req, panda_ids: List, code: int = None, use_email_as_id: bool = False, 
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def reassign(req: PandaRequest, panda_ids: List, first_submission: bool = True):
+def reassign(req: PandaRequest, panda_ids: List):
     """
-    Kill all unfinished jobs in a task
+    Reassign a list of jobs
 
-    Kills all unfinished jobs in a task.
+    Reassigns a list of jobs.
 
     API details:
         HTTP Method: POST
@@ -296,7 +296,6 @@ def reassign(req: PandaRequest, panda_ids: List, first_submission: bool = True):
     Args:
         req(PandaRequest): internally generated request object containing the env variables
         panda_ids (List): List of PanDA job IDs
-        first_submission (bool, optional): TODO: figure out what this is. Set True if first jobs are submitted for a task, or False if not. Defaults to True.
 
     Returns:
         dict: The system response `{"success": True}`.
@@ -306,7 +305,7 @@ def reassign(req: PandaRequest, panda_ids: List, first_submission: bool = True):
     tmp_logger = LogWrapper(_logger, f"reassign panda_ids={panda_ids}")
     tmp_logger.debug("Start")
     # taskBuffer.reassignJobs always returns True
-    global_task_buffer.reassignJobs(panda_ids, firstSubmission=first_submission)
+    global_task_buffer.reassignJobs(panda_ids)
     tmp_logger.debug(f"Done")
     return generate_response(True)
 
