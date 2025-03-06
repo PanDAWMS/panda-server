@@ -7967,35 +7967,6 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             self.dumpErrorMessage(_logger, methodName)
             return False, None
 
-    # get client version
-    def getPandaClientVer(self):
-        comment = " /* DBProxy.getPandaClientVer */"
-        _logger.debug("getPandaClientVer")
-        try:
-            # set autocommit on
-            self.conn.begin()
-            # select
-            sql = "SELECT pathena FROM ATLAS_PANDAMETA.pandaconfig WHERE name=:name"
-            varMap = {}
-            varMap[":name"] = "current"
-            self.cur.execute(sql + comment, varMap)
-            self.cur.arraysize = 10
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            retStr = ""
-            if res is not None and len(res) != 0:
-                retStr = res[0][0]
-            _logger.debug(f"getPandaClientVer -> {retStr}")
-            return retStr
-        except Exception:
-            # roll back
-            self._rollback()
-            type, value, traceBack = sys.exc_info()
-            _logger.error(f"getPandaClientVer : {type} {value}")
-            return ""
-
     # register token key
     def register_token_key(self, client_name: str, lifetime: int) -> bool:
         """

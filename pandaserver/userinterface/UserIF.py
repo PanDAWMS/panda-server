@@ -302,11 +302,6 @@ class UserIF:
         ret = self.taskBuffer.get_ban_users()
         return json.dumps(ret)
 
-    # get client version
-    def getPandaClientVer(self):
-        ret = self.taskBuffer.getPandaClientVer()
-        return ret
-
     # get active JediTasks in a time range
     def getJediTasksInTimeRange(self, dn, timeRange, fullFlag, minTaskID, task_type):
         ret = self.taskBuffer.getJediTasksInTimeRange(dn, timeRange, fullFlag, minTaskID, task_type)
@@ -881,11 +876,6 @@ def getSiteSpecs(req, siteType=None):
 # get ban users
 def get_ban_users(req):
     return userIF.get_ban_users()
-
-
-# get client version
-def getPandaClientVer(req):
-    return userIF.getPandaClientVer()
 
 
 # get script for offline running

@@ -1625,17 +1625,6 @@ class TaskBuffer:
 
         return ret
 
-    # get client version
-    def getPandaClientVer(self):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.getPandaClientVer()
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
     # register a token key
     def register_token_key(self, client_name, lifetime):
         # get DBproxy
