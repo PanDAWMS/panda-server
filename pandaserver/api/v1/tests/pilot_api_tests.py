@@ -99,6 +99,30 @@ class TestTaskAPI(unittest.TestCase):
         expected_response = {"status": 0, "success": False, "data": 2, "message": ""}
         self.assertEqual(output, expected_response)
 
+    def test_update_worker_node(self):
+        url = f"{api_url_ssl}/pilot/update_worker_node"
+        print(f"Testing URL: {url}")
+        data = {
+            "site": "CERN",
+            "host_name": "slot1@wn1.cern.ch",
+            "cpu_model": "AMD EPYC 7B12",
+            "n_logical_cpus": 64,
+            "n_sockets": 2,
+            "cores_per_socket": 8,
+            "threads_per_core": 2,
+            "cpu_architecture": "x86_64",
+            "cpu_architecture_level": "x86_64-v3",
+            "clock_speed": 2.7,
+            "total_memory": 3350,
+        }
+
+        status, output = self.http_client.post(url, data)
+        print(output)
+        output["status"] = status
+
+        expected_response = {"status": 0, "success": True, "data": None, "message": "Inserted new worker node."}
+        self.assertEqual(output, expected_response)
+
 
 # Run tests
 if __name__ == "__main__":
