@@ -218,10 +218,17 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                 if request_method == "GET":
                     try:
                         tmp_logger.debug(f"Casting '{param_name}' to type {expected_type.__name__}.")
-                        param_value = expected_type(param_value)
+                        # Booleans need to be handled separately, since bool("False") == True
+                        if expected_type is bool:
+                            param_value = param_value.lower() in ("true", "1")
+                        # Convert to float first, then to int. This is a courtesy for cases passing decimal numbers.
+                        elif expected_type is int:
+                            param_value = int(float(param_value))
+                        else:
+                            param_value = expected_type(param_value)
                         bound_args.arguments[param_name] = param_value  # Ensure the cast value is used
                     except (ValueError, TypeError):
-                        message = f"Type error: '{param_name}' could not be casted to type {expected_type.__name__}."
+                        message = f"Type error: '{param_name}' with value '{param_value}' could not be casted to type {expected_type.__name__}."
                         tmp_logger.error(message)
                         return generate_response(False, message=message)
 
