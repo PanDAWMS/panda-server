@@ -36,7 +36,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_status(req: PandaRequest, panda_ids: str, timeout: int = 60) -> Dict:
+def get_status(req: PandaRequest, panda_ids: List[int], timeout: int = 60) -> Dict:
     """
     Get status of a job.
 
@@ -48,8 +48,8 @@ def get_status(req: PandaRequest, panda_ids: str, timeout: int = 60) -> Dict:
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        panda_ids (str): Comma separated list of PanDA job IDs.
-        timeout (int, optional): The timeout value. Defaults to 60.
+        panda_ids(List[int]): list of PanDA job IDs.
+        timeout(int, optional): The timeout value. Defaults to 60.
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains a list of tupes with (status, command). When unsuccessful, the message field contains the error message and data an error code.
@@ -57,8 +57,10 @@ def get_status(req: PandaRequest, panda_ids: str, timeout: int = 60) -> Dict:
     tmp_logger = LogWrapper(_logger, f"get_status panda_ids={panda_ids} timeout={timeout}")
     tmp_logger.debug("Start")
 
+    # The task buffer method expect a comma separated list of panda_ids
+    panda_ids_str = ",".join(panda_ids)
     timed_method = TimedMethod(global_task_buffer.checkJobStatus, timeout)
-    timed_method.run(panda_ids)
+    timed_method.run(panda_ids_str)
 
     # Time out
     if timed_method.result == Protocol.TimeOutToken:
@@ -77,7 +79,7 @@ def get_status(req: PandaRequest, panda_ids: str, timeout: int = 60) -> Dict:
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_description(self, panda_ids: str) -> Dict:
+def get_description(self, panda_ids: List[int]) -> Dict:
     """
     Get description of a job.
 
@@ -89,7 +91,7 @@ def get_description(self, panda_ids: str) -> Dict:
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        panda_ids (str): List of PanDA job IDs in a json string. TODO: See if we should unify the panda-ids format across the API.
+        panda_ids (List[int]): List of PanDA job IDs.
         timeout (int, optional): The timeout value. Defaults to 60.
 
     Returns:
@@ -99,7 +101,6 @@ def get_description(self, panda_ids: str) -> Dict:
     tmp_logger.debug("Start")
 
     try:
-        panda_ids = json.loads(panda_ids)
         tmp_logger.debug(f"Number of requested PanDA IDs: {len(panda_ids)}")
         max_ids = 5500
         if len(panda_ids) > max_ids:
@@ -118,7 +119,7 @@ def get_description(self, panda_ids: str) -> Dict:
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_description_incl_archive(req: PandaRequest, panda_ids: str) -> Dict:
+def get_description_incl_archive(req: PandaRequest, panda_ids: List[int]) -> Dict:
     """
     Get description of a job.
 
@@ -129,8 +130,8 @@ def get_description_incl_archive(req: PandaRequest, panda_ids: str) -> Dict:
         Path: /job/v1/get_description_incl_archive
 
     Args:
-        req(PandaRequest): internally generated request object containing the env variables
-        panda_ids (str): List of PanDA job IDs in a json string. TODO: See if we should unify the panda-ids format across the API.
+        req(PandaRequest): internally generated request object containing the env variables.
+        panda_ids (List[int]): List of PanDA job IDs.
         timeout (int, optional): The timeout value. Defaults to 60.
 
     Returns:
@@ -140,7 +141,6 @@ def get_description_incl_archive(req: PandaRequest, panda_ids: str) -> Dict:
     tmp_logger.debug("Start")
 
     try:
-        panda_ids = json.loads(panda_ids)
         tmp_logger.debug(f"Number of requested PanDA IDs: {len(panda_ids)}")
         max_ids = 5500
         if len(panda_ids) > max_ids:
@@ -221,7 +221,7 @@ def get_metadata_for_analysis_jobs(req: PandaRequest, jedi_task_id: int) -> Dict
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def kill(req, panda_ids: List, code: int = None, use_email_as_id: bool = False, kill_options: List = []):
+def kill(req, panda_ids: List[int], code: int = None, use_email_as_id: bool = False, kill_options: List = []):
     """
     Kill the jobs
 
@@ -283,7 +283,7 @@ def kill(req, panda_ids: List, code: int = None, use_email_as_id: bool = False, 
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def reassign(req: PandaRequest, panda_ids: List):
+def reassign(req: PandaRequest, panda_ids: List[int]):
     """
     Reassign a list of jobs
 

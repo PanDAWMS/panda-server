@@ -3,6 +3,7 @@ import json
 import os
 import socket
 from threading import Lock
+from typing import List
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
@@ -96,11 +97,11 @@ def set_user_secrets(req: PandaRequest, key: str = None, value: str = None) -> d
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_user_secrets(req: PandaRequest, keys: str = None) -> dict:
+def get_user_secrets(req: PandaRequest, keys: List[str] = None) -> dict:
     """
     Get user secrets
 
-    Get the secrets for a user identified by a comma separated list of keys. Requires a secure connection.
+    Get the secrets for a user identified by a list of keys. Requires a secure connection.
 
     API details:
         HTTP Method: POST
@@ -108,7 +109,7 @@ def get_user_secrets(req: PandaRequest, keys: str = None) -> dict:
 
     Args:
         req(PandaRequest): internally generated request object
-        keys(str): Comma separated keys to reference the secrets to retrieve
+        keys(List[str]): List of keys to reference the secrets to retrieve
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the user secrets. When unsuccessful, the message field contains the error message.
@@ -119,7 +120,10 @@ def get_user_secrets(req: PandaRequest, keys: str = None) -> dict:
     dn = get_dn(req)
     owner = clean_user_id(dn)
     tmp_logger.debug(f"Start for client={owner}")
-    success, data_or_message = global_task_buffer.get_user_secrets(owner, keys)
+
+    # The task buffer method expects a comma-separated string of keys
+    keys_str = ",".join(keys)
+    success, data_or_message = global_task_buffer.get_user_secrets(owner, keys_str)
     message, data = "", {}
     if success:
         data = data_or_message

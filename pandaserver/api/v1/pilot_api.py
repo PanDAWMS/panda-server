@@ -232,7 +232,7 @@ def get_job_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> 
 
     Args:
         req(PandaRequest): Internally generated request object containing the environment variables.
-        job_ids(str): space separated jobs
+        job_ids(List[int]): list of job IDs.
         timeout(int, optional): The timeout value. Defaults to 60.
 
     Returns:
@@ -240,8 +240,6 @@ def get_job_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> 
     """
     tmp_logger = LogWrapper(_logger, f"get_job_status {job_ids}")
     tmp_logger.debug("Start")
-    # split the list of jobs
-    # job_ids = job_ids.split()
 
     # peek jobs
     timed_method = TimedMethod(global_task_buffer.peekJobs, timeout)
