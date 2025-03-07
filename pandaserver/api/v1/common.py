@@ -214,6 +214,10 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                 if default_value == param_value:
                     continue
 
+                # Handle generics like List[int]
+                origin = get_origin(expected_type)
+                args = get_args(expected_type)
+
                 # GET methods are URL encoded. Parameters will lose the type and come as string. We need to cast them to the expected type
                 if request_method == "GET":
                     try:
@@ -224,6 +228,14 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                         # Convert to float first, then to int. This is a courtesy for cases passing decimal numbers.
                         elif expected_type is int:
                             param_value = int(float(param_value))
+                        elif origin is list and args:
+                            element_type = args[0]  # Get the type inside List[<type>]
+                            if element_type is int:
+                                param_value = [int(float(i)) for i in param_value]  # Convert list items to int
+                            elif element_type is float:
+                                param_value = [float(i) for i in param_value]  # Convert list items to float
+                            elif element_type is bool:
+                                param_value = [i.lower() in ("true", "1") for i in param_value]  # Convert list items to bool
                         else:
                             param_value = expected_type(param_value)
                         bound_args.arguments[param_name] = param_value  # Ensure the cast value is used
@@ -231,10 +243,6 @@ def request_validation(logger, secure=True, production=False, request_method=Non
                         message = f"Type error: '{param_name}' with value '{param_value}' could not be casted to type {expected_type.__name__}."
                         tmp_logger.error(message)
                         return generate_response(False, message=message)
-
-                # Handle generics like List[int]
-                origin = get_origin(expected_type)
-                args = get_args(expected_type)
 
                 # Check type
                 if origin:  # Handle generics (e.g., List[int])
