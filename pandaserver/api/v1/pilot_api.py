@@ -226,7 +226,7 @@ def acquire_jobs(
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_job_status(req: PandaRequest, job_ids: str, timeout: int = 60) -> dict:
+def get_job_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> dict:
     """
     Get the status of a list of jobs
 
@@ -239,9 +239,9 @@ def get_job_status(req: PandaRequest, job_ids: str, timeout: int = 60) -> dict:
 
     """
     tmp_logger = LogWrapper(_logger, f"get_job_status {job_ids}")
-
+    tmp_logger.debug("Start")
     # split the list of jobs
-    job_ids = job_ids.split()
+    # job_ids = job_ids.split()
 
     # peek jobs
     timed_method = TimedMethod(global_task_buffer.peekJobs, timeout)
@@ -250,12 +250,12 @@ def get_job_status(req: PandaRequest, job_ids: str, timeout: int = 60) -> dict:
     # make response
     if timed_method.result == Protocol.TimeOutToken:
         response = Protocol.Response(Protocol.SC_TimeOut)
-        tmp_logger.debug(f"ret -> {response.encode(acceptJson=True)}")
+        tmp_logger.debug(f"Done: {response.encode(acceptJson=True)}")
         return response.encode(acceptJson=True)
 
     if not isinstance(timed_method.result, list):
         response = Protocol.Response(Protocol.SC_Failed)
-        tmp_logger.debug(f"ret -> {response.encode(acceptJson=True)}")
+        tmp_logger.debug(f"Done: {response.encode(acceptJson=True)}")
         return response.encode(acceptJson=True)
 
     response = Protocol.Response(Protocol.SC_Success)
@@ -268,7 +268,7 @@ def get_job_status(req: PandaRequest, job_ids: str, timeout: int = 60) -> dict:
 
     response.appendNode("results", job_status_list)
 
-    tmp_logger.debug(f"ret -> {response.encode(acceptJson=True)}")
+    tmp_logger.debug(f"Done: {response.encode(acceptJson=True)}")
 
     return response.encode(acceptJson=True)
 
