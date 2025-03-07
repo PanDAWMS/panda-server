@@ -2917,7 +2917,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
 
         tmp_logger = LogWrapper(
             _logger,
-            method_name + f"update_worker_node < site={site} host_name={host_name} cpu_model={cpu_model} >",
+            f"{method_name} < site={site} host_name={host_name} cpu_model={cpu_model} >",
         )
         tmp_logger.debug("Start")
 
@@ -2938,7 +2938,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             sql = (
                 "SELECT site, host_name, cpu_model, n_logical_cpus, n_sockets, cores_per_socket, threads_per_core, "
                 "cpu_architecture, cpu_architecture_level, clock_speed, total_memory "
-                "FROM ATLAS_PANDA.worker_node_map "
+                "FROM ATLAS_PANDA.worker_node "
                 "WHERE site=:site AND host_name=:host_name AND cpu_model=:cpu_model "
                 "FOR UPDATE NOWAIT"
             )
@@ -2951,7 +2951,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             if res:
                 var_map = {":site": site, ":host_name": host_name, ":cpu_model": cpu_model, ":last_seen": timestamp_utc}
 
-                sql = "UPDATE ATLAS_PANDA.worker_node_map SET last_seen=:last_seen " "WHERE site=:site AND host_name=:host_name AND cpu_model=:cpu_model"
+                sql = "UPDATE ATLAS_PANDA.worker_node SET last_seen=:last_seen " "WHERE site=:site AND host_name=:host_name AND cpu_model=:cpu_model"
 
                 self.cur.execute((sql + comment), var_map)
                 tmp_logger.debug("Worker node was found in the database. Updated last_seen timestamp.")
@@ -2977,7 +2977,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             }
 
             sql = (
-                "INSERT INTO ATLAS_PANDA.worker_node_map "
+                "INSERT INTO ATLAS_PANDA.worker_node "
                 "(site, host_name, cpu_model, n_logical_cpus, n_sockets, cores_per_socket, threads_per_core, "
                 "cpu_architecture, cpu_architecture_level, clock_speed, total_memory, last_seen) "
                 "VALUES "
