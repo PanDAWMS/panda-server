@@ -2900,7 +2900,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
 
     def update_worker_node(
         self,
-        atlas_site,
+        site,
         host_name,
         cpu_model,
         n_logical_cpus,
@@ -2917,7 +2917,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
 
         tmp_logger = LogWrapper(
             _logger,
-            method_name + f"update_worker_node < atlas_site={atlas_site} host_name={host_name} cpu_model={cpu_model} >",
+            method_name + f"update_worker_node < site={site} host_name={host_name} cpu_model={cpu_model} >",
         )
         tmp_logger.debug("Start")
 
@@ -2933,13 +2933,13 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
             self.conn.begin()
 
             # Select the worker node to see if it exists in the database
-            var_map = {":atlas_site": atlas_site, ":host_name": host_name, ":cpu_model": cpu_model}
+            var_map = {":site": site, ":host_name": host_name, ":cpu_model": cpu_model}
 
             sql = (
-                "SELECT atlas_site, host_name, cpu_model, n_logical_cpus, n_sockets, cores_per_socket, threads_per_core, "
+                "SELECT site, host_name, cpu_model, n_logical_cpus, n_sockets, cores_per_socket, threads_per_core, "
                 "cpu_architecture, cpu_architecture_level, clock_speed, total_memory "
                 "FROM ATLAS_PANDA.worker_node_map "
-                "WHERE atlas_site=:atlas_site AND host_name=:host_name AND cpu_model=:cpu_model "
+                "WHERE site=:site AND host_name=:host_name AND cpu_model=:cpu_model "
                 "FOR UPDATE NOWAIT"
             )
 
@@ -2949,12 +2949,9 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
 
             # The worker node entry exists, we update the worker node's last_seen timestamp
             if res:
-                var_map = {":atlas_site": atlas_site, ":host_name": host_name, ":cpu_model": cpu_model, ":last_seen": timestamp_utc}
+                var_map = {":site": site, ":host_name": host_name, ":cpu_model": cpu_model, ":last_seen": timestamp_utc}
 
-                sql = (
-                    "UPDATE ATLAS_PANDA.worker_node_map SET last_seen=:last_seen "
-                    "WHERE atlas_site=:atlas_site AND host_name=:host_name AND cpu_model=:cpu_model"
-                )
+                sql = "UPDATE ATLAS_PANDA.worker_node_map SET last_seen=:last_seen " "WHERE site=:site AND host_name=:host_name AND cpu_model=:cpu_model"
 
                 self.cur.execute((sql + comment), var_map)
                 tmp_logger.debug("Worker node was found in the database. Updated last_seen timestamp.")
@@ -2965,7 +2962,7 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
 
             # The worker node entry did not exist, we insert it as a new worker node
             var_map = {
-                ":atlas_site": atlas_site,
+                ":site": site,
                 ":host_name": host_name,
                 ":cpu_model": cpu_model,
                 ":n_logical_cpus": n_logical_cpus,
@@ -2981,10 +2978,10 @@ class DBProxy(metrics_module.MetricsModule, task_module.TaskModule):
 
             sql = (
                 "INSERT INTO ATLAS_PANDA.worker_node_map "
-                "(atlas_site, host_name, cpu_model, n_logical_cpus, n_sockets, cores_per_socket, threads_per_core, "
+                "(site, host_name, cpu_model, n_logical_cpus, n_sockets, cores_per_socket, threads_per_core, "
                 "cpu_architecture, cpu_architecture_level, clock_speed, total_memory, last_seen) "
                 "VALUES "
-                "(:atlas_site, :host_name, :cpu_model, :n_logical_cpus, :n_sockets, :cores_per_socket, :threads_per_core, "
+                "(:site, :host_name, :cpu_model, :n_logical_cpus, :n_sockets, :cores_per_socket, :threads_per_core, "
                 ":cpu_architecture, :cpu_architecture_level, :clock_speed, :total_memory, :last_seen)"
             )
 
