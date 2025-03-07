@@ -592,7 +592,7 @@ def update_worker_status(req: PandaRequest, worker_id, harvester_id, status, tim
 @request_validation(_logger, secure=True, production=True, request_method="POST")
 def update_worker_node(
     req: PandaRequest,
-    atlas_site: str,
+    site: str,
     host_name: str,
     cpu_model: str,
     n_logical_cpus: int,
@@ -616,10 +616,11 @@ def update_worker_node(
 
     Args:
         req(PandaRequest): Internally generated request object containing the environment variables.
-        atlas_site(str): ATLAS site name.
+        site(str): Site name (e.g. ATLAS site name, not PanDA queue).
         host_name(str): Host name. In the case of reporting in format `slot@worker_node.example.com`, the slot ID will be parsed out.
         cpu_model(str): CPU model, e.g. `AMD EPYC 7351`
-        n_logical_cpus(int): Number of logical CPUs. When SMT is enabled, this is the number of threads. Otherwise it is the number of cores.
+        n_logical_cpus(int): Number of logical CPUs: n_sockets * cores_per_socket * threads_per_core.
+                             When SMT is enabled, this is the number of threads. Otherwise it is the number of cores.
         n_sockets(int): Number of sockets.
         cores_per_socket(int): Number of cores per socket.
         threads_per_core(int): Number of threads per core. When SMT is disabled, this is 1. Otherwise a number > 1.
@@ -632,12 +633,12 @@ def update_worker_node(
     Returns:
         dict: The system response  `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
     """
-    tmp_logger = LogWrapper(_logger, f"update_worker_node atlas_site={atlas_site} host_name={host_name} cpu_model={cpu_model}")
+    tmp_logger = LogWrapper(_logger, f"update_worker_node site={site} host_name={host_name} cpu_model={cpu_model}")
     tmp_logger.debug("Start")
 
     timed_method = TimedMethod(global_task_buffer.update_worker_node, timeout)
     timed_method.run(
-        atlas_site,
+        site,
         host_name,
         cpu_model,
         n_logical_cpus,
