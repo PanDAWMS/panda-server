@@ -35,7 +35,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
     global_task_buffer = task_buffer
 
 
-@request_validation(_logger, secure=False, request_method="GET")
+@request_validation(_logger, secure=True, request_method="GET")
 def get_status(req: PandaRequest, panda_ids: str, timeout: int = 60) -> Dict:
     """
     Get status of a job.
@@ -76,7 +76,7 @@ def get_status(req: PandaRequest, panda_ids: str, timeout: int = 60) -> Dict:
     return generate_response(True, data=data)
 
 
-@request_validation(_logger, secure=False, request_method="GET")
+@request_validation(_logger, secure=True, request_method="GET")
 def get_description(self, panda_ids: str) -> Dict:
     """
     Get description of a job.
@@ -158,7 +158,7 @@ def get_description_incl_archive(req: PandaRequest, panda_ids: str) -> Dict:
     return generate_response(True, data=ret)
 
 
-@request_validation(_logger, secure=False, request_method="GET")
+@request_validation(_logger, secure=True, request_method="GET")
 def generate_offline_execution_script(req: PandaRequest, panda_id: int, days: int = None) -> Dict:
     """
     Get execution script for a job.
@@ -189,7 +189,7 @@ def generate_offline_execution_script(req: PandaRequest, panda_id: int, days: in
     return generate_response(True, data={"script": script})
 
 
-@request_validation(_logger, secure=False, request_method="GET")
+@request_validation(_logger, secure=True, request_method="GET")
 def get_metadata_for_analysis_jobs(req: PandaRequest, jedi_task_id: int) -> Dict:
     """
     Get metadata for analysis jobs

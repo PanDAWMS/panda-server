@@ -168,7 +168,7 @@ def is_secure(req, logger=None):
     return True
 
 
-def request_validation(logger, secure=False, production=False, request_method=None):
+def request_validation(logger, secure=True, production=False, request_method=None):
     def decorator(func):
         @wraps(func)
         def wrapper(req, *args, **kwargs):
