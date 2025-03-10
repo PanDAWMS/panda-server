@@ -441,7 +441,7 @@ class UserIF:
         if properErrorCode is True and ret[0] == 5:
             # retry failed analysis jobs
             jobdefList = self.taskBuffer.getJobdefIDsForFailedJob(jediTaskID)
-            cUID = self.taskBuffer.cleanUserID(user)
+            cUID = CoreUtils.clean_user_id(user)
             for jobID in jobdefList:
                 self.taskBuffer.finalizePendingJobs(cUID, jobID)
             self.taskBuffer.increaseAttemptNrPanda(jediTaskID, 5)

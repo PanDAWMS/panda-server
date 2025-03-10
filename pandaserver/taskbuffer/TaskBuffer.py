@@ -17,7 +17,6 @@ from pandaserver.dataservice.setupper import Setupper
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import ErrorCode, EventServiceUtils, JobUtils, ProcessGroups
 from pandaserver.taskbuffer.DBProxyPool import DBProxyPool
-from pandaserver.taskbuffer.JobSpec import get_task_queued_time
 
 _logger = PandaLogger().getLogger("TaskBuffer")
 
@@ -132,7 +131,7 @@ class TaskBuffer:
                 # get users and groups to boost job priorities
                 boost_dict = proxy.get_dict_to_boost_job_prio(jobs[-1].VO)
                 if boost_dict:
-                    prodUserName = proxy.cleanUserID(user)
+                    prodUserName = CoreUtils.clean_user_id(user)
                     # check boost list
                     if userDefinedWG and validWorkingGroup:
                         if "group" in boost_dict and jobs[-1].workingGroup in boost_dict["group"]:
@@ -1068,7 +1067,7 @@ class TaskBuffer:
             for tmpIdx, tmpRel in enumerate(tmpRels):
                 # asetup
                 atlRel = re.sub("Atlas-", "", tmpAtls[tmpIdx])
-                atlTags = re.split("/|_", tmpRel)
+                atlTags = re.split("[/_]", tmpRel)
                 if "" in atlTags:
                     atlTags.remove("")
                 if atlRel != "" and atlRel not in atlTags and (re.search("^\d+\.\d+\.\d+$", atlRel) is None or isUser):
@@ -1425,17 +1424,6 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # add
         ret = proxy.addStdOut(id, stdout)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
-    # extract name from DN
-    def cleanUserID(self, id):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.cleanUserID(id)
         # release proxy
         self.proxyPool.putProxy(proxy)
 

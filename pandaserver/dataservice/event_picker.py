@@ -11,6 +11,7 @@ import traceback
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
+
 from pandaserver.dataservice import dyn_data_distributer
 from pandaserver.srvcore import CoreUtils
 from pandaserver.userinterface import Client
@@ -23,6 +24,7 @@ class EventPicker:
     """
     A class used to add data to a dataset.
     """
+
     # constructor
     def __init__(self, taskBuffer, siteMapper, evpFileName: str, ignoreError: bool):
         """
@@ -194,7 +196,7 @@ class EventPicker:
                 if not self.user_task_name.endswith("/"):
                     self.user_task_name += "/"
 
-        compact_dn = self.task_buffer.cleanUserID(self.user_dn)
+        compact_dn = CoreUtils.clean_user_id(self.user_dn)
         return self.task_buffer.getTaskIDwithTaskNameJEDI(compact_dn, self.user_task_name)
 
     # main
