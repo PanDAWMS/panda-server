@@ -158,6 +158,13 @@ def acquire_jobs(
         via_topic,
     )
 
+    # Time-out
+    if timed_method.result == Protocol.TimeOutToken:
+        message = "Timed out"
+        tmp_logger.debug(message)
+        return generate_response(False, message=message)
+
+    # Try to get the jobs
     jobs = []
     if isinstance(timed_method.result, list):
         result = timed_method.result
@@ -166,63 +173,58 @@ def acquire_jobs(
         n_sent = result[-2]
         jobs = result[:-2]
 
-    # we retrieved jobs
-    if len(jobs) > 0:
-
-        # we will append each job as a response to the response list
-        response_list = []
-
-        for tmp_job in jobs:
-            try:
-                response = Protocol.Response(Protocol.SC_Success)
-                response.appendJob(tmp_job, global_site_mapper_cache)
-            except Exception as e:
-                tmp_msg = f"failed to get jobs with {str(e)}"
-                tmp_logger.error(f"{tmp_msg}\n{traceback.format_exc()}")
-                raise
-
-            # append n_sent
-            # TODO: ask Tadashi/Paul why we need to send n_sent?
-            response.appendNode("nSent", n_sent)
-
-            # set proxy key
-            if get_proxy_key:
-                response.setProxyKey(proxy_key)
-
-            # set user secrets
-            if tmp_job.use_secrets() and tmp_job.prodUserName in secrets_map and secrets_map[tmp_job.prodUserName]:
-                response.appendNode("secrets", secrets_map[tmp_job.prodUserName])
-
-            # set pilot secrets
-            pilot_secrets = secrets_map.get(panda_config.pilot_secrets, None)
-            if pilot_secrets:
-                response.appendNode("pilotSecrets", secrets_map[panda_config.pilot_secrets])
-
-            response_list.append(response.data)
-
-        # make response for bulk
-        if n_jobs > 1:
-            try:
-                response = Protocol.Response(Protocol.SC_Success)
-                response.appendNode("jobs", response_list)
-            except Exception as e:
-                tmp_msg = f"failed to make response with {str(e)}"
-                tmp_logger.error(f"{tmp_msg}\n{traceback.format_exc()}")
-                raise
-
-    # we didn't retrieve jobs, either because of time out or because there were no jobs
-    elif timed_method.result == Protocol.TimeOutToken:
-        response = Protocol.Response(Protocol.SC_TimeOut, "database timeout")
-    else:
-        response = Protocol.Response(Protocol.SC_NoJobs, "no jobs in PanDA")
+    if not jobs:
+        message = "No jobs in PanDA"
+        tmp_logger.debug(message)
         pilot_logger.info(f"method=noJob, site={site_name}, node={node}, type={prod_source_label}")
+        return generate_response(False, message=message)
 
-    tmp_logger.debug(f"{site_name} {node} ret -> {response.encode(acceptJson=True)}")
+    # add each job to the list
+    response_list = []
+    for tmp_job in jobs:
+        try:
+            # The response is nothing but a dictionary with the job information
+            response = Protocol.Response(Protocol.SC_Success)
+            response.appendJob(tmp_job, global_site_mapper_cache)
+        except Exception as e:
+            tmp_msg = f"failed to get jobs with {str(e)}"
+            tmp_logger.error(f"{tmp_msg}\n{traceback.format_exc()}")
+            raise
+
+        # append n_sent
+        response.appendNode("nSent", n_sent)
+
+        # set proxy key
+        if get_proxy_key:
+            response.setProxyKey(proxy_key)
+
+        # set user secrets
+        if tmp_job.use_secrets() and tmp_job.prodUserName in secrets_map and secrets_map[tmp_job.prodUserName]:
+            response.appendNode("secrets", secrets_map[tmp_job.prodUserName])
+
+        # set pilot secrets
+        pilot_secrets = secrets_map.get(panda_config.pilot_secrets, None)
+        if pilot_secrets:
+            response.appendNode("pilotSecrets", secrets_map[panda_config.pilot_secrets])
+
+        response_list.append(response.data)
+
+    # if the jobs were requested in bulk, we make a bulk response
+    if n_jobs is not None:
+        try:
+            response = Protocol.Response(Protocol.SC_Success)
+            response.appendNode("jobs", response_list)
+        except Exception as e:
+            tmp_msg = f"Failed to make response with {str(e)}"
+            tmp_logger.error(f"{tmp_msg}\n{traceback.format_exc()}")
+            raise
+
+    tmp_logger.debug(f"Done for {site_name} {node}")
 
     t_end = time.time()
     t_delta = t_end - t_start
     tmp_logger.info(f"site_name={site_name} took timing={t_delta}s in_test={in_test_status}")
-    return response.encode(acceptJson=True)
+    return generate_response(True, data=response.data)
 
 
 @request_validation(_logger, secure=True, request_method="GET")
@@ -247,16 +249,15 @@ def get_job_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> 
 
     # make response
     if timed_method.result == Protocol.TimeOutToken:
-        response = Protocol.Response(Protocol.SC_TimeOut)
-        tmp_logger.debug(f"Done: {response.encode(acceptJson=True)}")
-        return response.encode(acceptJson=True)
+        message = "Timed out"
+        tmp_logger.debug(message)
+        return generate_response(False, message=message)
 
     if not isinstance(timed_method.result, list):
-        response = Protocol.Response(Protocol.SC_Failed)
-        tmp_logger.debug(f"Done: {response.encode(acceptJson=True)}")
-        return response.encode(acceptJson=True)
+        message = "Database error"
+        tmp_logger.debug(message)
+        return generate_response(False, message=message)
 
-    response = Protocol.Response(Protocol.SC_Success)
     job_status_list = []
     for job, job_id_requested in zip(timed_method.result, job_ids):
         if not job:
@@ -264,11 +265,9 @@ def get_job_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> 
         else:
             job_status_list.append({"job_id": job.PandaID, "status": job.jobStatus, "attempt_number": job.attemptNr})
 
-    response.appendNode("results", job_status_list)
+    tmp_logger.debug(f"Done: job_status_list={job_status_list}")
 
-    tmp_logger.debug(f"Done: {response.encode(acceptJson=True)}")
-
-    return response.encode(acceptJson=True)
+    return generate_response(True, data=job_status_list)
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
@@ -432,20 +431,20 @@ def update_job(
 
     # store the pilot log
     if pilot_log != "":
-        tmp_logger.debug("saving pilot log")
+        tmp_logger.debug("Saving pilot log")
         try:
             global_task_buffer.storePilotLog(int(job_id), pilot_log)
-            tmp_logger.debug("saving pilot log DONE")
+            tmp_logger.debug("Saving pilot log DONE")
         except Exception:
-            tmp_logger.debug("saving pilot log FAILED")
+            tmp_logger.debug("Saving pilot log FAILED")
 
     # add meta_data
     if meta_data != "":
         ret = global_task_buffer.addMetadata([job_id], [meta_data], [job_status])
         if len(ret) > 0 and not ret[0]:
-            tmp_logger.debug(f"failed to add meta_data")
-            response = Protocol.Response(Protocol.SC_Success)
-            return response.encode(acceptJson=True)
+            message = "Failed to add meta_data"
+            tmp_logger.debug(message)
+            return generate_response(False, message)
 
     # add stdout
     if stdout != "":
@@ -470,28 +469,28 @@ def update_job(
 
     # time-out
     if timed_method.result == Protocol.TimeOutToken:
-        response = Protocol.Response(Protocol.SC_TimeOut)
-        tmp_logger.debug(f"ret -> {response.encode(acceptJson=True)}")
-        return response.encode(acceptJson=True)
+        message = "Timed out"
+        tmp_logger.debug(message)
+        return generate_response(False, message=message)
 
     # no result
     if not timed_method.result:
-        response = Protocol.Response(Protocol.SC_Failed)
-        tmp_logger.debug(f"ret -> {response.encode(acceptJson=True)}")
-        return response.encode(acceptJson=True)
+        message = "Database error"
+        tmp_logger.debug(message)
+        return generate_response(False, message=message)
 
     # generate the response with the result
-    response = Protocol.Response(Protocol.SC_Success)
+    data = {}
     result = timed_method.result
 
     # set the secrets
     secrets = result.get("secrets") if isinstance(result, dict) else None
     if secrets:
-        response.appendNode("pilotSecrets", secrets)
+        data["pilotSecrets"] = secrets
 
     # set the command to the pilot
     command = result.get("command") if isinstance(result, dict) else result
-    response.appendNode("command", command if isinstance(command, str) else "NULL")
+    data["command"] = command if isinstance(command, str) else None
 
     # add output to dataset for failed/finished jobs with correct results
     if job_status in ("failed", "finished") and result not in ("badattemptnr", "alreadydone"):
@@ -499,8 +498,8 @@ def update_job(
         adder_gen.dump_file_report(job_output_report, attempt_nr)
         del adder_gen
 
-    tmp_logger.debug(f"ret -> {response.encode(acceptJson=True)}")
-    return response.encode(acceptJson=True)
+    tmp_logger.debug(f"Done. data={data}")
+    return generate_response(True, data=data)
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
