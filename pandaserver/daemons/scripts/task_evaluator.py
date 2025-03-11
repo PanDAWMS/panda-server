@@ -265,6 +265,7 @@ class FetchData(object):
                 tmp_res = self.tbuf.querySQL(sql_get_task_n_jobs, varMap)
                 for obj in tmp_res:
                     (n_jobs,) = obj
+                    dsinfo_dict.setdefault(taskID, {})
                     dsinfo_dict[taskID]["nJobs"] = n_jobs
                     break
                 # get task proceeding progress
