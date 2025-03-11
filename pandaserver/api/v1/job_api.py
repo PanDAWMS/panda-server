@@ -64,7 +64,7 @@ def get_status(req: PandaRequest, panda_ids: List[int], timeout: int = 60) -> Di
 
     # Time out
     if timed_method.result == Protocol.TimeOutToken:
-        tmp_logger.debug(f"Timed out")
+        tmp_logger.debug("Timed out")
         return generate_response(False, message="time out", data={"code": Protocol.SC_TimeOut})
 
     # No result

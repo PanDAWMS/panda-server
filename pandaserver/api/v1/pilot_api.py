@@ -41,10 +41,10 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
     global_task_buffer = task_buffer
 
     global global_site_mapper_cache
-    global_site_mapper_cache = CoreUtils.CachedObject("site_mapper", 60 * 10, get_site_mapper, _logger)
+    global_site_mapper_cache = CoreUtils.CachedObject("site_mapper", 60 * 10, _get_site_mapper, _logger)
 
 
-def get_site_mapper():
+def _get_site_mapper():
     return True, SiteMapper(global_task_buffer)
 
 
@@ -70,6 +70,41 @@ def acquire_jobs(
     job_type: str = None,
     via_topic: bool = None,
 ) -> dict:
+    """
+    Acquire jobs
+
+    Acquire jobs for the pilot. The jobs are reserved, the job status is updated and the jobs are returned.
+
+    API details:
+        HTTP Method: POST
+        Path: /pilot/v1/acquire_jobs
+
+    Args:
+        req(PandaRequest): Internally generated request object containing the environment variables.
+        site_name(str): The PanDA queue name
+        timeout(int, optional): Request timeout in seconds. Optional and defaults to 60.
+        memory(int, optional): Memory limit for the job. Optional and defaults to `None`.
+        disk_space(int, optional): Disk space limit for the job. Optional and defaults to `None`.
+        prod_source_label(str, optional): Prodsourcelabel, e.g. `user`, `managed`, `unified`... Optional and defaults to `None`.
+        node(str, optional): Identifier of the worker node/slot. Optional and defaults to `None`.
+        computing_element(str, optional): Computing element. Optional and defaults to `None`.
+        prod_user_id(str, optional): User ID of the job. Optional and defaults to `None`.
+        get_proxy_key(bool, optional): Flag to request a proxy key.Optional and defaults to `None`.
+        task_id(int, optional): JEDI task ID of the job. Optional and defaults to `None`.
+        n_jobs(int, optional): Number of jobs for bulk requests. Optional and defaults to `None`.
+        background(bool, optional): Background flag. Optional and defaults to `None`.
+        resource_type(str, optional): Resource type of the job, e.g. `SCORE`, `MCORE`,.... Optional and defaults to `None`.
+        harvester_id(str, optional): Harvester ID, used to update the worker entry in the DB. Optional and defaults to `None`.
+        worker_id(int, optional): Worker ID, used to update the worker entry in the DB. Optional and defaults to `None`.
+        scheduler_id(str, optional): Scheduler, e.g. harvester ID. Optional and defaults to `None`.
+        job_type(str, optional): Job type, e.g. `user`, `unified`, ... This is necessary on top of the `prodsourcelabel`
+                                 to disambiguate the cases of test jobs that can be production or analysis. Optional and defaults to `None`.
+        via_topic(bool, optional): Topic for message broker. Optional and defaults to `None`.
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`. The data is a list of job dictionaries.
+              When failed, the message contains the error message.
+    """
 
     tmp_logger = LogWrapper(_logger, f"acquire_jobs {datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
     tmp_logger.debug(f"Start for {site_name}")
@@ -78,8 +113,6 @@ def acquire_jobs(
     real_dn = get_dn(req)
 
     # check production role
-    # TODO: this is a bit tricky, there are multiple versions of checking for production role
-    #       and the logic is not clear.
     is_production_manager = has_production_role(req)
 
     # production jobs should only be retrieved with production role
@@ -93,7 +126,7 @@ def acquire_jobs(
         prod_user_id = real_dn
 
     # allow get_proxy_key for production role
-    if get_proxy_key == "True" and is_production_manager:
+    if get_proxy_key and is_production_manager:
         get_proxy_key = True
     else:
         get_proxy_key = False
@@ -230,7 +263,9 @@ def acquire_jobs(
 @request_validation(_logger, secure=True, request_method="GET")
 def get_job_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> dict:
     """
-    Get the status of a list of jobs
+    Get job status
+
+    Gets the status for a list of jobs.
 
     Args:
         req(PandaRequest): Internally generated request object containing the environment variables.
@@ -238,8 +273,12 @@ def get_job_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> 
         timeout(int, optional): The timeout value. Defaults to 60.
 
     Returns:
-
+        dict: The system response `{"success": success, "message": message, "data": data}`. The data is a list of job status dictionaries, in the format
+        ```
+        [{"job_id": <job_id_requested>, "status": "not found", "attempt_number": 0}), {"job_id": <job_id>, "status": <status>, "attempt_number": <attempt_nr>}]
+        ```
     """
+
     tmp_logger = LogWrapper(_logger, f"get_job_status {job_ids}")
     tmp_logger.debug("Start")
 
@@ -275,10 +314,6 @@ def update_job(
     req: PandaRequest,
     job_id: int,
     job_status: str,
-    trans_exit_code: str = None,
-    pilot_error_code: str = None,
-    pilot_error_diag: str = None,
-    timeout: int = 60,
     job_output_report: str = "",
     node: str = None,
     cpu_consumption_time: int = None,
@@ -289,6 +324,9 @@ def update_job(
     pilot_log: str = "",
     meta_data: str = "",
     cpu_conversion_factor: float = None,
+    trans_exit_code: str = None,
+    pilot_error_code: str = None,
+    pilot_error_diag: str = None,
     exe_error_code: int = None,
     exe_error_diag: str = None,
     pilot_timing: str = None,
@@ -321,7 +359,74 @@ def update_job(
     corrupted_files: str = None,
     mean_core_count: int = None,
     cpu_architecture_level: int = None,
+    timeout: int = 60,
 ):
+    """
+    Update job
+
+    Updates the details for a job, stores the metadata and excerpts from the pilot log.
+
+    API details:
+        HTTP Method: POST
+        Path: /pilot/v1/update_job
+
+    Args:
+        req(PandaRequest): internally generated request object containing the env variables
+        job_id (int): PanDA job ID
+        job_status(str, optional): Job status
+        job_sub_status(str, optional): Job sub status. Optional, defaults to `None`
+        start_time(str, optional): Job start time in format `"%Y-%m-%d %H:%M:%S"`. Optional, defaults to `None`
+        end_time(str, optional): Job end time in format `"%Y-%m-%d %H:%M:%S"`. Optional, defaults to `None`
+        pilot_timing(str, optional): String with pilot timings. Optional, defaults to `None`
+        site_name(str, optional): PanDA queue name. Optional, defaults to `None`
+        node(str, optional): Identifier for worker node/slot. Optional, defaults to `None`
+        scheduler_id(str, optional): Scheduler ID, such as harvester instance. Optional, defaults to `None`
+        pilot_id(str, optional): Pilot ID. Optional, defaults to `None`
+        batch_id(str, optional): Batch ID. Optional, defaults to `None`
+        trans_exit_code(str, optional): Transformation exit code. Optional, defaults to `None`
+        pilot_error_code(str, optional): Pilot error code. Optional, defaults to `None`
+        pilot_error_diag(str, optional): Pilot error message. Optional, defaults to `None`
+        exe_error_code(int, optional): Execution error code. Optional, defaults to `None`
+        exe_error_diag(str, optional): Execution error message. Optional, defaults to `None`
+        n_events(int, optional): Number of events. Optional, defaults to `None`
+        n_input_files(int, optional): Number of input files. Optional, defaults to `None`
+        attempt_nr(int, optional): Job attempt number. Optional, defaults to `None`
+        cpu_consumption_time(int, optional): CPU consumption time. Optional, defaults to `None`
+        cpu_consumption_unit(str, optional): CPU consumption unit, being used for updating some CPU details. Optional, defaults to `None`
+        cpu_conversion_factor(float, optional): CPU conversion factor. Optional defaults to `None`
+        core_count(int, optional): Number of cores of the job. Optional, defaults to `None`
+        mean_core_count(int, optional): Mean core count. Optional, defaults to `None`
+        max_rss(int, optional): Measured max RSS memory. Optional, defaults to `None`
+        max_vmem(int, optional): Measured max Virtual memory. Optional, defaults to `None`
+        max_swap(int, optional): Measured max swap memory. Optional, defaults to `None`
+        max_pss(int, optional): Measured max PSS memory. Optional, defaults to `None`
+        avg_rss(int, optional): Measured average RSS. Optional, defaults to `None`
+        avg_vmem(int, optional): Measured average Virtual memory.Optional, defaults to `None`
+        avg_swap(int, optional): Measured average swap memory. Optional, defaults to `None`
+        avg_pss(int, optional): Measured average PSS. Optional, defaults to `None`
+        tot_rchar(int, optional): Measured total read characters. Optional, defaults to `None`
+        tot_wchar(int, optional): Measured total written characters. Optional, defaults to `None`
+        tot_rbytes(int, optional): Measured total read bytes. Optional, defaults to `None`
+        tot_wbytes(int, optional): Measured total written bytes. Optional, defaults to `None`
+        rate_rchar(int, optional): Measured rate for read characters. Optional, defaults to `None`
+        rate_wchar(int, optional): Measured rate for written characters. Optional, defaults to `None`
+        rate_rbytes(int, optional): Measured rate for read bytes. Optional, defaults to `None`
+        rate_wbytes(int, optional): Measured rate for written bytes. Optional, defaults to `None`
+        corrupted_files(str, optional): List of corrupted files in comma separated format. Optional, defaults to `None`
+        cpu_architecture_level(int, optional): CPU architecture level (e.g. `x86_64-v3`). Optional, defaults to `None`
+        job_metrics(str, optional): Job metrics. Optional, defaults to `None`
+        job_output_report(str, optional): Job output report. Optional, defaults to `""`
+        pilot_log(str, optional): Pilot log excerpt. Optional, defaults to `""`
+        meta_data(str, optional): Job metadata. Optional, defaults to `""`
+        stdout(str, optional): Standard output. Optional, defaults to `""`
+        timeout(int, optional): Timeout for the operation in seconds. Optional, defaults to 60
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`. Data will contain a dictionary with the pilot secrets and the command to the pilot.
+              ```
+                {"pilotSecrets": <pilot_secrets>, "command": <command>}
+              ```
+    """
     tmp_logger = LogWrapper(_logger, f"update_job PandaID={job_id} PID={os.getpid()}")
     tmp_logger.debug("Start")
 
@@ -504,6 +609,26 @@ def update_job(
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
 def update_jobs_bulk(req, job_list: List, harvester_id: str = None):
+    """
+    Update jobs in bulk
+
+    Bulk method to update the details for jobs, store the metadata and excerpt from the pilot log. Internally, this method loops over
+    the jobs and calls `update_job` for each job.
+
+    API details:
+        HTTP Method: POST
+        Path: /pilot/v1/update_jobs_bulk
+
+    Args:
+        req(PandaRequest): internally generated request object containing the env variables
+        job_list(list): list of job dictionaries to update. The mandatory and optional keys for each job dictionary is the same as the arguments for `update_job`.
+
+    Returns:
+        dict: The system response `{"success": success, "message": message, "data": data}`. Data will contain a dictionary with the pilot secrets and the command to the pilot.
+              ```
+                {"pilotSecrets": <pilot_secrets>, "command": <command>}
+              ```
+    """
     tmp_logger = LogWrapper(_logger, f"update_jobs_bulk harvester_id={harvester_id}")
     tmp_logger.debug("Start")
     t_start = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
@@ -536,9 +661,9 @@ def update_jobs_bulk(req, job_list: List, harvester_id: str = None):
 @request_validation(_logger, secure=True, production=True, request_method="POST")
 def update_worker_status(req: PandaRequest, worker_id, harvester_id, status, timeout=60, node_id=None):
     """
-    Update the status of a worker according to the pilot.
+    Update worker status
 
-    This function validates the pilot permissions and the state passed by the pilot, then updates the worker status.
+    Updates the status of a worker with the information seen by the pilot.
 
     API details:
         HTTP Method: POST
