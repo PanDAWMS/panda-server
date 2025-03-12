@@ -1226,7 +1226,7 @@ def get_job_ids(req: PandaRequest, jedi_task_id: int) -> Dict[str, Any]:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def insert_task_parameters(req: PandaRequest, task_parameters: Dict, parent_tid: int = None) -> Dict[str, Any]:
+def submit(req: PandaRequest, task_parameters: Dict, parent_tid: int = None) -> Dict[str, Any]:
     """
     Register task
 
@@ -1234,18 +1234,18 @@ def insert_task_parameters(req: PandaRequest, task_parameters: Dict, parent_tid:
 
     API details:
         HTTP Method: POST
-        Path: /task/v1/insert_task_parameters
+        Path: /task/v1/submit
 
     Args:
         req(PandaRequest): internally generated request object
-        task_parameters(dict): Dictionary with all the required task parameters.
+        task_parameters(dict): Dictionary with all the required task parameters. The parameters are the attributes in the JediTaskSpec object (https://github.com/PanDAWMS/panda-jedi/blob/master/pandajedi/jedicore/JediTaskSpec.py).
         parent_tid(int, optional): Parent task ID
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
               Return code in the data field, 0 for success, others for failure.
     """
-    tmp_log = LogWrapper(_logger, f"insertTaskParams-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+    tmp_log = LogWrapper(_logger, f"submit {datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
     tmp_log.debug("Start")
 
     user = get_dn(req)

@@ -377,7 +377,7 @@ def set_debug_mode(req: PandaRequest, panda_id: int, mode: bool):
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def submit(req: PandaRequest, jobs: str, to_pending: bool = False):
+def submit(req: PandaRequest, jobs: str):
     """
     Set the debug mode
 
@@ -385,12 +385,11 @@ def submit(req: PandaRequest, jobs: str, to_pending: bool = False):
 
     API details:
         HTTP Method: POST
-        Path: /job/v1/set_debug_mode
+        Path: /job/v1/submit
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        panda_id (int): PanDA job ID
-        mode (bool): True to set debug mode, False to unset debug mode
+        jobs (str): JSON string with a list of job specs
 
     Returns:
         dict: The system response `{"success": success, "message": message}`.
@@ -450,7 +449,7 @@ def submit(req: PandaRequest, jobs: str, to_pending: bool = False):
             tmp_logger.error(f"VO {user_vo} check: username not found in job parameters and defaulted to submitter ({user})")
 
     # store jobs
-    ret = global_task_buffer.storeJobs(jobs, user, fqans=fqans, hostname=host, toPending=to_pending, userVO=user_vo)
+    ret = global_task_buffer.storeJobs(jobs, user, fqans=fqans, hostname=host, userVO=user_vo)
     tmp_logger.debug(f"{user} -> {len(ret)}")
 
     # There was no response
