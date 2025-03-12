@@ -47,7 +47,7 @@ def safe_match(pattern, message):
 
     matches = False
     try:
-        matches = re.match(pattern, message)
+        matches = re.match(pattern, message, flags=re.DOTALL)
     except ReError:
         tmp_log.error(f"Regexp matching excepted. \nPattern: {pattern} \nString: {message}")
     finally:

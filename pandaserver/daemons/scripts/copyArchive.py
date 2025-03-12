@@ -82,47 +82,40 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     _logger.debug("Kick merging session")
     try:
         # get min PandaID for failed jobs in Active table
-        sql = "SELECT MAX(PandaID), prodUserName, jobDefinitionID, jediTaskID, computingSite FROM ATLAS_PANDA.jobsActive4 "
-        sql += "WHERE prodSourceLabel=:prodSourceLabel AND jobStatus=:jobStatus "
-        sql += "GROUP BY prodUserName,jobDefinitionID,jediTaskID,computingSite "
-        var_map = {":jobStatus": "merging", ":prodSourceLabel": "user"}
+        sql = (
+            "SELECT j.PandaID, j.jediTaskID, f.destinationDBlock "
+            f"FROM {panda_config.schemaPANDA}.jobsActive4 j, {panda_config.schemaPANDA}.filesTable4 f "
+            "WHERE f.PandaID=j.PandaID AND j.prodSourceLabel=:prodSourceLabel AND j.jobStatus=:jobStatus "
+            "AND f.type=:type "
+        )
+        var_map = {":jobStatus": "merging", ":prodSourceLabel": "user", ":type": "log"}
         status, res = taskBuffer.querySQLS(sql, var_map)
-
+        destination_blocks = {}
         if res is not None:
-            # loop over all user/jobDefID
-            for (
-                pandaID,
-                prodUserName,
-                jobDefinitionID,
-                jediTaskID,
-                computingSite,
-            ) in res:
+            # collect destination blocks
+            for panda_id, task_id, destination_block in res:
+                if destination_block in destination_blocks:
+                    continue
+                destination_blocks[destination_block] = (panda_id, task_id)
+            # loop over all destination blocks
+            for destination_block, (panda_id, task_id) in destination_blocks.items():
                 # check
-                tmp_log = LogWrapper(_logger, f"kick_merge < jediTaskID={jediTaskID} jobDefID={jobDefinitionID} site={computingSite} >")
+                tmp_log = LogWrapper(_logger, f"kick_merge < jediTaskID={task_id} dest={destination_block} >")
                 tmp_log.debug("check")
-                sqlC = "SELECT COUNT(*) FROM ("
-                sqlC += "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 "
-                sqlC += "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
-                sqlC += "AND jediTaskID=:jediTaskID "
-                sqlC += "AND computingSite=:computingSite "
-                sqlC += "AND jobDefinitionID=:jobDefinitionID "
-                sqlC += "AND NOT jobStatus IN (:jobStatus1,:jobStatus2) "
+                sqlC = f"WITH w AS (SELECT PandaID FROM {panda_config.schemaPANDA}.filesTable4 WHERE destinationDBlock=:destinationDBlock) "
+                sqlC += "SELECT COUNT(*) FROM ("
+                sqlC += "SELECT j.PandaID FROM ATLAS_PANDA.jobsActive4 j, w "
+                sqlC += "WHERE j.PandaID=w.PandaID  "
+                sqlC += "AND NOT j.jobStatus IN (:jobStatus1,:jobStatus2) "
                 sqlC += "UNION "
-                sqlC += "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 "
-                sqlC += "WHERE prodSourceLabel=:prodSourceLabel AND prodUserName=:prodUserName "
-                sqlC += "AND jediTaskID=:jediTaskID "
-                sqlC += "AND computingSite=:computingSite "
-                sqlC += "AND jobDefinitionID=:jobDefinitionID "
-                sqlC += "AND NOT jobStatus IN (:jobStatus1,:jobStatus2) "
+                sqlC += "SELECT j.PandaID FROM ATLAS_PANDA.jobsDefined4 j, w "
+                sqlC += "WHERE j.PandaID=w.PandaID  "
+                sqlC += "AND NOT j.jobStatus IN (:jobStatus1,:jobStatus2) "
                 sqlC += ") "
                 var_map = {}
                 var_map[":jobStatus1"] = "failed"
                 var_map[":jobStatus2"] = "merging"
-                var_map[":prodSourceLabel"] = "user"
-                var_map[":jediTaskID"] = jediTaskID
-                var_map[":computingSite"] = computingSite
-                var_map[":prodUserName"] = prodUserName
-                var_map[":jobDefinitionID"] = jobDefinitionID
+                var_map[":destinationDBlock"] = destination_block
                 statC, resC = taskBuffer.querySQLS(sqlC, var_map)
                 # finalize if all jobs have processed
                 if resC is not None:
@@ -130,20 +123,20 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                     tmp_log.debug(f"{num_unprocessed} unprocessed jobs")
                     if num_unprocessed == 0:
                         jobSpecs = taskBuffer.peekJobs(
-                            [pandaID],
+                            [panda_id],
                             fromDefined=False,
                             fromArchived=False,
                             fromWaiting=False,
                         )
                         jobSpec = jobSpecs[0]
                         if jobSpec is None:
-                            tmp_log.debug(f"skip PandaID={pandaID} not found in jobsActive")
+                            tmp_log.debug(f"skip PandaID={panda_id} not found in jobsActive")
                             continue
                         if jobSpec.produceUnMerge():
                             # collect sub datasets
                             sub_ds_names = set()
                             sub_ds_list = []
-                            killed_for_missing_record = False
+                            killed_for_bad_record = False
                             for tmpFileSpec in jobSpec.Files:
                                 if tmpFileSpec.type in ["log", "output"] and re.search("_sub\d+$", tmpFileSpec.destinationDBlock) is not None:
                                     if tmpFileSpec.destinationDBlock in sub_ds_names:
@@ -159,12 +152,27 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                                         missing_ids = [p for p, in res_missing]
                                         tmp_log.debug(f"missing {tmpFileSpec.destinationDBlock} to kill {missing_ids}")
                                         Client.killJobs(missing_ids, 2)
-                                        killed_for_missing_record = True
+                                        killed_for_bad_record = True
+                                        break
+                                    elif datasetSpec.status == "deleted":
+                                        tmp_log.debug(f"sub dataset {tmpFileSpec.destinationDBlock} is deleted")
+                                        sql_deleted = (
+                                            "SELECT j.PandaID "
+                                            "FROM ATLAS_PANDA.jobsActive4 j, ATLAS_PANDA.filesTable4 f "
+                                            "WHERE j.PandaID=f.PandaID AND j.jobStatus=:jobStatus "
+                                            "AND f.destinationDBlock=:destinationDBlock "
+                                        )
+                                        var_map = {":jobStatus": "merging", ":destinationDBlock": tmpFileSpec.destinationDBlock}
+                                        _, res_deleted = taskBuffer.querySQLS(sql_deleted, var_map)
+                                        deleted_ids = [p for p, in res_deleted]
+                                        tmp_log.debug(f"deleted {tmpFileSpec.destinationDBlock} to kill {deleted_ids}")
+                                        Client.killJobs(deleted_ids, 2)
+                                        killed_for_bad_record = True
                                         break
                                     else:
                                         sub_ds_list.append(datasetSpec)
                             # update unmerged datasets to trigger merge job generation
-                            if not killed_for_missing_record and sub_ds_list:
+                            if not killed_for_bad_record and sub_ds_list:
                                 # check dataset status
                                 all_defined = True
                                 for datasetSpec in sub_ds_list:
