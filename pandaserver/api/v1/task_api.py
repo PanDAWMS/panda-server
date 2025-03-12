@@ -56,7 +56,8 @@ def retry(
     Args:
         req(PandaRequest): internally generated request object
         jedi_task_id(int): JEDI Task ID
-        new_parameters(str, optional): a json string of new parameters the task uses when rerunning
+        new_parameters(Dict, optional): a json dictionary with the new parameters for rerunning the task. The new parameters are merged with the existing ones.
+                                        The parameters are the attributes in the JediTaskSpec object (https://github.com/PanDAWMS/panda-jedi/blob/master/pandajedi/jedicore/JediTaskSpec.py).
         no_child_retry(bool, optional): if True, the child tasks are not retried
         disable_staging_mode(bool, optional): if True, the task skips staging state and directly goes to subsequent state
         keep_gshare_priority(bool, optional): if True, the task keeps current gshare and priority
@@ -73,20 +74,17 @@ def retry(
     # retry with new parameters
     if new_parameters:
         try:
-            # convert to dict
-            new_parameters_dict = PrioUtil.decodeJSON(new_parameters)
-
             # get original parameters
-            task_params = global_task_buffer.getTaskParamsPanda(jedi_task_id)
-            task_params_dict = PrioUtil.decodeJSON(task_params)
+            old_parameters_json = global_task_buffer.getTaskParamsPanda(jedi_task_id)
+            old_parameters = json.loads(old_parameters_json)
 
             # update with new values
-            task_params_dict.update(new_parameters_dict)
-            task_params = json.dumps(task_params_dict)
+            old_parameters.update(new_parameters)
+            final_task_parameters_json = json.dumps(old_parameters)
 
             # retry with new parameters
             ret = global_task_buffer.insertTaskParamsPanda(
-                task_params,
+                final_task_parameters_json,
                 user,
                 production_role,
                 [],
