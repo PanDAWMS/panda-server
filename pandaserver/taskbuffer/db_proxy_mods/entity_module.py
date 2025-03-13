@@ -3068,34 +3068,6 @@ class EntityModule(BaseModule):
             self.dump_error_message(tmp_log)
             return False, None
 
-    # get client version
-    def getPandaClientVer(self):
-        comment = " /* DBProxy.getPandaClientVer */"
-        tmp_log = self.create_tagged_logger(comment)
-        try:
-            # set autocommit on
-            self.conn.begin()
-            # select
-            sql = "SELECT pathena FROM ATLAS_PANDAMETA.pandaconfig WHERE name=:name"
-            varMap = {}
-            varMap[":name"] = "current"
-            self.cur.execute(sql + comment, varMap)
-            self.cur.arraysize = 10
-            res = self.cur.fetchall()
-            # commit
-            if not self._commit():
-                raise RuntimeError("Commit error")
-            retStr = ""
-            if res is not None and len(res) != 0:
-                retStr = res[0][0]
-            tmp_log.debug(f"{retStr}")
-            return retStr
-        except Exception:
-            # roll back
-            self._rollback()
-            self.dump_error_message(tmp_log)
-            return ""
-
     # register token key
     def register_token_key(self, client_name: str, lifetime: int) -> bool:
         """

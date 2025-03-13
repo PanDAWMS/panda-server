@@ -1,6 +1,8 @@
 import datetime
 import json
 import os
+import re
+import sys
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import naive_utcnow
@@ -1054,6 +1056,111 @@ class WorkerModule(BaseModule):
             self._rollback(True)
             self.dump_error_message(tmp_log)
             return False
+
+    def update_worker_node(
+        self,
+        site,
+        host_name,
+        cpu_model,
+        n_logical_cpus,
+        n_sockets,
+        cores_per_socket,
+        threads_per_core,
+        cpu_architecture,
+        cpu_architecture_level,
+        clock_speed,
+        total_memory,
+    ):
+        comment = " /* DBProxy.update_worker_node */"
+        method_name = comment.split(" ")[-2].split(".")[-1]
+
+        tmp_logger = self.create_tagged_logger(comment, f"{method_name} < site={site} host_name={host_name} cpu_model={cpu_model} >")
+        tmp_logger.debug("Start")
+
+        timestamp_utc = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+
+        # If the worker node comes in the slot1@worker1.example.com format, we remove the slot1@ part
+        match = re.search(r"@(.+)", host_name)
+        host_name = match.group(1) if match else host_name
+
+        locked = True  # Track whether the worker node was locked by another pilot update
+
+        try:
+            self.conn.begin()
+
+            # Select the worker node to see if it exists in the database
+            var_map = {":site": site, ":host_name": host_name, ":cpu_model": cpu_model}
+
+            sql = (
+                "SELECT site, host_name, cpu_model, n_logical_cpus, n_sockets, cores_per_socket, threads_per_core, "
+                "cpu_architecture, cpu_architecture_level, clock_speed, total_memory "
+                "FROM ATLAS_PANDA.worker_node "
+                "WHERE site=:site AND host_name=:host_name AND cpu_model=:cpu_model "
+                "FOR UPDATE NOWAIT"
+            )
+
+            self.cur.execute((sql + comment), var_map)
+            res = self.cur.fetchone()
+            locked = False  # If the row was locked, the NOWAIT clause will make the query except and go to the end
+
+            # The worker node entry exists, we update the worker node's last_seen timestamp
+            if res:
+                var_map = {":site": site, ":host_name": host_name, ":cpu_model": cpu_model, ":last_seen": timestamp_utc}
+
+                sql = "UPDATE ATLAS_PANDA.worker_node SET last_seen=:last_seen " "WHERE site=:site AND host_name=:host_name AND cpu_model=:cpu_model"
+
+                self.cur.execute((sql + comment), var_map)
+                tmp_logger.debug("Worker node was found in the database. Updated last_seen timestamp.")
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+
+                return True, "Updated existing worker node."
+
+            # The worker node entry did not exist, we insert it as a new worker node
+            var_map = {
+                ":site": site,
+                ":host_name": host_name,
+                ":cpu_model": cpu_model,
+                ":n_logical_cpus": n_logical_cpus,
+                "n_sockets": n_sockets,
+                ":cores_per_socket": cores_per_socket,
+                ":threads_per_core": threads_per_core,
+                ":cpu_architecture": cpu_architecture,
+                ":cpu_architecture_level": cpu_architecture_level,
+                ":clock_speed": clock_speed,
+                ":total_memory": total_memory,
+                ":last_seen": timestamp_utc,
+            }
+
+            sql = (
+                "INSERT INTO ATLAS_PANDA.worker_node "
+                "(site, host_name, cpu_model, n_logical_cpus, n_sockets, cores_per_socket, threads_per_core, "
+                "cpu_architecture, cpu_architecture_level, clock_speed, total_memory, last_seen) "
+                "VALUES "
+                "(:site, :host_name, :cpu_model, :n_logical_cpus, :n_sockets, :cores_per_socket, :threads_per_core, "
+                ":cpu_architecture, :cpu_architecture_level, :clock_speed, :total_memory, :last_seen)"
+            )
+
+            self.cur.execute(sql + comment, var_map)
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmp_logger.debug("Inserted as new worker node.")
+
+            return True, "Inserted new worker node."
+
+        except Exception:
+            # Always roll back the transaction
+            self._rollback(True)
+
+            # Failed because of the NOWAIT clause
+            if locked:
+                return False, "Another pilot was updating the worker node at the same time."
+
+            # General failure
+            err_type, err_value = sys.exc_info()[:2]
+            error_message = f"Worker node update failed with {err_type} {err_value}"
+            tmp_logger.error(error_message)
+            return False, error_message
 
     # get workers for a job
     def getWorkersForJob(self, PandaID):

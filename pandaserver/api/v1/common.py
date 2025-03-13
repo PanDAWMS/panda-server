@@ -1,5 +1,8 @@
 import inspect
 import re
+import sys
+import threading
+import time
 from functools import wraps
 from types import ModuleType
 from typing import get_args, get_origin
@@ -8,7 +11,10 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 
 import pandaserver.jobdispatcher.Protocol as Protocol
 from pandaserver.config import panda_config
+from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.srvcore import CoreUtils
+
+TIME_OUT = "TimeOut"
 
 MESSAGE_SSL = "SSL secure connection is required"
 MESSAGE_PROD_ROLE = "production or pilot role required"
@@ -57,6 +63,27 @@ def get_fqan(req):
     return fqans
 
 
+def get_email_address(user, tmp_logger):
+    tmp_logger.debug(f"Getting mail address for {user}")
+    n_tries = 3
+    email = None
+    try:
+        for attempt in range(n_tries):
+            status, user_info = rucioAPI.finger(user)
+            if status:
+                email = user_info["email"]
+                tmp_logger.debug(f"User {user} got email {email}")
+                break
+            else:
+                tmp_logger.debug(f"Attempt {attempt + 1} of {n_tries} failed. Retrying...")
+            time.sleep(1)
+    except Exception:
+        error_type, error_value = sys.exc_info()[:2]
+        tmp_logger.error(f"Failed to convert email address {user} : {error_type} {error_value}")
+
+    return email
+
+
 def validate_request_method(req, expected_method):
     environ = req.subprocess_env
     request_method = environ.get("REQUEST_METHOD", None)  # GET, POST, PUT, DELETE
@@ -98,20 +125,32 @@ def has_production_role(req):
     return False
 
 
-# get primary working group with prod role
-def get_production_working_groups(req):
-    try:
-        fqans = get_fqan(req)
-        for fqan in fqans:
-            tmp_match = re.search("/[^/]+/([^/]+)/Role=production", fqan)
-            if tmp_match is not None:
-                # ignore usatlas since it is used as atlas prod role
-                tmp_working_group = tmp_match.group(1)
-                if tmp_working_group not in ["", "usatlas"]:
-                    return tmp_working_group.split("-")[-1].lower()
-    except Exception:
-        pass
-    return None
+def extract_production_working_groups(fqans):
+    # Extract working groups with production role from FQANs
+    wg_prod_roles = []
+    for fqan in fqans:
+        # Match FQANs with 'Role=production' and extract the working group
+        match = re.search(r"/atlas/([^/]+)/Role=production", fqan)
+        if match:
+            working_group = match.group(1)
+            # Exclude 'usatlas' and ensure uniqueness
+            if working_group and working_group not in ["usatlas"] + wg_prod_roles:
+                wg_prod_roles.extend([working_group, f"gr_{working_group}"])  # Add group and prefixed variant
+
+    return wg_prod_roles
+
+
+def extract_primary_production_working_group(fqans):
+    working_group = None
+    for fqan in fqans:
+        match = re.search("/[^/]+/([^/]+)/Role=production", fqan)
+        if match:
+            # ignore usatlas since it is used as atlas prod role
+            tmp_working_group = match.group(1)
+            if tmp_working_group not in ["", "usatlas"]:
+                working_group = tmp_working_group.split("-")[-1].lower()
+
+    return working_group
 
 
 # security check
@@ -129,7 +168,7 @@ def is_secure(req, logger=None):
     return True
 
 
-def request_validation(logger, secure=False, production=False, request_method=None):
+def request_validation(logger, secure=True, production=False, request_method=None):
     def decorator(func):
         @wraps(func)
         def wrapper(req, *args, **kwargs):
@@ -159,7 +198,7 @@ def request_validation(logger, secure=False, production=False, request_method=No
             bound_args.apply_defaults()
 
             for param_name, param_value in bound_args.arguments.items():
-                tmp_logger.debug(f"Got parameter '{param_name}' with value '{param_value}' and type '{type(param_value)}'")
+                # tmp_logger.debug(f"Got parameter '{param_name}' with value '{param_value}' and type '{type(param_value)}'")
 
                 # Skip the first argument (req)
                 if param_name == "req":
@@ -175,20 +214,35 @@ def request_validation(logger, secure=False, production=False, request_method=No
                 if default_value == param_value:
                     continue
 
+                # Handle generics like List[int]
+                origin = get_origin(expected_type)
+                args = get_args(expected_type)
+
                 # GET methods are URL encoded. Parameters will lose the type and come as string. We need to cast them to the expected type
                 if request_method == "GET":
                     try:
                         tmp_logger.debug(f"Casting '{param_name}' to type {expected_type.__name__}.")
-                        param_value = expected_type(param_value)
+                        # Booleans need to be handled separately, since bool("False") == True
+                        if expected_type is bool:
+                            param_value = param_value.lower() in ("true", "1")
+                        # Convert to float first, then to int. This is a courtesy for cases passing decimal numbers.
+                        elif expected_type is int:
+                            param_value = int(float(param_value))
+                        elif origin is list and args:
+                            element_type = args[0]  # Get the type inside List[<type>]
+                            if element_type is int:
+                                param_value = [int(float(i)) for i in param_value]  # Convert list items to int
+                            elif element_type is float:
+                                param_value = [float(i) for i in param_value]  # Convert list items to float
+                            elif element_type is bool:
+                                param_value = [i.lower() in ("true", "1") for i in param_value]  # Convert list items to bool
+                        else:
+                            param_value = expected_type(param_value)
                         bound_args.arguments[param_name] = param_value  # Ensure the cast value is used
                     except (ValueError, TypeError):
-                        message = f"Type error: '{param_name}' could not be casted to type {expected_type.__name__}."
+                        message = f"Type error: '{param_name}' with value '{param_value}' could not be casted to type {expected_type.__name__}."
                         tmp_logger.error(message)
                         return generate_response(False, message=message)
-
-                # Handle generics like List[int]
-                origin = get_origin(expected_type)
-                args = get_args(expected_type)
 
                 # Check type
                 if origin:  # Handle generics (e.g., List[int])
@@ -213,3 +267,21 @@ def request_validation(logger, secure=False, production=False, request_method=No
         return wrapper
 
     return decorator
+
+
+# a wrapper to install timeout into a method
+class TimedMethod:
+    def __init__(self, method, timeout):
+        self.method = method
+        self.timeout = timeout
+        self.result = TIME_OUT
+
+    # method emulation
+    def __call__(self, *var, **kwargs):
+        self.result = self.method(*var, **kwargs)
+
+    # run
+    def run(self, *var, **kwargs):
+        thr = threading.Thread(target=self, args=var, kwargs=kwargs)
+        thr.start()
+        thr.join()

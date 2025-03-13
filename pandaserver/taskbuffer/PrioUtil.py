@@ -10,6 +10,7 @@ PERMISSION_SUPER_GROUP = "g"
 
 
 # convert UTF-8 to ASCII in json dumps
+# This is needed for Python 2, but not for Python 3
 def unicodeConvert(input):
     if isinstance(input, dict):
         retMap = {}
@@ -28,6 +29,7 @@ def unicodeConvert(input):
 
 
 # decode
+# This is needed for Python 2, but not for Python 3
 def decodeJSON(inputStr):
     return json.loads(inputStr, object_hook=unicodeConvert)
 
