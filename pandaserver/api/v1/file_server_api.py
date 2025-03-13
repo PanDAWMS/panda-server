@@ -84,7 +84,7 @@ def upload_jedi_log(req: PandaRequest, file: FileStorage) -> Dict:
     """
     Upload a JEDI log file
 
-    Uploads a JEDI log file and returns the URL to the file. If there is already a log file for the task, it will be overwritten.
+    Uploads a JEDI log file and returns the URL to the file. If there is already a log file for the task, it will be overwritten. Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
@@ -152,7 +152,7 @@ def update_jedi_log(req: PandaRequest, file: FileStorage) -> Dict:
     """
     Update a JEDI log file
 
-    Updates a JEDI log file, appending more content at the end of the file.
+    Updates a JEDI log file, appending more content at the end of the file. Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
@@ -233,14 +233,14 @@ def download_jedi_log(req: PandaRequest, log_name: str, offset: int = 0) -> str:
     return return_string
 
 
-@request_validation(_logger, request_method="POST")
+@request_validation(_logger, secure=True, request_method="POST")
 def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
     """
     Upload a cache file
 
     Uploads a file to the cache. When not touched, cache files are expired after some time.
     User caches will get registered in the PanDA database and will account towards user limits.
-    PanDA log files will be stored in gzip format.
+    PanDA log files will be stored in gzip format. Requires a secure connection.
 
     API details:
         HTTP Method: POST
@@ -381,7 +381,7 @@ def touch_cache_file(req: PandaRequest, file_name: str) -> Dict:
     """
     Touch file in the cache directory.
 
-    Touches a file in the cache directory. It avoids the file to expire and being deleted by server clean up processes.
+    Touches a file in the cache directory. It avoids the file to expire and being deleted by server clean up processes. Requires a secure connection.
 
     API details:
         HTTP Method: POST
@@ -414,7 +414,7 @@ def delete_cache_file(req: PandaRequest, file_name: str) -> Dict:
     """
     Delete cache file
 
-    Deletes a file from the cache directory. Currently a dummy method.
+    Deletes a file from the cache directory. Currently a dummy method. Requires a secure connection.
 
     API details:
         HTTP Method: POST
@@ -444,7 +444,7 @@ def register_cache_file(req: PandaRequest, user_name: str, file_name: str, file_
     """
     Register cache file
 
-    Registers a file from the cache directory into the PanDA database, so that PanDA knows the server it's on. Requires production role.
+    Registers a file from the cache directory into the PanDA database, so that PanDA knows the server it's on. Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
@@ -483,7 +483,7 @@ def validate_cache_file(req: PandaRequest, file_size: int, checksum: str) -> Dic
     """
     Validate cache file
 
-    Validates a cache file owned by the caller by checking the file metadata that was registered in the database.
+    Validates a cache file owned by the caller by checking the file metadata that was registered in the database. Requires a secure connection.
 
     API details:
         HTTP Method: POST
@@ -528,7 +528,7 @@ def upload_hpo_checkpoint(req: PandaRequest, file: FileStorage) -> Dict:
     """
     Upload a HPO checkpoint file
 
-    Uploads a HPO checkpoint file to the server.
+    Uploads a HPO checkpoint file to the server. Requires a secure connection.
 
     API details:
         HTTP Method: POST
@@ -589,7 +589,7 @@ def delete_hpo_checkpoint(req: PandaRequest, task_id: str, sub_id: str) -> Dict:
     """
     Delete a HPO checkpoint file.
 
-    Deletes a HPO checkpoint file from the server.
+    Deletes a HPO checkpoint file from the server. Requires a secure connection.
 
     API details:
         HTTP Method: POST
@@ -624,7 +624,7 @@ def upload_file_recovery_request(req: PandaRequest, task_id: int, dry_run: bool 
     """
     Upload file recovery request
 
-    Upload request to recover lost files.
+    Upload request to recover lost files. Requires a secure connection.
 
     API details:
         HTTP Method: POST
@@ -675,7 +675,7 @@ def upload_workflow_request(req: PandaRequest, data: str, dry_run: bool = False,
     """
     Upload workflow request to the server.
 
-    Uploads a workflow request to the server. The request can be processed synchronously or asynchronously.
+    Uploads a workflow request to the server. The request can be processed synchronously or asynchronously. Requires a secure connection.
 
     API details:
         HTTP Method: POST
@@ -763,7 +763,7 @@ def upload_event_picking_request(
     """
     Upload event picking request to the server.
 
-    Uploads an event picking request to the server.
+    Uploads an event picking request to the server. Requires a secure connection.
 
     API details:
         HTTP Method: POST

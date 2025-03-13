@@ -66,6 +66,20 @@ def _get_dispatch_parameters():
     return True, parameters
 
 
+def _validate_user_permissions(compact_name, tokenized=False) -> dict:
+    allowed_names = global_dispatch_parameter_cache.get("allowProxy", [])
+
+    # The user is allowed to get a proxy or token
+    if compact_name in allowed_names:
+        return True, ""
+
+    # Permission denied for user
+    secret = "proxy" if not tokenized else "access token"
+    tmp_msg = f"failed: '{compact_name}' not in authorized users with 'p' in {panda_config.schemaMETA}.USERS.GRIDPREF to get {secret}"
+
+    return False, tmp_msg
+
+
 @request_validation(_logger, secure=True, request_method="POST")
 def set_user_secrets(req: PandaRequest, key: str = None, value: str = None) -> dict:
     """
@@ -189,26 +203,12 @@ def get_key_pair(req: PandaRequest, public_key_name: str, private_key_name: str)
     return generate_response(True, data=data)
 
 
-def validate_user_permissions(compact_name, tokenized=False) -> dict:
-    allowed_names = global_dispatch_parameter_cache.get("allowProxy", [])
-
-    # The user is allowed to get a proxy or token
-    if compact_name in allowed_names:
-        return True, ""
-
-    # Permission denied for user
-    secret = "proxy" if not tokenized else "access token"
-    tmp_msg = f"failed: '{compact_name}' not in authorized users with 'p' in {panda_config.schemaMETA}.USERS.GRIDPREF to get {secret}"
-
-    return False, tmp_msg
-
-
 @request_validation(_logger, secure=True, request_method="GET")
 def get_proxy(req: PandaRequest, role: str = None, dn: str = None) -> dict:
     """
     Get proxy
 
-    Get the x509 proxy certificate for a user with a role.
+    Get the x509 proxy certificate for a user with a role. Requires a secure connection.
 
     API details:
         HTTP Method: GET
@@ -237,7 +237,7 @@ def get_proxy(req: PandaRequest, role: str = None, dn: str = None) -> dict:
     # check permission
     global_dispatch_parameter_cache.update()
     real_dn_compact = clean_user_id(real_dn)
-    allowed, tmp_msg = validate_user_permissions(real_dn_compact, tokenized=False)
+    allowed, tmp_msg = _validate_user_permissions(real_dn_compact, tokenized=False)
     if not allowed:
         tmp_logger.debug(tmp_msg)
         return generate_response(False, tmp_msg)
@@ -262,7 +262,7 @@ def get_access_token(req: PandaRequest, client_name: str, token_key: str = None)
     """
     Get access token
 
-    Get the OAuth access token for the specified client.
+    Get the OAuth access token for the specified client. Requires a secure connection.
 
     API details:
         HTTP Method: GET
@@ -288,7 +288,7 @@ def get_access_token(req: PandaRequest, client_name: str, token_key: str = None)
     # check permission
     global_dispatch_parameter_cache.update()
     real_dn_compact = clean_user_id(real_dn)
-    allowed, tmp_msg = validate_user_permissions(real_dn_compact, tokenized=True)
+    allowed, tmp_msg = _validate_user_permissions(real_dn_compact, tokenized=True)
     if not allowed:
         tmp_logger.debug(tmp_msg)
         return generate_response(False, tmp_msg)
@@ -325,7 +325,7 @@ def get_token_key(req: PandaRequest, client_name: str) -> dict:
     """
     Get token key
 
-    This function retrieves the distinguished name (DN) from the request and uses it to get a token key for the specified client.
+    This function retrieves the distinguished name (DN) from the request and uses it to get a token key for the specified client. Requires a secure connection.
 
     API details:
         HTTP Method: GET

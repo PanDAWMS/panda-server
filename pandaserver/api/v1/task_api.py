@@ -364,7 +364,7 @@ def kill_unfinished_jobs(req: PandaRequest, task_id: int, code: int = None, use_
     """
     Kill all unfinished jobs in a task
 
-    Kills all unfinished jobs in a task.
+    Kills all unfinished jobs in a task. Requires a secure connection.
 
     API details:
         HTTP Method: POST
@@ -670,12 +670,13 @@ def enable_jumbo_jobs(req: PandaRequest, task_id: int, jumbo_jobs_total: int, ju
     return generate_response(success, message, code)
 
 
-@request_validation(_logger, request_method="GET")
+@request_validation(_logger, secure=True, request_method="GET")
 def get_jumbo_job_datasets(req: PandaRequest, from_offset: int, to_offset: int = 0) -> Dict:
     """
     Get jumbo job datasets
 
     Gets a map of the jumbo-job-enabled tasks to their datasets, filtering by the last modification time (now - from_offset to now - to_offset).
+    Requires a secure connection.
 
     API details:
         HTTP Method: GET
@@ -807,12 +808,12 @@ def increase_attempts(req: PandaRequest, task_id: int, increase: int) -> Dict[st
     return generate_response(success, message, code)
 
 
-@request_validation(_logger, request_method="GET")
+@request_validation(_logger, secure=True, request_method="GET")
 def get_status(req, task_id):
     """
     Get task status
 
-    Get the status of a given task.
+    Get the status of a given task. Requires secure connection.
 
     API details:
         HTTP Method: GET
@@ -851,7 +852,7 @@ def get_details(req: PandaRequest, task_id: int, include_parameters: bool = Fals
     """
     Get task details
 
-    Get the details of a given task.
+    Get the details of a given task. Requires secure connection.
 
     API details:
         HTTP Method: GET
@@ -886,7 +887,8 @@ def change_attribute(req: PandaRequest, task_id: int, attribute_name: str, value
     """
     Change a task attribute
 
-    Change a task attribute within the list of valid attributes ("ramCount", "wallTime", "cpuTime", "coreCount"). Requires a secure connection and production role.
+    Change a task attribute within the list of valid attributes ("ramCount", "wallTime", "cpuTime", "coreCount").
+    Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST

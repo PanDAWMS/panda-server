@@ -32,7 +32,7 @@ def get_available_event_range_count(req: PandaRequest, job_id: int, jobset_id: i
     """
     Get available event range count
 
-    This function returns the count of available event ranges for a given job_id, jobset_id, and task_id.
+    This function returns the count of available event ranges for a given job_id, jobset_id, and task_id. Requires a secure connection and production role.
 
     API details:
         HTTP Method: GET
@@ -78,7 +78,7 @@ def get_event_range_statuses(req: PandaRequest, job_task_ids: str) -> dict:
     """
     Get event range statuses
 
-    Gets a dictionary with the status of the event ranges for the given pairs of PanDA job IDs and JEDI task IDs.
+    Gets a dictionary with the status of the event ranges for the given pairs of PanDA job IDs and JEDI task IDs. Requires a secure connection.
 
     API details:
         HTTP Method: GET
@@ -120,7 +120,7 @@ def acquire_event_ranges(
     """
     Acquire event ranges
 
-    Acquires a list of event ranges with a given PandaID for execution.
+    Acquires a list of event ranges with a given PandaID for execution. Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
@@ -181,7 +181,7 @@ def update_single_event_range(
     """
     Update single event range
 
-    Updates the status of a specific event range.
+    Updates the status of a specific event range. Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
@@ -230,7 +230,7 @@ def update_event_ranges(req: PandaRequest, event_ranges: str, timeout: int = 120
     """
     Update event ranges
 
-    Updates the event ranges in bulk.
+    Updates the event ranges in bulk. Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST

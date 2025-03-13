@@ -20,7 +20,7 @@ from pandaserver.srvcore.panda_request import PandaRequest
 _logger = PandaLogger().getLogger("api_system")
 
 
-@request_validation(_logger, request_method="GET")
+@request_validation(_logger, secure=True, request_method="GET")
 def get_attributes(req: PandaRequest, **kwargs: dict) -> Dict:
     """
     Get attributes
@@ -59,12 +59,12 @@ def get_attributes(req: PandaRequest, **kwargs: dict) -> Dict:
     return generate_response(True, text_representation)
 
 
-@request_validation(_logger, request_method="GET")
+@request_validation(_logger, secure=True, request_method="GET")
 def get_voms_attributes(req: PandaRequest) -> Dict:
     """
     Get VOMS attributes
 
-    Gets the VOMS attributes (i.e. the ones starting with GRST) in sorted order.
+    Gets the VOMS attributes (i.e. the ones starting with GRST) in sorted order. Requires a secure connection.
 
     API details:
         HTTP Method: GET
@@ -93,12 +93,12 @@ def get_voms_attributes(req: PandaRequest) -> Dict:
     return generate_response(True, text_representation, attributes)
 
 
-@request_validation(_logger, request_method="GET")
+@request_validation(_logger, secure=True, request_method="GET")
 def get_user_attributes(req: PandaRequest) -> Dict:
     """
     Get user attributes
 
-    Gets user attributes as seen by PanDA for debug purposes
+    Gets user attributes as seen by PanDA for debug purposes. Requires a secure connection.
 
     API details:
         HTTP Method: GET

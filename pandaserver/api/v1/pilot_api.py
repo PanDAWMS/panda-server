@@ -73,7 +73,7 @@ def acquire_jobs(
     """
     Acquire jobs
 
-    Acquire jobs for the pilot. The jobs are reserved, the job status is updated and the jobs are returned.
+    Acquire jobs for the pilot. The jobs are reserved, the job status is updated and the jobs are returned. Requires a secure connection.
 
     API details:
         HTTP Method: POST
@@ -265,7 +265,7 @@ def get_job_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> 
     """
     Get job status
 
-    Gets the status for a list of jobs.
+    Gets the status for a list of jobs. Requires a secure connection.
 
     Args:
         req(PandaRequest): Internally generated request object containing the environment variables.
@@ -364,7 +364,7 @@ def update_job(
     """
     Update job
 
-    Updates the details for a job, stores the metadata and excerpts from the pilot log.
+    Updates the details for a job, stores the metadata and excerpts from the pilot log. Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
@@ -613,7 +613,7 @@ def update_jobs_bulk(req, job_list: List, harvester_id: str = None):
     Update jobs in bulk
 
     Bulk method to update the details for jobs, store the metadata and excerpt from the pilot log. Internally, this method loops over
-    the jobs and calls `update_job` for each job.
+    the jobs and calls `update_job` for each job. Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
@@ -663,7 +663,7 @@ def update_worker_status(req: PandaRequest, worker_id, harvester_id, status, tim
     """
     Update worker status
 
-    Updates the status of a worker with the information seen by the pilot.
+    Updates the status of a worker with the information seen by the pilot. Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
@@ -730,7 +730,7 @@ def update_worker_node(
     """
     Update worker node
 
-    Updates a worker node in the worker node map. When already found, it updates the `last_seen` time. When not found, it adds the worker node.
+    Updates a worker node in the worker node map. When already found, it updates the `last_seen` time. When not found, it adds the worker node. Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST

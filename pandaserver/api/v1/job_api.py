@@ -39,7 +39,7 @@ def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict
     """
     Get status of a job.
 
-    Gets the status for a job and command to the pilot if any.
+    Gets the status for a job and command to the pilot if any. Requires a secure connection.
 
     API details:
         HTTP Method: GET
@@ -82,7 +82,7 @@ def get_description(self, job_ids: List[int]) -> Dict:
     """
     Get description of a job.
 
-    Gets the description of a job from the main/active schema. The description includes job attributes, job parameters and related file attributes
+    Gets the description of a job from the main/active schema. The description includes job attributes, job parameters and related file attributes. Requires a secure connection.
 
     API details:
         HTTP Method: GET
@@ -122,7 +122,7 @@ def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict:
     """
     Get description of a job.
 
-    Gets the description of a job, also looking into the secondary/archive schema. The description includes job attributes, job parameters and related file attributes
+    Gets the description of a job, also looking into the secondary/archive schema. The description includes job attributes, job parameters and related file attributes. Requires a secure connection.
 
     API details:
         HTTP Method: GET
@@ -162,7 +162,7 @@ def generate_offline_execution_script(req: PandaRequest, job_id: int, days: int 
     """
     Get execution script for a job.
 
-    Gets the execution script for a job, including Rucio download of input, ALRB setup, downloading transformation script and running the script.
+    Gets the execution script for a job, including Rucio download of input, ALRB setup, downloading transformation script and running the script. Requires a secure connection.
 
     API details:
         HTTP Method: GET
@@ -193,7 +193,7 @@ def get_metadata_for_analysis_jobs(req: PandaRequest, task_id: int) -> Dict:
     """
     Get metadata for analysis jobs
 
-    Gets the metadata from the metatable for analysis jobs in `finished` status.
+    Gets the metadata from the metatable for analysis jobs in `finished` status. Requires a secure connection.
 
     API details:
         HTTP Method: GET
@@ -224,7 +224,7 @@ def kill(req, job_ids: List[int], code: int = None, use_email_as_id: bool = Fals
     """
     Kill the jobs
 
-    Kills the jobs with the given PanDA IDs.
+    Kills the jobs with the given PanDA IDs. Requires a secure connection.
 
     API details:
         HTTP Method: POST
@@ -286,7 +286,7 @@ def reassign(req: PandaRequest, job_ids: List[int]):
     """
     Reassign a list of jobs
 
-    Reassigns a list of jobs.
+    Reassigns a list of jobs. Requires a secure connection.
 
     API details:
         HTTP Method: POST
@@ -314,7 +314,7 @@ def set_command(req: PandaRequest, job_id: int, command: str):
     """
     Set a pilot command
 
-    Sets a command to the pilot for a job.
+    Sets a command to the pilot for a job. Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
@@ -340,7 +340,7 @@ def set_debug_mode(req: PandaRequest, job_id: int, mode: bool):
     """
     Set the debug mode
 
-    Sets the debug mode for a job
+    Sets the debug mode for a job. Requires a secure connection and production role.
 
     API details:
         HTTP Method: POST
@@ -375,12 +375,12 @@ def set_debug_mode(req: PandaRequest, job_id: int, mode: bool):
     return generate_response(success, message=message)
 
 
-@request_validation(_logger, secure=True, production=True, request_method="POST")
+@request_validation(_logger, secure=True, request_method="POST")
 def submit(req: PandaRequest, jobs: str):
     """
     Set the debug mode
 
-    Sets the debug mode for a job
+    Sets the debug mode for a job. Requires a secure connection.
 
     API details:
         HTTP Method: POST

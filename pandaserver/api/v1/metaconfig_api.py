@@ -30,7 +30,7 @@ def get_banned_users(req: PandaRequest) -> dict:
     """
     Get banned users
 
-    Gets the list of banned users from the system (users with `status=disabled` in ATLAS_PANDAMETA.users).
+    Gets the list of banned users from the system (users with `status=disabled` in ATLAS_PANDAMETA.users). Requires a secure connection.
 
     API details:
         HTTP Method: GET
@@ -56,7 +56,7 @@ def get_site_specs(req: PandaRequest, type: str = "analysis") -> dict:
     """
     Get site specs
 
-    Gets a dictionary of site specs. By default `analysis` sites are returned.
+    Gets a dictionary of site specs. By default `analysis` sites are returned. Requires a secure connection.
 
     API details:
         HTTP Method: GET
@@ -94,7 +94,7 @@ def get_resource_types(req: PandaRequest):
     """
     Get resource types
 
-    Gets the resource types (`SCORE`, `MCORE`, etc.) together with their definitions.
+    Gets the resource types (`SCORE`, `MCORE`, etc.) together with their definitions. Requires a secure connection and production role.
 
     API details:
         HTTP Method: GET

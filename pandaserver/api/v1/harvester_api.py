@@ -209,12 +209,12 @@ def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) 
     return generate_response(True)
 
 
-@request_validation(_logger, request_method="GET")
+@request_validation(_logger, secure=True, request_method="GET")
 def get_current_worker_id(req: PandaRequest, harvester_id: str) -> Dict[str, Any]:
     """
     Get the current worker ID.
 
-    Retrieve the current worker ID.
+    Retrieve the current worker ID. Requires a secure connection.
 
     API details:
         HTTP Method: GET
@@ -238,12 +238,12 @@ def get_current_worker_id(req: PandaRequest, harvester_id: str) -> Dict[str, Any
     return generate_response(True, data=current_worker_id)
 
 
-@request_validation(_logger, request_method="GET")
+@request_validation(_logger, secure=True, request_method="GET")
 def get_worker_statistics(req: PandaRequest) -> Dict[str, Any]:
     """
     Get worker statistics.
 
-    Get statistics for all the workers managed across the Grid.
+    Get statistics for all the workers managed across the Grid. Requires a secure connection.
 
     API details:
         HTTP Method: GET
