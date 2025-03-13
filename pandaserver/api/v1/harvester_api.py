@@ -15,7 +15,7 @@ from pandaserver.api.v1.common import (
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
-_logger = PandaLogger().getLogger("harvester_api")
+_logger = PandaLogger().getLogger("api_harvester")
 
 global_task_buffer = None
 

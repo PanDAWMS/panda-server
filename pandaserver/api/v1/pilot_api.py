@@ -23,7 +23,7 @@ from pandaserver.srvcore import CoreUtils
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
-_logger = PandaLogger().getLogger("pilot_api")
+_logger = PandaLogger().getLogger("api_pilot")
 pilot_logger = PandaLogger().getLogger("PilotRequests")
 
 

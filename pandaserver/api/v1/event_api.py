@@ -12,7 +12,7 @@ from pandaserver.jobdispatcher import Protocol
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
-_logger = PandaLogger().getLogger("event_api")
+_logger = PandaLogger().getLogger("api_event")
 
 # These global variables are initialized in the init_task_buffer method
 global_task_buffer = None
@@ -28,11 +28,11 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 
 
 @request_validation(_logger, secure=True, production=True, request_method="GET")
-def get_available_event_range_count(req: PandaRequest, panda_id: int, jobset_id: int, task_id: int, timeout=60) -> dict:
+def get_available_event_range_count(req: PandaRequest, job_id: int, jobset_id: int, task_id: int, timeout=60) -> dict:
     """
     Get available event range count
 
-    This function returns the count of available event ranges for a given panda_id, jobset_id, and task_id.
+    This function returns the count of available event ranges for a given job_id, jobset_id, and task_id.
 
     API details:
         HTTP Method: GET
@@ -40,7 +40,7 @@ def get_available_event_range_count(req: PandaRequest, panda_id: int, jobset_id:
 
     Args:
         req(PandaRequest): internally generated request object
-        panda_id(int): PanDA job ID
+        job_id(int): PanDA job ID
         jobset_id(int): Jobset ID
         task_id(int): JEDI task ID
         timeout(int, optional): The timeout value. Defaults to 60.
@@ -50,12 +50,12 @@ def get_available_event_range_count(req: PandaRequest, panda_id: int, jobset_id:
               When successful, the data field contains the number of available event ranges.
     """
 
-    tmp_logger = LogWrapper(_logger, f"get_available_event_range_count < panda_id={panda_id} jobset_id={jobset_id} task_id={task_id} >")
+    tmp_logger = LogWrapper(_logger, f"get_available_event_range_count < job_id={job_id} jobset_id={jobset_id} task_id={task_id} >")
 
     tmp_logger.debug("Start")
 
     timed_method = TimedMethod(global_task_buffer.checkEventsAvailability, timeout)
-    timed_method.run(panda_id, jobset_id, task_id)
+    timed_method.run(job_id, jobset_id, task_id)
 
     # Case of time out
     if timed_method.result == Protocol.TimeOutToken:
@@ -86,11 +86,11 @@ def get_event_range_statuses(req: PandaRequest, job_task_ids: str) -> dict:
 
     Args:
         req(PandaRequest): internally generated request object
-        job_task_ids(int): json encoded string with JEDI task ID + PanDA job ID pairs, in the format `[{"task_id": <task>, "panda_id": <job>}, ...]`
+        job_task_ids(int): json encoded string with JEDI task ID + PanDA job ID pairs, in the format `[{"task_id": <task>, "job_id": <job>}, ...]`
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`.
-              When successful, the data field contains the status of the event ranges in the format `{<panda_id>: {<event_range_id>: {"status": <status>, "error": <error_code>, "dialog": <dialog>}, ...}, ...}`
+              When successful, the data field contains the status of the event ranges in the format `{<job_id>: {<event_range_id>: {"status": <status>, "error": <error_code>, "dialog": <dialog>}, ...}, ...}`
     """
 
     tmp_logger = LogWrapper(_logger, f"get_event_range_statuses")
@@ -109,7 +109,7 @@ def get_event_range_statuses(req: PandaRequest, job_task_ids: str) -> dict:
 @request_validation(_logger, secure=True, production=True, request_method="POST")
 def acquire_event_ranges(
     req: PandaRequest,
-    panda_id: int,
+    job_id: int,
     jobset_id: int,
     task_id: int = None,
     n_ranges: int = 10,
@@ -128,7 +128,7 @@ def acquire_event_ranges(
 
     Args:
         req(PandaRequest): Internally generated request object containing the environment.
-        panda_id(str): PanDa job ID.
+        job_id(str): PanDa job ID.
         jobset_id(str): Jobset ID.
         task_id(int, optional): JEDI task ID. Defaults to None.
         n_ranges(int, optional): The number of event ranges to retrieve. Defaults to 10.
@@ -143,14 +143,14 @@ def acquire_event_ranges(
     """
 
     tmp_logger = LogWrapper(
-        _logger, f"acquire_event_ranges < panda_id={panda_id} jobset_id={jobset_id} task_id={task_id} n_ranges={n_ranges} segment_id={segment_id} >"
+        _logger, f"acquire_event_ranges < job_id={job_id} jobset_id={jobset_id} task_id={task_id} n_ranges={n_ranges} segment_id={segment_id} >"
     )
     tmp_logger.debug("Start")
 
     accept_json = True  # Dummy variable required in the timed method
 
     timed_method = TimedMethod(global_task_buffer.getEventRanges, timeout)
-    timed_method.run(panda_id, jobset_id, task_id, n_ranges, accept_json, scattered, segment_id)
+    timed_method.run(job_id, jobset_id, task_id, n_ranges, accept_json, scattered, segment_id)
 
     # Case of time out
     if timed_method.result == Protocol.TimeOutToken:

@@ -16,7 +16,7 @@ try:
 except ImportError:
     pass
 
-_logger = PandaLogger().getLogger("idds_api")
+_logger = PandaLogger().getLogger("api_idds")
 
 
 # json decoder for idds constants

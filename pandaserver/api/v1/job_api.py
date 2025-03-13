@@ -21,7 +21,7 @@ from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer import JobUtils
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
-_logger = PandaLogger().getLogger("job_api")
+_logger = PandaLogger().getLogger("api_job")
 
 global_task_buffer = None
 
@@ -35,7 +35,7 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_status(req: PandaRequest, panda_ids: List[int], timeout: int = 60) -> Dict:
+def get_status(req: PandaRequest, job_ids: List[int], timeout: int = 60) -> Dict:
     """
     Get status of a job.
 
@@ -47,19 +47,19 @@ def get_status(req: PandaRequest, panda_ids: List[int], timeout: int = 60) -> Di
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        panda_ids(List[int]): list of PanDA job IDs.
+        job_ids(List[int]): list of PanDA job IDs.
         timeout(int, optional): The timeout value. Defaults to 60.
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains a list of tupes with (status, command). When unsuccessful, the message field contains the error message and data an error code.
     """
-    tmp_logger = LogWrapper(_logger, f"get_status panda_ids={panda_ids} timeout={timeout}")
+    tmp_logger = LogWrapper(_logger, f"get_status job_ids={job_ids} timeout={timeout}")
     tmp_logger.debug("Start")
 
-    # The task buffer method expect a comma separated list of panda_ids
-    panda_ids_str = ",".join(panda_ids)
+    # The task buffer method expect a comma separated list of job_ids
+    job_ids_str = ",".join(job_ids)
     timed_method = TimedMethod(global_task_buffer.checkJobStatus, timeout)
-    timed_method.run(panda_ids_str)
+    timed_method.run(job_ids_str)
 
     # Time out
     if timed_method.result == Protocol.TimeOutToken:
@@ -78,7 +78,7 @@ def get_status(req: PandaRequest, panda_ids: List[int], timeout: int = 60) -> Di
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_description(self, panda_ids: List[int]) -> Dict:
+def get_description(self, job_ids: List[int]) -> Dict:
     """
     Get description of a job.
 
@@ -90,7 +90,7 @@ def get_description(self, panda_ids: List[int]) -> Dict:
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        panda_ids (List[int]): List of PanDA job IDs.
+        job_ids (List[int]): List of PanDA job IDs.
         timeout (int, optional): The timeout value. Defaults to 60.
 
     Returns:
@@ -100,25 +100,25 @@ def get_description(self, panda_ids: List[int]) -> Dict:
     tmp_logger.debug("Start")
 
     try:
-        tmp_logger.debug(f"Number of requested PanDA IDs: {len(panda_ids)}")
+        tmp_logger.debug(f"Number of requested PanDA IDs: {len(job_ids)}")
         max_ids = 5500
-        if len(panda_ids) > max_ids:
+        if len(job_ids) > max_ids:
             tmp_logger.error(f"List of PanDA IDs is longer than {max_ids}. Truncating the list.")
-            panda_ids = panda_ids[:max_ids]
+            job_ids = job_ids[:max_ids]
     except Exception:
         error_type, error_value, _ = sys.exc_info()
         tmp_logger.error(f"Failed deserializing the list of PanDA IDs: {error_type} {error_value}")
-        panda_ids = []
+        job_ids = []
 
-    tmp_logger.debug(f"Retrieving data for {panda_ids}")
-    ret = global_task_buffer.peekJobs(panda_ids, use_json=True)
+    tmp_logger.debug(f"Retrieving data for {job_ids}")
+    ret = global_task_buffer.peekJobs(job_ids, use_json=True)
     _logger.debug("Done")
 
     return generate_response(True, data=ret)
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_description_incl_archive(req: PandaRequest, panda_ids: List[int]) -> Dict:
+def get_description_incl_archive(req: PandaRequest, job_ids: List[int]) -> Dict:
     """
     Get description of a job.
 
@@ -130,7 +130,7 @@ def get_description_incl_archive(req: PandaRequest, panda_ids: List[int]) -> Dic
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables.
-        panda_ids (List[int]): List of PanDA job IDs.
+        job_ids (List[int]): List of PanDA job IDs.
         timeout (int, optional): The timeout value. Defaults to 60.
 
     Returns:
@@ -140,25 +140,25 @@ def get_description_incl_archive(req: PandaRequest, panda_ids: List[int]) -> Dic
     tmp_logger.debug("Start")
 
     try:
-        tmp_logger.debug(f"Number of requested PanDA IDs: {len(panda_ids)}")
+        tmp_logger.debug(f"Number of requested PanDA IDs: {len(job_ids)}")
         max_ids = 5500
-        if len(panda_ids) > max_ids:
+        if len(job_ids) > max_ids:
             tmp_logger.error(f"List of PanDA IDs is longer than {max_ids}. Truncating the list.")
-            panda_ids = panda_ids[:max_ids]
+            job_ids = job_ids[:max_ids]
     except Exception:
         error_type, error_value, _ = sys.exc_info()
         tmp_logger.error(f"Failed deserializing the list of PanDA IDs: {error_type} {error_value}")
-        panda_ids = []
+        job_ids = []
 
-    tmp_logger.debug(f"Retrieving data for {str(panda_ids)}")
+    tmp_logger.debug(f"Retrieving data for {str(job_ids)}")
 
-    ret = global_task_buffer.getFullJobStatus(panda_ids)
+    ret = global_task_buffer.getFullJobStatus(job_ids)
     tmp_logger.debug("getFullJobStatus end")
     return generate_response(True, data=ret)
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def generate_offline_execution_script(req: PandaRequest, panda_id: int, days: int = None) -> Dict:
+def generate_offline_execution_script(req: PandaRequest, job_id: int, days: int = None) -> Dict:
     """
     Get execution script for a job.
 
@@ -170,15 +170,15 @@ def generate_offline_execution_script(req: PandaRequest, panda_id: int, days: in
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        panda_id (int): PanDA job ID
+        job_id (int): PanDA job ID
         timeout (int, optional): The timeout value. Defaults to 60.
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field will contain `{"script": script}`. When unsuccessful, the message field contains the error message and data an error code.
     """
-    tmp_logger = LogWrapper(_logger, f"generate_offline_execution_script panda_id={panda_id} days={days}")
+    tmp_logger = LogWrapper(_logger, f"generate_offline_execution_script job_id={job_id} days={days}")
     tmp_logger.debug("Start")
-    script = global_task_buffer.getScriptOfflineRunning(panda_id, days)
+    script = global_task_buffer.getScriptOfflineRunning(job_id, days)
 
     if script.startswith("ERROR"):
         tmp_logger.debug("Failed to generate script")
@@ -189,7 +189,7 @@ def generate_offline_execution_script(req: PandaRequest, panda_id: int, days: in
 
 
 @request_validation(_logger, secure=True, request_method="GET")
-def get_metadata_for_analysis_jobs(req: PandaRequest, jedi_task_id: int) -> Dict:
+def get_metadata_for_analysis_jobs(req: PandaRequest, task_id: int) -> Dict:
     """
     Get metadata for analysis jobs
 
@@ -201,16 +201,16 @@ def get_metadata_for_analysis_jobs(req: PandaRequest, jedi_task_id: int) -> Dict
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        jedi_task_id (int): JEDI task ID
+        task_id (int): JEDI task ID
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When successful, the data field contains the medata. When unsuccessful, the message field contains the error message and data an error code.
     """
 
-    tmp_logger = LogWrapper(_logger, f"get_metadata_for_analysis_jobs jedi_task_id={jedi_task_id}")
+    tmp_logger = LogWrapper(_logger, f"get_metadata_for_analysis_jobs task_id={task_id}")
     tmp_logger.debug("Start")
 
-    metadata = global_task_buffer.getUserJobMetadata(jedi_task_id)
+    metadata = global_task_buffer.getUserJobMetadata(task_id)
     if not metadata:
         tmp_logger.debug("No metadata found")
         return generate_response(False, message="No metadata found")
@@ -220,7 +220,7 @@ def get_metadata_for_analysis_jobs(req: PandaRequest, jedi_task_id: int) -> Dict
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def kill(req, panda_ids: List[int], code: int = None, use_email_as_id: bool = False, kill_options: List = []):
+def kill(req, job_ids: List[int], code: int = None, use_email_as_id: bool = False, kill_options: List = []):
     """
     Kill the jobs
 
@@ -232,7 +232,7 @@ def kill(req, panda_ids: List[int], code: int = None, use_email_as_id: bool = Fa
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        panda_ids (List): List of PanDA job IDs
+        job_ids (List): List of PanDA job IDs
         code (int, optional): The kill code. Defaults to None.
         ```
         code
@@ -264,7 +264,7 @@ def kill(req, panda_ids: List[int], code: int = None, use_email_as_id: bool = Fa
     fqans = get_fqan(req)
 
     tmp_logger = LogWrapper(_logger, f"kill")
-    tmp_logger.debug(f"Start user: {user} code: {code} is_production_manager: {is_production_manager} fqans: {fqans} panda_ids: {panda_ids}")
+    tmp_logger.debug(f"Start user: {user} code: {code} is_production_manager: {is_production_manager} fqans: {fqans} job_ids: {job_ids}")
 
     # Get the user's email address if use_email_as_id is set
     if use_email_as_id:
@@ -276,13 +276,13 @@ def kill(req, panda_ids: List[int], code: int = None, use_email_as_id: bool = Fa
     wg_prod_roles = extract_production_working_groups(fqans)
 
     # kill jobs
-    ret = global_task_buffer.killJobs(panda_ids, user, code, is_production_manager, wg_prod_roles, kill_options)
+    ret = global_task_buffer.killJobs(job_ids, user, code, is_production_manager, wg_prod_roles, kill_options)
     tmp_logger.debug(f"Done with ret: {ret}")
     return generate_response(True, data=ret)
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def reassign(req: PandaRequest, panda_ids: List[int]):
+def reassign(req: PandaRequest, job_ids: List[int]):
     """
     Reassign a list of jobs
 
@@ -294,23 +294,23 @@ def reassign(req: PandaRequest, panda_ids: List[int]):
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        panda_ids (List): List of PanDA job IDs
+        job_ids (List): List of PanDA job IDs
 
     Returns:
         dict: The system response `{"success": True}`.
     """
     # TODO: think about the default values for for_pending and first_submission. The resolve_true and resolve_false functions are confusing me.
 
-    tmp_logger = LogWrapper(_logger, f"reassign panda_ids={panda_ids}")
+    tmp_logger = LogWrapper(_logger, f"reassign job_ids={job_ids}")
     tmp_logger.debug("Start")
     # taskBuffer.reassignJobs always returns True
-    global_task_buffer.reassignJobs(panda_ids)
+    global_task_buffer.reassignJobs(job_ids)
     tmp_logger.debug(f"Done")
     return generate_response(True)
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def set_command(req: PandaRequest, panda_id: int, command: str):
+def set_command(req: PandaRequest, job_id: int, command: str):
     """
     Set a pilot command
 
@@ -322,21 +322,21 @@ def set_command(req: PandaRequest, panda_id: int, command: str):
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        panda_id (int): PanDA job ID
+        job_id (int): PanDA job ID
         command (str): The command for the pilot, e.g. `tobekilled`
 
     Returns:
         dict: The system response `{"success": success, "message": message}`.
     """
-    tmp_logger = LogWrapper(_logger, f"set_command panda_id={panda_id} command={command}")
+    tmp_logger = LogWrapper(_logger, f"set_command job_id={job_id} command={command}")
     tmp_logger.debug("Start")
-    success, message = global_task_buffer.send_command_to_job(panda_id, command)
+    success, message = global_task_buffer.send_command_to_job(job_id, command)
     tmp_logger.debug("Done with success={success} message={message}")
     return generate_response(success, message=message)
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def set_debug_mode(req: PandaRequest, panda_id: int, mode: bool):
+def set_debug_mode(req: PandaRequest, job_id: int, mode: bool):
     """
     Set the debug mode
 
@@ -348,14 +348,14 @@ def set_debug_mode(req: PandaRequest, panda_id: int, mode: bool):
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        panda_id (int): PanDA job ID
+        job_id (int): PanDA job ID
         mode (bool): True to set debug mode, False to unset debug mode
 
     Returns:
         dict: The system response `{"success": success, "message": message}`.
     """
 
-    tmp_logger = LogWrapper(_logger, f"set_debug_mode panda_id={panda_id}")
+    tmp_logger = LogWrapper(_logger, f"set_debug_mode job_id={job_id}")
 
     user = get_dn(req)
     is_production_manager = has_production_role(req)
@@ -366,7 +366,7 @@ def set_debug_mode(req: PandaRequest, panda_id: int, mode: bool):
 
     tmp_logger.debug(f"Start user={user} mgr={is_production_manager} wg={working_group} fqans={str(fqans)}")
 
-    message = global_task_buffer.setDebugMode(user, panda_id, is_production_manager, mode, working_group)
+    message = global_task_buffer.setDebugMode(user, job_id, is_production_manager, mode, working_group)
 
     success = False
     if message != "Succeeded":

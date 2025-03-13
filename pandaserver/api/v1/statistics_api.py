@@ -7,7 +7,7 @@ from pandaserver.api.v1.common import generate_response, request_validation
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
-_logger = PandaLogger().getLogger("statistics_api")
+_logger = PandaLogger().getLogger("api_statistics")
 
 global_task_buffer = None
 

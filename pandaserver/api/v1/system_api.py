@@ -17,7 +17,7 @@ from pandaserver.config import panda_config
 from pandaserver.srvcore.CoreUtils import clean_user_id
 from pandaserver.srvcore.panda_request import PandaRequest
 
-_logger = PandaLogger().getLogger("system_api")
+_logger = PandaLogger().getLogger("api_system")
 
 
 @request_validation(_logger, request_method="GET")

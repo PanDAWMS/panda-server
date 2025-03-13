@@ -24,7 +24,7 @@ from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 from pandaserver.userinterface import Client
 
-_logger = PandaLogger().getLogger("file_server")
+_logger = PandaLogger().getLogger("api_file_server")
 
 # Skip registration for files with these suffixes
 IGNORED_SUFFIX = [".out"]
@@ -509,18 +509,18 @@ def validate_cache_file(req: PandaRequest, file_size: int, checksum: str) -> Dic
     return generate_response(True, message)
 
 
-def _get_checkpoint_filename(jedi_task_id: str, sub_id: str) -> Dict:
+def _get_checkpoint_filename(task_id: str, sub_id: str) -> Dict:
     """
     Get the checkpoint file name.
 
     Args:
-        jedi_task_id(string): task ID.
+        task_id(string): task ID.
         sub_id(string): sub ID.
 
     Returns:
         string: checkpoint file name.
     """
-    return f"hpo_cp_{jedi_task_id}_{sub_id}"
+    return f"hpo_cp_{task_id}_{sub_id}"
 
 
 @request_validation(_logger, secure=True, request_method="POST")
@@ -585,7 +585,7 @@ def upload_hpo_checkpoint(req: PandaRequest, file: FileStorage) -> Dict:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def delete_hpo_checkpoint(req: PandaRequest, jedi_task_id: str, sub_id: str) -> Dict:
+def delete_hpo_checkpoint(req: PandaRequest, task_id: str, sub_id: str) -> Dict:
     """
     Delete a HPO checkpoint file.
 
@@ -597,19 +597,19 @@ def delete_hpo_checkpoint(req: PandaRequest, jedi_task_id: str, sub_id: str) -> 
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        jedi_task_id(string): JEDI task ID
+        task_id(string): JEDI task ID
         sub_id(string): sub ID.
 
     Returns:
         dict: The system response `{"success": success, "message": message, "data": data}`. When unsuccessful, the message field will indicate the issue.
     """
 
-    tmp_logger = LogWrapper(_logger, f"delete_hpo_checkpoint <jediTaskID={jedi_task_id} ID={sub_id}>")
+    tmp_logger = LogWrapper(_logger, f"delete_hpo_checkpoint <jediTaskID={task_id} ID={sub_id}>")
 
     tmp_logger.debug(f"Start {req.subprocess_env['SSL_CLIENT_S_DN']}")
 
     try:
-        full_path = os.path.join(panda_config.cache_dir, _get_checkpoint_filename(jedi_task_id, sub_id))
+        full_path = os.path.join(panda_config.cache_dir, _get_checkpoint_filename(task_id, sub_id))
         os.remove(full_path)
         tmp_logger.debug("Done")
         return generate_response(True)
@@ -620,7 +620,7 @@ def delete_hpo_checkpoint(req: PandaRequest, jedi_task_id: str, sub_id: str) -> 
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def upload_file_recovery_request(req: PandaRequest, jedi_task_id: int, dry_run: bool = None) -> Dict:
+def upload_file_recovery_request(req: PandaRequest, task_id: int, dry_run: bool = None) -> Dict:
     """
     Upload file recovery request
 
@@ -632,7 +632,7 @@ def upload_file_recovery_request(req: PandaRequest, jedi_task_id: int, dry_run: 
 
     Args:
         req(PandaRequest): internally generated request object containing the env variables
-        jedi_task_id(int): JEDI task ID.
+        task_id(int): JEDI task ID.
         dry_run(bool): dry run flag.
 
     Returns:
@@ -642,7 +642,7 @@ def upload_file_recovery_request(req: PandaRequest, jedi_task_id: int, dry_run: 
     user_name = req.subprocess_env["SSL_CLIENT_S_DN"]
     creation_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
 
-    tmp_logger = LogWrapper(_logger, f"put_file_recovery_request < jedi_task_id={jedi_task_id} >")
+    tmp_logger = LogWrapper(_logger, f"put_file_recovery_request < task_id={task_id} >")
     tmp_logger.debug(f"Start user={user_name}")
 
     try:
@@ -655,7 +655,7 @@ def upload_file_recovery_request(req: PandaRequest, jedi_task_id: int, dry_run: 
             data = {
                 "userName": user_name,
                 "creationTime": creation_time,
-                "jediTaskID": jedi_task_id,
+                "jediTaskID": task_id,
             }
             if dry_run:
                 data["dryRun"] = True
@@ -697,7 +697,7 @@ def upload_workflow_request(req: PandaRequest, data: str, dry_run: bool = False,
 
     tmp_logger = LogWrapper(_logger, "upload_workflow_request")
 
-    tmp_logger.debug(f"Start user={user_name} check={check}")
+    tmp_logger.debug(f"Start user={user_name} dry_run={dry_run}")
 
     try:
         # Generate the filename

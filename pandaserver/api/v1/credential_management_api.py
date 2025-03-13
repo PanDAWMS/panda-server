@@ -16,7 +16,7 @@ from pandaserver.srvcore.CoreUtils import clean_user_id, get_bare_dn
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
-_logger = PandaLogger().getLogger("cred_management_api")
+_logger = PandaLogger().getLogger("api_cred_management")
 
 # These global variables are initialized in the init_task_buffer method
 global_task_buffer = None
