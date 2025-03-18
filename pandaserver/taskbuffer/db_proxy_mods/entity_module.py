@@ -1334,7 +1334,7 @@ class EntityModule(BaseModule):
             "WHERE HOURS = :HOURS AND LASTMOD < :LASTMOD"
         )
 
-        sqlCh = "SELECT COUNT(*) FROM ATLAS_PANDAMETA.SiteData WHERE FLAG = :FLAG AND HOURS = :HOURS AND SITE = :SITE"
+        sqlCh = "SELECT * FROM ATLAS_PANDAMETA.SiteData WHERE FLAG = :FLAG AND HOURS = :HOURS AND SITE = :SITE FOR UPDATE NOWAIT "
 
         sqlIn = (
             "INSERT INTO ATLAS_PANDAMETA.SiteData "
@@ -1388,147 +1388,174 @@ class EntityModule(BaseModule):
                 varMap[":SITE"] = tmpSite
                 varMap[":HOURS"] = interval
                 self.cur.arraysize = 10
-                self.cur.execute(sqlCh + comment, varMap)
-                res = self.cur.fetchone()
-                # row exists or not
-                if res[0] == 0:
-                    sql = sqlIn
-                else:
-                    sql = sqlUp
+                locked = True
+                try:
+                    # lock individual row
+                    self.cur.execute(sqlCh + comment, varMap)
+                except Exception as e:
+                    # skip since it is being locked by another
+                    tmp_log.debug(f"skip to update {str(varMap)} due to {str(e)}")
+                    locked = False
+                if locked:
+                    res = self.cur.fetchone()
+                    # row exists or not
+                    if res is None:
+                        sql = sqlIn
+                    else:
+                        sql = sqlUp
 
-                # getJob, updateJob and noJob entries contain the number of slots/nodes that submitted the request
-                # getJobAbs, updateJobAbs and noJobAbs entries contain the absolute number of requests
-                if "getJob" in tmpVal:
-                    varMap[":GETJOB"] = len(tmpVal["getJob"])
-                    getJobAbs = 0
-                    for node in tmpVal["getJob"]:
-                        getJobAbs += tmpVal["getJob"][node]
-                    varMap[":GETJOBABS"] = getJobAbs
-                else:
-                    varMap[":GETJOB"] = 0
-                    varMap[":GETJOBABS"] = 0
+                    # getJob, updateJob and noJob entries contain the number of slots/nodes that submitted the request
+                    # getJobAbs, updateJobAbs and noJobAbs entries contain the absolute number of requests
+                    if "getJob" in tmpVal:
+                        varMap[":GETJOB"] = len(tmpVal["getJob"])
+                        getJobAbs = 0
+                        for node in tmpVal["getJob"]:
+                            getJobAbs += tmpVal["getJob"][node]
+                        varMap[":GETJOBABS"] = getJobAbs
+                    else:
+                        varMap[":GETJOB"] = 0
+                        varMap[":GETJOBABS"] = 0
 
-                if "updateJob" in tmpVal:
-                    varMap[":UPDATEJOB"] = len(tmpVal["updateJob"])
-                    updateJobAbs = 0
-                    for node in tmpVal["updateJob"]:
-                        updateJobAbs += tmpVal["updateJob"][node]
-                    varMap[":UPDATEJOBABS"] = updateJobAbs
-                else:
-                    varMap[":UPDATEJOB"] = 0
-                    varMap[":UPDATEJOBABS"] = 0
+                    if "updateJob" in tmpVal:
+                        varMap[":UPDATEJOB"] = len(tmpVal["updateJob"])
+                        updateJobAbs = 0
+                        for node in tmpVal["updateJob"]:
+                            updateJobAbs += tmpVal["updateJob"][node]
+                        varMap[":UPDATEJOBABS"] = updateJobAbs
+                    else:
+                        varMap[":UPDATEJOB"] = 0
+                        varMap[":UPDATEJOBABS"] = 0
 
-                if "noJob" in tmpVal:
-                    varMap[":NOJOB"] = len(tmpVal["noJob"])
-                    noJobAbs = 0
-                    for node in tmpVal["noJob"]:
-                        noJobAbs += tmpVal["noJob"][node]
-                    varMap[":NOJOBABS"] = noJobAbs
-                else:
-                    varMap[":NOJOB"] = 0
-                    varMap[":NOJOBABS"] = 0
+                    if "noJob" in tmpVal:
+                        varMap[":NOJOB"] = len(tmpVal["noJob"])
+                        noJobAbs = 0
+                        for node in tmpVal["noJob"]:
+                            noJobAbs += tmpVal["noJob"][node]
+                        varMap[":NOJOBABS"] = noJobAbs
+                    else:
+                        varMap[":NOJOB"] = 0
+                        varMap[":NOJOBABS"] = 0
 
-                # update
-                self.cur.execute(sql + comment, varMap)
-                # get all info
-                sumExist = False
-                varMap = {}
-                varMap[":SITE"] = tmpSite
-                varMap[":HOURS"] = interval
-                self.cur.arraysize = 100
-                self.cur.execute(sqlAll + comment, varMap)
-                res = self.cur.fetchall()
-                # get total getJob/updateJob
-                varMap[":GETJOB"] = 0
-                varMap[":UPDATEJOB"] = 0
-                varMap[":NOJOB"] = 0
-                varMap[":GETJOBABS"] = 0
-                varMap[":UPDATEJOBABS"] = 0
-                varMap[":NOJOBABS"] = 0
-                nCol = 0
-                for (
-                    tmpGetJob,
-                    tmpUpdateJob,
-                    tmpNoJob,
-                    tmpGetJobAbs,
-                    tmpUpdateJobAbs,
-                    tmpNoJobAbs,
-                    tmpFlag,
-                ) in res:
-                    # don't use summed info
-                    if tmpFlag == "production":
-                        sumExist = True
-                        continue
-                    if tmpFlag == "analysis":
-                        if tmpSite.startswith("ANALY_"):
-                            sumExist = True
-                        continue
-                    if tmpFlag in ["test"]:
-                        continue
+                    # update
+                    self.cur.execute(sql + comment, varMap)
 
-                    if tmpGetJob is None:
-                        tmpGetJob = 0
-                    if tmpUpdateJob is None:
-                        tmpUpdateJob = 0
-                    if tmpNoJob is None:
-                        tmpNoJob = 0
-                    if tmpGetJobAbs is None:
-                        tmpGetJobAbs = 0
-                    if tmpUpdateJobAbs is None:
-                        tmpUpdateJobAbs = 0
-                    if tmpNoJobAbs is None:
-                        tmpNoJobAbs = 0
-
-                    # sum
-                    varMap[":GETJOB"] += tmpGetJob
-                    varMap[":UPDATEJOB"] += tmpUpdateJob
-                    varMap[":NOJOB"] += tmpNoJob
-                    varMap[":GETJOBABS"] += tmpGetJobAbs
-                    varMap[":UPDATEJOBABS"] += tmpUpdateJobAbs
-                    varMap[":NOJOBABS"] += tmpNoJobAbs
-                    nCol += 1
-                # get average
-                if nCol != 0:
-                    if varMap[":GETJOB"] >= nCol:
-                        varMap[":GETJOB"] /= nCol
-                    if varMap[":UPDATEJOB"] >= nCol:
-                        varMap[":UPDATEJOB"] /= nCol
-                    if varMap[":NOJOB"] >= nCol:
-                        varMap[":NOJOB"] /= nCol
-                    if varMap[":GETJOBABS"] >= nCol:
-                        varMap[":GETJOBABS"] /= nCol
-                    if varMap[":UPDATEJOBABS"] >= nCol:
-                        varMap[":UPDATEJOBABS"] /= nCol
-                    if varMap[":NOJOBABS"] >= nCol:
-                        varMap[":NOJOBABS"] /= nCol
-
-                if tmpSite.startswith("ANALY_"):
-                    varMap[":FLAG"] = "analysis"
-                else:
-                    varMap[":FLAG"] = "production"
-                # row exists or not
-                if sumExist:
-                    sql = sqlUp
-                else:
-                    sql = sqlIn
-                # update
-                self.cur.execute(sql + comment, varMap)
-                tmp_log.debug(
-                    " %s hours=%s getJob=%s updateJob=%s, noJob=%s, getJobAbs=%s updateJobAbs=%s, noJobAbs=%s"
-                    % (
-                        tmpSite,
-                        interval,
-                        varMap[":GETJOB"],
-                        varMap[":UPDATEJOB"],
-                        varMap[":NOJOB"],
-                        varMap[":GETJOBABS"],
-                        varMap[":UPDATEJOBABS"],
-                        varMap[":NOJOBABS"],
-                    )
-                )
                 # commit
                 if not self._commit():
                     raise RuntimeError("Commit error")
+
+                if locked:
+                    # start transaction
+                    self.conn.begin()
+                    # get all info
+                    sumExist = False
+                    varMap = {}
+                    varMap[":SITE"] = tmpSite
+                    varMap[":HOURS"] = interval
+                    self.cur.arraysize = 100
+                    self.cur.execute(sqlAll + comment, varMap)
+                    res = self.cur.fetchall()
+                    # get total getJob/updateJob
+                    varMap[":GETJOB"] = 0
+                    varMap[":UPDATEJOB"] = 0
+                    varMap[":NOJOB"] = 0
+                    varMap[":GETJOBABS"] = 0
+                    varMap[":UPDATEJOBABS"] = 0
+                    varMap[":NOJOBABS"] = 0
+                    nCol = 0
+                    for (
+                        tmpGetJob,
+                        tmpUpdateJob,
+                        tmpNoJob,
+                        tmpGetJobAbs,
+                        tmpUpdateJobAbs,
+                        tmpNoJobAbs,
+                        tmpFlag,
+                    ) in res:
+                        # don't use summed info
+                        if tmpFlag == "production":
+                            sumExist = True
+                            continue
+                        if tmpFlag == "analysis":
+                            if tmpSite.startswith("ANALY_"):
+                                sumExist = True
+                            continue
+                        if tmpFlag in ["test"]:
+                            continue
+
+                        if tmpGetJob is None:
+                            tmpGetJob = 0
+                        if tmpUpdateJob is None:
+                            tmpUpdateJob = 0
+                        if tmpNoJob is None:
+                            tmpNoJob = 0
+                        if tmpGetJobAbs is None:
+                            tmpGetJobAbs = 0
+                        if tmpUpdateJobAbs is None:
+                            tmpUpdateJobAbs = 0
+                        if tmpNoJobAbs is None:
+                            tmpNoJobAbs = 0
+
+                        # sum
+                        varMap[":GETJOB"] += tmpGetJob
+                        varMap[":UPDATEJOB"] += tmpUpdateJob
+                        varMap[":NOJOB"] += tmpNoJob
+                        varMap[":GETJOBABS"] += tmpGetJobAbs
+                        varMap[":UPDATEJOBABS"] += tmpUpdateJobAbs
+                        varMap[":NOJOBABS"] += tmpNoJobAbs
+                        nCol += 1
+                    # get average
+                    if nCol != 0:
+                        if varMap[":GETJOB"] >= nCol:
+                            varMap[":GETJOB"] /= nCol
+                        if varMap[":UPDATEJOB"] >= nCol:
+                            varMap[":UPDATEJOB"] /= nCol
+                        if varMap[":NOJOB"] >= nCol:
+                            varMap[":NOJOB"] /= nCol
+                        if varMap[":GETJOBABS"] >= nCol:
+                            varMap[":GETJOBABS"] /= nCol
+                        if varMap[":UPDATEJOBABS"] >= nCol:
+                            varMap[":UPDATEJOBABS"] /= nCol
+                        if varMap[":NOJOBABS"] >= nCol:
+                            varMap[":NOJOBABS"] /= nCol
+
+                    if tmpSite.startswith("ANALY_"):
+                        varMap[":FLAG"] = "analysis"
+                    else:
+                        varMap[":FLAG"] = "production"
+                    # row exists or not
+                    locked_sum = True
+                    if sumExist:
+                        sql = sqlUp
+                    else:
+                        sql = sqlIn
+                        # lock the summary row
+                        var_map = {k: varMap[k] for k in [":FLAG", ":SITE", ":HOURS"]}
+                        try:
+                            # lock it
+                            self.cur.execute(sqlCh + comment, var_map)
+                        except Exception as e:
+                            # skip since it is being locked by another
+                            tmp_log.debug(f"skip to update {str(var_map)} due to {str(e)}")
+                            locked_sum = False
+                    # update
+                    if locked_sum:
+                        self.cur.execute(sql + comment, varMap)
+                        tmp_log.debug(
+                            " %s hours=%s getJob=%s updateJob=%s, noJob=%s, getJobAbs=%s updateJobAbs=%s, noJobAbs=%s"
+                            % (
+                                tmpSite,
+                                interval,
+                                varMap[":GETJOB"],
+                                varMap[":UPDATEJOB"],
+                                varMap[":NOJOB"],
+                                varMap[":GETJOBABS"],
+                                varMap[":UPDATEJOBABS"],
+                                varMap[":NOJOBABS"],
+                            )
+                        )
+                        # commit
+                    if not self._commit():
+                        raise RuntimeError("Commit error")
             tmp_log.debug("done")
             return True
         except Exception:
