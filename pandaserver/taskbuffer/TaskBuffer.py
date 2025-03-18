@@ -713,6 +713,40 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         return ret
 
+    def update_worker_node(
+        self,
+        site,
+        host_name,
+        cpu_model,
+        n_logical_cpus,
+        n_sockets,
+        cores_per_socket,
+        threads_per_core,
+        cpu_architecture,
+        cpu_architecture_level,
+        clock_speed,
+        total_memory,
+    ):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # update DB and buffer
+        ret = proxy.update_worker_node(
+            site,
+            host_name,
+            cpu_model,
+            n_logical_cpus,
+            n_sockets,
+            cores_per_socket,
+            threads_per_core,
+            cpu_architecture,
+            cpu_architecture_level,
+            clock_speed,
+            total_memory,
+        )
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        return ret
+
     # finalize pending analysis jobs
     def finalizePendingJobs(self, prodUserName, jobDefinitionID, waitLock=False):
         # get DB proxy
@@ -1566,17 +1600,6 @@ class TaskBuffer:
         proxy = self.proxyPool.getProxy()
         # get
         ret = proxy.get_ban_users()
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
-    # get client version
-    def getPandaClientVer(self):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.getPandaClientVer()
         # release proxy
         self.proxyPool.putProxy(proxy)
 

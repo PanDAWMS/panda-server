@@ -7,7 +7,7 @@ from pandaserver.api.v1.common import generate_response, request_validation
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
-_logger = PandaLogger().getLogger("statistics_api")
+_logger = PandaLogger().getLogger("api_statistics")
 
 global_task_buffer = None
 
@@ -22,12 +22,12 @@ def init_task_buffer(task_buffer: TaskBuffer) -> None:
     global_task_buffer = task_buffer
 
 
-@request_validation(_logger, secure=False, request_method="GET")
+@request_validation(_logger, secure=True, request_method="GET")
 def job_stats_by_cloud(req: PandaRequest, type: str = "production") -> Dict[str, Any]:
     """
     Job statistics by cloud.
 
-    Get the job statistics by cloud, which includes the active jobs and jobs in final states modified in the last 12 hours. You have to filter the statistics by type, which can be either "production" or "analysis". Used by panglia monitoring.
+    Get the job statistics by cloud, which includes the active jobs and jobs in final states modified in the last 12 hours. You have to filter the statistics by type, which can be either "production" or "analysis". Used by panglia monitoring. Requires a secure connection.
 
     API details:
         HTTP Method: GET
@@ -56,12 +56,12 @@ def job_stats_by_cloud(req: PandaRequest, type: str = "production") -> Dict[str,
     return generate_response(success, message, data)
 
 
-@request_validation(_logger, secure=False, request_method="GET")
+@request_validation(_logger, secure=True, request_method="GET")
 def production_job_stats_by_cloud_and_processing_type(req: PandaRequest) -> Dict[str, Any]:
     """
     Production job statistics by cloud and processing type.
 
-    Get the production job statistics by cloud and processing type, which includes the active jobs and jobs in final states modified in the last 12 hours. Used by panglia monitoring.
+    Get the production job statistics by cloud and processing type, which includes the active jobs and jobs in final states modified in the last 12 hours. Used by panglia monitoring. Requires a secure connection.
 
     API details:
         HTTP Method: GET
@@ -85,12 +85,12 @@ def production_job_stats_by_cloud_and_processing_type(req: PandaRequest) -> Dict
     return generate_response(success, message, data)
 
 
-@request_validation(_logger, secure=False, request_method="GET")
+@request_validation(_logger, secure=True, request_method="GET")
 def active_job_stats_by_site(req: PandaRequest) -> Dict[str, Any]:
     """
     Active job statistics by site
 
-    Get the active (not in a final state) job statistics by site. Used by Harvester.
+    Get the active (not in a final state) job statistics by site. Used by Harvester. Requires a secure connection.
 
     API details:
         HTTP Method: GET
@@ -113,12 +113,12 @@ def active_job_stats_by_site(req: PandaRequest) -> Dict[str, Any]:
     return generate_response(success, message, data)
 
 
-@request_validation(_logger, secure=False, request_method="GET")
+@request_validation(_logger, secure=True, request_method="GET")
 def job_stats_by_site_and_resource_type(req: PandaRequest, time_window: int = None) -> Dict[str, Any]:
     """
     Job statistics by site and resource type
 
-    Get the job statistics by computing site (PanDA queue) and resource type (SCORE, MCORE, ...). This includes the active jobs and jobs in final states modified in the specified time window (default of 12 hours).
+    Get the job statistics by computing site (PanDA queue) and resource type (SCORE, MCORE, ...). This includes the active jobs and jobs in final states modified in the specified time window (default of 12 hours). Requires a secure connection.
 
     API details:
         HTTP Method: GET
@@ -146,12 +146,12 @@ def job_stats_by_site_and_resource_type(req: PandaRequest, time_window: int = No
     return generate_response(success, message, data)
 
 
-@request_validation(_logger, secure=False, request_method="GET")
+@request_validation(_logger, secure=True, request_method="GET")
 def job_stats_by_site_share_and_resource_type(req: PandaRequest, time_window: int = None) -> Dict[str, Any]:
     """
     Job statistics by site, global share and resource type
 
-    Get the job statistics by computing site (PanDA queue), global share and resource type (SCORE, MCORE, ...). This includes the active jobs and jobs in final states modified in the specified time window (default of 12 hours).
+    Get the job statistics by computing site (PanDA queue), global share and resource type (SCORE, MCORE, ...). This includes the active jobs and jobs in final states modified in the specified time window (default of 12 hours). Requires a secure connection.
 
     API details:
         HTTP Method: GET

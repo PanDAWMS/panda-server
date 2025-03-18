@@ -6,15 +6,16 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 from pandaserver.api.v1.common import (
     MESSAGE_DATABASE,
+    TIME_OUT,
+    TimedMethod,
     generate_response,
     get_dn,
     request_validation,
 )
-from pandaserver.api.v1.timed_method import TIME_OUT, TimedMethod
 from pandaserver.srvcore.panda_request import PandaRequest
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 
-_logger = PandaLogger().getLogger("harvester_api")
+_logger = PandaLogger().getLogger("api_harvester")
 
 global_task_buffer = None
 
@@ -208,12 +209,12 @@ def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) 
     return generate_response(True)
 
 
-@request_validation(_logger, request_method="GET")
+@request_validation(_logger, secure=True, request_method="GET")
 def get_current_worker_id(req: PandaRequest, harvester_id: str) -> Dict[str, Any]:
     """
     Get the current worker ID.
 
-    Retrieve the current worker ID.
+    Retrieve the current worker ID. Requires a secure connection.
 
     API details:
         HTTP Method: GET
@@ -237,12 +238,12 @@ def get_current_worker_id(req: PandaRequest, harvester_id: str) -> Dict[str, Any
     return generate_response(True, data=current_worker_id)
 
 
-@request_validation(_logger, request_method="GET")
+@request_validation(_logger, secure=True, request_method="GET")
 def get_worker_statistics(req: PandaRequest) -> Dict[str, Any]:
     """
     Get worker statistics.
 
-    Get statistics for all the workers managed across the Grid.
+    Get statistics for all the workers managed across the Grid. Requires a secure connection.
 
     API details:
         HTTP Method: GET
