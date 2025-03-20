@@ -750,7 +750,7 @@ def update_worker_node(
         cpu_architecture_level(str): CPU architecture level, e.g. `x86-64-v3`
         clock_speed(float): Clock speed in GHz.
         total_memory(int): Total memory in MB.
-        timeout: int = 60: The timeout value. Defaults to 60.
+        timeout(int, optional): The timeout value. Defaults to 60.
 
     Returns:
         dict: The system response  `{"success": success, "message": message, "data": data}`. True for success, False for failure, and an error message.
