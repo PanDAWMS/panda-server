@@ -293,7 +293,7 @@ def report_worker_statistics(req: PandaRequest, harvester_id: str, panda_queue: 
 
 
 @request_validation(_logger, secure=True, production=True, request_method="GET")
-def get_harvester_commands(req: PandaRequest, harvester_id: str, n_commands: int, timeout: int = 30) -> Dict[str, Any]:
+def get_commands(req: PandaRequest, harvester_id: str, n_commands: int, timeout: int = 30) -> Dict[str, Any]:
     """
     Get harvester commands.
 
@@ -301,7 +301,7 @@ def get_harvester_commands(req: PandaRequest, harvester_id: str, n_commands: int
 
     API details:
         HTTP Method: GET
-        Path: /v1/harvester/get_harvester_commands
+        Path: /v1/harvester/get_commands
 
     Args:
         req(PandaRequest): The request object containing the environment variables.
@@ -312,7 +312,7 @@ def get_harvester_commands(req: PandaRequest, harvester_id: str, n_commands: int
     Returns:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
-    tmp_logger = LogWrapper(_logger, "get_harvester_commands")
+    tmp_logger = LogWrapper(_logger, "get_commands")
     tmp_logger.debug("Start")
 
     timed_method = TimedMethod(global_task_buffer.getCommands, timeout)
@@ -335,7 +335,7 @@ def get_harvester_commands(req: PandaRequest, harvester_id: str, n_commands: int
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def acknowledge_harvester_commands(req: PandaRequest, command_ids: List, timeout: int = 30) -> Dict[str, Any]:
+def acknowledge_commands(req: PandaRequest, command_ids: List, timeout: int = 30) -> Dict[str, Any]:
     """
     Acknowledge harvester commands.
 
@@ -343,7 +343,7 @@ def acknowledge_harvester_commands(req: PandaRequest, command_ids: List, timeout
 
     API details:
         HTTP Method: POST
-        Path: /v1/harvester/acknowledge_harvester_commands
+        Path: /v1/harvester/acknowledge_commands
 
     Args:
         req(PandaRequest): The request object containing the environment variables.
@@ -353,7 +353,7 @@ def acknowledge_harvester_commands(req: PandaRequest, command_ids: List, timeout
     Returns:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
-    tmp_logger = LogWrapper(_logger, "acknowledge_harvester_commands")
+    tmp_logger = LogWrapper(_logger, "acknowledge_commands")
     tmp_logger.debug("Start")
 
     timed_method = TimedMethod(global_task_buffer.ackCommands, timeout)

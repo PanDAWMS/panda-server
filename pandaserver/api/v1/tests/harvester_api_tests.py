@@ -149,7 +149,7 @@ class TestHarvesterAPI(unittest.TestCase):
         self.assertEqual(output, expected_response)
 
     def test_get_harvester_commands(self):
-        url = f"{api_url_ssl}/harvester/get_harvester_commands"
+        url = f"{api_url_ssl}/harvester/get_commands"
         print(f"Testing URL: {url}")
 
         harvester_id = HARVESTER_ID
@@ -162,7 +162,7 @@ class TestHarvesterAPI(unittest.TestCase):
         self.assertEqual(list, type(output["data"]))
 
     def test_acknowledge_harvester_commands(self):
-        url = f"{api_url_ssl}/harvester/acknowledge_harvester_commands"
+        url = f"{api_url_ssl}/harvester/acknowledge_commands"
         print(f"Testing URL: {url}")
         command_ids = [1]
         data = {"command_ids": command_ids}
