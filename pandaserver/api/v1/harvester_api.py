@@ -76,7 +76,7 @@ def update_workers(req: PandaRequest, harvester_id: str, workers: List) -> dict:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metrics: str) -> Dict[str, Any]:
+def update_service_metrics(req: PandaRequest, harvester_id: str, metrics: str) -> Dict[str, Any]:
     """
     Update harvester service metrics.
 
@@ -84,7 +84,7 @@ def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metri
 
     API details:
         HTTP Method: POST
-        Path: /v1/harvester/update_harvester_service_metrics
+        Path: /v1/harvester/update_service_metrics
 
     Args:
         req(PandaRequest): internally generated request object
@@ -113,7 +113,7 @@ def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metri
     Returns:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
-    tmp_logger = LogWrapper(_logger, f"update_harvester_service_metrics harvester_id={harvester_id}")
+    tmp_logger = LogWrapper(_logger, f"update_service_metrics harvester_id={harvester_id}")
     tmp_logger.debug("Start")
     success, message, data = False, "", None
 
@@ -134,7 +134,7 @@ def update_harvester_service_metrics(req: PandaRequest, harvester_id: str, metri
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def add_harvester_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) -> Dict[str, Any]:
+def add_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) -> Dict[str, Any]:
     """
     Add harvester dialog messages.
 
@@ -142,7 +142,7 @@ def add_harvester_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) ->
 
     API details:
         HTTP Method: POST
-        Path: /v1/harvester/add_harvester_dialogs
+        Path: /v1/harvester/add_dialogs
 
     Args:
         req(PandaRequest): internally generated request object
@@ -162,7 +162,7 @@ def add_harvester_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) ->
     Returns:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
-    tmp_logger = LogWrapper(_logger, f"add_harvester_dialogs harvester_id={harvester_id}")
+    tmp_logger = LogWrapper(_logger, f"add_dialogs harvester_id={harvester_id}")
     tmp_logger.debug("Start")
 
     ret = global_task_buffer.addHarvesterDialogs(harvester_id, dialogs)
@@ -175,7 +175,7 @@ def add_harvester_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) ->
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) -> Dict[str, Any]:
+def heartbeat(req: PandaRequest, harvester_id: str, data: str = None) -> Dict[str, Any]:
     """
     Heartbeat for harvester.
 
@@ -183,7 +183,7 @@ def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) 
 
     API details:
         HTTP Method: POST
-        Path: /v1/harvester/add_harvester_dialogs
+        Path: /v1/harvester/heartbeat
 
     Args:
         req(PandaRequest): internally generated request object
@@ -193,7 +193,7 @@ def harvester_heartbeat(req: PandaRequest, harvester_id: str, data: str = None) 
     Returns:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
-    tmp_logger = LogWrapper(_logger, f"harvester_heartbeat harvester_id={harvester_id}")
+    tmp_logger = LogWrapper(_logger, f"heartbeat harvester_id={harvester_id}")
     tmp_logger.debug("Start")
 
     # get user and hostname to record in harvester metadata
@@ -376,9 +376,7 @@ def acknowledge_commands(req: PandaRequest, command_ids: List, timeout: int = 30
 
 
 @request_validation(_logger, secure=True, production=True, request_method="POST")
-def add_sweep_harvester_command(
-    req: PandaRequest, panda_queue: str, status_list: List[str], ce_list: List[str], submission_host_list: List[str]
-) -> Dict[str, Any]:
+def add_sweep_command(req: PandaRequest, panda_queue: str, status_list: List[str], ce_list: List[str], submission_host_list: List[str]) -> Dict[str, Any]:
     """
     Add sweep command for harvester.
 
@@ -386,7 +384,7 @@ def add_sweep_harvester_command(
 
     API details:
         HTTP Method: POST
-        Path: /v1/harvester/add_sweep_harvester_command
+        Path: /v1/harvester/add_sweep_command
 
     Args:
         req(PandaRequest): internally generated request object
@@ -399,7 +397,7 @@ def add_sweep_harvester_command(
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
 
-    tmp_logger = LogWrapper(_logger, f"add_sweep_harvester_command panda_queue={panda_queue}")
+    tmp_logger = LogWrapper(_logger, f"add_sweep_command panda_queue={panda_queue}")
     tmp_logger.debug("Start")
     return_message = global_task_buffer.sweepPQ(panda_queue, status_list, ce_list, submission_host_list)
     if return_message == "OK":
