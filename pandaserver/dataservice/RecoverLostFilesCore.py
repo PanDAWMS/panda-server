@@ -2,11 +2,12 @@ import argparse
 import sys
 
 from pandacommon.pandautils.thread_utils import GenericThread
+from rucio.client import Client as RucioClient
+from rucio.common.exception import DataIdentifierNotFound
+
 from pandaserver.config import panda_config
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.userinterface import Client
-from rucio.client import Client as RucioClient
-from rucio.common.exception import DataIdentifierNotFound
 
 
 # get files form rucio
@@ -162,8 +163,8 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
             fd, fo = taskBuffer.querySQLS(
                 "SELECT c.lfn FROM ATLAS_PANDA.JEDI_Datasets d,ATLAS_PANDA.JEDI_Dataset_Contents c "
                 "WHERE c.jediTaskID=d.jediTaskID AND c.datasetID=d.datasetID AND "
-                "d.type IN (:t1,:t2) AND c.status=:s AND d.datasetName=:name ",
-                {":s": "finished", ":t1": "output", ":t2": "log", ":name": dsName},
+                "d.type=:t1 AND c.status=:s AND d.datasetName=:name ",
+                {":s": "finished", ":t1": "output", ":name": dsName},
             )
             for (tmpLFN,) in fo:
                 if tmpLFN not in files_rucio:
@@ -171,15 +172,15 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
                     ds_files[options.ds].append(tmpLFN)
             # get taskID
             td, to = taskBuffer.querySQLS(
-                "SELECT jediTaskID FROM ATLAS_PANDA.JEDI_Datasets " "WHERE datasetName=:datasetName AND type IN (:t1,:t2) ",
-                {":t1": "output", ":t2": "log", ":datasetName": dsName},
+                "SELECT jediTaskID FROM ATLAS_PANDA.JEDI_Datasets " "WHERE datasetName=:datasetName AND type=:t1 ",
+                {":t1": "output", ":datasetName": dsName},
             )
             (jediTaskID,) = to[0]
         else:
             # get dataset names
             dd, do = taskBuffer.querySQLS(
-                "SELECT datasetName FROM ATLAS_PANDA.JEDI_Datasets " "WHERE jediTaskID=:jediTaskID AND type IN (:t1,:t2) ",
-                {":t1": "output", ":t2": "log", ":jediTaskID": givenTaskID},
+                "SELECT datasetName FROM ATLAS_PANDA.JEDI_Datasets " "WHERE jediTaskID=:jediTaskID AND type=:t1 ",
+                {":t1": "output", ":jediTaskID": givenTaskID},
             )
             # get files from rucio
             files_rucio = set()
@@ -190,15 +191,14 @@ def main(taskBuffer=None, exec_options=None, log_stream=None, args_list=None):
                 # ignore unknown dataset
                 if st:
                     files_rucio = files_rucio.union(tmp_files_rucio)
-            # get files from rucio
+            # get files from PanDA
             fd, fo = taskBuffer.querySQLS(
                 "SELECT d.datasetName,c.lfn FROM ATLAS_PANDA.JEDI_Datasets d,ATLAS_PANDA.JEDI_Dataset_Contents c "
                 "WHERE d.jediTaskID=:jediTaskID AND c.jediTaskID=d.jediTaskID AND c.datasetID=d.datasetID AND "
-                "d.type IN (:t1,:t2) AND c.status=:s ",
+                "d.type=:t1 AND c.status=:s ",
                 {
                     ":s": "finished",
                     ":t1": "output",
-                    ":t2": "log",
                     ":jediTaskID": givenTaskID,
                 },
             )
