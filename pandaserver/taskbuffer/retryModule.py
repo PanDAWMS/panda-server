@@ -105,9 +105,9 @@ def compare_strictness(rule1, rule2):
     if rule2["wqid"]:
         rule2_weight += 1
 
-    if rule1 > rule2:
+    if rule1_weight > rule2_weight:
         return 1
-    elif rule1 < rule2:
+    elif rule1_weight < rule2_weight:
         return -1
     else:
         return 0
@@ -423,6 +423,7 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                             _logger.info(message)
                         except Exception as e:
                             _logger.error(f"Failed to reduce input per job : {e} {traceback.format_exc()}")
+                            _logger.error(traceback.format_exc())
 
                     _logger.debug(f"Finished rule {rule} for PandaID={jobID} error_source={error_source} error_code={error_code} attemptNr={attemptNr}")
 
