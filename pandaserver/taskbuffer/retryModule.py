@@ -211,9 +211,11 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
             ):
                 continue
             elif not limit_retry_rule:
+                tmp_log.debug(f"Initial limit_retry_rule: {rule}")
                 limit_retry_rule = rule
             else:
                 comparison = compare_strictness(rule, limit_retry_rule)
+                tmp_log.debug(f"Compared {rule} and {limit_retry_rule} - result: {comparison}")
                 if comparison == 1:
                     limit_retry_rule = rule
                 elif comparison == 0:
@@ -229,6 +231,7 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
     if limit_retry_rule:
         filtered_rules.append(limit_retry_rule)
 
+    tmp_log.debug("Done")
     return filtered_rules
 
 
