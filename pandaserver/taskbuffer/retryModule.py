@@ -211,11 +211,9 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
             ):
                 continue
             elif not limit_retry_rule:
-                tmp_log.debug(f"Initial limit_retry_rule: {rule}")
                 limit_retry_rule = rule
             else:
                 comparison = compare_strictness(rule, limit_retry_rule)
-                tmp_log.debug(f"Compared {rule} and {limit_retry_rule} - result: {comparison}")
                 if comparison == 1:
                     limit_retry_rule = rule
                 elif comparison == 0:
@@ -319,7 +317,6 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                     if action == NO_RETRY:
                         if active:
                             task_buffer.setNoRetry(jobID, job.jediTaskID, job.Files)
-                        # Log to pandamon and logfile
                         message = (
                             f"action=setNoRetry for PandaID={jobID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} "
                             f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
@@ -337,7 +334,6 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                                     job.Files,
                                     int(parameters["maxAttempt"]),
                                 )
-                            # Log to pandamon and logfile
                             message = (
                                 f"action=setMaxAttempt for PandaID={jobID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} maxAttempt={int(parameters['maxAttempt'])} "
                                 f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
@@ -352,7 +348,6 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                         try:
                             if active:
                                 task_buffer.increaseRamLimitJobJEDI(job, job.minRamCount, job.jediTaskID)
-                            # Log to pandamon and logfile
                             message = (
                                 f"action=increaseRAMLimit for PandaID={jobID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} "
                                 f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
@@ -368,7 +363,6 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                         try:
                             if active:
                                 task_buffer.increaseRamLimitJobJEDI_xtimes(job, job.minRamCount, job.jediTaskID, attemptNr)
-                            # Log to pandamon and logfile
                             message = (
                                 f"action=increaseRAMLimit_xtimes for PandaID={jobID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} "
                                 f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
@@ -393,7 +387,6 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                             if rowcount:
                                 applied = True
 
-                            # Log to pandamon and logfile
                             message = (
                                 f"action=increaseCpuTime requested recalculation of task parameters for PandaID={jobID} "
                                 f"jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} (active={active} ), applied={applied}. "
@@ -413,7 +406,6 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                                 applied = task_buffer.reduce_input_per_job(
                                     job.PandaID, job.jediTaskID, job.attemptNr, parameters.get("excluded_rules"), parameters.get("steps")
                                 )
-                            # Log to pandamon and logfile
                             message = (
                                 f"action=reduceInputPerJob for PandaID={jobID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} applied={applied} "
                                 f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_code}. "
