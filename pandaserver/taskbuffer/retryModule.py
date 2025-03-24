@@ -125,24 +125,8 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
     tmp_log = LogWrapper(_logger, f"preprocess_rules")
     tmp_log.debug("Start")
     filtered_rules = []
+    limit_retry_rule = {}
     try:
-        # See if there is a  NO_RETRY rule.
-        # Effect of NO_RETRY rules is the same, so just take the first one that appears
-        for rule in rules:
-            if rule["action"] != NO_RETRY or not conditions_apply(
-                error_diag_job,
-                architecture_job,
-                release_job,
-                wqid_job,
-                rule["error_diag"],
-                rule["architecture"],
-                rule["release"],
-                rule["wqid"],
-            ):
-                continue
-            else:
-                filtered_rules.append(rule)
-
         # See if there is a INCREASE_MEM rule.
         # The effect of INCREASE_MEM rules is the same, so take the first one that appears
         for rule in rules:
@@ -213,10 +197,9 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
                 filtered_rules.append(rule)
                 break
 
-        # See if there is a LIMIT_RETRY rule. Take the narrowest rule, in case of draw take the strictest conditions
-        limit_retry_rule = {}
+        # See if there is a LIMIT_RETRY or NO_RETRY rule (they are handled together in this context). Take the narrowest rule, in case of draw take the strictest conditions
         for rule in rules:
-            if rule["action"] != LIMIT_RETRY or not conditions_apply(
+            if rule["action"] not in (LIMIT_RETRY, NO_RETRY) or not conditions_apply(
                 error_diag_job,
                 architecture_job,
                 release_job,
