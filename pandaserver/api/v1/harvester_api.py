@@ -292,16 +292,16 @@ def report_worker_statistics(req: PandaRequest, harvester_id: str, panda_queue: 
     return generate_response(success, message=message)
 
 
-@request_validation(_logger, secure=True, production=True, request_method="GET")
-def get_commands(req: PandaRequest, harvester_id: str, n_commands: int, timeout: int = 30) -> Dict[str, Any]:
+@request_validation(_logger, secure=True, production=True, request_method="POST")
+def acquire_commands(req: PandaRequest, harvester_id: str, n_commands: int, timeout: int = 30) -> Dict[str, Any]:
     """
     Get harvester commands.
 
     Retrieves the commands for a specified harvester instance. Requires a secure connection and production role.
 
     API details:
-        HTTP Method: GET
-        Path: /v1/harvester/get_commands
+        HTTP Method: POST
+        Path: /v1/harvester/acquire_commands
 
     Args:
         req(PandaRequest): The request object containing the environment variables.
@@ -312,7 +312,7 @@ def get_commands(req: PandaRequest, harvester_id: str, n_commands: int, timeout:
     Returns:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
     """
-    tmp_logger = LogWrapper(_logger, "get_commands")
+    tmp_logger = LogWrapper(_logger, "acquire_commands")
     tmp_logger.debug("Start")
 
     timed_method = TimedMethod(global_task_buffer.getCommands, timeout)

@@ -17,8 +17,8 @@ class TestHarvesterAPI(unittest.TestCase):
     def setUp(self):
         self.http_client = HttpClient()
 
-    def test_update_harvester_service_metrics(self):
-        url = f"{api_url_ssl}/harvester/update_harvester_service_metrics"
+    def test_update_service_metrics(self):
+        url = f"{api_url_ssl}/harvester/update_service_metrics"
         print(f"Testing URL: {url}")
         harvester_id = HARVESTER_ID
         harvester_host = HARVESTER_HOST
@@ -45,8 +45,8 @@ class TestHarvesterAPI(unittest.TestCase):
         expected_response = {"success": True, "message": "", "data": [True]}
         self.assertEqual(output, expected_response)
 
-    def test_add_harvester_dialogs(self):
-        url = f"{api_url_ssl}/harvester/add_harvester_dialogs"
+    def test_add_dialogs(self):
+        url = f"{api_url_ssl}/harvester/add_dialogs"
         print(f"Testing URL: {url}")
         harvester_id = HARVESTER_ID
 
@@ -67,8 +67,8 @@ class TestHarvesterAPI(unittest.TestCase):
         expected_response = {"success": True, "message": "", "data": None}
         self.assertEqual(output, expected_response)
 
-    def test_harvester_heartbeat(self):
-        url = f"{api_url_ssl}/harvester/harvester_heartbeat"
+    def test_heartbeat(self):
+        url = f"{api_url_ssl}/harvester/heartbeat"
         print(f"Testing URL: {url}")
         harvester_id = HARVESTER_ID
         data = {"harvester_id": harvester_id, "data": []}
@@ -148,20 +148,20 @@ class TestHarvesterAPI(unittest.TestCase):
 
         self.assertEqual(output, expected_response)
 
-    def test_get_harvester_commands(self):
-        url = f"{api_url_ssl}/harvester/get_commands"
+    def test_acquire_commands(self):
+        url = f"{api_url_ssl}/harvester/acquire_commands"
         print(f"Testing URL: {url}")
 
         harvester_id = HARVESTER_ID
         n_commands = 1
         data = {"harvester_id": harvester_id, "n_commands": n_commands}
-        status, output = self.http_client.get(url, data)
+        status, output = self.http_client.post(url, data)
         print(output)
         # the commands can't be predicted, so we just check the type of the response
         self.assertEqual(True, output["success"])
         self.assertEqual(list, type(output["data"]))
 
-    def test_acknowledge_harvester_commands(self):
+    def test_acknowledge_commands(self):
         url = f"{api_url_ssl}/harvester/acknowledge_commands"
         print(f"Testing URL: {url}")
         command_ids = [1]
