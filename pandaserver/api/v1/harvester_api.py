@@ -89,7 +89,7 @@ def update_service_metrics(req: PandaRequest, harvester_id: str, metrics: str) -
     Args:
         req(PandaRequest): internally generated request object
         harvester_id(str): harvester id, e.g. `harvester_central_A`
-        metrics(list): list of triplets `[[host, timestamp, metric_dict],[host, timestamp, metric_dict]...]`. The metric dictionary is json encoded, as it is stored in the database like that.
+        metrics(str): list of triplets `[[host, timestamp, metric_dict],[host, timestamp, metric_dict]...]`. The metric dictionary is json encoded, as it is stored in the database like that.
             ```
             harvester_host = "harvester_host.cern.ch"
             creation_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
