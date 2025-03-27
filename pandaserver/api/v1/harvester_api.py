@@ -76,7 +76,7 @@ def update_workers(req: PandaRequest, harvester_id: str, workers: List) -> dict:
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def update_service_metrics(req: PandaRequest, harvester_id: str, metrics: str) -> Dict[str, Any]:
+def update_service_metrics(req: PandaRequest, harvester_id: str, metrics: list) -> Dict[str, Any]:
     """
     Update harvester service metrics.
 
@@ -89,7 +89,7 @@ def update_service_metrics(req: PandaRequest, harvester_id: str, metrics: str) -
     Args:
         req(PandaRequest): internally generated request object
         harvester_id(str): harvester id, e.g. `harvester_central_A`
-        metrics(str): list of triplets `[[host, timestamp, metric_dict],[host, timestamp, metric_dict]...]`. The metric dictionary is json encoded, as it is stored in the database like that.
+        metrics(list): list of triplets `[[host, timestamp, metric_dict],[host, timestamp, metric_dict]...]`. The metric dictionary is json encoded, as it is stored in the database like that.
             ```
             harvester_host = "harvester_host.cern.ch"
             creation_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
