@@ -32,26 +32,33 @@ def decode_token(serialized_token, env, tmp_log):
                 vo = None
             # only vo.role for auth filename which is a key of auth_vo_dict
             vo_role = vo.replace(":", ".")
-            token = token_decoder.deserialize_token(serialized_token, panda_config.auth_config, vo, tmp_log)
+            token = token_decoder.deserialize_token(serialized_token, panda_config.auth_config, vo, tmp_log, panda_config.legacy_token_issuers)
             # extract role
             if "vo" in token:
-                vo_role = token["vo"].replace(":", ".")  # Replace ":" with "." for consistent handling
+                vo_raw = token["vo"]  # Original input value of vo
+                tmp_log.debug(f"Raw VO from token: {vo_raw}")
 
-                if ":" in token["vo"]:
-                    # ':' is the separator for vo and role
-                    vo, role = token["vo"].split(":", 1)
-                elif "." in token["vo"]:
-                    # '.' is the separator for vo.role
-                    parts = token["vo"].rsplit(".", 1)  # Split from the right side, at most once
-                    if len(parts) > 1:
+                if vo_raw.startswith("vo."):
+                    # Handle vo names starting with "vo."
+                    if ":" in vo_raw:
+                        vo, role = vo_raw.split(":", 1)  # Split by ':' into vo and role
+                    else:
+                        vo, role = vo_raw, None  # No role present
+                else:
+                    # Handle cases without "vo." prefix
+                    if ":" in vo_raw:
+                        vo, role = vo_raw.split(":", 1)
+                    elif "." in vo_raw:
+                        parts = vo_raw.rsplit(".", 1)  # Split only on the last '.'
                         vo, role = parts[0], parts[1]
                     else:
-                        vo, role = token["vo"], None  # Single part, no role
-                else:
-                    # No separator; assume entire token["vo"] is vo, no role
-                    vo, role = token["vo"], None
+                        vo, role = vo_raw, None  # Single part, no role
+
+            tmp_log.debug(f"Parsed VO: {vo}, role: {role}")
+
             # check vo
             if vo not in panda_config.auth_policies:
+                tmp_log.error(f"VO '{vo}' not found in auth_policies: {list(panda_config.auth_policies.keys())}")
                 message_str = f"Unknown vo : {vo}"
             else:
                 # robot
@@ -89,7 +96,6 @@ def decode_token(serialized_token, env, tmp_log):
                             break
                     if not authenticated:
                         message_str = f"Not a member of the {vo} group"
-            tmp_log.debug(f"Extracted VO: {vo}, Role: {role}, Token VO: {token['vo']}")
         else:
             token = scitokens.SciToken.deserialize(serialized_token, audience=panda_config.token_audience)
 

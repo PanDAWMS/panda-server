@@ -14,7 +14,6 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
 import pandaserver.jobdispatcher.Protocol as Protocol
-import pandaserver.taskbuffer.ProcessGroups
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice.ddm import rucioAPI
@@ -202,29 +201,13 @@ class UserIF:
         return WrappedPickle.dumps(ret)
 
     # get job statistics for Bamboo
-    def getJobStatisticsForBamboo(self, useMorePG=False):
-        ret = self.taskBuffer.getJobStatisticsForBamboo(useMorePG)
+    def getJobStatisticsForBamboo(self):
+        ret = self.taskBuffer.getJobStatisticsForBamboo()
         return WrappedPickle.dumps(ret)
 
     # get job statistics per site
-    def getJobStatisticsPerSite(
-        self,
-        predefined=False,
-        workingGroup="",
-        countryGroup="",
-        jobType="",
-        minPriority=None,
-        readArchived=True,
-    ):
-        # get job statistics
-        ret = self.taskBuffer.getJobStatistics(
-            readArchived,
-            predefined,
-            workingGroup,
-            countryGroup,
-            jobType,
-            minPriority=minPriority,
-        )
+    def getJobStatisticsPerSite(self):
+        ret = self.taskBuffer.getJobStatistics()
         return WrappedPickle.dumps(ret, convert_to_safe=True)
 
     # get job statistics per site and resource
@@ -318,11 +301,6 @@ class UserIF:
     def get_ban_users(self):
         ret = self.taskBuffer.get_ban_users()
         return json.dumps(ret)
-
-    # get client version
-    def getPandaClientVer(self):
-        ret = self.taskBuffer.getPandaClientVer()
-        return ret
 
     # get active JediTasks in a time range
     def getJediTasksInTimeRange(self, dn, timeRange, fullFlag, minTaskID, task_type):
@@ -457,7 +435,7 @@ class UserIF:
         if properErrorCode is True and ret[0] == 5:
             # retry failed analysis jobs
             jobdefList = self.taskBuffer.getJobdefIDsForFailedJob(jediTaskID)
-            cUID = self.taskBuffer.cleanUserID(user)
+            cUID = CoreUtils.clean_user_id(user)
             for jobID in jobdefList:
                 self.taskBuffer.finalizePendingJobs(cUID, jobID)
             self.taskBuffer.increaseAttemptNrPanda(jediTaskID, 5)
@@ -820,18 +798,10 @@ def getJobStatistics(req, sourcetype=None):
     return userIF.getJobStatistics(sourcetype)
 
 
-# get job statistics for Babmoo
+# get statistics for production jobs by processingType
 def getJobStatisticsForBamboo(req, useMorePG=None):
-    if useMorePG == "True":
-        useMorePG = pandaserver.taskbuffer.ProcessGroups.extensionLevel_1
-    elif useMorePG in ["False", None]:
-        useMorePG = False
-    else:
-        try:
-            useMorePG = int(useMorePG)
-        except Exception:
-            useMorePG = False
-    return userIF.getJobStatisticsForBamboo(useMorePG)
+    # useMorePG is an obsoleted parameter that is not used anymore
+    return userIF.getJobStatisticsForBamboo()
 
 
 # get job statistics per site and resource
@@ -845,35 +815,8 @@ def get_job_statistics_per_site_label_resource(req, time_window=None):
 
 
 # get job statistics per site
-def getJobStatisticsPerSite(
-    req,
-    predefined="False",
-    workingGroup="",
-    countryGroup="",
-    jobType="",
-    minPriority=None,
-    readArchived=None,
-):
-    predefined = resolve_true(predefined)
-
-    if minPriority is not None:
-        try:
-            minPriority = int(minPriority)
-        except Exception:
-            minPriority = None
-
-    if readArchived == "True":
-        readArchived = True
-    elif readArchived == "False":
-        readArchived = False
-    else:
-        host = req.get_remote_host()
-        # read jobsArchived for panglia
-        if re.search("panglia.*\.triumf\.ca$", host) is not None or host in ["gridweb.triumf.ca"]:
-            readArchived = True
-        else:
-            readArchived = False
-    return userIF.getJobStatisticsPerSite(predefined, workingGroup, countryGroup, jobType, minPriority, readArchived)
+def getJobStatisticsPerSite(req):
+    return userIF.getJobStatisticsPerSite()
 
 
 # kill jobs
@@ -933,11 +876,6 @@ def getSiteSpecs(req, siteType=None):
 # get ban users
 def get_ban_users(req):
     return userIF.get_ban_users()
-
-
-# get client version
-def getPandaClientVer(req):
-    return userIF.getPandaClientVer()
 
 
 # get script for offline running

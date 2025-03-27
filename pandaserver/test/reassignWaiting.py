@@ -18,7 +18,7 @@ while True:
     # get PandaIDs
     varMap = {}
     varMap[":modificationTime"] = timeLimit
-    sql = "SELECT PandaID FROM ATLAS_PANDA.jobsWaiting4 WHERE modificationTime<:modificationTime ORDER BY PandaID"
+    sql = "SELECT PandaID FROM ATLAS_PANDA.jobsDefined4 WHERE modificationTime<:modificationTime ORDER BY PandaID"
     status, res = proxyS.querySQLS(sql, varMap)
 
     # escape

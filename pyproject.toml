@@ -13,7 +13,7 @@ authors = [
     { name = "PanDA Team", email = "panda-support@cern.ch" },
 ]
 dependencies = [
-    'panda-common>=0.1.1',
+    'panda-common>=0.1.5',
     'panda-client-light>=1.5.55',
     'pyOpenSSL',
     'python-daemon',

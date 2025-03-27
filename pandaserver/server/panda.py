@@ -7,7 +7,6 @@ entry point
 
 import datetime
 import gzip
-import inspect
 import io
 import json
 import os
@@ -15,6 +14,7 @@ import signal
 import sys
 import tempfile
 import traceback
+from collections import defaultdict
 from urllib.parse import parse_qsl
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
@@ -24,7 +24,15 @@ from werkzeug.datastructures import CombinedMultiDict, EnvironHeaders
 from werkzeug.formparser import parse_form_data
 
 import pandaserver.taskbuffer.ErrorCode
+from pandaserver.api.v1 import credential_management_api as cred_api_v1
+from pandaserver.api.v1 import file_server_api as file_server_api_v1
 from pandaserver.api.v1 import harvester_api as harvester_api_v1
+from pandaserver.api.v1 import idds_api as idds_api_v1
+from pandaserver.api.v1 import job_api as job_api_v1
+from pandaserver.api.v1 import metaconfig_api as metaconfig_api_v1
+from pandaserver.api.v1 import pilot_api as pilot_api_v1
+from pandaserver.api.v1 import statistics_api as statistics_api_v1
+from pandaserver.api.v1 import system_api as system_api_v1
 from pandaserver.api.v1 import task_api as task_api_v1
 from pandaserver.api.v1.common import extract_allowed_methods
 from pandaserver.config import panda_config
@@ -105,7 +113,6 @@ from pandaserver.userinterface.UserIF import (
     getJobStatisticsPerSiteResource,
     getJobStatus,
     getJumboJobDatasets,
-    getPandaClientVer,
     getPandaIDsWithTaskID,
     getScriptOfflineRunning,
     getSiteSpecs,
@@ -148,7 +155,15 @@ LATEST = "1"
 
 # generate the allowed methods dynamically with all function names present in the API modules,
 # excluding functions imported from other modules or the init_task_buffer function
+cred_api_v1_methods = extract_allowed_methods(cred_api_v1)
+file_server_api_v1_methods = extract_allowed_methods(file_server_api_v1)
 harvester_api_v1_methods = extract_allowed_methods(harvester_api_v1)
+idds_api_v1_methods = extract_allowed_methods(idds_api_v1)
+job_api_v1_methods = extract_allowed_methods(job_api_v1)
+metaconfig_api_v1_methods = extract_allowed_methods(metaconfig_api_v1)
+pilot_api_v1_methods = extract_allowed_methods(pilot_api_v1)
+statistics_api_v1_methods = extract_allowed_methods(statistics_api_v1)
+system_api_v1_methods = extract_allowed_methods(system_api_v1)
 task_api_v1_methods = extract_allowed_methods(task_api_v1)
 
 # initialize oracledb using dummy connection
@@ -165,10 +180,16 @@ taskBuffer.init(
 )
 
 if panda_config.nDBConnection != 0:
-    # initialize harvester_api_v1
+    # initialize all the API modules
+    cred_api_v1.init_task_buffer(taskBuffer)
+    file_server_api_v1.init_task_buffer(taskBuffer)
     harvester_api_v1.init_task_buffer(taskBuffer)
-
-    # initialize task_api_v1
+    # IDDS API does not need to be initialized. idds_server_api_v1.init_task_buffer(taskBuffer)
+    job_api_v1.init_task_buffer(taskBuffer)
+    metaconfig_api_v1.init_task_buffer(taskBuffer)
+    pilot_api_v1.init_task_buffer(taskBuffer)
+    statistics_api_v1.init_task_buffer(taskBuffer)
+    # System API does not need to be initialized. system_api_v1.init_task_buffer(taskBuffer)
     task_api_v1.init_task_buffer(taskBuffer)
 
     # initialize JobDispatcher
@@ -227,7 +248,13 @@ def parse_qsl_parameters(environ, body, request_method):
 
     # In the case of GET, HEAD methods we need to parse the query string list in the URL looking for parameters
     if request_method in ["GET", "HEAD"]:
-        params = dict(parse_qsl(environ.get("QUERY_STRING", ""), keep_blank_values=True))
+        # Parse the query string list in the URL looking for parameters. Repeated query parameters submitted multiple times will be appended to a list
+        results_tmp = defaultdict(list)
+        parameter_list = parse_qsl(environ.get("QUERY_STRING", ""), keep_blank_values=True)
+        for key, value in parameter_list:
+            results_tmp[key].append(value)
+
+        params = {key: values[0] if len(values) == 1 else values for key, values in results_tmp.items()}
 
     # In the case of POST, PUT methods we need to parse the form data
     else:
@@ -260,7 +287,7 @@ def parse_json_parameters(body, content_encoding):
     if content_encoding == "gzip":
         body = gzip.decompress(body)
 
-    # de-serialize the body and patch for True/False
+    # de-serialize the body
     params = json.loads(body)
 
     return params
@@ -321,7 +348,15 @@ def module_mapping(version, api_module):
     mapping = {
         "v0": {"panda": {"module": None, "allowed_methods": allowed_methods}},  # legacy API uses globals instead of a particular module
         "v1": {
+            "creds": {"module": cred_api_v1, "allowed_methods": cred_api_v1_methods},
+            "file_server": {"module": file_server_api_v1, "allowed_methods": file_server_api_v1_methods},
             "harvester": {"module": harvester_api_v1, "allowed_methods": harvester_api_v1_methods},
+            "idds": {"module": idds_api_v1, "allowed_methods": idds_api_v1_methods},
+            "job": {"module": job_api_v1, "allowed_methods": job_api_v1_methods},
+            "metaconfig": {"module": metaconfig_api_v1, "allowed_methods": metaconfig_api_v1_methods},
+            "pilot": {"module": pilot_api_v1, "allowed_methods": pilot_api_v1_methods},
+            "statistics": {"module": statistics_api_v1, "allowed_methods": statistics_api_v1_methods},
+            "system": {"module": system_api_v1, "allowed_methods": system_api_v1_methods},
             "task": {"module": task_api_v1, "allowed_methods": task_api_v1_methods},
         },
     }

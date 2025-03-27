@@ -114,13 +114,15 @@ class Configurator(threading.Thread):
         self.log_stream.debug(f"Blacklisted endpoints read {self.blacklisted_endpoints_read}")
         self.log_stream.debug("Done")
 
-        self.log_stream.debug("Getting Rucio RSE usage dump...")
-        self.rse_usage = aux.get_dump(self.RUCIO_RSE_USAGE)
-        if not self.rse_usage:
-            self.log_stream.error("The RSE usage dump was not retrieved correctly")
-            return False
-        self.log_stream.debug("Done")
-
+        if self.RUCIO_RSE_USAGE:
+            self.log_stream.debug("Getting Rucio RSE usage dump...")
+            self.rse_usage = aux.get_dump(self.RUCIO_RSE_USAGE)
+            if not self.rse_usage:
+                self.log_stream.error("The RSE usage dump was not retrieved correctly")
+                return False
+            self.log_stream.debug("Done")
+        else:
+            self.rse_usage = {}
         return True
 
     def get_site_info(self, site):

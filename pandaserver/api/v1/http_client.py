@@ -123,7 +123,7 @@ class HttpClient:
         files = {}
         try:
             for key, value in data.items():
-                if type(data[key]) == str:
+                if isinstance(data[key], str):
                     # we got a file to upload without specifying the destination name
                     files[key] = open(data[key], "rb")
                 else:
@@ -137,7 +137,7 @@ class HttpClient:
             return 255, str(e)
         finally:
             for file in files.values():
-                if type(file) == tuple:
+                if isinstance(file, tuple):
                     file_handler = file[1]
                 else:
                     file_handler = file

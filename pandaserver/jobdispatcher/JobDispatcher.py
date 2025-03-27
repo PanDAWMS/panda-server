@@ -320,9 +320,9 @@ class JobDispatcher:
             updateStateChange = True
             param["jobDispatcherErrorDiag"] = None
         elif jobStatus in ["holding", "transferring"]:
-            param[
-                "jobDispatcherErrorDiag"
-            ] = f"set to {jobStatus} by the pilot at {datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime('%Y-%m-%d %H:%M:%S')}"
+            param["jobDispatcherErrorDiag"] = (
+                f"set to {jobStatus} by the pilot at {datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime('%Y-%m-%d %H:%M:%S')}"
+            )
         if tmpStatus == "holding":
             tmpWrapper = _TimedMethod(self.taskBuffer.updateJobStatus, None)
         else:
@@ -397,7 +397,6 @@ class JobDispatcher:
 
     # check job status
     def checkJobStatus(self, pandaIDs, timeout):
-        # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.checkJobStatus, timeout)
         tmpWrapper.run(pandaIDs)
         # make response
@@ -427,7 +426,6 @@ class JobDispatcher:
         scattered,
         segment_id,
     ):
-        # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.getEventRanges, timeout)
         tmpWrapper.run(pandaID, jobsetID, jediTaskID, nRanges, acceptJson, scattered, segment_id)
         # make response
@@ -456,7 +454,6 @@ class JobDispatcher:
         objstoreID,
         timeout,
     ):
-        # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.updateEventRange, timeout)
         tmpWrapper.run(eventRangeID, eventStatus, coreCount, cpuConsumptionTime, objstoreID)
         # make response
@@ -477,7 +474,6 @@ class JobDispatcher:
 
     # update event ranges
     def updateEventRanges(self, eventRanges, timeout, acceptJson, version):
-        # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.updateEventRanges, timeout)
         tmpWrapper.run(eventRanges, version)
         # make response
@@ -495,7 +491,6 @@ class JobDispatcher:
 
     # check event availability
     def checkEventsAvailability(self, pandaID, jobsetID, jediTaskID, timeout):
-        # peek jobs
         tmpWrapper = _TimedMethod(self.taskBuffer.checkEventsAvailability, timeout)
         tmpWrapper.run(pandaID, jobsetID, jediTaskID)
         # make response
@@ -524,7 +519,7 @@ class JobDispatcher:
             response = Protocol.Response(Protocol.SC_Perms, "Cannot extract DN from proxy. not HTTPS?")
         else:
             # get compact DN
-            compactDN = self.taskBuffer.cleanUserID(realDN)
+            compactDN = CoreUtils.clean_user_id(realDN)
             # check permission
             self.specialDispatchParams.update()
             allowKey = self.specialDispatchParams.get("allowKeyPair", [])
@@ -572,7 +567,7 @@ class JobDispatcher:
             response = Protocol.Response(Protocol.SC_Perms, tmp_msg)
         else:
             # get compact DN
-            compact_name = self.taskBuffer.cleanUserID(distinguished_name)
+            compact_name = CoreUtils.clean_user_id(distinguished_name)
             # check permission
             self.specialDispatchParams.update()
             allowed_users = self.specialDispatchParams.get("allowTokenKey", [])
@@ -687,7 +682,7 @@ class JobDispatcher:
             response = Protocol.Response(Protocol.SC_Perms, "Cannot extract DN from proxy. not HTTPS?")
         else:
             # get compact DN
-            compact_name = self.taskBuffer.cleanUserID(real_distinguished_name)
+            compact_name = CoreUtils.clean_user_id(real_distinguished_name)
             # check permission
             self.specialDispatchParams.update()
             if "allowProxy" not in self.specialDispatchParams:
@@ -754,7 +749,6 @@ class JobDispatcher:
         id = self.taskBuffer.get_max_worker_id(harvester_id)
         return json.dumps(id)
 
-    # get max workerID
     def get_events_status(self, ids):
         ret = self.taskBuffer.get_events_status(ids)
         return json.dumps(ret)
@@ -1263,7 +1257,7 @@ def getEventRanges(
     segment_id=None,
 ):
     """
-    Check the permissions and eetrieve a list of event ranges for a given PandaID.
+    Check the permissions and retrieve a list of event ranges for a given PandaID.
 
     Args:
         req: The request object containing the environment variables.

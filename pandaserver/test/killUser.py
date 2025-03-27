@@ -58,7 +58,6 @@ srcSQL += ")"
 jobs = []
 tables = [
     "ATLAS_PANDA.jobsActive4",
-    "ATLAS_PANDA.jobsWaiting4",
     "ATLAS_PANDA.jobsDefined4",
 ]
 for table in tables:

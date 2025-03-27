@@ -56,7 +56,7 @@ def main(tbuf=None, **kwargs):
         if realDN is None:
             continue
         realDN = CoreUtils.get_bare_dn(realDN, keep_digits=False)
-        name = taskBuffer.cleanUserID(realDN)
+        name = CoreUtils.clean_user_id(realDN)
         # check proxy
         tmpLog.debug(f"check proxy cache for {name}")
         for role in roles:

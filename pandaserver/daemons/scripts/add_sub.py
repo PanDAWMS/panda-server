@@ -48,27 +48,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
     # instantiate sitemapper
     aSiteMapper = SiteMapper(taskBuffer)
 
-    # delete
-    tmp_log.debug("Del session")
-    status, retSel = taskBuffer.querySQLS("SELECT MAX(PandaID) FROM ATLAS_PANDA.jobsDefined4", {})
-    if retSel is not None:
-        try:
-            maxID = retSel[0][0]
-            tmp_log.debug(f"maxID : {maxID}")
-            if maxID is not None:
-                varMap = {}
-                varMap[":maxID"] = maxID
-                varMap[":jobStatus1"] = "activated"
-                varMap[":jobStatus2"] = "waiting"
-                varMap[":jobStatus3"] = "failed"
-                varMap[":jobStatus4"] = "cancelled"
-                status, retDel = taskBuffer.querySQLS(
-                    "DELETE FROM ATLAS_PANDA.jobsDefined4 WHERE PandaID<:maxID AND jobStatus IN (:jobStatus1,:jobStatus2,:jobStatus3,:jobStatus4)",
-                    varMap,
-                )
-        except Exception:
-            pass
-
     # count # of getJob/updateJob in dispatcher's log
     try:
         # don't update when logrotate is running
@@ -184,7 +163,7 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         if ret is None:
             tmp_log.debug("failed to get co-jumbo jobs to finish")
         else:
-            coJumboA, coJumboD, coJumboW, coJumboTokill = ret
+            coJumboA, coJumboD, coJumboTokill = ret
             tmp_log.debug(f"finish {len(coJumboA)} co-jumbo jobs in Active")
             if len(coJumboA) > 0:
                 jobSpecs = taskBuffer.peekJobs(
@@ -217,23 +196,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
                         jobSpec.jobSubStatus = "cojumbo_wrong"
                         jobSpec.taskBufferErrorCode = pandaserver.taskbuffer.ErrorCode.EC_EventServiceInconsistentIn
                     taskBuffer.archiveJobs([jobSpec], True)
-            tmp_log.debug(f"finish {len(coJumboW)} co-jumbo jobs in Waiting")
-            if len(coJumboW) > 0:
-                jobSpecs = taskBuffer.peekJobs(
-                    coJumboW,
-                    fromDefined=False,
-                    fromActive=False,
-                    fromArchived=False,
-                    fromWaiting=True,
-                )
-                for jobSpec in jobSpecs:
-                    fileCheckInJEDI = taskBuffer.checkInputFileStatusInJEDI(jobSpec)
-                    if not fileCheckInJEDI:
-                        jobSpec.jobStatus = "closed"
-                        jobSpec.jobSubStatus = "cojumbo_wrong"
-                        jobSpec.taskBufferErrorCode = pandaserver.taskbuffer.ErrorCode.EC_EventServiceInconsistentIn
-                    taskBuffer.archiveJobs([jobSpec], False, True)
-            tmp_log.debug(f"kill {len(coJumboTokill)} co-jumbo jobs in Waiting")
             if len(coJumboTokill) > 0:
                 jediJobs = list(coJumboTokill)
                 nJob = 100

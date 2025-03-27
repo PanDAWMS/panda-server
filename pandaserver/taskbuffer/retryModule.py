@@ -47,7 +47,7 @@ def safe_match(pattern, message):
 
     matches = False
     try:
-        matches = re.match(pattern, message)
+        matches = re.match(pattern, message, flags=re.DOTALL)
     except ReError:
         tmp_log.error(f"Regexp matching excepted. \nPattern: {pattern} \nString: {message}")
     finally:
@@ -105,9 +105,9 @@ def compare_strictness(rule1, rule2):
     if rule2["wqid"]:
         rule2_weight += 1
 
-    if rule1 > rule2:
+    if rule1_weight > rule2_weight:
         return 1
-    elif rule1 < rule2:
+    elif rule1_weight < rule2_weight:
         return -1
     else:
         return 0
@@ -125,24 +125,8 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
     tmp_log = LogWrapper(_logger, f"preprocess_rules")
     tmp_log.debug("Start")
     filtered_rules = []
+    limit_retry_rule = {}
     try:
-        # See if there is a  NO_RETRY rule.
-        # Effect of NO_RETRY rules is the same, so just take the first one that appears
-        for rule in rules:
-            if rule["action"] != NO_RETRY or not conditions_apply(
-                error_diag_job,
-                architecture_job,
-                release_job,
-                wqid_job,
-                rule["error_diag"],
-                rule["architecture"],
-                rule["release"],
-                rule["wqid"],
-            ):
-                continue
-            else:
-                filtered_rules.append(rule)
-
         # See if there is a INCREASE_MEM rule.
         # The effect of INCREASE_MEM rules is the same, so take the first one that appears
         for rule in rules:
@@ -213,10 +197,9 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
                 filtered_rules.append(rule)
                 break
 
-        # See if there is a LIMIT_RETRY rule. Take the narrowest rule, in case of draw take the strictest conditions
-        limit_retry_rule = {}
+        # See if there is a LIMIT_RETRY or NO_RETRY rule (they are handled together in this context). Take the narrowest rule, in case of draw take the strictest conditions
         for rule in rules:
-            if rule["action"] != LIMIT_RETRY or not conditions_apply(
+            if rule["action"] not in (LIMIT_RETRY, NO_RETRY) or not conditions_apply(
                 error_diag_job,
                 architecture_job,
                 release_job,
@@ -246,6 +229,7 @@ def preprocess_rules(rules, error_diag_job, release_job, architecture_job, wqid_
     if limit_retry_rule:
         filtered_rules.append(limit_retry_rule)
 
+    tmp_log.debug("Done")
     return filtered_rules
 
 
@@ -333,7 +317,6 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                     if action == NO_RETRY:
                         if active:
                             task_buffer.setNoRetry(jobID, job.jediTaskID, job.Files)
-                        # Log to pandamon and logfile
                         message = (
                             f"action=setNoRetry for PandaID={jobID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} "
                             f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
@@ -351,7 +334,6 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                                     job.Files,
                                     int(parameters["maxAttempt"]),
                                 )
-                            # Log to pandamon and logfile
                             message = (
                                 f"action=setMaxAttempt for PandaID={jobID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} maxAttempt={int(parameters['maxAttempt'])} "
                                 f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
@@ -366,7 +348,6 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                         try:
                             if active:
                                 task_buffer.increaseRamLimitJobJEDI(job, job.minRamCount, job.jediTaskID)
-                            # Log to pandamon and logfile
                             message = (
                                 f"action=increaseRAMLimit for PandaID={jobID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} "
                                 f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
@@ -382,7 +363,6 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                         try:
                             if active:
                                 task_buffer.increaseRamLimitJobJEDI_xtimes(job, job.minRamCount, job.jediTaskID, attemptNr)
-                            # Log to pandamon and logfile
                             message = (
                                 f"action=increaseRAMLimit_xtimes for PandaID={jobID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} "
                                 f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_diag_rule}. "
@@ -407,7 +387,6 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                             if rowcount:
                                 applied = True
 
-                            # Log to pandamon and logfile
                             message = (
                                 f"action=increaseCpuTime requested recalculation of task parameters for PandaID={jobID} "
                                 f"jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} (active={active} ), applied={applied}. "
@@ -427,7 +406,6 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                                 applied = task_buffer.reduce_input_per_job(
                                     job.PandaID, job.jediTaskID, job.attemptNr, parameters.get("excluded_rules"), parameters.get("steps")
                                 )
-                            # Log to pandamon and logfile
                             message = (
                                 f"action=reduceInputPerJob for PandaID={jobID} jediTaskID={job.jediTaskID} prodSourceLabel={job.prodSourceLabel} applied={applied} "
                                 f"( ErrorSource={error_source} ErrorCode={error_code} ErrorDiag: {error_code}. "
@@ -437,6 +415,7 @@ def apply_retrial_rules(task_buffer, job, errors, attemptNr):
                             _logger.info(message)
                         except Exception as e:
                             _logger.error(f"Failed to reduce input per job : {e} {traceback.format_exc()}")
+                            _logger.error(traceback.format_exc())
 
                     _logger.debug(f"Finished rule {rule} for PandaID={jobID} error_source={error_source} error_code={error_code} attemptNr={attemptNr}")
 

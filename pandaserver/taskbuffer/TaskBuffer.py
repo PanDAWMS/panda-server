@@ -17,7 +17,6 @@ from pandaserver.dataservice.setupper import Setupper
 from pandaserver.srvcore import CoreUtils
 from pandaserver.taskbuffer import ErrorCode, EventServiceUtils, JobUtils, ProcessGroups
 from pandaserver.taskbuffer.DBProxyPool import DBProxyPool
-from pandaserver.taskbuffer.JobSpec import get_task_queued_time
 
 _logger = PandaLogger().getLogger("TaskBuffer")
 
@@ -132,7 +131,7 @@ class TaskBuffer:
                 # get users and groups to boost job priorities
                 boost_dict = proxy.get_dict_to_boost_job_prio(jobs[-1].VO)
                 if boost_dict:
-                    prodUserName = proxy.cleanUserID(user)
+                    prodUserName = CoreUtils.clean_user_id(user)
                     # check boost list
                     if userDefinedWG and validWorkingGroup:
                         if "group" in boost_dict and jobs[-1].workingGroup in boost_dict["group"]:
@@ -328,7 +327,6 @@ class TaskBuffer:
             # loop over all jobs
             ret = []
             newJobs = []
-            nRunJob = 0
             if esJobsetMap is None:
                 esJobsetMap = {}
             try:
@@ -353,47 +351,6 @@ class TaskBuffer:
                 # set jobsetID
                 if job.prodSourceLabel in JobUtils.analy_sources + JobUtils.list_ptest_prod_sources:
                     job.jobsetID = userJobsetID
-                # set specialHandling
-                if job.prodSourceLabel in JobUtils.analy_sources:
-                    if checkSpecialHandling:
-                        specialHandling = ""
-                        # debug mode
-                        if useDebugMode and job.prodSourceLabel == "user":
-                            specialHandling += "debug,"
-                        # express mode
-                        if useExpress and (nRunJob < nExpressJobs or job.prodSourceLabel == "panda"):
-                            specialHandling += "express,"
-                        # keep original attributes
-                        ddmBackEnd = job.getDdmBackEnd()
-                        isHPO = job.is_hpo_workflow()
-                        isScout = job.isScoutJob()
-                        no_looping_check = job.is_no_looping_check()
-                        use_secrets = job.use_secrets()
-                        push_changes = job.push_status_changes()
-                        is_push_job = job.is_push_job()
-                        task_queued_time = get_task_queued_time(job.specialHandling)
-                        # reset specialHandling
-                        specialHandling = specialHandling[:-1]
-                        job.specialHandling = specialHandling
-                        if isScout:
-                            job.setScoutJobFlag()
-                        if isHPO:
-                            job.set_hpo_workflow()
-                        if no_looping_check:
-                            job.disable_looping_check()
-                        if use_secrets:
-                            job.set_use_secrets()
-                        if push_changes:
-                            job.set_push_status_changes()
-                        if is_push_job:
-                            job.set_push_job()
-                        if task_queued_time:
-                            job.set_task_queued_time(task_queued_time.timestamp())
-                        # set DDM backend
-                        if ddmBackEnd is not None:
-                            job.setDdmBackEnd(ddmBackEnd)
-                    if job.prodSourceLabel != "panda":
-                        nRunJob += 1
                 # set relocation flag
                 if job.computingSite != "NULL" and job.relocationFlag != 2:
                     job.relocationFlag = 1
@@ -756,6 +713,40 @@ class TaskBuffer:
         self.proxyPool.putProxy(proxy)
         return ret
 
+    def update_worker_node(
+        self,
+        site,
+        host_name,
+        cpu_model,
+        n_logical_cpus,
+        n_sockets,
+        cores_per_socket,
+        threads_per_core,
+        cpu_architecture,
+        cpu_architecture_level,
+        clock_speed,
+        total_memory,
+    ):
+        # get DB proxy
+        proxy = self.proxyPool.getProxy()
+        # update DB and buffer
+        ret = proxy.update_worker_node(
+            site,
+            host_name,
+            cpu_model,
+            n_logical_cpus,
+            n_sockets,
+            cores_per_socket,
+            threads_per_core,
+            cpu_architecture,
+            cpu_architecture_level,
+            clock_speed,
+            total_memory,
+        )
+        # release proxy
+        self.proxyPool.putProxy(proxy)
+        return ret
+
     # finalize pending analysis jobs
     def finalizePendingJobs(self, prodUserName, jobDefinitionID, waitLock=False):
         # get DB proxy
@@ -1110,7 +1101,7 @@ class TaskBuffer:
             for tmpIdx, tmpRel in enumerate(tmpRels):
                 # asetup
                 atlRel = re.sub("Atlas-", "", tmpAtls[tmpIdx])
-                atlTags = re.split("/|_", tmpRel)
+                atlTags = re.split("[/_]", tmpRel)
                 if "" in atlTags:
                     atlTags.remove("")
                 if atlRel != "" and atlRel not in atlTags and (re.search("^\d+\.\d+\.\d+$", atlRel) is None or isUser):
@@ -1152,6 +1143,8 @@ class TaskBuffer:
 
     # kill jobs
     def killJobs(self, ids, user, code, prodManager, wgProdRole=[], killOptions=[]):
+        tmp_log = LogWrapper(_logger, "killJobs")
+        tmp_log.debug(f"start for {len(ids)} IDs")
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         rets = []
@@ -1216,12 +1209,11 @@ class TaskBuffer:
                                 if tmpFile.destinationDBlock not in tmpDestDBlocks:
                                     tmpDestDBlocks.append(tmpFile.destinationDBlock)
                         # run
-                        cThr = Closer(self, tmpDestDBlocks, tmpJob)
-                        cThr.start()
-                        cThr.join()
-        except Exception:
-            pass
-
+                        closer_process = Closer(self, tmpDestDBlocks, tmpJob)
+                        closer_process.run()
+        except Exception as e:
+            tmp_log.error(f"failed with {str(e)} {traceback.format_exc()}")
+        tmp_log.debug("done")
         return rets
 
     # reassign jobs
@@ -1233,73 +1225,40 @@ class TaskBuffer:
         forPending=False,
         firstSubmission=True,
     ):
-        tmpLog = LogWrapper(_logger, "reassignJobs")
-        tmpLog.debug(f"start for {len(ids)} IDs")
+        tmp_log = LogWrapper(_logger, "reassignJobs")
+        tmp_log.debug(f"start for {len(ids)} IDs")
         # get DB proxy
         proxy = self.proxyPool.getProxy()
         jobs = []
-        oldSubMap = {}
-        # keep old assignment
-        keepSiteFlag = False
-        if (attempt % 2) != 0:
-            keepSiteFlag = True
         # reset jobs
-        for id in ids:
+        n_reset_waiting = 0
+        n_reset_defined = 0
+        for tmp_id in ids:
             try:
-                # try to reset active job
-                if not forPending:
-                    tmpRet = proxy.resetJob(id, keepSite=keepSiteFlag, getOldSubs=True)
-                    if isinstance(tmpRet, tuple):
-                        ret, tmpOldSubList = tmpRet
-                    else:
-                        ret, tmpOldSubList = tmpRet, []
-                    if ret is not None:
-                        jobs.append(ret)
-                        for tmpOldSub in tmpOldSubList:
-                            oldSubMap.setdefault(tmpOldSub, ret)
-                        continue
-                # try to reset waiting job
-                tmpRet = proxy.resetJob(
-                    id,
-                    False,
-                    keepSite=keepSiteFlag,
-                    getOldSubs=False,
-                    forPending=forPending,
+                # try to reset a job in waiting table
+                ret = proxy.resetJob(
+                    tmp_id,
+                    activeTable=False,
+                    forPending=True,
                 )
-                if isinstance(tmpRet, tuple):
-                    ret, tmpOldSubList = tmpRet
-                else:
-                    ret, tmpOldSubList = tmpRet, []
                 if ret is not None:
                     jobs.append(ret)
+                    n_reset_waiting += 1
                     # waiting jobs don't create sub or dis
                     continue
-                # try to reset defined job
-                if not forPending:
-                    tmpRet = proxy.resetDefinedJob(id, keepSite=keepSiteFlag, getOldSubs=True)
-                    if isinstance(tmpRet, tuple):
-                        ret, tmpOldSubList = tmpRet
-                    else:
-                        ret, tmpOldSubList = tmpRet, []
-                    if ret is not None:
-                        jobs.append(ret)
-                        for tmpOldSub in tmpOldSubList:
-                            oldSubMap.setdefault(tmpOldSub, ret)
-                        continue
+                # try to reset a job in defined table
+                ret = proxy.resetDefinedJob(tmp_id)
+                if ret is not None:
+                    jobs.append(ret)
+                    n_reset_defined += 1
+                    continue
             except Exception as e:
-                tmpLog.error(f"failed with {str(e)} {traceback.format_exc()}")
+                tmp_log.error(f"failed with {str(e)} {traceback.format_exc()}")
         # release DB proxy
         self.proxyPool.putProxy(proxy)
-        # run Closer for old sub datasets
-        if not forPending:
-            for tmpOldSub in oldSubMap:
-                tmpJob = oldSubMap[tmpOldSub]
-                cThr = Closer(self, [tmpOldSub], tmpJob)
-                cThr.start()
-                cThr.join()
-        tmpLog.debug(f"got {len(jobs)} IDs")
-        # setup dataset
-        if jobs != []:
+        tmp_log.debug(f"got {len(jobs)} IDs in total: {n_reset_waiting} from Waiting, {n_reset_defined} from Defined")
+        # trigger subsequent agent
+        if jobs:
             if joinThr:
                 thr = Setupper(
                     self,
@@ -1310,32 +1269,14 @@ class TaskBuffer:
                 thr.start()
                 thr.join()
             else:
-                # cannot use 'thr =' because it may trigger garbage collector
+                # cannot use 'thr =' because it may trigger a garbage collector
                 Setupper(
                     self,
                     jobs,
                     resubmit=True,
                     first_submission=firstSubmission,
                 ).start()
-        tmpLog.debug("done")
-
-        return True
-
-    # awake jobs in jobsWaiting
-    def awakeJobs(self, ids):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        jobs = []
-        # reset jobs
-        for id in ids:
-            # try to reset waiting job
-            ret = proxy.resetJob(id, False)
-            if ret is not None:
-                jobs.append(ret)
-        # release DB proxy
-        self.proxyPool.putProxy(proxy)
-        # setup dataset
-        Setupper(self, jobs).start()
+        tmp_log.debug("done")
 
         return True
 
@@ -1522,17 +1463,6 @@ class TaskBuffer:
 
         return ret
 
-    # extract name from DN
-    def cleanUserID(self, id):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.cleanUserID(id)
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
     # extract scope from dataset name
     def extractScope(self, name):
         # get DBproxy
@@ -1545,28 +1475,11 @@ class TaskBuffer:
         return ret
 
     # get job statistics
-    def getJobStatistics(
-        self,
-        archived=False,
-        predefined=False,
-        workingGroup="",
-        countryGroup="",
-        jobType="",
-        forAnal=None,
-        minPriority=None,
-    ):
+    def getJobStatistics(self):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get serial number
-        ret = proxy.getJobStatistics(
-            archived,
-            predefined,
-            workingGroup,
-            countryGroup,
-            jobType,
-            forAnal,
-            minPriority,
-        )
+        ret = proxy.getJobStatistics()
         # release proxy
         self.proxyPool.putProxy(proxy)
 
@@ -1583,11 +1496,11 @@ class TaskBuffer:
         return ret
 
     # get job statistics for Bamboo
-    def getJobStatisticsForBamboo(self, useMorePG=False):
+    def getJobStatisticsForBamboo(self):
         # get DBproxy
         proxy = self.proxyPool.getProxy()
         # get serial number
-        ret = proxy.getJobStatisticsPerProcessingType(useMorePG)
+        ret = proxy.getJobStatisticsPerProcessingType()
         # release proxy
         self.proxyPool.putProxy(proxy)
 
@@ -1692,17 +1605,6 @@ class TaskBuffer:
 
         return ret
 
-    # get client version
-    def getPandaClientVer(self):
-        # get DBproxy
-        proxy = self.proxyPool.getProxy()
-        # get
-        ret = proxy.getPandaClientVer()
-        # release proxy
-        self.proxyPool.putProxy(proxy)
-
-        return ret
-
     # register a token key
     def register_token_key(self, client_name, lifetime):
         # get DBproxy
@@ -1759,31 +1661,14 @@ class TaskBuffer:
         return ret
 
     # insert TaskParams
-    def insertTaskParamsPanda(
-        self,
-        taskParams,
-        user,
-        prodRole,
-        fqans=[],
-        parent_tid=None,
-        properErrorCode=False,
-        allowActiveTask=False,
-    ):
+    def insertTaskParamsPanda(self, taskParams, user, prodRole, fqans=[], parent_tid=None, properErrorCode=False, allowActiveTask=False, decode=True):
         # query an SQL return Status
         proxy = self.proxyPool.getProxy()
         # check user status
         tmpStatus = proxy.checkBanUser(user, None, True)
         if tmpStatus is True:
             # exec
-            ret = proxy.insertTaskParamsPanda(
-                taskParams,
-                user,
-                prodRole,
-                fqans,
-                parent_tid,
-                properErrorCode,
-                allowActiveTask,
-            )
+            ret = proxy.insertTaskParamsPanda(taskParams, user, prodRole, fqans, parent_tid, properErrorCode, allowActiveTask, decode)
         elif tmpStatus == 1:
             ret = False, "Failed to update DN in PandaDB"
         elif tmpStatus == 2:
