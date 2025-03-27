@@ -210,7 +210,7 @@ class JobComplexModule(BaseModule):
                         varMap = {}
                         varMap[":PandaID"] = pandaID
                         varMap[":code"] = SupErrors.error_codes["INVALID_BATCH_ID"]
-                        varMap[":diag"] = "got an update request with invalid batchID={0}".format(param["batchID"].replace("\n", ""))
+                        varMap[":diag"] = f"got an update request with invalid batchID={param['batchID'].replace('\n', '')}"
                         varMap[":diag"] = JobSpec.truncateStringAttr("supErrorDiag", varMap[":diag"])
                         sqlSUP = "UPDATE ATLAS_PANDA.jobsActive4 SET supErrorCode=:code,supErrorDiag=:diag "
                         sqlSUP += "WHERE PandaID=:PandaID "
@@ -1525,7 +1525,7 @@ class JobComplexModule(BaseModule):
                         job.jobStatus = "merging"
                         job.jobSubStatus = "es_retry"
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceRetried
-                        job.taskBufferErrorDiag = f"closed to retry unprocessed even ranges in PandaID={retNewPandaID}"
+                        job.taskBufferErrorDiag = f"closed to retry unprocessed event ranges in PandaID={retNewPandaID}"
                     elif retEvS in [2, 10]:
                         # goes to merging
                         if retEvS == 2:
@@ -1578,7 +1578,7 @@ class JobComplexModule(BaseModule):
                         job.jobStatus = "closed"
                         job.jobSubStatus = "es_badstatus"
                         job.taskBufferErrorCode = ErrorCode.EC_EventServiceBadStatus
-                        job.taskBufferErrorDiag = "cloned in bad jobStatus like defined and pending"
+                        job.taskBufferErrorDiag = "closed in bad jobStatus like defined and pending"
                     # additional actions when retry
                     codeListWithRetry = [0, 4, 5, 8, 9]
                     if retEvS in codeListWithRetry and job.computingSite != EventServiceUtils.siteIdForWaitingCoJumboJobs:
@@ -5300,7 +5300,7 @@ class JobComplexModule(BaseModule):
                 self.cur.execute(sqlCFE + comment, varMap)
                 resCFE = self.cur.fetchone()
                 (nRowCEF,) = resCFE
-                tmp_log.debug(f"{nRowCEF} fatal even ranges ")
+                tmp_log.debug(f"{nRowCEF} fatal event ranges ")
                 if nRowCEF > 0:
                     hasFatalRange = True
             # reset job attributes
