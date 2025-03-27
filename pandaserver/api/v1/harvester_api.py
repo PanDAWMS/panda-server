@@ -134,7 +134,7 @@ def update_service_metrics(req: PandaRequest, harvester_id: str, metrics: str) -
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def add_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) -> Dict[str, Any]:
+def add_dialogs(req: PandaRequest, harvester_id: str, dialogs: list) -> Dict[str, Any]:
     """
     Add harvester dialog messages.
 
