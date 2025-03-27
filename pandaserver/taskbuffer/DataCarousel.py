@@ -53,7 +53,7 @@ pl.Config.set_tbl_hide_dataframe_shape(True)
 pl.Config.set_tbl_hide_column_data_types(True)
 pl.Config.set_tbl_rows(-1)
 pl.Config.set_tbl_cols(-1)
-pl.Config.set_tbl_width_chars(120)
+pl.Config.set_tbl_width_chars(140)
 
 # ==============================================================
 
@@ -1098,7 +1098,7 @@ class DataCarouselInterface(object):
             if n_total:
                 tmp_to_print_df = pl.concat([to_pin_df, tmp_queued_df])
                 tmp_to_print_df = tmp_to_print_df.select(
-                    ["request_id", "source_rse", "jediTaskID", "gshare", "gshare_rank", "task_priority", "total_files", "cum_total_files"]
+                    ["request_id", "source_rse", "jediTaskID", "gshare", "gshare_rank", "task_priority", "total_files", "cum_total_files", "to_pin"]
                 )
                 tmp_to_print_df = tmp_to_print_df.with_columns(gshare_and_rank=pl.concat_str([pl.col("gshare"), pl.col("gshare_rank")], separator=" : "))
                 tmp_to_print_df = tmp_to_print_df.select(
