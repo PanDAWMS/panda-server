@@ -175,7 +175,7 @@ def add_dialogs(req: PandaRequest, harvester_id: str, dialogs: str) -> Dict[str,
 
 
 @request_validation(_logger, secure=True, request_method="POST")
-def heartbeat(req: PandaRequest, harvester_id: str, data: str = None) -> Dict[str, Any]:
+def heartbeat(req: PandaRequest, harvester_id: str, data: dict = None) -> Dict[str, Any]:
     """
     Heartbeat for harvester.
 
@@ -188,7 +188,8 @@ def heartbeat(req: PandaRequest, harvester_id: str, data: str = None) -> Dict[st
     Args:
         req(PandaRequest): internally generated request object
         harvester_id(str): harvester id, e.g. `harvester_central_A`
-        data(list): list of data to be updated in the PanDA database
+        data(dict): metadata dictionary to be updated in the PanDA database, e.g. `data = {"startTime": <start time>, "sw_version": <release version>, "commit_stamp": <commit timestamp>}`
+
 
     Returns:
         dict: dictionary `{'success': True/False, 'message': 'Description of error', 'data': <requested data>}`
