@@ -210,7 +210,7 @@ class JobComplexModule(BaseModule):
                         varMap = {}
                         varMap[":PandaID"] = pandaID
                         varMap[":code"] = SupErrors.error_codes["INVALID_BATCH_ID"]
-                        varMap[":diag"] = f"got an update request with invalid batchID={param['batchID'].replace('\\n', '')}"
+                        varMap[":diag"] = f"got an update request with invalid batchID={param['batchID'].replace('\n', '')}"
                         varMap[":diag"] = JobSpec.truncateStringAttr("supErrorDiag", varMap[":diag"])
                         sqlSUP = "UPDATE ATLAS_PANDA.jobsActive4 SET supErrorCode=:code,supErrorDiag=:diag "
                         sqlSUP += "WHERE PandaID=:PandaID "
