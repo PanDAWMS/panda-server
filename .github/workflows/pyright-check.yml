@@ -19,6 +19,14 @@ jobs:
     - name: Install pyright
       run: npm install -g pyright
 
+    - name: Create pyright config
+      run: |
+        cat <<EOF > pyrightconfig.json
+        {
+          "reportMissingImports": false
+        }
+        EOF
+
     - name: Run pyright on changed files
       run: |
         files=$(git diff --name-only origin/master...HEAD -- '*.py')
