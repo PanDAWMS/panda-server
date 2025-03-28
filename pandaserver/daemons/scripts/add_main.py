@@ -8,13 +8,13 @@ import traceback
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread, WeightedLists
+
 from pandaserver.brokerage.SiteMapper import SiteMapper
 from pandaserver.config import panda_config
 from pandaserver.dataservice.adder_gen import AdderGen
 from pandaserver.taskbuffer.TaskBuffer import TaskBuffer
 from pandaserver.taskbuffer.TaskBufferInterface import TaskBufferInterface
 
-# logger
 _logger = PandaLogger().getLogger("add_main")
 
 
@@ -78,7 +78,7 @@ def main(argv=tuple(), tbuf=None, lock_pool=None, **kwargs):
             aSiteMapper = self.aSiteMapper
             # get file list
             timeNow = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-            timeInt = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+
             # unique pid
             GenericThread.__init__(self)
             uniq_pid = self.get_pid()

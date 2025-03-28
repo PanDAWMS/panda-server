@@ -8,10 +8,10 @@ import traceback
 
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
+
 from pandaserver.config import panda_config
 from pandaserver.taskbuffer.workflow_processor import WorkflowProcessor
 
-# logger
 _logger = PandaLogger().getLogger("process_workflow_files")
 
 
@@ -155,8 +155,6 @@ def main(tbuf=None, **kwargs):
 
 # run
 if __name__ == "__main__":
-    import sys
-
     if len(sys.argv) > 1:
         data = {"target": sys.argv[1], "test_mode": True, "dump_workflow": True}
     else:

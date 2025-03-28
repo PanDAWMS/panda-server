@@ -15,7 +15,6 @@ from pandaserver.dataservice import DataServiceUtils
 from pandaserver.dataservice.activator import Activator
 from pandaserver.taskbuffer import EventServiceUtils
 
-# logger
 _logger = PandaLogger().getLogger("closer")
 
 

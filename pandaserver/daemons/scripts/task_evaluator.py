@@ -14,7 +14,6 @@ from pandacommon.pandautils.thread_utils import GenericThread
 from pandaserver.config import panda_config
 from pandaserver.daemons.scripts.metric_collector import MetricsDB
 
-# logger
 main_logger = PandaLogger().getLogger("task_evaluator")
 
 # dry run
@@ -43,7 +42,7 @@ class TaskEvaluationDB(object):
             def _wrapped_method(self, *args, **kwargs):
                 try:
                     _method(self, *args, **kwargs)
-                except Exception as exc:
+                except Exception:
                     pass
 
             return _wrapped_method
@@ -54,14 +53,11 @@ class TaskEvaluationDB(object):
         tmp_log = logger_utils.make_logger(main_logger, "TaskEvaluationDB.update")
         tmp_log.debug(f"start metric={metric}")
         # sql
-        sql_query_taskid = """SELECT jediTaskID """ """FROM ATLAS_PANDA.Task_Evaluation """ """WHERE metric = :metric """
+        sql_query_taskid = "SELECT jediTaskID FROM ATLAS_PANDA.Task_Evaluation WHERE metric = :metric"
         sql_update = (
-            """UPDATE ATLAS_PANDA.Task_Evaluation SET """
-            """value_json = :patch_value_json, """
-            """timestamp = :timestamp """
-            """WHERE jediTaskID=:taskID AND metric=:metric """
+            "UPDATE ATLAS_PANDA.Task_Evaluation " "SET value_json = :patch_value_json, timestamp = :timestamp " "WHERE jediTaskID=:taskID AND metric=:metric "
         )
-        sql_insert = """INSERT INTO ATLAS_PANDA.Task_Evaluation """ """VALUES ( """ """:taskID, :metric, :patch_value_json, :timestamp """ """) """
+        sql_insert = "INSERT INTO ATLAS_PANDA.Task_Evaluation VALUES (:taskID, :metric, :patch_value_json, :timestamp)"
         # now
         now_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         # get existing taskID list
@@ -218,8 +214,6 @@ class FetchData(object):
             # initialize
             # tmp_site_dict = dict()
             task_dict = dict()
-            # now time
-            now_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             # MetricsDB
             mdb = MetricsDB(self.tbuf)
             # get user evaluation
@@ -227,7 +221,6 @@ class FetchData(object):
             # get active tasks
             varMap = {}
             active_tasks_list = self.tbuf.querySQL(sql_get_active_tasks, varMap)
-            taskID_list = [task[0] for task in active_tasks_list]
             n_tot_tasks = len(active_tasks_list)
             tmp_log.debug(f"got total {n_tot_tasks} tasks")
             # counter

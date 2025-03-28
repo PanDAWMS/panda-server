@@ -8,8 +8,6 @@ import time
 import traceback
 import uuid
 
-from pandaserver.dataservice import DataServiceUtils, ErrorCode
-from pandaserver.dataservice.ddm import rucioAPI
 from rucio.common.exception import (
     DataIdentifierNotFound,
     FileConsistencyMismatch,
@@ -22,6 +20,9 @@ from rucio.common.exception import (
     UnsupportedOperation,
 )
 
+from pandaserver.dataservice import DataServiceUtils, ErrorCode
+from pandaserver.dataservice.ddm import rucioAPI
+
 from .adder_plugin_base import AdderPluginBase
 
 
@@ -31,7 +32,7 @@ class AdderSimplePlugin(AdderPluginBase):
     """
 
     # constructor
-    def __init__(self, job, **params)  -> None:
+    def __init__(self, job, **params) -> None:
         """
         Initialize the AdderSimplePlugin.
 

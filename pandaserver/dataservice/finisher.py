@@ -3,17 +3,16 @@ finish transferring jobs
 
 """
 
-import sys
-import threading
 import datetime
 import json
 import re
-
+import sys
+import threading
 from typing import List
+
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 
-# logger
 _logger = PandaLogger().getLogger("finisher")
 
 
@@ -128,12 +127,11 @@ class Finisher(threading.Thread):
             - list: A list of failed files.
             - list: A list of files with no output.
         """
-        tmp_log = LogWrapper(_logger,
-                             f"check_file_status-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_log = LogWrapper(_logger, f"check_file_status-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
         failed_files = []
         no_out_files = []
         for file in job.Files:
-            if file.type in ('output', 'log'):
+            if file.type in ("output", "log"):
                 if file.status == "failed":
                     failed_files.append(file.lfn)
                 elif file.status == "nooutput":
@@ -148,8 +146,7 @@ class Finisher(threading.Thread):
         """
         Starts the thread to finish transferring jobs
         """
-        tmp_log = LogWrapper(_logger,
-                             f"run-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
+        tmp_log = LogWrapper(_logger, f"run-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
         # start
         try:
             by_call_back = False

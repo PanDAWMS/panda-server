@@ -707,7 +707,7 @@ def update_worker_status(req: PandaRequest, worker_id, harvester_id, status, tim
         tmp_logger.error(message)
         return generate_response(False, message)
 
-    tmp_logger.debug(f"Done")
+    tmp_logger.debug("Done")
     return generate_response(True)
 
 
@@ -780,5 +780,5 @@ def update_worker_node(
 
     success, message = timed_method.result
 
-    tmp_logger.debug(f"Done")
+    tmp_logger.debug("Done")
     return generate_response(success, message)

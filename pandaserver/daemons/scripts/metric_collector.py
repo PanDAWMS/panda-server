@@ -12,10 +12,10 @@ import numpy as np
 from pandacommon.pandalogger import logger_utils
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
-from pandaserver.config import panda_config
 from scipy import stats
 
-# logger
+from pandaserver.config import panda_config
+
 main_logger = PandaLogger().getLogger("metric_collector")
 
 # dry run
@@ -146,7 +146,7 @@ class MetricsDB(object):
             def _wrapped_method(self, *args, **kwargs):
                 try:
                     _method(self, *args, **kwargs)
-                except Exception as exc:
+                except Exception:
                     pass
 
             return _wrapped_method
@@ -155,21 +155,12 @@ class MetricsDB(object):
 
     def update(self, metric, key_type, entity_dict):
         tmp_log = logger_utils.make_logger(main_logger, "MetricsDB.update")
-        # tmp_log.debug('start key={0} site={1}, gshare={2}'.format(key, site, gshare))
-        # sql
-        # sql_update = (
-        #     """UPDATE ATLAS_PANDA.Metrics SET """
-        #         """value_json = json_mergepatch(value_json, :patch_value_json), """
-        #         """timestamp = :timestamp """
-        #     """WHERE computingSite=:site AND gshare=:gshare AND metric=:metric """
-        # )
         sql_update = (
-            """UPDATE ATLAS_PANDA.Metrics SET """
-            """value_json = :patch_value_json , """
-            """timestamp = :timestamp """
-            """WHERE computingSite=:site AND gshare=:gshare AND metric=:metric """
+            "UPDATE ATLAS_PANDA.Metrics "
+            "SET value_json = :patch_value_json , timestamp = :timestamp "
+            "WHERE computingSite=:site AND gshare=:gshare AND metric=:metric "
         )
-        sql_insert = """INSERT INTO ATLAS_PANDA.Metrics """ """VALUES ( """ """:site, :gshare, :metric, :patch_value_json, :timestamp """ """) """
+        sql_insert = "INSERT INTO ATLAS_PANDA.Metrics " "VALUES (:site, :gshare, :metric, :patch_value_json, :timestamp)"
         # now
         now_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         # var map template
@@ -187,7 +178,7 @@ class MetricsDB(object):
             try:
                 patch_value_json = json.dumps(entity_dict)
             except Exception:
-                tmp_log.error(traceback.format_exc() + " " + str(v))
+                tmp_log.error(traceback.format_exc())
                 return
             # initialize varMap
             varMap = varMap_template.copy()
@@ -597,11 +588,7 @@ class FetchData(object):
                         ranking_wait_time = np.maximum(v["w_cl95upp"], v["long_q_mean"])
                         ranking_wait_time_list.append(ranking_wait_time)
                     else:
-                        tmp_log.warning(
-                            ("site={site} none value, skipped : w_cl95upp={w_cl95upp} long_q_mean={long_q_mean} ").format(
-                                w_cl95upp=v["w_cl95upp"], long_q_mean=v["long_q_mean"]
-                            )
-                        )
+                        tmp_log.warning(f"site={site} none value, skipped : w_cl95upp={v['w_cl95upp']} long_q_mean={v['long_q_mean']}")
                         continue
                 except KeyError:
                     continue

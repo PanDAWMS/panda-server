@@ -8,13 +8,11 @@ from pandaserver.config import panda_config
 from pandaserver.proxycache import panda_proxy_cache, token_cache
 from pandaserver.srvcore import CoreUtils
 
-# logger
 _logger = PandaLogger().getLogger("activeusers_query")
 
 
 # main
 def main(tbuf=None, **kwargs):
-    # logger
     tmpLog = LogWrapper(_logger)
     requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
 

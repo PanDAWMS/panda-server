@@ -255,7 +255,7 @@ def upload_cache_file(req: PandaRequest, file: FileStorage) -> Dict:
     """
 
     tmp_logger = LogWrapper(_logger, f"upload_cache_file-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat('/')}")
-    tmp_logger.debug(f"Start")
+    tmp_logger.debug("Start")
 
     # check if using secure connection and the proxy is not limited
     # we run these checks explicitly to trigger garbage collection
@@ -396,11 +396,11 @@ def touch_cache_file(req: PandaRequest, file_name: str) -> Dict:
     """
 
     tmp_logger = LogWrapper(_logger, f"touch_cache_file < {file_name} >")
-    tmp_logger.debug(f"Start")
+    tmp_logger.debug("Start")
 
     try:
         os.utime(f"{panda_config.cache_dir}/{file_name.split('/')[-1]}", None)
-        tmp_logger.debug(f"Done")
+        tmp_logger.debug("Done")
         return generate_response(True)
     except Exception:
         error_type, error_value = sys.exc_info()[:2]
@@ -429,7 +429,7 @@ def delete_cache_file(req: PandaRequest, file_name: str) -> Dict:
     """
 
     tmp_logger = LogWrapper(_logger, f"delete_cache_file <{file_name}>")
-    tmp_logger.debug(f"Start")
+    tmp_logger.debug("Start")
 
     try:
         # may be reused for re-brokerage
@@ -557,7 +557,7 @@ def upload_hpo_checkpoint(req: PandaRequest, file: FileStorage) -> Dict:
     # get the file size
     content_length = _get_content_length(req, tmp_logger)
     if not content_length:
-        error_message = f"Cannot get content-length"
+        error_message = "Cannot get content-length"
         tmp_logger.error(error_message)
         return generate_response(False, error_message)
 
@@ -801,7 +801,7 @@ def upload_event_picking_request(
     content_length = _get_content_length(req, tmp_logger)
     if not content_length:
         error_message = "Cannot get content-length from HTTP request."
-        tmp_logger.error(f"{error_message}")
+        tmp_logger.error(error_message)
         return generate_response(False, f"ERROR: {error_message}")
 
     if content_length > EVENT_PICKING_LIMIT:

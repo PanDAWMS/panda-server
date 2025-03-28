@@ -3,6 +3,7 @@ import time
 
 from pandacommon.pandalogger import logger_utils
 from pandacommon.pandautils.thread_utils import GenericThread
+
 from pandaserver.config import panda_config
 from pandaserver.configurator import Configurator as configurator_module
 from pandaserver.configurator.Configurator import (
@@ -12,7 +13,6 @@ from pandaserver.configurator.Configurator import (
     SWTagsDumper,
 )
 
-# logger
 base_logger = configurator_module._logger
 
 

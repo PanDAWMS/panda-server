@@ -253,7 +253,7 @@ def get_proxy(req: PandaRequest, role: str = None, dn: str = None) -> dict:
         return generate_response(False, tmp_msg)
 
     data = {"user_proxy": output}
-    tmp_logger.debug(f"Done")
+    tmp_logger.debug("Done")
     return generate_response(True, data=data)
 
 

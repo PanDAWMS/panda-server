@@ -18,7 +18,6 @@ from pandaserver.config import panda_config
 from pandaserver.jobdispatcher.Watcher import Watcher
 from pandaserver.taskbuffer import EventServiceUtils
 
-# logger
 _logger = PandaLogger().getLogger("copyArchive")
 
 
@@ -497,7 +496,6 @@ def main(argv=tuple(), tbuf=None, **kwargs):
         {":creationTime": timeLimit},
     )
     jobs = []
-    dashFileMap = {}
     if res is not None:
         for pandaID, cloud, prodSourceLabel in res:
             # collect PandaIDs

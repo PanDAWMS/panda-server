@@ -24,7 +24,6 @@ from pandaserver.jobdispatcher import Protocol
 from pandaserver.proxycache import panda_proxy_cache, token_cache
 from pandaserver.srvcore import CoreUtils
 
-# logger
 _logger = PandaLogger().getLogger("JobDispatcher")
 _pilotReqLogger = PandaLogger().getLogger("PilotRequests")
 
@@ -302,7 +301,7 @@ class JobDispatcher:
         if metadata != "":
             ret = self.taskBuffer.addMetadata([jobID], [metadata], [jobStatus])
             if len(ret) > 0 and not ret[0]:
-                tmp_logger.debug(f"failed to add metadata")
+                tmp_logger.debug("failed to add metadata")
                 # return succeed
                 response = Protocol.Response(Protocol.SC_Success)
                 return response.encode(acceptJson)
@@ -382,7 +381,7 @@ class JobDispatcher:
                 attStr = ""
                 for job in tmpWrapper.result:
                     if job is None:
-                        retStr += f"notfound+"
+                        retStr += "notfound+"
                         attStr += "0+"
                     else:
                         retStr += f"{job.jobStatus}+"
@@ -1043,7 +1042,7 @@ def updateJob(
 
     # invalid role
     if not prodManager:
-        tmp_log.warning(f"invalid role")
+        tmp_log.warning("invalid role")
         tmpMsg = None
         if acceptJson:
             tmpMsg = "no production/pilot role in VOMS FQANs or non pilot owner"

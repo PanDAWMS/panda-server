@@ -2,6 +2,7 @@
 find candidate site to distribute input datasets
 
 """
+
 import datetime
 import fnmatch
 import re
@@ -772,7 +773,7 @@ class DynDataDistributer:
             tmp_ds_ret, tmp_dataset_map = self.list_datasets_by_guids(tmp_guids, dataset_filters)
             # failed
             if not tmp_ds_ret:
-                tmp_logger.error(f"failed to convert GUIDs to datasets")
+                tmp_logger.error("failed to convert GUIDs to datasets")
                 if "isFatal" in tmp_dataset_map and tmp_dataset_map["isFatal"] is True:
                     tmp_logger.debug("end")
                     return fatal_ret

@@ -1,6 +1,7 @@
 """
 download access tokens for OIDC token exchange flow
 """
+
 import datetime
 import json
 import os.path
@@ -12,7 +13,6 @@ from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandaserver.config import panda_config
 from pandaserver.srvcore.oidc_utils import get_access_token
 
-# logger
 _logger = PandaLogger().getLogger("token_cache")
 
 

@@ -10,10 +10,10 @@ import traceback
 from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandalogger.PandaLogger import PandaLogger
 from pandacommon.pandautils.thread_utils import GenericThread
+
 from pandaserver.config import panda_config
 from pandaserver.dataservice import RecoverLostFilesCore
 
-# logger
 _logger = PandaLogger().getLogger("recover_lost_files")
 
 

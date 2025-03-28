@@ -18,6 +18,7 @@ from pandaserver.dataservice.DataServiceUtils import select_scope
 from pandaserver.dataservice.ddm import rucioAPI
 from pandaserver.dataservice.finisher import Finisher
 from pandaserver.taskbuffer import EventServiceUtils
+from pandaserver.taskbuffer.TaskBuffer import taskBuffer
 
 _logger = PandaLogger().getLogger("datasetManager")
 
@@ -61,8 +62,6 @@ def main(tbuf=None, **kwargs):
 
     _memoryCheck("start")
 
-    from pandaserver.taskbuffer.TaskBuffer import taskBuffer
-
     requester_id = GenericThread().get_full_id(__name__, sys.modules[__name__].__file__)
     taskBuffer.init(
         panda_config.dbhost,
@@ -71,10 +70,9 @@ def main(tbuf=None, **kwargs):
         useTimeout=True,
         requester=requester_id,
     )
-    # else:
-    #     taskBuffer = tbuf
 
     # instantiate sitemapper
+    global siteMapper
     siteMapper = SiteMapper(taskBuffer)
 
     # list with lock
@@ -99,6 +97,7 @@ def main(tbuf=None, **kwargs):
             return appended
 
     # list of dis datasets to be deleted
+    global deletedDisList
     deletedDisList = ListWithLock()
 
     # set tobedeleted to dis dataset
@@ -816,7 +815,6 @@ def main(tbuf=None, **kwargs):
                         continue
                     # get LFN list
                     lfns = []
-                    guids = []
                     scopes = []
                     for tmpFile in tmpJob.Files:
                         # only input files are checked
@@ -1014,9 +1012,8 @@ def main(tbuf=None, **kwargs):
                         continue
                     _logger.debug(f"delete sub {name}")
                     if name.startswith("user.") or name.startswith("group.") or name.startswith("hc_test.") or name.startswith("panda.um."):
-                        dsExists = False
+                        pass
                     else:
-                        dsExists = True
                         # get PandaIDs
                         self.proxyLock.acquire()
                         retF, resF = taskBuffer.querySQLS(
@@ -1056,7 +1053,6 @@ def main(tbuf=None, **kwargs):
                                 _logger.debug(f"deleting sub {name}")
                                 try:
                                     rucioAPI.erase_dataset(name, grace_period=4)
-                                    status = True
                                 except Exception:
                                     errtype, errvalue = sys.exc_info()[:2]
                                     out = f"{errtype} {errvalue}"

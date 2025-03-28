@@ -105,4 +105,4 @@ profile = "black"
 line-length = 160
 
 [tool.flake8]
-ignore = ['E501', 'U100']
+ignore = ['E501', 'U100', 'W503', 'F403', 'F405', "W605", "E203"]
