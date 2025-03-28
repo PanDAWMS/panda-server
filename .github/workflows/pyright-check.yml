@@ -1,0 +1,29 @@
+name: Pyright Check
+
+on: [pull_request]
+
+jobs:
+  type-check:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install pyright
+      run: npm install -g pyright
+
+    - name: Run pyright on changed files
+      run: |
+        files=$(git diff --name-only origin/master...HEAD -- '*.py')
+        if [ -n "$files" ]; then
+          echo "$files" | xargs -n1 pyright
+        else
+          echo "No Python files changed."
+        fi
