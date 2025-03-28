@@ -8,17 +8,30 @@ import re
 import time
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils, srv_msg_utils
 from pandaserver.taskbuffer import EventServiceUtils, PrioUtil
+from pandaserver.taskbuffer.DataCarousel import (
+    DataCarouselRequestSpec,
+    DataCarouselRequestStatus,
+    get_resubmit_request_spec,
+)
 from pandaserver.taskbuffer.DatasetSpec import DatasetSpec
 from pandaserver.taskbuffer.db_proxy_mods.base_module import (
     BaseModule,
     SQL_QUEUE_TOPIC_async_dataset_update,
     memoize,
+    varNUMBER,
 )
 from pandaserver.taskbuffer.FileSpec import FileSpec
+from pandaserver.taskbuffer.JediDatasetSpec import (
+    INPUT_TYPES_var_map,
+    INPUT_TYPES_var_str,
+    JediDatasetSpec,
+)
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 from pandaserver.taskbuffer.JobSpec import JobSpec
 
 
@@ -3192,3 +3205,1448 @@ class MiscStandaloneModule(BaseModule):
             # error
             self.dump_error_message(g_tmp_log)
             return False
+
+    # insert data carousel requests
+    def insert_data_carousel_requests_JEDI(self, task_id, dc_req_specs):
+        comment = " /* JediDBProxy.insert_data_carousel_requests_JEDI */"
+        tmp_log = self.create_tagged_logger(comment, f"jediTaskID={task_id}")
+        tmp_log.debug("start")
+        try:
+            # start transaction
+            self.conn.begin()
+            # insert requests
+            n_req_inserted = 0
+            n_rel_inserted = 0
+            n_req_reused = 0
+            n_rel_reused = 0
+            for dc_req_spec in dc_req_specs:
+                # sql to query request of the dataset
+                status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.reusable_statuses, prefix=":status")
+                sql_query = (
+                    f"SELECT request_id "
+                    f"FROM {panda_config.schemaJEDI}.data_carousel_requests "
+                    f"WHERE dataset=:dataset "
+                    f"AND status IN ({status_var_names_str}) "
+                )
+                var_map = {":dataset": dc_req_spec.dataset}
+                var_map.update(status_var_map)
+                self.cur.execute(sql_query + comment, var_map)
+                res = self.cur.fetchall()
+                # check if already existing request for the dataset
+                the_request_id = None
+                if res:
+                    # have existing request; reuse it
+                    for (request_id,) in res:
+                        the_request_id = request_id
+                        n_req_reused += 1
+                        break
+                else:
+                    # no existing request; insert new one
+                    # sql to insert request
+                    sql_insert_request = (
+                        f"INSERT INTO {panda_config.schemaJEDI}.data_carousel_requests ({dc_req_spec.columnNames()}) "
+                        f"{dc_req_spec.bindValuesExpression()} "
+                        f"RETURNING request_id INTO :new_request_id "
+                    )
+                    var_map = dc_req_spec.valuesMap(useSeq=True)
+                    var_map[":new_request_id"] = self.cur.var(varNUMBER)
+                    self.cur.execute(sql_insert_request + comment, var_map)
+                    the_request_id = int(self.getvalue_corrector(self.cur.getvalue(var_map[":new_request_id"])))
+                    n_req_inserted += 1
+                if the_request_id is None:
+                    raise RuntimeError("the_request_id is None")
+                # sql to query relation
+                sql_rel_query = (
+                    f"SELECT request_id, task_id "
+                    f"FROM {panda_config.schemaJEDI}.data_carousel_relations "
+                    f"WHERE request_id=:request_id AND task_id=:task_id "
+                )
+                var_map = {":request_id": the_request_id, ":task_id": task_id}
+                self.cur.execute(sql_rel_query + comment, var_map)
+                res = self.cur.fetchall()
+                if res:
+                    # have existing relation; skipped
+                    n_rel_reused += 1
+                else:
+                    # sql to insert relation
+                    sql_insert_relation = (
+                        f"INSERT INTO {panda_config.schemaJEDI}.data_carousel_relations (request_id, task_id) " f"VALUES(:request_id, :task_id) "
+                    )
+                    self.cur.execute(sql_insert_relation + comment, var_map)
+                    n_rel_inserted += 1
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            tmp_log.debug(
+                f"inserted {n_req_inserted}/{len(dc_req_specs)} requests and {n_rel_inserted} relations ; reused {n_req_reused} requests and {n_rel_reused} relations"
+            )
+            return n_req_inserted
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return None
+
+    # update a data carousel request
+    def update_data_carousel_request_JEDI(self, dc_req_spec):
+        comment = " /* JediDBProxy.update_data_carousel_request_JEDI */"
+        tmp_log = self.create_tagged_logger(comment, f"request_id={dc_req_spec.request_id}")
+        tmp_log.debug("start")
+        try:
+            # start transaction
+            self.conn.begin()
+            # sql to update request
+            dc_req_spec.modification_time = naive_utcnow()
+            sql_update = (
+                f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests " f"SET {dc_req_spec.bindUpdateChangesExpression()} " "WHERE request_id=:request_id "
+            )
+            var_map = dc_req_spec.valuesMap(useSeq=False, onlyChanged=True)
+            var_map[":request_id"] = dc_req_spec.request_id
+            self.cur.execute(sql_update + comment, var_map)
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            tmp_log.debug(f"updated {dc_req_spec.bindUpdateChangesExpression()}")
+            return dc_req_spec
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return None
+
+    # get data carousel queued requests and info of their related tasks
+    def get_data_carousel_queued_requests_JEDI(self):
+        comment = " /* JediDBProxy.get_data_carousel_queued_requests_JEDI */"
+        tmp_log = self.create_tagged_logger(comment)
+        tmp_log.debug("start")
+        try:
+            # initialize
+            ret_list = []
+            # start transaction
+            self.conn.begin()
+            # sql to query queued requests with gshare and priority info from related tasks
+            sql_query_req = (
+                f"SELECT {DataCarouselRequestSpec.columnNames()} " f"FROM {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE status=:status "
+            )
+            var_map = {":status": DataCarouselRequestStatus.queued}
+            self.cur.execute(sql_query_req + comment, var_map)
+            res_list = self.cur.fetchall()
+            if res_list:
+                for res in res_list:
+                    # make request spec
+                    dc_req_spec = DataCarouselRequestSpec()
+                    dc_req_spec.pack(res)
+                    # query info of related tasks
+                    sql_query_tasks = (
+                        f"SELECT t.jediTaskID, t.gshare, COALESCE(t.currentPriority, t.taskPriority) "
+                        f"FROM {panda_config.schemaJEDI}.data_carousel_relations rel, {panda_config.schemaJEDI}.JEDI_Tasks t "
+                        f"WHERE rel.request_id=:request_id AND rel.task_id=t.jediTaskID "
+                    )
+                    var_map = {":request_id": dc_req_spec.request_id}
+                    self.cur.execute(sql_query_tasks + comment, var_map)
+                    res_tasks = self.cur.fetchall()
+                    task_specs = []
+                    for task_id, gshare, priority in res_tasks:
+                        task_spec = JediTaskSpec()
+                        task_spec.jediTaskID = task_id
+                        task_spec.gshare = gshare
+                        task_spec.currentPriority = priority
+                        task_specs.append(task_spec)
+                    # add
+                    ret_list.append((dc_req_spec, task_specs))
+            else:
+                tmp_log.debug("no queued request")
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            tmp_log.debug(f"got {len(ret_list)} queued requests")
+            return ret_list
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return None
+
+    # get data carousel requests of tasks by task status
+    def get_data_carousel_requests_by_task_status_JEDI(self, status_filter_list=None, status_exclusion_list=None):
+        comment = " /* JediDBProxy.get_data_carousel_requests_by_task_status_JEDI */"
+        tmp_log = self.create_tagged_logger(comment)
+        tmp_log.debug("start")
+        try:
+            # initialize
+            ret_requests_map = {}
+            ret_relation_map = {}
+            # start transaction
+            self.conn.begin()
+            # sql to query queued requests with gshare and priority info from related tasks
+            sql_query_id = (
+                f"SELECT rel.request_id, rel.task_id "
+                f"FROM {panda_config.schemaJEDI}.data_carousel_relations rel, {panda_config.schemaJEDI}.JEDI_Tasks t "
+                f"WHERE rel.task_id=t.jediTaskID "
+            )
+            var_map = {}
+            if status_filter_list:
+                status_var_names_str, status_var_map = get_sql_IN_bind_variables(status_filter_list, prefix=":status")
+                sql_query_id += f"AND t.status IN ({status_var_names_str}) "
+                var_map.update(status_var_map)
+            if status_exclusion_list:
+                antistatus_var_names_str, antistatus_var_map = get_sql_IN_bind_variables(status_exclusion_list, prefix=":antistatus")
+                sql_query_id += f"AND t.status NOT IN ({antistatus_var_names_str}) "
+                var_map.update(antistatus_var_map)
+            self.cur.execute(sql_query_id + comment, var_map)
+            res_list = self.cur.fetchall()
+            if res_list:
+                for request_id, task_id in res_list:
+                    # fill relation map
+                    ret_relation_map.setdefault(task_id, [])
+                    ret_relation_map[task_id].append(request_id)
+                    if request_id in ret_requests_map:
+                        # already got the request spec; skip
+                        continue
+                    else:
+                        # query info of related tasks
+                        sql_query_requests = (
+                            f"SELECT {DataCarouselRequestSpec.columnNames()} "
+                            f"FROM {panda_config.schemaJEDI}.data_carousel_requests "
+                            f"WHERE request_id=:request_id "
+                        )
+                        var_map = {":request_id": request_id}
+                        self.cur.execute(sql_query_requests + comment, var_map)
+                        req_res_list = self.cur.fetchall()
+                        # make request spec
+                        dc_req_spec = DataCarouselRequestSpec()
+                        for req_res in req_res_list:
+                            dc_req_spec.pack(req_res)
+                            break
+                        # fill requests map
+                        ret_requests_map[request_id] = dc_req_spec
+            else:
+                tmp_log.debug("no queued request")
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            tmp_log.debug(f"got {len(ret_requests_map)} requests of {len(ret_relation_map)} active tasks")
+            return ret_requests_map, ret_relation_map
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return None
+
+    # get data carousel staging requests
+    def get_data_carousel_staging_requests_JEDI(self, time_limit_minutes=5):
+        comment = " /* JediDBProxy.get_data_carousel_staging_requests_JEDI */"
+        tmp_log = self.create_tagged_logger(comment)
+        tmp_log.debug("start")
+        try:
+            # initialize
+            ret_list = []
+            # start transaction
+            self.conn.begin()
+            # sql to query staging requests
+            sql_query_req = (
+                f"SELECT {DataCarouselRequestSpec.columnNames()} "
+                f"FROM {panda_config.schemaJEDI}.data_carousel_requests "
+                f"WHERE status=:status "
+                f"AND ( check_time IS NULL OR check_time<=:check_time_max ) "
+            )
+            now_time = naive_utcnow()
+            var_map = {":status": DataCarouselRequestStatus.staging, ":check_time_max": now_time - datetime.timedelta(minutes=time_limit_minutes)}
+            self.cur.execute(sql_query_req + comment, var_map)
+            res_list = self.cur.fetchall()
+            if res_list:
+                now_time = naive_utcnow()
+                sql_update = f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests " f"SET check_time=:check_time " f"WHERE request_id=:request_id "
+                for res in res_list:
+                    # make request spec
+                    dc_req_spec = DataCarouselRequestSpec()
+                    dc_req_spec.pack(res)
+                    # update check time
+                    var_map = {":request_id": dc_req_spec.request_id, ":check_time": now_time}
+                    self.cur.execute(sql_update + comment, var_map)
+                    # add
+                    ret_list.append(dc_req_spec)
+            else:
+                tmp_log.debug("no queued request")
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            tmp_log.debug(f"got {len(ret_list)} queued requests")
+            return ret_list
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return None
+
+    # delete data carousel requests
+    def delete_data_carousel_requests_JEDI(self, request_id_list):
+        comment = " /* JediDBProxy.delete_data_carousel_requests_JEDI */"
+        tmp_log = self.create_tagged_logger(comment)
+        tmp_log.debug("start")
+        try:
+            # start transaction
+            self.conn.begin()
+            # sql to delete terminated requests
+            now_time = naive_utcnow()
+            sql_delete_req = f"DELETE {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE request_id=:request_id " f"AND status IN (:status1, :status2) "
+            var_map_base = {
+                ":status1": DataCarouselRequestStatus.done,
+                ":status2": DataCarouselRequestStatus.cancelled,
+            }
+            var_map_list = []
+            for request_id in request_id_list:
+                var_map = var_map_base.copy()
+                var_map[":request_id"] = request_id
+                var_map_list.append(var_map)
+            self.cur.executemany(sql_delete_req + comment, var_map_list)
+            ret_req = self.cur.rowcount
+            # sql to delete relations
+            sql_delete_rel = (
+                f"DELETE {panda_config.schemaJEDI}.data_carousel_relations rel "
+                f"WHERE rel.request_id NOT IN "
+                f"(SELECT req.request_id FROM {panda_config.schemaJEDI}.data_carousel_requests req) "
+            )
+            self.cur.execute(sql_delete_rel + comment, {})
+            ret_rel = self.cur.rowcount
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            tmp_log.debug(f"cleaned up {ret_req}/{len(request_id_list)} requests and {ret_rel} relations")
+            return ret_req
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return None
+
+    # clean up data carousel requests
+    def clean_up_data_carousel_requests_JEDI(self, time_limit_days=30):
+        comment = " /* JediDBProxy.clean_up_data_carousel_requests_JEDI */"
+        tmp_log = self.create_tagged_logger(comment)
+        tmp_log.debug("start")
+        try:
+            # start transaction
+            self.conn.begin()
+            # sql to delete terminated requests
+            now_time = naive_utcnow()
+            sql_delete_req = (
+                f"DELETE {panda_config.schemaJEDI}.data_carousel_requests " f"WHERE status IN (:status1, :status2) " f"AND end_time<=:end_time_max "
+            )
+            var_map = {
+                ":status1": DataCarouselRequestStatus.done,
+                ":status2": DataCarouselRequestStatus.cancelled,
+                ":end_time_max": now_time - datetime.timedelta(days=time_limit_days),
+            }
+            self.cur.execute(sql_delete_req + comment, var_map)
+            ret_req = self.cur.rowcount
+            # sql to delete relations
+            sql_delete_rel = (
+                f"DELETE {panda_config.schemaJEDI}.data_carousel_relations rel "
+                f"WHERE rel.request_id NOT IN "
+                f"(SELECT req.request_id FROM {panda_config.schemaJEDI}.data_carousel_requests req) "
+            )
+            self.cur.execute(sql_delete_rel + comment, {})
+            ret_rel = self.cur.rowcount
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            tmp_log.debug(f"cleaned up {ret_req} requests and {ret_rel} relations older than {time_limit_days} days")
+            return ret_req
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return None
+
+    # cancel a data carousel request
+    def cancel_data_carousel_request_JEDI(self, request_id):
+        comment = " /* JediDBProxy.cancel_data_carousel_request_JEDI */"
+        tmp_log = self.create_tagged_logger(comment, f"request_id={request_id}")
+        tmp_log.debug("start")
+        try:
+            # start transaction
+            self.conn.begin()
+            # sql to update request status to cancelled
+            now_time = naive_utcnow()
+            status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.active_statuses, prefix=":old_status")
+            sql_update = (
+                f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
+                f"SET status=:new_status, end_time=:now_time, modification_time=:now_time "
+                f"WHERE request_id=:request_id "
+                f"AND status IN ({status_var_names_str}) "
+            )
+            var_map = {
+                ":request_id": request_id,
+                ":new_status": DataCarouselRequestStatus.cancelled,
+                ":now_time": now_time,
+            }
+            var_map.update(status_var_map)
+            self.cur.execute(sql_update + comment, var_map)
+            ret_req = self.cur.rowcount
+            if not ret_req:
+                tmp_log.warning(f"already terminated; cannot be cancelled ; skipped")
+            else:
+                tmp_log.debug(f"cancelled request")
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            return ret_req
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return None
+
+    # retire a data carousel request
+    def retire_data_carousel_request_JEDI(self, request_id):
+        comment = " /* JediDBProxy.retire_data_carousel_request_JEDI */"
+        tmp_log = self.create_tagged_logger(comment, f"request_id={request_id}")
+        tmp_log.debug("start")
+        try:
+            # start transaction
+            self.conn.begin()
+            # sql to update request status to retired
+            now_time = naive_utcnow()
+            sql_update = (
+                f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
+                f"SET status=:new_status, end_time=:now_time, modification_time=:now_time "
+                f"WHERE request_id=:request_id "
+                f"AND status=:old_status "
+            )
+            var_map = {
+                ":request_id": request_id,
+                ":old_status": DataCarouselRequestStatus.done,
+                ":new_status": DataCarouselRequestStatus.retired,
+                ":now_time": now_time,
+            }
+            self.cur.execute(sql_update + comment, var_map)
+            ret_req = self.cur.rowcount
+            if not ret_req:
+                tmp_log.warning(f"not done; cannot be retired ; skipped")
+            else:
+                tmp_log.debug(f"retired request")
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            return ret_req
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return None
+
+    # resubmit a data carousel request
+    def resubmit_data_carousel_request_JEDI(self, request_id):
+        comment = " /* JediDBProxy.resubmit_data_carousel_request_JEDI */"
+        to_resubmit = False
+        tmp_log = self.create_tagged_logger(comment, f"request_id={request_id}")
+        tmp_log.debug("start")
+        try:
+            # start transaction
+            self.conn.begin()
+            # get request spec
+            dc_req_spec = None
+            status_var_names_str, status_var_map = get_sql_IN_bind_variables(DataCarouselRequestStatus.resubmittable_statuses, prefix=":status")
+            sql_query_req = (
+                f"SELECT {DataCarouselRequestSpec.columnNames()} "
+                f"FROM {panda_config.schemaJEDI}.data_carousel_requests "
+                f"WHERE request_id=:request_id "
+                f"AND status IN ({status_var_names_str}) "
+            )
+            var_map = {":request_id": request_id}
+            var_map.update(status_var_map)
+            self.cur.execute(sql_query_req + comment, var_map)
+            res_list = self.cur.fetchall()
+            for res in res_list:
+                # make request spec
+                dc_req_spec = DataCarouselRequestSpec()
+                dc_req_spec.pack(res)
+                break
+            # prepare new request spec to resubmit
+            if dc_req_spec:
+                dc_req_spec_to_resubmit = get_resubmit_request_spec(dc_req_spec)
+            else:
+                # roll back
+                self._rollback()
+                return False
+            # sql to update old request status (staging to cancelled, done to retired, others intact)
+            now_time = naive_utcnow()
+            if dc_req_spec.status == DataCarouselRequestStatus.staging:
+                new_status = DataCarouselRequestStatus.cancelled
+                sql_update = (
+                    f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
+                    f"SET status=:new_status, end_time=:now_time, modification_time=:now_time "
+                    f"WHERE request_id=:request_id "
+                )
+                var_map = {
+                    ":request_id": request_id,
+                    ":new_status": new_status,
+                    ":now_time": now_time,
+                }
+                self.cur.execute(sql_update + comment, var_map)
+                ret_req = self.cur.rowcount
+                if not ret_req:
+                    tmp_log.warning(f"cannot be cancelled ; skipped")
+                    # roll back
+                    self._rollback()
+                    return False
+                else:
+                    tmp_log.debug(f"cancelled request")
+            elif dc_req_spec.status == DataCarouselRequestStatus.done:
+                new_status = DataCarouselRequestStatus.retired
+                sql_update = (
+                    f"UPDATE {panda_config.schemaJEDI}.data_carousel_requests "
+                    f"SET status=:new_status, modification_time=:now_time "
+                    f"WHERE request_id=:request_id "
+                )
+                var_map = {
+                    ":request_id": request_id,
+                    ":new_status": new_status,
+                    ":now_time": now_time,
+                }
+                self.cur.execute(sql_update + comment, var_map)
+                ret_req = self.cur.rowcount
+                if not ret_req:
+                    tmp_log.warning(f"cannot be retired ; skipped")
+                    # roll back
+                    self._rollback()
+                    return False
+                else:
+                    tmp_log.debug(f"retired request")
+            else:
+                (f"already {dc_req_spec.status} ; skipped")
+            # resubmit new request
+            # sql to insert request
+            sql_insert_request = (
+                f"INSERT INTO {panda_config.schemaJEDI}.data_carousel_requests ({dc_req_spec_to_resubmit.columnNames()}) "
+                f"{dc_req_spec_to_resubmit.bindValuesExpression()} "
+                f"RETURNING request_id INTO :new_request_id "
+            )
+            var_map = dc_req_spec_to_resubmit.valuesMap(useSeq=True)
+            var_map[":new_request_id"] = self.cur.var(varNUMBER)
+            self.cur.execute(sql_insert_request + comment, var_map)
+            new_request_id = int(self.getvalue_corrector(self.cur.getvalue(var_map[":new_request_id"])))
+            if new_request_id is None:
+                raise RuntimeError("new_request_id is None")
+            tmp_log.debug(f"resubmitted request with new_request_id={new_request_id}")
+            # sql to update relations according to the relations of the old request
+            sql_update_relations = (
+                f"UPDATE {panda_config.schemaJEDI}.data_carousel_relations " f"SET request_id=:new_request_id " f"WHERE request_id=:old_request_id "
+            )
+            var_map = {":new_request_id": new_request_id, ":old_request_id": request_id}
+            self.cur.execute(sql_update_relations + comment, var_map)
+            ret_rel = self.cur.rowcount
+            tmp_log.debug(f"updated {ret_rel} relations about new_request_id={new_request_id}")
+            # fill new request_id
+            dc_req_spec_resubmitted = dc_req_spec_to_resubmit
+            dc_req_spec_resubmitted.request_id = new_request_id
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            return dc_req_spec_resubmitted
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return None
+
+    # get pending data carousel tasks and their input datasets
+    def get_pending_dc_tasks_JEDI(self, task_type="prod", time_limit_minutes=60):
+        comment = " /* JediDBProxy.get_pending_dc_tasks_JEDI */"
+        tmp_log = self.create_tagged_logger(comment)
+        tmp_log.debug("start")
+        try:
+            # sql to get pending tasks
+            sql_tasks = (
+                "SELECT tabT.jediTaskID, tabT.splitRule "
+                "FROM {0}.JEDI_Tasks tabT, {0}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=:status AND tabA.status=tabT.status "
+                "AND tabT.taskType=:taskType AND tabT.modificationTime<:timeLimit".format(panda_config.schemaJEDI)
+            )
+            # sql to get input dataset
+            sql_ds = (
+                "SELECT tabD.datasetID, tabD.datasetName "
+                "FROM {0}.JEDI_Datasets tabD "
+                "WHERE tabD.jediTaskID=:jediTaskID AND tabD.type IN (:type1, :type2) ".format(panda_config.schemaJEDI)
+            )
+            # initialize
+            ret_tasks_dict = {}
+            # start transaction
+            self.conn.begin()
+            # get pending tasks
+            var_map = {":status": "pending", ":taskType": task_type}
+            var_map[":timeLimit"] = naive_utcnow() - datetime.timedelta(minutes=time_limit_minutes)
+            self.cur.execute(sql_tasks + comment, var_map)
+            res = self.cur.fetchall()
+            if res:
+                for task_id, split_rule in res:
+                    tmp_taskspec = JediTaskSpec()
+                    tmp_taskspec.splitRule = split_rule
+                    if tmp_taskspec.inputPreStaging():
+                        # is data carousel task
+                        var_map = {
+                            ":jediTaskID": task_id,
+                            ":type1": "input",
+                            ":type2": "pseudo_input",
+                        }
+                        self.cur.execute(sql_ds + comment, var_map)
+                        ds_res = self.cur.fetchall()
+                        if ds_res:
+                            ret_tasks_dict[task_id] = []
+                            for ds_id, ds_name in ds_res:
+                                ret_tasks_dict[task_id].append(ds_name)
+            else:
+                tmp_log.debug("no pending task")
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            tmp_log.debug(f"found pending dc tasks: {ret_tasks_dict}")
+            return ret_tasks_dict
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmp_log)
+            return None
+
+    # get datasets of input and lib, to update data locality records
+    def get_tasks_inputdatasets_JEDI(self, vo):
+        comment = " /* JediDBProxy.get_tasks_inputdatasets_JEDI */"
+        # last update time
+        tmpLog = self.create_tagged_logger(comment, f"vo={vo}")
+        tmpLog.debug("start")
+        now_ts = naive_utcnow()
+        try:
+            retVal = None
+            # sql to get all jediTaskID and datasetID of input
+            sql = (
+                "SELECT tabT.jediTaskID,datasetID, tabD.datasetName "
+                "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD,{0}.JEDI_AUX_Status_MinTaskID tabA "
+                "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID AND tabT.jediTaskID=tabD.jediTaskID "
+                "AND tabT.vo=:vo AND tabT.status IN ('running', 'ready', 'scouting', 'pending') "
+                "AND tabD.type IN ('input') AND tabD.masterID IS NULL "
+            ).format(panda_config.schemaJEDI)
+            # start transaction
+            self.conn.begin()
+            # get
+            varMap = {}
+            varMap[":vo"] = vo
+            self.cur.execute(sql + comment, varMap)
+            res = self.cur.fetchall()
+            nRows = self.cur.rowcount
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            retVal = res
+            tmpLog.debug(f"done with {nRows} rows")
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return retVal
+
+    # update dataset locality
+    def updateDatasetLocality_JEDI(self, jedi_taskid, datasetid, rse):
+        comment = " /* JediDBProxy.updateDatasetLocality_JEDI */"
+        # last update time
+        timestamp = naive_utcnow()
+        timestamp_str = timestamp.strftime("%Y-%m-%d_%H:%M:%S")
+        tmpLog = self.create_tagged_logger(comment, f"taskID={jedi_taskid} datasetID={datasetid} rse={rse} timestamp={timestamp_str}")
+        # tmpLog.debug('start')
+        try:
+            retVal = False
+            # sql to check
+            sqlC = f"SELECT timestamp FROM {panda_config.schemaJEDI}.JEDI_Dataset_Locality WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND rse=:rse "
+            # sql to insert
+            sqlI = (
+                "INSERT INTO {0}.JEDI_Dataset_Locality " "(jediTaskID, datasetID, rse, timestamp) " "VALUES (:jediTaskID, :datasetID, :rse, :timestamp)"
+            ).format(panda_config.schemaJEDI)
+            # sql to update
+            sqlU = (
+                "UPDATE {0}.JEDI_Dataset_Locality " "SET timestamp=:timestamp " "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND rse=:rse "
+            ).format(panda_config.schemaJEDI)
+            # start transaction
+            self.conn.begin()
+            # check
+            varMap = {}
+            varMap[":jediTaskID"] = jedi_taskid
+            varMap[":datasetID"] = datasetid
+            varMap[":rse"] = rse
+            self.cur.execute(sqlC + comment, varMap)
+            resC = self.cur.fetchone()
+            varMap[":timestamp"] = timestamp
+            if resC is None:
+                # insert if missing
+                tmpLog.debug("insert")
+                self.cur.execute(sqlI + comment, varMap)
+            else:
+                # update
+                tmpLog.debug("update")
+                self.cur.execute(sqlU + comment, varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            retVal = True
+            # tmpLog.debug('done')
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return retVal
+
+    # delete outdated dataset locality records
+    def deleteOutdatedDatasetLocality_JEDI(self, before_timestamp):
+        comment = " /* JediDBProxy.deleteOutdatedDatasetLocality_JEDI */"
+        # last update time
+        before_timestamp_str = before_timestamp.strftime("%Y-%m-%d_%H:%M:%S")
+        tmpLog = self.create_tagged_logger(comment, f"before_timestamp={before_timestamp_str}")
+        tmpLog.debug("start")
+        try:
+            retVal = 0
+            # sql to delete
+            sqlD = f"DELETE {panda_config.schemaJEDI}.Jedi_Dataset_Locality WHERE timestamp<=:timestamp "
+            # start transaction
+            self.conn.begin()
+            # check
+            varMap = {}
+            varMap[":timestamp"] = before_timestamp
+            # delete
+            self.cur.execute(sqlD + comment, varMap)
+            retVal = self.cur.rowcount
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            tmpLog.debug(f"done, deleted {retVal} records")
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return retVal
+
+    # append input datasets for incremental execution
+    def appendDatasets_JEDI(self, jediTaskID, inMasterDatasetSpecList, inSecDatasetSpecList):
+        comment = " /* JediDBProxy.appendDatasets_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
+        tmpLog.debug("start")
+        goDefined = False
+        refreshContents = False
+        commandStr = "incexec"
+        try:
+            # start transaction
+            self.conn.begin()
+            self.cur.arraysize = 100000
+            # check task status
+            varMap = {}
+            varMap[":jediTaskID"] = jediTaskID
+            sqlTK = f"SELECT status FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID FOR UPDATE "
+            self.cur.execute(sqlTK + comment, varMap)
+            resTK = self.cur.fetchone()
+            if resTK is None:
+                # task not found
+                msgStr = "task not found"
+                tmpLog.debug(msgStr)
+            else:
+                (taskStatus,) = resTK
+                # invalid status
+                if taskStatus != JediTaskSpec.commandStatusMap()[commandStr]["done"]:
+                    msgStr = f"invalid status={taskStatus} for dataset appending"
+                    tmpLog.debug(msgStr)
+                else:
+                    timeNow = naive_utcnow()
+                    # list of master dataset names
+                    master_dataset_names = [datasetSpec.datasetName for datasetSpec in inMasterDatasetSpecList]
+                    # get existing input datasets
+                    varMap = {}
+                    varMap[":jediTaskID"] = jediTaskID
+                    sqlDS = "SELECT datasetName,datasetID,status,nFilesTobeUsed,nFilesUsed,masterID "
+                    sqlDS += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+                    sqlDS += f"WHERE jediTaskID=:jediTaskID AND type IN ({INPUT_TYPES_var_str}) "
+                    varMap.update(INPUT_TYPES_var_map)
+                    self.cur.execute(sqlDS + comment, varMap)
+                    resDS = self.cur.fetchall()
+                    # check if existing datasets are available, and update status if necessary
+                    sql_ex = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET status=:status WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+                    existingDatasets = {}
+                    for datasetName, dataset_id, datasetStatus, nFilesTobeUsed, nFilesUsed, masterID in resDS:
+                        # only master datasets with remaining files
+                        try:
+                            if masterID is None and (nFilesTobeUsed - nFilesUsed > 0 or datasetStatus in JediDatasetSpec.statusToUpdateContents()):
+                                # the dataset was removed before and then added to the container again
+                                to_update_status = False
+                                if datasetStatus == "removed" and datasetName in master_dataset_names:
+                                    to_update_status = True
+                                    var_map = {":status": "defined", ":jediTaskID": jediTaskID, ":datasetID": dataset_id}
+                                # the dataset was removed
+                                elif datasetStatus != "removed" and datasetName not in master_dataset_names:
+                                    to_update_status = True
+                                    var_map = {":status": "removed", ":jediTaskID": jediTaskID, ":datasetID": dataset_id}
+                                # update status for removed/recovered dataset
+                                if to_update_status:
+                                    tmpLog.debug(f"""set status={var_map[":status"]} from {datasetStatus} for {datasetName}""")
+                                    self.cur.execute(sql_ex + comment, var_map)
+                                    datasetStatus = var_map[":status"]
+                                if datasetStatus != "removed":
+                                    goDefined = True
+                                    if datasetStatus in JediDatasetSpec.statusToUpdateContents():
+                                        refreshContents = True
+                        except Exception:
+                            pass
+                        existingDatasets[datasetName] = datasetStatus
+                    # insert datasets
+                    sqlID = f"INSERT INTO {panda_config.schemaJEDI}.JEDI_Datasets ({JediDatasetSpec.columnNames()}) "
+                    sqlID += JediDatasetSpec.bindValuesExpression()
+                    sqlID += " RETURNING datasetID INTO :newDatasetID"
+                    for datasetSpec in inMasterDatasetSpecList:
+                        # skip existing datasets
+                        if datasetSpec.datasetName in existingDatasets:
+                            # check dataset status and remaining files
+                            if existingDatasets[datasetSpec.datasetName] in JediDatasetSpec.statusToUpdateContents():
+                                goDefined = True
+                            continue
+                        datasetSpec.creationTime = timeNow
+                        datasetSpec.modificationTime = timeNow
+                        varMap = datasetSpec.valuesMap(useSeq=True)
+                        varMap[":newDatasetID"] = self.cur.var(varNUMBER)
+                        # insert dataset
+                        tmpLog.debug(f"append {datasetSpec.datasetName}")
+                        self.cur.execute(sqlID + comment, varMap)
+                        val = self.getvalue_corrector(self.cur.getvalue(varMap[":newDatasetID"]))
+                        datasetID = int(val)
+                        masterID = datasetID
+                        datasetSpec.datasetID = datasetID
+                        # insert secondary datasets
+                        for datasetSpec in inSecDatasetSpecList:
+                            datasetSpec.creationTime = timeNow
+                            datasetSpec.modificationTime = timeNow
+                            datasetSpec.masterID = masterID
+                            varMap = datasetSpec.valuesMap(useSeq=True)
+                            varMap[":newDatasetID"] = self.cur.var(varNUMBER)
+                            # insert dataset
+                            self.cur.execute(sqlID + comment, varMap)
+                            val = self.getvalue_corrector(self.cur.getvalue(varMap[":newDatasetID"]))
+                            datasetID = int(val)
+                            datasetSpec.datasetID = datasetID
+                        goDefined = True
+                    # update task
+                    sqlUT = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+                    sqlUT += "SET status=:status,lockedBy=NULL,lockedTime=NULL,modificationtime=:updateTime,stateChangeTime=CURRENT_DATE "
+                    sqlUT += "WHERE jediTaskID=:jediTaskID "
+                    varMap = {}
+                    varMap[":jediTaskID"] = jediTaskID
+                    if goDefined:
+                        # no new datasets
+                        if inMasterDatasetSpecList == [] and not refreshContents:
+                            # pass to JG
+                            varMap[":status"] = "ready"
+                        else:
+                            # pass to ContentsFeeder
+                            varMap[":status"] = "defined"
+                    else:
+                        # go to finalization since no datasets are appended
+                        varMap[":status"] = "prepared"
+                    # set old update time to trigger subsequent process
+                    varMap[":updateTime"] = naive_utcnow() - datetime.timedelta(hours=6)
+                    tmpLog.debug(f"set taskStatus={varMap[':status']}")
+                    self.cur.execute(sqlUT + comment, varMap)
+                    # add missing record_task_status_change and push_task_status_message updates
+                    self.record_task_status_change(jediTaskID)
+                    self.push_task_status_message(None, jediTaskID, varMap[":status"])
+
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # return
+            tmpLog.debug("done")
+            return True
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return False
+
+    # insert dataset to the JEDI datasets table
+    def insertDataset_JEDI(self, datasetSpec):
+        comment = " /* JediDBProxy.insertDataset_JEDI */"
+        tmpLog = self.create_tagged_logger(comment)
+        tmpLog.debug("start")
+        try:
+            # set attributes
+            timeNow = naive_utcnow()
+            datasetSpec.creationTime = timeNow
+            datasetSpec.modificationTime = timeNow
+            # sql
+            sql = f"INSERT INTO {panda_config.schemaJEDI}.JEDI_Datasets ({JediDatasetSpec.columnNames()}) "
+            sql += JediDatasetSpec.bindValuesExpression()
+            sql += " RETURNING datasetID INTO :newDatasetID"
+            varMap = datasetSpec.valuesMap(useSeq=True)
+            varMap[":newDatasetID"] = self.cur.var(varNUMBER)
+            # begin transaction
+            self.conn.begin()
+            # insert dataset
+            self.cur.execute(sql + comment, varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmpLog.debug("done")
+            val = self.getvalue_corrector(self.cur.getvalue(varMap[":newDatasetID"]))
+            return True, int(val)
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return False, None
+
+    # update JEDI dataset
+    def updateDataset_JEDI(self, datasetSpec, criteria, lockTask):
+        comment = " /* JediDBProxy.updateDataset_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"datasetID={datasetSpec.datasetID}")
+        tmpLog.debug("start")
+        # return value for failure
+        failedRet = False, 0
+        # no criteria
+        if criteria == {}:
+            tmpLog.error("no selection criteria")
+            return failedRet
+        # check criteria
+        for tmpKey in criteria.keys():
+            if not hasattr(datasetSpec, tmpKey):
+                tmpLog.error(f"unknown attribute {tmpKey} is used in criteria")
+                return failedRet
+        try:
+            # set attributes
+            timeNow = naive_utcnow()
+            datasetSpec.modificationTime = timeNow
+            # values for UPDATE
+            varMap = datasetSpec.valuesMap(useSeq=False, onlyChanged=True)
+            # sql for update
+            sql = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET {datasetSpec.bindUpdateChangesExpression()} WHERE "
+            useAND = False
+            for tmpKey, tmpVal in criteria.items():
+                crKey = f":cr_{tmpKey}"
+                if useAND:
+                    sql += " AND"
+                else:
+                    useAND = True
+                sql += f" {tmpKey}={crKey}"
+                varMap[crKey] = tmpVal
+
+            # sql for loc
+            varMapLock = {}
+            varMapLock[":jediTaskID"] = datasetSpec.jediTaskID
+            sqlLock = f"SELECT 1 FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID FOR UPDATE"
+            # begin transaction
+            self.conn.begin()
+            # lock task
+            if lockTask:
+                self.cur.execute(sqlLock + comment, varMapLock)
+            # update dataset
+            tmpLog.debug(sql + comment + str(varMap))
+            self.cur.execute(sql + comment, varMap)
+            # the number of updated rows
+            nRows = self.cur.rowcount
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmpLog.debug(f"updated {nRows} rows")
+            return True, nRows
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return failedRet
+
+    # update JEDI dataset attributes
+    def updateDatasetAttributes_JEDI(self, jediTaskID, datasetID, attributes):
+        comment = " /* JediDBProxy.updateDatasetAttributes_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} datasetID={datasetID}")
+        tmpLog.debug("start")
+        # return value for failure
+        failedRet = False
+        try:
+            # sql for update
+            sql = f"UPDATE {panda_config.schemaJEDI}.JEDI_Datasets SET "
+            # values for UPDATE
+            varMap = {}
+            varMap[":jediTaskID"] = jediTaskID
+            varMap[":datasetID"] = datasetID
+            for tmpKey, tmpVal in attributes.items():
+                crKey = f":{tmpKey}"
+                sql += f"{tmpKey}={crKey},"
+                varMap[crKey] = tmpVal
+            sql = sql[:-1]
+            sql += " "
+            sql += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            # begin transaction
+            self.conn.begin()
+            # update dataset
+            tmpLog.debug(sql + comment + str(varMap))
+            self.cur.execute(sql + comment, varMap)
+            # the number of updated rows
+            nRows = self.cur.rowcount
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmpLog.debug(f"updated {nRows} rows")
+            return True, nRows
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return failedRet
+
+    # get JEDI dataset attributes
+    def getDatasetAttributes_JEDI(self, jediTaskID, datasetID, attributes):
+        comment = " /* JediDBProxy.getDatasetAttributes_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} datasetID={datasetID}")
+        tmpLog.debug("start")
+        # return value for failure
+        failedRet = {}
+        try:
+            # sql for get attributes
+            sql = "SELECT "
+            for tmpKey in attributes:
+                sql += f"{tmpKey},"
+            sql = sql[:-1] + " "
+            sql += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+            sql += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            # values for UPDATE
+            varMap = {}
+            varMap[":jediTaskID"] = jediTaskID
+            varMap[":datasetID"] = datasetID
+            # begin transaction
+            self.conn.begin()
+            # select
+            self.cur.execute(sql + comment, varMap)
+            res = self.cur.fetchone()
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # make return
+            retMap = {}
+            if res is not None:
+                for tmpIdx, tmpKey in enumerate(attributes):
+                    retMap[tmpKey] = res[tmpIdx]
+            tmpLog.debug(f"got {str(retMap)}")
+            return retMap
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return failedRet
+
+    # get JEDI dataset attributes with map
+    def getDatasetAttributesWithMap_JEDI(self, jediTaskID, criteria, attributes):
+        comment = " /* JediDBProxy.getDatasetAttributesWithMap_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} criteria={str(criteria)}")
+        tmpLog.debug("start")
+        # return value for failure
+        failedRet = {}
+        try:
+            varMap = {}
+            varMap[":jediTaskID"] = jediTaskID
+            # sql for get attributes
+            sql = "SELECT "
+            for tmpKey in attributes:
+                sql += f"{tmpKey},"
+            sql = sql[:-1] + " "
+            sql += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets "
+            sql += "WHERE jediTaskID=:jediTaskID "
+            for crKey, crVal in criteria.items():
+                sql += "AND {0}=:{0} ".format(crKey)
+                varMap[f":{crKey}"] = crVal
+            # begin transaction
+            self.conn.begin()
+            # select
+            self.cur.execute(sql + comment, varMap)
+            res = self.cur.fetchone()
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # make return
+            retMap = {}
+            if res is not None:
+                for tmpIdx, tmpKey in enumerate(attributes):
+                    retMap[tmpKey] = res[tmpIdx]
+            tmpLog.debug(f"got {str(retMap)}")
+            return retMap
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return failedRet
+
+    # get JEDI dataset with datasetID
+    def getDatasetWithID_JEDI(self, jediTaskID, datasetID):
+        comment = " /* JediDBProxy.getDatasetWithID_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} datasetID={datasetID}")
+        tmpLog.debug("start")
+        # return value for failure
+        failedRet = False, None
+        try:
+            # sql
+            sql = f"SELECT {JediDatasetSpec.columnNames()} "
+            sql += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID "
+            varMap = {}
+            varMap[":jediTaskID"] = jediTaskID
+            varMap[":datasetID"] = datasetID
+            # begin transaction
+            self.conn.begin()
+            # select
+            self.cur.execute(sql + comment, varMap)
+            res = self.cur.fetchone()
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            if res is not None:
+                datasetSpec = JediDatasetSpec()
+                datasetSpec.pack(res)
+            else:
+                datasetSpec = None
+            tmpLog.debug("done")
+            return True, datasetSpec
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return failedRet
+
+    # get JEDI datasets with jediTaskID
+    def getDatasetsWithJediTaskID_JEDI(self, jediTaskID, datasetTypes=None):
+        comment = " /* JediDBProxy.getDatasetsWithJediTaskID_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID} datasetTypes={datasetTypes}")
+        tmpLog.debug("start")
+        # return value for failure
+        failedRet = False, None
+        try:
+            # sql
+            varMap = {}
+            varMap[":jediTaskID"] = jediTaskID
+            sql = f"SELECT {JediDatasetSpec.columnNames()} "
+            sql += f"FROM {panda_config.schemaJEDI}.JEDI_Datasets WHERE jediTaskID=:jediTaskID "
+            if datasetTypes is not None:
+                dstype_var_names_str, dstype_var_map = get_sql_IN_bind_variables(datasetTypes, prefix=":type_", value_as_suffix=True)
+                sql += f"AND type IN ({dstype_var_names_str}) "
+                varMap.update(dstype_var_map)
+            # begin transaction
+            self.conn.begin()
+            self.cur.arraysize = 10000
+            # select
+            self.cur.execute(sql + comment, varMap)
+            tmpResList = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # make file specs
+            datasetSpecList = []
+            for tmpRes in tmpResList:
+                datasetSpec = JediDatasetSpec()
+                datasetSpec.pack(tmpRes)
+                datasetSpecList.append(datasetSpec)
+            tmpLog.debug(f"done with {len(datasetSpecList)} datasets")
+            return True, datasetSpecList
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return failedRet
+
+    # extend lifetime of sandbox file
+    def extendSandboxLifetime_JEDI(self, jedi_taskid, file_name):
+        comment = " /* JediDBProxy.extendSandboxLifetime_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jedi_taskid}")
+        try:
+            self.conn.begin()
+            retVal = False
+            # sql to update
+            sqlC = f"UPDATE {panda_config.schemaMETA}.userCacheUsage SET creationTime=CURRENT_DATE WHERE fileName=:fileName "
+            varMap = {}
+            varMap[":fileName"] = file_name
+            self.cur.execute(sqlC + comment, varMap)
+            nRows = self.cur.rowcount
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmpLog.debug(f"done {file_name} with {nRows}")
+            # return
+            return nRows
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return None
+
+    # lock process
+    def lockProcess_JEDI(self, vo, prodSourceLabel, cloud, workqueue_id, resource_name, component, pid, forceOption, timeLimit):
+        comment = " /* JediDBProxy.lockProcess_JEDI */"
+        # defaults
+        if cloud is None:
+            cloud = "default"
+        if workqueue_id is None:
+            workqueue_id = 0
+        if resource_name is None:
+            resource_name = "default"
+        if component is None:
+            component = "default"
+        tmpLog = self.create_tagged_logger(
+            comment, f"vo={vo} label={prodSourceLabel} cloud={cloud} queue={workqueue_id} resource_type={resource_name} component={component} pid={pid}"
+        )
+        tmpLog.debug("start")
+        try:
+            retVal = False
+            # sql to check
+            sqlCT = "SELECT lockedBy "
+            sqlCT += f"FROM {panda_config.schemaJEDI}.JEDI_Process_Lock "
+            sqlCT += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND cloud=:cloud AND workqueue_id=:workqueue_id "
+            sqlCT += "AND resource_type=:resource_name AND component=:component "
+            sqlCT += "AND lockedTime>:timeLimit "
+            sqlCT += "FOR UPDATE"
+            # sql to delete
+            sqlCD = f"DELETE FROM {panda_config.schemaJEDI}.JEDI_Process_Lock "
+            sqlCD += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND cloud=:cloud AND workqueue_id=:workqueue_id "
+            sqlCD += "AND resource_type=:resource_name AND component=:component "
+            # sql to insert
+            sqlFR = f"INSERT INTO {panda_config.schemaJEDI}.JEDI_Process_Lock "
+            sqlFR += "(vo, prodSourceLabel, cloud, workqueue_id, resource_type, component, lockedBy, lockedTime) "
+            sqlFR += "VALUES(:vo, :prodSourceLabel, :cloud, :workqueue_id, :resource_name, :component, :lockedBy, CURRENT_DATE) "
+            # start transaction
+            self.conn.begin()
+            # check
+            if not forceOption:
+                varMap = {}
+                varMap[":vo"] = vo
+                varMap[":prodSourceLabel"] = prodSourceLabel
+                varMap[":cloud"] = cloud
+                varMap[":workqueue_id"] = workqueue_id
+                varMap[":resource_name"] = resource_name
+                varMap[":component"] = component
+                varMap[":timeLimit"] = naive_utcnow() - datetime.timedelta(minutes=timeLimit)
+                self.cur.execute(sqlCT + comment, varMap)
+                resCT = self.cur.fetchone()
+            else:
+                resCT = None
+            if resCT is not None:
+                tmpLog.debug(f"skipped, locked by {resCT[0]}")
+            else:
+                # delete
+                varMap = {}
+                varMap[":vo"] = vo
+                varMap[":prodSourceLabel"] = prodSourceLabel
+                varMap[":cloud"] = cloud
+                varMap[":workqueue_id"] = workqueue_id
+                varMap[":resource_name"] = resource_name
+                varMap[":component"] = component
+                self.cur.execute(sqlCD + comment, varMap)
+                # insert
+                varMap = {}
+                varMap[":vo"] = vo
+                varMap[":prodSourceLabel"] = prodSourceLabel
+                varMap[":cloud"] = cloud
+                varMap[":workqueue_id"] = workqueue_id
+                varMap[":resource_name"] = resource_name
+                varMap[":component"] = component
+                varMap[":lockedBy"] = pid
+                self.cur.execute(sqlFR + comment, varMap)
+                tmpLog.debug("successfully locked")
+                retVal = True
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return retVal
+
+    # unlock process
+    def unlockProcess_JEDI(self, vo, prodSourceLabel, cloud, workqueue_id, resource_name, component, pid):
+        comment = " /* JediDBProxy.unlockProcess_JEDI */"
+        # defaults
+        if cloud is None:
+            cloud = "default"
+        if workqueue_id is None:
+            workqueue_id = 0
+        if resource_name is None:
+            resource_name = "default"
+        if component is None:
+            component = "default"
+        tmpLog = self.create_tagged_logger(
+            comment, f"vo={vo} label={prodSourceLabel} cloud={cloud} queue={workqueue_id} resource_type={resource_name} component={component} pid={pid}"
+        )
+        tmpLog.debug("start")
+        try:
+            retVal = False
+            # sql to delete
+            sqlCD = f"DELETE FROM {panda_config.schemaJEDI}.JEDI_Process_Lock "
+            sqlCD += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND cloud=:cloud "
+            sqlCD += "AND workqueue_id=:workqueue_id AND lockedBy=:lockedBy "
+            sqlCD += "AND resource_type=:resource_name AND component=:component "
+            # start transaction
+            self.conn.begin()
+            # check
+            varMap = {}
+            varMap[":vo"] = vo
+            varMap[":prodSourceLabel"] = prodSourceLabel
+            varMap[":cloud"] = cloud
+            varMap[":workqueue_id"] = workqueue_id
+            varMap[":resource_name"] = resource_name
+            varMap[":component"] = component
+            varMap[":lockedBy"] = pid
+            self.cur.execute(sqlCD + comment, varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmpLog.debug("done")
+            retVal = True
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return retVal
+
+    # unlock process with PID
+    def unlockProcessWithPID_JEDI(self, vo, prodSourceLabel, workqueue_id, resource_name, pid, useBase):
+        comment = " /* JediDBProxy.unlockProcessWithPID_JEDI */"
+        tmpLog = self.create_tagged_logger(
+            comment, f"vo={vo} label={prodSourceLabel} queue={workqueue_id} resource_type={resource_name} pid={pid} useBase={useBase}"
+        )
+        tmpLog.debug("start")
+        try:
+            retVal = False
+            # sql to delete
+            sqlCD = f"DELETE FROM {panda_config.schemaJEDI}.JEDI_Process_Lock "
+            sqlCD += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel "
+            sqlCD += "AND workqueue_id=:workqueue_id "
+            sqlCD += "AND resource_name=:resource_name "
+            if useBase:
+                sqlCD += "AND lockedBy LIKE :lockedBy "
+            else:
+                sqlCD += "AND lockedBy=:lockedBy "
+            # start transaction
+            self.conn.begin()
+            # delete
+            varMap = {}
+            varMap[":vo"] = vo
+            varMap[":prodSourceLabel"] = prodSourceLabel
+            varMap[":workqueue_id"] = workqueue_id
+            varMap[":resource_name"] = resource_name
+            if useBase:
+                varMap[":lockedBy"] = pid + "%"
+            else:
+                varMap[":lockedBy"] = pid
+            self.cur.execute(sqlCD + comment, varMap)
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmpLog.debug("done")
+            retVal = True
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return retVal
+
+    # check process lock
+    def checkProcessLock_JEDI(self, vo, prodSourceLabel, cloud, workqueue_id, resource_name, component, pid, checkBase):
+        comment = " /* JediDBProxy.checkProcessLock_JEDI */"
+        # defaults
+        if cloud is None:
+            cloud = "default"
+        if workqueue_id is None:
+            workqueue_id = 0
+        if resource_name is None:
+            resource_name = "default"
+        if component is None:
+            component = "default"
+        tmpLog = self.create_tagged_logger(
+            comment, f"vo={vo} label={prodSourceLabel} cloud={cloud} queue={workqueue_id} resource_type={resource_name} component={component} pid={pid}"
+        )
+        tmpLog.debug("start")
+        try:
+            retVal = False
+            # sql to check
+            sqlCT = "SELECT lockedBy "
+            sqlCT += f"FROM {panda_config.schemaJEDI}.JEDI_Process_Lock "
+            sqlCT += "WHERE vo=:vo AND prodSourceLabel=:prodSourceLabel AND cloud=:cloud AND workqueue_id=:workqueue_id "
+            sqlCT += "AND resource_type=:resource_name AND component=:component "
+            sqlCT += "AND lockedTime>:timeLimit "
+            # start transaction
+            self.conn.begin()
+            # check
+            varMap = {}
+            varMap[":vo"] = vo
+            varMap[":prodSourceLabel"] = prodSourceLabel
+            varMap[":cloud"] = cloud
+            varMap[":workqueue_id"] = workqueue_id
+            varMap[":resource_name"] = resource_name
+            varMap[":component"] = component
+            varMap[":timeLimit"] = naive_utcnow() - datetime.timedelta(minutes=5)
+            self.cur.execute(sqlCT + comment, varMap)
+            resCT = self.cur.fetchone()
+            if resCT is not None:
+                (lockedBy,) = resCT
+                if checkBase:
+                    # check only base part
+                    if not lockedBy.startswith(pid):
+                        retVal = True
+                else:
+                    # check whole string
+                    if lockedBy != pid:
+                        retVal = True
+                if retVal is True:
+                    tmpLog.debug(f"skipped locked by {lockedBy}")
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            tmpLog.debug(f"done with {retVal}")
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return retVal

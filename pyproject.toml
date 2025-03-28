@@ -21,6 +21,7 @@ dependencies = [
     'stomp.py',
     'pyyaml',
     'pyjwt',
+    'polars',
     'requests',
     'psutil>=5.4.8',
     'idds-common',

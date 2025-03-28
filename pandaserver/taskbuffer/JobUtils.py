@@ -212,3 +212,21 @@ def get_resource_type_job(resource_map: list, job_spec: JobSpec) -> str:
         if resource_spec.match_job(job_spec):
             return resource_spec.resource_name
     return "Undefined"
+
+
+# get min ram count for job
+def getJobMinRamCount(taskSpec, inputChunk, siteSpec, coreCount):
+    minRamCount = inputChunk.getMaxRamCount()
+    if inputChunk.isMerging:
+        minRamUnit = "MB"
+    else:
+        minRamUnit = taskSpec.ramUnit
+        if minRamUnit in [None, "", "NULL"]:
+            minRamUnit = "MB"
+        if taskSpec.ramPerCore():
+            minRamCount *= coreCount
+            minRamCount += taskSpec.baseRamCount
+            minRamUnit = re.sub("PerCore.*$", "", minRamUnit)
+    # round up with chunks
+    minRamCount = compensate_ram_count(minRamCount)
+    return minRamCount, minRamUnit
