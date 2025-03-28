@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from pandaserver.api.v1.http_client import HttpClient, api_url_ssl
 
 
-class TestTaskAPI(unittest.TestCase):
+class TestPilotAPI(unittest.TestCase):
     def setUp(self):
         self.http_client = HttpClient()
 
