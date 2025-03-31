@@ -202,9 +202,6 @@ class TaskBuffer:
             userStatus = True
             priorityOffset = 0
             userCountry = None
-            useExpress = False
-            nExpressJobs = 0
-            useDebugMode = False
             siteMapper = self.get_site_mapper()
 
             # check ban user
@@ -222,7 +219,7 @@ class TaskBuffer:
                         return [], None, unprocessedMap
                     return []
 
-            tmpLog.debug(f"checked ban user")
+            tmpLog.debug("checked ban user")
             # set parameters for user jobs
             if (
                 len(jobs) > 0
@@ -234,16 +231,6 @@ class TaskBuffer:
                 # get JobID and status
                 userJobID, userJobsetID, userStatus = proxy.getUserParameter(user, jobs[0].jobDefinitionID, jobs[0].jobsetID)
 
-                # check quota for express jobs
-                if "express" in jobs[0].specialHandling:
-                    expressQuota = proxy.getExpressJobs(user)
-                    if expressQuota is not None and expressQuota["status"] and expressQuota["quota"] > 0:
-                        nExpressJobs = expressQuota["quota"]
-                        if nExpressJobs > 0:
-                            useExpress = True
-                # debug mode
-                if jobs[0].is_debug_mode() or jobs[-1].is_debug_mode():
-                    useDebugMode = True
                 # release proxy
                 self.proxyPool.putProxy(proxy)
 
@@ -260,13 +247,13 @@ class TaskBuffer:
                         if tmpCountry in ["usatlas"]:
                             userCountry = "us"
                             break
-            tmpLog.debug(f"set user job parameters")
+            tmpLog.debug("set user job parameters")
 
             # return if DN is blocked
             if not userStatus:
                 tmpLog.debug(f"end 2 since {user} DN is blocked")
                 if getEsJobsetMap:
-                    return ([], None, unprocessedMap)
+                    return [], None, unprocessedMap
                 return []
             # extract VO
             for tmpFQAN in fqans:
@@ -309,17 +296,17 @@ class TaskBuffer:
                     prio_reduction,
                 ) = self.getPrioParameters(jobs, user, fqans, userDefinedWG, validWorkingGroup)
                 tmpLog.debug(f"workingGroup={jobs[0].workingGroup} serNum={serNum} weight={weight} pOffset={priorityOffset} reduction={prio_reduction}")
-            tmpLog.debug(f"got prio parameters")
+            tmpLog.debug("got prio parameters")
             # get DB proxy
             proxy = self.proxyPool.getProxy()
-            tmpLog.debug(f"got proxy")
+            tmpLog.debug("got proxy")
             # get total number of files
             totalNumFiles = 0
             for job in jobs:
                 totalNumFiles += len(job.Files)
             # bulk fetch PandaIDs
             new_panda_ids = proxy.bulk_fetch_panda_ids(len(jobs))
-            tmpLog.debug(f"got PandaIDs")
+            tmpLog.debug("got PandaIDs")
             # bulk fetch fileIDs
             fileIDPool = []
             if totalNumFiles > 0:

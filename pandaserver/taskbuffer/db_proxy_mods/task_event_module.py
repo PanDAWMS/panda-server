@@ -702,7 +702,7 @@ class TaskEventModule(BaseModule):
     def killEventServiceConsumers(self, job, killedFlag, useCommit=True):
         comment = " /* DBProxy.killEventServiceConsumers */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # begin transaction
             if useCommit:
@@ -873,7 +873,7 @@ class TaskEventModule(BaseModule):
     def killUnusedEventServiceConsumers(self, job, useCommit=True, killAll=False, checkAttemptNr=False):
         comment = " /* DBProxy.killUnusedEventServiceConsumers */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # begin transaction
             if useCommit:
@@ -2423,7 +2423,7 @@ class TaskEventModule(BaseModule):
     def increaseRamLimitJEDI(self, jediTaskID, jobRamCount, noLimits=False):
         comment = " /* DBProxy.increaseRamLimitJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # RAM limit
             limitList = [1000, 2000, 3000, 4000, 6000, 8000]
@@ -2478,7 +2478,7 @@ class TaskEventModule(BaseModule):
                 except Exception:
                     tmp_log.error(f"reset_resource_type excepted with {traceback.format_exc()}")
 
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return True
         except Exception:
             # roll back
@@ -2629,7 +2629,7 @@ class TaskEventModule(BaseModule):
         """
         comment = " /* DBProxy.increaseRamLimitJobJEDI_xtimes */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
 
         # Files defined as input types
         input_types = ("input", "pseudo_input", "pp_input", "trn_log", "trn_output")
@@ -2751,7 +2751,7 @@ class TaskEventModule(BaseModule):
                 if not self._commit():
                     raise RuntimeError("Commit error")
 
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return True
         except Exception:
             # roll back
@@ -3400,7 +3400,7 @@ class TaskEventModule(BaseModule):
             if compactDN in ["", "NULL", None]:
                 compactDN = dn
             tmp_log = self.create_tagged_logger(comment, f"userName={compactDN}")
-            tmp_log.debug(f"start")
+            tmp_log.debug("start")
 
             # decode json
             if decode:
@@ -3742,7 +3742,7 @@ class TaskEventModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             if properErrorCode:
                 return errorCode, retVal
             return retFlag, retVal

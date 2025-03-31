@@ -287,7 +287,7 @@ class JobComplexModule(BaseModule):
                             try:
                                 # lock with NOWAIT
                                 self.cur.execute(sqlIFL + comment, varMap)
-                                resIFL = self.cur.fetchall()
+                                self.cur.fetchall()
                                 self.cur.execute(sqlIF + comment, varMap)
                                 nUE = self.cur.rowcount
                                 tmp_log.debug(f"updated {nUE} fake co-jumbo jobs")
@@ -544,7 +544,7 @@ class JobComplexModule(BaseModule):
                 n = self.cur.rowcount
                 if n == 0:
                     # already killed or activated
-                    tmp_log.debug(f"Not found")
+                    tmp_log.debug("Not found")
                 else:
                     # check if JEDI is used
                     useJEDI = False
@@ -2749,7 +2749,7 @@ class JobComplexModule(BaseModule):
                     mb_proxy_queue = self.get_mb_proxy("panda_pilot_queue")
                     srv_msg_utils.delete_job_message(mb_proxy_queue, job.PandaID)
             return retJobs, nSent
-        except Exception as e:
+        except Exception:
             self.dump_error_message(tmp_log)
             # roll back
             self._rollback()
@@ -3656,7 +3656,7 @@ class JobComplexModule(BaseModule):
     def checkMoreRetryJEDI(self, job):
         comment = " /* DBProxy.self.checkMoreRetryJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={job.PandaID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         # sql to get files
         sqlGF = "SELECT datasetID,fileID,attemptNr FROM ATLAS_PANDA.filesTable4 "
         sqlGF += "WHERE PandaID=:PandaID AND type IN (:type1,:type2) "
@@ -3695,7 +3695,7 @@ class JobComplexModule(BaseModule):
                 # hit the limit
                 tmp_log.debug(f"NG - fileID={fileID} no more attempt failedAttempt({failedAttempt})+1>=maxFailure({maxFailure})")
                 return False
-        tmp_log.debug(f"OK")
+        tmp_log.debug("OK")
         return True
 
     # retry analysis job
@@ -4862,7 +4862,7 @@ class JobComplexModule(BaseModule):
                             ret[computing_site][prod_source_label][resource_type].setdefault(job_status, 0)
 
             # return
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return ret
         except Exception:
             # roll back

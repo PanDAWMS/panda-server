@@ -1594,7 +1594,7 @@ class WorkerModule(BaseModule):
         """
         comment = " /* DBProxy.storePilotLog */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={panda_id}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
 
         try:
             # Prepare the bindings and var map

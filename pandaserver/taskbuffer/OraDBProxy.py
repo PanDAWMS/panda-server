@@ -45,7 +45,6 @@ else:
 
 warnings.filterwarnings("ignore")
 
-# logger
 _logger = PandaLogger().getLogger("DBProxy")
 _loggerFiltered = PandaLogger().getLogger("DBProxyFiltered")
 

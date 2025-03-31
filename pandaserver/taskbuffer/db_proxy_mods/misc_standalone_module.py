@@ -112,7 +112,7 @@ class MiscStandaloneModule(BaseModule):
     def getTaskIDwithTaskNameJEDI(self, userName, taskName):
         comment = " /* DBProxy.getTaskIDwithTaskNameJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"<userName={userName} taskName={taskName}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # begin transaction
             self.conn.begin()
@@ -144,7 +144,7 @@ class MiscStandaloneModule(BaseModule):
     def updateTaskModTimeJEDI(self, jediTaskID, newStatus):
         comment = " /* DBProxy.updateTaskErrorDialogJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"<jediTaskID={jediTaskID}>")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # begin transaction
             self.conn.begin()
@@ -163,7 +163,7 @@ class MiscStandaloneModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return True
         except Exception:
             # roll back
@@ -587,7 +587,7 @@ class MiscStandaloneModule(BaseModule):
     def updateTaskErrorDialogJEDI(self, jediTaskID, msg):
         comment = " /* DBProxy.updateTaskErrorDialogJEDI */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # begin transaction
             self.conn.begin()
@@ -611,7 +611,7 @@ class MiscStandaloneModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return True
         except Exception:
             # roll back
@@ -1302,7 +1302,7 @@ class MiscStandaloneModule(BaseModule):
     def getAssociatedDisDatasets(self, subDsName):
         comment = " /* DBProxy.getAssociatedDisDatasets */"
         tmp_log = self.create_tagged_logger(comment, f"subDsName={subDsName}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         sqlF = (
             "SELECT /*+ index(tab FILESTABLE4_DESTDBLOCK_IDX) */ distinct PandaID FROM ATLAS_PANDA.filesTable4 tab WHERE destinationDBlock=:destinationDBlock"
         )
@@ -1601,7 +1601,7 @@ class MiscStandaloneModule(BaseModule):
         sqlUDP += "SET status=:status "
         sqlUDP += "WHERE vuid=:vuid AND NOT status IN (:statusR,:statusD) "
         try:
-            tmp_log.debug(f"start")
+            tmp_log.debug("start")
             # begin transaction
             self.conn.begin()
             # update dataset in panda
@@ -1695,7 +1695,7 @@ class MiscStandaloneModule(BaseModule):
             # commit
             if not self._commit():
                 raise RuntimeError("Commit error")
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return True
         except Exception:
             # roll back

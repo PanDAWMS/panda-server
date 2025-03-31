@@ -577,7 +577,7 @@ class JobStandaloneModule(BaseModule):
     def getExpressJobs(self, dn):
         comment = " /* DBProxy.getExpressJobs */"
         tmp_log = self.create_tagged_logger(comment, f"DN={dn}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         sqlX = "SELECT specialHandling,COUNT(*) FROM %s "
         sqlX += "WHERE prodUserName=:prodUserName AND prodSourceLabel=:prodSourceLabel1 "
         sqlX += "AND specialHandling IS NOT NULL "
@@ -1127,7 +1127,7 @@ class JobStandaloneModule(BaseModule):
     def addMetadata(self, pandaID, metadata, newStatus):
         comment = " /* DBProxy.addMetaData */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         # discard metadata for failed jobs
         if newStatus == "failed":
             tmp_log.debug("skip")
@@ -1213,7 +1213,7 @@ class JobStandaloneModule(BaseModule):
     def addStdOut(self, pandaID, stdOut):
         comment = " /* DBProxy.addStdOut */"
         tmp_log = self.create_tagged_logger(comment, f"PandaID={pandaID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         sqlJ = "SELECT PandaID FROM ATLAS_PANDA.jobsActive4 WHERE PandaID=:PandaID FOR UPDATE "
         sqlC = "SELECT PandaID FROM ATLAS_PANDA.jobsDebug WHERE PandaID=:PandaID "
         sqlI = "INSERT INTO ATLAS_PANDA.jobsDebug (PandaID,stdOut) VALUES (:PandaID,:stdOut) "
@@ -1315,7 +1315,7 @@ class JobStandaloneModule(BaseModule):
                     for state in included_states:
                         ret[site].setdefault(state, 0)
 
-                tmp_log.debug(f"done")
+                tmp_log.debug("done")
                 return ret
 
             except Exception:
@@ -1543,7 +1543,7 @@ class JobStandaloneModule(BaseModule):
                     ret[cloud][job_status] += count
 
             # return
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return ret
         except Exception:
             # roll back
@@ -1625,7 +1625,7 @@ class JobStandaloneModule(BaseModule):
                     ret.setdefault(cloud, {}).setdefault(processing_type, {}).setdefault(job_status, 0)
                     ret[cloud][processing_type][job_status] += count
 
-            tmp_log.debug(f"done")
+            tmp_log.debug("done")
             return ret
         except Exception:
             # roll back
@@ -1960,7 +1960,7 @@ class JobStandaloneModule(BaseModule):
     def getJobdefIDsForFailedJob(self, jediTaskID):
         comment = " /* DBProxy.getJobdefIDsForFailedJob */"
         tmp_log = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # begin transaction
             self.conn.begin()

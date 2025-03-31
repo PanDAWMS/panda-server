@@ -327,7 +327,7 @@ class MetricsModule(BaseModule):
             return None
         comment = " /* DBProxy.record_task_active_period */"
         tmp_log = self.create_tagged_logger(comment, f"JediTaskID={jedi_task_id}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         # get activated time
         sql_check = f"SELECT status,activatedTime FROM {panda_config.schemaJEDI}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
         var_map = {":jediTaskID": jedi_task_id}

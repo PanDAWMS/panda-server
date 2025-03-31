@@ -807,11 +807,11 @@ class EntityModule(BaseModule):
 
         if random_number <= sloppy_ratio:
             # generate the age sorting
-            tmp_log.debug(f"sorting by age")
+            tmp_log.debug("sorting by age")
             return self.getCriteriaByAge(site_name, max_jobs)
         else:
             # generate the global share sorting
-            tmp_log.debug(f"sorting by gshare")
+            tmp_log.debug("sorting by gshare")
             return self.getCriteriaForGlobalShares(site_name, max_jobs)
 
     # get selection criteria for share of production activities
@@ -824,7 +824,7 @@ class EntityModule(BaseModule):
 
         try:
             # Get the share leaves sorted by order of under-pledging
-            tmp_log.debug(f"Going to call get sorted leaves")
+            tmp_log.debug("Going to call get sorted leaves")
             t_before = time.time()
             sorted_leaves = self.get_sorted_leaves()
             t_after = time.time()
@@ -1975,7 +1975,7 @@ class EntityModule(BaseModule):
                 raise RuntimeError("Commit error")
             tmp_log.debug("done")
             return retList
-        except Exception as e:
+        except Exception:
             # roll back
             self._rollback()
             # error
@@ -1988,7 +1988,7 @@ class EntityModule(BaseModule):
         """
         comment = " /* DBProxy.getDdmEndpoints */"
         tmp_log = self.create_tagged_logger(comment)
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
 
         # get all ddm endpoints
         sql_ddm = "SELECT * FROM ATLAS_PANDA.ddm_endpoint "
@@ -2062,7 +2062,7 @@ class EntityModule(BaseModule):
                 panda_endpoint_map[panda_site_name][scope].setdefault("output", DdmSpec())
                 panda_endpoint_map[panda_site_name][scope]["output"].add(tmp_relation, endpoint_dict)
 
-        tmp_log.debug(f"done")
+        tmp_log.debug("done")
         return panda_endpoint_map
 
     def get_cloud_list(self):
@@ -2755,7 +2755,7 @@ class EntityModule(BaseModule):
     def checkQuota(self, dn):
         comment = " /* DBProxy.checkQuota */"
         tmp_log = self.create_tagged_logger(comment, f"dn={dn}")
-        tmp_log.debug(f"start")
+        tmp_log.debug("start")
         try:
             # set autocommit on
             self.conn.begin()
@@ -2775,31 +2775,19 @@ class EntityModule(BaseModule):
                 item = res[0]
                 # cpu and quota
                 cpu1 = item[0]
-                cpu7 = item[1]
-                cpu30 = item[2]
                 if item[3] in [0, None]:
                     quota1 = 0
                 else:
                     quota1 = item[3] * 3600
-                if item[4] in [0, None]:
-                    quota7 = 0
-                else:
-                    quota7 = item[4] * 3600
-                if item[5] in [0, None]:
-                    quota30 = 0
-                else:
-                    quota30 = item[5] * 3600
+
                 # CPU usage
                 if cpu1 is None:
                     cpu1 = 0.0
-                # weight
-                if quota1 > 0:
-                    weight = float(cpu1) / float(quota1)
                 # not exceeded the limit
                 weight = 0.0
                 tmp_log.debug(f"Weight:{weight} Quota:{quota1} CPU:{cpu1}")
             else:
-                tmp_log.debug(f"cannot found")
+                tmp_log.debug("No quota found")
             return weight
         except Exception:
             self.dump_error_message(tmp_log)
@@ -2929,7 +2917,6 @@ class EntityModule(BaseModule):
     def checkBanUser(self, dn, sourceLabel, jediCheck=False):
         comment = " /* DBProxy.checkBanUser */"
         try:
-            methodName = "checkBanUser"
             # set initial values
             retStatus = True
             name = CoreUtils.clean_user_id(dn)

@@ -60,23 +60,13 @@ class HarvesterMetricsSpec(object):
 
     # return column names for INSERT
     def columnNames(cls):
-        ret = ""
-        for attr in cls._attributes:
-            ret += f"{attr},"
-        ret = ret[:-1]
-        return ret
+        return ",".join(cls._attributes)
 
     columnNames = classmethod(columnNames)
 
     # return expression of bind variables for INSERT
     def bindValuesExpression(cls):
-        from pandaserver.config import panda_config
-
-        ret = "VALUES("
-        for attr in cls._attributes:
-            ret += f":{attr},"
-        ret = ret[:-1]
-        ret += ")"
+        ret = "VALUES(" + ",".join(f":{attr}" for attr in cls._attributes) + ")"
         return ret
 
     bindValuesExpression = classmethod(bindValuesExpression)

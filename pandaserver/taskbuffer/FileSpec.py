@@ -192,7 +192,7 @@ class FileSpec(object):
             if useSeq and attr in cls._seqAttrMap:
                 if panda_config.backend == "mysql":
                     # mysql
-                    ret += f"NULL,"
+                    ret += "NULL,"
                 else:
                     # oracle
                     ret += f"{cls._seqAttrMap[attr]},"
