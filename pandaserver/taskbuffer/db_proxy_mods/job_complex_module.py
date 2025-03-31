@@ -5552,7 +5552,7 @@ class JobComplexModule(BaseModule):
                         if doMerging:
                             fileSpec.lfn = re.sub(
                                 f"\\.{pandaID}$",
-                                "".format(jobSpec.PandaID),
+                                "",
                                 fileSpec.lfn,
                             )
                         else:

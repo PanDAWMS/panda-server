@@ -20,9 +20,6 @@ from pandaserver.taskbuffer import JobUtils
 
 _logger = PandaLogger().getLogger("dyn_data_distributer")
 
-# files in datasets
-g_files_in_ds_map = {}
-
 
 class DynDataDistributer:
     """
@@ -39,6 +36,7 @@ class DynDataDistributer:
         # use a fixed list since some clouds don't have active T2s
         self.simul = simul
         self.last_message = ""
+        self.g_files_in_ds_map = {}
 
     def get_replica_locations(self, input_ds: str, check_used_file: bool) -> Tuple[bool, Dict]:
         """
@@ -344,8 +342,7 @@ class DynDataDistributer:
         res_for_failure = (False, None)
 
         # get files in datasets
-        global g_files_in_ds_map
-        if dataset_name not in g_files_in_ds_map:
+        if dataset_name not in self.g_files_in_ds_map:
             # get file list
             for attempt in range(max_attempts):
                 try:
@@ -365,10 +362,10 @@ class DynDataDistributer:
                 tmp_log.debug("end")
                 return res_for_failure
                 # append
-            g_files_in_ds_map[dataset_name] = file_items
+            self.g_files_in_ds_map[dataset_name] = file_items
 
         # check if file is in the dataset
-        for tmp_lfn, tmp_val in g_files_in_ds_map[dataset_name].items():
+        for tmp_lfn, tmp_val in self.g_files_in_ds_map[dataset_name].items():
             if uuid.UUID(tmp_val["guid"]) == uuid.UUID(guid):
                 ret_map = tmp_val
                 ret_map["lfn"] = tmp_lfn
