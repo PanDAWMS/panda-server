@@ -3,7 +3,7 @@ name: Flake8 Check
 on: [pull_request]
 
 jobs:
-  check-syntax:
+  check-flake8:
     runs-on: ubuntu-latest
 
     steps:
