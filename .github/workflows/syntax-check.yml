@@ -19,10 +19,11 @@ jobs:
     - name: Check syntax of changed files
       run: |
         files=$(git diff --name-only origin/master...HEAD -- '*.py')
+        error=0
         if [ -n "$files" ]; then
           for file in $files; do
             if [ -f "$file" ]; then
-              python -m py_compile "$file"
+              python -m py_compile "$file" || error=1
             else
               echo "File $file was deleted."
             fi
@@ -30,3 +31,4 @@ jobs:
         else
           echo "No Python files changed."
         fi
+        exit $error

@@ -27,10 +27,11 @@ jobs:
     - name: Run flake8 on changed files
       run: |
         files=$(git diff --name-only origin/master...HEAD -- '*.py')
+        error=0
         if [ -n "$files" ]; then
           for file in $files; do
             if [ -f "$file" ]; then
-              flake8 "$file" --config=flake8.ini
+              flake8 "$file" --config=flake8.ini || error=1
             else
               echo "File $file was deleted."
             fi
@@ -38,3 +39,4 @@ jobs:
         else
           echo "No Python files changed."
         fi
+        exit $error
