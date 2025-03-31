@@ -353,10 +353,10 @@ class DataCarouselInterface(object):
                 tape_rses = self.ddmIF.list_rses("rse_type=TAPE")
                 if tape_rses is not None:
                     self.tape_rses = list(tape_rses)
-                datadisk_rses = self.ddmIF.list_rses("type=DATADISK")
+                datadisk_rses = self.ddmIF.list_rses("type=DATADISK&availability_write&availability_read")
                 if datadisk_rses is not None:
                     self.datadisk_rses = list(datadisk_rses)
-                disk_rses = self.ddmIF.list_rses("rse_type=DISK")
+                disk_rses = self.ddmIF.list_rses("rse_type=DISK&availability_write&availability_read")
                 if disk_rses is not None:
                     self.disk_rses = list(disk_rses)
                 # tmp_log.debug(f"TAPE: {self.tape_rses} ; DATADISK: {self.datadisk_rses} ; DISK: {self.disk_rses}")
