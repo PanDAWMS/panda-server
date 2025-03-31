@@ -749,6 +749,7 @@ class DataCarouselInterface(object):
                 "to_skip_ds_list": [],
                 "tape_ds_list": [],
                 "datadisk_ds_list": [],
+                "to_pin_ds_list": [],
                 "unfound_ds_list": [],
             }
             # get active source rses
@@ -798,6 +799,9 @@ class DataCarouselInterface(object):
                         tmp_log.debug(f"got prestaging: {prestaging_tuple}")
                         # add to prestage
                         ret_prestaging_list.append(prestaging_tuple)
+                        # dataset to pin
+                        if to_pin:
+                            ret_map["to_pin_ds_list"].append(dataset)
                     else:
                         # no replica found on tape nor on datadisk; skip
                         ret_map["unfound_ds_list"].append(dataset)
