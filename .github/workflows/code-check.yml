@@ -16,8 +16,13 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Install flake8 and the toml extension
-      run: pip install flake8 Flake8-pyproject
+    - name: Install flake8
+      run: pip install flake8
+
+    - name: Create flake8 config on the fly
+      run: |
+        echo "[flake8]" > flake8.ini
+        echo "ignore = E501,U100,W503,F403,F405,W605,E203" >> flake8.ini
 
     - name: Run flake8 on changed files
       run: |
@@ -25,7 +30,7 @@ jobs:
         if [ -n "$files" ]; then
           for file in $files; do
             if [ -f "$file" ]; then
-              flake8 "$file" --config=pyproject.toml
+              flake8 "$file" --config=flake8.ini
             else
               echo "File $file was deleted."
             fi
