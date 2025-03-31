@@ -23,14 +23,6 @@ jobs:
       run: |
         files=$(git diff --name-only origin/master...HEAD -- '*.py')
         if [ -n "$files" ]; then
-          echo "$files" | xargs flake8
-        else
-          echo "No Python files changed."
-        fi
-
-      run: |
-        files=$(git diff --name-only origin/master...HEAD -- '*.py')
-        if [ -n "$files" ]; then
           for file in $files; do
             if [ -f "$file" ]; then
               flake8 "$file" --config=pyproject.toml
