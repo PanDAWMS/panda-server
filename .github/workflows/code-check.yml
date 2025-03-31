@@ -27,3 +27,17 @@ jobs:
         else
           echo "No Python files changed."
         fi
+
+      run: |
+        files=$(git diff --name-only origin/master...HEAD -- '*.py')
+        if [ -n "$files" ]; then
+          for file in $files; do
+            if [ -f "$file" ]; then
+              flake8 "$file" --config=pyproject.toml
+            else
+              echo "File $file was deleted."
+            fi
+          done
+        else
+          echo "No Python files changed."
+        fi

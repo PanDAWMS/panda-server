@@ -20,7 +20,13 @@ jobs:
       run: |
         files=$(git diff --name-only origin/master...HEAD -- '*.py')
         if [ -n "$files" ]; then
-          echo "$files" | xargs -n1 python -m py_compile
+          for file in $files; do
+            if [ -f "$file" ]; then
+              python -m py_compile "$file"
+            else
+              echo "File $file was deleted."
+            fi
+          done
         else
           echo "No Python files changed."
         fi
