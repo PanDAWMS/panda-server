@@ -140,10 +140,11 @@ class TaskEvaluationDB(object):
         ret_map = {}
         for taskID, value_json in res:
             try:
-                ret_map[taskID] = value_dict
+                value_dict = json.loads(value_json)
             except Exception:
                 tmp_log.error(traceback.format_exc() + " " + str(taskID) + str(value_json))
-                continue
+            else:
+                ret_map[taskID] = value_dict
         # return
         return ret_map
 
