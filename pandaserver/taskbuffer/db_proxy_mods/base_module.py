@@ -12,7 +12,12 @@ from pandacommon.pandalogger.LogWrapper import LogWrapper
 from pandacommon.pandautils.PandaUtils import naive_utcnow
 
 from pandaserver.config import panda_config
-from pandaserver.taskbuffer.JobSpec import push_status_changes
+from pandaserver.taskbuffer.JediTaskSpec import (
+    push_status_changes as task_push_status_changes,
+)
+from pandaserver.taskbuffer.JobSpec import (
+    push_status_changes as job_push_status_changes,
+)
 
 if panda_config.backend == "oracle":
     import oracledb
@@ -68,6 +73,26 @@ class BaseModule:
         self.hostname = None
         # composite modules
         self.composite_modules = {}
+
+        # typical input cache
+        self.typical_input_cache = {}
+
+        # list of work queues
+        self.workQueueMap = None
+        # update time for work queue map
+        self.updateTimeForWorkQueue = None
+
+        # mb proxy for JEDI
+        self.jedi_mb_proxy_dict = None
+        self.jedi_mb_proxy_dict_setter = None
+
+        # JEDI config
+        self.jedi_config = None
+
+    # set JEDI attributes
+    def set_jedi_attributes(self, jedi_config, jedi_mb_proxy_dict_setter):
+        self.jedi_config = jedi_config
+        self.jedi_mb_proxy_dict_setter = jedi_mb_proxy_dict_setter
 
     # abstract method to commit
     def connect(self, **kwargs):
@@ -518,7 +543,7 @@ class BaseModule:
             return
         to_push = False
         if special_handling is not None:
-            to_push = push_status_changes(special_handling)
+            to_push = job_push_status_changes(special_handling)
         elif job_spec is not None:
             to_push = job_spec.push_status_changes()
         # only run if to push status change
@@ -609,3 +634,176 @@ class BaseModule:
             ":data": json.dumps((sql, var_map)),
         }
         self.cur.execute(sqlI + comment, varMap)
+
+    # check if exception is from NOWAIT
+    def isNoWaitException(self, errValue):
+        # for oracle
+        ora_err_code = str(errValue).split()[0]
+        ora_err_code = ora_err_code[:-1]
+        if ora_err_code == "ORA-00054":
+            return True
+        # for postgres
+        if type(errValue).__name__ == "LockNotAvailable":
+            return True
+        return False
+
+    # set super status
+    def setSuperStatus_JEDI(self, jediTaskID, superStatus):
+        comment = " /* JediDBProxy.setSuperStatus_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
+        retTasks = []
+        try:
+            # sql to set super status
+            sqlCT = f"UPDATE {panda_config.schemaJEDI}.JEDI_Tasks "
+            sqlCT += "SET superStatus=:superStatus "
+            sqlCT += "WHERE jediTaskID=:jediTaskID "
+            # set super status
+            varMap = {}
+            varMap[":jediTaskID"] = jediTaskID
+            varMap[":superStatus"] = superStatus
+            self.cur.execute(sqlCT + comment, varMap)
+            return True
+        except Exception:
+            # error
+            self.dump_error_message(tmpLog)
+            return False
+
+    # set DEFT status
+    def setDeftStatus_JEDI(self, jediTaskID, taskStatus):
+        comment = " /* JediDBProxy.setDeftStatus_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
+        try:
+            sqlD = f"UPDATE {panda_config.schemaDEFT}.T_TASK "
+            sqlD += "SET status=:status,timeStamp=CURRENT_DATE "
+            sqlD += "WHERE taskID=:jediTaskID "
+            varMap = {}
+            varMap[":status"] = taskStatus
+            varMap[":jediTaskID"] = jediTaskID
+            tmpLog.debug(sqlD + comment + str(varMap))
+            self.cur.execute(sqlD + comment, varMap)
+            return True
+        except Exception:
+            # error
+            self.dump_error_message(tmpLog)
+            return False
+
+    # task status logging
+    def record_task_status_change(self, jedi_task_id):
+        comment = " /* JediDBProxy.record_task_status_change */"
+        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
+        tmpLog.debug("start")
+        varMap = dict()
+        varMap[":jediTaskID"] = jedi_task_id
+        varMap[":modificationHost"] = socket.getfqdn()
+        # sql
+        sqlNS = (
+            "INSERT INTO {0}.TASKS_STATUSLOG "
+            "(jediTaskID,modificationTime,status,modificationHost,attemptNr,reason) "
+            "SELECT jediTaskID,CURRENT_TIMESTAMP,status,:modificationHost,attemptNr,"
+            "SUBSTR(errorDialog,0,255) "
+            "FROM {0}.JEDI_Tasks WHERE jediTaskID=:jediTaskID "
+        ).format(panda_config.schemaJEDI)
+        self.cur.execute(sqlNS + comment, varMap)
+        tmpLog.debug("done")
+
+    # push task status message
+    def push_task_status_message(self, task_spec, jedi_task_id, status, split_rule=None):
+        to_push = False
+        if task_spec is not None:
+            to_push = task_spec.push_status_changes()
+        elif split_rule is not None:
+            to_push = task_push_status_changes(split_rule)
+        # only run if to push status change
+        if not to_push:
+            return
+        # skip statuses unnecessary to push
+        # if status in ['pending']:
+        #     return
+        comment = " /* JediDBProxy.push_task_status_message */"
+        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jedi_task_id}")
+        tmpLog.debug("start")
+        # send task status messages to mq
+        try:
+            now_time = naive_utcnow()
+            now_ts = int(now_time.timestamp())
+            msg_dict = {
+                "msg_type": "task_status",
+                "taskid": jedi_task_id,
+                "status": status,
+                "timestamp": now_ts,
+            }
+            msg = json.dumps(msg_dict)
+            if self.jedi_mb_proxy_dict is None:
+                self.jedi_mb_proxy_dict = self.jedi_mb_proxy_dict_setter()
+                if self.jedi_mb_proxy_dict is None:
+                    tmpLog.debug("Failed to get mb_proxy of internal MQs. Skipped ")
+                    return
+            try:
+                mb_proxy = self.jedi_mb_proxy_dict["out"]["jedi_jobtaskstatus"]
+            except KeyError as e:
+                tmpLog.warning(f"Skipped due to {e} ; jedi_mb_proxy_dict is {self.jedi_mb_proxy_dict}")
+                return
+            if mb_proxy.got_disconnected:
+                mb_proxy.restart()
+            mb_proxy.send(msg)
+        except Exception:
+            self.dump_error_message(tmpLog)
+        tmpLog.debug("done")
+
+    # push message to message processors which triggers functions of agents
+    def push_task_trigger_message(self, msg_type, jedi_task_id, data_dict=None, priority=None, task_spec=None):
+        comment = " /* JediDBProxy.push_task_trigger_message */"
+        tmpLog = self.create_tagged_logger(comment, f"msg_type={msg_type} jediTaskID={jedi_task_id}")
+        tmpLog.debug("start")
+        # send task status messages to mq
+        try:
+            now_time = naive_utcnow()
+            now_ts = int(now_time.timestamp())
+            # get mbproxy
+            msg_dict = {}
+            if data_dict:
+                msg_dict.update(data_dict)
+            msg_dict.update(
+                {
+                    "msg_type": msg_type,
+                    "taskid": jedi_task_id,
+                    "timestamp": now_ts,
+                }
+            )
+            msg = json.dumps(msg_dict)
+            if self.jedi_mb_proxy_dict is None:
+                self.jedi_mb_proxy_dict = self.jedi_mb_proxy_dict_setter()
+                if self.jedi_mb_proxy_dict is None:
+                    tmpLog.debug("Failed to get mb_proxy of internal MQs. Skipped ")
+                    return
+            try:
+                mq_name = msg_type
+                mb_proxy = self.jedi_mb_proxy_dict["out"][mq_name]
+            except KeyError as e:
+                tmpLog.warning(f"Skipped due to {e} ; jedi_mb_proxy_dict is {self.jedi_mb_proxy_dict}")
+                return
+            if mb_proxy.got_disconnected:
+                mb_proxy.restart()
+            # message priority
+            msg_priority = None
+            if priority is not None:
+                msg_priority = priority
+            elif task_spec is not None:
+                try:
+                    if task_spec.prodSourceLabel == "user":
+                        if task_spec.gshare in ["User Analysis", "Express Analysis"]:
+                            msg_priority = 2
+                        else:
+                            msg_priority = 1
+                except AttributeError:
+                    pass
+            # send message
+            if msg_priority is not None:
+                mb_proxy.send(msg, priority=msg_priority)
+            else:
+                mb_proxy.send(msg)
+        except Exception:
+            self.dump_error_message(tmpLog)
+            return
+        tmpLog.debug("done")
+        return True

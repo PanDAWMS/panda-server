@@ -5633,3 +5633,8 @@ class JobComplexModule(BaseModule):
             # error
             self.dump_error_message(tmp_log)
             return None, None
+
+
+# get module
+def get_job_complex_module(base_mod) -> JobComplexModule:
+    return base_mod.get_composite_module("job_complex")

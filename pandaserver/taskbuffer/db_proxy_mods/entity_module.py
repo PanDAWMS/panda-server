@@ -8,6 +8,7 @@ import traceback
 import uuid
 
 from pandacommon.pandalogger.LogWrapper import LogWrapper
+from pandacommon.pandautils.PandaUtils import get_sql_IN_bind_variables, naive_utcnow
 
 from pandaserver.config import panda_config
 from pandaserver.srvcore import CoreUtils
@@ -24,8 +25,14 @@ from pandaserver.taskbuffer.db_proxy_mods.base_module import (
     memoize,
 )
 from pandaserver.taskbuffer.DdmSpec import DdmSpec
+from pandaserver.taskbuffer.JediDatasetSpec import (
+    INPUT_TYPES_var_map,
+    INPUT_TYPES_var_str,
+)
+from pandaserver.taskbuffer.JediTaskSpec import JediTaskSpec
 from pandaserver.taskbuffer.ResourceSpec import ResourceSpec, ResourceSpecMapper
 from pandaserver.taskbuffer.Utils import create_shards
+from pandaserver.taskbuffer.WorkQueueMapper import WorkQueueMapper
 
 
 # Module class to define methods related to fundamental entities like GlobalShares, Resource Types, CO2, etc
@@ -3277,6 +3284,475 @@ class EntityModule(BaseModule):
 
         tmp_log.debug("done")
         return ups_queues
+
+    # calculate RW for tasks
+    def calculateTaskRW_JEDI(self, jediTaskID):
+        comment = " /* JediDBProxy.calculateTaskRW_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
+        tmpLog.debug("start")
+        try:
+            # sql to get RW
+            sql = "SELECT ROUND(SUM((nFiles-nFilesFinished-nFilesFailed-nFilesOnHold)*walltime)/24/3600) "
+            sql += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD ".format(panda_config.schemaJEDI)
+            sql += "WHERE tabT.jediTaskID=tabD.jediTaskID AND masterID IS NULL "
+            sql += "AND tabT.jediTaskID=:jediTaskID "
+            varMap = {}
+            varMap[":jediTaskID"] = jediTaskID
+            # begin transaction
+            self.conn.begin()
+            # get
+            self.cur.execute(sql + comment, varMap)
+            resRT = self.cur.fetchone()
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # locked by another
+            if resRT is None:
+                retVal = None
+            else:
+                retVal = resRT[0]
+            tmpLog.debug(f"RW={retVal}")
+            # return
+            tmpLog.debug("done")
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return None
+
+    # calculate RW with a priority
+    def calculateRWwithPrio_JEDI(self, vo, prodSourceLabel, workQueue, priority):
+        comment = " /* JediDBProxy.calculateRWwithPrio_JEDI */"
+        if workQueue is None:
+            tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel} queue={None} prio={priority}")
+        else:
+            tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel} queue={workQueue.queue_name} prio={priority}")
+        tmpLog.debug("start")
+        try:
+            # sql to get RW
+            varMap = {}
+            varMap[":vo"] = vo
+            varMap[":prodSourceLabel"] = prodSourceLabel
+            if priority is not None:
+                varMap[":priority"] = priority
+            sql = "SELECT tabT.jediTaskID,tabT.cloud,tabD.datasetID,nFiles-nFilesFinished-nFilesFailed,walltime "
+            sql += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
+            sql += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+            sql += "AND tabT.jediTaskID=tabD.jediTaskID AND masterID IS NULL "
+            sql += "AND (nFiles-nFilesFinished-nFilesFailed)>0 "
+            sql += "AND tabT.vo=:vo AND prodSourceLabel=:prodSourceLabel "
+
+            if priority is not None:
+                sql += "AND currentPriority>=:priority "
+
+            if workQueue is not None:
+                if workQueue.is_global_share:
+                    sql += "AND gshare=:wq_name "
+                    sql += f"AND tabT.workqueue_id NOT IN (SELECT queue_id FROM {panda_config.schemaJEDI}.jedi_work_queue WHERE queue_function = 'Resource') "
+                    varMap[":wq_name"] = workQueue.queue_name
+                else:
+                    sql += "AND workQueue_ID=:wq_id "
+                    varMap[":wq_id"] = workQueue.queue_id
+
+            sql += "AND tabT.status IN (:status1,:status2,:status3,:status4) "
+            sql += f"AND tabD.type IN ({INPUT_TYPES_var_str}) "
+            varMap.update(INPUT_TYPES_var_map)
+            varMap[":status1"] = "ready"
+            varMap[":status2"] = "scouting"
+            varMap[":status3"] = "running"
+            varMap[":status4"] = "pending"
+            sql += "AND tabT.cloud IS NOT NULL "
+            # begin transaction
+            self.conn.begin()
+            # set cloud
+            self.cur.execute(sql + comment, varMap)
+            resList = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # loop over all tasks
+            retMap = {}
+            sqlF = "SELECT fsize,startEvent,endEvent,nEvents "
+            sqlF += f"FROM {panda_config.schemaJEDI}.JEDI_Dataset_Contents "
+            sqlF += "WHERE jediTaskID=:jediTaskID AND datasetID=:datasetID AND rownum<=1"
+            for jediTaskID, cloud, datasetID, nRem, walltime in resList:
+                # get effective size
+                varMap = {}
+                varMap[":jediTaskID"] = jediTaskID
+                varMap[":datasetID"] = datasetID
+                # begin transaction
+                self.conn.begin()
+                # get file
+                self.cur.execute(sqlF + comment, varMap)
+                resFile = self.cur.fetchone()
+                # commit
+                if not self._commit():
+                    raise RuntimeError("Commit error")
+                if resFile is not None:
+                    # calculate RW using effective size
+                    fsize, startEvent, endEvent, nEvents = resFile
+                    effectiveFsize = CoreUtils.getEffectiveFileSize(fsize, startEvent, endEvent, nEvents)
+                    tmpRW = nRem * effectiveFsize * walltime
+                    if cloud not in retMap:
+                        retMap[cloud] = 0
+                    retMap[cloud] += tmpRW
+            for cloudName, rwValue in retMap.items():
+                retMap[cloudName] = int(rwValue / 24 / 3600)
+            tmpLog.debug(f"RW={str(retMap)}")
+            # return
+            tmpLog.debug("done")
+            return retMap
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return None
+
+    # calculate WORLD RW with a priority
+    def calculateWorldRWwithPrio_JEDI(self, vo, prodSourceLabel, workQueue, priority):
+        comment = " /* JediDBProxy.calculateWorldRWwithPrio_JEDI */"
+        if workQueue is None:
+            tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel} queue={None} prio={priority}")
+        else:
+            tmpLog = self.create_tagged_logger(comment, f"vo={vo} label={prodSourceLabel} queue={workQueue.queue_name} prio={priority}")
+        tmpLog.debug("start")
+        try:
+            # sql to get RW
+            varMap = {}
+            varMap[":vo"] = vo
+            varMap[":prodSourceLabel"] = prodSourceLabel
+            varMap[":worldCloud"] = JediTaskSpec.worldCloudName
+            if priority is not None:
+                varMap[":priority"] = priority
+            sql = "SELECT tabT.nucleus,SUM((nEvents-nEventsUsed)*(CASE WHEN cpuTime IS NULL THEN 300 ELSE cpuTime END)) "
+            sql += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD,{0}.JEDI_AUX_Status_MinTaskID tabA ".format(panda_config.schemaJEDI)
+            sql += "WHERE tabT.status=tabA.status AND tabT.jediTaskID>=tabA.min_jediTaskID "
+            sql += "AND tabT.jediTaskID=tabD.jediTaskID AND masterID IS NULL "
+            sql += "AND (nFiles-nFilesFinished-nFilesFailed)>0 "
+            sql += "AND tabT.vo=:vo AND prodSourceLabel=:prodSourceLabel "
+            sql += "AND tabT.cloud=:worldCloud "
+
+            if priority is not None:
+                sql += "AND currentPriority>=:priority "
+
+            if workQueue is not None:
+                if workQueue.is_global_share:
+                    sql += "AND gshare=:wq_name "
+                    sql += f"AND tabT.workqueue_id NOT IN (SELECT queue_id FROM {panda_config.schemaJEDI}.jedi_work_queue WHERE queue_function = 'Resource') "
+                    varMap[":wq_name"] = workQueue.queue_name
+                else:
+                    sql += "AND workQueue_ID=:wq_id "
+                    varMap[":wq_id"] = workQueue.queue_id
+
+            sql += "AND tabT.status IN (:status1,:status2,:status3,:status4) "
+            sql += f"AND tabD.type IN ({INPUT_TYPES_var_str}) "
+            varMap.update(INPUT_TYPES_var_map)
+            varMap[":status1"] = "ready"
+            varMap[":status2"] = "scouting"
+            varMap[":status3"] = "running"
+            varMap[":status4"] = "pending"
+            sql += "GROUP BY tabT.nucleus "
+            # begin transaction
+            self.conn.begin()
+            # set cloud
+            self.cur.execute(sql + comment, varMap)
+            resList = self.cur.fetchall()
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # loop over all nuclei
+            retMap = {}
+            for nucleus, worldRW in resList:
+                retMap[nucleus] = worldRW
+            tmpLog.debug(f"RW={str(retMap)}")
+            # return
+            tmpLog.debug("done")
+            return retMap
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return None
+
+    # calculate WORLD RW for tasks
+    def calculateTaskWorldRW_JEDI(self, jediTaskID):
+        comment = " /* JediDBProxy.calculateTaskWorldRW_JEDI */"
+        tmpLog = self.create_tagged_logger(comment, f"jediTaskID={jediTaskID}")
+        tmpLog.debug("start")
+        try:
+            # sql to get RW
+            sql = (
+                "SELECT (nEvents-nEventsUsed)*(CASE "
+                "WHEN cpuTime IS NULL THEN 300 "
+                "WHEN cpuTimeUnit='mHS06sPerEvent' OR cpuTimeUnit='mHS06sPerEventFixed' THEN cpuTime/1000 "
+                "ELSE cpuTime END) "
+            )
+            sql += "FROM {0}.JEDI_Tasks tabT,{0}.JEDI_Datasets tabD ".format(panda_config.schemaJEDI)
+            sql += "WHERE tabT.jediTaskID=tabD.jediTaskID AND masterID IS NULL "
+            sql += "AND tabT.jediTaskID=:jediTaskID "
+            varMap = {}
+            varMap[":jediTaskID"] = jediTaskID
+            # begin transaction
+            self.conn.begin()
+            # get
+            self.cur.execute(sql + comment, varMap)
+            resRT = self.cur.fetchone()
+            # commit
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # locked by another
+            if resRT is None:
+                retVal = None
+            else:
+                retVal = resRT[0]
+            tmpLog.debug(f"RW={retVal}")
+            # return
+            tmpLog.debug("done")
+            return retVal
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return None
+
+    def load_sw_map(self):
+        comment = " /* JediDBProxy.load_sw_map */"
+        tmp_log = self.create_tagged_logger(comment)
+        tmp_log.debug("start")
+
+        sw_map = {}
+
+        try:
+            # sql to get size
+            sql = f"SELECT PANDA_QUEUE, DATA FROM {panda_config.schemaPANDA}.SW_TAGS"
+            self.cur.execute(sql + comment)
+            results = self.cur.fetchall()
+            for panda_queue, data in results:
+                sw_map[panda_queue] = json.loads(data)
+
+            tmp_log.debug("done")
+            return sw_map
+
+        except Exception:
+            self._rollback()
+            self.dump_error_message(tmp_log)
+            return None
+
+    def getNetworkMetrics(self, dst, keyList):
+        """
+        Get the network metrics from a source to all possible destinations
+        :param dst: destination site
+        :param keyList: activity keys.
+        :return: returns a dictionary with network values in the style
+        {
+            <dest>: {<key>: <value>, <key>: <value>},
+            <dest>: {<key>: <value>, <key>: <value>},
+            ...
+        }
+        """
+        comment = " /* JediDBProxy.getNetworkMetrics */"
+        tmpLog = self.create_tagged_logger(comment)
+        tmpLog.debug("start")
+
+        latest_validity = naive_utcnow() - datetime.timedelta(minutes=60)
+
+        varMap = {"dst": dst, "latest_validity": latest_validity}
+
+        key_var_names_str, key_var_map = get_sql_IN_bind_variables(keyList, prefix=":key")
+
+        sql = f"""
+        SELECT src, key, value, ts FROM {panda_config.schemaJEDI}.network_matrix_kv
+        WHERE dst = :dst AND key IN ({key_var_names_str})
+        AND ts > :latest_validity
+        """
+
+        varMap.update(key_var_map)
+
+        self.cur.execute(sql + comment, varMap)
+        resList = self.cur.fetchall()
+
+        networkMap = {}
+        total = {}
+        for res in resList:
+            src, key, value, ts = res
+            networkMap.setdefault(src, {})
+            networkMap[src][key] = value
+            total.setdefault(key, 0)
+            try:
+                total[key] += value
+            except Exception:
+                pass
+        networkMap["total"] = total
+        tmpLog.debug(f"network map to nucleus {dst} is: {networkMap}")
+
+        return networkMap
+
+    def getBackloggedNuclei(self):
+        """
+        Return a list of nuclei, which has built up transfer backlog. We will consider a nucleus as backlogged,
+         when it has over 2000 output transfers queued and there are more than 3 sites with queues over
+        """
+
+        comment = " /* JediDBProxy.getBackloggedNuclei */"
+        tmpLog = self.create_tagged_logger(comment)
+        tmpLog.debug("start")
+
+        latest_validity = naive_utcnow() - datetime.timedelta(minutes=60)
+
+        nqueued_cap = self.getConfigValue("taskbrokerage", "NQUEUED_NUC_CAP", "jedi")
+        if nqueued_cap is None:
+            nqueued_cap = 2000
+
+        varMap = {":latest_validity": latest_validity, ":nqueued_cap": nqueued_cap}
+
+        sql = f"""
+              SELECT dst
+              FROM {panda_config.schemaJEDI}.network_matrix_kv
+              WHERE key = 'Production Output_queued'
+              AND ts > :latest_validity
+              GROUP BY dst
+              HAVING SUM(value) > :nqueued_cap
+        """
+
+        self.cur.execute(sql + comment, varMap)
+        try:
+            backlogged_nuclei = [entry[0] for entry in self.cur.fetchall()]
+        except IndexError:
+            backlogged_nuclei = []
+
+        tmpLog.debug(f"Nuclei with a long backlog are: {backlogged_nuclei}")
+
+        return backlogged_nuclei
+
+    def getPandaSiteToOutputStorageSiteMapping(self):
+        """
+        Get a  mapping of panda sites to their storage site. We consider the storage site of the default ddm endpoint
+        :return: dictionary with panda_site_name keys and site_name values
+        """
+        comment = " /* JediDBProxy.getPandaSiteToOutputStorageSiteMapping */"
+        tmpLog = self.create_tagged_logger(comment)
+        tmpLog.debug("start")
+
+        sql = """
+        SELECT pdr.panda_site_name, de.site_name, nvl(pdr.scope, 'default')
+        FROM atlas_panda.panda_ddm_relation pdr, atlas_panda.ddm_endpoint de
+        WHERE pdr.default_write = 'Y'
+        AND pdr.ddm_endpoint_name = de.ddm_endpoint_name
+        """
+
+        self.cur.execute(sql + comment)
+        resList = self.cur.fetchall()
+        mapping = {}
+
+        for res in resList:
+            pandaSiteName, siteName, scope = res
+            mapping.setdefault(pandaSiteName, {})
+            mapping[pandaSiteName][scope] = siteName
+
+        # tmpLog.debug('panda site to ATLAS site mapping is: {0}'.format(mapping))
+
+        tmpLog.debug("done")
+        return mapping
+
+    def get_active_gshare_rtypes(self, vo):
+        """
+        Gets the active gshare/resource wq combinations.  Active means they have at least 1 job in (assigned, activate, starting, running, ...)
+        :param vo: Virtual Organization
+        """
+        comment = " /* DBProxy.get_active_gshare_rtypes */"
+        tmp_log = self.create_tagged_logger(comment, f"vo={vo}")
+        tmp_log.debug("start")
+
+        # define the var map of query parameters
+        var_map = {":vo": vo}
+
+        # sql to query on pre-cached job statistics tables, creating a single result set with active gshares and resource workqueues
+        sql_get_active_combinations = f"""
+            WITH gshare_results AS ( 
+            SELECT /*+ RESULT_CACHE */ gshare AS name, resource_type 
+            FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS 
+            WHERE vo=:vo 
+            UNION 
+            SELECT /*+ RESULT_CACHE */ gshare AS name, resource_type 
+            FROM {panda_config.schemaPANDA}.JOBSDEFINED_SHARE_STATS 
+            WHERE vo=:vo 
+            ), wq_results AS ( 
+            SELECT jwq.QUEUE_NAME AS name, jss.resource_type 
+            FROM {panda_config.schemaPANDA}.JOBS_SHARE_STATS jss 
+            JOIN {panda_config.schemaPANDA}.JEDI_WORK_QUEUE jwq ON jss.WORKQUEUE_ID = jwq.QUEUE_ID 
+            WHERE jwq.QUEUE_FUNCTION = 'Resource' AND jss.vo=:vo AND jwq.vo=:vo 
+            UNION 
+            SELECT jwq.QUEUE_NAME AS name, jss.resource_type 
+            FROM {panda_config.schemaPANDA}.JOBSDEFINED_SHARE_STATS jss 
+            JOIN {panda_config.schemaPANDA}.JEDI_WORK_QUEUE jwq ON jss.WORKQUEUE_ID = jwq.QUEUE_ID 
+            WHERE jwq.QUEUE_FUNCTION = 'Resource' AND jss.vo=:vo AND jwq.vo=:vo 
+            ) 
+            SELECT name, resource_type FROM gshare_results 
+            UNION 
+            SELECT name, resource_type FROM wq_results 
+            GROUP BY name, resource_type
+        """
+
+        return_map = {}
+        try:
+            self.cur.arraysize = 1000
+            self.cur.execute(f"{sql_get_active_combinations} {comment}", var_map)
+            res = self.cur.fetchall()
+
+            # create map
+            for name, resource_type in res:
+                return_map.setdefault(name, [])
+                return_map[name].append(resource_type)
+
+            tmp_log.debug("done")
+            return return_map
+        except Exception:
+            self.dump_error_message(tmp_log)
+            return {}
+
+    # get work queue map
+    def getWorkQueueMap(self):
+        self.refreshWorkQueueMap()
+        return self.workQueueMap
+
+    # refresh work queue map
+    def refreshWorkQueueMap(self):
+        # avoid frequent lookup
+        if self.updateTimeForWorkQueue is not None and (naive_utcnow() - self.updateTimeForWorkQueue) < datetime.timedelta(minutes=10):
+            return
+        comment = " /* JediDBProxy.refreshWorkQueueMap */"
+        tmpLog = self.create_tagged_logger(comment)
+
+        leave_shares = self.get_sorted_leaves()
+
+        if self.workQueueMap is None:
+            self.workQueueMap = WorkQueueMapper()
+        # SQL
+        sql = self.workQueueMap.getSqlQuery()
+        try:
+            # start transaction
+            self.conn.begin()
+            self.cur.arraysize = 1000
+            self.cur.execute(sql + comment)
+            res = self.cur.fetchall()
+            if not self._commit():
+                raise RuntimeError("Commit error")
+            # make map
+            self.workQueueMap.makeMap(res, leave_shares)
+            tmpLog.debug("done")
+            self.updateTimeForWorkQueue = naive_utcnow()
+            return True
+        except Exception:
+            # roll back
+            self._rollback()
+            # error
+            self.dump_error_message(tmpLog)
+            return False
 
 
 # get entity module
