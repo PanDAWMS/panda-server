@@ -38,6 +38,8 @@ AttributeWithType = namedtuple("AttributeWithType", ["attribute", "type"])
 SRC_REPLI_EXPR_PREFIX = "rse_type=DISK"
 # destination replica expression for datasets to pin (with replica on disk but without rule to stay on datadisk)
 TO_PIN_DST_REPLI_EXPR = "type=DATADISK"
+# source or destination replica expression for available RSEs (exclude downtime)
+AVAIL_REPLI_EXPR_SUFFIX = "&availability_write&availability_read"
 
 # DDM rule lifetime in day to keep
 STAGING_LIFETIME_DAYS = 15
@@ -353,10 +355,10 @@ class DataCarouselInterface(object):
                 tape_rses = self.ddmIF.list_rses("rse_type=TAPE")
                 if tape_rses is not None:
                     self.tape_rses = list(tape_rses)
-                datadisk_rses = self.ddmIF.list_rses("type=DATADISK&availability_write&availability_read")
+                datadisk_rses = self.ddmIF.list_rses(f"type=DATADISK{AVAIL_REPLI_EXPR_SUFFIX}")
                 if datadisk_rses is not None:
                     self.datadisk_rses = list(datadisk_rses)
-                disk_rses = self.ddmIF.list_rses("rse_type=DISK&availability_write&availability_read")
+                disk_rses = self.ddmIF.list_rses(f"rse_type=DISK{AVAIL_REPLI_EXPR_SUFFIX}")
                 if disk_rses is not None:
                     self.disk_rses = list(disk_rses)
                 # tmp_log.debug(f"TAPE: {self.tape_rses} ; DATADISK: {self.datadisk_rses} ; DISK: {self.disk_rses}")
@@ -1132,6 +1134,46 @@ class DataCarouselInterface(object):
         # return
         return ret_list
 
+    def _choose_destination_rse(self, expression: str) -> str | None:
+        """
+        Choose a destination (datadisk) RSE based on the destination RSE expression
+
+        Args:
+            expression (set): destination RSE expression
+
+        Returns:
+            str | None : destination RSE found or chosen, None if failed
+        """
+        tmp_log = LogWrapper(logger, f"_choose_destination_rse expression={expression}")
+        try:
+            # initialize
+            destination_rse = None
+            rse_list = []
+            # get RSEs from DDM
+            the_rses = self.ddmIF.list_rses(expression)
+            if the_rses is not None:
+                rse_list = list(the_rses)
+            # exclude RSEs in excluded_destinations from config
+            if excluded_destinations_set := set(self.dc_config_map.excluded_destinations):
+                rse_set = set(rse_list) - excluded_destinations_set
+                rse_list = rse_set
+            # log the list
+            tmp_log.debug(f"choosing destination_rse from {rse_list}")
+            # choose destination RSE
+            if rse_list:
+                if len(rse_list) == 1:
+                    destination_rse = rse_list[0]
+                else:
+                    destination_rse = random.choice(rse_list)
+                tmp_log.debug(f"chose destination_rse={destination_rse}")
+            else:
+                tmp_log.warning(f"no destination_rse match; skipped")
+            # return
+            return destination_rse
+        except Exception as e:
+            # other unexpected errors
+            raise e
+
     def _submit_ddm_rule(self, dc_req_spec: DataCarouselRequestSpec) -> str | None:
         """
         Submit DDM replication rule to stage the dataset of the request
@@ -1144,6 +1186,7 @@ class DataCarouselInterface(object):
         """
         tmp_log = LogWrapper(logger, f"_submit_ddm_rule request_id={dc_req_spec.request_id}")
         # initialize
+        tmp_dst_expr = None
         expression = None
         lifetime = None
         weight = None
@@ -1181,14 +1224,26 @@ class DataCarouselInterface(object):
         if dc_req_spec.get_parameter("to_pin"):
             # to pin; use the simple to pin destination
             tmp_log.debug(f"has to_pin")
-            expression = TO_PIN_DST_REPLI_EXPR
+            tmp_dst_expr = TO_PIN_DST_REPLI_EXPR
         else:
             # destination_expression from DC config
-            expression = source_tape_config.destination_expression
+            tmp_dst_expr = source_tape_config.destination_expression
         # adjust destination_expression according to excluded_dst_list
         if excluded_dst_list := dc_req_spec.get_parameter("excluded_dst_list"):
             for excluded_dst_rse in excluded_dst_list:
-                expression += f"\\{excluded_dst_rse}"
+                tmp_dst_expr += f"\\{excluded_dst_rse}"
+        # add expression suffix for available RSEs
+        tmp_dst_expr += AVAIL_REPLI_EXPR_SUFFIX
+        # choose a destination RSE
+        destination_rse = self._choose_destination_rse(expression=tmp_dst_expr)
+        if destination_rse is not None:
+            # got a destination RSE
+            expression = str(destination_rse)
+            tmp_log.debug(f"chose destination RSE to be {destination_rse}")
+        else:
+            # no match of destination RSE; return None and stay queued
+            tmp_log.error(f"failed to choose destination RSE; skipped")
+            return
         # submit ddm staging rule
         ddm_rule_id = self.ddmIF.make_staging_rule(
             dataset_name=dc_req_spec.dataset,
