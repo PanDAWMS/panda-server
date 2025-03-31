@@ -1156,7 +1156,7 @@ class DataCarouselInterface(object):
             # exclude RSEs in excluded_destinations from config
             if excluded_destinations_set := set(self.dc_config_map.excluded_destinations):
                 rse_set = set(rse_list) - excluded_destinations_set
-                rse_list = rse_set
+                rse_list = list(rse_set)
             # log the list
             tmp_log.debug(f"choosing destination_rse from {rse_list}")
             # choose destination RSE
