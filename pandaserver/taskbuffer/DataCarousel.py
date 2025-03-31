@@ -1142,7 +1142,7 @@ class DataCarouselInterface(object):
             expression (set): destination RSE expression
 
         Returns:
-            str | None : destination RSE found or chosen, None if failed
+            str | None : destination RSE chosen, None if failed
         """
         tmp_log = LogWrapper(logger, f"_choose_destination_rse expression={expression}")
         try:
@@ -1158,21 +1158,22 @@ class DataCarouselInterface(object):
                 rse_set = set(rse_list) - excluded_destinations_set
                 rse_list = list(rse_set)
             # log the list
-            tmp_log.debug(f"choosing destination_rse from {rse_list}")
+            # tmp_log.debug(f"choosing destination_rse from {rse_list}")
             # choose destination RSE
             if rse_list:
                 if len(rse_list) == 1:
                     destination_rse = rse_list[0]
                 else:
                     destination_rse = random.choice(rse_list)
-                tmp_log.debug(f"chose destination_rse={destination_rse}")
+                # tmp_log.debug(f"chose destination_rse={destination_rse}")
             else:
                 tmp_log.warning(f"no destination_rse match; skipped")
             # return
             return destination_rse
         except Exception as e:
             # other unexpected errors
-            raise e
+            tmp_log.error(f"got error ; {traceback.format_exc()}")
+            return
 
     def _submit_ddm_rule(self, dc_req_spec: DataCarouselRequestSpec) -> str | None:
         """
